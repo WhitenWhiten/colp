@@ -56,7 +56,6 @@ export const PHASE4B_MCP_COLLECTION_RESOURCE_DESCRIPTION_MAX_CHARS = 240;
 
 const CURSOR_PREFIX = 'mcr1' as const;
 const CURSOR_PATTERN = /^mcr1\.([A-Za-z0-9_-]{1,64})\.([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]{43})$/u;
-const CURSOR_PURPOSE = 'known/mcp/collection-resource-list/v1';
 const CURSOR_SALT = Buffer.from('known/mcp/collection-resource-list/v1', 'utf8');
 const CURSOR_INFO = Buffer.from('list', 'utf8');
 
@@ -241,7 +240,7 @@ function normalizeCursorKeys(
   if (!isRecord(active) || !Array.isArray(retainedRaw) || retainedRaw.length > 8) {
     throw cursorConfigError();
   }
-  const all = [active, ...retainedRaw].map((key, index) => {
+  const all = [active, ...retainedRaw].map((key, _index) => {
     if (!isRecord(key)) throw cursorConfigError();
     const id = readOwnData(key, 'id', cursorConfigError) as string;
     const secret = readOwnData(key, 'secret', cursorConfigError) as string;

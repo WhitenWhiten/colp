@@ -164,7 +164,8 @@ describe('extension popup capture UI', () => {
     assert.match(source, /metaKey|ctrlKey/);
     assert.match(source, /LIBRARY_STATE|known\.sync\.library\.v1/);
     assert.match(source, /AUTH_SNAPSHOT|known\.auth\.snapshot\.v1/); // offline-first paint from cache
-    assert.match(source, /SAVE_CONTEXT_CACHE|known\.sync\.save-context\.v1/); // offline save stays in the boundary
+    assert.match(source, /known\.favicon\.save-context/);
+    assert.match(await readEnglishSource(new URL('../src/sw/favicon.ts', import.meta.url)), /writeSaveContextCache/);
     assert.match(source, /known\.sync\.folder\.v1/); // remembered save folder (Edge-like target)
     // Unfinished edits survive the popup closing (session-scoped draft).
     assert.match(source, /readPopupDraft/);

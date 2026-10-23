@@ -431,10 +431,6 @@ export async function assertTransactionalPullAuthority(
   return lockAndRevalidatePullAuthority(transaction, input, snapshot.fingerprint);
 }
 
-function canonicalAudience(audience: string | readonly string[]): string {
-  return typeof audience === 'string' ? audience : [...audience].sort().join(' ');
-}
-
 function fail(code: SyncPullReadErrorCode): never {
   throw new SyncPullReadError(code);
 }

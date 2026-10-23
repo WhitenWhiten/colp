@@ -1,7 +1,7 @@
 import { hydrateIcons } from './icons.js';
 import { initializeCapturePopup, allowManualCapture } from './capture/popup.js';
 import { showManualCaptureExistence, repaintExistenceSaveControl } from './capture/manual-existence.js';
-import { bindAuthSnapshot, element, isSavableUrl, setHidden } from './popup-dom.js';
+import { bindAuthSnapshot, element, isSavableUrl } from './popup-dom.js';
 import { createPopupFeedbackUi, UNSAVABLE_FEEDBACK } from './popup-feedback-ui.js';
 import { bindPopupClassification } from './popup-classification.js';
 import type { BookmarkPreferencesResponse, ExtensionRequest, ExtensionResponse, NativeWaitResponse, PublicAuthState,
@@ -12,7 +12,7 @@ import { COLLECTION_BINDING, LIBRARY_STATE, boundLibrary, type Library } from '.
 import { paintDestSync } from './popup-dest-sync.js';
 import { paintDigestNote } from './popup-digest.js';
 import { bindEditExisting } from './popup-edit-existing.js';
-import { SAVE_CONTEXT_CACHE, parseSaveContextCache } from './save-context-cache.js';
+
 import { readSaveFeedback, SAVE_FEEDBACK_PERMISSION, saveFeedbackIsError } from './save-feedback.js';
 import { readPopupDraft, writePopupDraft, clearPopupDraft, type PopupDraft } from './popup-draft.js';
 import { savePopupNativePage } from './popup-native-save.js';
@@ -49,7 +49,7 @@ const favicon = element('tab-favicon') as HTMLImageElement;
 const fieldRows = element('pp-fields');
 const destFolder = element('dest-folder');
 const folderNewName = element('folder-new-name') as HTMLInputElement;
-const popupFoot = element('popup-foot');
+element('popup-foot');
 const note = createPopupNote(element('pp-note'));
 let tabTitle = '';
 let tabUrl = '';
@@ -474,7 +474,6 @@ async function projectFollowUp(nativeId: string): Promise<void> {
   const status = await requestSaveStatus(nativeId);
   if (status?.ok) paintStatus(status.status);
 }
-
 
 function restoreSave(): void {
   const wasSaved = document.body.dataset.state === 'saved';

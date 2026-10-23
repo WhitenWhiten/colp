@@ -85,30 +85,3 @@ export async function deleteAccountReceipts(
   if (!principalId) throw new Error('principalId is required');
   return receipts.deletePrincipalReceipts(principalId);
 }
-
-export type ProductCommandReceiptPortFactory =
-  () => ProductCommandReceiptPort | Promise<ProductCommandReceiptPort>;
-
-/** Schedules bounded receipt compaction without keeping a database transaction open. */
-export function scheduleReceiptPurge(
-  receipts: ProductCommandReceiptPortFactory,
-  options: {
-    readonly intervalMs: number;
-    readonly batchSize?: number;
-    readonly onPurged?: (count: number) => void;
-    readonly onError?: (error: unknown) => void;
-  },
-): { stop(): void } {
-  let running = false;
-  const timer = setInterval(() => {
-    if (running) return;
-    running = true;
-    void Promise.resolve(receipts()).then((port) => port.purgeExpired({ limit: options.batchSize ?? 100 }))
-      .then((count) => options.onPurged?.(count))
-      .catch(options.onError ?? (() => undefined)).finally(() => {
-      running = false;
-    });
-  }, options.intervalMs);
-  timer.unref?.();
-  return { stop: () => clearInterval(timer) };
-}

@@ -16,11 +16,10 @@
  *   3. deletes through the object store and clears the record; a delete
  *      failure schedules a backoff retry instead of dropping the record.
  */
-import type { FaviconJobErrorReason } from './favicon-job.js';
+
 import {
   FAVICON_GC_MAX_ATTEMPTS,
   nextFaviconGcAttemptAt,
-  type FaviconPendingDeletionRecord,
 } from './favicon-job-execution.js';
 
 export interface FaviconGcClaim {
@@ -116,16 +115,4 @@ export async function processFaviconGcClaim(
     leaseOwner: claim.leaseOwner,
   });
   return { objectId: claim.objectId, outcome: deleted ? 'deleted' : 'lease_lost' };
-}
-
-/** Retention window helper shared by the CAS and tests. */
-export function faviconRetirementWindow(
-  record: Pick<FaviconPendingDeletionRecord, 'retiredAt' | 'deletableAt'>,
-): number {
-  return record.deletableAt.getTime() - record.retiredAt.getTime();
-}
-
-/** Mapping helper used by observability tests: reason -> retryable label. */
-export function faviconGcReasonLabel(reason: FaviconJobErrorReason): string {
-  return reason;
 }

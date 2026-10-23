@@ -13,14 +13,13 @@ import { createOutboundPushWorker } from '../src/outbound-push-worker.js';
 import { recoverVerifiedOrFreeze } from '../src/recovery-guard.js';
 import { createSyncStateStore, SyncStateError, type JsonObject, type MappingInput } from '../src/sync-state-store.js';
 import {
-  ack, json, nonemptyMountSnapshot, emptyPullPage, scope as engineScope, setup as setupDurableEngine,
+  ack, json, nonemptyMountSnapshot, scope as engineScope, setup as setupDurableEngine,
   snapshot,
 } from './durable-sync-engine-harness.js';
 import { readServiceWorkerGraph } from './service-worker-graph.js';
 import { IDBFactory } from 'fake-indexeddb';
 import {
-  assertWireHasNoPendingIdentity, bootstrapCreateReceiptFixture, deterministicIds, endpoints,
-  bookmark, enqueueUpdate, fixture, folder, indexedDB, installKns04IndexedDb, mapping, memoryApi,
+  assertWireHasNoPendingIdentity, bootstrapCreateReceiptFixture, deterministicIds, bookmark, enqueueUpdate, fixture, folder, indexedDB, installKns04IndexedDb, memoryApi,
   pushOptions, scope,
 } from './kns-04-push-harness.js';
 

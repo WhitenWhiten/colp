@@ -1,6 +1,5 @@
 import {
   getPublicationEndpointTemplateContract,
-  type PublicationEndpointKey,
   type PublicationEndpointTemplateContract,
 } from '../semantic/publication-endpoint-templates.js';
 import { publicationRequiredEndpoints } from '../semantic/publication-endpoints.js';

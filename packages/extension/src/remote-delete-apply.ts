@@ -169,13 +169,4 @@ export async function keepLocalFromDecision(store: Store, scope: PullApplierOpti
   await resolveKeepLocal(store, scope, event, decision, now);
 }
 
-export async function trySettleRestore(options: PullApplierOptions, decision: RemoteDeleteDecisionRecord,
-  event: OpEvent, now: () => number): Promise<void> {
-  await settleRestoreIfReady(options, decision, event, now);
-}
-
-export function pullEventFromDecision(storeEvent: { readonly payload: unknown }): OpEvent {
-  return storeEvent.payload as OpEvent;
-}
-
 export type { SyncPullEventV02 };

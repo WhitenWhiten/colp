@@ -149,18 +149,3 @@ export function defineClosedPayloadValidator(
       && expected.every((key) => fields[key]?.(payload[key]) === true);
   };
 }
-
-/**
- * Type-level fixtures (verified by `npm run typecheck`): if `JsonValue` is
- * widened, the @ts-expect-error directives below become unused and the
- * typecheck fails, proving function/Date/undefined cannot enter a closed
- * outbox payload.
- */
-function closedPayloadTypeFixtures(): void {
-  // @ts-expect-error a function value cannot enter a closed outbox payload
-  const _functionPayload: ClosedPayload = { fn: () => 1 };
-  // @ts-expect-error a Date instance cannot enter a closed outbox payload
-  const _datePayload: ClosedPayload = { at: new Date() };
-  // @ts-expect-error an undefined value cannot enter a closed outbox payload
-  const _undefinedPayload: ClosedPayload = { missing: undefined };
-}

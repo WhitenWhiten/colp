@@ -4,7 +4,6 @@
 import { sql, type Kysely } from 'kysely';
 import { McpChangePlanError } from '@know-n/colp/mcp';
 import {
-  appendAuditEvent,
   createPostgresMcpWriteApprovalPorts,
   createUnitOfWork,
   type DatabaseSchema,

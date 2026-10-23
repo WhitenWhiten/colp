@@ -8,7 +8,6 @@ import {
   runDeploymentConformanceProbes,
   type DeploymentConformanceProbeId,
   type DeploymentConformanceScope,
-  type DeploymentConformanceTarget,
 } from '../../src/conformance/index.js';
 import {
   createVersionedMcpEvidenceBinding,
@@ -33,7 +32,6 @@ const mcpScope = (profiles: readonly string[]): DeploymentConformanceScope => ({
   capabilities: [],
   mcpConformance: { packageVersion, requirementsDigest },
 });
-
 
 describe('MCP 2026-07-28 deployment probe families (COLP-MCP-14)', () => {
   it('replaces the generic Read/Write probes with six fixed versioned families', () => {

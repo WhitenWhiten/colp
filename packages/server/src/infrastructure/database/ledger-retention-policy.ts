@@ -108,11 +108,6 @@ export type DecisionReference =
   | 'phase5_social_retention_contract'
   | 'adr_0012_product_command_retention';
 
-export type RetentionScope =
-  | 'whole_table'
-  | 'social_feed_source_stream'
-  | 'full_result_payload';
-
 export type RetentionWindow =
   | { readonly kind: 'permanent'; readonly scope: 'whole_table' }
   | { readonly kind: 'identity_lifetime'; readonly scope: 'whole_table' }

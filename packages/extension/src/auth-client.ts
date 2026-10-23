@@ -231,10 +231,6 @@ export function colpCredentialHeaders(accessToken: string): {
   };
 }
 
-export function isSessionCookieName(name: string): boolean {
-  return (SESSION_COOKIE_NAMES as readonly string[]).includes(name);
-}
-
 export function readSessionCookie(response: Response, name?: SessionCookieName): string | undefined {
   for (const header of setCookieHeaders(response)) {
     if (name !== undefined && !header.startsWith(`${name}=`)) continue;

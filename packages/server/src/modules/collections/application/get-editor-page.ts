@@ -162,9 +162,6 @@ export interface EditorPage {
   readonly page: EditorPageState;
 }
 
-/** Comparator sentinel for null parent_id / position_token (root excluded from nodes). */
-export const EDITOR_COMPARATOR_ROOT_SENTINEL = '';
-
 export interface EditorCollectionRow {
   readonly isLibrary?: boolean;
   readonly id: string;

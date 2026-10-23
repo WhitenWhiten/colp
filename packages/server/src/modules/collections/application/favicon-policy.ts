@@ -412,11 +412,3 @@ function mapPolicyClaim(
   if (claim.kind === 'expired') return claim;
   return { kind: 'reused' };
 }
-
-export function mapFaviconPolicyCommandError(
-  error: unknown,
-): FaviconPolicyCommandError | CollectionPreconditionError | null {
-  if (error instanceof FaviconPolicyCommandError) return error;
-  if (error instanceof CollectionPreconditionError) return error;
-  return null;
-}

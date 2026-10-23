@@ -40,11 +40,7 @@ export function updateCollectionNodeCommandScope(
 ): string {
   return `collection:${collectionId}:node:${nodeId}:update`;
 }
-
-export const UPDATE_COLLECTION_NODE_COMMAND_SCOPE =
-  'collection:{collectionId}:node:{nodeId}:update';
 export const UPDATE_COLLECTION_NODE_CONTRACT_VERSION = '1.0.0';
-export const UPDATE_COLLECTION_NODE_OPERATION_TYPE = 'update_collection_node';
 export const NODE_UPDATED_EVENT_TYPE = 'node.updated';
 export const NODE_UPDATED_EVENT_VERSION = 1;
 export const NODE_UPDATED_HANDLER_NAME = 'node_updated_projection';

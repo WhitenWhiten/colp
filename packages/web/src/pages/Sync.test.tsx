@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProductApiError } from '../api/errors'
 import type { SyncConflictSummary, SyncReplicaCommandView, SyncStatusView } from '../api/types'
 import { Sync } from './Sync'
-import { cleanup, domFinishedLoading, findButtonByName, mountTree, waitForDom } from '../test/render'
+import { cleanup, domFinishedLoading, mountTree, waitForDom } from '../test/render'
 
 const mocks = vi.hoisted(() => ({
   getSyncStatus: vi.fn(), loadSyncConflicts: vi.fn(), resolveSyncConflict: vi.fn(),
@@ -234,7 +234,6 @@ describe('Sync Center authoritative workflow', () => {
 
   it('offers a confirmed reset for a syncing browser with a Pull issue', async () => {
     const base = status().replicas[0]!
-    const reportedAt = new Date().toISOString()
     mocks.getSyncStatus.mockResolvedValue(status({ replicas: [{ ...base, health: { state: 'degraded', code: null,
       since: base.lastSeenAt, reportedAt: new Date().toISOString(), issueCount: 1, actions: ['rebuild'], commands: [] } }] }))
     mocks.sendSyncReplicaCommand.mockResolvedValue({ commandId: 'repair', replicaId: base.id, action: 'rebuild',

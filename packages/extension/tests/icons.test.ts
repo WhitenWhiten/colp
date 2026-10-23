@@ -4,14 +4,13 @@ import { resolve } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
 import { createIcon, hydrateIcons } from '../src/icons.js';
 import { icon as managerIcon } from '../src/bookmark-manager-dom.js';
-import { captureIcon } from '../src/capture/icons.js';
 import { ICON_NAMES } from '../design/icon-paths.js';
 
 afterEach(() => { document.body.replaceChildren(); });
 
-it('keeps capture and manager icons identical across both extension adapters', () => {
+it('keeps manager icons identical to the shared icon renderer', () => {
   for (const name of ['folder', 'globe', 'pencil', 'move', 'trash'] as const) {
-    expect(managerIcon(name).outerHTML).toBe(captureIcon(name).outerHTML);
+    expect(managerIcon(name).outerHTML).toBe(createIcon(name).outerHTML);
   }
   expect(managerIcon('chevron').outerHTML).toBe(createIcon('chevron-down').outerHTML);
 });

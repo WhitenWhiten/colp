@@ -371,7 +371,6 @@
     "src/transport/product/product-public-profile-routes.ts",
     "src/transport/product/product-publishing-insights-routes.ts",
     "src/transport/product/product-sync-center-routes.ts",
-    "src/transport/product/public-activity-rate-limit.ts",
     "src/transport/product/public-object-rate-limit.ts",
     "src/transport/product/publication-directory-routes.ts",
     "src/transport/product/publication-manifest-routes.ts",

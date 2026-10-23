@@ -1,4 +1,3 @@
-import type { ReplicaCheckpoint } from './replica-lifecycle.js';
 export type { PushReplicaOwnershipVerifier } from './push-ownership.js';
 export { SUBTREE_OBSERVATION_EXTENSION, subtreeDeleteSource, subtreeMemberIdsDigest, subtreeObservationSummary, type SubtreeMemberRevision, type SubtreeObservationSummary } from './subtree-observation.js';
 

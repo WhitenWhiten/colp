@@ -216,16 +216,6 @@ export function createFixedWindowRateLimiter(
  */
 export type ProductAdmissionRateLimiter = FixedWindowRateLimiter | ProductSurfaceRateLimiter;
 
-/**
- * Contract COMMUNITY_RATE_LIMITS families (CS): each name maps to one
- * sealed product-surface purpose (`community-vote`, `community-comment`,
- * `community-curation`, `community-public-reads`), so the four budgets
- * never share a counter. Route admission picks the family per endpoint;
- * the consume subject is `account:<id>` for an authenticated session and
- * `ip:<trusted client>` otherwise.
- */
-export type CommunityRateLimitFamily = 'vote' | 'comment' | 'curation' | 'publicReads';
-
 export interface CommunityRateLimiters {
   readonly vote: ProductAdmissionRateLimiter;
   readonly comment: ProductAdmissionRateLimiter;
@@ -334,17 +324,6 @@ function lookupAuthRateLimitFamily(
 /** Route family for an auth path, or null for any non-auth path. */
 export function authRateLimitRouteFamilyForPath(urlPath: string): AuthRateLimitRouteFamily | null {
   return lookupAuthRateLimitFamily(urlPath, AUTH_RATE_LIMIT_FAMILY_BY_PATH);
-}
-
-/**
- * Auth rate-limit subject: trusted client IP + route family. The client IP
- * is Fastify's `request.ip`, which only honors X-Forwarded-For when
- * `trustProxy` is configured (trusted-ingress allowlist, or the legacy hop
- * count in non-production) — the trusted proxy resolution ALWAYS runs
- * before the key is built (never raw spoofable forwarded headers).
- */
-export function authRateLimitSubjectFor(request: FastifyRequest, urlPath: string): AuthRateLimitSubject | null {
-  return authRateLimitSubjectForPath(request, urlPath, AUTH_RATE_LIMIT_FAMILY_BY_PATH);
 }
 
 /** Subject resolution against an explicit family map (install-time mode). */

@@ -59,15 +59,6 @@ export function nodeCreateHint(field: string): Phase4bMcpWriteErrorHint {
   return Object.freeze({ field, nextTool: 'nodes.create' });
 }
 
-export interface Phase4bMcpLowRiskNodeCreateNode {
-  readonly kind: 'folder' | 'bookmark';
-  readonly title: string;
-  readonly description: string | null;
-  readonly tags: readonly string[];
-  readonly visibility: 'inherit' | 'protected' | 'private';
-  readonly url?: string;
-}
-
 export type McpNodeCreatePayload = Readonly<{
   readonly title: string;
   readonly description: string | null;
@@ -170,12 +161,6 @@ export type Phase4bMcpLowRiskNodeCreateOutput =
   | Phase4bMcpLowRiskNodeCreateCompleteOutput
   | Phase4bMcpLowRiskNodeCreatePreviewOutput;
 
-export function isPhase4bMcpLowRiskNodeCreateCompleteOutput(
-  output: Phase4bMcpLowRiskNodeCreateOutput,
-): output is Phase4bMcpLowRiskNodeCreateCompleteOutput {
-  return output.resultType === 'complete';
-}
-
 export interface Phase4bMcpLowRiskNodeCreateResourceOutput {
   readonly id: string;
   readonly collectionId: string;
@@ -197,4 +182,3 @@ export interface Phase4bMcpLowRiskNodeCreateResourceOutput {
   readonly childrenRevision?: string;
   readonly childrenEtag?: string;
 }
-

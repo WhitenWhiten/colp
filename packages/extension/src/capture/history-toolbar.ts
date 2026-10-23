@@ -36,4 +36,3 @@ export function createHistoryToolbar(zoneValue: string) {
   const element = el('div', undefined, 'hist-filters'); element.append(bar, more);
   return { element, query: search.input, days, filter, scope, source, zone, select, clear, devicesPill, setMore, isStatus: (value: string) => STATUS.includes(value) };
 }
-export type HistoryToolbar = ReturnType<typeof createHistoryToolbar>;

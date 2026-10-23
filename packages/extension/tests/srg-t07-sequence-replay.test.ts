@@ -4,7 +4,7 @@ import { describe, test } from 'vitest';
 import { createOutboundPushWorker, type PushSessionController } from '../src/outbound-push-worker.js';
 import { repairSequenceReuseRejected } from '../src/sequence-reuse-repair.js';
 import { collectSaveStatusFacts } from '../src/save-status-facts.js';
-import { projectSaveStatus, FIRST_RUN_NEEDS_ATTENTION, FIRST_RUN_SYNCING } from '../src/save-status.js';
+import { projectSaveStatus, FIRST_RUN_SYNCING } from '../src/save-status.js';
 import { queueStatusProjection } from '../src/engine-public-stability.js';
 import type { JsonObject, QueueOperation } from '../src/sync-state-store.js';
 import {

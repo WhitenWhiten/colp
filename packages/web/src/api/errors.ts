@@ -14,7 +14,6 @@ import { isTimeoutError } from './requestTimeout'
 export {
   parseProductError,
   ProductClientError,
-  isProductClientError,
   recoveryForCode,
   type ClientRecovery,
 } from './product-error'

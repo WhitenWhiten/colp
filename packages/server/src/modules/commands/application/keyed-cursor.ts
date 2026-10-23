@@ -9,7 +9,6 @@ import {
 import { canonicalJson } from './receipt.js';
 
 export const KEYED_CURSOR_MODES = Object.freeze(['hmac-sha256', 'aes-256-gcm'] as const);
-export type KeyedCursorMode = (typeof KEYED_CURSOR_MODES)[number];
 
 export const CURSOR_TIMESTAMP_MODES = Object.freeze([
   'rfc3339-optional-fraction',
@@ -21,16 +20,6 @@ export type CursorTimestampMode = (typeof CURSOR_TIMESTAMP_MODES)[number];
 export interface KeyedCursorKeyInput {
   readonly id: string;
   readonly secret: string;
-}
-
-export interface KeyedCursorPreviousKeyInput extends KeyedCursorKeyInput {
-  readonly lastIssuedAt?: string;
-  readonly retainUntil?: string;
-}
-
-export interface KeyedCursorKeyringInput {
-  readonly current: KeyedCursorKeyInput;
-  readonly previous?: readonly KeyedCursorPreviousKeyInput[];
 }
 
 export interface KeyedCursorPolicyMessages {

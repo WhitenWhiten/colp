@@ -184,5 +184,3 @@ export function createProductFaviconClient(
     abandonFaviconIntent,
   }
 }
-
-export type ProductFaviconClient = ReturnType<typeof createProductFaviconClient>

@@ -142,7 +142,7 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
       renderOnboardingView(next);
     },
     setLibraryId(id) { if (libraryId !== id) { libraryId = id; invalidateAdvancedPreview(); } },
-    onSignedIn(connected, hasLibrary) {
+    onSignedIn(connected, _hasLibrary) {
       if (!connected) { confirm.hidden = true; return; }
       void hydrate().then(() => {
         if (!firstRunOnboardingActive(observation.firstRun)) return;
@@ -547,7 +547,6 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
     }
     start.disabled = false;
   }
-
 
 }
 

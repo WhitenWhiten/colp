@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act } from 'react'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { EmptyState, LoadingState } from './EmptyState'
 import { cleanup, mountTree } from '../test/render'

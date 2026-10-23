@@ -57,7 +57,6 @@ import {
 } from '../../src/mcp/shared/resources.js';
 import {
   createMcpStatelessToolCore,
-  type McpStatelessToolCore,
   type McpToolRegistration,
 } from '../../src/mcp/shared/tools.js';
 import { createAnonymousPublicBinding } from '../../src/mcp/shared/authorization.js';
@@ -174,7 +173,6 @@ function registration(
   };
 }
 
-
 function firstResourceUri(result: Mcp20260728Result): string | undefined {
   const resources = (result as { resources?: readonly { uri?: string }[] }).resources;
   return resources?.[0]?.uri;
@@ -244,7 +242,7 @@ describe('MCP 2026-07-28 resource adapter: list/read/templates', () => {
       cache: { 'resources/list': { ttlMs: 5_000, cacheScope: 'public' } },
     });
     (projection.listResources as ReturnType<typeof vi.fn>).mockImplementationOnce(
-      async (_input: unknown, context: Mcp20260728RequestContext) => ({
+      async (_input: unknown, _context: Mcp20260728RequestContext) => ({
         resources: [{ uri: metadataUri, name: 'C', mimeType: 'application/json', provenance: { origin: 'internal' } }],
         nextCursor: 'next-page',
       }),

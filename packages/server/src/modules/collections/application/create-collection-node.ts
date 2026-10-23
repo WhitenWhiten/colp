@@ -16,7 +16,6 @@ import {
   assertValidNodeVisibility,
   generateOpaqueId,
   strongEntityTag,
-  type NodeKind,
   type NodeVisibility,
 } from '../domain/index.js';
 import type {
@@ -35,11 +34,7 @@ import {
 export function createCollectionNodeCommandScope(collectionId: string): string {
   return `collection:${collectionId}:node:create`;
 }
-
-export const CREATE_COLLECTION_NODE_COMMAND_SCOPE =
-  'collection:{collectionId}:node:create';
 export const CREATE_COLLECTION_NODE_CONTRACT_VERSION = '1.0.0';
-export const CREATE_COLLECTION_NODE_OPERATION_TYPE = 'create_collection_node';
 export const NODE_RESTORED_EVENT_TYPE = 'node.restored';
 export const NODE_RESTORED_EVENT_VERSION = 1;
 export const NODE_RESTORED_HANDLER_NAME = 'node_restored_projection';

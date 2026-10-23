@@ -23,7 +23,6 @@ import type { AccessPolicy, PrincipalRef, ScopeName } from '../../src/types/inde
 const evidence = '[review:security.mutation-survivors-u4-p1]';
 
 const publisher: PrincipalRef = { type: 'service', id: 'publisher' };
-const publicPrincipal: PrincipalRef = { type: 'public', id: 'public' };
 
 function policy(
   scopes: AccessPolicy['entries'][number]['scopes'],
@@ -312,17 +311,6 @@ describe(`U-4 P1 credential restrictions origin/CIDR ${evidence}`, () => {
 });
 
 describe(`U-4 P1 request-boundary evidence completeness ${evidence}`, () => {
-  function evidenceBase(overrides: Partial<TrustedTransportEvidence> = {}): TrustedTransportEvidence {
-    return {
-      networkExposure: 'public',
-      tlsTerminated: true,
-      transportScheme: 'https',
-      protocol: 'streamable-http',
-      requestTarget: 'https://publisher.example.test/collections/c-1',
-      origin: 'https://client.example.test',
-      ...overrides,
-    };
-  }
 
   it(`mutants ~2398/2404: missing required evidence field → invalid_evidence ${evidence}`, () => {
     // Public observation collapses all snapshotTrustedEvidence TypeErrors to

@@ -10,7 +10,6 @@ import {
   mapNodeWriteDenialToProblem,
   problemRegistry,
   type GuardedNodeWriteMutation,
-  type GuardedNodeWritePlan,
   type NodeWriteResolver,
 } from '../../src/server/index.js';
 import type { StrictNode } from '../../src/types/index.js';

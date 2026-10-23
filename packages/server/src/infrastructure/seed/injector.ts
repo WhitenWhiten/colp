@@ -442,7 +442,6 @@ async function readAppliedPlain(
   db: Kysely<DatabaseSchema>,
   seedKey: string,
 ): Promise<AppliedState | null> {
-  const { readAppliedForUpdate } = await import('./state.js');
   const rows = await sql<{
     seed_key: string;
     version: string;

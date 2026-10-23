@@ -8,10 +8,7 @@ import {
   type ProductCommandResult,
 } from '../../commands/index.js';
 import type { CollectionsClock } from './ports.js';
-import type {
-  FaviconJobOperation,
-  FaviconJobRecord,
-} from './favicon-job.js';
+
 import type {
   FaviconPolicyReadPort,
   FaviconPolicyRow,
@@ -34,7 +31,6 @@ import {
 } from './favicon-batch-policy.js';
 // ---------------------------------------------------------------------------
 // Commands
-// ---------------------------------------------------------------------------
 
 export interface FaviconBatchJobCommandPorts {
   readonly receipts: Pick<ProductCommandReceiptPort, 'claim' | 'complete'>;

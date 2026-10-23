@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { startRealStack, type RealStack } from './real-stack.js';
-import { EXTENSION_ID, openExtensionOptions, signInExtension } from './extension-auth.js';
+import { openExtensionOptions, signInExtension } from './extension-auth.js';
 import { FIXTURE_COLLECTION_ID } from './fixture-ids.js';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
 import { confirmFirstRun, evidence, grantBookmarks, waitFirstRunProductQuiet } from './kns-08-harness.js';

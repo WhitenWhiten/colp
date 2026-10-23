@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import 'fake-indexeddb/auto';
-import { IDBFactory } from 'fake-indexeddb';
+
 import { afterEach, test, vi } from 'vitest';
 import { AuthorityFencedError } from '../src/authority-fence.js';
 import { parseBuildConfig } from '../src/config.js';

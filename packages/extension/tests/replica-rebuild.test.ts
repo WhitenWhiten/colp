@@ -1,13 +1,12 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import 'fake-indexeddb/auto';
-import { IDBFactory } from 'fake-indexeddb';
+
 import { test } from 'vitest';
-import { createCredentialStore, MemoryStorageArea } from '../src/credential-store.js';
+
 import { createReplicaRebuilder, REPLICA_REBUILD_JOURNAL, validReplicaRebuildRequest,
-  type ReplicaRebuildDeps, type ReplicaRebuildRequest } from '../src/replica-rebuild.js';
+  type ReplicaRebuildRequest } from '../src/replica-rebuild.js';
 import { replicaRebuildConfirmation } from '../src/replica-rebuild-ui.js';
-import { createSyncStateStore, type SyncScope } from '../src/sync-state-store.js';
 
 import { setup } from './replica-rebuild-harness.js';
 

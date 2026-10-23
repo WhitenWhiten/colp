@@ -29,7 +29,6 @@ import {
   snapshotMcpAuthorizationBinding,
   type Mcp20260728PlanResolution,
   type Mcp20260728RequestContext,
-  type Mcp20260728Result,
   type Mcp20260728WritePlanStatusPort,
   type Mcp20260728WriteToolAdapter,
   type Mcp20260728XMcpHeaderDeclaration,
@@ -309,7 +308,6 @@ const nodeCreateOutputSchema = Object.freeze({
 } as const);
 
 export const PHASE4B_MCP_NODES_CREATE_INPUT_SCHEMA = nodeCreateInputSchema;
-export const PHASE4B_MCP_NODES_CREATE_OUTPUT_SCHEMA = nodeCreateOutputSchema;
 
 const revisionTokenProperty = Object.freeze({
   type: 'string',
@@ -384,7 +382,6 @@ const collectionUpdateInputSchema = Object.freeze({
 } as const);
 
 export const PHASE4B_MCP_NODES_UPDATE_INPUT_SCHEMA = nodeUpdateInputSchema;
-export const PHASE4B_MCP_NODES_UPDATE_OUTPUT_SCHEMA = nodeUpdateOutputSchema;
 export const PHASE4B_MCP_COLLECTIONS_UPDATE_INPUT_SCHEMA = collectionUpdateInputSchema;
 
 const annotationCreateInputSchema = Object.freeze({

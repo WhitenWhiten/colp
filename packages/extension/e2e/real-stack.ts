@@ -51,7 +51,7 @@ import {
   parseExtensionAuthConfig,
 } from '../../server/src/modules/identity/index.js';
 import {
-  materializeCollectionPayload, materializeNodePayload, RESOURCE_PAYLOAD_SCHEMA_VERSION,
+  RESOURCE_PAYLOAD_SCHEMA_VERSION,
   type CollectionsWritePorts,
   type FaviconPolicyCommandPorts,
 } from '../../server/src/modules/collections/index.js';

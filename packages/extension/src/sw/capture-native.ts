@@ -1,5 +1,5 @@
 import { isSubscriptionExcluded } from '../bookmark-subscriptions/guards.js';
-import { personalBookmarks } from '../bookmark-subscriptions/guards.js';
+
 import { browserHistoryStore } from '../capture/browser-history-store.js';
 import { createBookmarkCreatePlacementStore, BOOKMARK_CREATE_RECEIPT_KEY_PREFIX, parseBookmarkCreatePlacementRecord } from '../bookmark-create-placement.js';
 import { createFaviconSidecarStore } from '../favicon-sidecar-store.js';

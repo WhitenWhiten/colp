@@ -5,7 +5,6 @@ import {
 } from '../../commands/index.js';
 
 export const PRODUCT_COLLECTION_VERSIONS_CURSOR_PURPOSE = 'collection_versions_v1' as const;
-export const PRODUCT_COLLECTION_VERSIONS_CURSOR_VERSION = 1 as const;
 export const PRODUCT_COLLECTION_VERSIONS_COMPARATOR_VERSION = 'created-at-desc-version-id-desc-v1' as const;
 export const PRODUCT_COLLECTION_VERSIONS_SORT = 'created_at:desc,version_id:desc' as const;
 export const PRODUCT_COLLECTION_VERSIONS_CURSOR_TTL_MS = 15 * 60 * 1000;

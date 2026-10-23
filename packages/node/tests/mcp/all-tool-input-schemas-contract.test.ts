@@ -39,12 +39,6 @@ interface ToolGateway {
   ) => Promise<Readonly<{ structuredContent: unknown }>>;
 }
 
-interface CollectionReadPort {
-  readonly getCollection: (
-    input: Readonly<{ collectionId: string }>,
-  ) => unknown | PromiseLike<unknown>;
-}
-
 interface ReadExposure {
   readonly endpoint: string;
   readonly resources: true;
@@ -70,44 +64,6 @@ async function expectToolInputError(operation: Promise<unknown>): Promise<void> 
     code: 'invalid_tool_input',
   });
   expect((caught as McpToolInputError).issues.length).toBeGreaterThan(0);
-}
-
-interface SnapshotLinkPort {
-  readonly getCollectionSnapshotLinkMetadata: (
-    input: Readonly<{ collectionId: string }>,
-  ) => unknown | PromiseLike<unknown>;
-}
-
-interface PublicMcpApi {
-  readonly collectionsGetToolDefinition?: ToolDefinition;
-  readonly createMcpReadToolGateway?: (
-    port: CollectionReadPort,
-    options?: Readonly<{
-      snapshotLink?: Readonly<{
-        manifest: Readonly<{ serverUuid: string }>;
-        applicationService: SnapshotLinkPort;
-      }>;
-    }>,
-  ) => ToolGateway;
-  readonly createMcpReadExposure?: (
-    manifest: Manifest,
-    options: Readonly<{
-      mountId: string;
-      applicationService?: CollectionReadPort;
-      snapshotLinkService?: SnapshotLinkPort;
-      [field: string]: unknown;
-    }>,
-  ) => ReadExposure;
-  readonly createAnonymousMcpReadExposure?: (
-    manifest: Manifest,
-    options: Readonly<{
-      mountId: string;
-      publicAccess: Readonly<{
-        readPublicResource: (input: unknown) => unknown | PromiseLike<unknown>;
-      }>;
-    }>,
-  ) => AnonymousReadExposure;
-  readonly createMcpToolInputValidator?: unknown;
 }
 
 interface ToolCase {

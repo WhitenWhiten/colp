@@ -7,11 +7,6 @@ import {
   isPlainRecord,
   readOwnDataProperty,
 } from './input-snapshot.js';
-import {
-  serializeRateLimitFields,
-  type RateLimitBucketId,
-  type RateLimitFields,
-} from './rate-limit.js';
 
 export type PrincipalType =
   | 'user'

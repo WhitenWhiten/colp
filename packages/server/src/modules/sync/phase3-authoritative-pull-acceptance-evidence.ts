@@ -90,24 +90,6 @@ export interface Phase3AuthoritativePullEvidence {
   readonly projectionDigest: string;
 }
 
-export interface Phase3AuthoritativePullAcceptanceProbe {
-  readonly run: () => Promise<Phase3AuthoritativePullEvidence>;
-}
-
-export function createPhase3AuthoritativePullAcceptanceProbe(
-  run: () => Promise<Phase3AuthoritativePullEvidence>,
-): Phase3AuthoritativePullAcceptanceProbe {
-  if (typeof run !== 'function') throw new TypeError('P3-32C probe must be callable');
-  return Object.freeze({ run });
-}
-
-export async function runPhase3AuthoritativePullAcceptance(
-  probe: Phase3AuthoritativePullAcceptanceProbe,
-): Promise<Phase3AuthoritativePullEvidence> {
-  if (typeof probe?.run !== 'function') throw new TypeError('P3-32C probe is unavailable');
-  return validatePhase3AuthoritativePullEvidence(await probe.run());
-}
-
 export function canonicalPhase3AuthoritativePullProjectionDigest(
   value: Omit<Phase3AuthoritativePullEvidence, 'projectionDigest'>,
 ): string {

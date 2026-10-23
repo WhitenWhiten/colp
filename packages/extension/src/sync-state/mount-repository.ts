@@ -9,7 +9,7 @@ import { validateMountPauseBaseline } from './scope-facts-repository.js';
 import { boundedString, clone, safeInteger, strictObject, validateJson, validateRecord } from './codec.js';
 import { constraintError } from './errors.js';
 import { cursorPage, requestValue, requireActiveScope, runTransaction, scopeRowsRange, transactionDone } from './idb.js';
-import { INDEXES, STORES } from './schema.js';
+import { STORES } from './schema.js';
 import { scopeKey, validateScope } from './scope-key.js';
 import type { SyncStoreRuntime } from './runtime.js';
 import type { PlannedMount } from '../bookmark-boundary.js';
@@ -272,7 +272,7 @@ export function createMountRepository(ctx: SyncStoreRuntime) {
     currentBootstrapMode, putDeletionJournal, listDeletionJournal, bumpBoundaryVersion, setFirstRun };
 }
 
-export function mountsFromPlan(scopeKeyValue: string, plan: readonly PlannedMount[], boundaryVersion: string,
+export function mountsFromPlan(_scopeKeyValue: string, plan: readonly PlannedMount[], boundaryVersion: string,
   status: MountBindingStatus = 'pending'): Omit<MountBindingRecord, 'scopeKey'>[] {
   return plan.filter((mount) => mount.writable).map((mount) => ({
     mountId: crypto.randomUUID(), nativeRootId: mount.nativeRootId, remoteMountNodeId: null,

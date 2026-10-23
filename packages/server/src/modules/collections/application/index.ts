@@ -38,7 +38,6 @@ export type {
   CanonicalOwnedCollectionBootstrapResult,
   CollectionsWritePorts,
   ContentRevisionInsert,
-  DeleteCollectionNodePorts,
   IdLedgerPort,
   IdLedgerReserveEntry,
   LockedCollectionRow,
@@ -157,10 +156,8 @@ export {
   COLLECTION_UPDATED_EVENT_TYPE,
   COLLECTION_UPDATED_EVENT_VERSION,
   COLLECTION_UPDATED_HANDLER_NAME,
-  UPDATE_COLLECTION_METADATA_COMMAND_SCOPE,
   UPDATE_COLLECTION_METADATA_CONTRACT_VERSION,
   UPDATE_COLLECTION_PUBLICATION_CONTRACT_VERSION,
-  UPDATE_COLLECTION_METADATA_OPERATION_TYPE,
   assertCollectionUpdatedPayload,
   ifMatchSatisfied,
   updateCollectionMetadataCanonical,
@@ -175,11 +172,13 @@ export type {
   UpdatedCollectionSnapshot,
 } from './update-collection-metadata.js';
 export {
-  CREATE_COLLECTION_NODE_COMMAND_SCOPE,
   CREATE_COLLECTION_NODE_CONTRACT_VERSION,
-  CREATE_COLLECTION_NODE_OPERATION_TYPE,
-  NODE_RESTORED_EVENT_TYPE, NODE_RESTORED_EVENT_VERSION, NODE_RESTORED_HANDLER_NAME,
-  NODE_CREATED_EVENT_TYPE, NODE_CREATED_EVENT_VERSION, NODE_CREATED_HANDLER_NAME,
+  NODE_RESTORED_EVENT_TYPE,
+  NODE_RESTORED_EVENT_VERSION,
+  NODE_RESTORED_HANDLER_NAME,
+  NODE_CREATED_EVENT_TYPE,
+  NODE_CREATED_EVENT_VERSION,
+  NODE_CREATED_HANDLER_NAME,
   assertNodeCreatedPayload,
   createCollectionNode,
   createCollectionNodeCommandScope,
@@ -199,9 +198,7 @@ export {
   NODE_UPDATED_EVENT_TYPE,
   NODE_UPDATED_EVENT_VERSION,
   NODE_UPDATED_HANDLER_NAME,
-  UPDATE_COLLECTION_NODE_COMMAND_SCOPE,
   UPDATE_COLLECTION_NODE_CONTRACT_VERSION,
-  UPDATE_COLLECTION_NODE_OPERATION_TYPE,
   assertNodeUpdatedPayload,
   updateCollectionNode,
   updateCollectionNodeCommandScope,
@@ -214,9 +211,7 @@ export type {
   UpdateCollectionNodeResult,
 } from './update-collection-node.js';
 export {
-  MOVE_COLLECTION_NODE_COMMAND_SCOPE,
   MOVE_COLLECTION_NODE_CONTRACT_VERSION,
-  MOVE_COLLECTION_NODE_OPERATION_TYPE,
   NODE_MOVED_EVENT_TYPE,
   NODE_MOVED_EVENT_VERSION,
   NODE_MOVED_HANDLER_NAME,
@@ -231,9 +226,7 @@ export type {
   MoveCollectionNodeResult,
 } from './move-collection-node.js';
 export {
-  DELETE_COLLECTION_NODE_COMMAND_SCOPE,
   DELETE_COLLECTION_NODE_CONTRACT_VERSION,
-  DELETE_COLLECTION_NODE_OPERATION_TYPE,
   NODE_DELETED_EVENT_TYPE,
   NODE_DELETED_EVENT_VERSION,
   NODE_DELETED_HANDLER_NAME,
@@ -268,7 +261,6 @@ export type {
   ProductEditorCursorSignerPort,
 } from './editor-cursor.js';
 export {
-  EDITOR_COMPARATOR_ROOT_SENTINEL,
   EDITOR_PAGE_DEFAULT_LIMIT,
   EDITOR_PAGE_MAX_BYTES,
   EDITOR_PAGE_MAX_LIMIT,
@@ -328,7 +320,6 @@ export {
   PRODUCT_OWNED_COLLECTIONS_COMPARATOR_VERSION,
   PRODUCT_OWNED_COLLECTIONS_CURSOR_PURPOSE,
   PRODUCT_OWNED_COLLECTIONS_CURSOR_TTL_MS,
-  PRODUCT_OWNED_COLLECTIONS_CURSOR_VERSION,
   PRODUCT_OWNED_COLLECTIONS_SORT,
   PRODUCT_SHARED_COLLECTIONS_CURSOR_PURPOSE,
   OwnedCollectionsCursorError,
@@ -395,7 +386,6 @@ export type {
   RelationAuthorityRecord,
   RelationIfMatchEvidence,
   RelationMutationPorts,
-  RelationUpdatedPayload,
   RelationUpdateErrorCode,
   UpdateRelationInput,
   UpdateRelationResult,
@@ -412,7 +402,6 @@ export {
 export type {
   DeleteRelationInput,
   DeleteRelationResult,
-  RelationDeletedPayload,
   RelationDeleteErrorCode,
   RelationDeletionReceiptSnapshot,
 } from './delete-relation.js';
@@ -504,7 +493,6 @@ export {
   bookmarkFaviconProductRoute,
   bookmarkFaviconUploadCommandScope,
   deleteBookmarkFavicon,
-  mapBookmarkFaviconCommandError,
   uploadBookmarkFavicon,
 } from './bookmark-favicon-command.js';
 export type {
@@ -633,7 +621,6 @@ export {
   PRODUCT_COLLECTION_VERSIONS_COMPARATOR_VERSION,
   PRODUCT_COLLECTION_VERSIONS_CURSOR_PURPOSE,
   PRODUCT_COLLECTION_VERSIONS_CURSOR_TTL_MS,
-  PRODUCT_COLLECTION_VERSIONS_CURSOR_VERSION,
   PRODUCT_COLLECTION_VERSIONS_SORT,
   CollectionVersionCursorError,
   createProductCollectionVersionCursorSigner,
@@ -650,7 +637,6 @@ export {
   PRODUCT_LINK_HEALTH_COMPARATOR_VERSION,
   PRODUCT_LINK_HEALTH_CURSOR_PURPOSE,
   PRODUCT_LINK_HEALTH_CURSOR_TTL_MS,
-  PRODUCT_LINK_HEALTH_CURSOR_VERSION,
   PRODUCT_LINK_HEALTH_SORT,
   LinkHealthCursorError,
   createProductLinkHealthCursorSigner,

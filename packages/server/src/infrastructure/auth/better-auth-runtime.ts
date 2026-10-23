@@ -45,7 +45,6 @@ import {
   PRODUCT_EMAIL_VERIFICATION_PATH,
   SIGNUP_OTP_INTENT_HEADER,
   SIGNUP_OTP_INTENT_VALUE,
-  type BetterAuthInstance,
   type BetterAuthRuntime,
   type BetterAuthRuntimeConfig,
   type BetterAuthRuntimeInput,
@@ -757,11 +756,7 @@ function buildProductAuthHooks(input: {
   readonly after: ReturnType<typeof createAuthMiddleware>;
 } {
   const otpMaxAttempts = input.otpMaxAttempts ?? AUTH_OTP_MAX_ATTEMPTS;
-  const establishment: BetterAuthRuntimeHooksContext = {
-    businessAccount: input.businessAccount,
-    database: input.db !== undefined ? { db: input.db } : undefined,
-    logger: input.logger,
-  };
+
   return {
     before: createAuthMiddleware(async (ctx) => {
       // Better Auth's OAuth authorize endpoint authenticates the browser
@@ -952,7 +947,6 @@ function isOAuthBackchannelLogoutMutation(path: unknown, body: unknown): boolean
   return Object.hasOwn(candidate, 'backchannel_logout_uri')
     || Object.hasOwn(candidate, 'backchannel_logout_session_required');
 }
-
 
 /**
  * Construct the Better Auth runtime. Returns `null` when disabled — the

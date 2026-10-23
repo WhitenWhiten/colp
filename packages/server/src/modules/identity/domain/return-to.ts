@@ -93,7 +93,7 @@ function decodedPathnameUnsafe(pathname: string): boolean {
 
 /** Rejects incomplete or invalid percent-encoding rather than soft-failing. */
 function strictPercentDecode(value: string): string {
-  return value.replace(/%([0-9A-Fa-f]{2})|%[^0-9A-Fa-f]|%$/g, (match, hex: string | undefined) => {
+  return value.replace(/%([0-9A-Fa-f]{2})|%[^0-9A-Fa-f]|%$/g, (_match, hex: string | undefined) => {
     if (hex === undefined) {
       throw new TypeError('invalid percent-encoding');
     }

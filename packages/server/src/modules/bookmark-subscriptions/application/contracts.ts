@@ -40,8 +40,3 @@ export interface SubscriptionTransactionPorts {
   now(): Promise<Date>;
 }
 export interface BookmarkSubscriptionUnitOfWork { execute<T>(work: (ports: SubscriptionTransactionPorts) => Promise<T>, options?: { write?: boolean; signal?: AbortSignal }): Promise<T> }
-/** Both existing unfollow commands invoke this inside their existing transaction. */
-export interface BookmarkSubscriptionExitPort {
-  lockAccount(accountId: string): Promise<void>;
-  unfollow(input: { accountId: string; subjectId: string; source: SourceRef; previewId?: string }): Promise<void>;
-}

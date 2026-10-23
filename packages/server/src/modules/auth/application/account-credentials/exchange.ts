@@ -10,7 +10,7 @@ import {
   type AccountKeyEs256PrivateJwk,
   type AccountKeyTokenRequest,
 } from './token.js';
-import { AccountKeyOAuthError, invalidGrant, invalidRequest, invalidScope } from './oauth-error.js';
+import { AccountKeyOAuthError, invalidGrant, invalidScope } from './oauth-error.js';
 import type { AccountCredentialCommandPorts } from './types.js';
 
 export interface AccountKeyTokenResponse {
@@ -76,13 +76,6 @@ export async function exchangeAccountKey(
     scope: sortScopeTokens(parsed.scopes),
     audience: parsed.audience,
   };
-}
-
-export function requireJsonObject(body: unknown): Record<string, unknown> {
-  if (body === null || typeof body !== 'object' || Array.isArray(body)) {
-    throw invalidRequest('The request body is invalid.');
-  }
-  return body as Record<string, unknown>;
 }
 
 export type { AccountKeyTokenRequest };

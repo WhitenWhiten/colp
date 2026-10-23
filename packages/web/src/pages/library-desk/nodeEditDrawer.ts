@@ -3,7 +3,6 @@ import type { NavigateFunction } from 'react-router-dom'
 import {
   isProductApiError,
   productClient,
-  type AnnotationVisibility,
   type EditableNodeView,
   type EditorSnapshot,
 } from '../../api'
@@ -282,5 +281,3 @@ export function useNodeEditDrawer({
     removeFavicon,
   }
 }
-
-export type NodeEditDrawerState = ReturnType<typeof useNodeEditDrawer>

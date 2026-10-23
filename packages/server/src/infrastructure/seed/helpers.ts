@@ -1,4 +1,4 @@
-import { sql, type Kysely } from 'kysely';
+import { sql } from 'kysely';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import type { Manifest, TableSpec } from './manifest.js';
 import type { RegisteredRow } from './state.js';
@@ -47,19 +47,6 @@ export async function selectPks(
     table: spec.table,
     pk: (row.pk as unknown[]).map(String),
   }));
-}
-
-/**
- * 注入前后主键差集 = 本次实际插入行（REPEATABLE READ 快照下精确；
- * ON CONFLICT DO NOTHING 跳过的行不会进入差集，正确）。
- */
-export function diffPks(before: ReadonlySet<string>, after: ReadonlySet<string>): string[] {
-  return [...after].filter((pk) => !before.has(pk));
-}
-
-/** 主键集合指纹：JSON 序列化数组。 */
-export function pkFingerprint(pk: readonly string[]): string {
-  return JSON.stringify(pk);
 }
 
 /** 预检排除子句：排除 seed 自身登记行（按当前版本）。表不在 tables 登记范围时返回空串。 */

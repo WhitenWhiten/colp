@@ -7,7 +7,7 @@ import { IDBFactory } from 'fake-indexeddb';
 import { describe, test } from 'vitest';
 import { createOutboundPushWorker } from '../src/outbound-push-worker.js';
 import { createSyncStateStore } from '../src/sync-state-store.js';
-import { bookmark, fixture, folder, mapping, scope } from './bookmark-event-queue-harness.js';
+import { bookmark, fixture, folder, scope } from './bookmark-event-queue-harness.js';
 import { endpoints, problem } from './outbound-push-worker-harness.js';
 
 /**

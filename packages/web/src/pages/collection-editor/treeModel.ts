@@ -4,7 +4,6 @@ import type {
   FolderNodeView,
   RootNodeView,
 } from '../../api'
-import type { TreeNode } from './types'
 
 export function childrenOf(
   parentId: string,

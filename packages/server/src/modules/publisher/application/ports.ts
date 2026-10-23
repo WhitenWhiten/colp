@@ -60,6 +60,3 @@ export interface PublisherReceiptMaintenancePort {
 
 export type PublisherReceiptMaintenancePortFactory =
   () => PublisherReceiptMaintenancePort | Promise<PublisherReceiptMaintenancePort>;
-
-export type PublisherIdempotencyPortFactory =
-  () => PublisherIdempotencyPort | Promise<PublisherIdempotencyPort>;

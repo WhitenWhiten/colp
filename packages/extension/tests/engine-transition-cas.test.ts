@@ -57,15 +57,6 @@ async function frozenFixture() {
   return { store, revision: engine.revision };
 }
 
-function assertFactsPreserved(engine: {
-  readonly lastPublishedCursor?: string; readonly lastAckedCursor?: string;
-  readonly lastPushServerCursor?: string; readonly lastPushOutcomeHint?: string;
-  readonly localProjectionOwner?: number; readonly connectivityConfirmationRevision?: number;
-}) {
-  assertProgressFactsPreserved(engine);
-  assert.equal(engine.localProjectionOwner, FACTS.localProjectionOwner);
-}
-
 /**
  * The five durable-progress facts every engine write must re-state (A-05 / S5). They record what
  * this replica already reached, so losing one makes `cursorsConverged` and the re-Ack check read a
@@ -221,7 +212,7 @@ describe('A-05 freeze/direct-write CAS and field inheritance', () => {
       lastPushServerCursor: 'cursor-concurrent' });
     assert.equal((await competitor.getEngineState(scope))!.revision, revision + 1);
     let reads = 0;
-    const racing = { ...store, async getEngineState(input: SyncScope) {
+    const racing = { ...store, async getEngineState(_input: SyncScope) {
       reads += 1;
       // The freeze reads the engine exactly once; hand it the pre-race row so the write is
       // attempted against the revision the caller actually observed.

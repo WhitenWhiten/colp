@@ -2,10 +2,10 @@
  * Reentrant repair of started-without-receipt creates. Original cursor stays;
  * orphan natives are candidates only.
  */
-import { intentOwnerKey } from './native-call-result.js';
+
 import { hasTerminalDeleteEvidence } from './native-delete-executor.js';
 import { pageV15Backfill } from './sync-state/v15-backfill.js';
-import { scopeKey } from './sync-state/scope-key.js';
+
 import { repairTombstonedNativeMappings } from './tombstone-mapping-repair.js';
 import { repairWronglyAckedUnmountedRestore } from './unmounted-restore-repair.js';
 import { repairUnmountedRangeMappings } from './unmounted-range-repair.js';
@@ -92,14 +92,6 @@ export async function recoverPendingNativeSideEffects(store: Store, scope: SyncS
   }
 }
 
-export function hasPendingNativeOrPull(input: {
-  readonly stagedPullPages: number;
-  readonly incompletePullEvents: number;
-  readonly unknownIntents: number;
-}): boolean {
-  return input.stagedPullPages > 0 || input.incompletePullEvents > 0 || input.unknownIntents > 0;
-}
-
 export async function pendingNativeOrPullFacts(store: Pick<Store, 'listApplyIntents' | 'listPullEvents'> & {
   listPullPages(scope: SyncScope, states?: readonly string[]): Promise<readonly unknown[]>;
 }, scope: SyncScope): Promise<{
@@ -140,12 +132,4 @@ function needsUnknownWait(intent: IntentRecord): boolean {
   if (intent.nativeResult === 'result_unknown') return true;
   if (OPEN_STATES.has(String(intent.state))) return true;
   return intent.replayState === 'started' || intent.replayState === 'awaiting_receipt';
-}
-
-export function repairOwnerKey(intent: IntentRecord, scope: SyncScope): string {
-  return intentOwnerKey({
-    scopeKey: scopeKey(scope), generation: intent.generation ?? scope.generation,
-    commandId: intent.commandId ?? 'repair', eventId: intent.eventId ?? intent.intentId,
-    colpId: intent.colpId ?? intent.expected.nativeId, substep: intent.substep ?? 'repair',
-  });
 }

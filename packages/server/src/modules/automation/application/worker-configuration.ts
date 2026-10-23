@@ -26,7 +26,7 @@ export function assertSupportedRule(input: RuleInput,workerEnabled = false): voi
 }
 
 /** Missing execution permission holds optional tasks, never the deterministic intake stage. */
-export async function inspectWorkerConfiguration(ports: AutomationPorts,actor: AutomationActor,input: RuleInput,values: import('@know-n/colp/automation').RoleBindings) {
+export async function inspectWorkerConfiguration(ports: AutomationPorts,_actor: AutomationActor,input: RuleInput,values: import('@know-n/colp/automation').RoleBindings) {
   if (!input.definition.tasks.length) return null;
   const policy = input.executionPolicyId ? await ports.policies.load(input.executionPolicyId) : null;
   const tasks = [];

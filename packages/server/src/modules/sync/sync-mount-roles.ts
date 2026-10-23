@@ -26,7 +26,6 @@ export const SYNC_RECOVERED_UNIQUE_BY_PARENT = true as const;
 
 export type SyncCreateFolderRoleAllowList = (typeof SYNC_CREATE_FOLDER_ROLE_ALLOW_LIST)[number];
 export type SyncCreateFolderRoleUniqueLive = (typeof SYNC_CREATE_FOLDER_ROLE_UNIQUE_LIVE)[number];
-export type SyncRecoveredParentRole = (typeof SYNC_RECOVERED_PARENT_ROLES)[number];
 
 export function isSyncCreateFolderRoleAllowList(value: string): value is SyncCreateFolderRoleAllowList {
   return (SYNC_CREATE_FOLDER_ROLE_ALLOW_LIST as readonly string[]).includes(value);

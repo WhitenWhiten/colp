@@ -5,11 +5,7 @@ import {
   LOCAL_CLASSIFICATION_ENABLED, LOCAL_CLASSIFICATION_GRANTED_ORIGIN, LOCAL_CLASSIFICATION_KEY,
   localClassificationCredential, type LocalClassificationCredential,
 } from '../src/classification-local-session.js';
-import { scopeKey } from '../src/sync-state/scope-key.js';
-import type { SyncScope } from '../src/sync-state-store.js';
 
-const scope: SyncScope = { environment: 'production', serverId: 'server', serverOrigin: 'https://known.example',
-  accountId: 'account', browserProfileId: 'browser', collectionId: 'collection', replicaId: 'replica', generation: 1 };
 const accountId = 'a'.repeat(32);
 const cfEndpoint = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run`;
 const cfOrigin = 'https://api.cloudflare.com/*';

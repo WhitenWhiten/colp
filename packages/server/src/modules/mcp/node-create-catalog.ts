@@ -144,14 +144,6 @@ export const PHASE4B_MCP_NODE_UPDATE_PATCH_SCHEMA = Object.freeze({
   properties: nodeUpdatePatchProperties,
 } as const);
 
-export function phase4bMcpNodeCreateRequiredKeysForKind(
-  kind: typeof PHASE4B_MCP_NODE_CREATE_FOLDER_KIND | typeof PHASE4B_MCP_NODE_CREATE_BOOKMARK_KIND,
-): readonly string[] {
-  return kind === PHASE4B_MCP_NODE_CREATE_FOLDER_KIND
-    ? PHASE4B_MCP_NODE_CREATE_FOLDER_REQUIRED_KEYS
-    : PHASE4B_MCP_NODE_CREATE_BOOKMARK_REQUIRED_KEYS;
-}
-
 function frozenUniqueKeys(
   ...lists: readonly (readonly string[])[]
 ): readonly string[] {

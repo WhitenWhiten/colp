@@ -3,7 +3,7 @@ import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, test } from 'vitest';
 import { createBookmarkEventQueue, type BookmarkEventApi } from '../src/bookmark-event-queue.js';
-import { createSyncStateStore, type BootstrapRunRecord, type FirstRunState, type ScopeCommandPlanRecord } from '../src/sync-state-store.js';
+import { createSyncStateStore } from '../src/sync-state-store.js';
 import {
   bookmark, deterministicIds, fixture, folder, mapping, memoryApi, scope, separator, confirmQueued,
 } from './bookmark-event-queue-harness.js';

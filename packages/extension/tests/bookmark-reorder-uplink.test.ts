@@ -34,7 +34,6 @@ export const scope: SyncScope = Object.freeze({ environment: 'production', serve
   collectionId: 'collection-a', replicaId: 'replica-a', generation: 1 });
 type Store = ReturnType<typeof createSyncStateStore>;
 
-let indexedDB: IDBFactory;
 beforeEach(() => { indexedDB = new IDBFactory(); });
 
 test('the default reorder timer flushes only after its merge window', async () => {
@@ -65,7 +64,7 @@ function treeApi(): BookmarkEventApi & { put(node: JsonObject): void; childIds(p
   return {
     put(node) { nodes.set(String(node.id), structuredClone(node) as unknown as BookmarkEventNode); },
     childIds(parentId) { return childrenOf(parentId).map((node) => node.id); },
-    reorder(parentId, childIds) { childIds.forEach((id, index) => {
+    reorder(_parentId, childIds) { childIds.forEach((id, index) => {
       const node = nodes.get(id); if (node) nodes.set(id, { ...node, index }); }); },
     async get(id) { const node = nodes.get(id); return node ? [structuredClone(node)] : []; },
     async getChildren(id) { return childrenOf(id).map((node) => structuredClone(node)); },

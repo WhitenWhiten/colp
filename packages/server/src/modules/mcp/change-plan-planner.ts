@@ -36,7 +36,6 @@ import {
 
 export type Phase4bMcpRiskLevel = 'low' | 'medium' | 'high';
 export type Phase4bMcpPlanMode = 'ready' | 'awaiting_approval';
-export type Phase4bMcpCatalogTool = 'nodes.create' | 'nodes.move' | 'nodes.delete_subtree' | 'nodes.set_visibility';
 
 export type Phase4bMcpNodeCreateOperation = Extract<Operation, { type: 'create_node' }>;
 /** Medium-risk move. Commit calls `moveCollectionNode`; this object does not write. */
@@ -66,54 +65,6 @@ export type Phase4bMcpPlanOperation =
   | Phase4bMcpNodeCreateOperation
   | Phase4bMcpNodeMoveOperation
   | Phase4bMcpDeleteSubtreeOperation;
-
-export interface Phase4bMcpNodeCreateCatalogInput {
-  readonly tool: 'nodes.create';
-  readonly collectionId: string;
-  readonly parentId: string;
-  readonly afterId?: string | null;
-  readonly beforeId?: string | null;
-  readonly node: Readonly<Record<string, unknown>>;
-  readonly reason: string;
-  readonly dryRun: true;
-}
-
-export interface Phase4bMcpNodeVisibilityCatalogInput {
-  readonly tool: 'nodes.set_visibility';
-  readonly collectionId: string;
-  readonly nodeId: string;
-  readonly visibility: Visibility;
-  readonly baseRevision?: string;
-  readonly reason: string;
-  readonly dryRun: true;
-}
-
-export interface Phase4bMcpNodeMoveCatalogInput {
-  readonly tool: 'nodes.move';
-  readonly collectionId?: string;
-  /** Exactly one of `nodeId` and `nodeIds`. */
-  readonly nodeId?: string;
-  /** Moves up to 1000 nodes of one collection, in order, in one plan. */
-  readonly nodeIds?: readonly string[];
-  readonly parentId: string;
-  readonly position?: number;
-  readonly reason: string;
-  readonly dryRun: true;
-}
-
-export interface Phase4bMcpDeleteSubtreeCatalogInput {
-  readonly tool: 'nodes.delete_subtree';
-  readonly collectionId?: string;
-  readonly nodeId: string;
-  readonly reason: string;
-  readonly dryRun: true;
-}
-
-export type Phase4bMcpCatalogInput =
-  | Phase4bMcpNodeCreateCatalogInput
-  | Phase4bMcpNodeMoveCatalogInput
-  | Phase4bMcpDeleteSubtreeCatalogInput
-  | Phase4bMcpNodeVisibilityCatalogInput;
 
 export type Phase4bMcpStoredPlan = Readonly<{
   readonly planId: string;

@@ -19,7 +19,6 @@ import {
 } from './favicon-icon-source.js';
 import {
   DEFAULT_FAVICON_PROVIDER_TEMPLATE,
-  type FaviconPolicyReadPort,
 } from './favicon-policy.js';
 import {
   faviconHostnameFromBookmarkUrl,
@@ -28,15 +27,10 @@ import {
 import { decodeFaviconImage } from './favicon-image-decode.js';
 import type {
   BookmarkIconRow,
-  BookmarkIconWritePort,
-  CollectionWritePort,
   CollectionsClock,
-  NodeWritePort,
 } from './ports.js';
 import type {
-  FaviconGcWritePort,
   FaviconJobErrorReason,
-  FaviconJobWritePort,
 } from './favicon-job.js';
 import {
   isFaviconTerminalReason,

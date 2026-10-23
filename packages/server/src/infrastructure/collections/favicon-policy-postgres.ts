@@ -1,7 +1,6 @@
 import { sql } from 'kysely';
 import type {
   FaviconPolicyMode,
-  FaviconPolicyReadPort,
   FaviconPolicyRow,
   FaviconPolicyWritePort,
 } from '../../modules/collections/index.js';

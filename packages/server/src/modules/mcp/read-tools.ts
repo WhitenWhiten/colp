@@ -70,7 +70,6 @@ export {
 } from './nodes-search.js';
 export const PHASE4B_MCP_READ_TOOL_SNAPSHOT_MIME_TYPE =
   'application/vnd.collection-protocol.snapshot+json' as const;
-export const PHASE4B_MCP_READ_TOOL_REQUIRED_SCOPE_PREFIX = 'mcp:read:' as const;
 export const PHASE4B_MCP_READ_TOOL_REQUIRED_SCOPES: readonly [
   'collections:read',
   'nodes:read',

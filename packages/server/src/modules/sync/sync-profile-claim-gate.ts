@@ -148,59 +148,12 @@ export function verifyPhase3SyncPrerequisites(input: {
   return verified;
 }
 
-export function createPhase3SyncProfileClaimController(): Phase3SyncProfileClaimController {
-  let active: Phase3SyncProfileClaims | undefined;
-  const controller = Object.freeze({
-    current: () => active,
-    activate(claims: Phase3SyncProfileClaims) {
-      assertPhase3SyncProfileClaims(claims);
-      if (active !== undefined && active !== claims) {
-        throw new TypeError('Sync Profile claims are already active for this process');
-      }
-      active = claims;
-    },
-  });
-  issuedControllers.add(controller);
-  return controller;
-}
-
 export function assertPhase3SyncProfileClaimController(
   value: Phase3SyncProfileClaimController,
 ): void {
   if (!issuedControllers.has(value)) {
     throw new TypeError('Sync Profile claim controller must be issued by this module');
   }
-}
-
-export function claimPhase3SyncProfiles(input: {
-  readonly prerequisites: VerifiedPhase3SyncPrerequisites;
-  readonly deploymentEvidence: VerifiedDeploymentConformanceEvidence;
-}): Phase3SyncProfileClaims {
-  if (!issuedPrerequisites.has(input.prerequisites)) {
-    throw new TypeError('Phase 3 prerequisites must be returned by verifyPhase3SyncPrerequisites');
-  }
-  const plan = PHASE3_SYNC_CONFORMANCE_PLAN;
-  if (input.deploymentEvidence.profiles.join('\0') !== plan.profiles.join('\0')
-      || input.deploymentEvidence.capabilities.join('\0') !== plan.capabilities.join('\0')
-      || input.deploymentEvidence.passedProbeIds.join('\0') !== plan.probeIds.join('\0')) {
-    throw new TypeError('Phase 3 deployment conformance evidence is incomplete or has the wrong scope');
-  }
-  const profiles = assertProfileClaims(PHASE3_SYNC_PROFILE_CLAIMS, {
-    registeredEndpoints: new Set<EndpointKey>(PHASE3_SYNC_ENDPOINTS),
-    availablePorts: new Set<ConformancePort>(PHASE3_SYNC_PORTS),
-    deploymentEvidence: input.deploymentEvidence,
-  });
-  if (profiles.join('\0') !== PHASE3_SYNC_PROFILE_CLAIMS.join('\0')) {
-    throw new TypeError('COLP returned an unexpected Phase 3 Profile claim set');
-  }
-  const claims = deepFreeze({
-    profiles,
-    sourceRevision: input.prerequisites.binding.sourceRevision,
-    sourceDigest: input.prerequisites.binding.sourceDigest,
-    aggregateDigest: input.prerequisites.aggregateDigest,
-  });
-  issuedClaims.add(claims);
-  return claims;
 }
 
 export const RUNTIME_SYNC_DEPLOYMENT_EVIDENCE_FORMAT = 'known.runtime.sync-deployment.v1' as const;
@@ -302,15 +255,6 @@ export function assertPhase3SyncProfileClaims(
   if (!issuedClaims.has(value)) {
     throw new TypeError('Sync Profile claims must be issued by claimPhase3SyncProfiles');
   }
-}
-
-export function inspectPhase3SyncPrerequisites(
-  value: VerifiedPhase3SyncPrerequisites,
-): Readonly<{ readonly aggregateDigest: string; readonly binding: Phase3SyncDeploymentBinding }> {
-  if (!issuedPrerequisites.has(value)) {
-    throw new TypeError('Phase 3 prerequisites were not issued by this module');
-  }
-  return Object.freeze({ aggregateDigest: value.aggregateDigest, binding: value.binding });
 }
 
 function validateBinding(value: Phase3SyncDeploymentBinding): Readonly<Phase3SyncDeploymentBinding> {

@@ -69,7 +69,7 @@ describe('P3-33 durable engine static contract', () => {
   });
 
   test('first-run confirmation and automatic library binding wake the durable engine', async () => {
-    const worker = await readServiceWorkerGraph();
+    await readServiceWorkerGraph();
     // static-only: `first-run.ts` must not import the engine module — the wake is owned
     // by the router. Absence of an import has no runtime trace; the router behaviour it
     // protects is behavioural in tests/service-worker-entry-behavior.test.ts.

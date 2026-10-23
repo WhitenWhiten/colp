@@ -77,16 +77,6 @@ export function snapshotV02RejectMessage(code: Exclude<SnapshotV02Accumulation, 
   }
 }
 
-export function childrenRevisionByParent(pages: readonly DurableSyncSnapshot[]): ReadonlyMap<string, string> {
-  const accumulated = consumeSnapshotV02Pages(pages);
-  if (!accumulated.ok) throw new Error(snapshotV02RejectMessage(accumulated.code));
-  return accumulated.parentRevisions;
-}
-
-export function isCurrentSnapshotMaterialization(version: string): boolean {
-  return version === SNAPSHOT_MATERIALIZATION_SORT_VERSION;
-}
-
 export function snapshotV02PagesFromStaging(input: {
   readonly collectionId: string;
   readonly header: {

@@ -38,7 +38,6 @@ export {
   type MaterializeResult,
   type NodeRelationalProjection,
   type PayloadFieldMismatch,
-  type ResourcePayloadAuthorityStatus,
   type ResourcePayloadComparison,
   type ResourcePayloadResourceType,
 } from './resource-payload.js';
@@ -68,8 +67,6 @@ export {
 export {
   SNAPSHOT_TREE_CAPACITY,
   SnapshotTreeCapacityError,
-  admitSnapshotTreeGrowth,
-  estimateSnapshotNodeBytes,
 } from './snapshot-tree-capacity.js';
 export {
   generateOpaqueId,

@@ -6,140 +6,43 @@ import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import Fastify, {
   type FastifyBaseLogger,
   type FastifyError,
-  type FastifyInstance,
-  type HTTPMethods,
 } from 'fastify';
-import type { AppConfig } from '../bootstrap/config.js';
-import type {
-  CollectionsEditorReadUnitOfWork,
-  AnnotationMutationUnitOfWork,
-  AnnotationReadUnitOfWork,
-  RelationMutationUnitOfWork,
-  RelationReadUnitOfWork,
-  CollectionsUnitOfWork,
-  ProductCollectionMutationUnitOfWork,
-  CollectionListBookmarkCountsPort,
-  GetOwnedCollectionsPagePorts,
-  GetSharedCollectionsPagePorts,
-  GetMyLinkHealthPagePorts,
-  EnqueueMyLinkHealthChecksPorts,
-  BookmarkFaviconObjectStore,
-  CreateCollectionVersionPorts,
-  ProductCollectionVersionCursorSignerPort,
-  LibraryOrderCommandPorts,
-  LibraryOrderQueryPorts,
-} from '../modules/collections/index.js';
-import type { IdentityUnitOfWork, AvatarObjectStore } from '../modules/identity/index.js';
-import type { BrowserSessionAuthority, AccountLinkingService, AccountRecoveryService, AccountDeletionService, SecurityEpochBridge } from '../modules/auth/index.js';
-import type {
-  PublicationDirectoryQueryPorts,
-  PublicationMetadataQueryPorts,
-  ProductPublicCollectionQueryPorts,
-  PublicationSnapshotQueryPorts,
-  Phase2PublicationProfileClaims,
-  Phase2PublicationProfileClaimController,
-} from '../modules/publication/index.js';
-import type {
-  Phase4bMcpReadOperations,
-  Phase4bMcpCollectionResourceProjection,
-  Phase4bMcpNodeResourceProjection,
-  Phase4bMcpSnapshotResourceProjection,
-  Phase4bMcpReadProfileClaimController,
-  Phase4bMcpReadProfileClaims,
-  Phase4bMcpWriteProfileClaimController,
-  Phase4bMcpWriteProfileClaims,
-  Phase4bMcpWriteOperations,
-} from '../modules/mcp/index.js';
+
+import type { SecurityEpochBridge } from '../modules/auth/index.js';
+
 import {
   assertPhase4bMcpReadProfileClaimController,
   assertPhase4bMcpWriteProfileClaimController,
-  createPhase4bMcpReadOperations,
 } from '../modules/mcp/index.js';
 import {
   InMemoryMetrics,
   NoopTracer,
   createLogger,
-  createSyncServerTelemetry,
-  syncDurationBucket,
-  type SyncTelemetryEndpoint,
-  type Metrics,
 } from '../infrastructure/telemetry/index.js';
 import {
   alwaysReady,
-  type CacheCapabilityReadiness,
-  type CacheReadinessState,
-  type ReadinessProbe,
 } from '../infrastructure/health.js';
-import { registerBrowserAuthRoutes } from './auth/browser-auth-routes.js';
-import { registerBookmarkFaviconRoutes } from './product/bookmark-favicon-routes.js';
-import { registerBetterAuthRoutes } from './auth/better-auth-routes.js';
-import { registerCollectionRoutes } from './product/collection-routes.js';
+
 import {
-  mintTestAuthorizationCodeFromChallenge,
-  type OidcProviderPort,
-} from './auth/oidc-provider.js';
-import {
-  applySecurityHeaders,
-  createFixedWindowRateLimiter,
   installHttpSecurity,
-  type ProductAdmissionRateLimiter,
 } from './http-security.js';
-import type { AuthRateLimiter, EffectPageRateLimiter, McpRateLimiter, SearchRateLimiter, SyncColpRateLimiter } from '../infrastructure/rate-limit/index.js';
+
 import { installProductAdmission, parseStrictQuery } from './product-admission.js';
-import { ProductHttpError, sendProductError, type ProductErrorEnvelope } from './product-error.js';
+import { ProductHttpError, sendProductError } from './product-error.js';
 import { DatabaseOperationError } from '../infrastructure/database/errors.js';
 import {
   BOOKMARK_FAVICON_DEFERRED_OPERATION_IDS,
   installProductRouteManifestChecks,
   LEGACY_OIDC_OPERATION_IDS,
 } from './product-route-manifest.js';
-import { mapProductDatabaseError } from './product-command-mapping.js';
+
 import {
-  registerPublicationSnapshotRoutes,
   sendPublicationFrameworkError,
-  type PublicationSnapshotRouteReader,
 } from './product/publication-snapshot-routes.js';
-import {
-  registerPublicationDirectoryRoutes,
-  type PublicationDirectoryRouteReader,
-} from './product/publication-directory-routes.js';
-import {
-  registerPublicationMetadataRoutes,
-  type PublicationMetadataRouteReader,
-} from './product/publication-metadata-routes.js';
-import { registerPublicationManifestRoutes } from './product/publication-manifest-routes.js';
-import { registerProductPublicCollectionRoutes } from './product/product-public-collection-routes.js';
-import {
-  registerProductCollaborationRoutes,
-  type ProductCollaborationRouteDependencies,
-} from './product/product-collaboration-routes.js';
-import { registerSharedCollectionRoutes } from './product/shared-collection-routes.js';
-import {
-  registerSyncSessionRoutes,
-  type SyncSessionRouteDependencies,
-} from './colp-sync/sync-session-routes.js';
-import { registerSyncSnapshotRoutes, type SyncSnapshotRouteDependencies } from './colp-sync/sync-snapshot-routes.js';
-import { registerSyncPushRoutes, type SyncPushRouteDependencies } from './colp-sync/sync-push-routes.js';
-import { registerSyncConflictRoutes, type SyncConflictRouteDependencies } from './colp-sync/sync-conflict-routes.js';
-import { registerSyncPullRoutes, type SyncPullRouteDependencies } from './colp-sync/sync-pull-routes.js';
-import { registerSyncEffectPageRoutes, type SyncEffectPageRouteDependencies } from './colp-sync/sync-effect-page-routes.js';
-import { registerSyncAckRoutes, type SyncAckRouteDependencies } from './colp-sync/sync-ack-routes.js';
-import { registerSyncRetireRoutes, type SyncRetireRouteDependencies } from './colp-sync/sync-retire-routes.js';
-import { EXTENSION_LIBRARY_PATH, EXTENSION_COLLECTIONS_PATH, registerExtensionCollectionRoutes, type ExtensionCollectionRouteDependencies } from './colp-sync/extension-collection-routes.js';
+
+import { EXTENSION_LIBRARY_PATH, EXTENSION_COLLECTIONS_PATH } from './colp-sync/extension-collection-routes.js';
 import { EXTENSION_REPLICA_HEALTH_PATH } from './colp-sync/extension-replica-health-routes.js';
-import { registerSearchRoutes, type SearchProductQuery } from './product/search-routes.js';
-import { registerMcpProtectedResourceRoutes } from './mcp/mcp-protected-resource-routes.js';
-import { registerMcpReadRoutes, type McpReadTransportDependencies } from './mcp/mcp-read-routes.js';
-import {
-  registerMcpWriteApprovalRoutes,
-  type McpWriteApprovalRoutesDependencies,
-} from './mcp/mcp-write-approval-routes.js';
-import { registerProductSyncCenterRoutes } from './product/product-sync-center-routes.js';
-import type { ProductSyncCenterUnitOfWork, SyncConflictKeyringReadiness } from '../modules/sync/index.js';
-import type {
-  Phase3SyncProfileClaims,
-  Phase3SyncProfileClaimController,
-} from '../modules/sync/index.js';
+
 import {
   allowedMethods,
   isMalformedUrlError,
@@ -182,7 +85,6 @@ export function buildApiApp(input: AppDependencies) {
   cacheReadiness,
   cacheCapabilityReadiness,
   identityUnitOfWork,
-  avatarStore,
   faviconStore,
   collectionsUnitOfWork,
   productCollectionMutationUnitOfWork,
@@ -190,17 +92,11 @@ export function buildApiApp(input: AppDependencies) {
   collectionsEditorReadUnitOfWork,
   ownedCollectionsQuery,
   sharedCollectionsQuery,
-  bookmarkCounts,
   annotationMutationUnitOfWork,
   annotationReadUnitOfWork,
   relationMutationUnitOfWork,
   relationReadUnitOfWork,
-  oidcProvider,
   browserSessionAuthority,
-  accountLinking,
-  accountRecovery,
-  accountDeletion,
-  betterAuthRuntime,
   securityEpochBridge,
   metrics = new InMemoryMetrics(),
   authRateLimiter,
@@ -210,19 +106,10 @@ export function buildApiApp(input: AppDependencies) {
   syncColpRateLimiter,
   effectPageRateLimiter,
   mcpRateLimiter,
-  searchTimeoutMs,
-  publicationSnapshotQuery,
-  publicationMetadataQuery,
-  publicationSnapshotCacheReader,
-  publicationDirectoryCacheReader,
-  publicationMetadataCacheReader,
   productPublicCollectionQuery,
-  productCollaboration,
   searchQuery,
   publicationProfileClaims,
   publicationProfileClaimController,
-  syncProfileClaims,
-  syncProfileClaimController,
   mcpReadProfileClaims,
   mcpReadProfileClaimController,
   mcpWriteProfileClaims,
@@ -251,13 +138,7 @@ export function buildApiApp(input: AppDependencies) {
   collectionVersionRateLimiter,
   publicObjectRateLimiter,
   notificationRateLimiter,
-  mcpReadTransport,
-  mcpReadOperations,
-  mcpReadResourceProjection,
-  mcpNodeResourceProjection,
-  mcpSnapshotResourceProjection,
   mcpWriteApprovalRoutes,
-  mcpWriteOperations,
   } = input;
   if (publicationProfileClaims !== undefined && publicationProfileClaimController !== undefined) {
     throw new TypeError('API composition accepts either fixed Publication claims or a claim controller');

@@ -13,7 +13,6 @@ import { requireTrustedReadRequestContext } from './shared/resources.js';
 import {
   createMcpStatelessToolCore,
   McpToolOutputUnavailableError,
-  McpToolScopeDeniedError,
   type McpReadToolResult,
   type McpStatelessToolCore,
   type McpToolDefinition,

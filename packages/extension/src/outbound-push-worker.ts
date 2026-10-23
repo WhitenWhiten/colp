@@ -19,7 +19,7 @@ import { colpCredentialHeaders } from './auth-client.js';
 import { readBoundedJson } from './json-response.js';
 import type { SyncEndpoints } from './manifest-client.js';
 import { parseColpProblem, parseSyncPushResult } from './sync-push-wire.js';
-import { persistMountBinding } from './pull-mount-apply.js';
+
 import { bindAuthoredMountReceipt } from './push-mount-role.js';
 import { rebaseTombstonedCreate, retainValidPlacementAnchors } from './tombstone-parent-rebase.js';
 import { rebaseStaleCreatePlacement, savedCreatePlacement } from './create-placement-rebase.js';

@@ -22,25 +22,15 @@
  *  - creating any new batch job supersedes older active batch jobs of the
  *    account, so the newest policy revision's intent wins.
  */
-import { randomUUID } from 'node:crypto';
-import {
-  assertCanonicalCommandId,
-  canonicalCommandFingerprint,
-  type ProductCommandClaim,
-  type ProductCommandReceiptPort,
-  type ProductCommandResult,
-} from '../../commands/index.js';
-import type { CollectionsClock } from './ports.js';
+
 import type {
   FaviconJobErrorReason,
   FaviconJobOperation,
   FaviconJobRecord,
   FaviconJobStatus,
-  FaviconJobWritePort,
 } from './favicon-job.js';
 import type {
   FaviconPolicyPatch,
-  FaviconPolicyReadPort,
   FaviconPolicyRow,
 } from './favicon-policy.js';
 import {
@@ -65,7 +55,6 @@ export class FaviconBatchJobCommandError extends Error {
 
 // ---------------------------------------------------------------------------
 // Durable per-node item / restore records + ports
-// ---------------------------------------------------------------------------
 
 export interface FaviconJobItemRow {
   readonly jobId: string;
@@ -213,7 +202,6 @@ export interface FaviconBatchJobReadPort {
 
 // ---------------------------------------------------------------------------
 // Force-restore records
-// ---------------------------------------------------------------------------
 
 export interface FaviconSourceRestoreRow {
   readonly nodeId: string;
@@ -263,7 +251,6 @@ export interface FaviconSourceRestoreReadPort {
 
 // ---------------------------------------------------------------------------
 // Pure functions
-// ---------------------------------------------------------------------------
 
 /**
  * Which durable batch job a policy patch must create (if any)? FO-03 rules:
@@ -391,7 +378,6 @@ export function faviconBatchTerminalStatus(input: {
 
 // ---------------------------------------------------------------------------
 // IconJob wire DTO
-// ---------------------------------------------------------------------------
 
 export interface IconJobErrorDto {
   readonly nodeId: string;

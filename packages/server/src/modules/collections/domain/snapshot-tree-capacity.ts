@@ -14,46 +14,6 @@ export class SnapshotTreeCapacityError extends Error {
   }
 }
 
-export function admitSnapshotTreeGrowth(input: {
-  readonly liveNodeCount: number;
-  readonly extraNodes: number;
-  readonly liveEstimatedBytes: number;
-  readonly extraBytes: number;
-  readonly maxNodes?: number;
-  readonly maxAggregateBytes?: number;
-}): void {
-  const maxNodes = input.maxNodes ?? SNAPSHOT_TREE_CAPACITY.maxNodes;
-  const maxAggregateBytes = input.maxAggregateBytes ?? SNAPSHOT_TREE_CAPACITY.maxAggregateBytes;
-  if (!Number.isSafeInteger(input.liveNodeCount) || input.liveNodeCount < 0
-      || !Number.isSafeInteger(input.extraNodes) || input.extraNodes < 0
-      || !Number.isSafeInteger(input.liveEstimatedBytes) || input.liveEstimatedBytes < 0
-      || !Number.isSafeInteger(input.extraBytes) || input.extraBytes < 0) {
-    throw new SnapshotTreeCapacityError('Snapshot tree capacity inputs are invalid.');
-  }
-  if (input.liveNodeCount + input.extraNodes > maxNodes) {
-    throw new SnapshotTreeCapacityError(
-      `The collection would exceed the ${maxNodes}-node Snapshot support limit.`,
-    );
-  }
-  if (input.liveEstimatedBytes + input.extraBytes > maxAggregateBytes) {
-    throw new SnapshotTreeCapacityError(
-      `The collection would exceed the ${maxAggregateBytes}-byte Snapshot aggregate limit.`,
-    );
-  }
-}
-
-export function estimateSnapshotNodeBytes(input: {
-  readonly id: string;
-  readonly title: string;
-  readonly url: string | null;
-  readonly description: string | null;
-  readonly tags: readonly string[];
-}): number {
-  return Buffer.byteLength(JSON.stringify({
-    id: input.id, title: input.title, url: input.url, description: input.description, tags: input.tags,
-  }), 'utf8') + 192;
-}
-
 /** Explicit sort-algorithm version; included in Snapshot identity so old rows stay frozen. */
 export const SNAPSHOT_MATERIALIZATION_SORT_VERSION = 'parent-first-v1';
 

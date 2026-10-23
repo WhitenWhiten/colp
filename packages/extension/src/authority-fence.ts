@@ -117,8 +117,6 @@ export function createExtensionWorkCoordinator(fence: AuthorityFence) {
   return Object.freeze({ run, drain, hasInFlight, fence });
 }
 
-export type ExtensionWorkCoordinator = ReturnType<typeof createExtensionWorkCoordinator>;
-
 const LOCAL_SIGNAL = new AbortController().signal;
 
 async function execute<T>(

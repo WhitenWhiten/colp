@@ -15,9 +15,7 @@ import {
   materializeNodePayload,
   type CollectionRelationalProjection,
   type NodeRelationalProjection,
-  type ResourcePayloadAuthorityStatus,
   type ResourcePayloadComparison,
-  type ResourcePayloadResourceType,
 } from '../../modules/collections/index.js';
 
 export interface ResourceAuthorityBackfillStats {
@@ -45,13 +43,6 @@ export interface ResourceAuthorityScanResult {
     readonly malformed: number;
     readonly mismatches: readonly ResourcePayloadComparison[];
   };
-}
-
-export interface ResourcePayloadBackfillRowResult {
-  readonly resourceType: ResourcePayloadResourceType;
-  readonly resourceId: string;
-  readonly status: ResourcePayloadAuthorityStatus;
-  readonly reason?: string;
 }
 
 const METRIC_MISMATCH = 'resource_authority_mismatch_total';

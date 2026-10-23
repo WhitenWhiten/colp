@@ -13,9 +13,9 @@ import { decideIngressPrivacy, isManagedBookmarkNode, recordIngressDiagnostic,
 import { eligibleSyncNativeIds, subtreeSelector } from './bookmark-event-eligibility.js';
 import { createReorderUplink, reorderFlushTimer } from './bookmark-reorder-uplink.js';
 import { nativeIsLocallyExcluded } from './remote-delete-exclusion.js';
-import { asObject, asStringArray, assertOperationCandidate, bookmarkKind, captureStep,
+import { asObject, assertOperationCandidate, bookmarkKind, captureStep,
   digestJson, durableEventDetails, flattenNativeIds, INBOX_PARENT_WIRE_PLACEHOLDER,
-  nativeContent, nodeContent, nodeCreate, validateOperation, bookmarkRepresentability,
+  nodeContent, nodeCreate, validateOperation, bookmarkRepresentability,
   type BookmarkEventNode } from './bookmark-event-codec.js';
 import { identityFromCreateReceipt } from './bookmark-create-receipt-identity.js';
 import { classifyRemovalScope, deletionNodeKind, deletionOperationType, removalNodePresent,
@@ -34,7 +34,7 @@ import { createBookmarkEventHealer, type EventDependency, type EventIdentity as 
 import { blockerParkState, createBookmarkEventQuarantine, markerDependency,
   bookmarkEventErrorCode } from './bookmark-event-quarantine.js';
 import type { BookmarkEventParkMarker } from './sync-state/types.js';
-import type { BookmarkEventRecord, JsonObject, JsonValue, MappingInput, SyncScope,
+import type { BookmarkEventRecord, JsonObject, JsonValue, SyncScope,
   createSyncStateStore } from './sync-state-store.js';
 
 export type { BookmarkEventNode };

@@ -9,8 +9,6 @@ import { clearRouteCache } from '../../lib/routeCache'
 import { LibraryDesk } from './LibraryDesk'
 import { cleanup, domFinishedLoading, mountTree, waitForDom } from '../../test/render'
 
-const EMPTY_ORDER = { sections: { mine: [] as string[], shared: [] as string[], following: [] as string[] } }
-
 const mocks = vi.hoisted(() => ({
   auth: { isLoggedIn: true, bootstrapping: false, refreshSession: vi.fn(async () => undefined) },
   toast: vi.fn(),
@@ -108,66 +106,6 @@ function collectionItem(id: string, title: string): OwnedCollectionListItem {
   }
 }
 
-function snapshot(id = 'col-1', title = 'Reading queue'): EditorSnapshot {
-  const item = collectionItem(id, title)
-  return {
-    collection: item.collection,
-    root: {
-      id: `root-${id}`,
-      collectionId: id,
-      kind: 'folder',
-      folderRole: 'root',
-      parentId: null,
-      position: null,
-      title: 'Root',
-      description: null,
-      tags: [],
-      visibility: 'inherit',
-      revision: '1',
-      etag: `"root-${id}"`,
-      readOnly: false,
-      readOnlyReason: null,
-      childrenRevision: '1',
-      childrenEtag: `"root-c-${id}"`,
-      createdAt: '2026-07-22T00:00:00.000Z',
-      updatedAt: '2026-07-22T00:00:00.000Z',
-    },
-    nodes: [
-      {
-        id: `${id}-folder`,
-        collectionId: id,
-        kind: 'folder',
-        folderRole: null,
-        parentId: `root-${id}`,
-        position: 'a',
-        title: 'Later',
-        description: null,
-        tags: [],
-        visibility: 'inherit',
-        revision: '1',
-        etag: `"f-${id}"`,
-        readOnly: false,
-        readOnlyReason: null,
-        childrenRevision: '1',
-        childrenEtag: `"fc-${id}"`,
-        createdAt: '2026-07-22T00:00:00.000Z',
-        updatedAt: '2026-07-22T00:00:00.000Z',
-      },
-    ],
-    capabilities: item.capabilities,
-    page: {
-      snapshotId: `snap-${id}`,
-      contentRevision: '1',
-      policyRevision: '1',
-      comparatorVersion: 'v1',
-      expiresAt: '2026-07-22T12:00:00.000Z',
-      returnedCount: 0,
-      hasMore: false,
-      nextCursor: null,
-    },
-  } as EditorSnapshot
-}
-
 function LocationProbe() {
   const location = useLocation()
   return <p data-testid="location">{location.pathname}</p>
@@ -183,28 +121,6 @@ function mount() {
     </MemoryRouter>,
   )
 }
-
-
-
-
-function pointerDown(el: HTMLElement, clientY = 10) {
-  act(() => {
-    el.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientX: 5, clientY }))
-  })
-}
-
-function pointerMove(el: HTMLElement, clientY: number) {
-  act(() => {
-    el.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 5, clientY }))
-  })
-}
-
-function pointerUp(el: HTMLElement, clientY: number) {
-  act(() => {
-    el.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, clientX: 5, clientY }))
-  })
-}
-
 
 function layeredSnapshot(id = 'col-1', title = 'Reading queue', moveNode = true): EditorSnapshot {
   const item = collectionItem(id, title)

@@ -21,7 +21,6 @@ import {
   generateOpaqueId,
   strongEntityTag,
   type CollectionKind,
-  type JsonObject,
 } from '../domain/index.js';
 import type {
   LockedCollectionRow,
@@ -35,13 +34,8 @@ import type {
 export function updateCollectionMetadataCommandScope(collectionId: string): string {
   return `collection:${collectionId}:metadata:update`;
 }
-
-/** Scope template documentation; prefer updateCollectionMetadataCommandScope(id). */
-export const UPDATE_COLLECTION_METADATA_COMMAND_SCOPE =
-  'collection:{collectionId}:metadata:update';
 export const UPDATE_COLLECTION_METADATA_CONTRACT_VERSION = '1.0.0';
 export const UPDATE_COLLECTION_PUBLICATION_CONTRACT_VERSION = '1.2.0';
-export const UPDATE_COLLECTION_METADATA_OPERATION_TYPE = 'update_collection_metadata';
 export const COLLECTION_UPDATED_EVENT_TYPE = 'collection.updated';
 export const COLLECTION_UPDATED_EVENT_VERSION = 1;
 export const COLLECTION_UPDATED_HANDLER_NAME = 'collection_updated_projection';

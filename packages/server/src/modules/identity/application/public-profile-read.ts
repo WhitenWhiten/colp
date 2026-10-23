@@ -22,16 +22,6 @@ export interface PublicProfileOwnerFactsReadPort {
   ): Promise<ReadonlyMap<string, PublicProfileFacts>>;
 }
 
-export async function getPublicProfileFacts(
-  reads: PublicProfileFactsReadPort,
-  canonicalHandle: string,
-): Promise<PublicProfileFacts | null> {
-  if (!isCanonicalPublicProfileHandle(canonicalHandle)) {
-    throw new TypeError('Public Profile facts query requires a canonical handle');
-  }
-  return reads.findByCanonicalHandle(canonicalHandle);
-}
-
 export function isCanonicalPublicProfileHandle(value: string): boolean {
   return value !== '.'
     && value !== '..'

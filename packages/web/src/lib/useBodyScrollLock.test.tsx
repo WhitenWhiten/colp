@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act } from 'react'
+
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { useBodyScrollLock } from './useBodyScrollLock'
 import { cleanup, mountTree } from '../test/render'

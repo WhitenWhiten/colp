@@ -15,36 +15,6 @@ type PublicResourceIdentity =
   | Readonly<{ kind: 'collection-snapshot'; collectionId: string }>
   | Readonly<{ kind: 'collection-node'; collectionId: string; nodeId: string }>;
 
-interface PublicResourceAccessPort {
-  readonly readPublicResource: (
-    input: Readonly<{ resource: PublicResourceIdentity }>,
-  ) => unknown | PromiseLike<unknown>;
-}
-
-interface AnonymousMcpReadExposure {
-  readonly endpoint: string;
-  readonly resources: true;
-  readonly readResource: (uri: string) => Promise<unknown>;
-}
-
-interface AnonymousMcpReadApi {
-  readonly createAnonymousMcpReadExposure?: (
-    manifest: Manifest,
-    options: Readonly<{
-      mountId: string;
-      publicAccess: PublicResourceAccessPort;
-    }>,
-  ) => AnonymousMcpReadExposure;
-  readonly createMcpResourceUriCodec?: (manifest: Pick<Manifest, 'serverUuid'>) => {
-    readonly collectionMetadata: (collectionId: string) => string;
-    readonly collectionSnapshot: (collectionId: string) => string;
-    readonly collectionNode: (collectionId: string, nodeId: string) => string;
-  };
-  readonly McpAnonymousResourceUnavailableError?: new () => Error & {
-    readonly code: 'anonymous_resource_unavailable';
-  };
-}
-
 const fixturePath = resolve(
   import.meta.dirname,
   '..',

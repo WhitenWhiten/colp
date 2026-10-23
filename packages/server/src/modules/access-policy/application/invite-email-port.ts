@@ -8,7 +8,6 @@
  * Result is the C1 dichotomy: `queued` or `email_delivery_unavailable`.
  * Notifications taxonomy never leaks into access-policy.
  */
-import type { InviteEmailTemplateRenderResult } from './invite-email-templates.js';
 
 /** Mirrors EMAIL_IDEMPOTENCY_KEY_MAX_CHARS (P5-28). Do not import notifications. */
 export const INVITE_EMAIL_IDEMPOTENCY_KEY_MAX_CHARS = 128;
@@ -37,5 +36,3 @@ export type InviteEmailDeliveryResult =
 export interface InviteEmailSender {
   sendInviteEmail(input: SendInviteEmailInput): Promise<InviteEmailDeliveryResult>;
 }
-
-export type InviteEmailRenderedMessage = Extract<InviteEmailTemplateRenderResult, { ok: true }>;

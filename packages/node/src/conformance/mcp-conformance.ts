@@ -43,8 +43,6 @@ export const legacyMcpConformanceProbeIds = Object.freeze([
   'mcp-write.approval-contracts',
 ] as const);
 
-export type LegacyMcpConformanceProbeId = (typeof legacyMcpConformanceProbeIds)[number];
-
 /** Locked upstream MCP SDK versions (MCP_TRANSPORT.md). */
 export const mcpSdkLock = Object.freeze({
   '@modelcontextprotocol/core': '2.3.1',

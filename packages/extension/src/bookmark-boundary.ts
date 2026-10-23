@@ -103,8 +103,6 @@ export function scanBoundary(input: ScanBoundaryInput): BoundaryScan {
     skippedCount, treeDigest, warnings, mounts, collectionRootDirectBookmarks: 0, classifications };
 }
 
-export function planMountsFromScan(scan: BoundaryScan): readonly PlannedMount[] { return scan.mounts; }
-
 function planMounts(indexed: readonly IndexedNode[], selected: ReadonlySet<string>,
   classifications: ReadonlyMap<string, BoundaryNodeClass>, warnings: Array<{ readonly code: string }>,
   unsupportedRoles: readonly ColpFolderRole[]): PlannedMount[] {

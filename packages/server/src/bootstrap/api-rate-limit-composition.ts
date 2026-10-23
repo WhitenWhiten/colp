@@ -1,4 +1,3 @@
-import { createProductBurstRateLimiter } from '../transport/product-burst-rate-limit.js';
 import type { AppConfig, RedisRateLimitFamilySharedConfig } from './config.js';
 import {
   createRedisAuthRateLimitStore,

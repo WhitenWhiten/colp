@@ -1,6 +1,6 @@
 import { remoteDeleteDeferral, remoteDeleteDeferralMatches } from '../remote-delete-pending-facts.js';
 import { isRemoteDeletePolicy, remoteDeleteRestoreOpId } from '../remote-delete-policy.js';
-import { boundedString, clone, safeInteger, strictObject, validateJson, validateRecord } from './codec.js';
+import { boundedString, clone, safeInteger, strictObject, validateRecord } from './codec.js';
 import { cursorPage, requestValue, requireActiveScope, runTransaction, scopeRowsRange, transactionDone } from './idb.js';
 import type { SyncStoreRuntime } from './runtime.js';
 import { STORES } from './schema.js';
@@ -376,4 +376,3 @@ function readExclusion(input: unknown, key: string, maxBytes: number): LocalSync
   };
   validateRecord(record, maxBytes); return record;
 }
-

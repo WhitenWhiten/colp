@@ -1,4 +1,4 @@
-import { sql, type Kysely } from 'kysely';
+import { sql } from 'kysely';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 
 /**
@@ -69,14 +69,6 @@ export async function writeApplied(
       withdrawn_at = NULL,
       applied_by = EXCLUDED.applied_by,
       manifest = EXCLUDED.manifest
-  `.execute(tr);
-}
-
-/** 标记已撤回（state='withdrawn' + withdrawn_at；同时清理该版本的 seed_rows 登记）。 */
-export async function markWithdrawn(tr: DatabaseTransaction, seedKey: string): Promise<void> {
-  await sql`
-    UPDATE seed_applied SET state = 'withdrawn', withdrawn_at = now()
-    WHERE seed_key = ${seedKey} AND state = 'applied'
   `.execute(tr);
 }
 

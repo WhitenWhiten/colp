@@ -103,19 +103,6 @@ export function searchWordSimilarityThreshold(normalizedQuery: string): string {
     : SEARCH_DEFAULT_WORD_SIMILARITY_THRESHOLD;
 }
 
-export function extractSearchUrlHost(value: string | null): string | null {
-  if (value === null) return null;
-  try {
-    const parsed = new URL(value);
-    if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:')
-      || parsed.username.length > 0
-      || parsed.password.length > 0) return null;
-    return parsed.hostname.normalize('NFKC').toLocaleLowerCase('und');
-  } catch {
-    return null;
-  }
-}
-
 export function compareSearchCandidateTuple(left: SearchCandidate, right: SearchCandidate): number {
   if (left.rank !== right.rank) return right.rank - left.rank;
   const typeOrder: Readonly<Record<SearchCandidateResourceType, number>> = {

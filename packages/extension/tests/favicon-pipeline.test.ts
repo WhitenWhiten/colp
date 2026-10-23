@@ -526,7 +526,7 @@ async function assertSkip(options: {
   const created: Array<Record<string, unknown>> = [];
   const sidecar = createFaviconSidecarStore({ indexedDB: new IDBFactory() });
   const favIconUrl = options.favIconUrl ?? TAB_ICON;
-  const tabUrl = options.tabUrl ?? options.url ?? TAB_URL;
+
   await saveBookmarkWithFaviconCapture({
     title: 'Example', url: options.url ?? TAB_URL, favIconUrl, privateLocal: options.privateLocal ?? false,
     parentNativeId: options.parentNativeId === undefined ? PARENT_NATIVE : options.parentNativeId,

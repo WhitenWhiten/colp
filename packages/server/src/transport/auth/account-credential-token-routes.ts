@@ -147,10 +147,6 @@ async function consumeCredentialRate(
   if (decision.kind === 'denied') throw tokenRateLimited(decision.retryAfterSeconds);
 }
 
-export function isAccountKeyTokenPath(url: string): boolean {
-  return (url.split('?', 1)[0] ?? url) === PATH;
-}
-
 export function mapTokenRouteError(error: unknown): AccountKeyOAuthError {
   if (error instanceof AccountKeyOAuthError) return error;
   if (error instanceof ProductHttpError) {

@@ -1,4 +1,3 @@
-import type { AuthorizationAdapter } from '../security/index.js';
 import {
   deriveRemoteApplicability,
   enforceHttpsFromTransport,
@@ -10,22 +9,6 @@ import {
   type RemoteApplicability,
   type TrustedTransportEvidence,
 } from '../security/index.js';
-import type { TransactionManager } from '../server/index.js';
-
-export interface CollectionProtocolModuleOptions {
-  readonly mountPath: string;
-  readonly publicOrigin: string;
-  readonly authorization: AuthorizationAdapter;
-  readonly transactions: TransactionManager;
-  readonly features: {
-    readonly directory?: boolean;
-    readonly publisher?: boolean;
-    readonly feed?: boolean;
-    readonly sync?: boolean;
-    readonly mcp?: boolean;
-    readonly admin?: boolean;
-  };
-}
 
 export interface PublisherHttpBoundaryOptions {
   /**

@@ -3,9 +3,7 @@ import 'fake-indexeddb/auto';
 import { describe, test } from 'vitest';
 import { createOutboundPushWorker, type PushSessionController } from '../src/outbound-push-worker.js';
 import { createSyncStateStore, type JsonObject } from '../src/sync-state-store.js';
-import {
-  ack, json as engineJson, networkFailure, pullPage, scope as engineScope, setup as setupEngine,
-} from './durable-sync-engine-harness.js';
+
 import {
   endpoints, indexedDB, installOutboundPushIndexedDb, json, operation, problem, scope, setup, setupMove,
 } from './outbound-push-worker-harness.js';
@@ -548,4 +546,3 @@ describe('P3-31 outbound Push 409 refresh and rebase', () => {
     assert.equal((await store.listQueue(scope))[0]?.status, 'terminal');
   });
 });
-

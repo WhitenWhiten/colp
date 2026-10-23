@@ -111,7 +111,7 @@ export function useLibraryDeskMutations(options: {
     //    verifier caught in my first attempt: for Copy the source nodes stay in the
     //    selection, so adding a bookmark changed the selection, started the record
     //    over, and re-copied everything that had already succeeded.
-    //
+
     // Keying by item id makes both correct: an item that finished is skipped
     // wherever it now sits, and an item that did not is always retried.
     const existing = batchProgress.current
@@ -316,7 +316,7 @@ export function useLibraryDeskMutations(options: {
     // this record's skips.
     const batch = batchFor(scopeKey(['move', operationCollectionId, destination.parentId]))
     try {
-      for (const [index, node] of nodes.entries()) {
+      for (const node of nodes) {
         if (batch.isDone(node.id)) continue
         const intentId = productClient.mutationIntentKey(
           `move-node:${node.id}`,
@@ -367,7 +367,7 @@ export function useLibraryDeskMutations(options: {
     let done = 0
     const batch = batchFor(scopeKey(['copy', destination.collectionId, destination.parentId]))
     try {
-      for (const [index, node] of nodes.entries()) {
+      for (const node of nodes) {
         if (batch.isDone(node.id)) continue
         const intentId = productClient.mutationIntentKey(
           `copy-node:${destination.collectionId}:${node.id}`,
@@ -457,9 +457,7 @@ export function useLibraryDeskMutations(options: {
   const undoDelete = async (collectionId: string, payloads: RestorableBookmark[]) => {
     // A restore payload carries no id (it is the deleted bookmark's data), so its
     // completion key is built from the fields that identify it.
-    const restoreKeyOf = (payload: { readonly parentId: string; readonly url: string;
-      readonly title: string; readonly description?: string | null }): string =>
-      [payload.parentId, payload.url, payload.title, payload.description ?? ''].join('\u0000')
+
     // Position is the identity here — two deleted bookmarks can legitimately share
     // parent and url, so a content key would collapse them (aaf76fac4). The payload
     // COUNT goes into the scope so a different deletion does not inherit the
@@ -555,7 +553,7 @@ export function useLibraryDeskMutations(options: {
     let done = 0
     const batch = batchFor(scopeKey(['delete', operationCollectionId]))
     try {
-      for (const [index, node] of nodes.entries()) {
+      for (const node of nodes) {
         if (batch.isDone(node.id)) continue
         const intentId = productClient.mutationIntentKey(
           `delete-node:${node.id}`,

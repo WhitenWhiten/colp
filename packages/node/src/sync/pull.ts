@@ -22,14 +22,12 @@ import {
   immutableJsonData, immutableJsonSnapshot,
 } from '../shared/immutable-json.js';
 import {
-  AUTHORITATIVE_EFFECT_MAX_BYTES,
   AUTHORITATIVE_EFFECT_PAGE_MAX_BYTES,
   AUTHORITATIVE_EFFECT_MAX_DEPTH,
   AUTHORITATIVE_EFFECT_MAX_MEMBERS,
   AUTHORITATIVE_EFFECT_SERIES_MAX_MEMBERS,
   assertAuthoritativeEffectPageUrlSafe,
   canonicalAuthoritativeMemberDigest,
-  canonicalOperationDigest,
   expandAuthoritativeEffectPageUrl,
 } from './canonical.js';
 import { effectPageCanonicalMaterial } from './effect-canonical-material.js';
@@ -44,7 +42,6 @@ import {
   resolveEventCursorRecords,
   resolvePullStartCursor,
   sameCursorScope,
-  type SyncPullCursorRecord,
   type SyncPullCursorStore,
 } from './pull-cursor-lifecycle.js';
 

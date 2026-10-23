@@ -129,7 +129,6 @@ export function createMcp20260728ReadToolAdapter(
 
   const entries = readToolEntries(toolCore, schemaBudget);
   entries.sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0));
-  const sortedModern = Object.freeze(entries.map((entry) => entry.modern));
   const registry = new Map(entries.map((entry) => [entry.name, entry]));
 
   const listTools = async (

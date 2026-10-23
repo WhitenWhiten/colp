@@ -19,18 +19,6 @@ export type PullMappingAuthority = 'published' | 'applied_locally_unpublished';
 export type PullCursorOrder = 'before' | 'equal' | 'after' | 'incomparable';
 /** Durable cursor publication verdict for `completePullPage`. */
 export type PullCursorWriteClass = 'allow' | 'refuse_rewind' | 'refuse_stale_chain';
-export type SyncWaitReasonKind =
-  | 'unknown'
-  | 'parent'
-  | 'anchor'
-  | 'create_order'
-  | 'range_boundary'
-  | 'known_pending'
-  | 'local_pending_edits'
-  | 'native_result_unknown'
-  | 'generation'
-  | 'mount'
-  | 'occupancy';
 
 export interface PullAckFacts {
   readonly cursorKind: PullAckCursorKind;

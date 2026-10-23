@@ -1,6 +1,6 @@
 import { validateBookmarkEventInput, validateBookmarkEventRecord } from './bookmark-event-validation.js';
 export { validateBookmarkEventInput, validateBookmarkEventRecord } from './bookmark-event-validation.js';
-import { ISSUE_DEPENDENCY_STORES, transactionIssueDependencies } from './issue-dependencies.js';
+import { ISSUE_DEPENDENCY_STORES } from './issue-dependencies.js';
 import { claimIngressDiagnosticSource } from './ingress-diagnostic-source.js';
 import { bootstrapCreateIdentity } from './bootstrap-create-identity.js';
 import { enqueueParentIds, enqueueTargetId, findBlockingUnsettledAttempt,
@@ -54,8 +54,7 @@ export function createBookmarkEventRepository(ctx: SyncStoreRuntime) {
   const writableDatabase = () => ctx.writableDatabase();
   const assertWritable = () => ctx.assertWritable();
   const readOne = (storeName: string, key: IDBValidKey) => ctx.readOne(storeName, key);
-  const factory = ctx.factory;
-  const close = () => ctx.close();
+
   async function stageBookmarkEvent(input: SyncScope, eventInput: BookmarkEventInput): Promise<{
     readonly outcome: 'staged' | 'duplicate'; readonly event: BookmarkEventRecord }> {
     assertWritable(); const key = scopeKey(validateScope(input)); const event = validateBookmarkEventInput(eventInput, maxRecordBytes);

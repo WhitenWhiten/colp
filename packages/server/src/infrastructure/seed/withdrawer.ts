@@ -1,4 +1,4 @@
-import { sql, type Kysely } from 'kysely';
+import { sql } from 'kysely';
 import type { Manifest } from './manifest.js';
 import { SeedError } from './manifest.js';
 import type { AppliedState } from './state.js';

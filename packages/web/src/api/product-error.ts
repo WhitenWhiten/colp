@@ -61,10 +61,6 @@ export class ProductClientError extends Error {
   }
 }
 
-export function isProductClientError(err: unknown): err is ProductClientError {
-  return err instanceof ProductClientError
-}
-
 /** Map known Product error codes to client recovery (code wins over envelope). */
 export function recoveryForCode(code: string, envelopeRecovery?: string): ClientRecovery {
   switch (code) {

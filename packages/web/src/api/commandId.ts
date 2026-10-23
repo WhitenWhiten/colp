@@ -6,7 +6,6 @@ export {
   allocateCommandId,
   allocateCommandId as getOrCreateCommandId,
   clearCommandId,
-  isCommandIdCleared,
   rotateCommandId,
   newCommandId,
   mutationIntentKey,

@@ -39,7 +39,6 @@ import {
 import { createMcpResourceUriCodec } from '../../src/mcp/resource-uri.js';
 import {
   createMcpStatelessReadCore,
-  McpReadRequestContextError,
   McpResourceRequestError,
 } from '../../src/mcp/shared/resources.js';
 import { readContext } from './read-trusted-context-fixture.js';
@@ -217,26 +216,6 @@ function changePlanPorts() {
     rateLimit: { allow: vi.fn(async () => true) },
     approvalBaseUri: 'https://alice.example/collections/approvals',
     uriPolicy: allowAllUriPolicy,
-  };
-}
-
-function resourceService(overrides: Record<string, unknown> = {}) {
-  return {
-    listResources: vi.fn(async () => ({ resources: [] })),
-    readResource: vi.fn(async () => ({
-      contents: [{
-        mimeType: 'text/plain',
-        text: 'ok',
-        provenance: { origin: 'internal' },
-      }],
-    })),
-    authorizeSubscription: vi.fn(async () => ({
-      authorized: true,
-      authorization: Object.freeze({ principal: 'alice' }),
-    })),
-    reauthorizeSubscription: vi.fn(async () => true),
-    authorizeListChangedNotification: vi.fn(async () => true),
-    ...overrides,
   };
 }
 

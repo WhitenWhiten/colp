@@ -11,8 +11,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
-  MCP_WIRE_INVALID_PARAMS_ERROR_CODE,
-  Mcp20260728RequestError,
   createMcp20260728RequestContext,
   decodeMcp20260728ParamValue,
   encodeMcp20260728ParamValue,
@@ -27,7 +25,6 @@ import {
 import {
   createMcp20260728SubscriptionsListenAdapter,
   type Mcp20260728SubscriptionsListenAdapterOptions,
-  type Mcp20260728SubscriptionsListenSession,
 } from '../../src/mcp/2026-07-28/subscriptions.js';
 import type {
   McpChangeSignal,
@@ -38,7 +35,6 @@ import { authenticatedBinding } from './authenticated-binding-fixture.js';
 
 const PROTOCOL_VERSION_META_KEY = 'io.modelcontextprotocol/protocolVersion';
 const CLIENT_CAPABILITIES_META_KEY = 'io.modelcontextprotocol/clientCapabilities';
-const serverInfo = Object.freeze({ name: 'colp-hardening-server', version: '0.0.0' });
 
 function meta(overrides: Readonly<Record<string, unknown>> = {}): Record<string, unknown> {
   return {
@@ -64,12 +60,6 @@ function contextInput(
     binding: authenticatedBinding(),
     ...overrides,
   } as Mcp20260728RequestContextInput;
-}
-
-function expectWireError(error: unknown, kind: string, wireCode: number): void {
-  expect(error).toBeInstanceOf(Mcp20260728RequestError);
-  expect((error as Mcp20260728RequestError).kind).toBe(kind);
-  expect((error as Mcp20260728RequestError).wireCode).toBe(wireCode);
 }
 
 describe('MCP 2026-07-28 request context — base64 sentinel and budget hardening', () => {

@@ -5,7 +5,6 @@ export const SETTINGS_PARAM = 'settings'
 export const SETTINGS_SECTIONS = ['profile', 'bookmarks', 'favicon', 'security'] as const
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number]
 export const DEFAULT_SETTINGS_SECTION: SettingsSection = 'profile'
-export const SECURITY_SETTINGS_URL = '/library?settings=security'
 
 export function isSettingsSection(value: string): value is SettingsSection {
   return (SETTINGS_SECTIONS as readonly string[]).includes(value)

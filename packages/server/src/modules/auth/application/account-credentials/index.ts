@@ -47,8 +47,6 @@ export {
   parseGrantListQuery,
   parseGrantOpaqueId,
   parseGrantRevokeBody,
-  parseMcpCommandId,
-  parseMcpIfMatch,
   parsePlanKind,
 } from './grant-validation.js';
 export {
@@ -132,7 +130,6 @@ export {
   PRODUCT_READ_SCOPE,
   PRODUCT_WRITE_SCOPE,
   ancestorEpochDigest,
-  asPublicEs256Jwk,
   canonicalOrigin,
   composeAccountKeyRuntime,
   machineCredentialBindingId,

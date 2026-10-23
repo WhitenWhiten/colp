@@ -2,7 +2,6 @@ import type {
   AllocatedMutationState,
   CanonicalMutationInput,
   CanonicalMutationPlan,
-  CanonicalMutationResult,
   CanonicalPlannedResourceMutation,
   JsonObject,
   ResourceIdentity,
@@ -136,4 +135,3 @@ export interface CanonicalMutationApplication<Transaction> {
     input: CanonicalMutationInput,
   ): Promise<import('../domain/canonical-mutation.js').CanonicalMutationResult>;
 }
-

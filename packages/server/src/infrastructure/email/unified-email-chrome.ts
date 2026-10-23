@@ -44,7 +44,7 @@ const FONT_SANS = EMAIL_FONT_SANS;
 const PAPER = 'rgb(243, 245, 248)';
 const SURFACE = 'rgb(252, 253, 255)';
 const INK = 'rgb(6, 7, 10)';
-const MUTED = 'rgb(97, 99, 103)';
+
 const FAINT = 'rgb(104, 106, 110)';
 /** Card stroke — matches tokens.css --line-strong. */
 const LINE_CARD = 'rgba(6, 7, 10, 0.12)';

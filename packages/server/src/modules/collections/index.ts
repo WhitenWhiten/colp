@@ -71,7 +71,6 @@ export {
   type RelativePosition,
   type ResourceIdentity,
   type ResourceOwnedFields,
-  type ResourcePayloadAuthorityStatus,
   type ResourcePayloadComparison,
   type ResourcePayloadResourceType,
   type CollectionRelationalProjection,

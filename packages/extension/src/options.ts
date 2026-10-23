@@ -42,7 +42,7 @@ import { bindAutomationsPane } from './automation/options-pane.js';
 hydrateIcons(document); bindSelectPills();
 const languageReady = bindPageLanguage(() => { hydrateInfoTips(); paintSelectPills(); paintWelcomeSteps(element('welcome-steps')); });
 
-const status = element('status'); const detail = element('detail'); const action = element('primary-action') as HTMLButtonElement;
+element('status'); element('detail'); const action = element('primary-action') as HTMLButtonElement;
 const account = element('account'); const server = element('server');
 const manifest = element('manifest-state'); const session = element('session-state');
 const iconPolicyFact = createIconPolicyFact(element('icon-policy'));

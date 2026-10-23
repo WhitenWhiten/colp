@@ -6,7 +6,6 @@ import { resolveLimiterRedisUrl } from './config-redis-roles.js';
 import type {
   CollaborationInviteCleanupConfig,
   CollaborationInviteRateLimitSharedConfig,
-  EmailCallbackRateLimitSharedConfig,
   ExploreDirectoryRateLimitSharedConfig,
   McpRateLimitSharedConfig,
   RedisRateLimitFamilySharedConfig,
@@ -17,7 +16,6 @@ const DEFAULT_COLLABORATION_INVITE_CLEANUP_INTERVAL_MS = 60_000;
 const DEFAULT_COLLABORATION_INVITE_CLEANUP_BATCH_SIZE = 5_000;
 /** Documented single-process development pepper; production must not use this. */
 const DEV_COLLABORATION_INVITE_RATE_LIMIT_KEY_SECRET = 'dev-collaboration-invite-rate-limit-hmac-key';
-
 
 export function loadMcpRateLimitSharedConfig(env: NodeJS.ProcessEnv): McpRateLimitSharedConfig {
   const enabled = parseCacheBooleanEnv(env, 'MCP_RATE_LIMIT_SHARED', false);
@@ -69,65 +67,6 @@ export function loadMcpRateLimitSharedConfig(env: NodeJS.ProcessEnv): McpRateLim
     maxRetriesPerRequest,
   });
 }
-
-/**
- * FIX-L-061 email callback shared Redis limiter config (mirrors the MCP
- * shared loader with the EMAIL_CALLBACK_RATE_LIMIT_* variable family).
- * Defaults to disabled (zero Redis connections); `=true` requires the URL
- * and key secret (fail closed, exactly like MCP).
- */
-export function loadEmailCallbackRateLimitSharedConfig(env: NodeJS.ProcessEnv): EmailCallbackRateLimitSharedConfig {
-  const enabled = parseCacheBooleanEnv(env, 'EMAIL_CALLBACK_RATE_LIMIT_SHARED', false);
-  const redisUrl = resolveLimiterRedisUrl(env, 'EMAIL_CALLBACK_RATE_LIMIT_REDIS_URL', {
-    enabled,
-    requiredMessage:
-      'EMAIL_CALLBACK_RATE_LIMIT_REDIS_URL is required when EMAIL_CALLBACK_RATE_LIMIT_SHARED=true',
-  });
-  const rawSecret = env.EMAIL_CALLBACK_RATE_LIMIT_KEY_SECRET?.trim() ?? '';
-  let keySecret: Buffer | null = null;
-  if (rawSecret !== '') {
-    if (rawSecret.length < 16 || rawSecret.length > 512) {
-      throw new Error('EMAIL_CALLBACK_RATE_LIMIT_KEY_SECRET must be 16-512 characters');
-    }
-    keySecret = Buffer.from(rawSecret, 'utf8');
-  } else if (enabled) {
-    throw new Error('EMAIL_CALLBACK_RATE_LIMIT_KEY_SECRET is required when EMAIL_CALLBACK_RATE_LIMIT_SHARED=true');
-  }
-  const keyPrefix = (env.EMAIL_CALLBACK_RATE_LIMIT_KEY_PREFIX ?? 'known').trim();
-  if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$/u.test(keyPrefix)) {
-    throw new Error(
-      'EMAIL_CALLBACK_RATE_LIMIT_KEY_PREFIX must be 1-64 characters starting with an alphanumeric and using only [A-Za-z0-9_.:-]',
-    );
-  }
-  const commandTimeoutMs = parsePositiveInt(
-    env.EMAIL_CALLBACK_RATE_LIMIT_COMMAND_TIMEOUT_MS,
-    75,
-    'EMAIL_CALLBACK_RATE_LIMIT_COMMAND_TIMEOUT_MS',
-    { max: 5_000 },
-  );
-  const connectTimeoutMs = parsePositiveInt(
-    env.EMAIL_CALLBACK_RATE_LIMIT_CONNECT_TIMEOUT_MS,
-    1_000,
-    'EMAIL_CALLBACK_RATE_LIMIT_CONNECT_TIMEOUT_MS',
-    { max: 30_000 },
-  );
-  const maxRetriesPerRequest = parsePositiveInt(
-    env.EMAIL_CALLBACK_RATE_LIMIT_MAX_RETRIES_PER_REQUEST,
-    1,
-    'EMAIL_CALLBACK_RATE_LIMIT_MAX_RETRIES_PER_REQUEST',
-    { min: 0, max: 10 },
-  );
-  return Object.freeze({
-    enabled,
-    redisUrl,
-    keySecret,
-    keyPrefix,
-    commandTimeoutMs,
-    connectTimeoutMs,
-    maxRetriesPerRequest,
-  });
-}
-
 
 /**
  * S-04 shared Redis limiter for collaboration invites. Mirrors

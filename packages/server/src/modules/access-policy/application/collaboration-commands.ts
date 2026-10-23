@@ -286,7 +286,7 @@ export async function revokeInvite(
   const claim = await ports.receipts.claim(binding, command.fingerprint);
   if (claim.kind !== 'claimed') return mapClaim(claim);
 
-  const locked = await admitMemberCommand(ports, actor, collectionId, input.ifMatch);
+  await admitMemberCommand(ports, actor, collectionId, input.ifMatch);
   const now = await ports.clock.now();
   await expireOverdueInvites(ports.store, collectionId, now);
   const invite = await requireInviteOnCollection(ports, inviteId, collectionId);

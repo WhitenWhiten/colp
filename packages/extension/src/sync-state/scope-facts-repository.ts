@@ -8,7 +8,7 @@ import {
 import { boundedString, clone, safeInteger, strictObject, validateJson, validateRecord } from './codec.js';
 import { constraintError } from './errors.js';
 import { cursorPage, requestValue, requireActiveScope, runTransaction, scopeRowsRange, transactionDone } from './idb.js';
-import { INDEXES, STORES } from './schema.js';
+import { STORES } from './schema.js';
 import { scopeKey, validateScope } from './scope-key.js';
 import { validateMapping, validateMappingRecord } from './mapping-repository.js';
 import { validateLocalSyncExclusion, type LocalSyncExclusionRecord } from './remote-delete-repository.js';

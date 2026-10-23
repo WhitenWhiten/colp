@@ -28,7 +28,7 @@ may publish a Sync Manifest claim.
 | Operation reuse / claims | `operation-reuse.ts` | Lifetime opId uniqueness + reuse audit |
 | Browser adapters | `browser-batch-adapter.ts`, `browser-event-translation.ts` | Mapping helpers, not a complete browser product |
 | Sidecar | `sidecar.ts` | Persistence / export helpers |
-| Root mapping | `root-mapping.ts`, `root-mapping-adapter.ts` | Dynamic root mapping |
+| Root mapping | `root-mapping.ts` | Dynamic root mapping |
 | Light-pull advisory | `light-pull-advisory.ts` | Advisory only |
 | Composition helpers | `composition.ts` - session-bound Push/Pull/Sequence | Thin gates; bare coordinators remain composition-free |
 | Host composition recipe | `host-composition-recipe.ts` - `SYNC_HOST_COMPOSITION_RECIPE`, `createTypedUpdateMergePushPreflight` | Session-first + exclusive owner + merge-in-preflight glue; no dual-owner facade |

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { encodeThrowingCanonicalJson } from '../canonical-json/index.js';
-import type { CreateSyncSessionInput, VerifiedSyncSession } from '@know-n/colp/sync';
+import type { VerifiedSyncSession } from '@know-n/colp/sync';
 import {
   isVerifiedExtensionCredential,
   type VerifiedExtensionCredential,
@@ -357,10 +357,4 @@ export function redactSyncSessionIssueError(value: unknown): Readonly<{ code: Sy
   ]);
   return Object.freeze({ code: allowed.has(code as SyncSessionIssueErrorCode)
     ? code as SyncSessionIssueErrorCode : 'integrity_failure' });
-}
-
-export function asColpScopes(
-  scopes: SyncSessionIssueInput['requestedScopes'],
-): CreateSyncSessionInput['authorizationScopes'] {
-  return scopes;
 }

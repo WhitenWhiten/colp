@@ -1,7 +1,6 @@
 import { assertCanonicalCommandId, type ProductCommandReceiptPort } from '../../commands/index.js';
 
 export const BOOKMARK_PREFERENCES_CONTRACT_VERSION = '1.3.0';
-export const BOOKMARK_PREFERENCES_ROUTE = '/api/v1/me/bookmark-preferences';
 const VIRTUAL_REVISION = '0';
 
 function strongBookmarkPreferencesEtag(revision: string): string {

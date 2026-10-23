@@ -205,14 +205,3 @@ export function createPostgresCollectionPolicyRevisionPort(
     },
   };
 }
-
-/** Lock then bump in one call. Callers that skip bump (duplicate accept) must not use this. */
-export async function lockCollectionAndBumpPolicyRevision(
-  port: CollectionPolicyRevisionPort,
-  collectionId: string,
-): Promise<{ readonly policyRevision: string } | null> {
-  const locked = await port.lockForUpdate(collectionId);
-  if (!locked) return null;
-  const policyRevision = await port.bumpPolicyRevision(collectionId);
-  return { policyRevision };
-}

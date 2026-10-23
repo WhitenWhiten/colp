@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { ProblemCode } from '@know-n/colp/server';
 import { createPublicationProblemDescriptor } from '@know-n/colp/server';
 import {

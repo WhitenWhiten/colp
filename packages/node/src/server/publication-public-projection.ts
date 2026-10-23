@@ -122,8 +122,6 @@ export function projectPublicationPublicWire(
   );
 }
 
-
-
 const DEFAULT_MAX_DEPTH = 64;
 const DEFAULT_MAX_NODES = 100_000;
 const forbiddenObjectKeys = new Set(['__proto__', 'constructor', 'prototype']);
@@ -582,7 +580,7 @@ function projectObject(
 }
 
 function shouldRemoveField(
-  key: string,
+  _key: string,
   normalized: string,
   descriptors: PropertyDescriptorMap,
   context: ProjectionContext,

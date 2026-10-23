@@ -25,7 +25,7 @@ import {
   type PublicObjectRateLimiter,
 } from './public-object-rate-limit.js';
 import { productRouteMetadata } from '../product-route-manifest.js';
-import { authenticationRequired, requireBrowserSessionActor, requireSessionActor } from '../session-auth.js';
+import { authenticationRequired, requireBrowserSessionActor } from '../session-auth.js';
 import { requireMutationActor } from '../mutation-actor.js';
 
 // A favicon can be withdrawn when its bookmark/collection publication state

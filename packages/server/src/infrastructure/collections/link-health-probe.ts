@@ -200,7 +200,3 @@ async function drainBounded(response: Response, maxBytes: number): Promise<void>
     reader.releaseLock();
   }
 }
-
-export function normalizedHostForProbe(url: string): string {
-  return hostnameFromBookmarkUrl(url) ?? '';
-}

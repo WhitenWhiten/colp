@@ -4,15 +4,9 @@ import {
   CanonicalMutationInvariantError,
   bootstrapCanonicalOwnedCollection,
   createCanonicalMutationApplication,
-  type CanonicalMutationInput,
-  type CanonicalMutationResult,
   type ProductCollectionCanonicalPorts,
 } from '../../modules/collections/index.js';
-import type {
-  ProductCommandBinding,
-  ProductCommandClaim,
-  ProductCommandResult,
-} from '../../modules/commands/index.js';
+
 import { createPostgresProductCommandReceiptPort } from '../database/product-command-receipt.js';
 import { lockActiveSyncReplicasForCollection } from '../database/lock-order.js';
 import type { DatabaseSchema } from '../database/runtime.js';

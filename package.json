@@ -7,6 +7,7 @@
     "build": "npm --prefix packages/node run build",
     "test": "npm --prefix packages/node test",
     "check": "npm --prefix packages/node run check",
+    "analyze:reachability": "node scripts/analyze-reachability.mjs reports/dead-code/reachability-after.json",
     "scan:secrets": "node scripts/scan-tracked-secrets.mjs",
     "example:publication": "node packages/node/examples/publication-server.mjs",
     "conformance": "node packages/conformance/bin/colp-conformance.mjs",

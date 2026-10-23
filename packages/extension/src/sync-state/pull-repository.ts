@@ -10,7 +10,7 @@ import {
 import { boundedString, canonicalJson, clone, validateJson } from './codec.js';
 import { constraintError, inject } from './errors.js';
 import {
-  cursorPage, iterateCursor, iterateCursorSequentially, pageEventsRange, requestValue, requireActiveScope, runTransaction, scopeRowsRange,
+  cursorPage, iterateCursor, pageEventsRange, requestValue, requireActiveScope, runTransaction, scopeRowsRange,
   transactionDone,
 } from './idb.js';
 import { INDEXES, STORES } from './schema.js';
@@ -18,7 +18,7 @@ import { scopeKey, validateScope } from './scope-key.js';
 import { adoptBlockedPagesAtChainHead } from './recovery-repository.js';
 import { validateMapping, validateMappingRecord } from './mapping-repository.js';
 import { planPullMappingWrites } from './pull-mapping-writes.js';
-import { validateQueueRecord, validateReceipt } from './queue-validate.js';
+
 import { settleResolvedConflictQueue } from './queue-hold.js';
 import { settleConflictPullIssue } from './pull-issue-repository.js';
 import { markQueuePullEchoApplied } from './pull-queue-echo.js';
@@ -29,8 +29,7 @@ import { validateLocalSyncExclusion, type LocalSyncExclusionRecord } from './rem
 import { validateMountBinding } from './mount-repository.js';
 import { validateRemoteObservation, validateScopeCommandPlan } from './scope-facts-repository.js';
 import {
-  coveredPullOperationIds, probePullState,
-  pruneCompletedPullPages, putPullTerminalFacts, pullHistoryLimits,
+  coveredPullOperationIds, pruneCompletedPullPages, putPullTerminalFacts, pullHistoryLimits,
   PULL_HISTORY_PAGE_KEEP, readOrderedPullEvents, readPullApplyWorkset, readPullPagesByState, type PullHistoryBudget,
 } from './pull-workset.js';
 import {
@@ -46,13 +45,12 @@ function intentStateAfterObservation(eventState: unknown): 'native_event_observe
 
 export function createPullRepository(ctx: SyncStoreRuntime) {
   const maxRecordBytes = ctx.maxRecordBytes;
-  const durableCache = ctx.durableCache;
+
   const open = () => ctx.open();
   const writableDatabase = () => ctx.writableDatabase();
   const assertWritable = () => ctx.assertWritable();
   const readOne = (storeName: string, key: IDBValidKey) => ctx.readOne(storeName, key);
-  const factory = ctx.factory;
-  const close = () => ctx.close();
+
   async function createApplyIntent(input: SyncScope, intentInput: Record<string, unknown>): Promise<void> {
     assertWritable(); const key = scopeKey(validateScope(input)); const intent = validateIntent(key, intentInput, maxRecordBytes);
     const db = await writableDatabase(); try { await runTransaction(db, [STORES.scopes, STORES.intents], 'readwrite', async (tx) => {

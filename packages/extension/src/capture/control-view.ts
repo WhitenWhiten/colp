@@ -3,7 +3,7 @@ import { folderChoices } from '../library-folder-picker.js';
 import { FIRST_RUN_LOCAL_ONLY } from '../first-run-draft.js';
 import { createDialog, dialogButton } from '../dialog.js';
 import { createIcon } from '../icons.js';
-import { t, tn } from '../i18n.js';
+import { t } from '../i18n.js';
 import { exclusionIds } from '../bookmark-subscriptions/guards.js';
 import { LOCAL_CLASSIFICATION_ENABLED, LOCAL_CLASSIFICATION_KEY } from '../classification-local-session.js';
 const element = <K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, className?: string) => {

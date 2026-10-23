@@ -168,9 +168,6 @@ const RAW_CANONICAL_RELATIONS: readonly SeedRelationSpec[] = [
 export const SEED_CANONICAL_RELATIONS: readonly SeedRelationSpec[] =
   RAW_CANONICAL_RELATIONS.map(mintRelation);
 
-export const SEED_CANONICAL_MUTATION_COUNT =
-  SEED_CANONICAL_ANNOTATIONS.length + SEED_CANONICAL_RELATIONS.length;
-
 export const FLAGSHIP_CANONICAL_MUTATION_COUNT =
   SEED_CANONICAL_ANNOTATIONS.filter((item) => item.collectionId === FLAGSHIP_COLLECTION_ID).length
   + SEED_CANONICAL_RELATIONS.filter((item) => item.collectionId === FLAGSHIP_COLLECTION_ID).length;

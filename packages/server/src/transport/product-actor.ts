@@ -143,22 +143,6 @@ export function productBearerAuthorityOf(request: FastifyRequest): ProductBearer
   return request.server.productBearerAuthority ?? null;
 }
 
-/**
- * Returns the verified Product bearer actor for a request, or `null` when the
- * request is not carrying a bearer token (e.g. an ordinary browser session).
- * Callers that gate bearer-only behavior use this to distinguish the carrier
- * instead of guessing from scopes. Mixed Cookie+Authorization is rejected by
- * the shared admission before this helper is reached.
- */
-export async function productBearerActorOf(
-  request: FastifyRequest,
-): Promise<ProductBearerActor | null> {
-  if (!hasAuthorizationHeader(request)) return null;
-  const authority = productBearerAuthorityOf(request);
-  if (!authority) throw authenticationRequired();
-  return authority.inspect(request);
-}
-
 declare module 'fastify' {
   interface FastifyInstance {
     readonly productBearerAuthority?: ProductBearerAuthority;

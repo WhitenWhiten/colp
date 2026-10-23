@@ -37,7 +37,6 @@ import { useAuth } from '../../auth/AuthContext'
 const FOLDER_COVER_LIMIT = 4
 
 export function BookmarkArea({
-  checklistShown = false,
   query,
   setQuery,
   filtering,
@@ -46,7 +45,6 @@ export function BookmarkArea({
   compact,
   folderId,
   collections,
-  shared,
   data,
   order,
   layerReorder,
@@ -58,7 +56,6 @@ export function BookmarkArea({
   rowPointerDown,
   bulkBar,
   onEditNode,
-  onEditCollection,
   onShareFolder,
 }: {
   /** The Get started card offers an explicit new-folder action. */

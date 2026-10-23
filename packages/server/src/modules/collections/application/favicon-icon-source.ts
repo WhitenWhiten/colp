@@ -20,7 +20,6 @@ import {
   type FaviconPolicyRow,
 } from './favicon-policy.js';
 import type {
-  BookmarkIconRow,
   BookmarkIconWritePort,
   CollectionsClock,
   CollectionWritePort,
@@ -585,13 +584,4 @@ function mapSourceClaim(
   if (claim.kind === 'in_progress') return claim;
   if (claim.kind === 'expired') return claim;
   return { kind: 'reused' };
-}
-
-export function mapFaviconSourceCommandError(
-  error: unknown,
-): FaviconSourceCommandError | CollectionPreconditionError | CollectionAuthorizationError | null {
-  if (error instanceof FaviconSourceCommandError) return error;
-  if (error instanceof CollectionPreconditionError) return error;
-  if (error instanceof CollectionAuthorizationError) return error;
-  return null;
 }

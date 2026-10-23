@@ -25,7 +25,7 @@ export async function onExtensionInstalled(details: chrome.runtime.InstalledDeta
   ]);
 }
 
-export async function handle(message: AuthExtensionRequest, context: AuthorityContext): Promise<ExtensionResponse> {
+export async function handle(message: AuthExtensionRequest, _context: AuthorityContext): Promise<ExtensionResponse> {
   const config = await loadConfig();
   await enforceManagedPolicy(config, message.kind);
   const endpoints = async () => fetchSyncEndpoints(config);

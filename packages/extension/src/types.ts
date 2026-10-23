@@ -178,13 +178,6 @@ export type BookmarkPreferencesResponse =
 export type FirstRunDurablePhase =
   | 'draft' | 'confirmed' | 'scanning' | 'matching' | 'syncing' | 'completed' | 'needs_attention';
 export type FirstRunScopeState = 'none' | 'deferred' | 'running' | 'completed';
-export type KnownMountMode = 'whole-profile';
-export type P0SessionBinding = {
-  readonly browserProfileId: string;
-  readonly mountMode: 'whole-profile';
-  readonly mountNativeId: null;
-  readonly generation: string;
-};
 
 export type FirstRunPreviewRequest = {
   readonly kind: 'known.firstRun.preview';

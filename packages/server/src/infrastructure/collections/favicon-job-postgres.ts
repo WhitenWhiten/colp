@@ -23,7 +23,6 @@ import {
   type FaviconJobStatus,
   type FaviconJobWorkerPort,
   type FaviconJobWritePort,
-  type FaviconRefreshCasPorts,
 } from '../../modules/collections/index.js';
 import {
   type FaviconBatchCasPorts,

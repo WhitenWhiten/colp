@@ -385,12 +385,6 @@ export function bindCreditsLedger(binding: CreditsLedgerBinding) {
     if (entry.kind === 'payment_refund') return t('common_paymentRefunded', 'Payment refunded');
     return t('common_other', 'Other');
   }
-  function entryPurpose(entry: GeneratedCreditLedgerEntry): string {
-    if (entry.task) return entry.task.kind === 'classification_action' ? t('common_classificationAction', 'Classification action') : t('common_classificationPreview', 'Classification preview');
-    if (entry.kind === 'grant') return t('common_creditGrant', 'Credit grant');
-    if (entry.kind === 'expire') return t('common_creditExpiry', 'Credit expiry');
-    return REASON_COPY[entry.reasonCode] ?? t('common_other', 'Other');
-  }
   function sourceLabel(source: GeneratedCreditLedgerEntry['source']): string {
     const SOURCE_LABEL: Record<GeneratedCreditLedgerEntry['source'], string> = {
       extension: t('common_browserExtension', 'Browser extension'), web: t('common_web', 'Web'), batch: t('common_batchClassification', 'Batch classification'),
@@ -561,7 +555,6 @@ function reasonCode(value: unknown): boolean {
     'classification_cancelled', 'classification_unneeded', 'credits_expired', 'hold_expired', 'manual_refund',
     'payment_received', 'payment_refunded'].includes(value as string);
 }
-function stringOrNull(value: unknown): value is string | null { return value === null || typeof value === 'string'; }
 function parsePrice(value: unknown): CreditPrice {
   if (!record(value) || !closed(value, ['operationType', 'priceVersion', 'unit', 'unitPoints']) || value.operationType !== 'bookmark.classify' || typeof value.priceVersion !== 'string'
     || !/^[a-z0-9][a-z0-9._-]{0,63}$/u.test(value.priceVersion) || value.unit !== 'bookmark' || !points(value.unitPoints)) {

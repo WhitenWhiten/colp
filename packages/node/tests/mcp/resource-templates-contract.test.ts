@@ -17,16 +17,6 @@ interface McpResourceTemplate {
 
 type McpResourceTemplates = readonly McpResourceTemplate[];
 
-interface McpResourceTemplateApi {
-  readonly createMcpResourceTemplates?: (
-    manifest: Pick<Manifest, 'serverUuid'>,
-  ) => McpResourceTemplates;
-  readonly createMcpResourceUriCodec?: (manifest: Pick<Manifest, 'serverUuid'>) => {
-    readonly collectionMetadata: (collectionId: string) => string;
-    readonly collectionNode: (collectionId: string, nodeId: string) => string;
-  };
-}
-
 const fixturePath = resolve(
   import.meta.dirname,
   '..',

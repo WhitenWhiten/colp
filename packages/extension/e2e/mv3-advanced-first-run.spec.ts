@@ -23,7 +23,7 @@ test('P1-01 upload uses the UI, lists cloud deletions, and resumes after lost re
   try {
     a = await launchPersistent(dirs.a, stack.browserHostResolverRules);
     const pageA = await ready(a, bindingA); const rootsA = await specialRoots(pageA);
-    const cloud = await pageA.evaluate(async ({ barId, url }) => {
+    await pageA.evaluate(async ({ barId, url }) => {
       const folder = await chrome.bookmarks.create({ parentId: barId, title: 'P1 cloud folder' });
       const bookmark = await chrome.bookmarks.create({ parentId: folder.id, title: 'P1 cloud bookmark', url });
       return { folderId: folder.id, bookmarkId: bookmark.id };

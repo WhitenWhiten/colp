@@ -22,7 +22,6 @@ import { createOwnDataGuards, type OwnDataGuards } from "./own-data.js";
 import type { McpResourceReadBudget } from "./resources.js";
 import {
   McpReadRequestAbortedError,
-  McpReadRequestContextError,
   requireTrustedReadRequestContext,
   type McpTrustedReadRequestContext,
 } from "./resources.js";

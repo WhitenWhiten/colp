@@ -8,7 +8,6 @@ import {
   productClient,
   subscribeSession,
   type EditorSnapshot,
-  type OwnedCollectionListItem,
 } from '../../api'
 import { isBrowserFolderRole } from '../../generated/browser-folder-roles'
 import { findFolder, isAbort } from '../../lib/libraryTree'

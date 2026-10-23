@@ -1,6 +1,3 @@
-/** Product capture identity is independent of URL identity and COLP operation identity. */
-export const CAPTURE_CONTRACT_VERSION = 1;
-export const CAPTURE_RETENTION = { localDays: 90, serverDays: 180, aggregateDays: 365 } as const;
 export type CaptureSource = 'action-popup' | 'manual-popup' | 'context-page' | 'context-link' | 'batch';
 export interface CaptureScope {
   readonly serverOrigin: string;
@@ -178,16 +175,6 @@ export const isAccountAutomation = (automation: CaptureAutomation | undefined): 
   automation !== undefined && automation.source !== 'browser';
 export type FeedbackKind = 'explicit_positive' | 'explicit_negative' | 'correction_applied'
   | 'implicit_positive' | 'dismissed_unrated' | 'not_presented' | 'withdrawn';
-export interface CaptureFeedback {
-  readonly eventId: string;
-  readonly captureId: string;
-  readonly decisionId: string;
-  readonly kind: FeedbackKind;
-  /** Server CAS revision, never a device clock ordering. */
-  readonly revision: number;
-  readonly learningEligible: boolean;
-  readonly evidenceGeneration: number;
-}
 export function sameCaptureScope(a: CaptureScope, b: CaptureScope): boolean {
   return a.serverOrigin === b.serverOrigin && a.accountId === b.accountId
     && a.authorityGeneration === b.authorityGeneration && a.collectionId === b.collectionId;

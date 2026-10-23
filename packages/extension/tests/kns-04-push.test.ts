@@ -12,7 +12,7 @@ import { createBookmarkEventQueue } from '../src/bookmark-event-queue.js';
 import { createOutboundPushWorker } from '../src/outbound-push-worker.js';
 import { revokeBookmarkSync } from '../src/scope-reconcile.js';
 import { createSyncStateStore, type JsonObject } from '../src/sync-state-store.js';
-import type { BookmarkEventNode } from '../src/bookmark-event-queue.js';
+
 import {
   ack, json, networkFailure, emptyPullPage, scope as engineScope, setup as setupDurableEngine,
 } from './durable-sync-engine-harness.js';

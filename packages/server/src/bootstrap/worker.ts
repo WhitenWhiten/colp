@@ -71,7 +71,6 @@ import {
   type CollectionMutationProjectionSink,
   type PublicationCachePurgeProvider,
   type PublicationCachePurgeReadinessState,
-  type OutboxRoute,
   type OutboxWorker,
 } from '../infrastructure/outbox/index.js';
 import {
@@ -292,7 +291,6 @@ export interface BuildWorkerOptions {
   readonly closeDatabase?: boolean;
 }
 
-
 function composeFaviconWorkerRuntime(
   config: AppConfig,
   database: DatabaseRuntime,
@@ -359,7 +357,6 @@ function composeFaviconWorkerRuntime(
     },
   });
 }
-
 
 /** Honest publication cache purge provider readiness state for worker composition. */
 export function resolvePublicationCachePurgeReadinessState(

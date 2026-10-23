@@ -15,13 +15,12 @@ import type { SyncStoreRuntime } from './runtime.js';
 
 export function createEngineRepository(ctx: SyncStoreRuntime) {
   const maxRecordBytes = ctx.maxRecordBytes;
-  const durableCache = ctx.durableCache;
+
   const open = () => ctx.open();
   const writableDatabase = () => ctx.writableDatabase();
   const assertWritable = () => ctx.assertWritable();
   const readOne = (storeName: string, key: IDBValidKey) => ctx.readOne(storeName, key);
-  const factory = ctx.factory;
-  const close = () => ctx.close();
+
   async function commitImportPlan(input: SyncScope, planInput: CommitImportPlanInput): Promise<ImportPlanRecord> {
     assertWritable(); const key = scopeKey(validateScope(input)); const plan = validateImportPlan(key, planInput.plan, maxRecordBytes);
     const nodes = planInput.nodes.map((node) => validateImportNode(key, node, maxRecordBytes));
@@ -305,4 +304,3 @@ export function createEngineRepository(ctx: SyncStoreRuntime) {
     claimRestartConnectivity, confirmRestartConnectivity, beginAckIntent, getPendingAckIntent,
     completeAckIntent, discardPullAckIntent, rejectBootstrapAckAndRequireAuthorityRefresh };
 }
-

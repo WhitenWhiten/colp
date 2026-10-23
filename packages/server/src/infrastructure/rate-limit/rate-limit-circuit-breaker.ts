@@ -33,7 +33,6 @@ export class RateLimitCircuitBreaker {
   private state: RateLimitCircuitState = 'closed';
   private consecutiveFailures = 0;
   private openedAtMs = 0;
-  private probeInFlight = false;
 
   constructor(private readonly options: RateLimitCircuitBreakerOptions) {
     if (!Number.isSafeInteger(options.failureThreshold) || options.failureThreshold < 1) {
@@ -64,7 +63,6 @@ export class RateLimitCircuitBreaker {
     if (this.state === 'open') {
       if (this.now() - this.openedAtMs < this.options.cooldownMs) return false;
       this.state = 'half_open';
-      this.probeInFlight = true;
       return true;
     }
     return false;
@@ -75,7 +73,6 @@ export class RateLimitCircuitBreaker {
     this.consecutiveFailures = 0;
     if (this.state === 'half_open') {
       this.state = 'closed';
-      this.probeInFlight = false;
     }
   }
 
@@ -89,7 +86,6 @@ export class RateLimitCircuitBreaker {
     this.consecutiveFailures += 1;
     if (this.state === 'half_open') {
       this.state = 'open';
-      this.probeInFlight = false;
       this.openedAtMs = this.now();
       return;
     }
@@ -104,7 +100,6 @@ export class RateLimitCircuitBreaker {
     this.state = 'closed';
     this.consecutiveFailures = 0;
     this.openedAtMs = 0;
-    this.probeInFlight = false;
   }
 
   private now(): number {

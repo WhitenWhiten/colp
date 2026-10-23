@@ -1,5 +1,5 @@
 import {
-  SyncStateError, type ImportNodeRecord, type ImportPlanRecord, type JsonObject,
+  type ImportNodeRecord, type ImportPlanRecord, type JsonObject,
 } from './types.js';
 import { cursorPage, requestValue, scopeRowsRange } from './idb.js';
 import { STORES } from './schema.js';

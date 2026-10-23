@@ -9,7 +9,7 @@ import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, test } from 'vitest';
 import { fakeChrome } from './recovery-projection-chrome-fixture.js';
 import { clampRecoveryCreateIndex, collectNativeFacts, executeProjectionIntents,
-  ProjectionAmbiguousError, projectVirtualSnapshotChildren, recoverSnapshotProjection } from '../src/recovery-projection-executor.js';
+  projectVirtualSnapshotChildren, recoverSnapshotProjection } from '../src/recovery-projection-executor.js';
 import { createProjectionSuppression, type ProjectionIntentRecord } from '../src/recovery-overlay.js';
 import { leftoverVirtualChildrenNeedReproject, recoverVerifiedOrFreeze } from '../src/recovery-guard.js';
 import { createSyncStateStore, type MappingInput, type SyncScope } from '../src/sync-state-store.js';

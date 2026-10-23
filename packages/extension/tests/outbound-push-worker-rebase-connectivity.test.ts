@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
 import { describe, test } from 'vitest';
-import { createOutboundPushWorker, type PushSessionController } from '../src/outbound-push-worker.js';
-import { createSyncStateStore, type JsonObject } from '../src/sync-state-store.js';
+import { createOutboundPushWorker } from '../src/outbound-push-worker.js';
+
 import {
   ack, json as engineJson, networkFailure, pullPage, scope as engineScope, setup as setupEngine,
 } from './durable-sync-engine-harness.js';
 import {
-  endpoints, indexedDB, installOutboundPushIndexedDb, json, operation, problem, scope, setup, setupMove,
+  endpoints, installOutboundPushIndexedDb, json, problem, scope, setup, setupMove,
 } from './outbound-push-worker-harness.js';
 
 installOutboundPushIndexedDb();

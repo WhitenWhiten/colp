@@ -6,7 +6,7 @@ import { publicAttentionSummary } from '../src/bootstrap/attention-report.js';
 import { createBootstrapCoordinator } from '../src/bootstrap/coordinator.js';
 import { handleAttentionDecide, handleAttentionGet, withAttention } from '../src/sw/first-run-attention.js';
 import {
-  FIRST_RUN_NEEDS_ATTENTION, FIRST_RUN_SYNCED, popupFirstRunStatus, projectFirstRunSurface,
+  popupFirstRunStatus, projectFirstRunSurface,
 } from '../src/first-run-draft.js';
 import { createSyncStateStore, type SyncScope } from '../src/sync-state-store.js';
 

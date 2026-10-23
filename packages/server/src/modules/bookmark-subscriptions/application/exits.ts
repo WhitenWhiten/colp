@@ -1,5 +1,5 @@
-import type { SubscriptionActor, SubscriptionTransactionPorts, BookmarkSubscriptionExitPort } from './contracts.js';
-import type { ExitPreviewInput, ExitPreview, ExitBatch, ExitTarget, Mapping, SourceRef, ActionReceipt } from '../domain/types.js';
+import type { SubscriptionActor, SubscriptionTransactionPorts } from './contracts.js';
+import type { ExitPreviewInput, ExitPreview, ExitBatch, ExitTarget, ActionReceipt } from '../domain/types.js';
 import { digest, fail, revision } from './validation.js';
 
 async function selection(p: SubscriptionTransactionPorts, actor: SubscriptionActor, input: ExitPreviewInput) {
@@ -72,7 +72,4 @@ export async function acknowledgeAction(p: SubscriptionTransactionPorts, actor: 
   const receipt={actionId,...input,acknowledgedAt:(await p.now()).toISOString()};
   await p.store.acknowledge(actor.accountId,receipt);
   await p.store.saveMapping(actor.accountId,s,{...m,status:'detached',detachedAt:receipt.acknowledgedAt,revision:revision()});return receipt;
-}
-export function createSubscriptionExitCoordinator(p: SubscriptionTransactionPorts):BookmarkSubscriptionExitPort {
-  return {lockAccount:p.lockAccount,async unfollow(input) { await commitExit(p,{accountId:input.accountId,subjectId:input.subjectId},{trigger:'unfollow',target:{kind:'source',...input.source}},input.previewId); }};
 }

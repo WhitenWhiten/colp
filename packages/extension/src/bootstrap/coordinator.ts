@@ -11,7 +11,7 @@ import { virtualNativeId } from '../projection-native-occupancy.js';
 import { buildAttentionReport, publicAttentionSummary } from './attention-report.js';
 import type {
   BootstrapMode, BootstrapRunRecord, BookmarkEventRecord, JsonObject, MappingInput, MountBindingRecord,
-  QueueOperation, RecoveryNodeRecord, ScopePreviewRecord, SyncScope, createSyncStateStore,
+  QueueOperation, ScopePreviewRecord, SyncScope, createSyncStateStore,
 } from '../sync-state-store.js';
 import { applyInboxToFacts } from './local-facts.js';
 import { scopeKey } from '../sync-state/scope-key.js';

@@ -1,4 +1,4 @@
-import { createHash, createPublicKey, randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { importJWK, SignJWT, type JWK } from 'jose';
 import { ACCOUNT_CREDENTIAL_SECRET_PATTERN } from './secret.js';
 import {
@@ -275,34 +275,4 @@ export function composeAccountKeyRuntime(input: {
     publicKeys,
     machineKids: new Set(publicKeys.map((key) => key.kid)),
   };
-}
-
-export function asPublicEs256Jwk(value: unknown): AccountCredentialsEs256PublicJwk | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const record = value as Record<string, unknown>;
-  if (
-    record.kty !== 'EC'
-    || record.crv !== 'P-256'
-    || typeof record.kid !== 'string'
-    || record.kid.length < 1
-    || typeof record.x !== 'string'
-    || typeof record.y !== 'string'
-    || record.d !== undefined
-  ) {
-    return null;
-  }
-  try {
-    createPublicKey({ key: { kty: 'EC', crv: 'P-256', x: record.x, y: record.y }, format: 'jwk' });
-  } catch {
-    return null;
-  }
-  return Object.freeze({
-    kid: record.kid,
-    kty: 'EC',
-    crv: 'P-256',
-    x: record.x,
-    y: record.y,
-    use: 'sig',
-    alg: 'ES256',
-  });
 }

@@ -101,7 +101,7 @@ describe('MCP write mount — fail-closed mount resolution', () => {
 
 describe('MCP collections.get — gateway option and invocation hardening', () => {
   const serverUuid = '019b3c67-a03c-7f02-9c7e-1ee8d50a77de';
-  const codec = createMcpResourceUriCodec(Object.freeze({ serverUuid }));
+  createMcpResourceUriCodec(Object.freeze({ serverUuid }));
 
   it('rejects malformed read gateway options', () => {
     expect(() => createMcpReadToolGateway('nope' as never)).toThrow(TypeError);

@@ -142,7 +142,6 @@ export interface CollectionHistoryFeatureConfig {
   readonly cursor: ProductOwnedCollectionsCursorConfig;
 }
 
-
 /**
  * Cross-instance shared collaboration-invite rate-limit adapter (S-04).
  *
@@ -350,33 +349,6 @@ export interface McpRateLimitSharedConfig {
 }
 
 /**
- * FIX-L-061 shared Redis adapter config for the email callback ingress
- * trusted-IP budget (audit KA-P5-SOC-16). Mirrors the MCP shared config:
- * when enabled, the API composition injects ONE Redis fixed-window adapter
- * behind the `EmailCallbackRateLimiter` port (email-callback codec: HMAC
- * over the trusted client IP) so N API replicas share ONE quota per IP and
- * restarts never reset it. The HMAC key secret VALUE is resolved here and
- * stored as bytes (never logged or serialized). Redis failures fail closed
- * (route 503, never silent unlimited admit).
- */
-export interface EmailCallbackRateLimitSharedConfig {
-  /** Shared Redis adapter enabled (EMAIL_CALLBACK_RATE_LIMIT_SHARED=true). */
-  readonly enabled: boolean;
-  /** redis:// or rediss:// endpoint; null when disabled without a URL. */
-  readonly redisUrl: string | null;
-  /** Email-callback codec HMAC key secret bytes; null when disabled. */
-  readonly keySecret: Buffer | null;
-  /** Redis key namespace prefix (email-callback codec); default 'known'. */
-  readonly keyPrefix: string;
-  /** Per-command timeout (ms); default 75, hard ceiling 5000. */
-  readonly commandTimeoutMs: number;
-  /** Connect timeout (ms); default 1000, hard ceiling 30000. */
-  readonly connectTimeoutMs: number;
-  /** Bounded retries per request; default 1, range 0..10. */
-  readonly maxRetriesPerRequest: number;
-}
-
-/**
  * Production HTTP security baseline settings.
  * Rate limiting defaults to single-process memory; multi-replica deployments
  * MUST configure the shared adapters (AUTH_RATE_LIMIT_SHARED=true,
@@ -493,7 +465,6 @@ export interface PublisherReceiptRetentionConfig {
   /** Maximum completed receipts deleted by one cleanup transaction. */
   readonly cleanupBatchSize: number;
 }
-
 
 export interface PublicationConfig {
   readonly origin: string;
@@ -915,72 +886,6 @@ export interface NotificationFeatureConfig {
 }
 
 /**
- * Feature-scoped email delivery config (P5-28). `enabled` is exposure control
- * only (KNOWN_FEATURE_EMAIL, default false). The section carries no provider
- * credentials: ALIBABA_CLOUD_ACCESS_KEY_ID/SECRET load via environment/secret
- * reference at composition. When disabled the section may be absent entirely
- * (follow/feed/notifications pattern); required values are enforced only when
- * enabled (fail closed).
- */
-export interface EmailFeatureConfig {
-  /** Exposure control only; the adapter and ports remain production-wired while false. */
-  readonly enabled: boolean;
-  /** DirectMail RPC endpoint (EMAIL_DM_ENDPOINT, default https://dm.aliyuncs.com/). */
-  readonly endpoint: string;
-  /** DirectMail console/EventBridge region (EMAIL_DM_REGION_ID, default cn-hangzhou). */
-  readonly regionId: string;
-  /** Verified DirectMail sender AccountName; required when enabled. */
-  readonly accountName: string | null;
-  /** Per-request provider timeout (EMAIL_DM_TIMEOUT_MS, bounded 500..60000). */
-  readonly timeoutMs: number;
-  /** TagName prefix for the stable delivery_id idempotency key (EMAIL_DM_TAG_PREFIX). */
-  readonly tagPrefix: string;
-  /** Maximum TagName chars (EMAIL_DM_MAX_TAG_CHARS, bounded 16..128; frozen max 128). */
-  readonly maxTagChars: number;
-  readonly callback: {
-    /** Shared secret for the frozen X-Known-DM-* HMAC envelope; optional (null when absent). */
-    readonly hmacSecret: string | null;
-    /** X-Known-DM-Timestamp replay window (EMAIL_DM_CALLBACK_TIMESTAMP_WINDOW_MS, bounded 1000..600000). */
-    readonly timestampReplayWindowMs: number;
-  };
-  readonly opsToken: string | null;
-  /** Ops suppression surface rate limit (EMAIL_OPS_RATE_LIMIT_MAX/WINDOW_MS). */
-  readonly opsRateLimit: { readonly maxRequests: number; readonly windowMs: number };
-  /**
-   * FIX-L-061 callback ingress per-trusted-IP budget
-   * (EMAIL_CALLBACK_RATE_LIMIT_MAX/WINDOW_MS); default 600/min — generous
-   * for legitimate provider redelivery retries, bounded for floods.
-   */
-  readonly callbackRateLimit: { readonly maxRequests: number; readonly windowMs: number };
-  /**
-   * FIX-L-061 cross-instance shared Redis adapter for the callback budget
-   * (EMAIL_CALLBACK_RATE_LIMIT_SHARED/REDIS_URL/KEY_SECRET); defaults to
-   * disabled (zero Redis connections, in-process adapter).
-   */
-  readonly callbackRateLimitShared: EmailCallbackRateLimitSharedConfig;
-  readonly worker: EmailDeliveryWorkerConfig;
-}
-
-/** Log-safe view of the email config: never exposes accountName, hmacSecret or credentials. */
-/** P5-29 feature-scoped email delivery worker timing/retry bounds. */
-export interface EmailDeliveryWorkerConfig {
-  /** Bounded total send attempts per delivery (>= 2); the last failing attempt dead-letters. */
-  readonly maxAttempts: number;
-  /** Exponential backoff base for next_attempt_at (ms). */
-  readonly baseBackoffMs: number;
-  /** Exponential backoff ceiling (ms). */
-  readonly maxBackoffMs: number;
-  /** Delivery poll interval (ms). */
-  readonly pollIntervalMs: number;
-  /** Per-attempt delivery lease (ms); heartbeatIntervalMs must be smaller. */
-  readonly leaseDurationMs: number;
-  /** Lease heartbeat interval (ms). */
-  readonly heartbeatIntervalMs: number;
-  /** Max claims per poll cycle. */
-  readonly batchSize: number;
-}
-
-/**
  * C1 auth email delivery config (AUTH_EMAIL_*). `enabled` is exposure control
  * only (AUTH_EMAIL_ENABLED, default false) and is the auth email rollback
  * flag; the section carries no provider credentials (ALIBABA_CLOUD_ACCESS_KEY_ID/
@@ -1018,18 +923,6 @@ export interface CollaborationInviteEmailConfig {
   readonly timeoutMs: number;
   readonly tagPrefix: string;
   readonly maxTagChars: number;
-}
-
-export interface EmailFeatureConfigSanitized {
-  readonly enabled: boolean;
-  readonly endpoint: string;
-  readonly regionId: string;
-  readonly timeoutMs: number;
-  readonly tagPrefix: string;
-  readonly maxTagChars: number;
-  readonly callbackTimestampReplayWindowMs: number;
-  /** P5-29 worker timing/retry bounds (never secrets). */
-  readonly worker: EmailDeliveryWorkerConfig;
 }
 export interface SyncTombstonePurgeConfig {
   readonly enabled: boolean;

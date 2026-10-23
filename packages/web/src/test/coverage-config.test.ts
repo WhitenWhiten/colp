@@ -27,7 +27,6 @@ describe('Frontend production coverage gate', () => {
       functions: 71,
       lines: 81,
       'src/components/VirtualList.tsx': expect.any(Object),
-      'src/lib/useAutoSaveDraft.ts': expect.any(Object),
       'src/pages/CollectionEditor.tsx': expect.any(Object),
     })
   })

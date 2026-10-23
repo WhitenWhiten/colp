@@ -42,7 +42,6 @@ const unsafeCases = [
 
 // ---------------------------------------------------------------------------
 // Minimal Push harness
-// ---------------------------------------------------------------------------
 
 interface Conflict { readonly id: string }
 interface Audit { readonly id: string }
@@ -258,7 +257,7 @@ class SequenceHandle implements SequenceCoordinatorUnitOfWork<SequenceResult> {
   constructor(readonly backend = new SequenceBackend()) {}
 
   execute<Value>(
-    lane: SequenceLaneKey,
+    _lane: SequenceLaneKey,
     work: (transaction: SequenceCoordinatorTransaction<SequenceResult>) => Promise<Value>,
   ): Promise<Value> {
     return (async () => {

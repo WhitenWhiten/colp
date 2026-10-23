@@ -7,7 +7,6 @@ export * from './filesystem-object-store.js';
 export * from './object-store.js';
 export * from './payload-cold-sources.js';
 export * from './production-sources.js';
-export * from './reader-cutover.js';
 export * from './s3-object-store.js';
 export * from './segment-payload-cache.js';
 export * from './social-outbox-source.js';

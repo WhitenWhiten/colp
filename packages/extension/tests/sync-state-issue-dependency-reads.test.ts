@@ -3,7 +3,7 @@ import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 import { ISSUE_DEPENDENCY_STORES, transactionIssueDependencies } from '../src/sync-state/issue-dependencies.js';
-import { INDEXES, STORES } from '../src/sync-state/schema.js';
+import { STORES } from '../src/sync-state/schema.js';
 import { scopeKey } from '../src/sync-state/scope-key.js';
 import { createSyncStateStore, type JsonObject, type SyncScope } from '../src/sync-state-store.js';
 
@@ -92,14 +92,6 @@ function event(index: number, scopeKeyValue: string, status = 'processed', overr
     occurredAt: '2026-10-01T00:00:00.000Z', kind: 'change', nativeId: `native-${index}`,
     details: { payload: { title: 'history' } }, ordinal: index, status, opId: status === 'processed' ? `op-${index}` : null,
     ...overrides };
-}
-function write(store: ReturnType<typeof createSyncStateStore>, rows: (db: IDBDatabase, key: string) => void,
-  names: readonly string[]) {
-  return store.open().then((db) => new Promise<void>((resolve, reject) => {
-    const tx = db.transaction([...names], 'readwrite');
-    tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error as Error); tx.onabort = () => reject(tx.error as Error);
-    rows(db, '');
-  }));
 }
 
 async function seed(store: ReturnType<typeof createSyncStateStore>, key: string, key2: string, history: number) {

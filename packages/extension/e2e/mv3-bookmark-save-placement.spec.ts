@@ -2,7 +2,7 @@ import { chromium, expect, test, type BrowserContext, type Page, type TestInfo }
 import { resolve } from 'node:path';
 import { startRealStack, type RealStack } from './real-stack.js';
 import { KNOW_N_BACKEND_ONLY, knowNBackendRoot } from './cloud-product-fixtures.js';
-import { EXTENSION_ID, openExtensionOptions, signInExtension } from './extension-auth.js';
+import { openExtensionOptions, signInExtension } from './extension-auth.js';
 import { FIXTURE_COLLECTION_ID } from './fixture-ids.js';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
 import { grantBookmarks } from './kns-08-harness.js';

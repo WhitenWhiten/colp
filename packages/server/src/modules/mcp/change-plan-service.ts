@@ -530,7 +530,6 @@ function readServiceOptions<Transaction extends object>(
   });
 }
 
-
 async function currentRevisionsFromProductPorts(
   ports: ProductCollectionCanonicalPorts,
   baseRevisions: McpChangePlanRevisionMap,
@@ -540,7 +539,7 @@ async function currentRevisionsFromProductPorts(
     throw revisionDrift('Plan revision map does not identify one collection.');
   }
   const result: Record<string, string> = {};
-  for (const [namespace, expectedRevision] of Object.entries(baseRevisions)) {
+  for (const namespace of Object.keys(baseRevisions)) {
     if (namespace.startsWith('content.')) {
       const locked = await ports.collections.lockForUpdate(namespace.slice('content.'.length));
       if (!locked || locked.deletedAt !== null) throw revisionDrift('Collection is unavailable.');
@@ -591,8 +590,6 @@ function deriveCollectionId(baseRevisions: McpChangePlanRevisionMap): string | u
   const unique = new Set(candidates);
   return unique.size === 1 ? [...unique][0] : undefined;
 }
-
-
 
 function assertTransactionHandle(transaction: unknown): asserts transaction is object {
   if (typeof transaction !== 'object' || transaction === null || nodeTypes.isProxy(transaction)) {

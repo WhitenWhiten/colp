@@ -1,4 +1,3 @@
-import { snapshotMcpData } from '../safe-data.js';
 import type { McpChangeSignal, McpChangeSignalSubscription } from '../shared/change-signal.js';
 import { snapshotMcpChangeSignal } from '../shared/change-signal.js';
 import type {

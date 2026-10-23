@@ -5,7 +5,7 @@ import { beforeEach } from 'vitest';
 import { createBootstrapCoordinator } from '../src/bootstrap/coordinator.js';
 import type { LocalNodeFact, MountFact, RemoteNodeFact } from '../src/bootstrap/matcher.js';
 import { digestJson, validateOperation } from '../src/bookmark-event-codec.js';
-import { createSyncStateStore, type JsonObject, type MountBindingRecord, type QueueOperation,
+import { createSyncStateStore, type MountBindingRecord, type QueueOperation,
   type SyncScope } from '../src/sync-state-store.js';
 
 export const scope: SyncScope = Object.freeze({

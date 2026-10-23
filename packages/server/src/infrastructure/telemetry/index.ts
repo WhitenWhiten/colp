@@ -151,8 +151,6 @@ const SENSITIVE_HEADER_NAMES = new Set([
   'csrf-token',
 ]);
 
-export type RawHeaderPairs = ReadonlyArray<readonly [string, string]>;
-
 interface RequestForLog {
   readonly method?: unknown;
   readonly url?: unknown;

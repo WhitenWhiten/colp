@@ -1,6 +1,6 @@
 import { executeFaviconCommand, type FaviconCommandWriteContext } from '../../modules/collections/index.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import type { AppConfig } from '../../bootstrap/config.js';
+
 import type { IdentityUnitOfWork } from '../../modules/identity/index.js';
 import {
   BOOKMARK_FAVICON_MAX_BYTES,

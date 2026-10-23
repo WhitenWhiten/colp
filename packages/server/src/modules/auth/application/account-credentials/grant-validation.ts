@@ -16,8 +16,6 @@ const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const CURSOR = /^[A-Za-z0-9_-]+$/;
 const OPAQUE_ID = /^[A-Za-z0-9._~-]{1,128}$/;
 const LIMIT = /^[1-9][0-9]*$/;
-const COMMAND_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-const STRONG_ETAG = /^"[^"\r\n]+"$/;
 
 export function parseGrantInput(body: unknown): CredentialGrantInput {
   const record = closedObject(body, ['credentialId', 'resource', 'actions', 'expiresAt']);
@@ -88,16 +86,6 @@ export function parsePlanDigest(value: unknown): string {
 
 export function parseGrantOpaqueId(value: unknown, label: string): string {
   return parseOpaque(value, label);
-}
-
-export function parseMcpCommandId(value: unknown): string {
-  if (typeof value !== 'string' || !COMMAND_ID.test(value)) throw requestError();
-  return value;
-}
-
-export function parseMcpIfMatch(value: unknown): string {
-  if (typeof value !== 'string' || !STRONG_ETAG.test(value)) throw requestError();
-  return value;
 }
 
 function parseResource(value: unknown): CredentialGrantInput['resource'] {

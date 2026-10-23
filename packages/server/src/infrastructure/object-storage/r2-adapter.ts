@@ -48,10 +48,7 @@ import type {
   ProbeCapabilityOutcome,
   ReadBoundedOptions,
   ReadBoundedOutcome,
-  ReadOnlyBlobStorePort,
 } from './blob-store-port.js';
-
-export const R2_GRANT_TTL_DEFAULT_SECONDS = 60;
 export const R2_GRANT_TTL_MAX_SECONDS = 300;
 export const R2_STARTUP_PROBE_KEY_SUFFIX = 'startup-capability';
 
@@ -127,11 +124,6 @@ function assertValidOptions(options: R2GenerationStoreOptions): void {
     || options.rwCredential.secretAccessKey === options.roCredential.secretAccessKey) {
     throw new RangeError('object_storage_read_credential_must_be_distinct');
   }
-}
-
-function assertValidReadOnlyOptions(options: R2ReadOnlyGenerationStoreOptions): void {
-  assertValidCommonOptions(options);
-  assertCredentialValid(options.roCredential, 'ro');
 }
 
 function normalizeMetadataInput(metadata: Readonly<Record<string, string>> | undefined): Record<string, string> {
@@ -519,15 +511,4 @@ export class R2GenerationStore implements BlobStorePort {
 export function createR2GenerationStore(options: R2GenerationStoreOptions): BlobStorePort {
   assertValidOptions(options);
   return new R2GenerationStore(options);
-}
-
-/**
- * P4A-I11 credential-free read-only factory for the isolated delivery origin.
- * The returned store can ONLY head/read exact generations (plus probe/close);
- * write operations fail closed with `store_read_only`, so the delivery
- * process structurally cannot issue grants or delete objects.
- */
-export function createR2ReadOnlyGenerationStore(options: R2ReadOnlyGenerationStoreOptions): ReadOnlyBlobStorePort {
-  assertValidReadOnlyOptions(options);
-  return new R2GenerationStore(options, { readOnly: true });
 }

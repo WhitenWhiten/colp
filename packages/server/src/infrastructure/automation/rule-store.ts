@@ -1,7 +1,7 @@
 import { aggregationSemanticDigest } from './aggregation-semantics.js';
 import { touchAutomationConfiguration } from './configuration-epoch.js';
 import { sql, type Kysely } from 'kysely';
-import { ruleSemanticDigest, type Rule } from '@know-n/colp/automation';
+import { ruleSemanticDigest } from '@know-n/colp/automation';
 import type { DatabaseSchema } from '../database/runtime.js';
 import type { RuleStore, StoredRule } from '../../modules/automation/index.js';
 export function createRuleStore(db: Kysely<DatabaseSchema>, runtimeEnabled = false): RuleStore {

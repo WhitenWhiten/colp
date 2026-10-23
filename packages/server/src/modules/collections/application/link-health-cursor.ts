@@ -5,7 +5,6 @@ import {
 } from '../../commands/index.js';
 
 export const PRODUCT_LINK_HEALTH_CURSOR_PURPOSE = 'link_health_v1' as const;
-export const PRODUCT_LINK_HEALTH_CURSOR_VERSION = 1 as const;
 export const PRODUCT_LINK_HEALTH_COMPARATOR_VERSION = 'checked-at-nulls-first-node-id-v1' as const;
 export const PRODUCT_LINK_HEALTH_SORT = 'checked_at:asc_nulls_first,node_id:asc' as const;
 export const PRODUCT_LINK_HEALTH_CURSOR_TTL_MS = 15 * 60 * 1000;

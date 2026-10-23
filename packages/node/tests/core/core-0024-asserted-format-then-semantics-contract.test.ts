@@ -10,7 +10,6 @@ import {
   type ClientCache,
 } from '../../src/client/index.js';
 import {
-  collectionProtocolSchema,
   createAjv,
   createValidatorRegistry,
   validateWireDocument,

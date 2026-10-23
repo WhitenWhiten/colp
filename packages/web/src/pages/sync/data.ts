@@ -8,7 +8,7 @@ import {
   type SyncTrashDetail,
   type SyncTrashListItem,
 } from '../../api'
-import { initialDraft, ownedSyncCollectionIds, quotedEntityTag } from './fields'
+import { initialDraft, quotedEntityTag } from './fields'
 import type { ConflictDraft } from './types'
 import { privateSessionIdentity, subscribeSession } from '../../api/sessionStore'
 

@@ -1,21 +1,9 @@
-import type { SyncConflictSummary, SyncStatusView } from '../../api'
+import type { SyncConflictSummary } from '../../api'
 import { formatMediumInstant } from '../../lib/formatDate'
 import type { ConflictDraft } from './types'
 
 export function formatInstant(value: string | null): string {
   return formatMediumInstant(value)
-}
-
-export function ownedSyncCollectionIds(status: SyncStatusView | null): string[] {
-  if (!status) return []
-  const ids: string[] = []
-  const seen = new Set<string>()
-  for (const replica of status.replicas) {
-    if (seen.has(replica.collectionId)) continue
-    seen.add(replica.collectionId)
-    ids.push(replica.collectionId)
-  }
-  return ids
 }
 
 export function quotedEntityTag(revision: string): string {

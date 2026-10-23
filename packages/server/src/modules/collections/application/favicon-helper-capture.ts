@@ -3,7 +3,6 @@ import type { AccessPolicyFactsPort } from '../../access-policy/index.js';
 import {
   assertCanonicalCommandId,
   canonicalCommandFingerprint,
-  type ProductCommandClaim,
   type ProductCommandReceiptPort,
   type ProductCommandResult,
 } from '../../commands/index.js';
@@ -195,7 +194,7 @@ export async function captureBookmarkFavicon(
   const claim = await ports.receipts.claim(binding, fingerprint);
   if (claim.kind !== 'claimed') return mapHelperClaim(claim);
 
-  const { node, collectionOwnerSubjectId, collectionVisibility } =
+  const { node } =
     await loadOwnerBookmarkNode(ports, input.actor, input.collectionId, input.nodeId);
   const currentRow = await ports.sources.findByNodeId(node.id);
   const currentSourceRevision = currentRow?.revision ?? INITIAL_FAVICON_SOURCE_REVISION;
@@ -497,13 +496,4 @@ function mapHelperClaim(
   if (claim.kind === 'in_progress') return claim;
   if (claim.kind === 'expired') return claim;
   return { kind: 'reused' };
-}
-
-export function mapFaviconHelperCommandError(
-  error: unknown,
-): FaviconHelperCaptureCommandError | CollectionPreconditionError | CollectionAuthorizationError | null {
-  if (error instanceof FaviconHelperCaptureCommandError) return error;
-  if (error instanceof CollectionPreconditionError) return error;
-  if (error instanceof CollectionAuthorizationError) return error;
-  return null;
 }

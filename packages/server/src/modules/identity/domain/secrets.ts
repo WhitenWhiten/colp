@@ -4,11 +4,6 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypt
 const CSRF_DERIVE_PURPOSE = 'known-session-csrf-v1';
 const ROTATION_DERIVE_PURPOSE = 'known-session-rotation-v2';
 
-/** 32 random bytes → base64url (43 chars). */
-export function generateCsrfTokenRaw(): string {
-  return randomBytes(32).toString('base64url');
-}
-
 /**
  * Derive the session-bound CSRF secret from the raw session cookie secret.
  * Allows GET /session to re-issue CSRF without rotating or storing the raw value.

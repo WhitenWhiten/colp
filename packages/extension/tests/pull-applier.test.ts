@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, test } from 'vitest';
-import { createPullApplier, type PullBookmarkApi } from '../src/pull-applier.js';
+import { createPullApplier } from '../src/pull-applier.js';
 import { createBookmarkEventQueue, type BookmarkEventApi } from '../src/bookmark-event-queue.js';
 import { createSyncStateStore, type SyncScope } from '../src/sync-state-store.js';
 import { honestChrome } from './kns-05-pull-harness.js';

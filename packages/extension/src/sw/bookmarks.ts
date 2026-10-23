@@ -229,13 +229,6 @@ async function treeRecoverShouldWait(): Promise<boolean> {
   }
 }
 
-export async function resumeBookmarkEvents() {
-  if (!await hasBookmarkPermission()) return;
-  bookmarkListenerLifecycle.install();
-  if (typeof chrome.bookmarks === 'undefined') return;
-  const queue = await currentBookmarkEventQueue(); await queue?.flush();
-}
-
 /**
  * Chrome bookmark creates observed while `recoveryFrozen` are discarded
  * (`recovery_frozen`); first-run snapshot bootstrap holds that freeze until

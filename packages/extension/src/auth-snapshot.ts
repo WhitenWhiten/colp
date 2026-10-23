@@ -42,7 +42,3 @@ export async function writeAuthSnapshot(state: PublicAuthState): Promise<void> {
     updatedAt: Date.now(),
   } });
 }
-
-export async function clearAuthSnapshot(): Promise<void> {
-  await chrome.storage.local.remove(AUTH_SNAPSHOT);
-}

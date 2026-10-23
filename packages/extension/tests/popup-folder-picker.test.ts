@@ -94,7 +94,7 @@ test('the folder tree has one tab stop on the chosen folder and a pick returns f
 
 test('the first folder is the tab stop when nothing is chosen yet', async () => {
   stubChrome(tree, {});
-  const { picker, toggle, tree: folderTree } = mountPicker();
+  const { picker, tree: folderTree } = mountPicker();
   await picker.init('col-1', ['1']);
   await picker.open();
   await vi.waitFor(() => expect(folderTree.querySelectorAll('[data-folder-id]')).toHaveLength(3));
@@ -116,7 +116,7 @@ test('re-init while the panel is open keeps it open', async () => {
 
 test('ArrowDown skips a filtered-out option', async () => {
   stubChrome();
-  const { picker, toggle, tree: folderTree, panel } = mountPicker();
+  const { picker, tree: folderTree } = mountPicker();
   await picker.init('col-1', ['1']);
   await picker.open();
   await vi.waitFor(() => expect(folderTree.querySelectorAll('[data-folder-id]')).toHaveLength(3));
@@ -129,7 +129,7 @@ test('ArrowDown skips a filtered-out option', async () => {
 
 test('with no sync mounts (signed-out device scope) every folder is one flat list', async () => {
   stubChrome();
-  const { picker, toggle, tree: folderTree } = mountPicker();
+  const { picker, tree: folderTree } = mountPicker();
   await picker.init('device', []);
   await picker.open();
   await vi.waitFor(() => expect(folderTree.querySelectorAll('[data-folder-id]')).toHaveLength(3));
@@ -138,7 +138,7 @@ test('with no sync mounts (signed-out device scope) every folder is one flat lis
 
 test('a stale mount that matches no folder still lists every folder', async () => {
   stubChrome();
-  const { picker, toggle, tree: folderTree } = mountPicker();
+  const { picker, tree: folderTree } = mountPicker();
   await picker.init('col-1', ['gone']);
   await picker.open();
   await vi.waitFor(() => expect(folderTree.querySelectorAll('[data-folder-id]')).toHaveLength(3));
@@ -146,7 +146,7 @@ test('a stale mount that matches no folder still lists every folder', async () =
 
 test('folders keep the browser order; a synced folder is only marked, never labelled', async () => {
   stubChrome(wideTree);
-  const { picker, toggle, tree: folderTree } = mountPicker();
+  const { picker, tree: folderTree } = mountPicker();
   await picker.init('col-1', ['c']);
   await picker.open();
   await vi.waitFor(() => expect(folderTree.querySelectorAll('[data-folder-id]')).toHaveLength(5));
@@ -162,7 +162,7 @@ test('folders keep the browser order; a synced folder is only marked, never labe
 
 test('read-only subscription folders are not offered as destinations', async () => {
   stubChrome(wideTree);
-  const { picker, toggle, tree: folderTree } = mountPicker(new Set(['2']));
+  const { picker, tree: folderTree } = mountPicker(new Set(['2']));
   await picker.init('col-1', []);
   await picker.open();
   await vi.waitFor(() => expect(folderTree.querySelectorAll('[data-folder-id]')).toHaveLength(3));
@@ -205,7 +205,7 @@ test('recent shortcuts remain available without overriding the explicit default'
     [FOLDER_RECENTS]: { ids: ['c', 'gone', 'a'] },
     [FOLDER_DEFAULT_BINDING]: { collectionId: 'col-1', folderNativeId: 'b' },
   });
-  const { picker, toggle, tree: folderTree } = mountPicker();
+  const { picker, tree: folderTree } = mountPicker();
   await picker.init('col-1', ['1']);
   expect(picker.chosenFolderId()).toBe('b');
   expect(document.getElementById('folder-current')!.textContent).toBe('Beta');
@@ -223,7 +223,7 @@ test('recent shortcuts remain available without overriding the explicit default'
 
 test('a saved pick becomes the newest recent folder, whether or not it syncs', async () => {
   const local = stubChrome(wideTree, { [FOLDER_RECENTS]: { ids: ['a', 'c'] } });
-  const { picker, toggle, tree: folderTree } = mountPicker();
+  const { picker, tree: folderTree } = mountPicker();
   await picker.init('device', []);
   expect(picker.chosenFolderId()).toBe('');
   await picker.open();
@@ -303,7 +303,7 @@ test('a search reads the whole tree once: the Recent group steps aside', async (
 test('an out-of-range pick applies at once: no prompt, and the next save goes there', async () => {
   stubChrome(tree, { [FOLDER_DEFAULT_BINDING]: { collectionId: 'device', folderNativeId: 'a' } });
   const onChosen = vi.fn();
-  const { picker, toggle, tree: folderTree, panel } = mountPicker(new Set(), onChosen);
+  const { picker, tree: folderTree, panel } = mountPicker(new Set(), onChosen);
   await picker.init('col-1', ['a']);
   expect(await picker.syncTarget()).toEqual({ kind: 'synced', collectionId: 'col-1' });
   await picker.open();
@@ -417,7 +417,7 @@ test('opening the panel focuses the search and the check mark follows the chosen
 
 test('ArrowDown from the search lands on the first folder, and arrows roam the listbox', async () => {
   stubChrome(wideTree);
-  const { picker, toggle, panel, tree } = mountShellPicker();
+  const { picker, panel, tree } = mountShellPicker();
   await picker.init('device', []);
   await picker.open();
   await vi.waitFor(() => expect(panel.hidden).toBe(false));
@@ -459,7 +459,7 @@ test('"New folder in <name>" turns into an inline input; Escape steps back, then
 
 test('Escape in the panel does not reach the rest of the popup', async () => {
   stubChrome(wideTree);
-  const { picker, toggle, panel } = mountShellPicker();
+  const { picker, panel } = mountShellPicker();
   await picker.init('device', []);
   await picker.open();
   await vi.waitFor(() => expect(panel.hidden).toBe(false));
@@ -475,7 +475,7 @@ test('creating a folder inside the chosen one picks it and collapses the input',
   const local = stubChrome(wideTree);
   const create = vi.fn(async (details: { parentId: string; title: string }) => ({ id: 'new', ...details }));
   (chrome.bookmarks as unknown as { create: unknown }).create = create;
-  const { picker, toggle, panel } = mountShellPicker();
+  const { picker, panel } = mountShellPicker();
   await picker.init('device', []);
   await picker.adopt('a');
   await picker.open();
@@ -493,7 +493,7 @@ test('creating a folder inside the chosen one picks it and collapses the input',
 test('a pick reports to the host once, and a result that must not change the save folder can opt out of remembering', async () => {
   const local = stubChrome(wideTree, {});
   const onPick = vi.fn();
-  const { picker, toggle, panel, tree } = mountShellPicker({ onPick, remember: false });
+  const { picker, panel, tree } = mountShellPicker({ onPick, remember: false });
   await picker.init('col-1', ['1']);
   await picker.open();
   await vi.waitFor(() => expect(panel.hidden).toBe(false));

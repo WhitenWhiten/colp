@@ -1,6 +1,3 @@
-export const PRODUCT_PUBLIC_COLLECTION_SLUG_MIN_LENGTH = 3;
-export const PRODUCT_PUBLIC_COLLECTION_SLUG_MAX_LENGTH = 263;
-
 export interface ProductPublicCollectionLocatorReadPort {
   /**
    * Looks up a database-canonical lowercase publication slug in the 3..263

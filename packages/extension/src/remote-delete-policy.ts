@@ -3,7 +3,6 @@ import { digestJson } from './bookmark-event-codec.js';
 import type { QueueOperation, RemoteDeletePolicy } from './sync-state/types.js';
 
 export type OpEvent = Extract<SyncPullEventV02, { kind: 'operation' }>;
-export const REMOTE_DELETE_POLICIES = ['sync', 'confirm', 'keep_local'] as const satisfies readonly RemoteDeletePolicy[];
 
 export function isRemoteDeletePolicy(value: unknown): value is RemoteDeletePolicy {
   return value === 'sync' || value === 'confirm' || value === 'keep_local';

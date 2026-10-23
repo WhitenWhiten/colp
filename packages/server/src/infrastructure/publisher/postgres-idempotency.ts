@@ -2,14 +2,12 @@ import { createHash } from 'node:crypto';
 import { sql } from 'kysely';
 import { stableReplayHeaders } from '../../modules/commands/index.js';
 import type {
-  PublisherCreateOwnedCollectionHarnessPorts,
   PublisherIdempotencyClaim,
   PublisherIdempotencyPort,
   PublisherReceiptMaintenancePort,
 } from '../../modules/publisher/index.js';
 import { PUBLISHER_MIN_REPLAY_WINDOW_SECONDS } from '../../modules/publisher/index.js';
-import { bootstrapCanonicalOwnedCollection } from '../../modules/collections/index.js';
-import { createPostgresCollectionsWritePorts } from '../collections/index.js';
+
 import { createUnitOfWork } from '../database/unit-of-work.js';
 import type { Kysely } from 'kysely';
 import type { DatabaseSchema } from '../database/runtime.js';
@@ -133,41 +131,4 @@ export function createPostgresPublisherReceiptMaintenancePortFactory(
     purgeExpired: (options) => createUnitOfWork(db).execute(({ transaction }) =>
       createPostgresPublisherReceiptMaintenancePort(transaction).purgeExpired(options)),
   });
-}
-
-/**
- * Transaction-bound ports for runPublisherCreateOwnedCollectionHarness.
- * Uses publisher_idempotency instead of product_command_receipts; shares the
- * canonical collections bootstrap (ID ledger, Collection+Root, membership/
- * policy, Operation/Audit/Outbox) with the Product surface.
- */
-export function createPostgresPublisherCreateOwnedCollectionHarnessPorts(
-  transaction: DatabaseTransaction,
-): PublisherCreateOwnedCollectionHarnessPorts {
-  const writePorts = createPostgresCollectionsWritePorts(transaction);
-  return {
-    publisherIdempotency: createPostgresPublisherIdempotencyPort(transaction),
-    clock: writePorts.clock,
-    collections: {
-      lockForUpdate: (collectionId) => writePorts.collections.lockForUpdate(collectionId),
-    },
-    nodes: {
-      getNode: (collectionId, nodeId) => writePorts.nodes.getNode(collectionId, nodeId),
-      readParentAncestry: (collectionId, parentId, maxDepth) =>
-        writePorts.nodes.readParentAncestry!(collectionId, parentId, maxDepth),
-      listLiveSiblingPositions: (collectionId, parentId) =>
-        writePorts.nodes.listLiveSiblingPositions(collectionId, parentId),
-      hasLiveChildren: (collectionId, parentId) =>
-        writePorts.nodes.hasLiveChildren!(collectionId, parentId),
-    },
-    accessPolicy: writePorts.accessPolicyFacts,
-    canonical: {
-      async bootstrapOwnedCollection(input) {
-        return bootstrapCanonicalOwnedCollection(writePorts, input);
-      },
-      async execute() {
-        throw new Error('publisher create-owned-collection harness only supports collection bootstrap');
-      },
-    },
-  };
 }

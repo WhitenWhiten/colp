@@ -2,14 +2,11 @@ import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
 import { test } from 'vitest';
 import { canonicalAuthoritativeEffectDigest, canonicalOperationDigest } from '@know-n/colp/sync';
-import { MemoryStorageArea } from '../src/credential-store.js';
-import { projectReplicaHealth, replicaIssuesFromPull, sendReplicaHealthReport } from '../src/sw/replica-health-report.js';
-import { handleSyncAttentionRequest } from '../src/sw/sync-attention.js';
+
 import { installKns05IndexedDb, scope, setup } from './kns-05-pull-harness.js';
 import { pullFixtures } from './pull-effect-fixtures.js';
-import { freezeScopeRecovery } from '../src/pull-recovery-freeze.js';
-import { createOutboundPushWorker } from '../src/outbound-push-worker.js';
-import { installOutboundPushIndexedDb, setup as pushSetup, scope as pushScope, json } from './outbound-push-worker-harness.js';
+
+import { installOutboundPushIndexedDb } from './outbound-push-worker-harness.js';
 
 installKns05IndexedDb();
 installOutboundPushIndexedDb();
@@ -42,7 +39,6 @@ test('review: descendants of an existing held folder must be held too', async ()
     assert.equal(f.api.getNode(child.nativeId)!.title, before, 'held folder must hold descendant updates');
   } finally { f.store.close(); }
 });
-
 
 async function enqueue(f: Awaited<ReturnType<typeof setup>>, opId: string, targetId: string) {
   return f.store.allocateSequenceAndEnqueue(scope, { opId, batchId: opId, idempotencyKey: opId, digest: `sha256:${opId}`,

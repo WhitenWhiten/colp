@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createMcpReadClient } from '../../src/mcp/read-client.js';
 
-
 interface McpReadClientCall {
   readonly toolName: 'collections.get';
   readonly input: Readonly<{ collectionId: string }>;
@@ -36,10 +35,6 @@ interface McpReadClientOptions {
   };
   readonly timeoutMs: number;
   readonly maxResultBytes: number;
-}
-
-interface McpReadClient {
-  readonly callTool: (name: string, input: unknown) => Promise<unknown>;
 }
 
 const collectionId = 'collection-1';

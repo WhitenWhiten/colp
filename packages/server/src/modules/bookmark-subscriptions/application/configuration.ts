@@ -1,6 +1,6 @@
 import type { SubscriptionTransactionPorts, SubscriptionActor } from './contracts.js';
 import type { Subscription, Mapping, SourceView, CreateMapping, MappingPatch, SubscriptionListItem, MappingListItem } from '../domain/types.js';
-import { etag, fail, mappingInput, requireMatch, revision, sourceRef, uuid } from './validation.js';
+import { fail, mappingInput, requireMatch, revision, sourceRef, uuid } from './validation.js';
 import { createSubscriptionCursorCodec } from './cursor.js';
 import { mappingAndSource } from './projections.js';
 export async function createSubscription(p:SubscriptionTransactionPorts,actor:SubscriptionActor,input:unknown):Promise<{value:Subscription;status:number}> {

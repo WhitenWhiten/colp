@@ -2,8 +2,7 @@ import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { createCredentialStore, MemoryStorageArea } from '../src/credential-store.js';
-import { createReplicaRebuilder, REPLICA_REBUILD_JOURNAL, validReplicaRebuildRequest,
-  type ReplicaRebuildDeps, type ReplicaRebuildRequest } from '../src/replica-rebuild.js';
+import { createReplicaRebuilder, type ReplicaRebuildDeps, type ReplicaRebuildRequest } from '../src/replica-rebuild.js';
 import { createSyncStateStore, type SyncScope } from '../src/sync-state-store.js';
 
 export async function setup(input: { degraded?: boolean } = {}) {
@@ -57,4 +56,3 @@ export async function setup(input: { degraded?: boolean } = {}) {
   return { scope, store, credentials, journal, deps, request, rebuilder, preview: preview.preview,
     setOffline(value: boolean) { failRegistration = value; }, get registrations() { return registrations; } };
 }
-

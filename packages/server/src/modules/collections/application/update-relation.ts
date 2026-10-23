@@ -6,7 +6,6 @@ import {
   assertClosedJsonObject,
   formatUtcDateTime,
   generateOpaqueId,
-  type CanonicalMutationInput,
   type JsonObject,
 } from '../domain/index.js';
 import {
@@ -336,11 +335,4 @@ function mapClaim(claim: Exclude<Awaited<ReturnType<RelationMutationPorts['recei
   if (claim.kind === 'in_progress') return claim;
   if (claim.kind === 'expired') return claim;
   return { kind: 'reused' };
-}
-
-export interface RelationUpdatedPayload extends JsonObject {
-  readonly collectionId: string; readonly relationId: string; readonly fromNodeId: string;
-  readonly toNodeId: string; readonly type: Relation['type']; readonly visibility: RelationVisibility;
-  readonly previousVisibility: RelationVisibility; readonly publicRepresentationChanged: boolean;
-  readonly resourceRevision: string; readonly contentRevision: string;
 }

@@ -7,7 +7,6 @@ import type { CollectionKind } from '../domain/index.js';
 
 export const PRODUCT_OWNED_COLLECTIONS_CURSOR_PURPOSE = 'product-owned-collections-cursor' as const;
 export const PRODUCT_SHARED_COLLECTIONS_CURSOR_PURPOSE = 'product-shared-collections-cursor' as const;
-export const PRODUCT_OWNED_COLLECTIONS_CURSOR_VERSION = 1 as const;
 export const PRODUCT_OWNED_COLLECTIONS_COMPARATOR_VERSION = 'updated-desc-id-c-v1' as const;
 export const PRODUCT_OWNED_COLLECTIONS_SORT = 'updated_at:desc,id:asc' as const;
 export const PRODUCT_OWNED_COLLECTIONS_CURSOR_TTL_MS = 15 * 60 * 1000;

@@ -14,12 +14,6 @@ export const INVITE_EMAIL_MAX_ATTEMPTS = 5;
 export const INVITE_EMAIL_BASE_BACKOFF_MS = 30_000;
 export const INVITE_EMAIL_MAX_BACKOFF_MS = 15 * 60 * 1_000;
 export const INVITE_EMAIL_MISSING_DISPLAY_NAME = 'A user';
-export const INVITE_EMAIL_HANDLER_NAME = 'collection_invite_email';
-export const INVITE_EMAIL_EVENT_TYPE = 'collection.invite-created';
-export const INVITE_EMAIL_EVENT_VERSION = 1;
-
-export type InviteEmailDeliveryState =
-  | 'pending' | 'leased' | 'retryable' | 'delivered' | 'suppressed' | 'dead_letter';
 
 export type InviteEmailErrorCategory =
   | 'unknown_future_version'

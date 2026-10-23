@@ -64,19 +64,6 @@ export async function isFaviconPubliclyAccessible(
   return result.rows[0]?.accessible === true;
 }
 
-/**
- * Compatibility helper for callers that only need the old negative answer.
- * New public object routes must use `isFaviconPubliclyAccessible` so missing
- * or retired bindings fail closed rather than being treated as visible.
- */
-export async function isFaviconHiddenPublic(
-  db: Kysely<DatabaseSchema>,
-  objectId: string,
-): Promise<boolean> {
-  if (!UUID_OBJECT_PATTERN.test(objectId)) return false;
-  return !(await isFaviconPubliclyAccessible(db, objectId));
-}
-
 /** restrict_publication still blocks avatar objects after the governance module is gone. */
 export async function isAvatarPublicationRestricted(
   db: Kysely<DatabaseSchema>,

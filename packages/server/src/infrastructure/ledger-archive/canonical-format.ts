@@ -1,8 +1,5 @@
 import { createHash } from 'node:crypto';
 
-export const LEDGER_ARCHIVE_SCHEMA_VERSION = 1;
-export const LEDGER_ARCHIVE_MEDIA_TYPE = 'application/x-known-ledger-archive+jsonl;version=1';
-
 export interface LedgerArchiveHeaderInput {
   readonly ledgerFamily: string;
   readonly sourceRelation: string;

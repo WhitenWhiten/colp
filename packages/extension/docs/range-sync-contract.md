@@ -108,8 +108,7 @@ use `accumulateSnapshotV02Pages` in `src/snapshot-v02-pages.ts`.
 
 Unknown parent identity needs authority and must not Ack as `skip_unmounted`. Proven inactive remote
 nodes are observation-only. Source-retained native + container is a durable exclusion with the
-original identity and must not upload as the deleted/moved-out active remote Node. Pure classifier:
-`src/parent-presence.ts`.
+original identity and must not upload as the deleted/moved-out active remote Node.
 
 ## Logical operation vs HTTP attempt (C-01)
 

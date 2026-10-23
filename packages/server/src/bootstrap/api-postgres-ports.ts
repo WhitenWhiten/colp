@@ -12,7 +12,6 @@ import { createPostgresReportSourceInvalidationOutboxPort } from '../infrastruct
 import {
   createPostgresMcpWriteOperationsStore,
   createPostgresSharedExposureFactsPort,
-  createUnitOfWork,
   type DatabaseRuntime,
 } from '../infrastructure/database/index.js';
 import { createPostgresCollaborationUnitOfWork } from '../infrastructure/collaboration/index.js';
@@ -44,7 +43,6 @@ import {
 import {
   createPostgresBookmarkPreferencesQuery,
   createPostgresBookmarkPreferencesUnitOfWork,
-  createPostgresExtensionOwnerSubjectPort,
   createPostgresIdentityUnitOfWork,
   createPostgresPublicProfileFactsReadPort,
 } from '../infrastructure/identity/index.js';

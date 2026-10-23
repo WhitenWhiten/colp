@@ -38,9 +38,6 @@ function folder(nativeId: string, title: string, children: NormalizedBookmarkRoo
   extra: Partial<NormalizedBookmarkRoot> = {}): NormalizedBookmarkRoot {
   return { nativeId, title, kind: 'folder', managed: false, children, rootKind: 'browser_root', ...extra };
 }
-function bookmarkNode(nativeId: string, title: string, url: string) {
-  return { nativeId, title, kind: 'bookmark' as const, managed: false, url, children: [] };
-}
 function customConfirm(overrides: Partial<Parameters<ReturnType<typeof createBootstrapCoordinator>['confirm']>[0]> = {}) {
   return baseConfirm({
     confirmationId: 'conf-custom', mounts: [auditMount], localFacts: [research, researchChild],

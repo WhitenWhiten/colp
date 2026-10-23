@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
-import { EXTENSION_ID, openExtensionOptions } from './extension-auth.js';
+import { openExtensionOptions } from './extension-auth.js';
 
 const extensionPath = resolve(import.meta.dirname, '../dist/production');
 

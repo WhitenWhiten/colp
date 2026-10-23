@@ -1,5 +1,5 @@
 import { virtualNativeId } from '../projection-native-occupancy.js';
-import { bootstrapOpId, type MappingFact, type PlannedOperation, type RemoteNodeFact } from './matcher.js';
+import { bootstrapOpId, type PlannedOperation, type RemoteNodeFact } from './matcher.js';
 import type { JsonObject, MappingInput, MountBindingRecord, QueueOperation, RecoveryNodeRecord } from '../sync-state-store.js';
 
 export function authoritativeColp(id: string | undefined | null): id is string {
@@ -97,8 +97,4 @@ export function remoteFactFromProjection(nodeId: string, parentId: string | null
     ...(typeof content.url === 'string' ? { url: content.url } : {}),
     ...(folderRole ? { folderRole } : {}), revision: mapping.projection.revision,
   };
-}
-
-export function mappingFacts(rows: readonly MappingInput[]): MappingFact[] {
-  return rows.map((row) => ({ nativeId: row.nativeId, colpId: row.colpId }));
 }

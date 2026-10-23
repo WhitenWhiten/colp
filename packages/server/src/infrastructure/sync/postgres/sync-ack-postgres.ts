@@ -17,8 +17,6 @@ import { appendAuditEvent } from '../../database/audit-event-payload.js';
 import { DatabaseOperationError } from '../../database/errors.js';
 import { withTransactionRetry } from '../../database/transaction-retry.js';
 import { createUnitOfWork, type DatabaseTransaction } from '../../database/unit-of-work.js';
-
-export type PostgresSyncAckFaultPhase = 'evidence_verified' | 'checkpoint_updated' | 'before_receipt';
 export interface PostgresSyncAckOptions {
   readonly leaseExtensionSeconds: number;
   readonly maxLeaseLifetimeSeconds: number;

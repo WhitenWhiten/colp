@@ -5,7 +5,6 @@ import type { components } from './generated/favicon-helper-api.js';
 export type IconPolicyDto = components['schemas']['FaviconOrderingIconPolicy'];
 export type IconSourceDto = components['schemas']['FaviconOrderingIconSource'];
 export type BookmarkNodeViewDto = components['schemas']['BookmarkNodeView'];
-export type FaviconHelperErrorEnvelope = components['schemas']['ProductErrorEnvelope'];
 
 export const EXTENSION_FAVICON_POLICY_PATH = '/colp/v0.1/sync/favicon-policy';
 export const EXTENSION_FAVICON_SOURCE_PATH =

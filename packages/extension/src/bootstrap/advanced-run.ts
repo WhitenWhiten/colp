@@ -1,7 +1,7 @@
 import { persistFirstRunBrowserRoots } from '../sw/first-run-browser-roots.js';
 import type { createSyncStateStore, MappingInput, SyncScope } from '../sync-state-store.js';
 import type { AdvancedPlanRecord } from '../sync-state/advanced-repository.js';
-import { digest, type MountFact, type RemoteNodeFact } from './matcher.js';
+import { type MountFact, type RemoteNodeFact } from './matcher.js';
 import { advanceConfirmedPlan } from './advanced-executor.js';
 import { executeAdvancedLocalStep, type AdvancedNativeApi } from './advanced-local-executor.js';
 import { executeAdvancedRemoteStep, resolveAdvancedReference } from './advanced-remote-executor.js';
@@ -209,8 +209,4 @@ function mountedAncestor(id: string, seeds: ReadonlyMap<string, SnapshotSeed>, m
     seen.add(current); current = seeds.get(current)?.fact.parentId ?? null;
   }
   return undefined;
-}
-
-export function advancedFactsDigest(facts: readonly RemoteNodeFact[]): string {
-  return digest([...facts].sort((left, right) => left.nodeId.localeCompare(right.nodeId)));
 }

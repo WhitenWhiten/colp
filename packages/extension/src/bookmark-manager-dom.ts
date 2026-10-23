@@ -106,8 +106,3 @@ export interface ManagerElements {
   /** The folder's Synced / Not synced mark at the right of the path bar. */
   readonly syncState: HTMLElement;
 }
-
-export function isInViewport(element: HTMLElement): boolean {
-  const rect = element.getBoundingClientRect();
-  return rect.bottom > 0 && rect.top < window.innerHeight;
-}

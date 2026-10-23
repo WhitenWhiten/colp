@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { queryCaptureExistence } from '../src/capture/existence.js';
 import { transitionCapture } from '../src/capture/state.js';
-import { projectFeedback } from '../src/capture/feedback-state.js';
-import type { CaptureFeedback } from '../src/capture/contracts.js';
 
 import { location, task } from './fixtures/capture.js';
 
@@ -54,13 +52,5 @@ describe('capture contracts', () => {
     expect(() => transitionCapture(running, { ...apply, location: { ...location, collectionId: 'other' } }, 2)).toThrow();
     expect(() => transitionCapture(running, { ...apply, location: { ...location, writable: false } }, 2)).toThrow();
     expect(transitionCapture(running, apply, 2)).toMatchObject({ classification: 'applied', sync: 'syncing', localLocation: null });
-  });
-  it('deduplicates feedback and lets explicit corrections supersede positive ratings', () => {
-    const event = (kind: CaptureFeedback['kind'], revision: number): CaptureFeedback => ({ kind, revision,
-      eventId: `e${revision}`, captureId: 'c', decisionId: 'd', learningEligible: true, evidenceGeneration: 0 });
-    const events = [event('implicit_positive', 1), event('explicit_positive', 2), event('implicit_positive', 3)];
-    expect(projectFeedback([...events, events[1]!])?.attitude).toBe(1);
-    expect(projectFeedback([...events, event('correction_applied', 4)])?.attitude).toBe(-1);
-    expect(projectFeedback([...events, event('withdrawn', 4)])?.attitude).toBeNull();
   });
 });

@@ -14,7 +14,7 @@ import type { LocalNodeFact } from '../src/bootstrap/matcher.js';
 import {
   assertOpaquePlanned, assertOpaqueQueued, assertStampedColp, barMount, baseConfirm, bindRemoteMount,
   bookmark, completeBootstrapAck, freezeRecovery, frozenConfirm, installKns03IndexedDb, nestedLocalFacts,
-  otherMount, productConfirm, putLiveRemoteMappings, recoveryNode, recoveryRoot, root, scope, setup,
+  productConfirm, putLiveRemoteMappings, recoveryNode, recoveryRoot, root, scope, setup,
   unfreezeRecovery,
 } from './kns-03-bootstrap-harness.js';
 import type { JsonObject } from '../src/sync-state-store.js';

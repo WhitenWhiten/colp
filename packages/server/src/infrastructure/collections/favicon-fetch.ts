@@ -51,8 +51,6 @@ export interface FaviconFetchInput {
   readonly allowIco?: boolean;
 }
 
-export type FaviconFetch = (input: FaviconFetchInput) => Promise<FaviconFetchedImage>;
-
 function nodeReadableFromBody(body: ReadableStream<Uint8Array> | null): Readable | null {
   if (body === null) return null;
   if (body instanceof Readable) return body;

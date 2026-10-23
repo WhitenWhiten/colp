@@ -175,11 +175,6 @@ export function loadManifest(seedDir: string): Manifest {
   return manifest;
 }
 
-/** 定位 seed 数据包目录：SEED_DIR 直接指向含 manifest.json 的目录（如 /app/seed/demo）。 */
-export function resolveSeedDir(seedRoot: string, seedKey: string): string {
-  return join(seedRoot, seedKey);
-}
-
 /** 数据包内 data.sql 路径。 */
 export function dataSqlPath(seedDir: string): string {
   return join(seedDir, 'data.sql');

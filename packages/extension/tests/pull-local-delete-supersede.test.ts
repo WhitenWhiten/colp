@@ -40,7 +40,7 @@ async function removedLocally(f: Awaited<ReturnType<typeof setup>>, input: {
       : input.removal === 'already_deleted' ? 'target_already_deleted' : 'invalid_document' } });
 }
 
-const foreign = (f: Awaited<ReturnType<typeof setup>>, kind: 'update' | 'move' | 'delete', targetId = 'node-1', parentId = 'root-colp') =>
+const foreign = (_f: Awaited<ReturnType<typeof setup>>, kind: 'update' | 'move' | 'delete', targetId = 'node-1', parentId = 'root-colp') =>
   pullFixtures.mutationEvent({ kind, sequence: 7, collectionId: scope.collectionId, targetId, parentId, replicaId: 'another-replica' });
 
 async function applied(f: Awaited<ReturnType<typeof setup>>, event: unknown) {

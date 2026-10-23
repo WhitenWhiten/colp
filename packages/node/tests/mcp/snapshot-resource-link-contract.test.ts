@@ -18,11 +18,6 @@ interface SnapshotLinkMetadataInput {
   readonly collectionId: string;
 }
 
-interface SnapshotLinkMetadata {
-  readonly name: string;
-  readonly lastModified: string;
-}
-
 interface SnapshotLinkMetadataPort {
   readonly getCollectionSnapshotLinkMetadata: (
     input: SnapshotLinkMetadataInput,

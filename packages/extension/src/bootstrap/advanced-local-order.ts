@@ -87,7 +87,7 @@ export function planLocalOrderMoves(input: LocalOrderInput): Extract<AdvancedSte
     && !remote.managed && !remote.privateLocal).sort((left, right) => left.index - right.index);
   return ordered.filter(({ local, remote }) => localParentId(local) === remoteParentNativeId(remote, input.mounts,
     input.remoteToLocal) && local.index !== undefined
-    && local.index !== remoteMaterializedIndex(remote, input.remoteRows)).map(({ pair, local, remote, index }) => {
+    && local.index !== remoteMaterializedIndex(remote, input.remoteRows)).map(({ local, remote, index }) => {
       const parent: AdvancedParentRef = { kind: 'native-node', id: localParentId(local) };
       const node = nodeValue(remote);
       return { ...baseStep(stableId(input.confirmationId, 'local-order-move', local.nativeId),

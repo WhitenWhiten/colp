@@ -8,7 +8,7 @@ import {
 import { boundedString, clone, safeInteger, strictObject, validateRecord } from './codec.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
-import { constraintError } from './errors.js';
+
 import {
   cursorPage, deleteScopeRows, iterateCursor, requestValue, requireActiveScope, runTransaction,
   scopeRowsRange, transactionDone,
@@ -22,7 +22,6 @@ import { validateBookmarkEventRecord } from './bookmark-event-repository.js';
 import { validateAckIntent, validateEngineState, validateImportNode, validateImportPlan, validateIntent } from './pull-validate.js';
 import { validateQueueRecord, validateReceipt } from './queue-validate.js';
 import type { SyncStoreRuntime } from './runtime.js';
-
 
 /** Bounded corruption evidence: enough records to repair a cluster, never a ledger dump. */
 export const INTEGRITY_DETAIL_LIMIT = 32;
@@ -403,8 +402,8 @@ export function createScopeRepository(ctx: SyncStoreRuntime) {
 
   async function exportLegacyDiagnostic() {
     if (ctx.isUpgradeFailed()) return readFailedLegacyDiagnostic();
-    let db: IDBDatabase;
-    try { db = await open(); }
+
+    try { await open(); }
     catch (error) {
       if (error instanceof SyncStateError && error.code === 'upgrade_failed') return readFailedLegacyDiagnostic();
       throw error;

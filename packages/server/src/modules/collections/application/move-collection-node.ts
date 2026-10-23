@@ -41,11 +41,7 @@ export function moveCollectionNodeCommandScope(
 ): string {
   return `collection:${collectionId}:node:${nodeId}:move`;
 }
-
-export const MOVE_COLLECTION_NODE_COMMAND_SCOPE =
-  'collection:{collectionId}:node:{nodeId}:move';
 export const MOVE_COLLECTION_NODE_CONTRACT_VERSION = '1.0.0';
-export const MOVE_COLLECTION_NODE_OPERATION_TYPE = 'move_collection_node';
 export const NODE_MOVED_EVENT_TYPE = 'node.moved';
 export const NODE_MOVED_EVENT_VERSION = 1;
 export const NODE_MOVED_HANDLER_NAME = 'node_moved_projection';

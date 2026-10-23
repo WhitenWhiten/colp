@@ -1,11 +1,10 @@
-import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
 import { describe, test } from 'vitest';
 import { queueStatusProjection } from '../src/engine-public-stability.js';
 import { freezeScopeRecovery } from '../src/pull-recovery-freeze.js';
 import {
-  abortFailure, ack, json, networkFailure, nonemptyMountSnapshot, problem, emptyPullPage, recoverySnapshot,
+  abortFailure, ack, json, networkFailure, problem, emptyPullPage, recoverySnapshot,
   scope, seedLegacySpc2Bootstrap, setup, snapshot,
 } from './durable-sync-engine-harness.js';
 
@@ -390,7 +389,6 @@ describe('P3-33 durable extension sync lifecycle', () => {
       assert.equal(fixture.pullRequests.length, 0, label); assert.equal(fixture.sessionForces.length, 0, label);
     }
   });
-
 
   test('classifies a contextual protocol failure without persisting its opaque identifier', async () => {
     const fixture = await setup();

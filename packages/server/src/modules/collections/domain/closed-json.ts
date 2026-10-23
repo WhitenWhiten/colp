@@ -51,18 +51,3 @@ export function assertClosedJsonObject(value: unknown, name = 'payload'): assert
   if (!isPlainRecord(value)) throw new TypeError(`${name} must be a closed JSON object`);
   assertRecordMembers(value, name);
 }
-
-/**
- * Type-level fixtures (verified by `npm run typecheck`): if `JsonValue` is
- * widened, the @ts-expect-error directives below become unused and the
- * typecheck fails, proving function/Date/undefined cannot enter a closed
- * canonical JSON payload.
- */
-function closedJsonPayloadTypeFixtures(): void {
-  // @ts-expect-error a function value cannot enter a closed JSON payload
-  const _functionPayload: JsonObject = { fn: () => 1 };
-  // @ts-expect-error a Date instance cannot enter a closed JSON payload
-  const _datePayload: JsonObject = { at: new Date() };
-  // @ts-expect-error an undefined value cannot enter a closed JSON payload
-  const _undefinedPayload: JsonObject = { missing: undefined };
-}

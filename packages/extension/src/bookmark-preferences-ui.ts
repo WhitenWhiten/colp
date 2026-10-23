@@ -134,7 +134,7 @@ export function bindBookmarkPreferences(onChanged: (foldersFirst: boolean) => vo
 
   /* Top/Bottom is a radiogroup of two buttons: one stop in the tab order, arrows move and select. */
   const position = [top, bottom];
-  const checkedPosition = (): HTMLButtonElement | undefined => position.find(button => button.getAttribute('aria-checked') === 'true');
+
   const paintPosition = (value: string | undefined) => {
     for (const button of position) { const on = button.dataset.value === value; button.setAttribute('aria-checked', String(on)); button.tabIndex = on || !value && button === top ? 0 : -1; }
   };

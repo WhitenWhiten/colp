@@ -272,10 +272,6 @@ export function parseBookmarkCreatePlacementRecord(value: unknown): BookmarkCrea
   } as BookmarkCreatePlacementRecord;
 }
 
-export function bookmarkCreatePlacementStorageKey(intentId: string): string {
-  return storageKey(validateUuid(intentId, 'intentId'));
-}
-
 function defaultStorage(): StorageArea {
   if (typeof chrome !== 'undefined' && chrome.storage?.local) return chrome.storage.local;
   throw new Error('bookmark_create_placement_storage_unavailable');

@@ -13,8 +13,8 @@ import { createBootstrapCoordinator, previewStaleFromScan } from '../src/bootstr
 import { createOutboundPushWorker, type PushSessionController } from '../src/outbound-push-worker.js';
 import { createSyncStateStore } from '../src/sync-state-store.js';
 import {
-  active, assertOpaqueOpId, assertOpaquePlanned, assertOpaqueQueued, assertStampedColp, barMount,
-  baseConfirm, bindRemoteMount, bookmark, indexedDB, installKns03IndexedDb, otherMount, root, scope,
+  active, assertOpaquePlanned, assertOpaqueQueued, assertStampedColp, barMount,
+  baseConfirm, bindRemoteMount, bookmark, indexedDB, installKns03IndexedDb, root, scope,
   setup, completeQueuedCreate,
 } from './kns-03-bootstrap-harness.js';
 

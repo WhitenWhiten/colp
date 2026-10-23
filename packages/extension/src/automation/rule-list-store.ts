@@ -1,7 +1,7 @@
 import { relateBrowserRule, type OverlapRule } from './browser-overlap.js';
 import type { AtomicStateArea } from './bundle-store.js';
 import { createLane } from './lane.js';
-import { checkRuleDraft, NAME_LIMIT, type CollectionLookup, type DraftProblem, type RuleAction, type RuleDraft } from './rule-conditions.js';
+import { checkRuleDraft, NAME_LIMIT, type CollectionLookup, type DraftProblem, type RuleDraft } from './rule-conditions.js';
 import { EMPTY_LIST, entryId, individualRules, LEGACY_RULES_KEY, migrateLegacyRules, overLimits, parseRuleList, REVIEW_LIMIT, RULE_LIST_KEY,
   ruleFolderNativeId, type ListEntry, type LocalRule, type LocalSet, type RuleListRecord } from './rule-list-record.js';
 

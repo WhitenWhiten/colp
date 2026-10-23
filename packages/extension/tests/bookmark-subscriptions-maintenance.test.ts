@@ -1,10 +1,10 @@
-import { expect,test,vi } from 'vitest';
+import { expect,test } from 'vitest';
 import { createMaintenance,type MaintenanceContext } from '../src/bookmark-subscriptions/maintenance.js';
 import { createNativeExecutor } from '../src/bookmark-subscriptions/native.js';
 import { digest,sourceNodeKey } from '../src/bookmark-subscriptions/projection.js';
 import type { ProjectionNode,SnapshotDescriptor,ExitTask } from '../src/bookmark-subscriptions/contracts.js';
 import { database,nativeFixture,row,root,leaf,owned,scope } from './bookmark-subscriptions-fixture.js';
-function context(mapping:ReturnType<typeof row>,request:(path:string,options:any)=>Promise<any>):MaintenanceContext{return {scope,assertCurrent:async()=>undefined,client:{request:request as any}};}
+function context(_mapping:ReturnType<typeof row>,request:(path:string,options:any)=>Promise<any>):MaintenanceContext{return {scope,assertCurrent:async()=>undefined,client:{request:request as any}};}
 function fence(mapping:ReturnType<typeof row>,contentEnabled=true){return {mappingId:mapping.id,generation:mapping.mapping.generation,mappingRevision:mapping.mapping.revision,authorityRevision:'a1',contentEnabled};}
 async function seed(nodes:ProjectionNode[],mapping=row()){
  const db=database(),fixture=nativeFixture();mapping.rootNativeId='source-root';await db.put('mappings',mapping);

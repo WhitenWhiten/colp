@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   isProductApiError,
   productClient,
-  type EditableNodeView,
   type EditorSnapshot,
 } from '../../api'
 import { childrenOf } from '../../lib/libraryTree'

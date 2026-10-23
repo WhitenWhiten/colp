@@ -4,7 +4,7 @@ import { canonicalJson } from '../sync-state/codec.js';
 import type { LocalNodeFact, RemoteNodeFact } from './matcher.js';
 import type {
   AdvancedChecklistItem, AdvancedDesiredLocalState, AdvancedDesiredRemoteState, AdvancedLocalState,
-  AdvancedNodeKind, AdvancedNodeValue, AdvancedParentRef, AdvancedRemoteState, AdvancedStep,
+  AdvancedNodeValue, AdvancedParentRef, AdvancedRemoteState, AdvancedStep,
   AdvancedStepBase,
 } from './advanced-plan-types.js';
 
@@ -102,7 +102,6 @@ export function materializedLocalChildren(rows: readonly LocalNodeFact[], parent
     .sort((left, right) => compareOptionalNumber(left.row, right.row) || left.ordinal - right.ordinal)
     .map(({ row }) => row);
 }
-
 
 export function selectedLocalIds(rows: readonly LocalNodeFact[], byId: ReadonlyMap<string, LocalNodeFact>,
   mounts: ReadonlyMap<string, unknown>): ReadonlySet<string> {

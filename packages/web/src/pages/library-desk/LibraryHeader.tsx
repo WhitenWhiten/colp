@@ -1,6 +1,6 @@
 import { SubscribeButton } from '../../components/bookmark-subscriptions/SubscribeButton'
 import { useId, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import type { CollectionVisibility } from '../../api'
 import { ClampedText } from '../../components/ClampedText'
 import { FolderTrail } from '../../components/FolderTrail'

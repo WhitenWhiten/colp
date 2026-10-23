@@ -1,5 +1,5 @@
 import type { BookmarkNodeView, LinkPreviewRequestAccepted } from './types'
-import type { BookmarkFaviconSource, FaviconCreateIconJobRequest, FaviconIconJob, FaviconIconJobAccepted, FaviconIconPolicy, FaviconIconPolicyPatch, FaviconPolicyResult, SetBookmarkFaviconSourceRequest, FaviconJobStatus, FaviconJobActivity } from './types'
+import type { BookmarkFaviconSource, FaviconCreateIconJobRequest, FaviconIconJob, FaviconIconJobAccepted, FaviconIconPolicy, FaviconIconPolicyPatch, FaviconPolicyResult, SetBookmarkFaviconSourceRequest, FaviconJobActivity } from './types'
 /**
  * Shared Product transport types. Domain transport modules and the barrel
  * import from here so they never import `./product-transport`.

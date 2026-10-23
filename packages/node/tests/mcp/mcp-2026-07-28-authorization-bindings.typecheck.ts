@@ -19,7 +19,6 @@ import {
   assertAuthenticatedBinding,
   createAnonymousPublicBinding,
   createAuthenticatedBinding,
-  mapApiKeyEvidenceToAuthenticatedBinding,
   mapOAuthEvidenceToAuthenticatedBinding,
   requireAuthenticatedWriteBinding,
 } from '../../src/mcp/shared/authorization.js';

@@ -63,21 +63,3 @@ export interface McpApplicationResourceContents {
     readonly blob?: string;
   }>[];
 }
-
-export function isMcpApplicationCompleteResult(
-  result: McpApplicationToolResult,
-): result is McpApplicationCompleteResult {
-  return result.kind === 'complete';
-}
-
-export function isMcpApplicationAwaitingApprovalResult(
-  result: McpApplicationToolResult,
-): result is McpApplicationAwaitingApprovalResult {
-  return result.kind === 'awaiting_approval';
-}
-
-export function isMcpApplicationRejectedResult(
-  result: McpApplicationToolResult,
-): result is McpApplicationRejectedResult {
-  return result.kind === 'rejected';
-}

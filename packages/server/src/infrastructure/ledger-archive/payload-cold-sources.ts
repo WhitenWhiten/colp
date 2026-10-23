@@ -183,10 +183,6 @@ export function formatOperationArchiveLocator(input: Readonly<{
   return `archive://ledger-segment/${input.segmentId}/operation/${encodeURIComponent(input.operationId)}`;
 }
 
-export function operationSegmentIdFromLocator(locator: string): string {
-  return parseOperationArchiveLocator(locator).segmentId;
-}
-
 function parseOperationArchiveLocator(locator: string): Readonly<{
   segmentId: string; operationId: string;
 }> {

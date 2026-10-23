@@ -15,7 +15,7 @@ import {
   sortLocalParentFirst, sortRemoteChildFirst, sortRemoteParentFirst, stableId, selectedLocalIds,
   selectedRemoteIds, orderSteps, remoteMaterializedIndex,
 } from './advanced-plan-utils.js';
-import { compensatedLocalCreateIndex, localParentId, planLocalOrderMoves, planMatchedLocalSteps } from './advanced-local-order.js';
+import { compensatedLocalCreateIndex, planLocalOrderMoves, planMatchedLocalSteps } from './advanced-local-order.js';
 export * from './advanced-plan-types.js';
 export interface AdvancedConfirmationBinding {
   readonly scopeFingerprint: string;
@@ -127,8 +127,6 @@ export function buildAdvancedPlan(input: AdvancedPlanInput): AdvancedPlan {
   };
   return freezeDeep({ ...content, digest: digest(content) });
 }
-export const planAdvanced = buildAdvancedPlan;
-export const createAdvancedPlan = buildAdvancedPlan;
 interface PlanContext {
   readonly input: AdvancedPlanInput;
   readonly mode: AdvancedMode;

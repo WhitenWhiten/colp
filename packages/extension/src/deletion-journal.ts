@@ -14,10 +14,6 @@ export function removalPayloadMissing(node: BookmarkEventNode | null | undefined
   return !node || typeof node.id !== 'string' || node.id.length === 0;
 }
 
-export function mappingProvesDeletionIdentity(mapping: MappingInput | null | undefined): mapping is MappingInput {
-  return Boolean(mapping?.colpId);
-}
-
 export async function nextJournalOrdinal(store: Store, scope: SyncScope, nativeId: string): Promise<number> {
   const rows = await store.listDeletionJournal(scope, nativeId);
   return rows.reduce((max, row) => Math.max(max, row.ordinal), 0) + 1;

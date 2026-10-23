@@ -3,7 +3,6 @@ import type {
   CredentialGrantRecord,
   CredentialGrantResourcePort,
   CredentialGrantStore,
-  CredentialPlanAuthorizationRecord,
   CredentialPlanPort,
   StoredCredentialPlan,
 } from '../../modules/auth/index.js';

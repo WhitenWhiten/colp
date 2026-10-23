@@ -11,7 +11,7 @@ import { createSyncSession, retainSessionAfterTransientRenewalFailure, retryStal
   SessionRequestError,
   sessionMatchesCredentialAuthority, shouldForceSessionRefresh, syncSessionNeedsRenewal } from '../session-client.js';
 import type { SyncScope } from '../sync-state-store.js';
-import type { BuildConfig, ExtensionRequest, PublicAuthState, StoredAuthBinding, StoredCredential, StoredSession } from '../types.js';
+import type { BuildConfig, ExtensionRequest, StoredAuthBinding, StoredCredential, StoredSession } from '../types.js';
 import { resolveSessionBootstrapMode, resolveSessionMountBinding, retireScopeIfQueueDrained } from '../session-binding.js';
 import { COLLECTION_BINDING, extensionOrigin, safeError, store, sw, syncState, workCoordinator } from './runtime.js';
 import { writeAuthSnapshot } from '../auth-snapshot.js';

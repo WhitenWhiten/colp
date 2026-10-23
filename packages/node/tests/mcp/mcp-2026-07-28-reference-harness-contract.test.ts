@@ -3,11 +3,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   createFixtureHost,
-  type FixtureHost,
 } from '../fixtures/mcp-2026-07-28/fixture-host/index.js';
 import {
   createReferenceMcpClient,
-  type ReferenceMcpClient,
 } from '../fixtures/mcp-2026-07-28/reference-client/index.js';
 
 const endpoint = 'http://fixture.invalid/mcp';

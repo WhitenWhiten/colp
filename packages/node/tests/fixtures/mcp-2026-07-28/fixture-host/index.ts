@@ -20,9 +20,6 @@ import {
 import { findLegacySessionHeader } from './legacy-policy.js';
 import {
   createFixtureServerFactory,
-  FIXTURE_WRITE_APPROVED_STATE_PREFIX,
-  FIXTURE_WRITE_TOOL_INPUT_SCHEMA,
-  FIXTURE_WRITE_TOOL_NAME,
 } from './server.js';
 
 export { FIXTURE_WRITE_APPROVED_STATE_PREFIX, FIXTURE_WRITE_TOOL_INPUT_SCHEMA, FIXTURE_WRITE_TOOL_NAME } from './server.js';

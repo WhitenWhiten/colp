@@ -1,26 +1,3 @@
-/**
- * P4A-RL03 fixed Lua window script + reply parser (plan §2.3, §4.3, §8 RL03).
- *
- * The window script is a FROZEN, VERSIONED constant:
- *
- *  - the window identity comes from Redis SERVER time (`redis.call('time')`),
- *    never host time, so replicas with skewed host clocks share one quota;
- *    the host-time window seed embedded in KEYS[1] (the RL02 codec key) is
- *    replaced inside the script by the server-derived window, while the
- *    canonical prefix and the HMAC subject segment are preserved verbatim;
- *  - the counter is a single atomic INCR shared by every replica/client;
- *  - PEXPIRE runs only on the FIRST write of a window (count == 1), so
- *    high-frequency hits never extend the fixed window (plan §4.3 mutation);
- *  - the reply is the fixed shape
- *    `{allowed, count, remaining, retryAfterSeconds, windowStartEpochMs}`;
- *  - the script text is a plain constant: application/user input can only
- *    flow through KEYS/ARGV, never into the script text (plan §8 RL03: "不得
- *    动态拼接用户输入进脚本").
- *
- * The parser pins the wire contract fail-closed: a malformed script reply can
- * never become a decision.
- */
-export const RATE_LIMIT_LUA_SCRIPT_VERSION = 1;
 export const RATE_LIMIT_LUA_SCRIPT_NAME = 'rate_limit_fixed_window_v1';
 export const RATE_LIMIT_LUA_SCRIPT = `-- P4A-RL03 fixed-window admission script (version 1)
 -- KEYS[1]  canonical codec key carrying a host-time window SEED:

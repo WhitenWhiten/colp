@@ -51,17 +51,6 @@ vi.mock('../auth/AuthContext', () => ({
   }),
 }))
 
-type Deferred<T> = {
-  promise: Promise<T>
-  resolve: (value: T) => void
-}
-
-function deferred<T>(): Deferred<T> {
-  let resolve!: (value: T) => void
-  const promise = new Promise<T>((settle) => { resolve = settle })
-  return { promise, resolve }
-}
-
 function rootNode(): PublicCollectionNode {
   return {
     id: 'root-1', parentId: null, kind: 'root', title: 'Published contents',
@@ -120,7 +109,6 @@ function thirdPartyFaviconSrcs(root: ParentNode = document): string[] {
 
 describe('public Collection bookmark icons (BF-05)', () => {
   let previousIntersectionObserver: typeof IntersectionObserver | undefined
-  let captureSearch = ''
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -202,19 +190,12 @@ describe('public Collection bookmark icons (BF-05)', () => {
     return null
   }
 
-  function CaptureSearch() {
-    const location = useLocation()
-    captureSearch = location.search
-    return null
-  }
-
   function renderCollection(path = '/c/research-notes') {
     const host = document.getElementById('test-root')
     if (!host) throw new Error('test root missing')
     mountTree(
         <MemoryRouter initialEntries={[path]}>
           <SyncPath path={path} />
-          <CaptureSearch />
           <Routes>
             <Route path="/c/:slug" element={<Collection />} />
           </Routes>

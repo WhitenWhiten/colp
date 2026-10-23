@@ -11,7 +11,6 @@ export {
 } from './repositories.js';
 export {
   createPostgresCollectionPolicyRevisionPort,
-  lockCollectionAndBumpPolicyRevision,
   POLICY_REVISION_SOURCE_EVENT_TYPE,
   POLICY_REVISION_SOURCE_EVENT_VERSION,
 } from './policy-revision-port.js';
@@ -40,7 +39,6 @@ export {
   LINK_HEALTH_USER_AGENT,
   probeBookmarkUrl,
   wrapConnectRecordingHops,
-  normalizedHostForProbe,
 } from './link-health-probe.js';
 export {
   LINK_HEALTH_PROBE_FIXTURE_ENV,
@@ -112,7 +110,6 @@ export {
   scanResourceAuthorityMismatches,
   type ResourceAuthorityBackfillStats,
   type ResourceAuthorityScanResult,
-  type ResourcePayloadBackfillRowResult,
 } from './resource-payload-dual-read.js';
 
 export {
@@ -184,7 +181,6 @@ export {
   defaultFaviconDecompressedBudget,
   fetchFaviconImage,
   inflateFaviconEncoding,
-  type FaviconFetch,
   type FaviconFetchInput,
 } from './favicon-fetch.js';
 export {

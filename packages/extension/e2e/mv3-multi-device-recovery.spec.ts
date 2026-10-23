@@ -263,7 +263,7 @@ test('production MV3 replays the complete two-device recovery sequence', async (
 
     // Queue persisted offline, exact retry after commit response loss, and seeded service-worker termination.
     await a.setOffline(true);
-    const [secretTitle, secretUrl, extensionPayload] = secretMarkers(seed);
+    const [secretTitle, , extensionPayload] = secretMarkers(seed);
     const secretBookmarkId = await pageA.evaluate(async ({ parentId, scenarioSeed }) => {
       const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(scenarioSeed));
       const suffix = [...new Uint8Array(bytes)].map((value) => value.toString(16).padStart(2, '0')).join('').slice(0, 20);

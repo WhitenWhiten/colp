@@ -38,11 +38,6 @@ export function encodePlainCanonicalJson(
   }
 }
 
-/** Canonical JSON of a plain object after one own key is removed. Throws when not plain data. */
-export function encodePlainCanonicalJsonOmitting(value: unknown, omitKey: string, label: string): string {
-  return preparePlainCanonicalJson(value, label).encode(omitKey);
-}
-
 /** Validate and copy once, then share that frozen data between semantic checks and encoding. */
 export function preparePlainCanonicalJson<Value>(
   value: Value,

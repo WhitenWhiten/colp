@@ -1,7 +1,6 @@
-import type { Relation } from '@know-n/colp/types';
 import type { MembershipRole } from '../../access-policy/index.js';
 import { assertCanonicalCommandId, type ProductCommandResult } from '../../commands/index.js';
-import { formatUtcDateTime, generateOpaqueId, type JsonObject } from '../domain/index.js';
+import { formatUtcDateTime, generateOpaqueId } from '../domain/index.js';
 import { NODE_DELETION_PURGE_RETENTION_MS, type DeletionReceiptSnapshot } from './delete-collection-node.js';
 import {
   RelationUpdateError,
@@ -146,11 +145,4 @@ function mapClaim(claim: Exclude<Awaited<ReturnType<RelationMutationPorts['recei
   if (claim.kind === 'in_progress') return claim;
   if (claim.kind === 'expired') return claim;
   return { kind: 'reused' };
-}
-
-export interface RelationDeletedPayload extends JsonObject {
-  readonly affectedCount: 1; readonly relationId: string; readonly collectionId: string;
-  readonly contentRevision: string; readonly deletedAt: string; readonly deleteRevision: string;
-  readonly operationId: string; readonly fromNodeId: string; readonly toNodeId: string;
-  readonly visibility: Relation['visibility'];
 }

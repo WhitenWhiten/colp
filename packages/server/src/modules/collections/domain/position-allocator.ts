@@ -5,7 +5,6 @@ import { CollectionsError, PositionRebalanceEscalationError } from './errors.js'
 const CHARS = '-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz';
 const BASE = CHARS.length;
 const MIN_CHAR = CHARS[0]!;
-const MAX_CHAR = CHARS[CHARS.length - 1]!;
 const MID_CHAR = CHARS[Math.floor(BASE / 2)]!;
 const POSITION_MAX_OCTETS = 128;
 const POSITION_PATTERN = /^[0-9A-Za-z_-]+$/;

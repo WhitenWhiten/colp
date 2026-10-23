@@ -79,17 +79,6 @@ export async function coveredPullOperationIds(db: IDBDatabase, scopeKeyValue: st
   return covered;
 }
 
-/** Existence probe. Stops on the first matching row; it does not materialize the state. */
-export async function probePullState(db: IDBDatabase, scopeKeyValue: string, state: string): Promise<boolean> {
-  const tx = db.transaction(STORES.pullEvents, 'readonly');
-  const completion = transactionDone(tx);
-  let found = false;
-  await iterateCursor(tx.objectStore(STORES.pullEvents).index(INDEXES.pullEventByState),
-    stateRange(scopeKeyValue, state), () => { found = true; return false; });
-  await completion;
-  return found;
-}
-
 export async function readOrderedPullEvents(db: IDBDatabase, scopeKeyValue: string,
   states?: readonly string[]): Promise<UnknownRecord[]> {
   const wanted = states && states.length > 0 ? states : PULL_EVENT_STATES;

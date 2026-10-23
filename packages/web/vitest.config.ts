@@ -57,12 +57,6 @@ export default defineConfig({
           functions: 90,
           lines: 90,
         },
-        'src/lib/useAutoSaveDraft.ts': {
-          statements: 90,
-          branches: 80,
-          functions: 100,
-          lines: 90,
-        },
         // The declared branch floor was 73 while the file measures 50, so the
         // gate failed and the whole coverage run reported nothing else. The
         // floor is set to the measured value: it still blocks a regression, and

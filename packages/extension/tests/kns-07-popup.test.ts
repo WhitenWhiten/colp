@@ -16,8 +16,7 @@ import { buildFolderRows } from '../src/folder-tree-model.js';
 import { NATIVE_SAVE_INGRESS, savePagesThroughNativeIngress } from '../src/save-entry.js';
 import { FIRST_RUN_SYNC_RETRYING, popupFirstRunStatus } from '../src/first-run-draft.js';
 import {
-  FIRST_RUN_ACTION_REQUIRED, FIRST_RUN_LOCAL_ONLY, FIRST_RUN_NEEDS_ATTENTION,
-  FIRST_RUN_REVIEW_CONFLICTS, FIRST_RUN_SYNCED, FIRST_RUN_SYNCING, FIRST_RUN_UNSYNCED,
+  FIRST_RUN_ACTION_REQUIRED, FIRST_RUN_LOCAL_ONLY, FIRST_RUN_SYNCED, FIRST_RUN_SYNCING, FIRST_RUN_UNSYNCED,
   FIRST_RUN_WAIT_NETWORK, parseLastSave, projectSaveStatus, SAVE_SAVED_TO_BROWSER, type SaveStatusFacts,
 } from '../src/save-status.js';
 import { ICON_POLICY_DISABLED_COPY, ICON_POLICY_UNREACHABLE_COPY } from '../src/icon-policy-feedback.js';

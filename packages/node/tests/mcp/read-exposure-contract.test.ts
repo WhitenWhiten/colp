@@ -11,12 +11,6 @@ interface CollectionReadApplicationService {
   readonly getCollection: (input: Readonly<{ collectionId: string }>) => unknown | PromiseLike<unknown>;
 }
 
-interface SnapshotLinkApplicationService {
-  readonly getCollectionSnapshotLinkMetadata: (
-    input: Readonly<{ collectionId: string }>,
-  ) => unknown | PromiseLike<unknown>;
-}
-
 interface McpReadToolGateway {
   readonly listTools: () => readonly Readonly<{ name: string }>[];
   readonly callTool: (name: string, input: unknown, context: import('../../src/mcp/shared/resources.js').McpTrustedReadRequestContext) => Promise<Readonly<Record<string, unknown>>>;
@@ -26,17 +20,6 @@ interface McpReadExposure {
   readonly endpoint: string;
   readonly resources: true;
   readonly tools?: McpReadToolGateway;
-}
-
-interface McpReadExposureApi {
-  readonly createMcpReadExposure?: (
-    manifest: Manifest,
-    options: Readonly<{
-      mountId: string;
-      applicationService?: CollectionReadApplicationService;
-      snapshotLinkService?: SnapshotLinkApplicationService;
-    }>,
-  ) => McpReadExposure;
 }
 
 const fixturePath = resolve(

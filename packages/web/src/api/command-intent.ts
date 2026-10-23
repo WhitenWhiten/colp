@@ -56,22 +56,6 @@ export function allocateCommandId(intentKey: string): string {
   return id
 }
 
-/**
- * Whether the intent has no stored command id, which — after a run that clears
- * each intent as it succeeds — means the intent already finished.
- *
- * Storage failures report `false` ("not finished") so an unavailable
- * sessionStorage degrades to retrying the work instead of silently skipping it.
- */
-export function isCommandIdCleared(intentKey: string): boolean {
-  if (!intentKey) throw new Error('intentKey is required for command idempotency')
-  try {
-    return sessionStorage.getItem(storageKey(intentKey)) === null && fallbackIds.get(intentKey)?.persisted !== false
-  } catch {
-    return false
-  }
-}
-
 /** Drop a stored command id after the intent completed or the user starts over. */
 export function clearCommandId(intentKey: string): void {
   fallbackIds.delete(intentKey)

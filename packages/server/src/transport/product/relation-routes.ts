@@ -138,7 +138,7 @@ const RELATION_READ_ERROR_MAP = {
 const RELATION_MUTATION_ERROR_MAP = {
   relation_not_found: notFound,
   invalid_relation_endpoint: notFound,
-  relation_precondition_required: (error) => new ProductHttpError({ statusCode: productErrorStatus('precondition_required'), code: 'precondition_required', message: 'If-Match is required.', recovery: 'refresh_and_retry', precondition: 'resource' }),
+  relation_precondition_required: (_error) => new ProductHttpError({ statusCode: productErrorStatus('precondition_required'), code: 'precondition_required', message: 'If-Match is required.', recovery: 'refresh_and_retry', precondition: 'resource' }),
   relation_precondition_failed: (error) => new ProductHttpError({ statusCode: productErrorStatus('precondition_failed'), code: 'precondition_failed', message: 'The Relation changed before this operation.', recovery: 'refresh_and_retry', precondition: 'resource', currentEtag: 'currentEtag' in error && typeof error.currentEtag === 'string' ? error.currentEtag : null }),
   relation_already_exists: (error) => new ProductHttpError({ statusCode: productErrorStatus('mutation_conflict'), code: 'mutation_conflict', message: error.message }),
   insufficient_relation_permission: () => new ProductHttpError({ statusCode: productErrorStatus('insufficient_permission'), code: 'insufficient_permission', message: 'You do not have permission.', recovery: 'user_action' }),

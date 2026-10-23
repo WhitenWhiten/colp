@@ -1,7 +1,7 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ActorCollectionReadLimitError } from '../../modules/collections/index.js';
 import type { IdentityUnitOfWork } from '../../modules/identity/index.js';
-import type { BookmarkSubscriptionUnitOfWork, SubscriptionActor, SubscriptionTransactionPorts, ActionReceipt } from '../../modules/bookmark-subscriptions/index.js';
+import type { BookmarkSubscriptionUnitOfWork, SubscriptionTransactionPorts, ActionReceipt } from '../../modules/bookmark-subscriptions/index.js';
 import { BookmarkSubscriptionError, acknowledgeAction, accessCheck, authorizeSnapshotReceipt, checkNodes, commitExit, createMapping, createSnapshot, createSubscription, createSubscriptionCursorCodec, etag, exitInput, fail, listConfiguration, saveExitPreview, nodeRefs, object, opaque, projectionCheck, snapshotNodes, sourceRef, updateMapping, uuid } from '../../modules/bookmark-subscriptions/index.js';
 import { canonicalCommandFingerprint, type ProductCommandClaim } from '../../modules/commands/index.js';
 import { requireMutationActor } from '../mutation-actor.js';

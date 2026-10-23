@@ -116,9 +116,6 @@ export {
 
 export {
   INVITE_EMAIL_BASE_BACKOFF_MS,
-  INVITE_EMAIL_EVENT_TYPE,
-  INVITE_EMAIL_EVENT_VERSION,
-  INVITE_EMAIL_HANDLER_NAME,
   INVITE_EMAIL_MAX_ATTEMPTS,
   INVITE_EMAIL_MAX_BACKOFF_MS,
   INVITE_EMAIL_MISSING_DISPLAY_NAME,
@@ -128,7 +125,6 @@ export {
   type InviteEmailClaim,
   type InviteEmailDeliveryContext,
   type InviteEmailDeliveryRepository,
-  type InviteEmailDeliveryState,
   type InviteEmailDisposition,
   type InviteEmailErrorCategory,
   type ProcessInviteEmailInput,

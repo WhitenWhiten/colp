@@ -1,53 +1,9 @@
-import { boundedString, safeInteger } from './codec.js';
-import { cursorPage, iterateCursor, transactionDone } from './idb.js';
+import { boundedString } from './codec.js';
+import { iterateCursor, transactionDone } from './idb.js';
 import { INDEXES, STORES } from './schema.js';
 import { validateQueueRecord } from './queue-validate.js';
 import { scopeKey, validateScope } from './scope-key.js';
 import { SyncStateError, type JsonObject, type QueueOperation, type SyncScope } from './types.js';
-
-/**
- * Rows that address one COLP target, read through `by_scope_target_revision`.
- *
- * The outbound queue is never pruned, so every bounded `listQueue` page stops
- * containing a target's rows as soon as a scope accumulates more rows than one
- * page. Callers that answer "did this specific target commit?" must therefore
- * ask by target, not by scanning a window — a batch undo that scanned the
- * oldest page concluded "no delete row" forever on long-lived scopes and
- * reported success for a restore it never performed.
- *
- * `limit` is optional and OMITTING IT MEANS EVERY ROW. The index orders a
- * target's rows by `operationRevision`, so any window is applied before the
- * caller's filters and a busy target silently loses rows it needs. A caller
- * that must see the whole range (the delete lookup) omits the limit rather
- * than guessing a ceiling the next busy target will exceed.
- */
-export async function listQueueRowsByTarget(queue: IDBObjectStore, key: string, targetId: string,
-  maxBytes: number, limit?: number): Promise<QueueOperation[]> {
-  // `cursorPage` stops when it has `limit` rows; an infinite limit therefore
-  // walks the range to exhaustion, which is what an omitted limit means here.
-  const values = await cursorPage<QueueOperation>(queue.index(INDEXES.queueByTargetRevision),
-    IDBKeyRange.bound([key, targetId], [key, targetId, []]), limit ?? Number.POSITIVE_INFINITY);
-  return values.map((value) => validateQueueRecord(value, maxBytes));
-}
-
-/**
- * Open the queue read-only and read one target's rows. Lives here rather than in
- * the repository so the window semantics stay next to the index they depend on.
- */
-export async function readQueueRowsByTarget(db: IDBDatabase, input: SyncScope, targetId: string,
-  maxBytes: number, limit?: number): Promise<QueueOperation[]> {
-  if (limit !== undefined) {
-    safeInteger(limit, 'limit', 1);
-    if (limit > 1_000) throw new SyncStateError('limit_exceeded');
-  }
-  const key = scopeKey(validateScope(input));
-  boundedString(targetId, 'targetId');
-  const tx = db.transaction(STORES.queue, 'readonly');
-  const completion = transactionDone(tx);
-  const values = await listQueueRowsByTarget(tx.objectStore(STORES.queue), key, targetId, maxBytes, limit);
-  await completion;
-  return values;
-}
 
 /** Validate, digest and sequence-stamp one locally staged COLP operation row. */
 export function stampColpQueueRecord(input: SyncScope, key: string,

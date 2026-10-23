@@ -16,7 +16,7 @@ import {
   completeWithMappings, installKns05IndexedDb, mappingInput, scope, setup,
 } from './kns-05-pull-harness.js';
 import {
-  ack, json, pullPage, recoverySnapshot, scope as engineScope, setup as engineSetup, snapshot,
+  ack, json, pullPage, scope as engineScope, setup as engineSetup, snapshot,
 } from './durable-sync-engine-harness.js';
 
 installKns05IndexedDb();

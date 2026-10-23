@@ -1,5 +1,3 @@
-export const PUBLICATION_DIRECTORY_SORT = 'updatedAt DESC, id ASC' as const;
-
 export interface PublicationDirectoryFilter {
   readonly tag?: string;
   readonly creator?: string;

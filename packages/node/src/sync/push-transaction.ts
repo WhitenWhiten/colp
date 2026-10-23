@@ -18,7 +18,6 @@ import {
   requirePromise,
 } from './internal-guards.js';
 import {
-  assertCanonicalOperation,
   assertExactObject,
   assertOperationResultShape,
   immutablePlan,

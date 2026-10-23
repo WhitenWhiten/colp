@@ -1,5 +1,5 @@
 import { SnapshotTreeCapacityError } from '../../modules/collections/index.js';
-import { createDecipheriv, createHash, createHmac, hkdfSync, randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { sql, type Kysely, type Selectable } from 'kysely';
 import type { Conflict, ConflictResolutionResult, NodeCreate, Operation } from '@know-n/colp/types';
 import { deepEqualSyncMergeValue } from '@know-n/colp/sync';

@@ -42,10 +42,6 @@ export function productReadDeadlineMs(requestTimeoutMs: number): number {
   return requestTimeoutMs > 0 ? requestTimeoutMs : 30_000;
 }
 
-export function isAbortReason(error: unknown): boolean {
-  return error instanceof Error && error.name === 'AbortError';
-}
-
 /**
  * A cache abort means the client disconnected (or the server request timeout
  * fired) while the read was in flight: the response is undeliverable and the

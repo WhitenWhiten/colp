@@ -29,7 +29,7 @@ import { resolve } from 'node:path';
 import { startRealStack } from './real-stack.js';
 import { KNOW_N_BACKEND_ONLY, knowNBackendRoot } from './cloud-product-fixtures.js';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
-import { installFixtureReplicaBinding, EXTENSION_ID, openExtensionOptions, signInExtension } from './extension-auth.js';
+import { installFixtureReplicaBinding, openExtensionOptions, signInExtension } from './extension-auth.js';
 import { FIXTURE_COLLECTION_ID } from './fixture-ids.js';
 
 const extensionPath = resolve(import.meta.dirname, '../dist/production');

@@ -11,13 +11,11 @@ import { EXIT_DURATION_FAST_MS, EXIT_DURATION_MS, canAnimateExit, useExitAnimati
  * was never exercised. `animate` is injectable now, which makes these tests cover
  * the same path production runs.
  */
-let lastState: { mounted: boolean; closing: boolean } | null = null
 
 function Probe({ open, durationMs, animate }: {
   open: boolean; durationMs: number; animate: boolean
 }): React.ReactElement {
   const state = useExitAnimation(open, durationMs, animate)
-  lastState = state
   return <div data-testid="probe" data-mounted={state.mounted} data-closing={state.closing} />
 }
 
@@ -31,7 +29,6 @@ const view = { open: true, durationMs: EXIT_DURATION_MS, animate: true }
 
 function mount(overrides: Partial<typeof view> = {}): void {
   Object.assign(view, { open: true, durationMs: EXIT_DURATION_MS, animate: true }, overrides)
-  lastState = null
   mountTree(<Probe open={view.open} durationMs={view.durationMs} animate={view.animate} />)
 }
 

@@ -29,14 +29,12 @@ import {
   McpResourceRequestError,
   resolveMcpResourceReadBudget,
   type McpResourceProjectionPort,
-  type McpStatelessReadCore,
 } from '../../src/mcp/shared/resources.js';
 import {
   createMcpStatelessToolCore,
   McpInvalidToolNameError,
   McpToolOutputUnavailableError,
   McpUnknownToolError,
-  type McpStatelessToolCore,
   type McpToolRegistration,
 } from '../../src/mcp/shared/tools.js';
 import {

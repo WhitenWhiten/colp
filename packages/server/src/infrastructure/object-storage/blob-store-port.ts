@@ -20,7 +20,6 @@ import { createHash } from 'node:crypto';
 
 // ---------------------------------------------------------------------------
 // Stable failure classification
-// ---------------------------------------------------------------------------
 
 /**
  * Stable provider-failure classes. `contract_drift` is reserved for responses
@@ -274,23 +273,5 @@ export interface BlobStorePort {
   probeCapability(): Promise<ProbeCapabilityOutcome>;
 
   /** Destroys client resources; subsequent calls fail closed with store_closed. */
-  close(): Promise<void>;
-}
-
-
-/**
- * P4A-I11 read-only subset of the port: the credential-free isolated delivery
- * process may ONLY head and read exact generations (and probe/close). It
- * holds no write path and no R2 RW secret, so `issueCreateOnlyGrant` and
- * `deleteExact` are absent here; `createR2ReadOnlyGenerationStore` satisfies
- * this interface (write operations fail closed with `store_read_only`).
- */
-export interface ReadOnlyBlobStorePort {
-  headExact(
-    handle: GenerationHandle,
-    options?: { readonly expectedEtag?: string; readonly signal?: AbortSignal },
-  ): Promise<HeadExactOutcome>;
-  readBounded(handle: GenerationHandle, options: ReadBoundedOptions): Promise<ReadBoundedOutcome>;
-  probeCapability(): Promise<ProbeCapabilityOutcome>;
   close(): Promise<void>;
 }

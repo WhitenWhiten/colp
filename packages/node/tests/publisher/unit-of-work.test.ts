@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   createCanonicalRequestDigest,
   executePublisherCollectionCreate,
-  executeIdempotentPublisherCreation,
   executeIdempotentPublisherWrite,
   type IdempotencyBinding,
   type IdempotencyClaim,
@@ -535,7 +534,7 @@ describe('PUBLISH-0003 atomic collection and root creation', () => {
     collection: { kind: 'mixed', title: 'PUBLISH-0003', visibility: 'private' },
     root: { title: 'Root', folderRole: 'root' },
   } as any;
-  const responseBody = (state: TestState) => ({ collection: state.resources.get(request.collectionId), root: state.resources.get(request.rootNodeId), links: {} });
+
   const create = (adapter: TransactionalMemoryPublisherAdapter, b = creationBinding, r = request) => executePublisherCollectionCreate(adapter as any, b, r);
 
   it('commits collection and root plus both reservations in one transaction [evidence:publisher.collection-create]', async () => {

@@ -26,36 +26,6 @@ export const CACHE_ERROR_CATEGORY = {
 
 export type CacheErrorCategory = (typeof CACHE_ERROR_CATEGORY)[keyof typeof CACHE_ERROR_CATEGORY];
 
-export type CacheLookupKind =
-  | 'fresh_hit'
-  | 'miss'
-  | 'soft_expired'
-  | 'decode_error'
-  | 'unavailable';
-
-/**
- * Unified result of a cache read for one key. T02 only defines the contract;
- * the domain-neutral read-through policy (T04) produces these values from the
- * CacheStore and the envelope codec. `decode_error` and `unavailable` always
- * carry the stable category so callers never reclassify or rethrow to HTTP.
- */
-export type CacheLookupResult<T> =
-  | {
-      readonly kind: 'fresh_hit';
-      readonly value: T;
-      readonly writtenAtMs: number;
-      readonly hardExpiresAtMs: number;
-    }
-  | { readonly kind: 'miss' }
-  | {
-      readonly kind: 'soft_expired';
-      readonly value: T;
-      readonly softExpiresAtMs: number;
-      readonly hardExpiresAtMs: number;
-    }
-  | { readonly kind: 'decode_error'; readonly category: typeof CACHE_ERROR_CATEGORY.DECODE_ERROR }
-  | { readonly kind: 'unavailable'; readonly category: typeof CACHE_ERROR_CATEGORY.UNAVAILABLE };
-
 /**
  * Stable error thrown by CacheStore implementations (T03) when a Redis command
  * fails. The category is always `cache_unavailable`; the caller maps it to a

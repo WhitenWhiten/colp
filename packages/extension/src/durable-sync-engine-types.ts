@@ -2,7 +2,7 @@ import type { AuthoritativeParentRevision, Collection, SnapshotNode, SnapshotPag
   SyncPullV02 } from '@know-n/colp/types';
 import type { SyncEndpoints } from './manifest-client.js';
 import type { DrainOutcome } from './outbound-push-worker.js';
-import type { DurableSyncEngineState, MappingInput, SyncScope, createSyncStateStore } from './sync-state-store.js';
+import type { MappingInput, SyncScope, createSyncStateStore } from './sync-state-store.js';
 import type { StoredCredential, StoredSession } from './types.js';
 
 export type PlacementRefreshOutcome = 'continue' | 'recovery';

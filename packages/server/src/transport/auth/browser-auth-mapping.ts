@@ -106,7 +106,7 @@ export function parseProfileSettingsBody(value: unknown): {
 }
 
 const PROFILE_SETTINGS_ERROR_MAP = {
-  handle_taken: (error) => new ProductHttpError({ statusCode: productErrorStatus('handle_taken'),
+  handle_taken: (_error) => new ProductHttpError({ statusCode: productErrorStatus('handle_taken'),
     code: 'handle_taken', message: 'This handle is already taken.', recovery: 'user_action' }),
   invalid_handle: (error) => invalidProfileField('invalid_handle', '/handle', error.message),
   invalid_display_name: (error) => invalidProfileField('invalid_display_name', '/displayName', error.message),

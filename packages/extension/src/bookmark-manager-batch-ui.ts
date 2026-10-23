@@ -152,7 +152,7 @@ export function bindBookmarkManagerBatch(host: {
     const confirmLabel = next.operation === 'delete'
       ? (count === 1 ? t('manager_deleteItem', 'Delete item') : t('manager_deleteItems', 'Delete $1 items', count))
       : next.operation === 'rename' ? t('common_rename', 'Rename') : count === 1 ? t('manager_moveItem', 'Move item') : t('manager_moveItems', 'Move $1 items', count);
-    const { dialog, body, confirm } = openDialog(title, confirmLabel, next.operation === 'delete' ? 'danger' : 'primary');
+    const { dialog, body } = openDialog(title, confirmLabel, next.operation === 'delete' ? 'danger' : 'primary');
     if (next.crossBoundary) body.append(notice('warning', t('manager_moveTakesItemsInto', 'This move takes items into or out of your synced folders.')));
     if (next.operation === 'delete') {
       const warn = document.createElement('p');
@@ -257,7 +257,6 @@ export function bindBookmarkManagerBatch(host: {
     };
     tick();
   }
-
 
   async function showMovePicker(selectedIds: readonly string[]): Promise<void> {
     const top = host.nodes().get(host.rootId());

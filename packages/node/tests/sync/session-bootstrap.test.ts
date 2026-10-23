@@ -97,12 +97,6 @@ function mergeStagedState(before: DurableState, draft: DurableState, current: Du
   return merged;
 }
 
-function barrier() {
-  let release!: () => void;
-  const promise = new Promise<void>((resolve) => { release = resolve; });
-  return { promise, release };
-}
-
 class SharedStagingBackend {
   public state: DurableState = emptyState();
   public readonly tails = new Map<string, Promise<void>>();

@@ -575,7 +575,7 @@ class MemoryReplicaLifecycle implements ReplicaLifecycleUnitOfWork {
   }
 
   async execute<Value>(
-    replicaId: string,
+    _replicaId: string,
     work: (transaction: ReplicaLifecycleTransaction) => Promise<Value>,
   ): Promise<Value> {
     this.executeCount += 1;

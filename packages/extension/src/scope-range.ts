@@ -216,11 +216,6 @@ export async function releaseReincludedPrivateMappings(store: Store, scope: Sync
   }
 }
 
-export async function mountIdForNative(store: Store, scope: SyncScope, nativeId: string): Promise<string | undefined> {
-  const mount = (await store.listMountBindings(scope)).find((row) => row.nativeRootId === nativeId);
-  return mount?.mountId;
-}
-
 /** A narrower selection takes ownership of its mapped subtree from a removed parent mount. */
 export async function adoptSelectedSubtreeMappings(store: Store, scope: SyncScope, preview: ScopePreviewRecord,
   scan: BoundaryScan, discovered: ReadonlyMap<string, readonly string[]>): Promise<void> {

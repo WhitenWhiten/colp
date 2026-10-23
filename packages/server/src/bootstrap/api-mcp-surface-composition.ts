@@ -95,7 +95,7 @@ export async function composeApiMcpSurface(input: {
     config, database, identityUnitOfWork, metrics,
     publicationDirectoryReads, publicationMetadataReads, publicationCursorKeys,
     accessPolicyFacts, publicationSnapshotQuery, ownedCollectionsQuery,
-    reportSourceInvalidation, jwksProvider, governanceReportRateLimiter,
+    reportSourceInvalidation, jwksProvider,
   } = input;
   const mcpAssertOptions = mcpReadFeatureConfigAssertOptions({
     nodeEnv: config.nodeEnv,

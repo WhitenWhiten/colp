@@ -249,9 +249,7 @@ export function createMappingRepository(ctx: SyncStoreRuntime) {
   const open = () => ctx.open();
   const writableDatabase = () => ctx.writableDatabase();
   const assertWritable = () => ctx.assertWritable();
-  const readOne = (storeName: string, key: IDBValidKey) => ctx.readOne(storeName, key);
-  const factory = ctx.factory;
-  const close = () => ctx.close();
+
   async function putMapping(input: SyncScope, mappingInput: MappingInput): Promise<void> {
     assertWritable(); const key = scopeKey(validateScope(input)); const mapping = validateMapping(key, mappingInput, maxRecordBytes);
     const db = await writableDatabase();

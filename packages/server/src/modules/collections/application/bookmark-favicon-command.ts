@@ -11,7 +11,6 @@ import {
   type ProductCommandResult,
 } from '../../commands/index.js';
 import {
-  BookmarkFaviconValidationError,
   CollectionAuthorizationError,
   formatUtcDateTime,
   strongEntityTag,
@@ -431,13 +430,4 @@ function productResult(view: BookmarkNodeView): ProductCommandResult {
     contractVersion: BOOKMARK_FAVICON_COMMAND_CONTRACT_VERSION,
     targetIdentity: view.id,
   };
-}
-
-export function mapBookmarkFaviconCommandError(
-  error: unknown,
-): BookmarkFaviconCommandError | CollectionAuthorizationError | BookmarkFaviconValidationError | null {
-  if (error instanceof BookmarkFaviconCommandError) return error;
-  if (error instanceof CollectionAuthorizationError) return error;
-  if (error instanceof BookmarkFaviconValidationError) return error;
-  return null;
 }

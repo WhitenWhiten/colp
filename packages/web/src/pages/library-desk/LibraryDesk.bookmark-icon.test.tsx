@@ -117,14 +117,6 @@ function collectionItem(
   }
 }
 
-function snapshotRequestedIds() {
-  return mocks.loadEditorSnapshot.mock.calls.map((args) => args[0] as string)
-}
-
-function rejectSnapshot(id: string) {
-  return Promise.reject(new Error(`must not prefetch ${id}`))
-}
-
 function extraBookmark(
   id: string,
   collectionId: string,

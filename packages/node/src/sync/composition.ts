@@ -72,7 +72,6 @@ import type { ScopeName } from '../types/index.js';
 import { requirePromise } from './internal-guards.js';
 import { assertPushReplicaOwnership, type PushReplicaOwnershipVerifier } from './push-ownership.js';
 import {
-  collectionSequenceScopeKey,
   sequenceScopeMatchesCollection,
   normalizeSessionBoundPushRequest,
   normalizeSessionBoundSequenceRequest,

@@ -1,4 +1,4 @@
-import type { Rule, RuleInput, BindingSet, PreviewResult, PreviewInput, PauseState, AutomationExport, EventFacts, RoleBindings, RuleDefinition } from '@know-n/colp/automation';
+import type { Rule, RuleInput, PreviewResult, PreviewInput, PauseState, AutomationExport, EventFacts, RoleBindings, RuleDefinition } from '@know-n/colp/automation';
 import type { HealthStore } from './health-service.js';
 import type { ProductCommandReceiptPort } from '../../commands/index.js';
 import type { BindingReadPort, BindingStore, AutomationActor, FolderResolution } from '../domain/bindings.js';
@@ -53,4 +53,3 @@ export const ruleInput = (rule: Rule): RuleInput => ({ definition: rule.definiti
   ...(rule.executionPolicyId ? { executionPolicyId: rule.executionPolicyId } : {}), ...(rule.templateRef ? { templateRef: rule.templateRef } : {}) });
 export const nextRevision = (revision: string): string => (BigInt(revision) + 1n).toString();
 export const etag = (revision: string): string => `"${revision}"`;
-export type ResourceView = Rule | BindingSet | PauseState;

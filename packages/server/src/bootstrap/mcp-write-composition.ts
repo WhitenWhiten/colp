@@ -510,7 +510,7 @@ export function createAuthoritativeState(db: Kysely<DatabaseSchema>) {
 
 function createPhase4bMcpWriteRevisionPort(
   db: Kysely<DatabaseSchema>,
-  authoritativeState: ReturnType<typeof createAuthoritativeState>,
+  _authoritativeState: ReturnType<typeof createAuthoritativeState>,
   currentRevisions: McpChangePlanRevisionPort<DatabaseTransaction>,
 ): McpChangePlanRevisionPort<DatabaseTransaction> {
   return Object.freeze({

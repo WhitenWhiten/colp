@@ -131,12 +131,6 @@ export function cleanup(): void {
   active = undefined
 }
 
-function buttonLabel(button: HTMLButtonElement): string {
-  const text = button.textContent?.replace(/\s+/g, ' ').trim() ?? ''
-  const aria = button.getAttribute('aria-label')?.trim() ?? ''
-  return text || aria
-}
-
 export function findButtonByName(name: string | RegExp): HTMLButtonElement {
   const buttons = [...document.querySelectorAll<HTMLButtonElement>('button')]
   const labeled = buttons.map((button) => {

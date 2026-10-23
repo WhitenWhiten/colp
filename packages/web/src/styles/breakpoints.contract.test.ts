@@ -50,13 +50,6 @@ function parseMedia(header: string): MediaQuery | null {
   }
 }
 
-function mediaMatches(query: MediaQuery | null, width: number): boolean {
-  if (!query) return true
-  if (query.min != null && width < query.min) return false
-  if (query.max != null && width > query.max) return false
-  return true
-}
-
 type CssRule = { media: MediaQuery | null; selector: string; body: string }
 
 /** Top-level and @media rules, source order, comments stripped. */
@@ -135,25 +128,6 @@ function splitSelectors(header: string): string[] {
   }
   if (cur.trim()) parts.push(cur)
   return parts.map((p) => p.replace(/\s+/g, ' ').trim()).filter(Boolean)
-}
-
-function columnCount(body: string): number | null {
-  const repeat = body.match(/grid-template-columns\s*:\s*repeat\(\s*(\d+)/)
-  if (repeat) return Number(repeat[1])
-  const single = body.match(/grid-template-columns\s*:\s*1fr\s*;/)
-  if (single) return 1
-  return null
-}
-
-function winningColumns(rules: CssRule[], selector: string, width: number): number | null {
-  let cols: number | null = null
-  for (const rule of rules) {
-    if (rule.selector !== selector) continue
-    if (!mediaMatches(rule.media, width)) continue
-    const count = columnCount(rule.body)
-    if (count != null) cols = count
-  }
-  return cols
 }
 
 function mediaHeaders(source: string): string[] {

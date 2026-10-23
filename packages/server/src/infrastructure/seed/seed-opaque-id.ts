@@ -22,9 +22,6 @@ export const SEED_OPAQUE_PREFIX = {
   node: 'nd-col-',
 } as const;
 
-export type SeedOpaquePrefix =
-  (typeof SEED_OPAQUE_PREFIX)[keyof typeof SEED_OPAQUE_PREFIX];
-
 /** Last-char alphabet + salt + prefixes; import this object when the call site needs the whole mint contract. */
 export const SEED_OPAQUE_ID = Object.freeze({
   salt: SEED_OPAQUE_ID_SALT,
@@ -118,32 +115,4 @@ export function executableSeedDataSql(dataSql: string): string {
     throw new Error(`data.sql must contain ${JSON.stringify(SEED_DATA_SQL_BODY_MARKER)} after seed_opaque`);
   }
   return dataSql.slice(idx);
-}
-
-/** SQL-side encode path (encode base64 + translate + rtrim) for TS/SQL parity tests. */
-export function seedOpaqueIdFromSqlBase64(prefix: string, legacyId: string): string {
-  const digest = createHash('sha256').update(`${SEED_OPAQUE_ID_SALT}${legacyId}`, 'utf8').digest();
-  const b64url = digest.toString('base64').replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/u, '');
-  const fill = b64url.slice(0, 21 - prefix.length);
-  const last = SEED_OPAQUE_LAST_CHARS[digest[31]! % 4]!;
-  return `${prefix}${fill}${last}`;
-}
-
-export function assertSeedOpaqueIdSet(
-  pairs: readonly (readonly [prefix: string, legacyId: string])[],
-): readonly string[] {
-  const seen = new Map<string, string>();
-  const ids: string[] = [];
-  for (const [prefix, legacyId] of pairs) {
-    const id = seedOpaqueId(prefix, legacyId);
-    const previous = seen.get(id);
-    if (previous !== undefined && previous !== `${prefix}\0${legacyId}`) {
-      throw new Error(
-        `seedOpaqueId collision: ${id} from (${prefix}, ${legacyId}) and (${previous.replace('\0', ', ')})`,
-      );
-    }
-    seen.set(id, `${prefix}\0${legacyId}`);
-    ids.push(id);
-  }
-  return ids;
 }

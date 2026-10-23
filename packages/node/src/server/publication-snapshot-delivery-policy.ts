@@ -15,7 +15,6 @@ import {
 } from './publication-snapshot-reuse.js';
 import {
   PublicationPublicProjectionError,
-  type PublicationPublicProjectionLimits,
 } from './publication-public-projection.js';
 
 export * from './publication-snapshot-delivery-policy-core.js';

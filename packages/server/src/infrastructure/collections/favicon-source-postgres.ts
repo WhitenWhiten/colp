@@ -1,6 +1,5 @@
 import { sql, type Kysely } from 'kysely';
 import type {
-  BookmarkIconSourceReadPort,
   BookmarkIconSourceRow,
   BookmarkIconSourceWritePort,
   FaviconSourceMembershipReadPort,

@@ -1,4 +1,3 @@
-import type { IDBFactory } from 'fake-indexeddb';
 import { createBookmarkEventQueue, type BookmarkEventApi } from '../src/bookmark-event-queue.js';
 import { createSyncStateStore, type SyncScope } from '../src/sync-state-store.js';
 

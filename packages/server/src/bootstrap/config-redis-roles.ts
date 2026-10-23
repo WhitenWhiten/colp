@@ -34,8 +34,6 @@ export const LIMITER_MEMORY_HEADROOM_NUMERATOR = 5;
 export const LIMITER_MEMORY_HEADROOM_DENOMINATOR = 2;
 /** Local compose default: small-host peak subjects, not a guessed 64 MiB. */
 export const DEFAULT_LIMITER_PEAK_SUBJECTS = 4_000;
-/** 10C8G production starting peak; raise LIMITER_PEAK_SUBJECTS with traffic. */
-export const PRODUCTION_LIMITER_PEAK_SUBJECTS = 20_000;
 
 export function redisInstanceFingerprint(url: string): string {
   const parsed = new URL(url);

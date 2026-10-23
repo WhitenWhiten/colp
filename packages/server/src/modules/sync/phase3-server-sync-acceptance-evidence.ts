@@ -272,7 +272,6 @@ function requireDigest(name: string, value: string | undefined): void { if (!/^[
 function requireRuntimeIdentity(value: string, name: string): void { if (!/^[A-Za-z0-9_-]{16,128}$/u.test(value)) throw new TypeError(`P3-26 ${name} is invalid`); }
 function requireTime(value: string): void { if (!Number.isFinite(Date.parse(value))) throw new TypeError('P3-26 timestamp is invalid'); }
 function sha256(value: string): string { return createHash('sha256').update(value).digest('hex'); }
-export function canonicalPhase3ServerSyncJson(value: unknown): string { return canonicalJson(value); }
 function canonicalJson(value: unknown): string {
   return encodeThrowingCanonicalJson(value, {
     keyOrder: 'locale',

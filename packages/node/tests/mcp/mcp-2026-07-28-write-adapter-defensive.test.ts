@@ -12,7 +12,6 @@ import { createHmac } from 'node:crypto';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { McpChangePlanError } from '../../src/mcp/change-plan.js';
 import { requestStateBindingMaterial } from '../../src/mcp/2026-07-28/request-state-binding.js';
 import type { McpAuthenticatedAuthorizationBinding } from '../../src/mcp/shared/authorization.js';
 import { McpWriteRequestAbortedError } from '../../src/mcp/write-tools.js';

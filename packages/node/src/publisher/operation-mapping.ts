@@ -68,7 +68,7 @@ function assertNoServerFields(value: Record<string, unknown>, name: string): voi
 }
 function assertPayload(kind: PublisherSidecarKind, action: PublisherSidecarAction, payload: unknown): void {
   plain(payload, 'Operation payload');
-  const key = action === 'create' ? kind : action === 'update' ? 'base' : 'reason';
+
   if (action === 'delete') {
     for (const field of Object.keys(payload)) if (field !== 'reason') throw new TypeError('Delete payload contains unknown fields.');
     if ('reason' in payload && payload.reason !== undefined && typeof payload.reason !== 'string') throw new TypeError('Delete reason must be a string.');

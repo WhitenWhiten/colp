@@ -18,7 +18,6 @@ export interface PersonalSyncStorage {
   set(items: Record<string, unknown>): Promise<void>;
 }
 export const PERSONAL_SYNC_PREFIX = 'known.personal-sync.v1:';
-export const PERSONAL_SYNC_CHANGED = 'known.personalSync.changed';
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 const modes = new Set<unknown>(['enabled', 'paused', 'disconnected', 'target-unavailable']);
 const reasons = new Set<unknown>(['user', 'signed-out', 'target-unavailable', 'metadata-consent', 'invalid']);

@@ -170,16 +170,6 @@ export function materializeOidcLoginTransactionForUse(
   };
 }
 
-/** Contracted rows always carry protected secret material. */
-export function isProtectedOidcTransaction(row: OidcLoginTransaction): boolean {
-  return (
-    row.stateHash.length > 0
-    && row.nonceHash.length > 0
-    && Buffer.isBuffer(row.pkceVerifierCiphertext)
-    && row.pkceVerifierCiphertext.length > 0
-  );
-}
-
 function keyedDigest(secret: string, purpose: string, value: string): string {
   return createHmac('sha256', secret)
     .update(purpose, 'utf8')
@@ -233,14 +223,6 @@ function assertEncryptionKeys(keys: readonly OidcEncryptionKey[]): readonly Oidc
     }
   }
   return keys;
-}
-
-/** Encode a 32-byte key as unpadded base64 for env transport. */
-export function encodeOidcEncryptionKeyBase64(key: Buffer): string {
-  if (key.length !== AES_KEY_LENGTH) {
-    throw new Error(`encryption key must be ${AES_KEY_LENGTH} bytes`);
-  }
-  return key.toString('base64');
 }
 
 /** Parse `version:id:base64key` entries (comma-separated). First is current. */

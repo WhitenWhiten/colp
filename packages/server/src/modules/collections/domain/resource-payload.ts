@@ -28,11 +28,6 @@ import {
 /** Storage schema version for resource payload_json (not outbox event_version). */
 export const RESOURCE_PAYLOAD_SCHEMA_VERSION = 1 as const;
 
-export type ResourcePayloadAuthorityStatus =
-  | 'pending'
-  | 'backfilled'
-  | 'malformed';
-
 export const RESOURCE_PAYLOAD_AUTHORITY_STATUSES = Object.freeze([
   'pending',
   'backfilled',

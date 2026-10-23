@@ -1,6 +1,6 @@
 import { createQueueIssueRepository, putConsumedRejection } from './queue-issue-repository.js';
 import { withReceiptOutcome, MAX_SEQUENCE_BLOCKED_RETRIES } from './open-issue-facts.js';
-import { ISSUE_DEPENDENCY_STORES, transactionIssueDependencies } from './issue-dependencies.js';
+import { ISSUE_DEPENDENCY_STORES } from './issue-dependencies.js';
 import { parkedOutOfLane } from './queue-set-aside-repository.js';
 import { firstLaneQueueRow, holdable, holdIfWaiting, holdWaitingRows } from './queue-hold.js';
 import { enqueueParentIds, enqueueTargetId, findBlockingUnsettledAttempt } from './queue-live-work.js';
@@ -11,7 +11,7 @@ import {
 import { boundedString, clone, safeInteger, validateJson } from './codec.js';
 import { constraintError, inject } from './errors.js';
 import {
-  cursorPage, iterateCursor, requestValue, requireActiveScope, runTransaction, scopeRowsRange, transactionDone,
+  cursorPage, iterateCursor, requestValue, requireActiveScope, runTransaction, transactionDone,
 } from './idb.js';
 import { INDEXES, STORES } from './schema.js';
 import { scopeKey, validateScope } from './scope-key.js';
@@ -40,9 +40,7 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
   const open = () => ctx.open();
   const writableDatabase = () => ctx.writableDatabase();
   const assertWritable = () => ctx.assertWritable();
-  const readOne = (storeName: string, key: IDBValidKey) => ctx.readOne(storeName, key);
-  const factory = ctx.factory;
-  const close = () => ctx.close();
+
   async function allocateSequenceAndEnqueue(input: SyncScope, operationInput: Omit<QueueOperation, 'sequence' | 'scopeKey'>,
     faults: FaultOptions & {
       readonly validateOperation?: (operation: JsonObject) => boolean;

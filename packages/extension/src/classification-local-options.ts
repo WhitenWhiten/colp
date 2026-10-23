@@ -1,4 +1,4 @@
-import {LOCAL_CLASSIFICATION_KEY,LOCAL_CLASSIFICATION_DRAFT,LOCAL_CLASSIFICATION_ENABLED,LOCAL_CLASSIFICATION_ORIGIN,LOCAL_CLASSIFICATION_GRANTED_ORIGIN,localClassificationAvailable,
+import {LOCAL_CLASSIFICATION_KEY,LOCAL_CLASSIFICATION_DRAFT,LOCAL_CLASSIFICATION_ENABLED,LOCAL_CLASSIFICATION_GRANTED_ORIGIN,localClassificationAvailable,
   clearLocalClassification,clearLocalClassificationContext,localClassificationOriginPattern,releaseStaleClassificationOrigin,storedLocalClassificationForm,type LocalClassificationCredential} from './classification-local-session.js';
 import {classificationEndpointAllowed,localClassificationPreset,type LocalClassificationPreset,type LocalClassificationPresetId} from './classification-local-presets.js';
 import {CLASSIFICATION_PROBE_INPUT,CLASSIFICATION_PROBE_OPTIONS} from './generated/classification/index.js';
@@ -22,9 +22,9 @@ export type ProbeConnectionOutcome =
   | { ok: false; error: string; status?: number };
 
 export async function probeClassificationConnection(input: ProbeConnectionInput): Promise<ProbeConnectionOutcome> {
-  let url: URL;
+
   try {
-    url = new URL(input.endpoint);
+    new URL(input.endpoint);
   } catch {
     return { ok: false, error: t('classification_invalidEndpointUrl', 'Invalid endpoint URL') };
   }

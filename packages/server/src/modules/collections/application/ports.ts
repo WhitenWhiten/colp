@@ -18,7 +18,6 @@ export type * from './canonical-stage-ports.js';
 
 // ---------------------------------------------------------------------------
 // CreateOwnedCollection (ADR-0009) — transaction-bound ports
-// ---------------------------------------------------------------------------
 
 export type ResourceLedgerType =
   | 'collection'
@@ -454,22 +453,6 @@ export interface RelationMutationUnitOfWork {
  * Ports for node move/reorder (P1-09), bound to one transaction.
  */
 export interface MoveCollectionNodePorts {
-  readonly receipts: ProductCommandReceiptPort;
-  readonly clock: CollectionsClock;
-  readonly idLedger: IdLedgerPort;
-  readonly collections: CollectionWritePort;
-  readonly nodes: NodeWritePort;
-  readonly revisions: RevisionWritePort;
-  readonly operations: BootstrapOperationPort;
-  readonly audit: BootstrapAuditPort;
-  readonly outbox: BootstrapOutboxPort;
-  readonly accessPolicy: AccessPolicyFactsPort;
-}
-
-/**
- * Ports for node / subtree delete (P1-10), bound to one transaction.
- */
-export interface DeleteCollectionNodePorts {
   readonly receipts: ProductCommandReceiptPort;
   readonly clock: CollectionsClock;
   readonly idLedger: IdLedgerPort;

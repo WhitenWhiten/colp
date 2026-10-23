@@ -72,11 +72,6 @@ export function clearAdvancedPreviewCache(): void {
   advancedPreviews.clear();
 }
 
-export function advancedPreviewCacheSize(): number {
-  pruneAdvancedPreviews(Date.now());
-  return advancedPreviews.size;
-}
-
 export async function handleAdvancedFirstRunPreview(message: FirstRunPreviewRequest): Promise<FirstRunOrScopeResponse> {
   try {
     const scope = await currentSyncScope();

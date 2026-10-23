@@ -1,5 +1,5 @@
 import { SyncFailureError } from './sync-failure-class.js';
-import { recordKns09Stop } from './kns-09-release.js';
+
 import type { SyncPullEventV02 } from '@know-n/colp/types';
 import { digest } from './pull-codec.js';
 import { chromeCreate, nodeCreate } from './pull-projection.js';
@@ -63,23 +63,6 @@ export async function recoverCreatedNative(options: PullApplierOptions, api: Pul
   }), effect.node.id);
 }
 
-export async function recoverCreatedNativeEvidence(options: PullApplierOptions, api: PullBookmarkApi, parentId: string,
-  expected: { readonly title?: string; readonly url?: string }, intent: Pick<IntentRecord, 'intentId'> | null,
-  colpId: string, freezeWithoutEvidence = false,
-): Promise<NativeCreateOutcome> {
-  void freezeWithoutEvidence;
-  if (!intent) return { result: 'failed', code: 'intent_not_found' };
-  return executeNativeCreate({
-    scope: options.scope, store: options.store, api, intentId: intent.intentId,
-    owner: {
-      scopeKey: scopeKey(options.scope), generation: options.scope.generation, commandId: 'pull',
-      eventId: intent.intentId, colpId, substep: 'create',
-    },
-    parentNativeId: parentId, expected, liveWorkKind: 'create', crash: options.crash, now: options.now,
-    create: async () => api.create({ parentId, ...expected }),
-  });
-}
-
 function createColpId(event: Event): string {
   const effect = event.effect;
   if (effect.kind === 'node_created' || effect.kind === 'node_restored' || effect.kind === 'node_moved') {
@@ -94,8 +77,4 @@ function expectedChrome(event: Event): { readonly title?: string; readonly url?:
     return chromeCreate(effect.node);
   }
   return {};
-}
-
-export function recordDuplicateCreateStop(scope: PullApplierOptions['scope']): void {
-  recordKns09Stop('duplicateNode', scope);
 }

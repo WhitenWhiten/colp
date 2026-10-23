@@ -15,7 +15,6 @@ import { describe, expect, test } from 'vitest';
 import { SOURCE_READER_HELPERS, STATIC_ANCHOR_ALLOWLIST } from './static-anchor-allowlist.js';
 
 const testsDirectory = import.meta.dirname;
-const packageRoot = resolve(testsDirectory, '..');
 
 /** Any of these means the file reads production source as text. */
 const SOURCE_READER_PATTERNS = [

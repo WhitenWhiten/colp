@@ -130,9 +130,7 @@ export function createRecoveryRepository(ctx: SyncStoreRuntime) {
   const open = () => ctx.open();
   const writableDatabase = () => ctx.writableDatabase();
   const assertWritable = () => ctx.assertWritable();
-  const readOne = (storeName: string, key: IDBValidKey) => ctx.readOne(storeName, key);
-  const factory = ctx.factory;
-  const close = () => ctx.close();
+
   async function hasRecoveryStaging(input: SyncScope) {
     const key = scopeKey(validateScope(input)); const db = await open();
     const tx = db.transaction(STORES.recovery, 'readonly'); const completion = transactionDone(tx);
@@ -556,4 +554,3 @@ export function createRecoveryRepository(ctx: SyncStoreRuntime) {
     rebaseRecoveryCursor, rebaseActiveSessionAuthority, finalizeRecoveryMappings,
     getRecoveryHeader, listRecoveryNodes };
 }
-

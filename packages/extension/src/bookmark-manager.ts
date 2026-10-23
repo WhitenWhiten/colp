@@ -4,7 +4,7 @@ import { createManagerPage } from './bookmark-manager-page.js';
 import { createBookmarkManagerNavigation } from './bookmark-manager-navigation.js';
 import { createViewRefresh, preserveViewPosition } from './view-refresh.js';
 import { bindBookmarkManagerBatch } from './bookmark-manager-batch-ui.js';
-import { bookmarkTotals, icon, iconTile, isInViewport, isNodeSynced, normalizedUrl, type NativeNode, type ManagerElements } from './bookmark-manager-dom.js';
+import { bookmarkTotals, icon, iconTile, isNodeSynced, normalizedUrl, type NativeNode, type ManagerElements } from './bookmark-manager-dom.js';
 import { createManagerAnnotations } from './bookmark-manager-annotations.js';
 import { countTags, liveAnnotations, openBulkTagDialog, openTagPicker, renderTagPath, renderTreeTags, retag, taggedNodes, tagKey, toggleTag,
   type TagCount, type TagMatch } from './bookmark-manager-tags.js';
@@ -23,7 +23,6 @@ import { folderPinState, loadPinView, loadResultPins, projectPinnedChildren, tog
 import { t, tn } from './i18n.js';
 /** Edge-style options manager operating directly on the native chrome.bookmarks tree.
  * Sync captures each mutation, so edits behave like changes made in the browser manager. */
-
 
 type BookmarksApi = typeof chrome.bookmarks;
 

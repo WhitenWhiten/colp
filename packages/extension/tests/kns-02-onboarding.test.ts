@@ -14,7 +14,7 @@ import { countFolderContents } from '../src/bookmark-boundary.js';
 import {
   FIRST_RUN_ENGINE_NOT_READY, FIRST_RUN_INTRO, FIRST_RUN_KEEP_COPY,
   FIRST_RUN_LATER, FIRST_RUN_LIBRARY_REQUIRED, FIRST_RUN_MERGE_COPY, FIRST_RUN_PERMISSION_ACTION,
-  FIRST_RUN_PERMISSION_HINT, FIRST_RUN_START, FIRST_RUN_SYNCED, FIRST_RUN_SYNCING, FIRST_RUN_UNSYNCED,
+  FIRST_RUN_PERMISSION_HINT, FIRST_RUN_START, FIRST_RUN_UNSYNCED,
   buildFirstRunConfirm, canStartFirstSync, collectPreviewSelection, confirmFailureCopy,
   firstRunIncomplete, firstRunOnboardingActive, folderCountCopy, parseFirstRunDraft, popupFirstRunStatus,
   restoreDraftSelection, shouldDefaultPreselect,
@@ -213,7 +213,7 @@ describe('KNS-02 UI wiring and confirm-before-upload', () => {
 
   test('permission-to-confirm path has no Node, Operation, Push or Product collection create', async () => {
     const files = await Promise.all([
-      'src/first-run-ui.ts', 'src/first-run-draft.ts', 'src/sw/first-run.ts', 'src/sw/first-run-stubs.ts',
+      'src/first-run-ui.ts', 'src/first-run-draft.ts', 'src/sw/first-run.ts',
     ].map((file) => readFromPackage(file)));
     const source = files.join('\n');
     assert.match(source, /known\.firstRun\.preview/);
@@ -223,7 +223,6 @@ describe('KNS-02 UI wiring and confirm-before-upload', () => {
     assert.doesNotMatch(source, /syncPush|create_node|\/api\/v1\/collections/);
     assert.match(await readFromPackage('src/sw/first-run.ts'), /setFirstRun\(scope, 'deferred'\)/);
     assert.match(await readFromPackage('src/service-worker.ts'), /known\.firstRun\.confirm/);
-    assert.match(await readFromPackage('src/sw/first-run-stubs.ts'), /error: 'not_implemented'/);
     assert.match(await readFromPackage('src/first-run-ui.ts'), /同步引擎尚未就绪|FIRST_RUN_ENGINE_NOT_READY/);
   });
 

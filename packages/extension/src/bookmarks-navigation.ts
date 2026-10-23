@@ -4,7 +4,6 @@ import type { HubRoute } from './options-router.js';
 export const BOOKMARK_SECTIONS = { import: 'local-import', backup: 'local-backup' } as const;
 /** Fired on `document`; the dialog binders in local-import/view.ts and local-backup/view.ts listen for it. */
 export const OPEN_LIBRARY_DIALOG = 'known:open-library-dialog';
-export function bookmarkSectionHash(section: keyof typeof BOOKMARK_SECTIONS): string { return `#bookmarks?section=${section}`; }
 export function revealBookmarkSection(route: HubRoute): void {
   if (route.pane !== 'bookmarks') return;
   const section = route.params.get('section');

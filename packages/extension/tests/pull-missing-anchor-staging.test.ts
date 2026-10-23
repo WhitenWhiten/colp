@@ -2,32 +2,17 @@ import { pullAckWarnings } from '../src/pull-item-set-aside.js';
 import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
 import { test } from 'vitest';
-import { canonicalAuthoritativeEffectDigest, canonicalOperationDigest } from '@know-n/colp/sync';
-import { MemoryStorageArea } from '../src/credential-store.js';
-import { projectReplicaHealth, replicaIssuesFromPull, sendReplicaHealthReport } from '../src/sw/replica-health-report.js';
-import { handleSyncAttentionRequest } from '../src/sw/sync-attention.js';
+
 import { installKns05IndexedDb, scope, setup } from './kns-05-pull-harness.js';
 import { pullFixtures } from './pull-effect-fixtures.js';
-import { freezeScopeRecovery } from '../src/pull-recovery-freeze.js';
-import { createOutboundPushWorker } from '../src/outbound-push-worker.js';
-import { installOutboundPushIndexedDb, setup as pushSetup, scope as pushScope, json } from './outbound-push-worker-harness.js';
+
+import { installOutboundPushIndexedDb } from './outbound-push-worker-harness.js';
 
 installKns05IndexedDb();
 installOutboundPushIndexedDb();
 const id = (n: number) => `node-created-${n}`;
 const create = (n: number, parentId = 'root-colp', kind: 'Bookmark' | 'Folder' = 'Bookmark') =>
   pullFixtures.createEvent({ sequence: n, parentId, kind, collectionId: scope.collectionId });
-function update(n: number, targetId: string, parentId: string, long = false, targetKind: 'bookmark' | 'folder' = 'bookmark') {
-  const event: any = pullFixtures.mutationEvent({ sequence: n, kind: 'update', targetId, parentId, targetKind,
-    collectionId: scope.collectionId });
-  if (long) {
-    event.effect.node.title = 'x'.repeat(300_000);
-    event.operation.payload.value.title = event.effect.node.title;
-    event.effect.operationDigest = canonicalOperationDigest(event.operation);
-    event.effect.effectDigest = canonicalAuthoritativeEffectDigest(event.effect);
-  }
-  return event;
-}
 async function apply(f: Awaited<ReturnType<typeof setup>>, events: any[], cursor: string) {
   await f.applier.stage(f.page(events, cursor)); await f.applier.resume();
 }
@@ -46,7 +31,6 @@ test('review: a missing anchor must not block unrelated events at staging', asyn
     assert.deepEqual(warnings.map(warning => warning.path), [`/nodes/${id(92)}`]);
   } finally { f.store.close(); }
 });
-
 
 test('an anchor created later in the page remains a rejected damaged ordering', async () => {
   const f = await setup();

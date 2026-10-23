@@ -39,11 +39,7 @@ export function deleteCollectionNodeCommandScope(
 ): string {
   return `collection:${collectionId}:node:${nodeId}:delete`;
 }
-
-export const DELETE_COLLECTION_NODE_COMMAND_SCOPE =
-  'collection:{collectionId}:node:{nodeId}:delete';
 export const DELETE_COLLECTION_NODE_CONTRACT_VERSION = '1.0.0';
-export const DELETE_COLLECTION_NODE_OPERATION_TYPE = 'delete_collection_node';
 export const NODE_DELETED_EVENT_TYPE = 'node.deleted';
 export const NODE_DELETED_EVENT_VERSION = 1;
 export const NODE_DELETED_HANDLER_NAME = 'node_deleted_projection';

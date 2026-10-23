@@ -13,8 +13,6 @@ import {
   type McpCompatReadinessDocument,
 } from './mcp-compat-protocol.js';
 
-export const PHASE4B_MCP_COMPAT_METRIC_PREFIX = 'mcp.compat' as const;
-
 export type McpCompatMethodFamily =
   | 'handshake'
   | 'catalog'

@@ -8,9 +8,7 @@ import type { McpAuthenticatedAuthorizationBinding, McpPlanCommitResult } from '
 import {
   CollectionVersionNotFoundError,
   NodeConflictError,
-  createCollectionVersion,
   restoreCollectionVersion,
-  type CollectionVersionCause,
   type RestoreCollectionVersionPorts,
 } from '../collections/index.js';
 import { requireMcpAccountSubjectId } from './account-context.js';
@@ -293,33 +291,4 @@ function isNewerVersion(
   const created = version.createdAt.getTime() - target.createdAt.getTime();
   if (created > 0) return true;
   return created === 0 && version.versionId > target.versionId;
-}
-
-export async function captureAgentPlanCollectionVersion(
-  execute: <Result>(
-    work: (ports: RestoreCollectionVersionPorts) => Promise<Result>,
-  ) => Promise<Result>,
-  input: Readonly<{
-    principalId: string;
-    subjectId: string;
-    collectionId: string;
-    cause: CollectionVersionCause;
-  }>,
-): Promise<{ readonly versionId: string }> {
-  return execute(async (ports) => {
-    const locked = await ports.versions.lockOwnedLive(input.collectionId, input.subjectId);
-    if (!locked) throw new CollectionVersionNotFoundError('The collection was not found.');
-    const outcome = await createCollectionVersion(ports, {
-      actor: { principalId: input.principalId, subjectId: input.subjectId },
-      commandId: randomUUID(),
-      collectionId: input.collectionId,
-      ifMatch: locked.contentRevision,
-      label: 'Before agent plan',
-      cause: input.cause,
-    });
-    if (outcome.kind !== 'succeeded') {
-      throw new Error(`Agent plan version capture did not succeed (${outcome.kind}).`);
-    }
-    return { versionId: outcome.version.versionId };
-  });
 }

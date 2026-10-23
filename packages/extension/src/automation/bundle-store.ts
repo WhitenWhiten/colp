@@ -141,4 +141,3 @@ export function createBundleStore(area: AutomationStateArea, owner: AutomationOw
     },
   };
 }
-export type BundleStore = ReturnType<typeof createBundleStore>;

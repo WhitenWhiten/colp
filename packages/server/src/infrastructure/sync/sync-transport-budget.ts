@@ -42,10 +42,6 @@ export function resolvePullResponseBudget(
   return Math.min(configuredBudget, sessionBudget);
 }
 
-export function snapshotByteCap(maxSnapshotBytes: number, binding: unknown): number {
-  return Math.min(maxSnapshotBytes, transportBudgetFromBindingJson(binding).snapshotPageBytes);
-}
-
 /** Per-page transport budget; independent of the whole-tree aggregate cap. */
 export function snapshotPageByteBudget(binding: unknown): number {
   return transportBudgetFromBindingJson(binding).snapshotPageBytes;

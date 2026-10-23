@@ -28,8 +28,6 @@ describe('KNS-00 spelling freeze', () => {
     }
     assert.match(types, /preview_stale/);
     assert.match(types, /draft' \| 'confirmed' \| 'scanning' \| 'matching' \| 'syncing' \| 'completed' \| 'needs_attention/);
-    assert.match(types, /mountMode: 'whole-profile'/);
-    assert.match(types, /mountNativeId: null/);
   });
 
   test('documents v10 store names with the current DATABASE_VERSION', async () => {
@@ -56,13 +54,10 @@ describe('KNS-00 spelling freeze', () => {
     const codec = await readFromPackage('src/pull-codec.ts');
     const runtime = await readFromPackage('src/pull-apply-runtime.ts');
     const validators = await readFromPackage('src/generated/pull-effect-validators.js');
-    const stubs = await readFromPackage('src/sw/first-run-stubs.ts');
     assert.match(validators, /node_restored/);
     assert.match(codec, /kind === 'node_restored'/);
     assert.match(codec, /operation.type !== 'restore_node'/);
     assert.doesNotMatch(codec, /kind === 'node_deleted'[\s\S]{0,80}node_restored|kind === 'node_restored'[\s\S]{0,80}node_deleted/);
     assert.match(runtime, /async function applyRestored/);
-    assert.match(stubs, /error: 'not_implemented'/);
-    assert.doesNotMatch(stubs, /fetch\(|indexedDB|chrome\.bookmarks/);
   });
 });

@@ -1,6 +1,6 @@
 import { exclusionIds } from './bookmark-subscriptions/guards.js';
 import { decideLocalPrivacy, type PrivacyDecision } from './bookmark-privacy.js';
-import { digestJson, isManagedBookmarkNode } from './bookmark-event-codec.js';
+import { isManagedBookmarkNode } from './bookmark-event-codec.js';
 import { childOrderFromProjection, sameChildOrder } from './bookmark-reorder-diff.js';
 import { bootstrapRunInFlight } from './bootstrap/coordinator.js';
 import { isWritableActiveScope, rejoinCommandInFlight } from './scope-transition.js';

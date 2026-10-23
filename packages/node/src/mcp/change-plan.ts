@@ -1470,20 +1470,6 @@ function assertPlanIdentity(plan: McpStoredPlan, requestedPlanId: string): void 
   }
 }
 
-async function loadPlan(
-  store: { receiver: object; get: McpChangePlanStorePort['get'] },
-  planId: string,
-): Promise<McpStoredPlan> {
-  if (typeof planId !== 'string' || planId.length === 0) {
-    throw new McpChangePlanError('plan_not_found', 'planId must be a non-empty string.');
-  }
-  const plan = await Reflect.apply(store.get, store.receiver, [planId]);
-  if (plan === undefined || plan === null) {
-    throw new McpChangePlanError('plan_not_found', `Plan ${planId} was not found.`);
-  }
-  return plan;
-}
-
 async function loadLockedPlan<
   Transaction extends McpChangePlanCommitTransaction,
 >(

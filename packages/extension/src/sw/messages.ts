@@ -241,10 +241,6 @@ function boundedId(value: unknown, max = 128): value is string {
     && !/[\u0000-\u001f\u007f]/u.test(value);
 }
 
-function boundedLibraryTitle(value: unknown): value is string {
-  return typeof value === 'string' && value.length > 0 && value.length <= 512 && value.trim().length > 0;
-}
-
 function boundedRefList(value: unknown): value is readonly string[] {
   return Array.isArray(value) && value.length <= 128 && value.every((item) => typeof item === 'string');
 }

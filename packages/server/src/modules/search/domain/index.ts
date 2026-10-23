@@ -2,7 +2,6 @@ export {
   SEARCH_DEFAULT_WORD_SIMILARITY_THRESHOLD,
   SEARCH_HAN_WORD_SIMILARITY_THRESHOLD,
   compareSearchCandidateTuple,
-  extractSearchUrlHost,
   normalizeSearchQuery,
   searchWordSimilarityThreshold,
   type AnonymousSearchCandidateQuery,

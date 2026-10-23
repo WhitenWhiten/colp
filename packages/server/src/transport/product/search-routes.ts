@@ -374,10 +374,10 @@ export function mapSearchError(error: unknown, signal: AbortSignal): ProductHttp
     message: 'The Search request could not be completed.', recovery: 'same_request' });
 }
 const SEARCH_QUERY_ERROR_MAP = {
-  invalid_cursor: (error) => invalidCursor(),
-  invalid_search_query: (error) => invalidQuery(),
-  search_timeout: (error) => unavailable('feature_temporarily_unavailable', 'The Search request timed out.'),
-  search_aborted: (error) => unavailable('feature_temporarily_unavailable', 'The Search request was cancelled.'),
+  invalid_cursor: (_error) => invalidCursor(),
+  invalid_search_query: (_error) => invalidQuery(),
+  search_timeout: (_error) => unavailable('feature_temporarily_unavailable', 'The Search request timed out.'),
+  search_aborted: (_error) => unavailable('feature_temporarily_unavailable', 'The Search request was cancelled.'),
 } as const satisfies Readonly<Record<SearchQueryError['code'], (error: SearchQueryError) => ProductHttpError>>;
 
 function errorCode(error: unknown, depth = 0): string | undefined {

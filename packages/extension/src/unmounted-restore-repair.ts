@@ -6,8 +6,6 @@ import { freezeScopeRecovery } from './pull-recovery-freeze.js';
 import { UNMOUNTED_PREFIX } from './pull-mount-apply.js';
 import type { MappingInput, MountBindingRecord, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
-export const UNMOUNTED_RESTORE_REPAIR_JOB = 'repair:unmounted-restore-snapshot';
-
 type Store = Pick<ReturnType<typeof createSyncStateStore>,
   'listMappings' | 'listMountBindings' | 'listLocalSyncExclusions' | 'getScope' | 'registerScope'
   | 'getEngineState' | 'transitionEngine'>;

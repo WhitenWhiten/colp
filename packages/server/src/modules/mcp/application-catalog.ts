@@ -25,12 +25,6 @@ import {
   hasAnyPhase4bMcpWriteScope,
   type Phase4bMcpWriteToolName,
 } from './write-tools.js';
-import {
-  PHASE4B_MCP_COLLECTION_RESOURCE_MIME_TYPE,
-} from './collection-resources.js';
-import {
-  PHASE4B_MCP_NODE_RESOURCE_MIME_TYPE,
-} from './node-resources.js';
 
 export interface McpApplicationToolDescriptor {
   readonly name: string;
@@ -109,13 +103,6 @@ export const NODES_SEARCH_TOOL_DESCRIPTOR: McpApplicationToolDescriptor = Object
   risk: NODES_SEARCH_PROFILE_CLAIM.risk,
   profileClaim: NODES_SEARCH_PROFILE_CLAIM,
 });
-
-export const PHASE4B_MCP_WRITE_TOOL_SCOPE_CATALOG: Readonly<
-  Record<Phase4bMcpWriteToolName, readonly string[]>
-> = PHASE4B_MCP_WRITE_TOOL_REQUIRED_SCOPES;
-
-export const PHASE4B_MCP_COLLECTION_TEMPLATE_MIME_TYPE = PHASE4B_MCP_COLLECTION_RESOURCE_MIME_TYPE;
-export const PHASE4B_MCP_NODE_TEMPLATE_MIME_TYPE = PHASE4B_MCP_NODE_RESOURCE_MIME_TYPE;
 
 export function canListApplicationReadTools(context: McpApplicationContext): boolean {
   if (context.principal.kind === 'anonymous') return true;

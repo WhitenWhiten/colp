@@ -28,7 +28,6 @@ import {
   isAcceptedBookmarkUrl,
   isEquivalentBookmarkUrlRewrite,
   DeleteSubtreeLimitError,
-  NodeConflictError,
   PositionRebalanceEscalationError,
   allocatePosition,
   assertValidCollectionKind,
@@ -44,17 +43,14 @@ import {
   generateRevisionToken,
   materializeCollectionPayload,
   materializeNodePayload,
-  NODE_DELETION_PURGE_RETENTION_MS,
   RESOURCE_PAYLOAD_SCHEMA_VERSION,
   planBoundedPositionRebalance,
   resolvePlacement as resolvePlacementPure,
   validateResourcePayload,
-  type CanonicalMutationInput,
   type CanonicalResourceWrite,
   type CanonicalDomainEvent,
   type CanonicalMutationPlan,
   type CanonicalMutationPorts,
-  type CanonicalMutationResult,
   type JsonObject,
   type LockedCollectionState,
 } from '../../modules/collections/index.js';
@@ -228,7 +224,6 @@ type PlannedDeleteRow = Omit<NodeRow, 'id'> & {
   id: string | null;
   expected_revision: string | null;
 };
-
 
 function assertCascadedRelationAuthority(row: CascadedRelationRow): void {
   const payload = row.payload_json;
@@ -430,7 +425,7 @@ export function assertExistingCollectionAuthority(row: CollectionRow): JsonObjec
 
 export function assertMaterialized(
   resourceType: CollectionNodeKind,
-  resourceId: string,
+  _resourceId: string,
   materialized: ReturnType<typeof materializeCollectionPayload>,
   extensions: JsonObject,
   payloadOwnedFields: JsonObject = {},
@@ -668,34 +663,6 @@ async function stageRebalancedPositions(
       .where('parent_id', '=', parentId).where('deleted_at', 'is', null)
       .executeTakeFirst();
     assertExactlyOneUpdated(result, `rebalance staging for node ${row.id}`);
-  }
-}
-
-interface Placement {
-  readonly beforeToken: string | null;
-  readonly afterToken: string | null;
-  readonly insertIndex: number;
-}
-
-function resolvePlacement(
-  siblings: readonly { readonly id: string; readonly position_token: string | null }[],
-  afterId: string | undefined,
-  beforeId: string | undefined,
-): Placement {
-  if (siblings.some((sibling) => sibling.position_token === null)) {
-    invariant('live non-root sibling has no position token');
-  }
-  try {
-    return resolvePlacementPure(
-      siblings.map((sibling) => ({ id: sibling.id, positionToken: sibling.position_token! })),
-      afterId,
-      beforeId,
-    );
-  } catch (error) {
-    if (error instanceof NodeConflictError && error.code === 'position_context_stale') {
-      invariant(error.message);
-    }
-    throw error;
   }
 }
 

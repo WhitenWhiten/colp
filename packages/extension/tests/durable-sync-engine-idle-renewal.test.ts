@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import { ack, emptyPullPage, json, problem, scope, setup } from './durable-sync-engine-harness.js';
+import { emptyPullPage, json, problem, scope, setup } from './durable-sync-engine-harness.js';
 
 test('refresh after a stale Ack confirms the Session cursor and sleeps without another Ack', async () => {
   const f = await setup({ useRealPullApplier: true });

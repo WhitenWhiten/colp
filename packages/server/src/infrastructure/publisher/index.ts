@@ -1,5 +1,4 @@
 export {
-  createPostgresPublisherCreateOwnedCollectionHarnessPorts,
   createPostgresPublisherIdempotencyPort,
   createPostgresPublisherReceiptMaintenancePort,
   createPostgresPublisherReceiptMaintenancePortFactory,

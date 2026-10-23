@@ -151,17 +151,22 @@ function classifyCacheReadOutcomeBase(
           return ['lock_wait', 'fallback'];
         case 'circuit_open':
           return ['fallback'];
+        default:
+          return rejectUnclassifiedCacheResult(result);
       }
-      break;
     case 'not_found':
       return ['miss'];
     case 'loader_error':
       return ['fallback'];
     case 'fallback_rejected':
       return ['fallback'];
+    default:
+      return rejectUnclassifiedCacheResult(result);
   }
-  const exhaustive: never = result;
-  throw new CacheMetricNameError(`cannot classify cache read result ${String(exhaustive)}`);
+}
+
+function rejectUnclassifiedCacheResult(result: never): never {
+  throw new CacheMetricNameError(`cannot classify cache read result ${String(result)}`);
 }
 
 /** Returns the measured encoded envelope size carried by a hit or successful write. */

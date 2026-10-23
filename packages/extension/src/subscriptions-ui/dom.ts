@@ -16,11 +16,6 @@ export function link(label: string, href: string): HTMLAnchorElement {
 export function field(label: string, control: HTMLInputElement | HTMLSelectElement): HTMLDivElement {
   const row = el('div', undefined, 'field'); const title = el('label', label); control.id ||= 'subscription-input-' + crypto.randomUUID(); title.htmlFor = control.id; row.append(title, control); return row;
 }
-/** Toolbar search: icon and hint inside the field; the label stays for assistive tech only. */
-export function searchField(label: string, control: HTMLInputElement): HTMLDivElement {
-  const row = field(label, control); row.classList.add('filter-search'); row.querySelector('label')!.className = 'visually-hidden';
-  control.placeholder = label; row.insertBefore(createIcon('search'), control); return row;
-}
 export function select(values: readonly (readonly [string, string])[], value: string): HTMLSelectElement {
   const node = el('select'); for (const [id, label] of values) { const option = el('option', label); option.value = id; node.append(option); } node.value = value; return node;
 }

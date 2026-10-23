@@ -267,13 +267,6 @@ export interface DeletionJournalRecord {
   readonly kind: 'folder' | 'bookmark' | 'separator'; readonly parentNativeId?: string;
   readonly position?: number; readonly mountId?: string; readonly contentDigest?: string;
 }
-export type ScopeDetachCommand = { readonly kind: 'detach'; readonly mountId: string };
-export type ScopeRejoinCommand = { readonly kind: 'rejoin'; readonly mountId: string };
-export type ScopeRemoteDeleteCommand = { readonly kind: 'remoteDelete'; readonly mountId: string;
-  readonly confirmationToken: string; readonly affectedCount: number };
-export type ScopeRangeCommand = { readonly kind: 'addRange'; readonly nativeIds: readonly string[] }
-  | { readonly kind: 'removeRange'; readonly mountId: string };
-export type ScopeDurableCommand = ScopeDetachCommand | ScopeRejoinCommand | ScopeRemoteDeleteCommand | ScopeRangeCommand;
 export interface BookmarkEventInput { readonly eventId: string; readonly dedupeKey: string;
   readonly occurredAt: string; readonly kind: 'create' | 'change' | 'move' | 'remove'; readonly nativeId: string;
   readonly details: JsonObject }

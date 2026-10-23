@@ -181,19 +181,12 @@ export {
   SOCIAL_COLLECTION_CHANGE_EVENT_VERSION,
   SOCIAL_COLLECTION_CHANGE_HANDLER_MODE,
   SOCIAL_COLLECTION_CHANGE_HANDLER_NAME,
-  SOCIAL_PUBLIC_ACTIVITY_HANDLER_MODE,
   SOCIAL_PUBLIC_ACTIVITY_HANDLER_NAME,
-  appendSocialCollectionChangeOutbox,
-  mapSocialCollectionChange,
-  mapSocialCollectionChangeEnvelope,
 } from './social-collection-change.js';
 export type {
-  AppendSocialCollectionChangeOptions,
   RoutedSocialCollectionChange,
-  SocialCollectionChangeFacts,
   SocialCollectionChangePayload,
   SocialCollectionChangeRouteFaultInjector,
-  SocialCollectionChangeRouteFaultPhase,
   SocialProducerDiscoverability,
 } from './social-collection-change.js';
 

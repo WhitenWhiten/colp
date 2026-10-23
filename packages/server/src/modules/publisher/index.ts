@@ -39,7 +39,6 @@ export {
   type PublisherIdempotencyBinding,
   type PublisherIdempotencyClaim,
   type PublisherIdempotencyPort,
-  type PublisherIdempotencyPortFactory,
   type PublisherReceiptMaintenancePort,
   type PublisherReceiptMaintenancePortFactory,
   type PublisherReceiptPurgeSchedule,

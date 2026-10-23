@@ -253,7 +253,7 @@ async function executePreview(
 
 function validateRequest(
   request: unknown,
-  binding: McpAuthenticatedAuthorizationBinding,
+  _binding: McpAuthenticatedAuthorizationBinding,
   budget: Required<Phase4bMcpLowRiskNodeCreateBudget>,
 ): ParsedLowRiskNodeCreateRequest {
   let snapshot: unknown;
@@ -828,17 +828,6 @@ function assertOnlyKeys(
 ): void {
   const keys = Reflect.ownKeys(value).filter((key): key is string => typeof key === 'string');
   if (keys.length !== allowed.length || keys.some((key) => !allowed.includes(key))) {
-    throw new Phase4bMcpLowRiskNodeCreateError('open_payload_rejected', message);
-  }
-}
-
-function assertNoUnknownKeys(
-  value: Readonly<Record<string, unknown>>,
-  allowed: readonly string[],
-  message: string,
-): void {
-  const keys = Reflect.ownKeys(value).filter((key): key is string => typeof key === 'string');
-  if (keys.some((key) => !allowed.includes(key))) {
     throw new Phase4bMcpLowRiskNodeCreateError('open_payload_rejected', message);
   }
 }

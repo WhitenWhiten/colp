@@ -13,7 +13,6 @@ export type {
   VerifiedActiveAccountByEmail,
 } from './ports.js';
 export {
-  getPublicProfileFacts,
   isCanonicalPublicProfileHandle,
   type PublicProfileFacts,
   type PublicProfileFactsReadPort,
@@ -70,7 +69,6 @@ export {
 } from './update-profile-settings-command.js';
 export {
   BOOKMARK_PREFERENCES_CONTRACT_VERSION,
-  BOOKMARK_PREFERENCES_ROUTE,
   BookmarkPreferencesError,
   BookmarkPreferencesPreconditionError,
   getBookmarkPreferences,
@@ -181,5 +179,3 @@ export function createIdentityApplication(deps: {
       run((ports) => claimOrReleaseHandle(ports, input)),
   };
 }
-
-export type IdentityApplication = ReturnType<typeof createIdentityApplication>;

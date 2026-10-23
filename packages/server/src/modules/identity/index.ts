@@ -39,16 +39,13 @@ export {
   createUnconfiguredSessionRotationSecrets,
   createTestSessionRotationSecrets,
   deriveCsrfTokenRaw,
-  encodeOidcEncryptionKeyBase64,
   generateAutomaticHandle,
-  generateCsrfTokenRaw,
   generateOidcStateMaterial,
   generateOpaqueId,
   generatePkceCodeVerifier,
   generateSessionTokenRaw,
   hashSecret,
   hashesMatch,
-  isProtectedOidcTransaction,
   isSafeRelativeReturnTo,
   isSecurityEpochMatch,
   isSessionAbsoluteExpired,
@@ -118,7 +115,6 @@ export {
   PROFILE_SETTINGS_COMMAND_SCOPE,
   PROFILE_SETTINGS_CONTRACT_VERSION,
   BOOKMARK_PREFERENCES_CONTRACT_VERSION,
-  BOOKMARK_PREFERENCES_ROUTE,
   BookmarkPreferencesError,
   BookmarkPreferencesPreconditionError,
   getBookmarkPreferences,
@@ -136,7 +132,6 @@ export {
   type CreateOidcLoginTransactionResult,
   type CreateSessionInput,
   type EnsureAccountFromOidcInput,
-  type IdentityApplication,
   type IdentityClock,
   type IdentityPorts,
   type IdentityUnitOfWork,
@@ -180,7 +175,9 @@ export {
   type UploadAvatarInput,
   type UploadAvatarResult,
 } from './application/index.js';
-export { getPublicProfileFacts, isCanonicalPublicProfileHandle } from './application/index.js';
+export {
+  isCanonicalPublicProfileHandle,
+} from './application/index.js';
 
 export {
   EXTENSION_AUTH_ALLOWED_ALGORITHMS,

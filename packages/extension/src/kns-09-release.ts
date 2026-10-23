@@ -78,10 +78,6 @@ export function setKns09MutationSwitchesForTests(next?: Kns09MutationSwitches): 
   mutationOverride = next;
 }
 
-export function kns09MutationSwitchesSnapshot(): Kns09MutationSwitches {
-  return mutationOverride ?? KNS09_DEFAULT_MUTATIONS;
-}
-
 export async function loadKns09MutationSwitches(): Promise<Kns09MutationSwitches> {
   await hydrateKns09Metrics();
   if (mutationOverride) return mutationOverride;

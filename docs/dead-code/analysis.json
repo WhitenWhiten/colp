@@ -1,0 +1,720 @@
+{
+  "baselineCommit": "82a57a6b5d677961984352bb71b9d35130f59fbc",
+  "analysis": {
+    "roots": [
+      "SDK package exports and tsup entries (including testing and unsafe subpaths)",
+      "Web index.html/main.tsx, extension manifest/build outputs and Ajv build-plugin replacements",
+      "Server CLI, API, worker, self-hosted bootstrap, migrations and seed CLI",
+      "Unit/integration/evidence tests, developer/CI scripts, examples, formal Lean models and type fixtures"
+    ],
+    "edges": [
+      "Static imports, named/star re-exports, import types, literal dynamic imports, aliases and Lean imports",
+      "Computed imports reviewed separately: migration directory, external seed/conformance adapters and packaged extension output URLs"
+    ],
+    "declarations": "TypeScript declaration graph followed by an independent repository-wide identifier/string/re-export check; remaining candidate groups were checked together to retain cycles only when externally referenced.",
+    "localChecks": [
+      "noUnusedLocals",
+      "noUnusedParameters",
+      "allowUnreachableCode=false",
+      "allowUnusedLabels=false"
+    ],
+    "retention": "Public package APIs, operational entrypoints, contract/reference fixtures and initializer side effects remain supported roots. Unknown runtime cache results still throw; compile-time exhaustiveness checks remain.",
+    "artifacts": {
+      "before": "reports/dead-code/reachability-before.json",
+      "fullGraph": "reports/dead-code/reachability-after.json",
+      "declarations": "reports/dead-code/removed-declarations.json",
+      "locals": "reports/dead-code/local-cleanup.json"
+    },
+    "reproduce": "npm run analyze:reachability"
+  },
+  "finalInventory": {
+    "codeFiles": 5693,
+    "productionModules": 2388,
+    "runtimeReachable": 2366,
+    "supportOnly": 22,
+    "unreachable": 0
+  },
+  "cleanup": {
+    "deletedProductionModules": [
+      "packages/extension/src/page-section.ts",
+      "packages/extension/src/sw/first-run-stubs.ts",
+      "packages/node/src/sync/root-mapping-adapter.ts",
+      "packages/server/src/infrastructure/automation/database-types.ts",
+      "packages/server/src/infrastructure/collections/bookmark-pin-sql.ts",
+      "packages/server/src/infrastructure/collections/export-projection-cursor.ts",
+      "packages/server/src/infrastructure/colp/index.ts",
+      "packages/server/src/infrastructure/outbox/lease-fence.ts",
+      "packages/server/src/infrastructure/seed/seed-demo-showcase.ts",
+      "packages/server/src/infrastructure/sync/sync-bootstrap-snapshot-folder-role.ts",
+      "packages/server/src/infrastructure/sync/sync-tree-capacity-admission.ts",
+      "packages/server/src/modules/publisher/application/admit-publisher-mutation.ts",
+      "packages/server/src/transport/product/public-activity-rate-limit.ts",
+      "packages/server/src/transport/product/subscription-exit-header.ts",
+      "packages/server/src/transport/product-burst-rate-limit.ts",
+      "packages/extension/src/capture/cloud-existence.ts",
+      "packages/extension/src/capture/feedback-state.ts",
+      "packages/extension/src/capture/icons.ts",
+      "packages/extension/src/parent-presence.ts",
+      "packages/extension/src/scope-rejoin-preview.ts",
+      "packages/web/src/lib/useAutoSaveDraft.ts",
+      "packages/server/src/infrastructure/ledger-archive/reader-cutover.ts",
+      "packages/server/src/modules/mcp/colp-package-evidence.ts"
+    ],
+    "deletedObsoleteTests": [
+      "packages/extension/tests/capture-cloud-existence.test.ts",
+      "packages/extension/tests/parent-presence.test.ts",
+      "packages/extension/tests/srg-t06-range-rejoin.test.ts",
+      "packages/web/src/lib/useAutoSaveDraft.test.tsx"
+    ],
+    "explicitDeclarationsRemoved": 255,
+    "removedDeclarationsByFile": {
+      "packages/server/src/modules/commands/application/receipt.ts": [
+        "scheduleReceiptPurge",
+        "ProductCommandReceiptPortFactory"
+      ],
+      "packages/server/src/modules/commands/application/social-identity.ts": [
+        "isSocialIdentityText"
+      ],
+      "packages/server/src/modules/commands/application/keyed-cursor.ts": [
+        "KeyedCursorMode",
+        "KeyedCursorKeyringInput",
+        "KeyedCursorPreviousKeyInput"
+      ],
+      "packages/server/src/infrastructure/database/ledger-retention-policy.ts": [
+        "RetentionScope"
+      ],
+      "packages/server/src/modules/identity/domain/secrets.ts": [
+        "generateCsrfTokenRaw"
+      ],
+      "packages/server/src/modules/identity/domain/oidc-transaction-crypto.ts": [
+        "isProtectedOidcTransaction",
+        "encodeOidcEncryptionKeyBase64"
+      ],
+      "packages/server/src/modules/identity/application/public-profile-read.ts": [
+        "getPublicProfileFacts"
+      ],
+      "packages/server/src/modules/identity/application/bookmark-preferences.ts": [
+        "BOOKMARK_PREFERENCES_ROUTE"
+      ],
+      "packages/server/src/modules/identity/application/index.ts": [
+        "IdentityApplication"
+      ],
+      "packages/server/src/modules/access-policy/application/invite-email-port.ts": [
+        "InviteEmailRenderedMessage"
+      ],
+      "packages/server/src/modules/access-policy/application/invite-email-worker.ts": [
+        "INVITE_EMAIL_HANDLER_NAME",
+        "INVITE_EMAIL_EVENT_TYPE",
+        "INVITE_EMAIL_EVENT_VERSION",
+        "InviteEmailDeliveryState"
+      ],
+      "packages/server/src/modules/sync/sync-session.ts": [
+        "asColpScopes"
+      ],
+      "packages/server/src/modules/collections/domain/snapshot-tree-capacity.ts": [
+        "admitSnapshotTreeGrowth",
+        "estimateSnapshotNodeBytes"
+      ],
+      "packages/server/src/modules/collections/domain/position-allocator.ts": [
+        "MAX_CHAR"
+      ],
+      "packages/server/src/modules/collections/application/get-editor-page.ts": [
+        "EDITOR_COMPARATOR_ROOT_SENTINEL"
+      ],
+      "packages/server/src/modules/collections/application/favicon-policy.ts": [
+        "mapFaviconPolicyCommandError"
+      ],
+      "packages/server/src/modules/collections/application/favicon-icon-source.ts": [
+        "mapFaviconSourceCommandError"
+      ],
+      "packages/server/src/modules/collections/application/update-relation.ts": [
+        "RelationUpdatedPayload"
+      ],
+      "packages/server/src/modules/collections/application/ports.ts": [
+        "DeleteCollectionNodePorts"
+      ],
+      "packages/server/src/modules/collections/application/update-collection-metadata.ts": [
+        "UPDATE_COLLECTION_METADATA_COMMAND_SCOPE",
+        "UPDATE_COLLECTION_METADATA_OPERATION_TYPE"
+      ],
+      "packages/server/src/modules/collections/application/create-collection-node.ts": [
+        "CREATE_COLLECTION_NODE_COMMAND_SCOPE",
+        "CREATE_COLLECTION_NODE_OPERATION_TYPE"
+      ],
+      "packages/server/src/modules/collections/application/update-collection-node.ts": [
+        "UPDATE_COLLECTION_NODE_COMMAND_SCOPE",
+        "UPDATE_COLLECTION_NODE_OPERATION_TYPE"
+      ],
+      "packages/server/src/modules/collections/application/move-collection-node.ts": [
+        "MOVE_COLLECTION_NODE_COMMAND_SCOPE",
+        "MOVE_COLLECTION_NODE_OPERATION_TYPE"
+      ],
+      "packages/server/src/modules/collections/application/delete-collection-node.ts": [
+        "DELETE_COLLECTION_NODE_COMMAND_SCOPE",
+        "DELETE_COLLECTION_NODE_OPERATION_TYPE"
+      ],
+      "packages/server/src/modules/collections/application/owned-collections-cursor.ts": [
+        "PRODUCT_OWNED_COLLECTIONS_CURSOR_VERSION"
+      ],
+      "packages/server/src/modules/collections/application/delete-relation.ts": [
+        "RelationDeletedPayload"
+      ],
+      "packages/server/src/modules/collections/application/bookmark-favicon-command.ts": [
+        "mapBookmarkFaviconCommandError"
+      ],
+      "packages/server/src/modules/collections/application/link-health-cursor.ts": [
+        "PRODUCT_LINK_HEALTH_CURSOR_VERSION"
+      ],
+      "packages/server/src/modules/collections/application/collection-version-cursor.ts": [
+        "PRODUCT_COLLECTION_VERSIONS_CURSOR_VERSION"
+      ],
+      "packages/server/src/modules/collections/application/favicon-gc.ts": [
+        "faviconRetirementWindow",
+        "faviconGcReasonLabel"
+      ],
+      "packages/server/src/modules/collections/application/favicon-helper-capture.ts": [
+        "mapFaviconHelperCommandError"
+      ],
+      "packages/server/src/modules/sync/sync-mount-roles.ts": [
+        "SyncRecoveredParentRole"
+      ],
+      "packages/server/src/modules/sync/phase3-server-sync-acceptance-evidence.ts": [
+        "canonicalPhase3ServerSyncJson"
+      ],
+      "packages/server/src/modules/sync/phase3-authoritative-pull-acceptance-evidence.ts": [
+        "createPhase3AuthoritativePullAcceptanceProbe",
+        "runPhase3AuthoritativePullAcceptance",
+        "Phase3AuthoritativePullAcceptanceProbe"
+      ],
+      "packages/server/src/modules/sync/sync-profile-claim-gate.ts": [
+        "createPhase3SyncProfileClaimController",
+        "claimPhase3SyncProfiles",
+        "inspectPhase3SyncPrerequisites"
+      ],
+      "packages/server/src/modules/publication/application/directory-read.ts": [
+        "PUBLICATION_DIRECTORY_SORT"
+      ],
+      "packages/server/src/modules/publication/application/product-public-read.ts": [
+        "PRODUCT_PUBLIC_COLLECTION_SLUG_MIN_LENGTH",
+        "PRODUCT_PUBLIC_COLLECTION_SLUG_MAX_LENGTH"
+      ],
+      "packages/server/src/modules/mcp/collection-resources.ts": [
+        "CURSOR_PURPOSE"
+      ],
+      "packages/server/src/modules/mcp/read-profile-claim-gate.ts": [
+        "createPhase4bMcpReadProfileClaimController",
+        "claimPhase4bMcpReadProfiles",
+        "inspectPhase4bMcpReadProfileClaims",
+        "verifyPhase4bMcpSdkAcceptedEvidence",
+        "assertPhase4bMcpConformanceCandidate",
+        "VerifiedPhase4bMcpSdkAcceptedEvidence",
+        "validatePhase4bMcpSdkAcceptedEvidenceErrors",
+        "validatePhase4bMcpConformanceCandidateErrors",
+        "SHA256_PATTERN",
+        "acceptedEvidenceDigest",
+        "phase4bMcpConformanceCandidateDigest",
+        "validateProbeFamilyIds",
+        "Phase4bMcp20260728SdkAcceptedEvidence",
+        "Phase4bMcpConformanceCandidate",
+        "PHASE4B_MCP_SDK_ACCEPTED_ARTIFACT_NAME",
+        "PHASE4B_MCP_SDK_ACCEPTED_EVIDENCE_SCHEMA_VERSION"
+      ],
+      "packages/server/src/modules/mcp/write-profile-claim-gate.ts": [
+        "createPhase4bMcpWriteProfileClaimController",
+        "claimPhase4bMcpWriteProfiles",
+        "inspectPhase4bMcpWriteProfileClaims"
+      ],
+      "packages/server/src/modules/search/domain/search-candidate.ts": [
+        "extractSearchUrlHost"
+      ],
+      "packages/server/src/modules/mcp/node-create-catalog.ts": [
+        "phase4bMcpNodeCreateRequiredKeysForKind"
+      ],
+      "packages/server/src/modules/mcp/node-create-contract.ts": [
+        "Phase4bMcpLowRiskNodeCreateNode",
+        "isPhase4bMcpLowRiskNodeCreateCompleteOutput"
+      ],
+      "packages/server/src/modules/mcp/write-dependency-gate.ts": [
+        "PHASE4B_MCP_WRITE_TOOL_NAMES",
+        "phase4bMcpInheritCreateRequiresApproval",
+        "createPhase4bMcpWriteReadHostEvidence",
+        "createPhase4bMcpWritePublisherApplicationEvidence",
+        "createPhase4bMcpWriteDependencyGate",
+        "Phase4bMcpWriteDependencyGate",
+        "assertPhase4bMcpWriteReadHostEvidence",
+        "assertPhase4bMcpWritePublisherApplicationEvidence",
+        "validatePhase4bMcpWriteCatalog",
+        "Phase4bMcpWriteReadHostEvidence",
+        "Phase4bMcpWritePublisherApplicationEvidence",
+        "assertPromptInjectionSafe",
+        "assertSecretRevealSafe",
+        "assertRiskContract",
+        "assertPayloadContract",
+        "assertServerRequestAbsent",
+        "assertUriAndBindingContract",
+        "assertClosedContractKeys",
+        "readOperationContract",
+        "readRequiredOptions",
+        "PHASE4B_MCP_WRITE_PUBLISHER_APPLICATION_PROOF",
+        "PHASE4B_MCP_WRITE_CANONICAL_MUTATION_APPLICATION_PROOF",
+        "PHASE4B_MCP_WRITE_UNIT_OF_WORK_PROOF",
+        "Phase4bMcpWriteReadHostRouteEvidence",
+        "Phase4bMcpWriteReadHostRequestContextEvidence",
+        "Phase4bMcpWriteReadHostProbeEvidence",
+        "PHASE4B_MCP_READ_HOST_ROUTE_PROOF",
+        "PHASE4B_MCP_READ_HOST_REQUEST_CONTEXT_PROOF",
+        "PHASE4B_MCP_READ_HOST_PROBE_PROOF"
+      ],
+      "packages/server/src/modules/mcp/change-plan-planner.ts": [
+        "Phase4bMcpCatalogTool",
+        "Phase4bMcpCatalogInput",
+        "Phase4bMcpNodeCreateCatalogInput",
+        "Phase4bMcpNodeVisibilityCatalogInput",
+        "Phase4bMcpNodeMoveCatalogInput",
+        "Phase4bMcpDeleteSubtreeCatalogInput"
+      ],
+      "packages/server/src/modules/mcp/low-risk-node-create.ts": [
+        "assertNoUnknownKeys"
+      ],
+      "packages/server/src/modules/mcp/agent-plan-policy.ts": [
+        "captureAgentPlanCollectionVersion"
+      ],
+      "packages/server/src/modules/mcp/write-tools.ts": [
+        "PHASE4B_MCP_NODES_CREATE_OUTPUT_SCHEMA",
+        "PHASE4B_MCP_NODES_UPDATE_OUTPUT_SCHEMA"
+      ],
+      "packages/server/src/modules/mcp/application-catalog.ts": [
+        "PHASE4B_MCP_WRITE_TOOL_SCOPE_CATALOG",
+        "PHASE4B_MCP_COLLECTION_TEMPLATE_MIME_TYPE",
+        "PHASE4B_MCP_NODE_TEMPLATE_MIME_TYPE"
+      ],
+      "packages/server/src/modules/mcp/application-results.ts": [
+        "isMcpApplicationCompleteResult",
+        "isMcpApplicationAwaitingApprovalResult",
+        "isMcpApplicationRejectedResult"
+      ],
+      "packages/server/src/modules/mcp/read-tools.ts": [
+        "PHASE4B_MCP_READ_TOOL_REQUIRED_SCOPE_PREFIX"
+      ],
+      "packages/server/src/modules/mcp/mcp-compat-operations.ts": [
+        "PHASE4B_MCP_COMPAT_METRIC_PREFIX"
+      ],
+      "packages/server/src/modules/automation/application/ports.ts": [
+        "ResourceView"
+      ],
+      "packages/server/src/infrastructure/database/collection-control-sql.ts": [
+        "COLLECTION_DELIST_CONTROL_SQL",
+        "collectionVisibleNodeCountSql",
+        "DIGEST_SERIES_DISCOVERY_CONTROL_SQL",
+        "digestSeriesHidePublicExistsSql",
+        "digestEditionHidePublicExistsSql",
+        "accountRestrictInteractionExistsSql"
+      ],
+      "packages/server/src/infrastructure/database/publication-object-controls.ts": [
+        "isFaviconHiddenPublic"
+      ],
+      "packages/server/src/modules/auth/application/account-credentials/grant-validation.ts": [
+        "parseMcpCommandId",
+        "parseMcpIfMatch"
+      ],
+      "packages/server/src/modules/auth/application/account-credentials/token.ts": [
+        "asPublicEs256Jwk"
+      ],
+      "packages/server/src/modules/auth/application/account-credentials/exchange.ts": [
+        "requireJsonObject"
+      ],
+      "packages/server/src/infrastructure/telemetry/index.ts": [
+        "RawHeaderPairs"
+      ],
+      "packages/server/src/bootstrap/config-reports.ts": [
+        "parseReportsFeatureConfig"
+      ],
+      "packages/server/src/bootstrap/config-types.ts": [
+        "EmailFeatureConfig",
+        "EmailFeatureConfigSanitized",
+        "EmailCallbackRateLimitSharedConfig",
+        "EmailDeliveryWorkerConfig"
+      ],
+      "packages/server/src/bootstrap/config-redis-roles.ts": [
+        "PRODUCTION_LIMITER_PEAK_SUBJECTS"
+      ],
+      "packages/server/src/bootstrap/config-rate-limit.ts": [
+        "loadEmailCallbackRateLimitSharedConfig"
+      ],
+      "packages/server/src/infrastructure/sync/sync-transport-budget.ts": [
+        "snapshotByteCap"
+      ],
+      "packages/server/src/infrastructure/collections/resource-payload-dual-read.ts": [
+        "ResourcePayloadBackfillRowResult"
+      ],
+      "packages/server/src/infrastructure/outbox/social-collection-change.ts": [
+        "SocialCollectionChangeRouteFaultPhase",
+        "appendSocialCollectionChangeOutbox",
+        "SOCIAL_PUBLIC_ACTIVITY_HANDLER_MODE",
+        "AppendSocialCollectionChangeOptions",
+        "mapSocialCollectionChange",
+        "mapSocialCollectionChangeEnvelope",
+        "SocialCollectionChangeFacts",
+        "requireFact",
+        "requireCanonicalOpaqueId",
+        "CANONICAL_OPAQUE_ID"
+      ],
+      "packages/server/src/infrastructure/sync/postgres/sync-ack-postgres.ts": [
+        "PostgresSyncAckFaultPhase"
+      ],
+      "packages/server/src/infrastructure/collections/policy-revision-port.ts": [
+        "lockCollectionAndBumpPolicyRevision"
+      ],
+      "packages/server/src/infrastructure/collections/link-health-probe.ts": [
+        "normalizedHostForProbe"
+      ],
+      "packages/server/src/infrastructure/cache/cache-store.ts": [
+        "CacheLookupKind",
+        "CacheLookupResult"
+      ],
+      "packages/server/src/infrastructure/collections/favicon-fetch.ts": [
+        "FaviconFetch"
+      ],
+      "packages/server/src/infrastructure/rate-limit/rate-limit-lua.ts": [
+        "RATE_LIMIT_LUA_SCRIPT_VERSION"
+      ],
+      "packages/server/src/modules/publisher/application/ports.ts": [
+        "PublisherIdempotencyPortFactory"
+      ],
+      "packages/server/src/infrastructure/publisher/postgres-idempotency.ts": [
+        "createPostgresPublisherCreateOwnedCollectionHarnessPorts"
+      ],
+      "packages/server/src/infrastructure/ledger-archive/canonical-format.ts": [
+        "LEDGER_ARCHIVE_MEDIA_TYPE",
+        "LEDGER_ARCHIVE_SCHEMA_VERSION"
+      ],
+      "packages/server/src/infrastructure/ledger-archive/payload-cold-sources.ts": [
+        "operationSegmentIdFromLocator"
+      ],
+      "packages/server/src/infrastructure/ledger-archive/reader-cutover.ts": [
+        "cutoverLedgerArchiveReader",
+        "ledgerArchiveCutoverReadiness",
+        "LedgerArchiveCutoverReadiness",
+        "supportedManifestBinding"
+      ],
+      "packages/server/src/transport/http-security.ts": [
+        "CommunityRateLimitFamily",
+        "authRateLimitSubjectFor"
+      ],
+      "packages/server/src/transport/product-actor.ts": [
+        "productBearerActorOf"
+      ],
+      "packages/server/src/transport/product/publication-request-cancel.ts": [
+        "isAbortReason"
+      ],
+      "packages/server/src/transport/auth/account-credential-token-routes.ts": [
+        "isAccountKeyTokenPath"
+      ],
+      "packages/server/src/infrastructure/bookmark-subscriptions/unit-of-work.ts": [
+        "createPostgresBookmarkSubscriptionExitPort"
+      ],
+      "packages/server/src/transport/product-burst-rate-limit.ts": [
+        "createProductBurstRateLimiter"
+      ],
+      "packages/server/src/infrastructure/object-storage/r2-adapter.ts": [
+        "R2_GRANT_TTL_DEFAULT_SECONDS",
+        "createR2ReadOnlyGenerationStore"
+      ],
+      "packages/server/src/infrastructure/seed/manifest.ts": [
+        "resolveSeedDir"
+      ],
+      "packages/server/src/infrastructure/seed/seed-opaque-id.ts": [
+        "SeedOpaquePrefix",
+        "seedOpaqueIdFromSqlBase64",
+        "assertSeedOpaqueIdSet"
+      ],
+      "packages/server/src/infrastructure/seed/canonical-phase.ts": [
+        "SEED_CANONICAL_MUTATION_COUNT"
+      ],
+      "packages/server/src/infrastructure/seed/state.ts": [
+        "markWithdrawn"
+      ],
+      "packages/server/src/infrastructure/seed/helpers.ts": [
+        "diffPks",
+        "pkFingerprint"
+      ],
+      "packages/web/src/api/command-intent.ts": [
+        "isCommandIdCleared"
+      ],
+      "packages/web/src/api/product-error.ts": [
+        "isProductClientError"
+      ],
+      "packages/web/src/api/product-client-favicon.ts": [
+        "ProductFaviconClient"
+      ],
+      "packages/web/src/api/editor-session.ts": [
+        "PageCursorSource"
+      ],
+      "packages/web/src/lib/useSettingsDialog.ts": [
+        "SECURITY_SETTINGS_URL"
+      ],
+      "packages/web/src/pages/library-desk/nodeEditDrawer.ts": [
+        "NodeEditDrawerState"
+      ],
+      "packages/web/src/pages/sync/fields.ts": [
+        "ownedSyncCollectionIds"
+      ],
+      "packages/web/src/lib/useAutoSaveDraft.ts": [
+        "mergeDraft"
+      ],
+      "packages/node/src/shared/plain-canonical-json.ts": [
+        "encodePlainCanonicalJsonOmitting"
+      ],
+      "packages/node/src/conformance/mcp-conformance.ts": [
+        "LegacyMcpConformanceProbeId"
+      ],
+      "packages/node/src/mcp/change-plan.ts": [
+        "loadPlan"
+      ],
+      "packages/node/src/nestjs/index.ts": [
+        "CollectionProtocolModuleOptions"
+      ],
+      "packages/extension/src/remote-delete-policy.ts": [
+        "REMOTE_DELETE_POLICIES"
+      ],
+      "packages/extension/src/sync-state/pull-workset.ts": [
+        "probePullState"
+      ],
+      "packages/extension/src/kns-09-release.ts": [
+        "kns09MutationSwitchesSnapshot"
+      ],
+      "packages/extension/src/bootstrap/coordinator-operations.ts": [
+        "mappingFacts"
+      ],
+      "packages/extension/src/bookmark-boundary.ts": [
+        "planMountsFromScan"
+      ],
+      "packages/extension/src/deletion-journal.ts": [
+        "mappingProvesDeletionIdentity"
+      ],
+      "packages/extension/src/types.ts": [
+        "KnownMountMode",
+        "P0SessionBinding"
+      ],
+      "packages/extension/src/authority-fence.ts": [
+        "ExtensionWorkCoordinator"
+      ],
+      "packages/extension/src/bookmark-create-placement.ts": [
+        "bookmarkCreatePlacementStorageKey"
+      ],
+      "packages/extension/src/pull-ack-boundary.ts": [
+        "SyncWaitReasonKind"
+      ],
+      "packages/extension/src/sync-state/queue-target.ts": [
+        "readQueueRowsByTarget",
+        "listQueueRowsByTarget"
+      ],
+      "packages/extension/src/sync-state/types.ts": [
+        "ScopeDurableCommand",
+        "ScopeDetachCommand",
+        "ScopeRejoinCommand",
+        "ScopeRemoteDeleteCommand",
+        "ScopeRangeCommand"
+      ],
+      "packages/extension/src/capture/contracts.ts": [
+        "CAPTURE_CONTRACT_VERSION",
+        "CAPTURE_RETENTION",
+        "CaptureFeedback"
+      ],
+      "packages/extension/src/automation/bundle-store.ts": [
+        "BundleStore"
+      ],
+      "packages/extension/src/auth-client.ts": [
+        "isSessionCookieName"
+      ],
+      "packages/extension/src/personal-sync-policy.ts": [
+        "PERSONAL_SYNC_CHANGED"
+      ],
+      "packages/extension/src/unmounted-restore-repair.ts": [
+        "UNMOUNTED_RESTORE_REPAIR_JOB"
+      ],
+      "packages/extension/src/native-repair.ts": [
+        "hasPendingNativeOrPull",
+        "repairOwnerKey"
+      ],
+      "packages/extension/src/pull-create-evidence.ts": [
+        "recoverCreatedNativeEvidence",
+        "recordDuplicateCreateStop"
+      ],
+      "packages/extension/src/remote-delete-apply.ts": [
+        "trySettleRestore",
+        "pullEventFromDecision"
+      ],
+      "packages/extension/src/snapshot-v02-consume.ts": [
+        "childrenRevisionByParent",
+        "isCurrentSnapshotMaterialization"
+      ],
+      "packages/extension/src/auth-snapshot.ts": [
+        "clearAuthSnapshot"
+      ],
+      "packages/extension/src/subscriptions-ui/dom.ts": [
+        "searchField"
+      ],
+      "packages/extension/src/bookmark-manager-dom.ts": [
+        "isInViewport"
+      ],
+      "packages/extension/src/bookmarks-navigation.ts": [
+        "bookmarkSectionHash"
+      ],
+      "packages/extension/src/bootstrap/advanced-run.ts": [
+        "advancedFactsDigest"
+      ],
+      "packages/extension/src/bootstrap/advanced-plan.ts": [
+        "planAdvanced",
+        "createAdvancedPlan"
+      ],
+      "packages/extension/src/capture/history-toolbar.ts": [
+        "HistoryToolbar"
+      ],
+      "packages/extension/src/sw/bookmarks.ts": [
+        "resumeBookmarkEvents"
+      ],
+      "packages/extension/src/favicon-helper-client.ts": [
+        "FaviconHelperErrorEnvelope"
+      ],
+      "packages/extension/src/scope-range.ts": [
+        "mountIdForNative"
+      ],
+      "packages/extension/src/sw/advanced-first-run.ts": [
+        "advancedPreviewCacheSize"
+      ],
+      "packages/extension/src/sw/messages.ts": [
+        "boundedLibraryTitle"
+      ],
+      "packages/server/src/modules/collections/domain/resource-payload.ts": [
+        "ResourcePayloadAuthorityStatus"
+      ],
+      "packages/server/src/modules/bookmark-subscriptions/application/exits.ts": [
+        "createSubscriptionExitCoordinator"
+      ],
+      "packages/server/src/infrastructure/object-storage/blob-store-port.ts": [
+        "ReadOnlyBlobStorePort"
+      ],
+      "packages/server/src/modules/bookmark-subscriptions/application/contracts.ts": [
+        "BookmarkSubscriptionExitPort"
+      ],
+      "packages/server/src/modules/mcp/colp-package-evidence.ts": [
+        "createPhase4bMcpPackageEvidence"
+      ]
+    },
+    "importBindingsRemovedFromExistingFiles": 555,
+    "localCleanup": {
+      "unused-destructured-binding": 46,
+      "positional-parameter-preserved": 23,
+      "unused-local": 40,
+      "unused-local-declaration": 66,
+      "removed-binding-preserved-effects": 20
+    },
+    "removedDependencies": {
+      "runtime": [
+        "@mozilla/readability",
+        "fast-uri",
+        "luxon",
+        "sanitize-html"
+      ],
+      "development": [
+        "@types/luxon",
+        "@types/sanitize-html"
+      ]
+    },
+    "typeChecksMovedOutOfRuntimeFunctions": [
+      "packages/server/src/infrastructure/outbox/envelope.typecheck.ts",
+      "packages/server/src/modules/collections/domain/closed-json.typecheck.ts"
+    ]
+  },
+  "retainedSupportOnly": [
+    "packages/server/src/infrastructure/outbox/envelope.typecheck.ts",
+    "packages/server/src/modules/collections/domain/closed-json.typecheck.ts",
+    "packages/node/src/mcp/2026-07-28/sdk-boundary.ts",
+    "packages/node/src/mcp/read-client.ts",
+    "packages/node/src/mcp/read-mount.ts",
+    "packages/node/src/mcp/write-mount.ts",
+    "packages/node/src/nestjs/index.ts",
+    "packages/node/src/sync/browser-folder-roles.ts",
+    "packages/node/src/sync/folder-role-contract.ts",
+    "packages/node/src/sync/legacy.ts",
+    "packages/server/src/index.ts",
+    "packages/server/src/infrastructure/auth/argon2id-password-hasher.ts",
+    "packages/server/src/infrastructure/auth/legacy-oidc-boundary.ts",
+    "packages/server/src/infrastructure/auth/verification-digest-store.ts",
+    "packages/server/src/infrastructure/colp/contract-evidence.ts",
+    "packages/server/src/infrastructure/database/ledger-append-heavy-completeness.ts",
+    "packages/server/src/infrastructure/database/operation-payload-lookups.ts",
+    "packages/server/src/infrastructure/object-storage/blob-store-port.ts",
+    "packages/server/src/infrastructure/object-storage/index.ts",
+    "packages/server/src/infrastructure/object-storage/r2-adapter.ts",
+    "packages/server/src/modules/auth/application/legacy-account-import.ts",
+    "packages/web/src/api/test-helpers.ts"
+  ],
+  "validation": {
+    "typecheck": {
+      "packages": [
+        "server",
+        "web",
+        "node",
+        "extension"
+      ],
+      "unusedLocals": true,
+      "unusedParameters": true,
+      "unreachableStatements": true,
+      "unusedLabels": true,
+      "result": "passed"
+    },
+    "build": [
+      "Node SDK (ESM/CJS/declarations and entry identity)",
+      "Web production",
+      "Extension production"
+    ],
+    "tests": {
+      "sdk": {
+        "files": 353,
+        "tests": 8998,
+        "result": "passed"
+      },
+      "web": {
+        "files": 183,
+        "tests": 1492,
+        "result": "passed"
+      },
+      "serverUnit": {
+        "files": 452,
+        "result": "passed; 190 files passed initially, remaining 262 files passed after fixing a removed conformance import"
+      },
+      "serverStatic": {
+        "files": 68,
+        "tests": 169,
+        "result": "passed"
+      },
+      "extension": {
+        "result": "All selected unit failures resolved; repaired source-contract tests and the conformance-import dependent test passed (3 files, 27 tests). Other selected unit files passed."
+      },
+      "cacheMetrics": {
+        "files": 1,
+        "tests": 14,
+        "result": "passed"
+      }
+    },
+    "other": [
+      "Changed TypeScript source lint passed",
+      "Server import boundaries passed",
+      "Web dead/ghost CSS class report is empty",
+      "Runtime manifest and lockfile consistency passed (npm 10; retained dependency versions unchanged)",
+      "git diff --check passed"
+    ],
+    "knownBaselineFailures": {
+      "file": "packages/extension/model-tests/ledger.test.ts",
+      "tests": [
+        "Lean/IDB lockstep: later-page-ack-confirm-prune",
+        "Lean/IDB lockstep: several-later-pages",
+        "Lean/IDB lockstep: two-independent-waits"
+      ],
+      "result": "Same three failures reproduced using untouched source from the baseline commit in an isolated temporary copy with the same Lean vectors; unrelated retention-model mismatch preserved."
+    },
+    "testSelectionNote": "The first extension related-test discovery also included model tests and three Playwright spec files. The browser specs failed to initialize under Vitest; no browser run occurred. Follow-up unit verification uses --dir tests."
+  }
+}

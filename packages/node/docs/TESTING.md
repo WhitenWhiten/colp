@@ -161,7 +161,6 @@ The executable gate also walks value imports and exports inside src/sync, exclud
 | `src/sync/browser-batch-adapter.ts` | B adapter-composition | Browser batch driver | `applySyncBrowserBatch` | adapter / aggregate Sync | Stay out of `sync-core` |
 | `src/sync/browser-event-translation.ts` | B adapter-composition | Browser event → operation translation | `translateSyncBrowserEvent` | adapter / aggregate Sync | Stay out of `sync-core` |
 | `src/sync/root-mapping.ts` | B adapter-composition | Browser root mapping | `establishSyncRootMapping` | adapter / aggregate Sync | Stay out of `sync-core` |
-| `src/sync/root-mapping-adapter.ts` | B adapter-composition | Root-mapping adapter types | (adapter) | adapter / aggregate Sync | Stay out of `sync-core` |
 | `src/sync/sidecar.ts` | B adapter-composition | Sidecar persist/export | `persistSyncSidecar` | adapter / aggregate Sync | Stay out of `sync-core` |
 | `src/sync/extension-relay.ts` | B adapter-composition | Extension carrier relay | `relaySyncExtensionCarrier` | adapter / aggregate Sync | Stay out of `sync-core` |
 | `src/sync/netscape-bookmark.ts` | B adapter-composition | Netscape bookmark format conversion | `parseNetscapeBookmarkHtml` | adapter / aggregate Sync | Stay out of `sync-core` |
