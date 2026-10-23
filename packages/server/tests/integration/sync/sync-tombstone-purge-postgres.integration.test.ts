@@ -130,7 +130,7 @@ describeWithPostgres('P3-23 durable Tombstone purge coordinator', () => {
       `profile-${label}`, `browser-gen-${label}`, capabilities,
       checkpoint ? `cursor-${label}` : null, checkpoint?.ordinal ?? null,
       checkpoint ? 0 : null, checkpoint?.stableId ?? null,
-      BASE_TIME, new Date(BASE_TIME.getTime() + 86_400_000), wire]);
+      BASE_TIME, new Date(BASE_TIME.getTime() + 365 * 86_400_000), wire]);
     return replica;
   }
 
@@ -192,6 +192,18 @@ describeWithPostgres('P3-23 durable Tombstone purge coordinator', () => {
     assert.equal(result.purgedCount, 1);
     assert.equal(result.purgedThrough.commitOrdinal, '199');
     assert.equal(before.target.length > 0, true);
+  });
+
+  test('an expired lease cannot block purge while its lifecycle row is still active', async () => {
+    const stale = await setActiveReplica('expired-lease', null);
+    await isolated.runtime.pool.query('update sync_replicas set lease_expires_at=$2 where replica_id=$1',
+      [stale, new Date(BASE_TIME.getTime() + 1)]);
+    const tombstone = await seedTombstone('expired-lease-purge', 200, BASE_TIME);
+    const result = await coordinator().runBatch({ now: new Date(BASE_TIME.getTime() + 1) });
+    assert.equal(result.purgedCount, 1);
+    assert.equal(result.purgedThrough.stableId, tombstone.operation);
+    const row = await isolated.runtime.pool.query<{ status: string }>('select status from sync_replicas where replica_id=$1', [stale]);
+    assert.equal(row.rows[0]?.status, 'active');
   });
 
   test('zero active replicas purge a bounded batch and retain authority/history', async () => {

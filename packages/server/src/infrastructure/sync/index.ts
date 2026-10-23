@@ -1,5 +1,6 @@
 export * from './replica-postgres.js';
 export * from './replica-lifecycle-postgres.js';
+export * from './replica-expiry-job.js';
 export * from './sync-session-postgres.js';
 export * from './sync-session-http-postgres.js';
 export * from './sync-bootstrap-snapshot-postgres.js';

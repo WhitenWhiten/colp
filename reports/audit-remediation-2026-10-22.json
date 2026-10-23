@@ -5,7 +5,13 @@
     {
       "id": "sync-01",
       "title": "expire abandoned replicas and exclude expired leases from purge gates",
-      "status": "pending"
+      "status": "resolved",
+      "validation": [
+        "Worker starts bounded non-overlapping expiry maintenance and drains it during shutdown",
+        "Purge gate excludes leases at or past their expiry independently of stored lifecycle status",
+        "24 real-Postgres lifecycle/purge integration tests and 4 job/worker unit tests pass",
+        "Server TypeScript, targeted ESLint and import boundaries pass"
+      ]
     },
     {
       "id": "sync-02",
@@ -41,7 +47,8 @@
         "Reproduced deletion of a locally moved member before capture and while queued in the inbox",
         "87 related tests pass, including queued moves, moved ancestor descendants, ordinary remote deletion, barriers and restart journals",
         "Extension TypeScript, targeted ESLint and source-size gate pass"
-      ]
+      ],
+      "commit": "b8cfb8f1"
     },
     {
       "id": "sync-06",

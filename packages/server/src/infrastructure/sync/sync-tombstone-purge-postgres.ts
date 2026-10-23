@@ -199,6 +199,7 @@ export class PostgresSyncTombstonePurgeCoordinator {
         SELECT checkpoint_commit_ordinal,checkpoint_stream_kind,checkpoint_stable_id
         FROM sync_replicas AS replica
         WHERE replica.collection_id=${claim.collectionId} AND replica.status='active'
+          AND replica.lease_expires_at > ${now}
         ORDER BY replica.replica_id FOR SHARE OF replica`.execute(transaction);
       await this.options.faultInjector.afterPhase?.('facts_loaded');
       const deleteTuple = [BigInt(first.delete_commit_ordinal), SYNC_PULL_STREAM_KIND_ORDER.operation,

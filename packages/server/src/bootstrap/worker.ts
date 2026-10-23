@@ -32,7 +32,7 @@ import {
   type Metrics,
 } from '../infrastructure/telemetry/index.js';
 import { createDatabaseRuntime, createPostgresMcpWriteOperationsStore, type DatabaseRuntime } from '../infrastructure/database/index.js';
-import { PostgresSyncEvidenceMaintenanceCoordinator, PostgresSyncTombstonePurgeCoordinator, SyncEvidenceMaintenanceJob, SyncTombstonePurgeJob } from '../infrastructure/sync/index.js';
+import { createPostgresReplicaLifecycleService, ReplicaExpiryJob, PostgresSyncEvidenceMaintenanceCoordinator, PostgresSyncTombstonePurgeCoordinator, SyncEvidenceMaintenanceJob, SyncTombstonePurgeJob } from '../infrastructure/sync/index.js';
 import {
   type CacheReadinessState,
   type CacheStore,
@@ -658,6 +658,15 @@ export function buildWorker(
     : undefined;
   const syncOperations = options.syncOperations
     ?? (database ? createPostgresSyncOperationalTelemetry(database) : undefined);
+  const replicaExpiryJob = database && (config.syncSession || config.syncTombstonePurge.enabled)
+    ? new ReplicaExpiryJob(createPostgresReplicaLifecycleService(database.db), {
+      intervalMs: 60_000, batchSize: 500,
+      onResult(count) { metrics.increment('sync.replica_expiry.expired', count); },
+      onError() {
+        metrics.increment('sync.replica_expiry.errors');
+        logger.warn({ code: 'replica_expiry_failed' }, 'Sync Replica expiry failed');
+      },
+    }) : undefined;
   const tombstonePurgeJob = database && config.syncTombstonePurge.enabled
     ? (() => {
       const purgeTelemetry = createSyncServerTelemetry({ metrics, logger });
@@ -846,6 +855,7 @@ export function buildWorker(
           },
         );
       }
+      replicaExpiryJob?.start();
       tombstonePurgeJob?.start();
       evidenceMaintenanceJob?.start();
       mcpWriteMaintenanceJob?.start();
@@ -872,6 +882,7 @@ export function buildWorker(
       notificationOperationsTimer = undefined;
       if (syncOperationsTimer) clearInterval(syncOperationsTimer);
       syncOperationsTimer = undefined;
+      await attemptWorkerStop(failures, 'replicaExpiryJob', () => replicaExpiryJob?.stop());
       await attemptWorkerStop(failures, 'tombstonePurgeJob', () => tombstonePurgeJob?.stop());
       await attemptWorkerStop(failures, 'evidenceMaintenanceJob', () => evidenceMaintenanceJob?.stop());
       await attemptWorkerStop(failures, 'mcpWriteMaintenanceJob', () => mcpWriteMaintenanceJob?.stop());
