@@ -79,6 +79,9 @@ describe('registered sync failure policies', () => {
     assert.equal(holdsUnprovenIdentity('recovery_identity_unproven'), true);
     assert.equal(needsReplicaRebuild('pull_issue_ceiling'), true);
     assert.equal(persistentLocalSyncFailure('record_too_large'), true);
+    assert.equal(classifySyncFailure('delete_journal_invalid')?.class, 'replica');
+    assert.equal(persistentLocalSyncFailure('delete_journal_invalid'), true);
+    assert.equal(freezesPullApply('delete_journal_invalid'), true);
     assert.equal(holdsInboundPull('network_unavailable'), false);
     assert.equal(holdsInboundPull(undefined), false);
     assert.equal(classifySyncFailure('engine_revision_stale')?.class, 'transient');

@@ -196,6 +196,7 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   constraint: entry('replica', 'stop'),
   corruption_detected: entry('replica', 'stop'),
   cursor_evidence_unbound: entry('replica', 'stop'),
+  delete_journal_invalid: entry('replica', 'stop', FREEZES),
   deletion_mapping_missing: entry('item', 'refresh', SETS_ASIDE),
   diagnostic_read_only: entry('replica', 'stop'),
   digest_mismatch: entry('replica', 'stop'),
