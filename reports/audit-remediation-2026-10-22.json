@@ -501,7 +501,7 @@
       "id": "performance-07",
       "title": "prune completed extension queue and journal records",
       "status": "resolved",
-      "resolution": "Idle compaction now reclaims completed queue/receipt/event/Ack/local-deletion history in bounded resumable transactions after a full 24-hour eligibility grace period. Required recovery and replay authority stays durable; referenced and unresolved records are retained.",
+      "resolution": "Idle compaction reclaims completed queue/receipt/event/Ack/local-deletion history in bounded resumable transactions. Ordinary history gets a full 24-hour eligibility grace; move evidence retains the inclusive seven-day automation retry window. Import completion uses its atomically settled import-node state. Before removing successful bookmark-create history, the same transaction stores compact per-native canonical receipt evidence, retained while the node is mapped and for seven days after unbinding. Recovery and Sync replay authority remain separate and durable.",
       "validation": [
         "18 new retention checks cover grace periods, rollback after deletions, bounded continuation over protected heads, store restart, current-cursor receipts, real Ack completion order, legacy rejected receipts, superseded sequence proof, open recovery/native/Pull/bootstrap work and clock rollback.",
         "265 relevant assertions pass across 32 extension storage, engine, Ack, undo, integrity and evidence-channel suites. The one-hundred-thousand historical lookup contract and evidence-method allowlist add 4 passing checks.",
@@ -511,7 +511,29 @@
         "Source rows, summaries, grace markers and maintenance positions share one atomic transaction. Old orphan summaries are removed; operation/effect replay facts survive. Existing stores support lazy adoption without a schema migration or open-time history scan.",
         "Extension TypeScript, focused ESLint, source-size gate and development build pass. The authority document now records this explicit retention policy instead of the prior storage-growth debt."
       ],
-      "commit": "b30c6fa3"
+      "commit": "b30c6fa3",
+      "reviewFollowUp": {
+        "date": "2026-10-23",
+        "regressions": [
+          "Import progress and paused resumption incorrectly depended on reclaimed terminal queue rows.",
+          "Automation receipt retries lost their canonical create evidence after the 24-hour history grace."
+        ],
+        "changes": [
+          "Derive import terminal and queued counts from durable import-node outcomes, including partially finished paused plans.",
+          "Atomically retain original canonical create identity, parent and content in scoped summaries before deleting source history; preserve tags and compacted move destinations; expire orphan proofs and move evidence after the inclusive retry window."
+        ],
+        "evidence": [
+          "packages/extension/tests/import-history-retention.test.ts",
+          "packages/extension/tests/automation-receipt-retention.test.ts",
+          "packages/extension/e2e/mv3-sync-state-store.spec.ts"
+        ],
+        "validation": [
+          "New import and automation regression cases reproduce the old failures before the fix.",
+          "162 assertions in 13 relevant import, automation, retention, compaction, identity, Pull and engine suites pass.",
+          "Extension TypeScript, changed-file ESLint, source-size gate and development build pass.",
+          "The targeted real Chromium IndexedDB retention scenario passes under xvfb, including a second worker restart after source history is reclaimed and exact retained creation fields are verified; browser and xvfb exit."
+        ]
+      }
     },
     {
       "id": "performance-08",

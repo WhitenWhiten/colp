@@ -5,7 +5,7 @@ import { decodeBookmarkFaviconDataUrl } from './favicon-import.js';
 import type { createFaviconSidecarStore } from './favicon-sidecar-store.js';
 import { operation as validateColpOperation } from './generated/bookmark-operation-validators.js';
 import type { ImportConversionResult, NormalizedImportNode } from './import-preview.js';
-import type { ImportNodeRecord, ImportRecoveryCode, JsonObject, QueueOperation, SyncScope,
+import type { ImportNodeRecord, ImportRecoveryCode, JsonObject, SyncScope,
   createSyncStateStore } from './sync-state-store.js';
 
 export type ImportFolderChoice = { readonly sourceNodeId: string; readonly action: 'skip' }
@@ -145,11 +145,12 @@ export function createBookmarkImportCoordinator(options: CoordinatorOptions) {
     const plans = await options.store.listImportPlans(options.scope); const plan = planId
       ? plans.find((item) => item.planId === planId) : plans.sort((a, b) => b.updatedAt - a.updatedAt)[0];
     if (!plan) throw new Error('import_plan_not_found'); const nodes = await options.store.listImportNodes(options.scope, plan.planId);
-    const queue = await queueByOpId(nodes);
-    const terminal = nodes.filter((node) => node.status === 'terminal' && queue.get(node.opId)?.status === 'terminal').length;
+    // Receipt settlement stamps the import node in the same transaction as the
+    // queue. That durable outcome survives reclamation of completed Sync history.
+    const terminal = nodes.filter((node) => node.status === 'terminal').length;
     return { planId: plan.planId, state: plan.state, sourceProfile: plan.sourceProfile, nodes,
       progress: { total: nodes.length, skipped: nodes.filter((node) => node.choice === 'skip').length,
-        queued: nodes.filter((node) => node.sequence !== undefined && queue.get(node.opId)?.status !== 'terminal').length,
+        queued: nodes.filter((node) => node.sequence !== undefined && node.status !== 'terminal').length,
         terminal, recoverable: nodes.filter((node) => node.status === 'recoverable').length } };
   }
 
@@ -178,15 +179,6 @@ export function createBookmarkImportCoordinator(options: CoordinatorOptions) {
       await options.store.setImportPlanState(options.scope, planId, 'complete', now()); return status(planId);
     }
     return view;
-  }
-  async function queueByOpId(nodes: readonly ImportNodeRecord[]) {
-    const queue = new Map<string, QueueOperation>();
-    for (const node of nodes) {
-      if (!node.opId) continue;
-      const queued = await options.store.getQueueByOpId(options.scope, node.opId);
-      if (queued) queue.set(node.opId, queued);
-    }
-    return queue;
   }
   return Object.freeze({ commit, advance, status, pause, resume, retry, recordRecovery });
 }

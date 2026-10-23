@@ -1,10 +1,13 @@
-import { COMPACTED_MARK, type CompactionWatermark } from '../sync-compaction.js';
+import type { CompactionWatermark } from '../sync-compaction.js';
+import { compactNativeEventDetails } from '../compacted-native-facts.js';
 import { requestValue, scopeRowsRange } from './idb.js';
 import { INDEXES, STORES } from './schema.js';
 import type { AckIntentRecord, BookmarkEventRecord, DeletionJournalRecord, QueueOperation,
   ReceiptRecord, UnknownRecord } from './types.js';
 import { removeRetentionMark, retainedLongEnough, retentionBatch } from './history-retention-io.js';
 import { isSettledRejection, withReceiptOutcome } from './open-issue-facts.js';
+import { RECEIPT_MAX_AGE_MS } from '../automation/receipt-limits.js';
+import { CREATE_RECEIPT_SUMMARY, retainAutomationCreate, retainCreateSummary } from './automation-receipt-evidence.js';
 
 /** Longer than both the ten-minute batch undo and five-minute native echo windows.
  * Legacy rows receive a full grace period on their first eligible observation. */
@@ -63,11 +66,14 @@ export async function pruneSyncHistory(tx: IDBTransaction, key: string, now: num
       const summaries = tx.objectStore(STORES.compactSummaries);
       // Reclaim events before their queue row. Missing or mismatched authority
       // stays available for repair rather than being inferred from a summary.
-      if (!quiet || !queued || !(closedRejection(queued) || await terminalReceipt(tx, key, queued))) return;
+      if (!quiet || !queued) return;
+      const receipt = await terminalReceipt(tx, key, queued);
+      if (!closedRejection(queued) && !receipt) return;
       summaries.put({ scopeKey: key, kind: 'event', id: row.eventId,
         digest: row.dedupeKey, opId: row.opId, ordinal: row.ordinal });
-      if (row.details.compacted !== true) events.put({ ...row, details: COMPACTED_MARK });
-      if (!await aged('event', row.eventId)) return;
+      if (row.details.compacted !== true) events.put({ ...row, details: compactNativeEventDetails(row) });
+      if (!await operationAged('event', row.eventId, queued)) return;
+      await retainAutomationCreate(tx, key, queued, receipt, row.nativeId);
       events.delete([key, row.eventId]); forget('event', row.eventId);
       tx.objectStore(STORES.compactSummaries).delete([key, 'event', row.eventId]); removed.events += 1;
     });
@@ -77,9 +83,10 @@ export async function pruneSyncHistory(tx: IDBTransaction, key: string, now: num
       if (!quiet) return;
       const receipt = await terminalReceipt(tx, key, row);
       if (!receipt || receipt.receiptId === evidence?.receiptId) return;
-      if (!await aged('queue', row.opId)) return;
+      if (!await operationAged('queue', row.opId, row)) return;
       if (await requestValue(events.index(INDEXES.eventByOperationOrdinal)
         .count(IDBKeyRange.bound([key, row.opId], [key, row.opId, []])))) return;
+      await retainAutomationCreate(tx, key, row, receipt);
       queue.delete([key, row.sequence]); receipts.delete([key, receipt.receiptId]); forget('queue', row.opId);
       tx.objectStore(STORES.compactSummaries).delete([key, 'queue', row.opId]); removed.queue += 1;
     });
@@ -120,7 +127,8 @@ export async function pruneSyncHistory(tx: IDBTransaction, key: string, now: num
   // history pruning. Remove orphan summaries and bookkeeping in bounded passes.
   next.summaryAfter = await retentionBatch<UnknownRecord>(tx.objectStore(STORES.compactSummaries),
     resume(key, prior.summaryAfter), batch, async row => {
-      const exists = await summarySourceExists(tx, key, row);
+      const exists = row.kind === CREATE_RECEIPT_SUMMARY ? await retainCreateSummary(tx, key, row, now)
+        : await summarySourceExists(tx, key, row);
       if (exists) return;
       tx.objectStore(STORES.compactSummaries).delete([key, String(row.kind), String(row.id)]);
       removed.summaries += 1;
@@ -129,6 +137,11 @@ export async function pruneSyncHistory(tx: IDBTransaction, key: string, now: num
   return removed;
 
   function aged(kind: string, id: string) { return retainedLongEnough(tx, key, kind, id, now, SYNC_HISTORY_RETENTION_MS); }
+  function operationAged(kind: string, id: string, row: QueueOperation) {
+    const retention = row.payload.type === 'move_node' ? Math.max(SYNC_HISTORY_RETENTION_MS, RECEIPT_MAX_AGE_MS + 1)
+      : SYNC_HISTORY_RETENTION_MS;
+    return retainedLongEnough(tx, key, kind, id, now, retention);
+  }
   function forget(kind: string, id: string) { removeRetentionMark(tx, key, kind, id); }
   function closedRejection(row: QueueOperation) { return isSettledRejection(row) && row.sequence < consumedThrough; }
 }
@@ -223,6 +236,8 @@ async function summarySourceExists(tx: IDBTransaction, key: string, row: Unknown
   if (kind === 'queue') return Boolean(await requestValue(tx.objectStore(STORES.queue).index(INDEXES.queueByOpId).getKey([key, String(id)])));
   if (kind === 'event') return Boolean(await requestValue(tx.objectStore(STORES.bookmarkEvents).getKey([key, String(id)])));
   if (kind === 'ack') return Boolean(await requestValue(tx.objectStore(STORES.ackIntents).getKey([key, String(id)])));
+  if (kind === CREATE_RECEIPT_SUMMARY) return Boolean(await requestValue(tx.objectStore(STORES.compactSummaries)
+    .getKey([key, CREATE_RECEIPT_SUMMARY, String(id)])));
   if (kind === 'deletion') {
     try { const [nativeId, ordinal] = JSON.parse(String(id)) as [string, number];
       return Boolean(await requestValue(tx.objectStore(STORES.deletionJournal).getKey([key, nativeId, ordinal])));

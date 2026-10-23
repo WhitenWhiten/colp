@@ -1,4 +1,4 @@
-import { compactNativePayload } from './compacted-native-facts.js';
+import { compactNativeEventDetails, compactNativePayload } from './compacted-native-facts.js';
 export const COMPACTION_BATCH = 200;
 export const COMPACTED_MARK = Object.freeze({ compacted: true as const });
 
@@ -14,6 +14,7 @@ interface CompactableQueueRow {
 }
 
 interface CompactableEventRow {
+  readonly kind?: string;
   readonly status: string;
   readonly eventId: string;
   readonly ordinal: number;
@@ -195,7 +196,7 @@ export async function compactScopeTransaction(
     };
     summaries.put(summary);
     injectFault(input.fault, 'after_summary', tx);
-    events.put({ ...event, details: COMPACTED_MARK });
+    events.put({ ...event, details: compactNativeEventDetails(event) });
     injectFault(input.fault, 'after_delete', tx);
     written.push(summary);
     eventThrough = event.ordinal;

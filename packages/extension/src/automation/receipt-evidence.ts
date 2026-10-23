@@ -25,11 +25,12 @@ export function syncReceiptEvidence(store: Store, scope: SyncScope): ReceiptEvid
   return {
     async create(nativeId): Promise<CanonicalCreate | null> {
       const identity = await identityFromCreateReceipt(store, scope, nativeId);
-      if (!identity?.createOpId) return null;
+      if (!identity?.createOpId) return store.getRetainedCreateReceipt(scope, nativeId);
       const queued = await store.getQueueByOpId(scope, identity.createOpId);
+      if (!queued) return store.getRetainedCreateReceipt(scope, nativeId);
       const payload = record(queued?.payload.payload) ? queued.payload.payload : undefined;
       const node = record(payload?.node) ? payload.node : undefined;
-      if (!queued || queued.status !== 'terminal' || !node || node.kind !== 'bookmark'
+      if (queued.status !== 'terminal' || !node || node.kind !== 'bookmark'
           || typeof node.url !== 'string' || typeof node.title !== 'string') return null;
       return { nodeId: identity.colpId, operationId: identity.createOpId, url: node.url, title: node.title,
         tags: Array.isArray(node.tags) ? node.tags.filter((tag): tag is string => typeof tag === 'string') : [],

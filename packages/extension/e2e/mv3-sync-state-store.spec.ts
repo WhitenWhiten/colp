@@ -79,11 +79,14 @@ test('bounded history retention resumes after a real worker restart and preserve
             idempotencyKey: `idem-${sequence}`, digest: `sha256:op-${sequence}`, endpointIdentity: 'syncPush', mediaType: 'application/json',
             baseRevision: 'rev', operationRevision: `local-${sequence}`, status: 'terminal',
             retry: { attempt: 0, notBefore: 0 }, ...(sequence === 2 ? { echoApplied: true } : {}),
-            payload: { type: 'update_node_content', targetId: `node-${sequence}` } });
+            payload: sequence === 1 ? { type: 'update_node_content', targetId: 'node-1' }
+              : { type: 'create_node', payload: { parentId: 'parent', node: { kind: 'bookmark', title: 'Original',
+                url: 'https://example.test/original', tags: ['original-tag'] } } } });
           tx.objectStore('receipts').put({ scopeKey: key, receiptId: `receipt-${sequence}`, sequence, opId: `op-${sequence}`,
-            operationDigest: `sha256:op-${sequence}`, kind: 'terminal', resultDigest: 'sha256:result' });
+            operationDigest: `sha256:op-${sequence}`, kind: 'terminal', resultDigest: 'sha256:result',
+            result: { results: [{ opId: `op-${sequence}`, sequence, status: 'applied', targetId: `node-${sequence}`, revision: 'rev' }] } });
           tx.objectStore('bookmark_events').put({ scopeKey: key, eventId: `event-${sequence}`, ordinal: sequence,
-            dedupeKey: `dedupe-${sequence}`, occurredAt: '2026-10-23T00:00:00Z', kind: 'change', nativeId: `native-${sequence}`,
+            dedupeKey: `dedupe-${sequence}`, occurredAt: '2026-10-23T00:00:00Z', kind: sequence === 2 ? 'create' : 'change', nativeId: `native-${sequence}`,
             status: 'processed', opId: `op-${sequence}`, details: { title: 'old' } });
         }
         tx.objectStore('cursors').put({ scopeKey: key, cursor: 'snapshot', checkpoint: 'rev',
@@ -101,6 +104,13 @@ test('bounded history retention resumes after a real worker restart and preserve
     expect(retained.queue.map(row => row.sequence)).toEqual([1]);
     expect(retained.receipts.map(row => row.sequence)).toEqual([1]);
     expect(retained.bookmarkEvents.map(row => row.ordinal)).toEqual([1]);
+    await stopWorker(context, page);
+    page = await extensionPage(context);
+    const restarted = await call<{ compactSummaries: { kind: string; id: string; evidence?: unknown }[] }>(page, 'exportScope', scope);
+    expect(restarted.compactSummaries.find(row => row.kind === 'automation_create')).toMatchObject({
+      id: 'native-2', evidence: { nodeId: 'node-2', operationId: 'op-2', parentNodeId: 'parent',
+        title: 'Original', url: 'https://example.test/original', tags: ['original-tag'] },
+    });
   } finally { await context.close(); }
 });
 

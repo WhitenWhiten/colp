@@ -224,6 +224,15 @@ store counts, digest, and native-id boundary snapshots only.
   protect restored identities. Source rows, retention marks and resume positions commit or roll back together.
   Retention marks use the existing scoped summary store; no IndexedDB upgrade or history scan occurs at open.
   Pull operation/effect replay facts are separate authority and are never removed by this maintenance.
+  Import progress uses the import node's terminal state, written atomically with receipt settlement, so
+  reclaiming its queue does not undo completion or block a paused import's remaining children.
+  Before reclaiming a successful bookmark create, the same transaction retains one `automation_create`
+  summary per native bookmark with the canonical node/operation, original parent, title, URL and tags.
+  These business receipt proofs remain while the canonical node is mapped, then receive a full seven-day
+  grace period after unbinding. Readers reject another scope, a replacement mapping or a known tombstone.
+  They are not Sync replay authority. Original queue/event/receipt rows still drain normally.
+  Move queue/events retain the complete inclusive seven-day automation retry window; compacted move events
+  preserve the destination native id. Creation payload compaction preserves original tags for receipt digests.
 - **logout and retire**: immutable archive creation and removal of the live scope/lease authority in one transaction. Account cleanup
   removes only matching non-retired authority and preserves other accounts, servers, profiles, archives and diagnostics. Compaction watermarks and summaries are archived then deleted with the live scope.
 - **root configuration**: `sync_scopes` selection/private boundaries and required `native_mappings` are replaced

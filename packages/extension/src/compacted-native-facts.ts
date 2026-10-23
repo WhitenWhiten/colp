@@ -4,13 +4,19 @@ export function compactNativePayload(operation: { readonly [key: string]: unknow
   if (operation.type === 'create_node') {
     const node = object(payload?.node);
     if (!node || typeof payload?.parentId !== 'string') return undefined;
-    return { parentId: payload.parentId, node: { ...nativeFields(node), kind: node.kind,
+    return { parentId: payload.parentId, node: { ...contentFields(node), kind: node.kind,
       ...(typeof node.folderRole === 'string' ? { folderRole: node.folderRole } : {}) } };
   }
   if (operation.type === 'update_node_content' && payload) {
     return { base: contentFields(object(payload.base)), value: contentFields(object(payload.value)) };
   }
   return undefined;
+}
+/** A placement receipt still needs the observed destination after event compaction. */
+export function compactNativeEventDetails(event: { readonly kind?: string; readonly details: { readonly [key: string]: unknown } }) {
+  const context = object(event.details.context);
+  return { compacted: true as const, ...(event.kind === 'move' && typeof context?.targetParentNativeId === 'string'
+    ? { context: { targetParentNativeId: context.targetParentNativeId } } : {}) };
 }
 function contentFields(value: Record<string, unknown> | undefined): Record<string, unknown> {
   return { ...nativeFields(value), ...(typeof value?.description === 'string' || value?.description === null

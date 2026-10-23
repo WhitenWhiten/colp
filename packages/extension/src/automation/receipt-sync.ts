@@ -3,6 +3,8 @@ import { automationDigest, taskInputDigest, validateAutomation,
 import type { AutomationStateArea } from './bundle-store.js';
 import type { DeviceResult } from './device-client.js';
 import { AUTOMATION_RECEIPTS_KEY } from './messages.js';
+import { RECEIPT_MAX_AGE_MS } from './receipt-limits.js';
+export { RECEIPT_MAX_AGE_MS } from './receipt-limits.js';
 
 /**
  * Placement receipts: what a rule did to a bookmark in this browser, told to
@@ -63,8 +65,6 @@ export interface ReceiptEvidence {
 
 const MAX_RECEIPTS = 300;
 const KEEP_SETTLED_MS = 30 * 86_400_000;
-/** A receipt that cannot be joined within the server's own bundle lifetime is no longer worth sending. */
-export const RECEIPT_MAX_AGE_MS = 7 * 86_400_000;
 /** A bookmark gone this long without its create ever reaching the server can no longer be joined. */
 export const ORPHAN_AFTER_MS = 3_600_000;
 export const settled = (state: ReceiptState) => state === 'accepted' || state === 'review' || state === 'rejected' || state === 'attention';
