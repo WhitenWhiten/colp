@@ -7,7 +7,7 @@ import { LoadingState } from '../../components/EmptyState'
 import { Icon, LibraryNavMark as LibraryNavGlyph } from '../../components/Icon'
 import {
   childFolders,
-  flattenBookmarks,
+  countBookmarks,
   folderTrail,
   rootTitle,
   type FolderNode,
@@ -119,7 +119,7 @@ export function CollectionBranch({
   const snap = tree?.snap
   const folders = snap ? childFolders(snap.root.id, snap.nodes) : []
   const bookmarkTotal = snap
-    ? flattenBookmarks(snap.root, snap.nodes).length
+    ? countBookmarks(snap.root, snap.nodes)
     : typeof bookmarkCount === 'number'
       ? bookmarkCount
       : null
@@ -281,7 +281,7 @@ function FolderBranch({
           folder={folder}
           to={folderTo(folder.id)}
           current={current}
-          count={flattenBookmarks(snap.root, snap.nodes, folder.id).length}
+          count={countBookmarks(snap.root, snap.nodes, folder.id)}
           onPick={onPick ? () => onPick(folder.id) : undefined}
         />
       </div>

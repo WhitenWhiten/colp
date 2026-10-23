@@ -1,4 +1,5 @@
 import type { EditableNodeView, RootNodeView } from '../api'
+import { libraryTreeIndex } from './libraryTreeIndex'
 
 export type BookmarkNode = Extract<EditableNodeView, { kind: 'bookmark' }>
 export type FolderNode = Extract<EditableNodeView, { kind: 'folder' }>
@@ -18,15 +19,7 @@ export type BookmarkRow = {
 }
 
 export function childrenOf(parentId: string, nodes: EditableNodeView[]): EditableNodeView[] {
-  return nodes
-    .filter((node) => node.parentId === parentId)
-    .sort((a, b) => {
-      const pa = a.position ?? ''
-      const pb = b.position ?? ''
-      if (pa < pb) return -1
-      if (pa > pb) return 1
-      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
-    })
+  return [...(libraryTreeIndex(nodes).children.get(parentId) ?? [])]
 }
 
 export function childFolders(parentId: string, nodes: EditableNodeView[]): FolderNode[] {
@@ -36,7 +29,8 @@ export function childFolders(parentId: string, nodes: EditableNodeView[]): Folde
 /** The folder for a `?folder=` param, at any depth; null for stale/foreign ids. */
 export function findFolder(nodes: EditableNodeView[], folderId: string | null | undefined): FolderNode | null {
   if (!folderId) return null
-  const node = nodes.find((candidate) => candidate.id === folderId && candidate.kind === 'folder')
+  const candidate = libraryTreeIndex(nodes).byId.get(folderId)
+  const node = candidate?.kind === 'folder' ? candidate : undefined
   return (node as FolderNode | undefined) ?? null
 }
 
@@ -48,7 +42,7 @@ export function folderTrail(
   nodes: EditableNodeView[],
   folderId: string,
 ): FolderNode[] {
-  const byId = new Map(nodes.map((node) => [node.id, node]))
+  const { byId } = libraryTreeIndex(nodes)
   const start = byId.get(folderId)
   if (!start || start.kind !== 'folder') return []
   const chain: FolderNode[] = []
@@ -83,7 +77,7 @@ export function immediateEntries(
   nodes: EditableNodeView[],
   folderId?: string | null,
 ): LibraryLayerEntries {
-  const parentId = folderId && nodes.some((node) => node.id === folderId && node.kind === 'folder')
+  const parentId = folderId && findFolder(nodes, folderId)
     ? folderId
     : root.id
   const folders: LibraryFolderEntry[] = []
@@ -103,27 +97,28 @@ export function flattenBookmarks(
   nodes: EditableNodeView[],
   folderId?: string | null,
 ): BookmarkRow[] {
-  const start = folderId && nodes.some((node) => node.id === folderId && node.kind === 'folder')
-    ? folderId
-    : root.id
-  const startTitle = start === root.id
-    ? ''
-    : nodes.find((node) => node.id === start && node.kind === 'folder')?.title ?? ''
-  const rows: BookmarkRow[] = []
-  const visit = (parentId: string, folder: string, lineage: ReadonlySet<string>) => {
-    for (const node of childrenOf(parentId, nodes)) {
-      if (lineage.has(node.id)) continue
-      const next = new Set(lineage)
-      next.add(node.id)
-      if (node.kind === 'folder') {
-        visit(node.id, node.title, next)
-      } else if (node.kind === 'bookmark') {
-        rows.push({ node, folder })
-      }
+  const folder = findFolder(nodes, folderId)
+  const start = folder?.id ?? root.id
+  const { children } = libraryTreeIndex(nodes)
+  const pending = [...(children.get(start) ?? [])].reverse().map(node => ({ node, folder: folder?.title ?? '' }))
+  const seen = new Set([start]), rows: BookmarkRow[] = []
+  while (pending.length) {
+    const current = pending.pop()!
+    if (seen.has(current.node.id)) continue
+    seen.add(current.node.id)
+    if (current.node.kind === 'bookmark') rows.push({ node: current.node, folder: current.folder })
+    else if (current.node.kind === 'folder') {
+      const siblings = children.get(current.node.id) ?? []
+      for (let i = siblings.length - 1; i >= 0; i--) pending.push({ node: siblings[i]!, folder: current.node.title })
     }
   }
-  visit(start, startTitle, new Set([start]))
   return rows
+}
+
+/** All folder totals are computed once per snapshot; malformed cycles use the guarded traversal. */
+export function countBookmarks(root: RootNodeView, nodes: EditableNodeView[], folderId?: string | null): number {
+  const id = findFolder(nodes, folderId)?.id ?? root.id
+  return libraryTreeIndex(nodes).bookmarkCounts.get(id) ?? flattenBookmarks(root, nodes, folderId).length
 }
 
 export function hostOf(url: string): string {

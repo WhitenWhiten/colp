@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { EditableNodeView, RootNodeView } from '../api'
 import {
   childFolders,
+  countBookmarks,
+  childrenOf,
   findFolder,
   flattenBookmarks,
   folderTrail,
@@ -150,4 +152,36 @@ describe('libraryTree', () => {
     expect(immediateEntries(treeRoot, deepNodes, 'gone').bookmarks.map((node) => node.title))
       .toEqual(['Loose link'])
   })
+})
+
+it('indexes a large snapshot once and shares subtree counts across folder navigation', () => {
+  let parentReads = 0
+  const tree = root(), nodes: EditableNodeView[] = []
+  for (let i = 0; i < 5000; i++) {
+    for (const node of [folder(`f${i}`, `Folder ${i}`, tree.id, String(i)), bookmark(`b${i}`, `Bookmark ${i}`, `f${i}`, '0')]) {
+      const parentId = node.parentId
+      Object.defineProperty(node, 'parentId', { get: () => { parentReads++; return parentId } })
+      nodes.push(node)
+    }
+  }
+  expect(flattenBookmarks(tree, nodes)).toHaveLength(5000)
+  expect(immediateEntries(tree, nodes).folders).toHaveLength(5000)
+  for (let i = 0; i < 5000; i++) {
+    expect(countBookmarks(tree, nodes, `f${i}`)).toBe(1)
+    expect(childFolders(`f${i}`, nodes)).toHaveLength(0)
+  }
+  expect(countBookmarks(tree, nodes)).toBe(5000)
+  expect(parentReads).toBeLessThan(nodes.length * 12)
+  const direct = childrenOf(tree.id, nodes); direct.pop()
+  expect(childrenOf(tree.id, nodes)).toHaveLength(5000)
+  const replacement = [...nodes, bookmark('new', 'New', tree.id, 'last')]
+  expect(countBookmarks(tree, replacement)).toBe(5001)
+})
+
+it('walks deeply nested folders without recursive stack growth', () => {
+  const tree = root(), nodes: EditableNodeView[] = []
+  for (let i = 0; i < 10000; i++) nodes.push(folder(`f${i}`, 'Folder', i ? `f${i - 1}` : tree.id, '0'))
+  nodes.push(bookmark('leaf', 'Leaf', 'f9999', '0'))
+  expect(countBookmarks(tree, nodes)).toBe(1)
+  expect(flattenBookmarks(tree, nodes).map(row => row.node.id)).toEqual(['leaf'])
 })
