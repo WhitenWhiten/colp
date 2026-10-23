@@ -93,7 +93,7 @@ async function boot(storage?: { readonly local?: Record<string, unknown>; readon
   return { runtime, scope };
 }
 
-const PASSWORD = 'correct-horse-battery';
+const PASSWORD = 'dev-runtime-auth-password';
 
 async function signIn(origin: string, storage?: { readonly local?: Record<string, unknown>; readonly managed?: Record<string, unknown> }) {
   const loaded = await (await boot(storage)).scope.loadConfig();
