@@ -199,8 +199,10 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
         return { ...sidecarExpectation(effect.effectDigest, mapping, parent.nativeId),
           anchors: moveAnchors(plan, { afterId: effect.placement.afterId, beforeId: effect.placement.beforeId }) };
       }
+      // Chrome takes a pre-removal index and reports the final index after removing the source.
+      const eventIndex = before?.parentId === parent.nativeId && before.index !== undefined && before.index < index ? index - 1 : index;
       return { eventKind: 'move', nativeId: mapping.nativeId, parentNativeId: parent.nativeId,
-        details: { parentId: parent.nativeId, index, oldParentId: before?.parentId ?? mapping.parentNativeId ?? '',
+        details: { parentId: parent.nativeId, index: eventIndex, oldParentId: before?.parentId ?? mapping.parentNativeId ?? '',
           oldIndex: before?.index ?? 0 }, anchors: moveAnchors(plan, { afterId: effect.placement.afterId,
           beforeId: effect.placement.beforeId, index }), preStateDigest: mapping.projection.digest }; }
     const looked = isVirtualNativeId(mapping.nativeId) ? { class: 'not_found' as const } : await lookup(mapping.nativeId);

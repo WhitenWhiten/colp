@@ -61,7 +61,13 @@
     {
       "id": "sync-06",
       "title": "correlate same-parent downward moves correctly",
-      "status": "pending"
+      "status": "resolved",
+      "validation": [
+        "Real Chromium launched under xvfb confirms a same-parent request index of 3 from index 0 produces callback/return index 2; browser and temporary profile closed afterward",
+        "Updated the shared honest Chrome double and reproduced an unintended staged local move",
+        "Pull intents now correlate the final callback index while preserving the pre-removal Chrome request index and deliberate later local edits",
+        "414 assertions across all 58 shared-harness consumer files pass; extension TypeScript, targeted ESLint, source-size and whitespace checks pass"
+      ]
     },
     {
       "id": "sync-07",
@@ -77,7 +83,8 @@
         "Tolerant readers project known fields into durable receipts and preserve strict operation id, sequence, status and required-field checks",
         "68 relevant parser, singleton/batch push, authority-denial and stale-delete assertions pass",
         "Extension TypeScript, targeted ESLint, source-size gate and whitespace checks pass"
-      ]
+      ],
+      "commit": "158e542e"
     },
     {
       "id": "sync-09",

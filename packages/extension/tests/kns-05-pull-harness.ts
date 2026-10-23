@@ -171,13 +171,15 @@ export function honestChrome(): Kns05Chrome {
       const parentId = (destination.parentId ?? oldParent) as string | undefined;
       if (parentId) requireNode(parentId);
       const siblings = parentId ? childrenOf(parentId) : [];
-      const index = typeof destination.index === 'number' ? destination.index : siblings.length;
+      const requested = typeof destination.index === 'number' ? destination.index : siblings.length;
+      const index = parentId === oldParent && typeof destination.index === 'number'
+        && (current.index ?? 0) < requested ? requested - 1 : requested;
       for (const sibling of siblings) {
         if ((sibling.index ?? 0) >= index) nodes.set(sibling.id, { ...sibling, index: (sibling.index ?? 0) + 1 });
       }
       nodes.set(id, { ...current, ...destination, parentId, index });
       api.calls.push({ kind: 'move', nativeId: id });
-      api.lastEvent = { kind: 'move', nativeId: id, details: { ...destination,
+      api.lastEvent = { kind: 'move', nativeId: id, details: { ...destination, parentId, index,
         oldParentId: oldParent ?? '', oldIndex: current.index ?? 0 } }; },
     async remove(id: string) { const before = requireNode(id);
       if (childrenOf(id).length) throw new Error("Can't remove non-empty folder (use removeTree).");

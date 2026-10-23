@@ -367,6 +367,25 @@ describe('P3-32 durable Pull authority', () => {
     assert.equal(fixture.api.calls.length, 0);
   });
 
+  test('a same-parent downward move reserves Chromium’s decremented callback index', async () => {
+    const fixture = await setup();
+    const event = pullFixtures.mutationEvent({ kind: 'move', sequence: 1,
+      collectionId: scope.collectionId, targetId: 'node-1', parentId: 'root-colp', afterId: 'node-child' });
+    await fixture.applier.stage(fixture.page([event]));
+    await fixture.applier.resume();
+    assert.equal((await fixture.api.get('native-node'))[0]?.index, 1);
+    const queue = createBookmarkEventQueue({ scope, store: fixture.store, api: fixture.api as BookmarkEventApi, autoFlush: false });
+    assert.equal((await queue.moved('native-node', {
+      parentId: 'native-root', oldParentId: 'native-root', index: 1, oldIndex: 0,
+    })).outcome, 'apply_intent_reserved');
+    assert.equal((await fixture.store.listBookmarkEvents(scope)).length, 0);
+
+    await fixture.api.move('native-node', { parentId: 'native-root', index: 0 });
+    assert.equal((await queue.moved('native-node', {
+      parentId: 'native-root', oldParentId: 'native-root', index: 0, oldIndex: 1,
+    })).outcome, 'staged');
+  });
+
   test('sets a create aside, unplaced, when its mapped after-anchor disappeared from Chrome', async () => {
     const fixture = await setup(); await fixture.api.remove('native-node');
     const event = pullFixtures.createEvent({ kind: 'Bookmark', sequence: 1, collectionId: scope.collectionId,
