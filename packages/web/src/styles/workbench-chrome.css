@@ -130,6 +130,10 @@
 /* R15-43: on touch screens the switch answers a 44 px target around its
    drawn track. */
 @media (pointer: coarse) {
+  .toggle-row {
+    padding-inline-end: max(0px, calc((2.75rem - 2.4rem) / 2));
+  }
+
   .toggle::before {
     content: '';
     position: absolute;

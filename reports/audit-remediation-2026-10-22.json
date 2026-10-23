@@ -300,7 +300,11 @@
         "Resolved all six failures from the complete 601-file/4,532-assertion unit run: invalid delete-journal policy and release-schema drift in separate commits, and three stale contract expectations with 19 affected assertions passing",
         "Favicon fixture still had a second Know-N-only guard around mounting the restored helper. Removed that guard; rerun against a freshly loaded fixture is pending. Earlier in-flight worker results predate this fixture fix and are not counted as final verification",
         "Keep browser runs serial against shared dist/production. Optional permission grant alone is not origin readiness: self-hosted sign-in fixtures now also await persisted validated runtimeServerOrigin and an enabled origin field",
-        "All restored favicon legs now pass individually (capture, offline replay, policy none and clear); a real shared-guard defect exposed by clear was fixed separately as sync-17. The self-contained multi-device recovery E2E, including public low-sensitivity status assertions, passes after full browser restart."
+        "All restored favicon legs now pass individually (capture, offline replay, policy none and clear); a real shared-guard defect exposed by clear was fixed separately as sync-17. The self-contained multi-device recovery E2E, including public low-sensitivity status assertions, passes after full browser restart.",
+        "Three detached candidate worktrees have their own compiled artifacts, temporary-profile directory, PostgreSQL owner and Xvfb display; shared dependencies are linked inside ignored real node_modules directories. Candidate commits are local verification snapshots, not commits on main",
+        "Core shard 3 has passed at least 23 real scenarios, including first-run loss/restart/revoke cases and cross-range deletion continuity",
+        "First rounds of shards 1 and 2 exposed stale preference source=server assertions, obsolete Exclude-checkbox controls, a 5-second installation initialization deadline and an advanced-plan assertion racing Pull Ack settlement; updated fixtures retain strict eventual state/identity/Ack checks",
+        "Rounds 2 select exactly the 22 and 26 failed/unexecuted tests from first-round reports, independently confirmed by Playwright --list. Initial results and traces are saved outside each worktree before reruns clear their output"
       ],
       "remaining": [
         "Rerun advanced first-run after root selection fix; prior upload evidence reported recovery_capability_invalid and missing local folder; download incorrectly included unselected sentinel",
@@ -332,12 +336,18 @@
           "file": "packages/extension/e2e/mv3-bookmark-save-placement.spec.ts",
           "reason": "Cloud classification leg retired; signed-out offline placement retained in mv3-bookmark-save-placement-offline.spec.ts; shipped real placement and recovery specs remain"
         }
-      ]
+      ],
+      "validationWorkspace": "/tmp/colp-audit-browser-6rit6i9i"
     },
     {
       "id": "tests-04",
       "title": "execute all web E2E and acceptance tests in CI",
-      "status": "pending"
+      "status": "in_progress",
+      "progress": [
+        "Initial real Chromium shard 1/4 under xvfb: 39 passed, 2 failed, 2 deliberate viewport-condition skips; mocked Web tests do not require a real Product backend",
+        "Failures identify stale No collections yet copy and missing /me/library and favicon-job-list mocks. Shared mock now serves the owner library endpoint and the fixture explicitly handles public Manifest reads",
+        "Web E2E package scripts now require xvfb, JSON reports are enabled, and a full production CLI/owner acceptance entry uses the shared isolated fixture; required CI routing still to be added after the extension fixture/routing commit"
+      ]
     },
     {
       "id": "tests-05",
@@ -755,6 +765,28 @@
         "32 clear/upload assertions pass, preserving manual-upload, none, force-online, stale-validator and idempotent command checks",
         "Both real-Postgres legacy backfill tests pass: pre-existing manual bindings are explicitly migrated to source_mode=uploaded and remain protected",
         "The real Chromium capture-to-clear scenario now passes against actual HTTP/PostgreSQL helper routes; extension TypeScript and targeted ESLint pass"
+      ],
+      "commit": "bfa019d1"
+    },
+    {
+      "id": "web-01",
+      "title": "Keep touch switch hit areas inside the settings column",
+      "status": "resolved",
+      "validation": [
+        "Restored browser coverage reproduces settings-section horizontal overflow on coarse-pointer mobile and tablet lanes; the switch pseudo-element extends past the trailing column edge",
+        "Reserve its existing hit-area overhang in coarse-pointer toggle rows, preserving the control and touch target",
+        "Real Chromium under xvfb passes favicon settings behavior and horizontal overflow assertions at desktop, phone and two tablet widths"
+      ]
+    },
+    {
+      "id": "sync-18",
+      "title": "Reconnect ordinary selected subfolders without re-uploading their existing canonical nodes",
+      "status": "in_progress",
+      "validation": [
+        "Reproduced duplicate folder and bookmark on reconnect in real Chromium",
+        "New unit regression proves selected local mount keys prevent pairing inside an already authoritative remote parent",
+        "Parent identity, node kind and exact title/URL now bind structural matches; true custom browser roots retain their separate eligibility rules",
+        "238 assertions in all 26 matcher/coordinator consumer suites pass; TypeScript, targeted lint and source-size gate pass; real Chromium reconnect verification pending"
       ]
     }
   ],
