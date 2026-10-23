@@ -138,6 +138,8 @@ export function isMetadataHost(hostname: string): boolean {
   if (host.endsWith('.metadata.google.internal')) return true;
   // IPv4 link-local metadata well-known address
   if (host === '169.254.169.254') return true;
+  // Azure WireServer is platform-local despite its public-looking address.
+  if (host === '168.63.129.16') return true;
   // IPv6 metadata common on some clouds
   if (host === 'fd00:ec2::254') return true;
   return false;

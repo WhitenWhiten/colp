@@ -155,8 +155,14 @@
     },
     {
       "id": "security-06",
-      "title": "deny Azure metadata egress",
-      "status": "pending"
+      "title": "deny Azure WireServer and metadata egress",
+      "status": "resolved",
+      "validation": [
+        "Microsoft documents 168.63.129.16 as a platform-local WireServer endpoint distinct from already-denied IMDS 169.254.169.254: https://learn.microsoft.com/en-us/azure/virtual-network/what-is-ip-address-168-63-129-16",
+        "Strict and relaxed endpoint policies now reject WireServer literals before DNS; shared egress address classification rejects it in all resolved A/AAAA sets and redirect hops",
+        "77 targeted address, public-HTTP, downstream-consumer and redirect assertions pass; literal HTTPS, opted-in HTTP, hexadecimal URL spelling, mixed DNS answers, mapped IPv6 and public-neighbor preservation covered",
+        "Server TypeScript and targeted ESLint pass"
+      ]
     },
     {
       "id": "security-07",
@@ -402,7 +408,8 @@
         "35 real-Postgres HTTP/sequence/expiry/merge-reflow assertions and 48 HTTP/sequence/transaction-phase unit assertions pass; server TypeScript, targeted ESLint and import boundaries pass",
         "Protocol and server documentation explicitly permit bounded shared commits with per-operation rollback boundaries and durable-prefix responses",
         "The 958-node browser convergence case still exceeds its 240-second budget while making progress without freeze; transaction coalescing is verified independently, and remaining browser-side full-graph work stays tracked under performance-06/performance-08 and tests-03"
-      ]
+      ],
+      "commit": "9aa30415"
     },
     {
       "id": "performance-03",
@@ -431,7 +438,8 @@
         "Six targeted regressions cover read bounds, native/canonical descendants, caller isolation and v22-to-v23 upgrades that preserve immutable request bytes; 185 capture/deletion/store, 106 related upload/read-boundary, 78 issue/native-wait/scheduler and 267 release/schema assertions pass across focused runs",
         "Extension TypeScript, targeted ESLint, source-size gate, production build and schema-v23 release manifest generation pass",
         "Idle pass reconciliation and cadence remain separately tracked under performance-08; the 958-node browser convergence deadline remains tracked under tests-03"
-      ]
+      ],
+      "commit": "4671043b"
     },
     {
       "id": "performance-07",

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { assertOidcEndpointUrl } from '../../../src/bootstrap/oidc-endpoint-policy.js';
 import {
   classifyEgressAddress,
   createHardenedEgressFetch,
@@ -14,6 +15,7 @@ describe('security scan: non-global egress addresses', () => {
   });
 
   it.each([
+    '168.63.129.16', '169.254.169.254', '::ffff:168.63.129.16',
     '100::1', '0100:0000:0000:0000:0000:0000:0000:0001',
     '100:0:0:1::1', '5f00::1', '4000::1', '8000::1',
     '2001::1', '2001:0:0:0:0:0:0:1', '2001:1ff::1',
@@ -31,7 +33,7 @@ describe('security scan: non-global egress addresses', () => {
       expect(classifyEgressAddress(address)).toBe('public');
     });
 
-  it.each(['192.0.0.8', '192.0.0.170', '100::1', '2001::1', '5f00::1'])
+  it.each(['192.0.0.8', '192.0.0.170', '100::1', '2001::1', '5f00::1', '168.63.129.16'])
     ('does not connect when a DNS answer mixes public and denied addresses: %s', async (address) => {
       const connect = vi.fn(async () => new Response('never'));
       const fetch = createHardenedEgressFetch({
@@ -43,4 +45,26 @@ describe('security scan: non-global egress addresses', () => {
       });
       expect(connect).not.toHaveBeenCalled();
     });
+
+  it.each(['strict', 'relaxed'] as const)('denies Azure platform literals in %s OIDC policy', mode => {
+    expect(() => assertOidcEndpointUrl('issuer', 'https://168.63.129.16/machine', mode)).toThrow(/metadata/u);
+  });
+
+  it.each(['https://168.63.129.16/machine', 'http://168.63.129.16/machine', 'https://0xa83f8110/machine'])
+    ('blocks Azure WireServer before DNS or connection: %s', async target => {
+      const resolve = vi.fn(async () => ['8.8.8.8']); const connect = vi.fn(async () => new Response('never'));
+      const fetch = createHardenedEgressFetch({ resolve, connect, allowPublicHttp: true });
+      await expect(fetch(target)).rejects.toMatchObject({ reason: 'denied' });
+      expect(resolve).not.toHaveBeenCalled(); expect(connect).not.toHaveBeenCalled();
+    });
+
+  it('revalidates redirects to Azure platform services before connecting again', async () => {
+    const connect = vi.fn(async () => new Response(null, { status: 302,
+      headers: { location: 'http://168.63.129.16/machine' } }));
+    const fetch = createHardenedEgressFetch({ resolve: async () => ['8.8.8.8'], connect, allowPublicHttp: true });
+    await expect(fetch('https://public.example.com/')).rejects.toMatchObject({ reason: 'denied' });
+    expect(connect).toHaveBeenCalledTimes(1);
+    expect(classifyEgressAddress('168.63.129.15')).toBe('public');
+    expect(classifyEgressAddress('168.63.129.17')).toBe('public');
+  });
 });
