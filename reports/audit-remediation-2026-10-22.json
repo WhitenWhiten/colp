@@ -753,7 +753,16 @@
       "id": "code-35",
       "title": "批量执行把 api.get 失败当作节点不存在，delete 项直接记为 applied",
       "file": "packages/extension/src/bookmark-batch-executor.ts",
-      "status": "pending"
+      "status": "resolved",
+      "resolution": "Verified the existing batch lookup fix: lookupBookmark distinguishes verified absence from permission, managed-tree and transient errors. Delete settles applied only for verified not_found; failed reads settle failed and neither delete nor rename/move mutates Chrome.",
+      "validation": [
+        "All 17 batch executor tests passed, including permission-denied delete, transient rename/move failures, genuine not_found, and failed Undo lookups. The restored real Chromium batch/Undo scenario also passed."
+      ],
+      "existingFix": "c6c4b93b",
+      "evidence": [
+        "packages/extension/src/bookmark-batch-executor.ts",
+        "packages/extension/tests/bookmark-batch-executor.test.ts"
+      ]
     },
     {
       "id": "code-36",
