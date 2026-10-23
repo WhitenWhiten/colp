@@ -41,6 +41,9 @@ export function classifySessionAuthority(session: unknown, context: {
     throw new Error('session_authority_invalid');
   }
   if (!session.snapshotRequired) return 'active';
+  const checkpoint = session.replicaLease.acknowledgedCursor;
+  if (checkpoint === null && !context.bootstrapped) return 'bootstrap';
+  if (typeof checkpoint === 'string') return 'recovery';
   return context.authorityRefreshRequired || context.bootstrapped ? 'recovery' : 'bootstrap';
 }
 
@@ -145,7 +148,8 @@ export function parseSyncSessionResult(value: unknown, requestInput: unknown,
     collection: { collectionId: string(value.collection.collectionId), serverCursor: string(value.collection.serverCursor),
       serverRevision: string(value.collection.serverRevision) },
     replicaLease: { leaseId: string(value.replicaLease.leaseId), generation: string(value.replicaLease.generation),
-      state: 'active' as const, expiresAt: string(value.replicaLease.expiresAt) },
+      state: 'active' as const, expiresAt: string(value.replicaLease.expiresAt),
+      acknowledgedCursor: value.replicaLease.acknowledgedCursor === null ? null : string(value.replicaLease.acknowledgedCursor) },
     transportBudget: transportBudget ?? parseSyncTransportBudgetHeader(null) });
 }
 

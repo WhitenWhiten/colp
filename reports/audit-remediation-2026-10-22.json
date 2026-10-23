@@ -67,7 +67,8 @@
         "Updated the shared honest Chrome double and reproduced an unintended staged local move",
         "Pull intents now correlate the final callback index while preserving the pre-removal Chrome request index and deliberate later local edits",
         "414 assertions across all 58 shared-harness consumer files pass; extension TypeScript, targeted ESLint, source-size and whitespace checks pass"
-      ]
+      ],
+      "commit": "7a58017a"
     },
     {
       "id": "sync-07",
@@ -264,7 +265,25 @@
     {
       "id": "tests-03",
       "title": "execute all extension browser and model tests in CI",
-      "status": "pending"
+      "status": "in_progress",
+      "progress": [
+        "Added required six-shard extension-browser CI job and model vector step; independent Playwright file inventory guard passes (76 specs)",
+        "Model vectors: initial 3 failures caused by unmodelled intent grace period; advance clock past intent expiry for abstract prune; all 24 tests and model typecheck pass",
+        "Replaced external 45-minute Know-N multi-device orchestrator with self-contained dual-profile offline-edit/browser-restart convergence test; passed under xvfb against real Postgres",
+        "Local shard 1 initial pass: 11 passed, advanced first-run upload and download failed, bookmark-batch was interrupted after 6 minutes; stopped owned Playwright PID via SIGINT and wrapper exited 130 with cleanup",
+        "Corrected advanced-first-run chooseRoots helper to uncheck depth-0 roots outside the explicit selection",
+        "Development build was stale; rebuilding before remaining browser validation",
+        "Advanced first-run upload/download now pass after fixing initial bootstrap authority, Session-renewed preview cuts, mount parent identity and accepted cursor readiness; committed separately as sync-14"
+      ],
+      "remaining": [
+        "Rerun advanced first-run after root selection fix; prior upload evidence reported recovery_capability_invalid and missing local folder; download incorrectly included unselected sentinel",
+        "Run all supported browser specs across six shards with both production e2e-fixture and development builds, isolated Postgres owner and with-xvfb",
+        "Use default configured reporters (do not override --reporter=list,json: that sends huge JSON to stdout instead of writing results.json); for local runs may set PLAYWRIGHT_JSON_OUTPUT_FILE=/tmp/...",
+        "Triage Known-N-only skipped specs vs shipped features: classification-product, credits-ledger, capture-real-stack, classification-local, bookmark-save-placement are guarded by knowNBackendRoot; favicon is guarded too but the server now ships favicon APIs and should be enabled/adapted",
+        "Operator-only mv3-colp-server-sync and mv3-browser-rules-server plus capture-visual need disposable local server/web fixture or explicit scope handling; capacity benchmark is gated by BS_CAPACITY_NODES",
+        "README documents removed cloud features and optional Known-N backend; server tests/EXTRACTION.md is authoritative for removed server modules",
+        "Finish type/lint, update docs and remediation ledger, then commit tests-03 separately"
+      ]
     },
     {
       "id": "tests-04",
@@ -596,6 +615,19 @@
       "title": "service-worker onMessage 是 293 行 if 链，重复同一响应模板",
       "file": "packages/extension/src/service-worker.ts",
       "status": "pending"
+    },
+    {
+      "id": "sync-14",
+      "title": "Keep initial bootstrap authority and confirmed advanced plans valid across Session renewal",
+      "status": "resolved",
+      "validation": [
+        "Retain server acknowledgedCursor and distinguish initial bootstrap from recovery during forced authority refresh",
+        "Reissued Session Snapshot/cursor tokens are accepted only for the same approved collection revision, complete node revisions, parent links, kind and children revisions",
+        "Advanced mounts retain remote parent identity; the bootstrap run and executor follow the actual accepted cursor",
+        "136 engine/session assertions plus 76 affected advanced/engine assertions pass; extension TypeScript, targeted ESLint and source-size gate pass",
+        "Both real-Postgres Chromium advanced-first-run upload (lost response and profile restart) and download scenarios pass under xvfb (2.6 minutes)"
+      ]
     }
-  ]
+  ],
+  "workspaceNote": "Concurrent change in packages/extension/docs/site-adapters/README.md is unrelated user work. Preserve it and do not stage/revert it."
 }

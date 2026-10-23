@@ -52,7 +52,8 @@ export interface StoredSession {
   readonly expiresAt: string;
   readonly scope: 'collection';
   readonly collection: { readonly collectionId: string; readonly serverCursor: string; readonly serverRevision: string };
-  readonly replicaLease: { readonly leaseId: string; readonly generation: string; readonly state: 'active'; readonly expiresAt: string };
+  readonly replicaLease: { readonly leaseId: string; readonly generation: string; readonly state: 'active';
+    readonly expiresAt: string; readonly acknowledgedCursor?: string | null };
   readonly acceptedProtocolVersion?: '0.2';
   readonly snapshotRequired: boolean;
   readonly conversionPolicy?: { readonly separator: 'native' | 'omit' | 'preserve_remote' | 'reject' };

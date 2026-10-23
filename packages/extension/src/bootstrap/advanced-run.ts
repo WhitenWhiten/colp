@@ -1,5 +1,5 @@
 import { persistFirstRunBrowserRoots } from '../sw/first-run-browser-roots.js';
-import type { createSyncStateStore, MappingInput, SyncScope } from '../sync-state-store.js';
+import type { createSyncStateStore, MappingInput, RecoveryPageInput, SyncScope } from '../sync-state-store.js';
 import type { AdvancedPlanRecord } from '../sync-state/advanced-repository.js';
 import { type MountFact, type RemoteNodeFact } from './matcher.js';
 import { advanceConfirmedPlan } from './advanced-executor.js';
@@ -77,16 +77,14 @@ export async function projectAdvancedSnapshot(store: Store, scope: SyncScope,
   const loaded = await store.readAdvancedPlan(scope, active.planId); if (!loaded) throw new Error('advanced_plan_missing');
   const metadata = parseAdvancedPlanMetadata(active.metadata);
   const definitions = loaded.steps.map((record) => parseAdvancedStepDefinition(record.definition));
+  const seeds = snapshotSeeds(definitions);
   const recovery = (await store.exportScope(scope)).recovery;
-  if (recovery && (metadata.remoteSnapshotId === undefined || metadata.remoteRevision === undefined
-      || metadata.remoteCursor === undefined || recovery.snapshotId !== metadata.remoteSnapshotId
-      || recovery.revision !== metadata.remoteRevision || recovery.syncCursor !== metadata.remoteCursor)) {
+  if (recovery && !sameConfirmedSnapshot(recovery, metadata, staged, seeds)) {
     const pending = loaded.steps.find((step) => step.state === 'pending' || step.state === 'executing');
     if (pending) await store.settleAdvancedStep(scope, active.planId, pending.order,
       { expectedState: pending.state, state: 'attention', error: 'advanced_snapshot_changed' });
     throw new Error('advanced_snapshot_changed');
   }
-  const seeds = snapshotSeeds(definitions);
   const mounts = metadata.mounts;
   const mountByRemote = new Map(mounts.flatMap((mount) => {
     const id = mount.remoteMountNodeId ?? [...seeds.values()].find((seed) =>
@@ -107,8 +105,8 @@ export async function projectAdvancedSnapshot(store: Store, scope: SyncScope,
     const { parentNativeId: _parentNative, parentColpId: _parentColp, ...base } = mapping;
     return { ...base, nativeId, rootNativeId: mount.nativeRootId,
       mountId: `mount:${mount.nativeRootId}`, ...(mount.rootRole ? { rootRole: mount.rootRole } : { rootRole: 'custom' }),
-      ...(!isMount && parentId ? { parentColpId: parentId,
-        parentNativeId: nativeByColp.get(parentId) ?? `unmounted:${parentId}` } : {}) };
+      ...(parentId ? { parentColpId: parentId } : {}),
+      ...(!isMount && parentId ? { parentNativeId: nativeByColp.get(parentId) ?? `unmounted:${parentId}` } : {}) };
   });
   for (const [nodeId, mount] of mountByRemote) {
     const binding = (await store.listMountBindings(scope)).find((row) => row.nativeRootId === mount.nativeRootId);
@@ -117,6 +115,9 @@ export async function projectAdvancedSnapshot(store: Store, scope: SyncScope,
       await store.putMountBinding(scope, { ...value, remoteMountNodeId: nodeId, materialized: true, status: 'active' });
     }
   }
+  const run = (await store.listBootstrapRuns(scope)).find(row => row.runId === active.planId);
+  if (run && recovery) await store.putBootstrapRun(scope, { ...run, snapshotCursor: recovery.syncCursor,
+    updatedAt: Date.now() });
   return result;
 }
 
@@ -197,6 +198,19 @@ export async function captureAdvancedCreate(store: Store, scope: SyncScope, nati
 }
 
 interface SnapshotSeed { readonly fact: RemoteNodeFact; readonly nativeId: string | null }
+/** Snapshot/cursor tokens bind to a Session; the approved tree facts bind to its content cut. */
+function sameConfirmedSnapshot(header: Pick<RecoveryPageInput, 'revision' | 'rootNodeId'>, metadata: AdvancedPlanMetadata,
+  staged: readonly MappingInput[], seeds: ReadonlyMap<string, SnapshotSeed>): boolean {
+  const root = [...seeds.values()].find(seed => seed.fact.parentId === null)?.fact.nodeId;
+  return metadata.remoteSnapshotId !== undefined && metadata.remoteCursor !== undefined
+    && header.revision === metadata.remoteRevision && header.rootNodeId === root && staged.length === seeds.size
+    && staged.every(mapping => {
+      const fact = seeds.get(mapping.colpId)?.fact;
+      return fact !== undefined && mapping.nodeKind === fact.kind && mapping.projection.revision === fact.revision
+        && (mapping.parentColpId ?? null) === fact.parentId
+        && (mapping.projection.childrenRevision ?? null) === (fact.childrenRevision ?? null);
+    });
+}
 function snapshotSeeds(definitions: readonly AdvancedStepDefinition[]): Map<string, SnapshotSeed> {
   return new Map(definitions.filter(isAdvancedSnapshotFactDefinition).map((definition:
     AdvancedSnapshotFactDefinition) => [definition.fact.nodeId, { fact: definition.fact,

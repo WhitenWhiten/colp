@@ -41,6 +41,7 @@ export async function setup(overrides: {
   allowSnapshotMoves?: boolean;
   seedMount?: boolean;
   requestTimeoutMilliseconds?: number;
+  serverAckCursor?: string | null;
   fetch?: typeof globalThis.fetch;
   compactScope?: ReturnType<typeof createSyncStateStore>['compactScope'];
 } = {}) {
@@ -188,7 +189,8 @@ export async function setup(overrides: {
       return { credential: { accessToken: 'access-token' },
         session: { ...session(activeSnapshotRequired), sessionId: activeSessionId,
           snapshotRequired: activeSnapshotRequired,
-          replicaLease: { ...session().replicaLease, state: classified?.state ?? 'active' },
+          replicaLease: { ...session().replicaLease, state: classified?.state ?? 'active',
+            ...('serverAckCursor' in overrides ? { acknowledgedCursor: overrides.serverAckCursor } : {}) },
           collection: { ...session().collection, serverCursor: activeCursor, serverRevision: activeServerRevision } } }; } },
     pullApplier, pushWorker: push, now: () => clock.now, random: () => 0.5, id: () => 'durable-id',
     schedule: (delay: number) => scheduled.push(delay),     snapshotProjector: async (plans: any[], mode?: { readonly recoveryOnly?: boolean }) => {

@@ -47,7 +47,7 @@ test('P1-01 upload uses the UI, lists cloud deletions, and resumes after lost re
     await pageB.locator('#first-run-advanced summary').click();
     await pageB.locator('#first-run-advanced-mode').selectOption('preview-only');
     await pageB.locator('#first-run-advanced-preview').click();
-    await expect(pageB.locator('#first-run-advanced-hint')).toContainText('matched items');
+    await expect(pageB.locator('#first-run-advanced-hint')).toContainText(/matched items?/u);
     await expect(pageB.locator('#first-run-advanced-confirm')).toBeHidden();
     expect(await observationBaseline(pageB, stack)).toEqual(before);
     const deleteLabels = await openAdvancedPreview(pageB, 'upload');
@@ -208,6 +208,10 @@ async function ready(context: BrowserContext, binding: ProfileBinding): Promise<
 async function chooseRoots(page: Page, selectedTitles: readonly string[]): Promise<void> {
   await showOptionsPane(page, 'folders'); await page.getByRole('button', { name: 'Refresh folders' }).click();
   await expect(page.locator('#root-tree .root-row').first()).toBeVisible({ timeout: 30_000 });
+  for (const row of await page.locator('#root-tree .root-row[data-depth="0"]').all()) {
+    const title = await row.locator('.folder-name').innerText();
+    await row.locator('.root-select input').setChecked(selectedTitles.includes(title));
+  }
   for (const title of selectedTitles) {
     const checkbox = page.getByRole('checkbox', { name: title, exact: true });
     await expect(checkbox).toBeVisible({ timeout: 30_000 });

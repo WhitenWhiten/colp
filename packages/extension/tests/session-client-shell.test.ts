@@ -147,6 +147,10 @@ describe('P3-27 real Session client', () => {
     const snapshot = { ...fixtureSession(NOW), snapshotRequired: true };
     assert.equal(classifySessionAuthority(snapshot, {
       authorityRefreshRequired: false, bootstrapped: false }), 'bootstrap');
+    assert.equal(classifySessionAuthority({ ...snapshot, replicaLease: { ...snapshot.replicaLease, acknowledgedCursor: null } }, {
+      authorityRefreshRequired: true, bootstrapped: false }), 'bootstrap');
+    assert.equal(classifySessionAuthority({ ...snapshot, replicaLease: { ...snapshot.replicaLease, acknowledgedCursor: 'already-acked' } }, {
+      authorityRefreshRequired: false, bootstrapped: false }), 'recovery');
     assert.equal(classifySessionAuthority(snapshot, {
       authorityRefreshRequired: true, bootstrapped: true }), 'recovery');
     assert.equal(snapshot.snapshotRequired, sessionAuthorityContract.authorities.recovery.snapshotRequired);

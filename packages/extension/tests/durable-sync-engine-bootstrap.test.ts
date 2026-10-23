@@ -8,6 +8,25 @@ import {
 } from './durable-sync-engine-harness.js';
 
 describe('P3-33 durable extension bootstrap and empty-queue wake', () => {
+  test('refreshing authority before the first Ack still accepts an initial snapshot without a recovery capability', async () => {
+    const fixture = await setup({ snapshotRequired: true, emptyCollection: true,
+      useVerifiedProjector: true, serverAckCursor: null });
+    try {
+      await fixture.store.transitionEngine(scope, { phase: 'recovery', updatedAt: fixture.clock.now,
+        recoveryFrozen: true, authorityRefreshRequired: true, notBefore: 0, sessionId: fixture.sessionId });
+      fixture.forcedSessions.push({ sessionId: 'initial-refreshed', state: 'active', snapshotRequired: true, cursor: 'cursor-0' });
+      fixture.snapshotResponses.push(json(200, snapshot(1, false, null)));
+      fixture.ackResponses.push(json(200, ack('bootstrap-cursor')));
+      fixture.forcedSessions.push({ state: 'active', snapshotRequired: false, cursor: 'cursor-recovered' });
+      await fixture.engine.wake('manual');
+      const state = await fixture.store.getEngineState(scope);
+      assert.equal(state?.phase, 'sleeping');
+      assert.equal(state?.lastError, undefined);
+      assert.equal(state?.recoveryFrozen, false);
+      assert.equal((await fixture.store.listAckIntents(scope)).filter(row => row.state === 'complete').length, 1);
+    } finally { await fixture.store.close(); }
+  });
+
   test('empty first-run Collection snapshot completes bootstrap and unfreezes without Chrome identity', async () => {
     const fixture = await setup({ snapshotRequired: true, emptyCollection: true, useVerifiedProjector: true });
     fixture.snapshotResponses.push(json(200, snapshot(1, false, null)));

@@ -242,9 +242,11 @@ export async function runSyncEngine(reason: 'startup' | 'alarm' | 'online' | 'ma
       resume: (mode) => effects.run(() => applier().resume(mode)) }, pushWorker: worker,
     schedule: (delay) => scheduleSyncEngineWake('alarm', delay), snapshotProjector: (staged, mode) => projectSnapshotNode(scope, context, staged, mode) });
   placementRefresh = () => engine.refreshPlacement();
+  const advancedCursor = advanced && (await syncState.listBootstrapRuns(scope))
+    .find(run => run.runId === advanced.planId)?.snapshotCursor;
   const bootstrapComplete = advanced && !frozenBeforeWake
     && (await syncState.listAckIntents(scope)).some((intent) => intent.kind === 'bootstrap' && intent.state === 'complete'
-      && intent.cursor === advanced.metadata.remoteCursor)
+      && intent.cursor === (advancedCursor ?? advanced.metadata.remoteCursor))
     && !await syncState.getPendingAckIntent(scope);
   if (bootstrapComplete) {
     if (!permissionGranted || advanced.state === 'attention') return;

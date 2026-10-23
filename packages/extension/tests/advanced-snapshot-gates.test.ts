@@ -4,6 +4,7 @@ import { IDBFactory } from 'fake-indexeddb';
 import { test } from 'vitest';
 import { activateAdvancedPlan, projectAdvancedSnapshot } from '../src/bootstrap/advanced-run.js';
 import { buildAdvancedPlan } from '../src/bootstrap/advanced-plan.js';
+import { assertCompleteSnapshotStaging } from '../src/snapshot-staging-assert.js';
 import type { LocalNodeFact, MountFact, RemoteNodeFact } from '../src/bootstrap/matcher.js';
 import { createSyncStateStore, type JsonObject, type MappingInput, type RecoveryPageInput,
   type SyncScope } from '../src/sync-state-store.js';
@@ -243,9 +244,8 @@ test('changed boundaryVersion cannot reactivate the already activated plan', asy
 });
 
 test.each([
-  ['snapshotId', { snapshotId: 'stale-snapshot' }],
   ['revision', { revision: 'stale-revision' }],
-  ['cursor', { syncCursor: 'stale-cursor' }],
+  ['root', { rootNodeId: 'different-root' }],
 ] as const)('rejects a recovery header with a mismatched %s before any projection write', async (_field, mismatch) => {
   const { store, committed } = await fixture();
   await activateAdvancedPlan(store, scope, committed);
@@ -269,6 +269,54 @@ test.each([
   assert.ok(attention);
   assert.equal(attention.error, 'advanced_snapshot_changed');
 });
+
+test('a renewed Session may reissue Snapshot and cursor tokens for the same approved content cut', async () => {
+  const { store, committed } = await fixture();
+  try {
+    await activateAdvancedPlan(store, scope, committed);
+    await stageRecovery(store, { snapshotId: 'renewed-snapshot', syncCursor: 'renewed-cursor' });
+    const projected = await projectAdvancedSnapshot(store, scope, stagedMappings());
+    assert.equal(projected?.find(mapping => mapping.colpId === 'remote-matched')?.nativeId, 'local-matched');
+    assert.equal((await store.listBootstrapRuns(scope))[0]?.snapshotCursor, 'renewed-cursor');
+    assert.equal((await store.readAdvancedPlan(scope, committed.planId))?.plan.state, 'active');
+  } finally { await store.close(); }
+});
+
+test('advanced mount projection preserves the complete remote graph through recovery cutover', async () => {
+  const { store, committed } = await fixture();
+  try {
+    await activateAdvancedPlan(store, scope, committed);
+    const staged = stagedMappings();
+    await stageRecovery(store, { nodes: remote.map((fact, index) => ({
+      colpId: fact.nodeId, parentId: fact.parentId, position: fact.position ?? 'root',
+      kind: fact.kind === 'folder' ? 'Folder' : 'Bookmark', payloadDigest: `payload-${fact.nodeId}`,
+      mapping: staged[index]!,
+    })) });
+    const projected = await projectAdvancedSnapshot(store, scope, staged);
+    assert.ok(projected);
+    await store.finalizeRecoveryMappings(scope, metadataValues.remoteSnapshotId, projected);
+    await assertCompleteSnapshotStaging(store, scope, 'root');
+    assert.equal(projected.find(row => row.nativeId === 'bar')?.parentColpId, 'root');
+    assert.equal(projected.find(row => row.nativeId === 'bar')?.parentNativeId, undefined);
+  } finally { await store.close(); }
+});
+
+test.each(['revision', 'parent', 'children', 'kind', 'members'])(
+  'renewed tokens cannot hide changed %s facts under the approved collection revision', async field => {
+    const { store, committed } = await fixture();
+    try {
+      await activateAdvancedPlan(store, scope, committed);
+      await stageRecovery(store, { snapshotId: 'renewed-snapshot', syncCursor: 'renewed-cursor' });
+      const staged = stagedMappings();
+      if (field === 'revision') staged[2] = { ...staged[2]!, projection: { ...staged[2]!.projection, revision: 'changed' } };
+      if (field === 'parent') staged[2] = { ...staged[2]!, parentColpId: 'changed-parent' };
+      if (field === 'children') staged[1] = { ...staged[1]!, projection: { ...staged[1]!.projection, childrenRevision: 'changed' } };
+      if (field === 'kind') staged[2] = { ...staged[2]!, nodeKind: 'folder' };
+      if (field === 'members') staged.pop();
+      await assert.rejects(() => projectAdvancedSnapshot(store, scope, staged), /advanced_snapshot_changed/u);
+      assert.equal((await store.readAdvancedPlan(scope, committed.planId))?.plan.state, 'attention');
+    } finally { await store.close(); }
+  });
 
 test('projection reuses only proven native IDs, uses unmounted remote-only IDs, and keeps mount roots in scope', async () => {
   const { store, committed } = await fixture();

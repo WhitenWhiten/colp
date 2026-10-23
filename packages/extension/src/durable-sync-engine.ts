@@ -145,10 +145,10 @@ export function createDurableSyncEngine(options: EngineOptions) {
       if (current.authorityRefreshRequired) {
         refreshedAuthority = await sessionAuthority(true);
         const refreshedClassification = classifySessionAuthority(refreshedAuthority.session, {
-          authorityRefreshRequired: true, bootstrapped: true,
+          authorityRefreshRequired: true, bootstrapped: await hasBootstrapAck(),
         });
         if (refreshesReplicaIntegrity(current.lastError) && refreshedClassification === 'active') throw new Error(current.lastError);
-        if (refreshedClassification === 'recovery') return await recover(refreshedAuthority, refreshedClassification);
+        if (refreshedClassification !== 'active') return await recover(refreshedAuthority, refreshedClassification);
         await options.store.rebaseActiveSessionAuthority(options.scope, {
           cursor: refreshedAuthority.session.collection.serverCursor,
           serverRevision: refreshedAuthority.session.collection.serverRevision,
@@ -196,9 +196,7 @@ export function createDurableSyncEngine(options: EngineOptions) {
         }
       }
       await transition('session'); const authority = refreshedAuthority ?? await sessionAuthority();
-      const ackIntents = await options.store.listAckIntents(options.scope);
-      const bootstrappedReplica = ackIntents.some((intent: AckIntentRecord) => intent.kind === 'bootstrap'
-        && intent.state === 'complete');
+      const bootstrappedReplica = await hasBootstrapAck();
       const classification = classifySessionAuthority(authority.session, {
         authorityRefreshRequired: current.authorityRefreshRequired,
         bootstrapped: bootstrappedReplica,
@@ -528,6 +526,8 @@ export function createDurableSyncEngine(options: EngineOptions) {
     });
     return authority;
   }
+  async function hasBootstrapAck() { return (await options.store.listAckIntents(options.scope))
+    .some((intent: AckIntentRecord) => intent.kind === 'bootstrap' && intent.state === 'complete'); }
   /** The lane head. A conflict the server already consumed waits for Pull, not for this lane. */
   function firstOutstanding() { return options.store.firstLaneQueue(options.scope); }
   async function sleep(session: StoredSession) { const prior = await state();
