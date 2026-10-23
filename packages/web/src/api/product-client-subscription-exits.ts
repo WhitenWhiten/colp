@@ -21,7 +21,7 @@ export function createBookmarkSubscriptionWebClient(mutationCall: MutationCall) 
     const unsubscribe = subscribeSession(() => { if (privateSessionIdentity() !== identity) scopeAbort.abort() })
     try { return await mutationCall(async (csrfToken, commandIntentId) => {
       assertActor(identity)
-      const result = await http.request<T>({ method, path, body, contentType: body === undefined ? undefined : 'application/json', signal, headers: http.mutationHeaders({ csrfToken, commandIntentId }, extra) }).catch(error => { if (error instanceof SubscriptionSessionChanged) { scopeAbort.abort(); fail(error.message, 401) } throw error })
+      const result = await http.request<T>({ method, path, body, contentType: body === undefined ? undefined : 'application/json', signal, headers: http.mutationHeaders({ csrfToken, commandIntentId }, extra) }).catch(error => { if (error instanceof SubscriptionSessionChanged) { scopeAbort.abort(); fail(error.message, 401) } if (scopeAbort.signal.aborted) assertActor(identity); throw error })
       assertActor(identity); return result
     }, { ...options, signal, maxRetries: 0, rotateCommandOnConflict: false }) } finally { unsubscribe() }
   }
