@@ -523,6 +523,35 @@ describeWithPostgres('P3-07 durable Sync Session issuance', () => {
     'active');
   });
 
+  test('foreign credentials cannot terminate a known Session, including a collection member', async () => {
+    for (const actor of ['editor', 'outsider'] as const) {
+      const replica = await harness.createReplica('owner');
+      const issued = await harness.issuer().issue(harness.command('owner', replica));
+      await assert.rejects(harness.issuer().verify({ credential: harness.evidence(actor),
+        sessionId: issued.envelope.sessionId, collectionId: replica.collectionId, replicaId: replica.replicaId }),
+      error => error instanceof SyncSessionIssueError);
+      const row = await harness.isolated.runtime.pool.query(
+        'select status,termination_reason,terminated_at from sync_sessions where session_id=$1', [issued.envelope.sessionId]);
+      assert.deepEqual(row.rows[0], { status: 'active', termination_reason: null, terminated_at: null });
+      assert.ok(isVerifiedSyncSession(await harness.issuer().verify({ credential: harness.evidence('owner'),
+        sessionId: issued.envelope.sessionId, collectionId: replica.collectionId, replicaId: replica.replicaId })));
+    }
+  });
+
+  test('reusing a credential identifier with a different verified token cannot terminate its Session', async () => {
+    const replica = await harness.createReplica('owner');
+    const owner = harness.evidence('owner');
+    const issued = await harness.issuer().issue(harness.command('owner', replica));
+    const differentToken = await mintVerifiedExtensionCredentialFixture({ issuer: ISSUER, audience: AUDIENCE,
+      clientId: CLIENT_ID, subject: owner.subject, credentialId: owner.credentialId });
+    assert.notEqual(differentToken.credentialDigest, owner.credentialDigest);
+    await assert.rejects(harness.issuer().verify({ credential: differentToken, sessionId: issued.envelope.sessionId,
+      collectionId: replica.collectionId, replicaId: replica.replicaId }),
+    error => error instanceof SyncSessionIssueError && error.code === 'not_found');
+    assert.ok(isVerifiedSyncSession(await harness.issuer().verify({ credential: owner,
+      sessionId: issued.envelope.sessionId, collectionId: replica.collectionId, replicaId: replica.replicaId })));
+  });
+
   test('credential audience, scope, expiry, revocation, subject, and account security epoch fail closed', async () => {
     const cases: Array<[string, (value: VerifiedExtensionCredential) => unknown]> = [
       ['wrong audience', (value) => ({ ...value, audience: 'other-api' })],

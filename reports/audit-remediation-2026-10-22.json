@@ -38,7 +38,13 @@
     {
       "id": "sync-04",
       "title": "reject foreign session credentials without terminating target sessions",
-      "status": "pending"
+      "status": "resolved",
+      "validation": [
+        "Reproduced permanent credential_revoked termination when a collection member supplied their own credential for a known owner Session",
+        "Session lookup now binds issuer, credential id and OAuth client before locking; mismatched token digest, subject or account cannot trigger durable denial",
+        "33 real-Postgres Session/conflict-resolution tests pass, including foreign outsiders, foreign members, reused ids, legitimate revocation and security-epoch changes",
+        "Server TypeScript, targeted ESLint, import boundaries and whitespace checks pass"
+      ]
     },
     {
       "id": "sync-05",
@@ -230,7 +236,8 @@
         "12 ordinary discovery/routing/redaction assertions pass",
         "Full openapi:ci, server TypeScript, targeted ESLint, YAML parsing and whitespace checks pass",
         "Retired the empty browser project with the removed delivery module, following tests/EXTRACTION.md; all shipped capability projects are required by ci-gate"
-      ]
+      ],
+      "commit": "9cdb2bca"
     },
     {
       "id": "tests-03",

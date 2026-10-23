@@ -352,6 +352,9 @@ export async function verifyInTransaction(
     .where('session_id', '=', input.sessionId)
     .where('collection_id', '=', input.collectionId)
     .where('replica_id', '=', input.replicaId)
+    .where('credential_issuer', '=', input.credential.issuer)
+    .where('credential_id', '=', input.credential.credentialId)
+    .where('oauth_client_id', '=', input.credential.clientId)
     .forUpdate().executeTakeFirst();
   if (!row) throw new SyncSessionIssueError('not_found');
   const account = await transaction.selectFrom('accounts').selectAll()
@@ -360,6 +363,12 @@ export async function verifyInTransaction(
     .where('issuer', '=', input.credential.issuer)
     .where('credential_id', '=', input.credential.credentialId)
     .forUpdate().executeTakeFirst();
+  // A foreign proof is a request mismatch, never evidence that this Session's
+  // own credential was revoked. Only its bound proof may trigger durable denial.
+  if (!storedCredential || storedCredential.credential_digest !== input.credential.credentialDigest
+    || storedCredential.subject !== input.credential.subject || storedCredential.account_id !== row.account_id) {
+    throw new SyncSessionIssueError('not_found');
+  }
   await lockCollectionReplicaGate(transaction, input.collectionId);
   const replica = await transaction.selectFrom('sync_replicas').selectAll()
     .where('replica_id', '=', row.replica_id).forUpdate().executeTakeFirst();
