@@ -1,3 +1,4 @@
+import { rateLimitClientIp } from '../../infrastructure/rate-limit/index.js';
 import type { FastifyRequest } from 'fastify';
 import type {
   SearchRateLimiter,
@@ -12,7 +13,7 @@ import { productErrorStatus } from '../product-codes.js';
  * never exhausts Search.
  */
 export function trustedExploreDirectoryClientIp(request: FastifyRequest): string {
-  const ip = typeof request.ip === 'string' && request.ip.length > 0 ? request.ip : 'unknown';
+  const ip = rateLimitClientIp(request.ip);
   return ip;
 }
 

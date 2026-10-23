@@ -1,3 +1,4 @@
+import { rateLimitClientIp } from '../../infrastructure/rate-limit/index.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
   AccountCredentialCommandError,
@@ -155,7 +156,7 @@ export async function requireParentKey(
   // guesses indefinitely (and rotate among the five child-key endpoints)
   // without consuming any budget.  Fastify's request.ip is already resolved
   // through the configured trusted-ingress proxy policy.
-  const clientIp = typeof request.ip === 'string' && request.ip.length > 0 ? request.ip : 'unknown';
+  const clientIp = rateLimitClientIp(request.ip);
   await admit(deps.rateLimiter, `credentials:parent-auth:${clientIp}`);
   if (request.headers.cookie !== undefined) throw accountCredentialNotFound();
   const authorization = request.headers.authorization;

@@ -44,7 +44,8 @@
         "Session lookup now binds issuer, credential id and OAuth client before locking; mismatched token digest, subject or account cannot trigger durable denial",
         "33 real-Postgres Session/conflict-resolution tests pass, including foreign outsiders, foreign members, reused ids, legitimate revocation and security-epoch changes",
         "Server TypeScript, targeted ESLint, import boundaries and whitespace checks pass"
-      ]
+      ],
+      "commit": "48e57322"
     },
     {
       "id": "sync-05",
@@ -100,7 +101,14 @@
     {
       "id": "security-01",
       "title": "normalize IPv6 rate limit identities and resist bucket exhaustion",
-      "status": "pending"
+      "status": "resolved",
+      "validation": [
+        "Reproduced quota bypass by rotating IPv6 host bits",
+        "Trusted HTTP addresses normalize to a /64; compressed, expanded, bracketed and zoned spellings are idempotent; mapped IPv4 shares the IPv4 identity",
+        "All IP-based HTTP admissions plus memory auth/search/sync/effect adapters and Redis key codecs use the shared identity",
+        "256 host rotations consume exactly one memory bucket; a distinct legitimate client remains admitted without a capacity rejection",
+        "103 relevant HTTP/rate-limit assertions pass; server TypeScript, targeted ESLint, import boundaries and whitespace checks pass"
+      ]
     },
     {
       "id": "security-02",

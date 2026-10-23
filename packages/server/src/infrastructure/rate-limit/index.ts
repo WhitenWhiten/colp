@@ -1,3 +1,5 @@
+export { rateLimitClientIp } from './client-address-key.js';
+
 /**
  * P4A-RL03 public export surface for the Attachment distributed rate-limit
  * infrastructure (plan §8 RL03).

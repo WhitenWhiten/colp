@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { HttpSecurityConfig } from '../bootstrap/config.js';
 import {
+  rateLimitClientIp,
   COLLABORATION_INVITE_RATE_LIMIT_FAMILY,
   type AuthRateLimiter,
   type AuthRateLimitOutcome,
@@ -334,7 +335,7 @@ function authRateLimitSubjectForPath(
 ): AuthRateLimitSubject | null {
   const routeFamily = lookupAuthRateLimitFamily(urlPath, familyByPath);
   if (routeFamily === null) return null;
-  const ip = typeof request.ip === 'string' && request.ip.length > 0 ? request.ip : 'unknown';
+  const ip = rateLimitClientIp(request.ip);
   return { routeFamily, clientIp: ip };
 }
 
@@ -360,7 +361,7 @@ export function createMemoryAuthRateLimiter(
   const inner = createFixedWindowRateLimiter(options);
   return {
     async consume(subject: AuthRateLimitSubject): Promise<AuthRateLimitOutcome> {
-      const result = inner.consume(`${subject.routeFamily}|${subject.clientIp}`);
+      const result = inner.consume(`${subject.routeFamily}|${rateLimitClientIp(subject.clientIp)}`);
       if (result.allowed) {
         return { kind: 'allowed', decision: { allowed: true, retryAfterSeconds: 0 } };
       }
@@ -394,7 +395,7 @@ export function createMemoryAuthRateLimiter(
  * count in non-production). Never read spoofable forwarded headers directly.
  */
 export function rateLimitClientKey(request: FastifyRequest, routePath: string): string {
-  const ip = typeof request.ip === 'string' && request.ip.length > 0 ? request.ip : 'unknown';
+  const ip = rateLimitClientIp(request.ip);
   return `${routePath}|${ip}`;
 }
 
@@ -450,7 +451,7 @@ export function createMemorySearchRateLimiter(
   });
   const consumeInner = (subject: SearchRateLimitSubject) =>
     (subject.family === 'anonymous' ? anonymousInner : accountInner)
-      .consume(`${subject.family}|${subject.subject}`);
+      .consume(`${subject.family}|${subject.family === 'anonymous' ? rateLimitClientIp(subject.subject) : subject.subject}`);
   return {
     async consume(subject: SearchRateLimitSubject): Promise<SearchRateLimitOutcome> {
       const result = consumeInner(subject);
@@ -519,7 +520,7 @@ export function createMemorySyncColpRateLimiter(
     pull: `sync:pull:${options.pullMaxRequests}:${options.pullWindowMs}`,
   });
   const consumeInner = (subject: SyncColpRateLimitSubject) =>
-    (subject.family === 'push' ? pushInner : pullInner).consume(subject.clientIp);
+    (subject.family === 'push' ? pushInner : pullInner).consume(rateLimitClientIp(subject.clientIp));
   return {
     async consume(subject: SyncColpRateLimitSubject): Promise<SyncColpRateLimitOutcome> {
       const result = consumeInner(subject);
@@ -593,7 +594,7 @@ export function createMemoryEffectPageRateLimiter(
     ...(options.sweepIntervalMs === undefined ? {} : { sweepIntervalMs: options.sweepIntervalMs }),
   });
   const decide = (subject: EffectPageRateLimitSubject): EffectPageRateLimitOutcome => {
-    const subjectKey = `${subject.clientIp}|${subject.sessionId}|${subject.replicaId}`;
+    const subjectKey = `${rateLimitClientIp(subject.clientIp)}|${subject.sessionId}|${subject.replicaId}`;
     const total = subjectInner.consume(subjectKey);
     if (!total.allowed) {
       return { kind: 'denied', decision: {

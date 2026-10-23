@@ -1,3 +1,4 @@
+import { rateLimitClientIp } from './client-address-key.js';
 /**
  * FIX-M-006 Search rate-limit HMAC key codec (mirrors the FIX-M-001 auth
  * codec pattern: same grammar family, deliberately BUSINESS-KEY INDEPENDENT).
@@ -194,7 +195,8 @@ export function buildSearchRateLimitKey(input: SearchRateLimitKeyBuildInput): st
   if (!Number.isSafeInteger(input.windowStartEpochMs) || input.windowStartEpochMs < 0) {
     throw new SearchRateLimitKeyError('invalid_window', 'search rate-limit key window must be a non-negative safe integer');
   }
-  const subjectHmac = searchRateLimitSubjectHmac(input.keySecret, input.subject);
+  const subjectHmac = searchRateLimitSubjectHmac(input.keySecret,
+    input.family === 'anonymous' ? rateLimitClientIp(input.subject) : input.subject);
   const key = `${keyPrefix}:${input.environment}:ratelimit:v${SEARCH_RATE_LIMIT_KEY_SCHEMA_VERSION}`
     + `:{search:${subjectHmac}}:${input.family}:${input.windowStartEpochMs}`;
   if (key.length > SEARCH_RATE_LIMIT_KEY_MAX_LENGTH) {

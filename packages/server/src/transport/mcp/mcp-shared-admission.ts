@@ -1,3 +1,4 @@
+import { rateLimitClientIp } from '../../infrastructure/rate-limit/index.js';
 /**
  * Protocol-agnostic MCP HTTP admission helpers shared by the strict
  * `/collections/-/mcp` route and the compatibility `/collections/-/mcp-compat`
@@ -109,7 +110,7 @@ export function mcpRateLimitSubject(
   /** Trusted configured MCP origin; never derive this from request Host headers. */
   registeredOrigin: string,
 ): McpRateLimitSubject {
-  const ip = typeof request.ip === 'string' && request.ip.length > 0 ? request.ip : 'unknown';
+  const ip = rateLimitClientIp(request.ip);
   if (binding.kind === 'authenticated') {
     if (!isMcpAudienceForEndpoint(binding.resourceAudience, request.routeOptions?.url, registeredOrigin)) {
       throw new McpOauthVerificationError('wrong_audience');

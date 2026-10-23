@@ -1,5 +1,5 @@
 import { ensureLibraryCollection, type LibraryCollectionUnitOfWork } from '../../modules/collections/index.js';
-import { createMemorySyncAdmissionPolicy, syncAdmissionSubjectKey, type SyncAdmissionPolicy } from '../../infrastructure/rate-limit/index.js';
+import { rateLimitClientIp, createMemorySyncAdmissionPolicy, syncAdmissionSubjectKey, type SyncAdmissionPolicy } from '../../infrastructure/rate-limit/index.js';
 import { createHash } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { ExtensionAuthError, type ExtensionCredentialEvidencePort,
@@ -70,7 +70,7 @@ export function registerExtensionCollectionRoutes(
   const consume = async (request: FastifyRequest, reply: FastifyReply, subjectKey?: string): Promise<boolean> => {
     const purpose = request.method === 'GET' ? 'pull' : 'push';
     const outcome = subjectKey === undefined
-      ? await admission.admitPreAuth({ purpose, clientKey: request.ip })
+      ? await admission.admitPreAuth({ purpose, clientKey: rateLimitClientIp(request.ip) })
       : await admission.admitSubject({ purpose, subjectKey });
     if (outcome.kind === 'allowed') return true;
     if (outcome.kind === 'denied') reply.header('Retry-After', String(outcome.retryAfterSeconds));

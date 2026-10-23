@@ -1,3 +1,4 @@
+import { rateLimitClientIp } from '../../infrastructure/rate-limit/index.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
   AccountKeyOAuthError,
@@ -128,7 +129,7 @@ async function consumeClientRate(
   deps: AccountCredentialTokenRoutesDependencies,
 ): Promise<void> {
   if (!deps.clientRateLimiter) return;
-  const ip = typeof request.ip === 'string' && request.ip.length > 0 ? request.ip : 'unknown';
+  const ip = rateLimitClientIp(request.ip);
   const decision = await consumeProductAdmission(deps.clientRateLimiter, `automation-token-client:${ip}`);
   if (decision.kind === 'failed') throw temporarilyUnavailable();
   if (decision.kind === 'denied') throw tokenRateLimited(decision.retryAfterSeconds);

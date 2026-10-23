@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { ExtensionCredentialEvidencePort } from '../modules/identity/index.js';
 import { acceptIntakeReceipt, parseContract, AutomationError, type AutomationDeviceUnitOfWork } from '../modules/automation/index.js';
 import { canonicalCommandFingerprint } from '../modules/commands/index.js';
-import { createMemorySyncAdmissionPolicy, syncAdmissionSubjectKey, type SyncAdmissionPolicy } from '../infrastructure/rate-limit/index.js';
+import { rateLimitClientIp, createMemorySyncAdmissionPolicy, syncAdmissionSubjectKey, type SyncAdmissionPolicy } from '../infrastructure/rate-limit/index.js';
 import { createSyncTransportSecurity } from './colp-sync/sync-transport-security.js';
 import { productRouteMetadata } from './product-route-manifest.js';
 import { ProductHttpError } from './product-error.js';
@@ -35,7 +35,7 @@ export function registerAutomationDeviceRoutes(app: FastifyInstance, deps: Autom
     if (!security.isSecure(request)) throw new ProductHttpError({ statusCode: 401, code: 'authentication_required', message: 'Secure transport required.' });
     const origin = header(request, 'origin');
     if (!deps.allowedOrigins.includes(origin)) throw new ProductHttpError({ statusCode: 403, code: 'insufficient_permission', message: 'Origin is not allowed.' });
-    const pre = await admission.admitPreAuth({ purpose: 'push', clientKey: request.ip });
+    const pre = await admission.admitPreAuth({ purpose: 'push', clientKey: rateLimitClientIp(request.ip) });
     if (pre.kind !== 'allowed') throw new ProductHttpError({ statusCode: pre.kind === 'denied' ? 429 : 503,
       code: pre.kind === 'denied' ? 'rate_limited' : 'feature_temporarily_unavailable', message: 'Device admission is unavailable.' });
     let credential;

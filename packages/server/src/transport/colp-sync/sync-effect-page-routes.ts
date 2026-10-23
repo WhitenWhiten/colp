@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { ProblemCode } from '@know-n/colp/server';
 import { createPublicationProblemDescriptor } from '@know-n/colp/server';
-import {
+import { rateLimitClientIp,
   resolveSyncAdmissionPolicy,
   syncAdmissionPolicyHeader,
   syncAdmissionSubjectKey,
@@ -139,7 +139,7 @@ export function registerSyncEffectPageRoutes(app: FastifyInstance, dependencies:
       let effectOutcome;
       try {
         effectOutcome = await effectLimiter.consume({
-          clientIp: request.ip,
+          clientIp: rateLimitClientIp(request.ip),
           sessionId: headerSessionId,
           // A Session names exactly one replica. Reuse its opaque identity rather
           // than the deprecated, unverified query replicaId; rotating pages or

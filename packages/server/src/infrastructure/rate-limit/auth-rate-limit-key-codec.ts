@@ -1,3 +1,4 @@
+import { rateLimitClientIp } from './client-address-key.js';
 /**
  * FIX-M-001 auth rate-limit HMAC key codec (key contract mirrors P4A-RL02
  * §2.3/§4.1.11 but is deliberately BUSINESS-KEY INDEPENDENT: the auth
@@ -134,7 +135,7 @@ export function assertAuthRateLimitClientIp(clientIp: string): void {
 export function authRateLimitSubjectHmac(keySecret: Buffer, clientIp: string): string {
   assertAuthRateLimitClientIp(clientIp);
   const digest = createHmac('sha256', keySecret)
-    .update(clientIp, 'utf8')
+    .update(rateLimitClientIp(clientIp), 'utf8')
     .digest('base64url');
   return digest.slice(0, AUTH_RATE_LIMIT_SUBJECT_HMAC_TRUNCATED_CHARS);
 }

@@ -15,6 +15,7 @@
  * Raw facts never enter the key text.
  */
 import { createHmac } from 'node:crypto';
+import { rateLimitClientIp } from './client-address-key.js';
 
 export const EFFECT_PAGE_RATE_LIMIT_ROUTE_FAMILIES = Object.freeze([
   'subject', 'effect',
@@ -77,7 +78,7 @@ export function effectPageRateLimitSubjectFacts(input: {
   readonly sessionId: string;
   readonly replicaId: string;
 }): string {
-  return `${input.clientIp}|${input.sessionId}|${input.replicaId}`;
+  return `${rateLimitClientIp(input.clientIp)}|${input.sessionId}|${input.replicaId}`;
 }
 
 export function effectPageRateLimitEffectFacts(input: {

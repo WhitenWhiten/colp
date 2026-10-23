@@ -13,6 +13,7 @@
  * resolution). The raw IP never enters the key text.
  */
 import { createHmac } from 'node:crypto';
+import { rateLimitClientIp } from './client-address-key.js';
 
 export const SYNC_COLP_RATE_LIMIT_ROUTE_FAMILIES = Object.freeze([
   'push', 'pull',
@@ -85,7 +86,7 @@ export function assertSyncColpRateLimitSubject(subject: string): void {
 export function syncColpRateLimitSubjectHmac(keySecret: Buffer, subject: string): string {
   assertSyncColpRateLimitSubject(subject);
   return createHmac('sha256', keySecret)
-    .update(subject, 'utf8')
+    .update(rateLimitClientIp(subject), 'utf8')
     .digest('base64url')
     .slice(0, SYNC_COLP_RATE_LIMIT_SUBJECT_HMAC_TRUNCATED_CHARS);
 }

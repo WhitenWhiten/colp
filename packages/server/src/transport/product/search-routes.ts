@@ -1,3 +1,4 @@
+import { rateLimitClientIp } from '../../infrastructure/rate-limit/index.js';
 import { createHash } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { AppConfig } from '../../bootstrap/config.js';
@@ -228,7 +229,7 @@ async function admitSearchRateLimit(
  * directly.
  */
 function trustedClientIp(request: FastifyRequest): string {
-  const ip = typeof request.ip === 'string' && request.ip.length > 0 ? request.ip : 'unknown';
+  const ip = rateLimitClientIp(request.ip);
   return ip;
 }
 

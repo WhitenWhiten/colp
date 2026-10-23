@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { ExtensionAuthError, type ExtensionCredentialEvidencePort } from '../../modules/identity/index.js';
 import { parseReplicaHealthReport, REPLICA_HEALTH_MAX_BODY_BYTES, ReplicaHealthError,
   type ReplicaHealthErrorCode, type ReplicaHealthRecorder } from '../../modules/sync/index.js';
-import { createMemorySyncAdmissionPolicy, syncAdmissionSubjectKey,
+import { rateLimitClientIp, createMemorySyncAdmissionPolicy, syncAdmissionSubjectKey,
   type SyncAdmissionPolicy } from '../../infrastructure/rate-limit/index.js';
 import { colpAuthorizationFromRawHeaders } from './sync-colp-authorization.js';
 import type { SyncTransportSecurity } from './sync-transport-security.js';
@@ -48,7 +48,7 @@ export function registerExtensionReplicaHealthRoutes(
   app.post(EXTENSION_REPLICA_HEALTH_PATH, {
     bodyLimit: REPLICA_HEALTH_MAX_BODY_BYTES,
     onRequest: async (request, reply) => {
-      await admitted(reply, await admission.admitPreAuth({ purpose: 'pull', clientKey: request.ip }));
+      await admitted(reply, await admission.admitPreAuth({ purpose: 'pull', clientKey: rateLimitClientIp(request.ip) }));
     },
     config: { productTransport: { allowedQuery: [], acceptedMediaTypes: ['application/json'],
       bodyLimitBytes: REPLICA_HEALTH_MAX_BODY_BYTES, cacheControl: 'private-no-store' } },
