@@ -72,18 +72,22 @@ declare namespace chrome {
     function remove(id: string): Promise<void>;
     function removeTree(id: string): Promise<void>;
     const onCreated: { addListener(callback: (id: string, node: BookmarkTreeNode) => void): void;
+      removeListener(callback: (id: string, node: BookmarkTreeNode) => void): void;
       hasListener(callback: (id: string, node: BookmarkTreeNode) => void): boolean };
     const onChanged: { addListener(callback: (id: string, changes: { title?: string; url?: string }) => void): void;
       hasListener(callback: (id: string, changes: { title?: string; url?: string }) => void): boolean };
     const onMoved: { addListener(callback: (id: string, move: { parentId: string; index: number;
       oldParentId: string; oldIndex: number }) => void): void;
+      removeListener(callback: (id: string, move: { parentId: string; index: number; oldParentId: string; oldIndex: number }) => void): void;
       hasListener(callback: (id: string, move: { parentId: string; index: number;
         oldParentId: string; oldIndex: number }) => void): boolean };
     const onRemoved: { addListener(callback: (id: string, removal: { parentId: string; index: number;
       node?: BookmarkTreeNode }) => void): void;
+      removeListener(callback: (id: string, removal: { parentId: string; index: number; node?: BookmarkTreeNode }) => void): void;
       hasListener(callback: (id: string, removal: { parentId: string; index: number;
         node?: BookmarkTreeNode }) => void): boolean };
     const onChildrenReordered: { addListener(callback: (id: string, reorderInfo: { childIds: string[] }) => void): void;
+      removeListener(callback: (id: string, reorderInfo: { childIds: string[] }) => void): void;
       hasListener(callback: (id: string, reorderInfo: { childIds: string[] }) => void): boolean };
     /** The browser's own bookmark import (absent on some platforms). */
     const onImportBegan: { addListener(callback: () => void): void } | undefined;

@@ -268,3 +268,71 @@ describe('durable run recovery and user edits', () => {
   });
 
 });
+
+function positionEvents() {
+  function event<Args extends unknown[]>() {
+    const listeners = new Set<(...args: Args) => void>();
+    return { addListener: (fn: (...args: Args) => void) => { listeners.add(fn); },
+      removeListener: (fn: (...args: Args) => void) => { listeners.delete(fn); },
+      emit: (...args: Args) => { for (const fn of listeners) fn(...args); }, size: () => listeners.size };
+  }
+  const created = event<[string, ReturnType<typeof view>]>(), removed = event<[string, { parentId: string; index: number }]>();
+  const moved = event<[string, { parentId: string; index: number; oldParentId: string; oldIndex: number }]>();
+  const reordered = event<[string, { childIds: string[] }]>();
+  Object.assign(chrome.bookmarks, { onCreated: created, onRemoved: removed, onMoved: moved, onChildrenReordered: reordered });
+  const original = chrome.bookmarks.move;
+  vi.spyOn(chrome.bookmarks, 'move').mockImplementation(async (id, destination) => {
+    const before = view(id), after = await original(id, destination);
+    moved.emit(id, { parentId: after.parentId!, index: after.index!, oldParentId: before.parentId!, oldIndex: before.index! });
+    return after;
+  });
+  return { created, moved, empty: () => [created, removed, moved, reordered].every(item => item.size() === 0) };
+}
+
+it('moves and undoes 1000 bookmarks with one folder census per phase', async () => {
+  const events = positionEvents();
+  for (const id of tree.nodes.get('20')!.children!) tree.nodes.delete(id);
+  tree.nodes.get('20')!.children = [];
+  for (let i = 0; i < 1000; i++) add({ id: `scale-${i}`, parentId: '20', title: `Paper ${i}`, url: `https://arxiv.org/abs/${i}` });
+  const originalOrder = [...tree.nodes.get('20')!.children!], run = await preview();
+  const getChildren = vi.spyOn(chrome.bookmarks, 'getChildren');
+  const applied = await handleRunCommand({ kind: 'known.automation.browser.runApply', previewId: run.previewId });
+  expect(applied).toMatchObject({ result: { moved: 1000 } });
+  expect(getChildren).toHaveBeenCalledTimes(1); expect(events.empty()).toBe(true);
+  if (!applied.ok || !('result' in applied)) throw new Error('no result');
+  getChildren.mockClear();
+  const undone = await handleRunCommand({ kind: 'known.automation.browser.runUndo', runId: applied.result.runId });
+  expect(undone).toMatchObject({ result: { moved: 1000 } });
+  expect(getChildren).toHaveBeenCalledTimes(1); expect(events.empty()).toBe(true);
+  expect(tree.nodes.get('20')!.children).toEqual(originalOrder);
+}, 20000);
+
+it('refreshes an affected folder after an external bookmark arrives during a run', async () => {
+  const events = positionEvents();
+  let injected = false;
+  vi.spyOn(chrome.bookmarks, 'move').mockImplementation(async (id, destination) => {
+    const before = view(id), result = move(id, { ...destination, parentId: destination.parentId! });
+    events.moved.emit(id, { parentId: result.parentId!, index: result.index!, oldParentId: before.parentId!, oldIndex: before.index! });
+    if (!injected) {
+      injected = true;
+      add({ id: 'external', parentId: '30', title: 'External', url: 'https://example.test/' });
+      events.created.emit('external', view('external'));
+    }
+    return result;
+  });
+  const run = await preview(), getChildren = vi.spyOn(chrome.bookmarks, 'getChildren');
+  expect(await handleRunCommand({ kind: 'known.automation.browser.runApply', previewId: run.previewId }))
+    .toMatchObject({ result: { moved: 3 } });
+  expect(tree.nodes.get('30')!.children).toEqual(['p0', 'b1', 'external', 'b3', 'b4']);
+  expect(getChildren).toHaveBeenCalledTimes(2); expect(events.empty()).toBe(true);
+});
+
+it('releases temporary position listeners when durable intent storage fails', async () => {
+  const events = positionEvents(), run = await preview(), database = automationDatabase(), original = database.area();
+  vi.spyOn(database, 'area').mockReturnValue({ ...original, async set(key, value) {
+    if (key.startsWith('known.automation.browserRunItem.v1:')) throw new Error('storage unavailable');
+    return original.set(key, value);
+  } });
+  await expect(handleRunCommand({ kind: 'known.automation.browser.runApply', previewId: run.previewId })).rejects.toThrow('storage unavailable');
+  expect(parent('b1')).toBe('20'); expect(events.empty()).toBe(true);
+});

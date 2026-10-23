@@ -1,3 +1,4 @@
+import { createRunFolderPositions } from '../automation/run-folder-positions.js';
 import { classifyBookmarkApiFailure } from '../bookmark-api-error.js';
 import { assertBookmarkFolderAllowed } from '../bookmark-folder-policy.js';
 import { exclusionIds, isSubscriptionExcluded, personalBookmarks } from '../bookmark-subscriptions/guards.js';
@@ -73,6 +74,7 @@ async function apply(previewId: string): Promise<BrowserRuleResponse> {
   const journal: RunJournal = { runId: crypto.randomUUID(), startedAt: Date.now(), finishedAt: null, listRevision: stored.listRevision,
     scopeNativeId: stored.scopeNativeId, scopeTitle: stored.scopeTitle, undoneAt: null, items: [] };
   const log = journalStore(), items: JournalItem[] = [];
+  const positions = createRunFolderPositions();
   running = journal.runId;
   try {
     await log.create(journal, stored.moves.length);
@@ -84,18 +86,20 @@ async function apply(previewId: string): Promise<BrowserRuleResponse> {
       else if (current.parentId !== move.fromParentId || current.title !== move.title || current.url !== move.url)
         item = { ...item, state: 'skipped', reason: 'movedMeanwhile' };
       else {
-        item = { ...item, toIndex: (await chrome.bookmarks.getChildren(move.toParentId)).length };
+        item = { ...item, toIndex: await positions.count(move.toParentId) };
         // A worker stop before or after the native call leaves an intent that Undo can inspect.
         await log.write(journal.runId, item);
+        const settlePosition = positions.expectMove(current, { parentId: move.toParentId, index: item.toIndex! });
         try { await personalBookmarks.move(move.nativeId, { parentId: move.toParentId, index: item.toIndex }); }
         catch { /* A rejected native call can still have applied; inspect its effect before deciding. */ }
-        item = settleRunIntent(item, await node(move.nativeId));
+        const observed = await node(move.nativeId); settlePosition(observed);
+        item = settleRunIntent(item, observed);
       }
       await log.write(journal.runId, item);
       items.push(item);
     }
     await log.finish(journal.runId, { finishedAt: Date.now() });
-  } finally { running = null; }
+  } finally { positions.dispose(); running = null; }
   const count = (state: JournalItem['state'], reason?: JournalItem['reason']) => items.filter((item) => item.state === state && (!reason || item.reason === reason)).length;
   return { ok: true, result: { runId: journal.runId, moved: count('moved'), skipped: count('skipped') - count('skipped', 'missing'), missing: count('skipped', 'missing') } };
 }
@@ -103,32 +107,37 @@ async function apply(previewId: string): Promise<BrowserRuleResponse> {
 async function undo(runId: string): Promise<BrowserRuleResponse> {
   const log = journalStore(), journal = (await log.list()).find((item) => item.runId === runId);
   if (!journal) return { ok: false, error: 'notFound' };
-  let moved = 0, skipped = 0, missing = 0;
-  for (const original of [...journal.items].reverse()) {
-    let item = original;
-    const current = await node(item.nativeId);
-    if (item.state === 'moving' || item.state === 'undoing') {
-      item = settleRunIntent(item, current);
+  const positions = createRunFolderPositions();
+  try {
+    let moved = 0, skipped = 0, missing = 0;
+    for (const original of [...journal.items].reverse()) {
+      let item = original;
+      const current = await node(item.nativeId);
+      if (item.state === 'moving' || item.state === 'undoing') {
+        item = settleRunIntent(item, current);
+        await log.write(runId, item);
+      }
+      if (item.state !== 'moved' || item.kept) continue;
+      if (!current) { await log.write(runId, { ...item, kept: 'missing' }); missing += 1; continue; }
+      if (!matchesRunPosition(item, current, item.toParentId, item.toIndex)) {
+        await log.write(runId, { ...item, kept: 'changedSince' }); skipped += 1; continue;
+      }
+      let undoIndex: number;
+      try { undoIndex = Math.min(item.fromIndex, await positions.count(item.fromParentId)); }
+      catch { await log.write(runId, { ...item, kept: 'failed' }); skipped += 1; continue; }
+      item = { ...item, state: 'undoing', undoIndex };
       await log.write(runId, item);
+      const settlePosition = positions.expectMove(current, { parentId: item.fromParentId, index: undoIndex });
+      try { await personalBookmarks.move(item.nativeId, { parentId: item.fromParentId, index: undoIndex }); }
+      catch { /* Settle the durable intent from the observed location, including lost native replies. */ }
+      const observed = await node(item.nativeId); settlePosition(observed);
+      item = settleRunIntent(item, observed);
+      await log.write(runId, item);
+      if (item.state === 'undone') moved += 1; else skipped += 1;
     }
-    if (item.state !== 'moved' || item.kept) continue;
-    if (!current) { await log.write(runId, { ...item, kept: 'missing' }); missing += 1; continue; }
-    if (!matchesRunPosition(item, current, item.toParentId, item.toIndex)) {
-      await log.write(runId, { ...item, kept: 'changedSince' }); skipped += 1; continue;
-    }
-    let undoIndex: number;
-    try { undoIndex = Math.min(item.fromIndex, (await chrome.bookmarks.getChildren(item.fromParentId)).length); }
-    catch { await log.write(runId, { ...item, kept: 'failed' }); skipped += 1; continue; }
-    item = { ...item, state: 'undoing', undoIndex };
-    await log.write(runId, item);
-    try { await personalBookmarks.move(item.nativeId, { parentId: item.fromParentId, index: undoIndex }); }
-    catch { /* Settle the durable intent from the observed location, including lost native replies. */ }
-    item = settleRunIntent(item, await node(item.nativeId));
-    await log.write(runId, item);
-    if (item.state === 'undone') moved += 1; else skipped += 1;
-  }
-  await log.finish(runId, { undoneAt: Date.now() });
-  return { ok: true, result: { runId, moved, skipped, missing } };
+    await log.finish(runId, { undoneAt: Date.now() });
+    return { ok: true, result: { runId, moved, skipped, missing } };
+  } finally { positions.dispose(); }
 }
 
 export function handleRunCommand(command: BrowserRunCommand): Promise<BrowserRuleResponse> {
