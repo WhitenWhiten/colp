@@ -12,6 +12,7 @@ type AccountUser = {
 }
 
 type Props = {
+  activityAvailable?: boolean
   user: AccountUser
   open: boolean
   /** Parent coordinates mutual exclusion with the other nav menus. */
@@ -27,6 +28,7 @@ type Props = {
 /** Account dropdown in the top bar. Disclosure pattern (aria-expanded, no
    role="menu") — the same contract TopNav's chrome test pins. */
 export function AccountMenu({
+  activityAvailable = false,
   user,
   open,
   onToggle,
@@ -100,6 +102,12 @@ export function AccountMenu({
           >
             Settings
           </button>
+          {activityAvailable && (
+            /* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- native anchor closes this disclosure on Enter or click */
+            <Link to="/activity" onClick={onClose}>
+              Activity
+            </Link>
+          )}
           {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- react-router Link renders a native anchor; Enter fires onClick (close dropdown) natively */}
           <Link to="/approvals" onClick={onClose}>
             Approvals

@@ -12,6 +12,7 @@ import { useExitAnimation } from '../lib/useExitAnimation'
 import { useFocusTrap } from '../lib/useFocusTrap'
 import { appNav, isAppNavActive, isAuthPath, loginPath } from '../lib/chrome'
 import { useAutomationStatus } from '../lib/automationStatus'
+import { useActivityStatus } from '../lib/activityStatus'
 import { searchShortcutLabel } from '../lib/shortcutLabel'
 import { useSettingsDialog } from '../lib/useSettingsDialog'
 import { AccountMenu } from './topnav/AccountMenu'
@@ -70,6 +71,8 @@ export function TopNav() {
   /* Automations appear once the server says it has them; "Paused" rides on
      the entry so a paused library is visible from every page (AU-14). */
   const automation = useAutomationStatus(isLoggedIn ? user?.accountId ?? null : null)
+  const activity = useActivityStatus(isLoggedIn ? user?.accountId ?? null : null)
+  const activityAvailable = isLoggedIn && activity.state === 'available'
   const primaryNav = isLoggedIn ? appNav({ automations: automation.state === 'available', sync: !syncUnavailable }) : []
   const automationsPaused = automation.state === 'available' && automation.paused
   // Sign-in and sign-up pages link to each other in their cards already.
@@ -182,6 +185,20 @@ export function TopNav() {
             </nav>
           )}
           <div className="nav-actions">
+            {showChrome && activityAvailable && (
+              <button
+                type="button"
+                className="nav-activity"
+                onClick={() => navigate('/activity')}
+                aria-label={`Activity, ${activity.unreadCount} unread`}
+                aria-current={location.pathname === '/activity' ? 'page' : undefined}
+                onPointerEnter={() => prefetchRoute('/activity')}
+                onFocus={() => prefetchRoute('/activity')}
+              >
+                <Icon name="bell" />
+                {activity.unreadCount > 0 && <span className="count-pill" data-tone="accent" aria-hidden>{activity.unreadCount > 99 ? '99+' : activity.unreadCount}</span>}
+              </button>
+            )}
             {showSearch && (
               <button
                 type="button"
@@ -224,6 +241,7 @@ export function TopNav() {
 
             {isLoggedIn && user ? (
               <AccountMenu
+                activityAvailable={activityAvailable}
                 user={user}
                 open={accountOpen}
                 triggerRef={accountTriggerRef}
@@ -268,6 +286,7 @@ export function TopNav() {
 
         {menuMounted && showMenu && (
           <MobileDrawer
+            activityAvailable={activityAvailable}
             toolItems={toolItems}
             closing={menuClosing}
             onOpenSearch={() => {

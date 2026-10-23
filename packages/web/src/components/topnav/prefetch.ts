@@ -10,6 +10,7 @@ const prefetchers: Record<string, () => void> = {
   '/register': () => { void import('../../pages/SelfHostedRegister') },
   '/agents': () => { void import('../../pages/Agents') },
   '/automations': () => { void import('../../pages/Automations') },
+  '/activity': () => { void import('../../pages/Activity') },
 }
 
 export function prefetchRoute(to: string) {

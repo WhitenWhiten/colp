@@ -1,0 +1,156 @@
+/* Activity follows the Automations list anatomy: paper, hairlines, and
+   restrained state colour. Long agent names and titles wrap on phones. */
+@layer pages {
+.activity-toolbar {
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--space-6);
+}
+
+.activity-feed {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.activity-day {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.activity-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.activity-list > li + li {
+  border-top: 1px solid var(--line);
+}
+
+.activity-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--hair-85);
+  padding: var(--hair-125);
+}
+
+.activity-icon {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+}
+
+.activity-item[data-unread='true'] .activity-icon {
+  color: var(--accent-ink);
+  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.activity-item .activity-icon[data-kind='run_attention'],
+.activity-item .activity-icon[data-kind='run_partial'] {
+  color: var(--warning);
+}
+
+.activity-item .activity-icon[data-kind='run_failed'] {
+  color: var(--danger);
+}
+
+.activity-body {
+  display: grid;
+  gap: var(--hair-40);
+  min-width: 0;
+}
+
+.activity-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--hair-40) var(--hair-65);
+}
+
+.activity-item-head h3 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-body);
+  overflow-wrap: anywhere;
+}
+
+.activity-title {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.activity-title:hover {
+  color: var(--accent-ink);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.activity-samples {
+  display: grid;
+  gap: var(--hair-35);
+  list-style: none;
+  margin: var(--hair-40) 0 0;
+  padding: 0 0 0 var(--hair-85);
+  border-left: 1px solid var(--line-strong);
+  font-size: var(--text-sm);
+  line-height: var(--leading-copy);
+}
+
+.activity-samples li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--hair-20) var(--hair-65);
+  overflow-wrap: anywhere;
+}
+
+.activity-host,
+.activity-folder-count {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.activity-folders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-40) var(--hair-85);
+  margin: var(--hair-40) 0 0;
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.activity-folders > span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--hair-30);
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.activity-folders svg {
+  align-self: center;
+  flex-shrink: 0;
+}
+
+.activity-folders a:hover {
+  color: var(--ink);
+}
+
+@media (max-width: 639px) {
+  .activity-item {
+    padding: var(--hair-85);
+    gap: var(--hair-65);
+  }
+}
+}

@@ -5,6 +5,7 @@ import { prefetchRoute } from './prefetch'
 import type { ToolItem } from './ToolsMenu'
 
 type Props = {
+  activityAvailable?: boolean
   toolItems: readonly ToolItem[]
   /** Exit phase: plays the drawer lift before unmount. */
   closing: boolean
@@ -18,6 +19,7 @@ type Props = {
    (Sign in sits in the bar). Route changes close it via the parent (TopNav
    resets on pathname). */
 export function MobileDrawer({
+  activityAvailable = false,
   toolItems,
   closing,
   onOpenSearch,
@@ -63,6 +65,7 @@ export function MobileDrawer({
       <div className="mobile-drawer-section mobile-account-section">
         <span className="mobile-drawer-label">Account</span>
         <div className="mobile-drawer-grid">
+          {activityAvailable && <NavLink to="/activity" onPointerEnter={() => prefetchRoute('/activity')} onFocus={() => prefetchRoute('/activity')}>Activity</NavLink>}
           <NavLink to="/approvals">Approvals</NavLink>
           <button
             type="button"

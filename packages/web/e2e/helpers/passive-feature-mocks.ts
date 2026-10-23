@@ -36,7 +36,7 @@ export async function fulfillPassiveFeatureRequest(route: Route): Promise<boolea
   }
   /* The nav asks once whether this server has automations; the concealed
      answer keeps the Automations entry out of every other spec's chrome. */
-  if (path === '/api/v1/me/automations/pause') {
+  if (path === '/api/v1/me/automations/pause' || path === '/api/v1/me/activity/summary') {
     await json(route, { error: { code: 'resource_not_found', message: 'Not found', recovery: 'user_action' } }, 404)
     return true
   }
