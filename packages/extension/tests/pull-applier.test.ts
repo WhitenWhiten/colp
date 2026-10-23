@@ -663,7 +663,7 @@ async function setup(crash?: string, omitNodeMappings = false) {
       content: { title: colpId, url: 'https://example.test/' } } });
   await store.putMapping(scope, mapping('native-root', 'root-colp'));
   if (!omitNodeMappings) { await store.putMapping(scope, mapping('native-node', 'node-1', 'native-root'));
-    await store.putMapping(scope, mapping('native-child', 'node-child', 'native-node')); }
+    await store.putMapping(scope, mapping('native-child', 'node-child', 'native-root')); }
   // B3-1: the device double is the shared honest one. `node-1` is declared a bookmark, so it must
   // be a Chrome leaf - seeding `native-child` under it was only representable by a lenient
   // `remove`, and the SR-02 anchor test below needs a real `Can't find bookmark for id.` rejection.

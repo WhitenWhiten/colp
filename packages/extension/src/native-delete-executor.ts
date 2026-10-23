@@ -10,6 +10,7 @@ import {
 import { readOpenSyncIssues, issueAncestry, dependsOnIssue } from './sync-issues.js';
 import { nativeContent } from './pull-projection.js';
 import { unqueuedNativeContentFields } from './pull-native-content-barrier.js';
+import { hasPendingLocalMove } from './pull-queue-facts.js';
 import { classifyNativeCallFacts } from './native-call-result.js';
 import type { PullBookmarkApi } from './pull-applier-types.js';
 import { isNonChromeNativeId, isProtectedNativeRoot, mayMutateNative } from './pull-mount-apply.js';
@@ -22,6 +23,7 @@ import type {
 
 type Store = Pick<ReturnType<typeof createSyncStateStore>,
   'getApplyIntent' | 'getMappingByNativeId' | 'getLocalSyncExclusion' | 'listQueue' | 'listPullIssues' | 'listLocalIssues' | 'listMappings'
+  | 'listQueueByTarget' | 'listBookmarkEventsByNative' | 'pullOperationsCovered'
   | 'prepareDeleteMembers' | 'saveDeleteMember' | 'listRemoteDeleteDecisions' | 'listApplyIntents' | 'getPullEvent' | 'getScope' | 'getMappingByColpId'>;
 
 export interface DeleteMember {
@@ -87,13 +89,25 @@ export async function executeRemoteDeleteMembers(input: {
   const issues = await readOpenSyncIssues(input.store, input.scope, { excludeDeleteEventId: intent?.eventId });
   const privateRoots = (await input.store.getScope(input.scope))?.privateRoots ?? [];
   const ancestry = issueAncestry([...await input.store.listMappings(input.scope), ...input.mappings], issues.queue);
+  const localMoves = new Set<string>();
+  // Discover moved ancestors before the bottom-up delete reaches their children.
+  for (const mapping of input.mappings) {
+    if (!memberNative.has(mapping.nativeId) || isNonChromeNativeId(mapping.nativeId)) continue;
+    if (await hasPendingLocalMove(input.store, input.scope, mapping)) localMoves.add(mapping.colpId);
+    if (mapping.parentNativeId !== undefined) {
+      const looked = await lookupBookmark(id => input.api.get(id), mapping.nativeId);
+      if (looked.class === 'present' && looked.nodes[0]?.parentId !== mapping.parentNativeId) localMoves.add(mapping.colpId);
+      else if (looked.class !== 'present' && looked.class !== 'not_found') throw deleteFailure(looked);
+    }
+  }
   for (const row of order) {
     const prior = results[row.colpId];
     if (prior && TERMINAL.has(prior)) continue;
     if (isNonChromeNativeId(row.nativeId)) { await saveResult(row, 'absent'); continue; }
     // G4: a bookmark with a change set aside on this browser is never deleted for
     // the server; it stays in place, outside sync, and its folder stays with it.
-    if (issues.nativeRoots.has(row.nativeId) || dependsOnIssue([row.colpId], issues.roots, ancestry)) {
+    if (issues.nativeRoots.has(row.nativeId) || dependsOnIssue([row.colpId], issues.roots, ancestry)
+      || dependsOnIssue([row.colpId], localMoves, ancestry)) {
       await saveResult(row, 'retained');
       continue;
     }
@@ -130,7 +144,8 @@ export async function executeRemoteDeleteMembers(input: {
       ...(current.url === undefined ? {} : { url: current.url }),
       ...(current.parentId === undefined ? {} : { parentId: current.parentId }),
     } });
-    if (!mapping || Object.keys(unqueuedNativeContentFields(current,
+    if (!mapping || mapping.parentNativeId !== undefined && current.parentId !== mapping.parentNativeId
+      || Object.keys(unqueuedNativeContentFields(current,
       nativeContent(mapping.projection.content ?? {}), {})).length > 0) {
       await saveResult(row, 'retained');
       continue;

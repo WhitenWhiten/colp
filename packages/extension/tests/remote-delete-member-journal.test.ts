@@ -17,6 +17,54 @@ async function fixture() {
   return { store, indexedDB };
 }
 
+for (const captured of ['uncaptured', 'inbox', 'queue']) test(`a locally moved member survives remote deletion (${captured})`, async () => {
+  const { store } = await fixture();
+  try {
+    const mapping: MappingInput = { nativeId: 'n0', colpId: 'moved', nodeKind: 'bookmark',
+      parentNativeId: captured === 'uncaptured' ? 'deleted-folder' : 'new-parent', rootNativeId: 'root',
+      projection: { revision: 'r', digest: 'sha256:moved', content: { title: 'Moved', url: 'https://example.test/' } } };
+    await store.putMapping(scope, mapping);
+    if (captured === 'inbox') await store.stageBookmarkEvent(scope, { eventId: 'local-move', dedupeKey: 'local-move',
+      kind: 'move', nativeId: 'n0', occurredAt: '2026-10-22T00:00:00Z',
+      details: { draft: { type: 'move_node', targetId: 'moved', payload: { newParentId: 'new-parent' } } } });
+    if (captured === 'queue') await store.allocateSequenceAndEnqueue(scope, {
+      opId: 'local-move', batchId: 'batch', idempotencyKey: 'local-move', digest: 'sha256:move',
+      endpointIdentity: 'syncPush', mediaType: 'application/json', status: 'pending',
+      baseRevision: 'r', operationRevision: 'local-move',
+      retry: { attempt: 0, notBefore: 0 },
+      payload: { type: 'move_node', targetId: 'moved', payload: { newParentId: 'new-parent' } },
+    }, { allowUnstamped: true });
+    let deleted = false;
+    const api = { get: async () => [{ id: 'n0', parentId: 'new-parent', title: 'Moved', url: 'https://example.test/' }],
+      getChildren: async () => [], remove: async () => { deleted = true; } } as unknown as PullBookmarkApi;
+    const outcome = await executeRemoteDeleteMembers({ store, scope, api, mounts: [], intentId: 'delete',
+      members: [{ nativeId: 'n0', colpId: 'moved' }], mappings: [mapping], writable: true });
+    assert.equal(deleted, false);
+    assert.deepEqual(outcome.retainedNativeIds, ['n0']);
+  } finally { await store.close(); }
+});
+
+test('children of a locally moved folder survive a bottom-up remote subtree deletion', async () => {
+  const { store } = await fixture();
+  try {
+    const mappings: MappingInput[] = [
+      { nativeId: 'n0', colpId: 'folder', rootNativeId: 'root', nodeKind: 'folder', parentNativeId: 'deleted-parent',
+        projection: { revision: 'r', digest: 'sha256:folder', content: { title: 'Folder' } } },
+      { nativeId: 'child', colpId: 'child-colp', rootNativeId: 'root', nodeKind: 'bookmark', parentNativeId: 'n0',
+        projection: { revision: 'r', digest: 'sha256:child', content: { title: 'Child', url: 'https://example.test/' } } },
+    ];
+    for (const mapping of mappings) await store.putMapping(scope, mapping);
+    const nodes = [{ id: 'n0', parentId: 'new-parent', title: 'Folder' },
+      { id: 'child', parentId: 'n0', title: 'Child', url: 'https://example.test/' }];
+    const api = { get: async (id: string) => nodes.filter(node => node.id === id),
+      getChildren: async (id: string) => nodes.filter(node => node.parentId === id),
+      remove: async () => { assert.fail('moved subtree must not be deleted'); } } as unknown as PullBookmarkApi;
+    const outcome = await executeRemoteDeleteMembers({ store, scope, api, mounts: [], intentId: 'delete',
+      members: mappings.map(({ nativeId, colpId }) => ({ nativeId, colpId })), mappings, writable: true });
+    assert.deepEqual([...outcome.retainedNativeIds].sort(), ['child', 'n0']);
+  } finally { await store.close(); }
+});
+
 test('large deletes resume after restart with bounded records and one delete per member', async () => {
   const f = await fixture(); let store = f.store;
   const nodes = new Map<string, { id: string; parentId: string; title: string; url: string }>();

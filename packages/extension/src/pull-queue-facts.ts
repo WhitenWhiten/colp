@@ -10,6 +10,22 @@ export async function queueHasPendingTarget(store: Store, scope: SyncScope, colp
   return rows.some((row) => row.payload.targetId === colpId && LIVE_QUEUE.has(row.status));
 }
 
+export async function hasPendingLocalMove(store: Store, scope: SyncScope,
+  mapping: { readonly colpId: string; readonly nativeId: string }): Promise<boolean> {
+  const moves = (await store.listQueueByTarget(scope, mapping.colpId)).filter(row =>
+    row.payload.type === 'move_node' && row.status !== 'rejected' && row.echoApplied !== true
+    && row.recovery?.resultStatus !== 'rejected');
+  const covered = new Set(await store.pullOperationsCovered(scope, moves.map(row => row.opId)));
+  if (moves.some(row => !covered.has(row.opId))) return true;
+  let ordinal = 0;
+  for (;;) {
+    const page = await store.listBookmarkEventsByNative(scope, mapping.nativeId, ordinal, 1_000);
+    if (page.some(event => event.status === 'pending' && event.kind === 'move')) return true;
+    if (page.length < 1_000) return false;
+    ordinal = page.at(-1)!.ordinal;
+  }
+}
+
 /** Native fields authored by local work, including drafts not yet assigned a Sequence.
  * Queue and inbox rows come from the target indexes. Echo and conflict coverage is a
  * per-op fact or terminal event, not a scan of retained Pull history. */

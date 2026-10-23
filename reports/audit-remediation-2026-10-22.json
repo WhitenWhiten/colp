@@ -25,7 +25,8 @@
         "Reproduced two natives after denied Ack and reissued foreign create",
         "71 relevant tests pass; applied digest evidence survives pruning and rejects changed operation bytes; later local edits survive",
         "Extension TypeScript, targeted ESLint and source-size gate pass"
-      ]
+      ],
+      "commit": "35da8569"
     },
     {
       "id": "sync-04",
@@ -35,7 +36,12 @@
     {
       "id": "sync-05",
       "title": "retain pending local moves during remote subtree deletion",
-      "status": "pending"
+      "status": "resolved",
+      "validation": [
+        "Reproduced deletion of a locally moved member before capture and while queued in the inbox",
+        "87 related tests pass, including queued moves, moved ancestor descendants, ordinary remote deletion, barriers and restart journals",
+        "Extension TypeScript, targeted ESLint and source-size gate pass"
+      ]
     },
     {
       "id": "sync-06",
