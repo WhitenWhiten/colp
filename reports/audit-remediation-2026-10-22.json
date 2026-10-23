@@ -413,7 +413,23 @@
       ],
       "limitations": [
         "Validation was local; hosted GitHub Actions execution requires a push. The separate coverage-floor and formal verification findings remain open."
-      ]
+      ],
+      "reviewFollowUp": {
+        "date": "2026-10-23",
+        "regressions": [
+          "Hosted CI on 8cfef73c failed: the extension job ran model-derived vectors without building the Lean sync_export executable; the 20,000-node capacity case (42.9 minutes locally) hit its 45-minute limit.",
+          "Not every retained spec passed: the pins popup spec raced the picker the popup opens itself (since 62ca549b), the stale-move spec still expected the revision denial sync-09 removed, and the selected-subfolder reconnect journey was regressed by sync-19 (see sync-18 reviewFollowUp)."
+        ],
+        "changes": [
+          "CI installs pinned elan v4.2.4 (checksum verified) and builds sync_export before the model vectors (74bb67ae).",
+          "The capacity measurement is opt-in through evidence:bookmark-subscriptions:capacity, not part of the required browser job (74bb67ae).",
+          "Pins and stale-move specs follow current product semantics (3d7d18cc); the reconnect regression is fixed in fd60dcd3."
+        ],
+        "validation": [
+          "Lean exporter build and all 24 model-derived assertions pass locally; workflow contract suites in extension, node, server and web pass.",
+          "Pins (3) and stale-move browser specs pass under xvfb."
+        ]
+      }
     },
     {
       "id": "tests-04",
@@ -1024,7 +1040,32 @@
         "Parent identity, node kind and exact title/URL now bind structural matches; true custom browser roots retain their separate eligibility rules",
         "238 assertions in all 26 matcher/coordinator consumer suites pass; TypeScript, targeted lint and source-size gate pass; the complete real Chromium selected-subfolder reconnect journey passes, including preserved canonical/native ids and later coverage expansion."
       ],
-      "commit": "a10f3ee2"
+      "commit": "a10f3ee2",
+      "reviewFollowUp": {
+        "date": "2026-10-23",
+        "regressions": [
+          "sync-19 (2bea6054) marks Snapshot rows outside every resolved mount `unmounted:`. On reconnect the new selected-subfolder mount is still pending, so the existing parent, folder and bookmark rows became `unmounted:`; bootstrap excluded every `unmounted:` mapping from its remote facts and uploaded all three again.",
+          "The selected-subfolder reconnect browser journey had not been rerun after sync-19; CI shard 3 of 8cfef73c failed with three duplicate canonical nodes. Bisected to 2bea6054."
+        ],
+        "changes": [
+          "Bootstrap remote facts keep live `unmounted:` mappings pairable. Only a tombstone observation proves the remote node gone (the kept-local copy after a remote delete), the same liveness rule rejoin materialization uses.",
+          "Merge bootstrap never downloads unpaired remote-only nodes, so sync-19 still keeps another profile’s unselected root out of this browser.",
+          "A blanket “skip the coverage constraint while a mount is unresolved” guard was tried and rejected: it reintroduced the sync-19 two-profile download."
+        ],
+        "evidence": [
+          "packages/extension/src/bootstrap/coordinator-operations.ts",
+          "packages/extension/src/bootstrap/coordinator.ts",
+          "packages/extension/tests/bootstrap-boundary-regressions.test.ts",
+          "packages/extension/e2e/mv3-first-sync-from-ui.spec.ts",
+          "packages/extension/e2e/mv3-bookmark-roots.spec.ts"
+        ],
+        "validation": [
+          "New unit regression: a live `unmounted:` mapping yields a remote fact; a tombstoned one does not.",
+          "238 assertions in 36 bootstrap, coordinator, matcher, first-run, advanced, rejoin, range and merge suites pass; extension TypeScript, changed-file ESLint and source-size gate pass.",
+          "Real Chromium under xvfb: all 26 cases in mv3-first-sync-from-ui (including the selected-subfolder reconnect without duplicate uploads), mv3-bookmark-roots (including the sync-19 two-profile isolation and 12/28 to 28/28 coverage expansion), mv3-first-run-sync (merge with fork and duplicate candidates), mv3-remote-delete-policy (keep-local does not re-upload), mv3-personal-sync-lifecycle and mv3-trash-restore pass; browsers, services and PostgreSQL containers exit."
+        ],
+        "commit": "fd60dcd3"
+      }
     },
     {
       "id": "sync-19",
