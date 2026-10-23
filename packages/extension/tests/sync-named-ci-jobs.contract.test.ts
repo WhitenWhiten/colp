@@ -1,5 +1,6 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readFileSync, readdirSync } from 'node:fs';
+import { relative, resolve } from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 import { describe, expect, it } from 'vitest';
 
@@ -56,9 +57,38 @@ describe('Extension named Sync CI owners [SYNC-Q-021]', () => {
       expect(workflow).toContain('- extension-sync-real-stack');
     });
 
-  it('keeps the multi-device recovery spec out of the default gate', () => {
-    expect(packageJson.scripts?.['evidence:critical-mv3:inner'])
-      .not.toContain('mv3-multi-device-recovery.spec.ts');
-    expect(workflow).not.toContain('mv3-multi-device-recovery');
+  it('runs the complete browser inventory and model vectors in required CI jobs', () => {
+    const job = workflow.split('  extension-browser:')[1]?.split(/\n  [a-z]/u)[0] ?? '';
+    expect(job).toContain('shard: [1, 2, 3, 4, 5, 6]');
+    expect(job).toContain('npm run test:e2e:inner -- --shard=${{ matrix.shard }}/6');
+    expect(packageJson.scripts?.['test:e2e:inner']).toContain('node scripts/with-xvfb.mjs');
+    expect(packageJson.scripts?.['test:e2e:inner']).toContain('--project=core');
+    expect(packageJson.scripts?.['test:e2e:self-hosted']).toContain('with-self-hosted-browser.mjs');
+    expect(packageJson.scripts?.['test:e2e:self-hosted']).toContain('--project=self-hosted');
+    expect(workflow).toContain('run: npm run test:e2e:self-hosted');
+    expect(job).toContain('BS_CAPACITY_NODES: 20000');
+    expect(workflow).toContain('run: npm run test:sync-model');
+    const gate = workflow.slice(workflow.indexOf('  ci-gate:'));
+    expect(gate).toContain('- extension-browser');
+    expect(gate).toContain('${{ needs.extension-browser.result }}');
+    expect(gate).toContain('"$EXTENSION_BROWSER_RESULT"');
+    expect(gate).toContain('- self-hosted-browser');
+    expect(gate).toContain('${{ needs.self-hosted-browser.result }}');
+    expect(gate).toContain('"$SELF_HOSTED_BROWSER_RESULT"');
   });
+
+  it('Playwright independently collects every on-disk browser spec, including multi-device recovery', () => {
+    const root = resolve(packageRoot, 'e2e');
+    const files = readdirSync(root, { recursive: true }).map(String).filter(file => file.endsWith('.spec.ts')).sort();
+    const report = JSON.parse(execFileSync(process.execPath, [resolve(packageRoot, 'scripts/with-xvfb.mjs'),
+      process.execPath, resolve(packageRoot, 'node_modules/@playwright/test/cli.js'),
+      'test', '--list', '--reporter=json'], { cwd: packageRoot, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 })) as {
+        errors: unknown[]; config: { rootDir: string }; suites: Array<{ file: string }>;
+      };
+    expect(report.errors).toEqual([]);
+    const collected = [...new Set(report.suites.map(suite => relative(root, resolve(report.config.rootDir, suite.file))))].sort();
+    expect(collected).toEqual(files);
+    expect(collected).toContain('mv3-multi-device-recovery.spec.ts');
+    expect(collected).toContain('mv3-sync-resilience.spec.ts');
+  }, 30_000);
 });

@@ -4,10 +4,11 @@ import { chromium, expect, test } from '@playwright/test';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { openExtensionOptions } from './extension-auth.js';
+import { openExtensionOptions, showOptionsPane } from './extension-auth.js';
 test('AC-11 compares actual shared controls and checks capture layouts at all planned widths', async () => {
+  test.setTimeout(120_000);
   const webOrigin = process.env.KNOWN_CAPTURE_WEB_ORIGIN;
-  test.skip(!webOrigin, 'Set KNOWN_CAPTURE_WEB_ORIGIN to the running Web client for visual parity evidence.');
+  if (!webOrigin) throw new Error('Run npm run test:e2e:self-hosted for the disposable real web application.');
   const profile = await mkdtemp(resolve(tmpdir(), 'known-capture-visual-')), extension = resolve(import.meta.dirname, '../dist/production');
   const evidence = resolve(import.meta.dirname, '../test-results/automatic-bookmark-capture');
   await mkdir(evidence, { recursive: true });
@@ -15,33 +16,37 @@ test('AC-11 compares actual shared controls and checks capture layouts at all pl
     args: ['--no-sandbox', `--disable-extensions-except=${extension}`, `--load-extension=${extension}`] });
   try {
     const { page } = await openExtensionOptions(context), web = await context.newPage();
-    await web.goto(`${webOrigin}/login`); await expect(web.locator('input[type=email]').first()).toBeVisible();
+    await web.goto(`${webOrigin}/login`); await expect(web.locator('#login-identifier')).toBeVisible();
+    await page.locator('#nav-account').click();
     await page.setViewportSize({ width: 768, height: 900 }); await web.setViewportSize({ width: 768, height: 900 });
     await page.screenshot({ animations: 'disabled', path: resolve(evidence, 'extension-auth-controls.png'), fullPage: true });
     await web.screenshot({ animations: 'disabled', path: resolve(evidence, 'web-auth-controls.png'), fullPage: true });
-    const metrics = async (surface: typeof page) => surface.locator('input[type=email]').first().evaluate(node => {
+    const metrics = async (surface: typeof page, selector: string) => surface.locator(selector).evaluate(node => {
       const style = getComputedStyle(node); return { fontFamily: style.fontFamily, fontSize: style.fontSize, color: style.color,
         borderColor: style.borderColor, borderRadius: style.borderRadius, background: style.backgroundColor };
     });
-    const controls = { extension: await metrics(page), web: await metrics(web) };
+    const controls = { extension: await metrics(page, '#login-email'), web: await metrics(web, '#login-identifier') };
     expect(controls.extension.borderRadius).toBe(controls.web.borderRadius);
     expect(controls.extension.color).toBe(controls.web.color);
     for (const width of [1440, 1024, 768, 390, 320]) {
       await page.setViewportSize({ width, height: 900 });
       // History, Saving settings and Help & diagnostics: the same reflow contract at every width.
-      await page.locator('#nav-history').click();
+      await showOptionsPane(page, 'history');
       await expect(page.locator('[data-capture-view=history]')).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
-      await page.locator('#nav-saving').click();
+      await showOptionsPane(page, 'saving');
       await expect(page.locator('#bookmark-preferences')).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
-      await page.locator('#nav-help').click();
+      await showOptionsPane(page, 'help');
+      if (!await page.locator('#saving-statistics').evaluate(node => (node as HTMLDetailsElement).open)) {
+        await page.locator('#saving-statistics > summary').click();
+      }
       for (const view of ['overview', 'diagnostics']) await expect(page.locator(`[data-capture-view=${view}]`)).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
       await page.screenshot({ animations: 'disabled', path: resolve(evidence, `diagnostics-${width}.png`), fullPage: true });
     }
     await page.setViewportSize({ width: 768, height: 900 });
-    await page.locator('#nav-saving').click();
+    await showOptionsPane(page, 'saving');
     await page.bringToFront(); await page.evaluate(() => { document.title = 'Known capture visual zoom'; });
     const run = promisify(execFile); let windowId = '';
     await expect.poll(async () => { try { const windows = await run('xdotool', ['search', '--name', 'Known capture visual zoom']); windowId = windows.stdout.trim().split('\n').at(-1)!; return Boolean(windowId); } catch { return false; } }).toBe(true);

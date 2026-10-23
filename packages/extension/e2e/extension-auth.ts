@@ -36,7 +36,8 @@ export async function openExtensionOptions(
   if (existing) await page.waitForLoadState('domcontentloaded'); else await gotoOptions(page, '', extensionId);
   await expect(page.locator('#login-form')).toBeAttached();
   // Let the install-opened document consume the welcome flag before replacing it.
-  await expect.poll(() => page.evaluate(async () => (await chrome.storage.local.get('known.onboarding.installed.v1'))['known.onboarding.installed.v1'] ?? 'gone'))
+  await expect.poll(() => page.evaluate(async () => (await chrome.storage.local.get('known.onboarding.installed.v1'))['known.onboarding.installed.v1'] ?? 'gone'),
+    { timeout: 30_000 })
     .toBe('gone');
   // A hash-only navigation retains the first document's async onboarding redirect.
   // That redirect can also win between goto() and reload(), reloading Bookmarks.

@@ -140,9 +140,13 @@ npm run test:e2e:local-first   # browser tests, run under xvfb on Linux
 npm run test:e2e            # everything, against COLP Server in a temporary Postgres
 ```
 
-The unit and browser tests import `packages/server`, so run `npm ci` there too. Browser tests run a real Chromium
-and must run under xvfb (`scripts/with-xvfb.mjs`). A few specs cover Know-N-only features (capture, classification,
-credits, digests); they skip unless `scripts/with-know-n-backend.mjs` points the harness at a Know-N backend. `npm run shots` renders the
+The unit and browser tests import `packages/server`, so run `npm ci` there too; cross-application browser fixtures also require `npm ci` in `packages/web`. Browser tests run a real Chromium
+and must run under xvfb (`scripts/with-xvfb.mjs`). The required `extension-browser` CI job runs every core spec across six shards, including multi-device recovery and subscription capacity.
+The `self-hosted-browser` job runs the cross-application and layout specs against the production CLI and built Web application, with a disposable database and owner; `npm run test:e2e:self-hosted` runs it locally. It closes the application and removes the database even when a browser test fails. No external server or saved owner credentials are required.
+
+Four inherited cloud-only specs (capture apply, credits ledger, Product classification, and the billed cloud/local classification comparison) are retired with the server modules they imported. The shipped local-provider path remains covered by `mv3-manual-classification.spec.ts` and disclosure/security tests. The old mixed cloud-classification/placement spec is replaced by its signed-out offline placement case; real placement and recovery specs remain. The inherited Digest-edition browser journey depended on Know-N’s report reader, which this server does not ship; its replacement verifies explicit capability denial and zero native or remote writes. Digest projection semantics remain in the subscription unit suites. Favicon capture, replay, policy and clear tests run against the restored self-hosted helper. The multi-device recovery test now owns two real Chromium profiles and a PostgreSQL fixture instead of requiring a private external runner.
+
+`npm run shots` renders the
 options pages and popup with a stubbed browser API for visual review.
 
 ## Languages

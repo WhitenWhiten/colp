@@ -23,6 +23,7 @@ test('automatic popup removes an existing bookmark and restores it through Undo'
     await grantOptionalBookmarks(options, 'Allow bookmark access', 'Known existing bookmark removal');
     const bookmark = await options.evaluate(async url => {
       const folder = await chrome.bookmarks.create({ parentId: '1', title: 'Original location' });
+      await chrome.storage.local.set({ 'known.sync.folder.v1': { collectionId: 'device', folderNativeId: folder.id } });
       const node = await chrome.bookmarks.create({ parentId: folder.id, title: 'Already saved', url });
       return node;
     }, pageUrl);
@@ -34,7 +35,11 @@ test('automatic popup removes an existing bookmark and restores it through Undo'
     const active = await context.newPage(); await active.goto(pageUrl);
     const popup = await capturePopupTarget(context, profile, active);
     await expect.poll(() => popup.evaluate<string>('document.body.dataset.captureMode')).toBe('automatic');
-    await expect.poll(() => popup.evaluate<boolean>('document.getElementById("remove-bookmark")?.hidden')).toBe(false);
+    await expect.poll(async () => {
+      const state = await popup.evaluate<{ removeHidden: boolean; existing: string; text: string }>(
+        '({removeHidden:document.getElementById("remove-bookmark")?.hidden,existing:document.body.dataset.existing,text:document.body.innerText.slice(0,1500)})');
+      return state.removeHidden ? JSON.stringify(state) : 'editable';
+    }).toBe('editable');
     async function click(id: string) {
       const point = await popup.evaluate<{ x: number; y: number }>(`(() => { const r=document.getElementById(${JSON.stringify(id)}).getBoundingClientRect(); return {x:r.x+r.width/2,y:r.y+r.height/2}; })()`);
       await popup.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });

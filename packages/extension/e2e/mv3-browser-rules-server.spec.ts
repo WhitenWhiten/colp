@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
 import { gotoOptions, openExtensionOptions, waitForLibraryBinding, showOptionsPane } from './extension-auth.js';
+import type { RuleDraft } from '../src/automation/rule-conditions.js';
 
 /**
  * AC-73 against a real colp-server (browser rules follow-up L3). Nothing is
@@ -22,7 +23,7 @@ const extension = resolve(import.meta.dirname, '../dist/production');
 test.use({ trace: 'off', actionTimeout: 20_000 });
 
 test('a browser rule moves to the account through the web editor and retires when the account’s copy arrives', async () => {
-  test.skip(!origin || !user || !password, 'Set COLP_AW_ORIGIN, COLP_AW_USER and COLP_AW_PASSWORD');
+  if (!origin || !user || !password) throw new Error('Run npm run test:e2e:self-hosted for an isolated owner server.');
   test.setTimeout(300_000);
   const dir = await mkdtemp(resolve(tmpdir(), 'colp-aw-l3-profile-'));
   const context = await chromium.launchPersistentContext(dir, { headless: false, channel: 'chromium',
@@ -43,7 +44,8 @@ test('a browser rule moves to the account through the web editor and retires whe
     });
     const name = `arXiv to Papers ${Date.now()}`;
     expect(await page.evaluate((draft) => chrome.runtime.sendMessage({ kind: 'known.automation.browser.save', draft }),
-      { name, combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }], folderNativeId: papers.id })).toMatchObject({ ok: true });
+      { name, combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }],
+        action: { kind: 'file', folderNativeId: papers.id } } satisfies RuleDraft)).toMatchObject({ ok: true });
 
     // "Add to your account" appears once the folder is on the server.
     await gotoOptions(page, '#automations');
@@ -63,7 +65,7 @@ test('a browser rule moves to the account through the web editor and retires whe
     expect(opened.searchParams.get('from')).toBe('browser');
     await expect(editor.getByTestId('automation-from-browser')).toBeVisible({ timeout: 20_000 });
     await expect(editor.locator('#automation-name')).toHaveValue(name);
-    await expect(editor.locator('#automation-folder option:checked')).toHaveText(/Papers/u);
+    await expect(editor.getByRole('button', { name: /^Folder .*Papers$/u })).toBeVisible();
     await expect(row).toContainText('Moving');
 
     // The Owner previews it and turns it on.
@@ -100,34 +102,38 @@ async function connect(page: Page): Promise<void> {
   let attempt = 0;
   await grantOptionalBookmarks(page, page.locator('#login-email'), 'COLP server permission',
     { origins: [`${origin}/*`] }, async () => { await page.locator('#server-origin').fill(`${origin}${attempt++ % 2 ? '/' : ''}`); });
+  await expect.poll(() => page.evaluate(async () => (await chrome.storage.local.get('runtimeServerOrigin')).runtimeServerOrigin),
+    { timeout: 25_000 }).toBe(origin);
+  await expect(page.locator('#server-origin')).toBeEnabled();
   await page.locator('#login-email').fill(user!);
   await page.locator('#login-password').fill(password!);
   await page.locator('#login-submit').click();
   await expect(page.locator('body')).toHaveAttribute('data-state', 'connected', { timeout: 25_000 });
 }
 
-/** A new collection made on the web; the browser's session is shared with the extension, or signed in here. */
+/** Discover the owner's single library through the real web session. */
 async function createCollection(web: Page): Promise<string> {
-  await web.goto(`${origin}/library/new`);
+  await web.goto(`${origin}/library`);
   if (new URL(web.url()).pathname === '/login') {
     await web.locator('#login-identifier').fill(user!);
     await web.locator('#login-password').fill(password!);
     await web.getByRole('button', { name: 'Sign in', exact: true }).click();
     await expect(web).not.toHaveURL(/\/login/u);
-    await web.goto(`${origin}/library/new`);
+    await web.goto(`${origin}/library`);
   }
-  await web.locator('#cc-title').fill(`Browser rules ${Date.now()}`);
-  await web.getByRole('button', { name: 'Create', exact: true }).click();
-  await expect(web).toHaveURL(/\/library\/(?!new$)[^/?]+$/u);
-  const id = new URL(web.url()).pathname.split('/').at(-1)!;
+  const id = await web.evaluate(async () => {
+    const response = await fetch('/api/v1/me/library', { headers: { accept: 'application/json' } });
+    if (!response.ok) throw new Error(`Library discovery failed (${response.status})`);
+    const result = await response.json() as { id: string; library: boolean };
+    if (!result.library || !result.id) throw new Error('Owner library missing');
+    return result.id;
+  });
   await web.close();
   return id;
 }
 
 async function firstSync(page: Page, collection: string): Promise<void> {
-  // The list was read at sign-in, before the collection existed.
-  await showOptionsPane(page, 'sync-center');
-  await page.locator('#refresh-collections').click();
+  // The owner's library binds automatically at sign-in.
   await waitForLibraryBinding(page, collection);
   await showOptionsPane(page, 'folders');
   const start = page.locator('#first-run-start');

@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import { startRealStack } from './real-stack.js';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
 import { installFixtureReplicaBinding, openExtensionOptions, signInExtension, showOptionsPane } from './extension-auth.js';
+import { KNS08_BINDINGS, confirmFirstRun, waitFirstRunProductQuiet } from './kns-08-harness.js';
 
 const EXTENSION_ID = 'pplpnpegpnghcddhmpgkbfkdfadjiaen';
 const extensionPath = resolve(import.meta.dirname, '../dist/production');
@@ -17,11 +18,10 @@ test('production MV3 commits a real Netscape import durably and refresh does not
       `--host-resolver-rules=${stack.browserHostResolverRules}`,
       '--no-proxy-server', '--ignore-certificate-errors'] });
   try {
-    const page = await extensionPage(context); await login(page, stack.extensionBinding);
+    const page = await extensionPage(context); await login(page, KNS08_BINDINGS[0]);
     await showOptionsPane(page, 'folders');
     await grantOptionalBookmarks(page, 'Allow bookmark access', 'Known P3-35 import');
-    const rootId = (await page.evaluate(() => chrome.bookmarks.getTree()))[0]!.children![0]!.id;
-    await evidence(page, 'configureDurableEngineEvidence', rootId);
+    await initializeImportSync(page, stack);
     await showOptionsPane(page, 'import');
     await page.locator('#import-native').click();
     await expect(page.locator('#import-preview')).toBeVisible();
@@ -46,7 +46,7 @@ test('production MV3 commits a real Netscape import durably and refresh does not
     await expect(page.locator('#import-progress')).toBeVisible();
     await expect.poll(async () => { await evidence(page, 'wakeDurableEngineEvidence');
       const value = await evidence<any>(page, 'bookmarkImportStatus'); const durable = await evidence<any>(page, 'exportOutboundPushEvidence');
-      const observed = await stack.observations() as any;
+      const observed = await stack.observations(KNS08_BINDINGS[0].replicaId) as any;
       const done = value.progress.terminal + value.progress.skipped === value.progress.total;
       return done && value.state === 'complete' ? 'complete' : JSON.stringify({ state: value.state, progress: value.progress,
         queue: durable.queue.map((item: any) => ({ sequence: item.sequence, status: item.status, retryAttempt: item.retry.attempt,
@@ -55,7 +55,7 @@ test('production MV3 commits a real Netscape import durably and refresh does not
           lastPushResponses: observed.pushResponses.slice(-3) } }); },
     { timeout: 60_000 }).toBe('complete');
     const before = await evidence<any>(page, 'exportOutboundPushEvidence');
-    const serverBefore = await stack.observations() as any;
+    const serverBefore = await stack.observations(KNS08_BINDINGS[0].replicaId) as any;
     expect(before.importPlans).toHaveLength(1); expect(before.importNodes.length).toBeGreaterThan(0);
     expect(before.queue.every((item: any) => Number.isSafeInteger(item.sequence) && item.opId)).toBe(true);
     const skipped = before.importNodes.filter((node: any) => node.choice === 'skip');
@@ -88,7 +88,7 @@ test('production MV3 commits a real Netscape import durably and refresh does not
     await expect.poll(async () => (await evidence<any>(page, 'bookmarkImportStatus')).state).toBe('complete');
     await evidence(page, 'wakeDurableEngineEvidence');
     const after = await evidence<any>(page, 'exportOutboundPushEvidence');
-    const serverAfter = await stack.observations() as any;
+    const serverAfter = await stack.observations(KNS08_BINDINGS[0].replicaId) as any;
     expect(new Set(after.queue.map((item: any) => item.opId)).size).toBe(after.queue.length);
     expect(serverAfter.canonicalNodes.length).toBe(serverBefore.canonicalNodes.length);
     expect(serverAfter.sequenceReceipts.length).toBe(serverBefore.sequenceReceipts.length);
@@ -103,18 +103,17 @@ test('pauses mid-import, survives worker restart and lost push, then resumes the
       `--host-resolver-rules=${stack.browserHostResolverRules}`,
       '--no-proxy-server', '--ignore-certificate-errors'] });
   try {
-    const page = await extensionPage(context); await login(page, stack.extensionBinding);
+    const page = await extensionPage(context); await login(page, KNS08_BINDINGS[0]);
     await showOptionsPane(page, 'folders');
     await grantOptionalBookmarks(page, 'Allow bookmark access', 'Known P1-06 import');
-    const rootId = (await page.evaluate(() => chrome.bookmarks.getTree()))[0]!.children![0]!.id;
-    await evidence(page, 'configureDurableEngineEvidence', rootId);
+    await initializeImportSync(page, stack);
     await stack.commitAfterDisconnect();
     await commitNetscapeFixture(page);
     await expect(page.locator('#import-progress')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();
-    await expect.poll(async () => ((await stack.observations()) as any).pushRequests.length, { timeout: 40_000 })
+    await expect.poll(async () => ((await stack.observations(KNS08_BINDINGS[0].replicaId)) as any).pushRequests.length, { timeout: 40_000 })
       .toBeGreaterThan(0);
-    const lost = await stack.observations() as any;
+    const lost = await stack.observations(KNS08_BINDINGS[0].replicaId) as any;
     const lostPush = lost.pushRequests[0] as { fingerprint: string; body: string };
     const lostOpId = pushOpId(lostPush.body);
     expect(typeof lostOpId).toBe('string');
@@ -154,7 +153,7 @@ test('pauses mid-import, survives worker restart and lost push, then resumes the
         ? 'complete' : JSON.stringify({ state: value.state, progress: value.progress, planId: value.planId });
     }, { timeout: 60_000 }).toBe('complete');
     const finished = await evidence<any>(page, 'exportOutboundPushEvidence');
-    const server = await stack.observations() as any;
+    const server = await stack.observations(KNS08_BINDINGS[0].replicaId) as any;
     expect(finished.importPlans[0].planId).toBe(planId);
     expect(finished.importNodes.map((node: any) => node.opId)).toEqual(opIds);
     expect(new Set(finished.queue.map((item: any) => item.opId)).size).toBe(finished.queue.length);
@@ -193,9 +192,10 @@ test('options import remains keyboard-operable and coherent at 320px', async ({}
     await expect(email).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath('options-desktop.png'), fullPage: true });
     await page.setViewportSize({ width: 320, height: 720 }); await page.bringToFront();
-    await email.focus(); await expect(email).toBeFocused();
+    await email.focus(); await page.keyboard.press('Tab'); await page.keyboard.press('Shift+Tab');
+    await expect(email).toBeFocused();
     expect(await email.evaluate((element) => { const style = getComputedStyle(element);
-      return style.outlineStyle !== 'none' && Number.parseFloat(style.outlineWidth) > 0; })).toBe(true);
+      return style.boxShadow !== 'none' || style.outlineStyle !== 'none' && Number.parseFloat(style.outlineWidth) > 0; })).toBe(true);
     const layout = await page.evaluate(() => ({ innerWidth: window.innerWidth,
       scrollWidth: document.documentElement.scrollWidth, overflow: Array.from(document.querySelectorAll<HTMLElement>('body *'))
         .filter((element) => element.getBoundingClientRect().right > window.innerWidth + 0.5)
@@ -209,6 +209,11 @@ test('options import remains keyboard-operable and coherent at 320px', async ({}
 
 async function extensionPage(context: BrowserContext) {
   return (await openExtensionOptions(context)).page;
+}
+async function initializeImportSync(page: Page, stack: Awaited<ReturnType<typeof startRealStack>>) {
+  const barTitle = await page.evaluate(async () => (await chrome.bookmarks.getTree())[0]!.children![0]!.title);
+  await confirmFirstRun(page, [barTitle]);
+  await waitFirstRunProductQuiet(page, stack, KNS08_BINDINGS[0]);
 }
 async function login(page: Page, binding: import('./real-stack.js').FixtureReplicaBinding) { await installFixtureReplicaBinding(page, binding); await signInExtension(page); }
 async function evidence<T = unknown>(page: Page, method: string, ...args: unknown[]): Promise<T> { const result = await page.evaluate(

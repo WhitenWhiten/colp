@@ -338,8 +338,9 @@ function quietLabel(facts: ScopeFacts, firstRun: boolean): string {
 
 export async function waitQueueQuiet(page: Page, stack: RealStack, binding: ProfileBinding, timeout = 90_000,
   resume?: { readonly previewId: string; readonly confirmationId: string }): Promise<ScopeFacts> {
+  let facts = await scopeFacts(page, stack, binding);
   await expect.poll(async () => {
-    let facts = await scopeFacts(page, stack, binding);
+    facts = await scopeFacts(page, stack, binding);
     if (quietLabel(facts, Boolean(resume)) === 'quiet') return 'quiet';
     await drainBookmarkEvents(page);
     await wakeEngine(page);
@@ -351,7 +352,7 @@ export async function waitQueueQuiet(page: Page, stack: RealStack, binding: Prof
     }
     return quietLabel(facts, Boolean(resume));
   }, { timeout }).toBe('quiet');
-  return scopeFacts(page, stack, binding);
+  return facts;
 }
 
 /** First-run settled via product status + snapshot. Does not re-confirm or evidence-wake. */

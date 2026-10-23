@@ -88,7 +88,9 @@ test('custom HTTP server: permission, username login, cookie persistence and dis
     await expect.poll(() => restored.page.evaluate(async () => (await chrome.storage.local.get('runtimeServerOrigin')).runtimeServerOrigin)).toBeUndefined();
     expect(await context.cookies(origin)).toEqual([]);
     expect(await restored.page.evaluate(url => chrome.permissions.contains({ origins: [`${url}/*`] }), origin)).toBe(false);
-    await expect(restored.page.locator('#server')).toHaveText('https://know-n.com');
+    const configuredOrigin = await restored.page.evaluate(async () =>
+      (await fetch(chrome.runtime.getURL('generated-config.json')).then(response => response.json())).serverOrigin as string);
+    await expect(restored.page.locator('#server')).toHaveText(configuredOrigin);
   } finally {
     await context?.close(); server.closeAllConnections();
     await new Promise<void>(resolve => server.close(() => resolve()));

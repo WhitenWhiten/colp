@@ -86,7 +86,7 @@ describe('Extension Sync coverage ratchet [SYNC-Q-021]', () => {
   });
 
   it('wires V8 coverage, the Sync include list, and the named CI job', () => {
-    expect(packageJson.devDependencies?.['@vitest/coverage-v8']).toBe('4.1.11');
+    expect(packageJson.devDependencies?.['@vitest/coverage-v8']).toMatch(/^\d+\.\d+\.\d+$/u);
     expect(packageJson.devDependencies?.vitest).toBe(packageJson.devDependencies?.['@vitest/coverage-v8']);
     expect(packageJson.scripts?.['test:coverage:sync']).toBe(
       'vitest run --config vitest.sync-coverage.config.ts --coverage && node scripts/check-sync-coverage-ratchet.mjs',

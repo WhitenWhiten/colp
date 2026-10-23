@@ -15,15 +15,21 @@ test('a guest discovers local import directly and from cloud setup, including re
     await page.goto(`chrome-extension://${EXTENSION_ID}/options.html#bookmarks`);
     await expect(page.locator('#side-name')).toHaveText('Not signed in');
     await page.locator('#manager-import').click();
-    await expect(page.locator('#local-import-file')).toBeVisible();
-    await expect(page).toHaveURL(/#bookmarks\?section=import/);
-    await page.locator('#local-import > summary').click();
+    await expect(page.locator('#local-import-dialog')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Choose file…', exact: true })).toBeVisible();
+    await expect(page).toHaveURL(/#bookmarks$/);
+    await page.locator('#local-import-close').click();
+    await page.goto(`chrome-extension://${EXTENSION_ID}/options.html#bookmarks?section=import`);
+    await expect(page.locator('#local-import-dialog')).toBeVisible();
+    await page.locator('#local-import-close').click();
     await page.locator('#manager-import').click();
-    await expect(page.locator('#local-import-file')).toBeVisible();
+    await expect(page.locator('#local-import-dialog')).toBeVisible();
+    await page.locator('#local-import-close').click();
     await page.locator('#nav-sync').click();
     await expect(page.locator('#sync-connect')).toContainText('without an account');
-    await page.getByRole('link', { name: 'Import into this browser', exact: true }).click();
-    await expect(page.locator('#local-import-file')).toBeVisible();
+    await page.locator('#nav-bookmarks').click();
+    await page.locator('#manager-import').click();
+    await expect(page.locator('#local-import-dialog')).toBeVisible();
     expect(await page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.auth.status' }))).toMatchObject({ state: { status: 'signed_out' } });
   } finally { await context.close(); await rm(profile, { recursive: true, force: true }); }
 });

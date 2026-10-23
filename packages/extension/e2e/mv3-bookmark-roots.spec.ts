@@ -31,6 +31,7 @@ const profileBindings = {
   b: { replicaId: 'replica-root-management-b', browserProfileId: 'profile-root-management-b', generation: '1' as const },
 };
 let stack: RealStack | undefined;
+test.use({ actionTimeout: 20_000 });
 
 test.beforeEach(async () => { stack = await startRealStack(); });
 test.afterEach(async () => { await stack?.close(); stack = undefined; });
@@ -75,8 +76,7 @@ test('optional bookmark permission revokes and recovers real root authority with
 
     await grantBookmarkPermission(page);
     await expectPermission(page, true);
-    await expect(page.getByRole('checkbox', { name: 'Work', exact: true })).toBeChecked();
-    await expect(page.getByRole('checkbox', { name: `Exclude ${PRIVATE_TITLE} from Know-N sync`, exact: true })).toBeChecked();
+    await expectSelectedWithExclusion(page, 'Work', PRIVATE_TITLE);
     const recovered = await evidenceRequest(page, 'exportScope', scope);
     expect(privateAuthority(recovered)).toEqual(privateAuthority(before));
     expect(recovered.scope.rootStatus).toBe('ready');
@@ -148,8 +148,9 @@ test('two persistent Chromium profiles retain isolated root authorities and arch
     const restartedViewA = await getRootView(pageA); const restartedViewB = await getRootView(pageB);
     const restartedTokenA = restartedViewA.roots.find((root) => root.title === 'Profile A root')!.ref;
     const restartedTokenB = restartedViewB.roots.find((root) => root.title === 'Profile B root')!.ref;
-    expect(await updateWithToken(pageA, restartedViewA.viewId, tokenA)).toEqual({ ok: false, error: 'request_invalid' });
-    expect(await updateWithToken(pageB, restartedViewB.viewId, tokenB)).toEqual({ ok: false, error: 'request_invalid' });
+    expect(restartedTokenA).toBe(tokenA); expect(restartedTokenB).toBe(tokenB);
+    expect(await updateWithToken(pageA, viewA.viewId, tokenA)).toEqual({ ok: false, error: 'request_invalid' });
+    expect(await updateWithToken(pageB, viewB.viewId, tokenB)).toEqual({ ok: false, error: 'request_invalid' });
     expect(await updateWithToken(pageB, restartedViewB.viewId, restartedTokenA)).toEqual({ ok: false, error: 'request_invalid' });
     expect(await updateWithToken(pageA, restartedViewA.viewId, restartedTokenB)).toEqual({ ok: false, error: 'request_invalid' });
 
@@ -167,13 +168,13 @@ test('two persistent Chromium profiles retain isolated root authorities and arch
       replicaId: profileBindings.b.replicaId, rootStatus: 'ready' });
     expect(exportA.scope.selectedRoots).toHaveLength(1); expect(exportA.scope.privateRoots).toHaveLength(1);
     expect(exportB.scope.selectedRoots).toHaveLength(1); expect(exportB.scope.privateRoots).toHaveLength(1);
-    // Snapshot metadata also tracks the collection root and unmounted remote
-    // roots. Only the selected/private roots may have real Chrome identities.
+    // Structural ancestors retain identity along with the selected root and
+    // the excluded local root; its descendants must never become upload work.
     const nativeIds = (value: { mappings: Array<{ nativeId: string }> }) => value.mappings
       .filter((mapping) => !/^(recovery|unmounted):/u.test(mapping.nativeId))
       .map((mapping) => mapping.nativeId).sort();
-    expect(nativeIds(exportA)).toEqual([fixtureA.selected, fixtureA.privateRoot].sort());
-    expect(nativeIds(exportB)).toEqual([fixtureB.selected, fixtureB.privateRoot].sort());
+    expect(nativeIds(exportA)).toEqual([(await specialRoots(pageA)).barId, fixtureA.selected, fixtureA.privateRoot].sort());
+    expect(nativeIds(exportB)).toEqual([(await specialRoots(pageB)).barId, fixtureB.selected, fixtureB.privateRoot].sort());
     expect(privateAuthority(exportA)).not.toEqual(privateAuthority(exportB));
 
     await showOptionsPane(pageA, 'account');
@@ -239,6 +240,7 @@ test('stale folder tokens fail closed after the native tree changes', async () =
       const tree = await chrome.bookmarks.getTree();
       return (await chrome.bookmarks.create({ parentId: tree[0]!.children![0]!.id, title: 'Stale boundary' })).id;
     });
+    const authorityBefore = (await evidenceRequest(page, 'exportScope', scopeFor(profileBindings.main))).scope.selectedRoots;
     await page.getByRole('button', { name: 'Refresh folders' }).click();
     await page.getByRole('checkbox', { name: 'Stale boundary', exact: true }).check();
     await page.evaluate(async (id) => { await chrome.bookmarks.create({ parentId: id, title: 'Tree changed' }); }, folderId);
@@ -246,7 +248,8 @@ test('stale folder tokens fail closed after the native tree changes', async () =
     await expect(page.locator('#root-alert-copy, #root-feedback').filter({ hasText: /could not be loaded|Folder tree changed/i })).toBeVisible();
     // A refused token reads as a failed load: the alert offers Retry, which reads the tree again.
     await page.locator('#root-retry').click();
-    await expect(page.getByRole('checkbox', { name: 'Stale boundary', exact: true })).not.toBeChecked();
+    await expect(page.getByRole('checkbox', { name: 'Stale boundary', exact: true })).toBeChecked();
+    expect((await evidenceRequest(page, 'exportScope', scopeFor(profileBindings.main))).scope.selectedRoots).toEqual(authorityBefore);
   } finally { await context.close(); }
 });
 
@@ -345,20 +348,18 @@ async function finishFirstRun(page: Page, selectedTitles: readonly string[], exc
 async function configure(page: Page, selectedTitle: string, privateTitle: string) {
   await finishFirstRun(page, [selectedTitle], [privateTitle]);
   await page.getByRole('button', { name: 'Refresh folders' }).click();
-  await page.getByRole('checkbox', { name: selectedTitle, exact: true }).check();
-  await page.getByRole('checkbox', { name: `Exclude ${privateTitle} from Know-N sync`, exact: true }).check();
-  await page.getByRole('button', { name: 'Review changes' }).click();
-  const confirm = page.getByRole('button', { name: 'Confirm folder changes' });
-  await expect(confirm).toBeVisible({ timeout: 15_000 });
-  await confirm.click();
-  await expect(page.getByText('Folder settings saved')).toBeVisible();
+  await expectSelectedWithExclusion(page, selectedTitle, privateTitle);
 }
 async function expectConfigured(page: Page, selectedTitle: string, privateTitle: string) {
   await showOptionsPane(page, 'account');
   await expect(page.locator('body')).toHaveAttribute('data-state', 'connected', { timeout: 15_000 });
   await showOptionsPane(page, 'folders');
-  await expect(page.getByRole('checkbox', { name: selectedTitle, exact: true })).toBeChecked();
-  await expect(page.getByRole('checkbox', { name: `Exclude ${privateTitle} from Know-N sync`, exact: true })).toBeChecked();
+    await expectSelectedWithExclusion(page, selectedTitle, privateTitle);
+}
+async function expectSelectedWithExclusion(page: Page, selectedTitle: string, privateTitle: string) {
+  const parent = page.getByRole('checkbox', { name: selectedTitle, exact: true });
+  await expect.poll(() => parent.evaluate(input => (input as HTMLInputElement).indeterminate)).toBe(true);
+  await expect(page.getByRole('checkbox', { name: privateTitle, exact: true })).not.toBeChecked();
 }
 async function permissionState(page: Page) {
   return page.evaluate(() => chrome.permissions.contains({ permissions: ['bookmarks'] }));

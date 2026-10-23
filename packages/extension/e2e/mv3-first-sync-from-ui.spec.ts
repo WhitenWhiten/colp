@@ -193,7 +193,7 @@ test('a directly selected subfolder survives reload and reconnect without duplic
     await expect(later).toBeEnabled();
     await later.check();
     await page.locator('#save-roots').click();
-    await expect(page.locator('#range-preview-totals')).toContainText('1 added');
+    await expect(page.locator('#range-preview-totals')).toContainText('1 folder and 10 bookmarks will start syncing.');
     await page.locator('#range-confirm').click();
     await expect(page.locator('#range-preview')).toBeHidden();
     await expect(page.locator('#sync-progress')).toBeVisible({ timeout: 5_000 });

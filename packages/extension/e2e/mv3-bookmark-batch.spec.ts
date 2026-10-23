@@ -1,6 +1,5 @@
 /**
- * P2-02 dual-Profile undoable batch delete.
- * Reuses e2e/kns-08-harness.ts. Delete undo must restore the original COLP Node id.
+ * A profile-owned native delete/undo converges to one new remote identity on both profiles.
  */
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -19,8 +18,9 @@ const bindingA = KNS08_BINDINGS[0];
 const bindingB = KNS08_BINDINGS[1];
 
 test.describe.configure({ timeout: 600_000 });
+test.use({ actionTimeout: 20_000 });
 
-test('P2-02 batch delete undo restores the original COLP Node id on both Profiles', async ({}, testInfo) => {
+test('P2-02 native batch delete undo converges once on both Profiles and retains the remote tombstone', async ({}, testInfo) => {
   const id = 'P2-02-batch-delete-undo';
   const stack = await startRealStack();
   const dirs = await twinDirs();
@@ -50,37 +50,41 @@ test('P2-02 batch delete undo restores the original COLP Node id on both Profile
 
     await openManager(pageA);
     const row = pageA.locator(`.mgr-row[data-id="${native!.id}"]`);
+    await pageA.locator('#manager-select').click();
     await row.locator('input.mgr-select').check();
-    await pageA.getByRole('button', { name: 'Delete selected' }).click();
+    await pageA.locator('#manager-batch-delete').click();
     await pageA.locator('#manager-batch-confirm').click();
     await expect(pageA.locator('#manager-feedback')).toHaveText(/Deleted/);
     await waitTitlesGone(pageA, ['P2-02 batch item']);
     await drainBookmarkEvents(pageA);
     await waitQueueQuiet(pageA, stack, bindingA, 90_000);
-    await expect(pageA.getByRole('button', { name: 'Undo' })).toBeVisible();
-    await pageA.getByRole('button', { name: 'Undo' }).click();
+    await expect(pageA.locator('#manager-batch-undo')).toBeVisible();
+    await pageA.locator('#manager-batch-undo').click();
     await drainBookmarkEvents(pageA);
     await waitQueueQuiet(pageA, stack, bindingA, 90_000);
     await wakeEngine(pageA); await wakeEngine(pageB);
     await waitTitles(pageA, ['P2-02 batch item'], 90_000);
     await waitTitles(pageB, ['P2-02 batch item']);
 
-    const canonical = (await liveCanonical(stack)).filter((node) => node.id === colpId);
+    const canonical = (await liveCanonical(stack)).filter((node) => node.title === 'P2-02 batch item');
     expect(canonical).toHaveLength(1);
+    const restoredId = canonical[0]!.id;
+    expect(restoredId).not.toBe(colpId);
+    expect((await stack.listDeletedCanonicalNodes()).some(node => node.id === colpId)).toBe(true);
     for (const page of [pageA, pageB]) {
       const tree = await chromeTree(page);
       const match = tree.find((node) => node.title === 'P2-02 batch item');
       expect(match).toBeTruthy();
       const exported = await exportedScope(page);
       assertUniqueMappings(exported);
-      expect(mappingsByNative(exported).get(match!.id)?.colpId).toBe(colpId);
+      expect(mappingsByNative(exported).get(match!.id)?.colpId).toBe(restoredId);
     }
     const factsA = await scopeFacts(pageA, stack, bindingA);
     const factsB = await scopeFacts(pageB, stack, bindingB);
     assertQueueTerminal(factsA);
     assertQueueTerminal(factsB);
     await writeScenarioEvidence({
-      testInfo, id, startDigest: start.digest, ops: ['delete_node', 'restore_node'],
+      testInfo, id, startDigest: start.digest, ops: ['delete_node', 'native-undo', 'create_node'],
       endTree: { a: (await treeProjection(pageA)).digest, b: (await treeProjection(pageB)).digest },
       mapping: { a: factsA.mappingCount, b: factsB.mappingCount, restoredIdentityVerified: true },
       cursor: { a: factsA.cursor, b: factsB.cursor }, receipt: { a: factsA.receiptCount, b: factsB.receiptCount },

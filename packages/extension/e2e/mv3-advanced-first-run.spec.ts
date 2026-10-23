@@ -8,7 +8,7 @@ import {
   KNS08_BINDINGS, PUBLIC_URL, assertQueueTerminal, captureReplayFacts, collectLogs, evidence,
   grantBookmarks, launchPersistent, liveCanonical, liveTitles, login, optionsPage, saveReplayFixture,
   screenshotRedacted, scopeFacts, specialRoots, startRealStack, terminateWorker, waitEngineReady,
-  waitFirstRunProductQuiet, waitTitles, waitTitlesGone, writeScenarioEvidence, sha, type ProfileBinding, type RealStack,
+  waitFirstRunProductQuiet, waitQueueQuiet, waitTitles, waitTitlesGone, writeScenarioEvidence, sha, type ProfileBinding, type RealStack,
 } from './kns-08-harness.js';
 
 test.describe.configure({ timeout: 600_000 });
@@ -82,7 +82,8 @@ test('P1-01 upload uses the UI, lists cloud deletions, and resumes after lost re
     expect(treeB.titles).toContain('P1 unselected sentinel');
     expect((await liveTitles(stack)).filter((title) => title === 'P1 local bookmark')).toHaveLength(1);
     expect((await liveTitles(stack)).some((title) => title === 'P1 unselected sentinel')).toBe(false);
-    const factsA = await scopeFacts(pageA, stack, bindingA); const factsB = await scopeFacts(pageB2, stack, bindingB);
+    const factsA = await waitQueueQuiet(pageA, stack, bindingA);
+    const factsB = await waitQueueQuiet(pageB2, stack, bindingB);
     assertQueueTerminal(factsA); assertQueueTerminal(factsB);
     const exportedB = await evidence<Record<string, unknown>>(pageB2, 'exportOutboundPushEvidence');
     const mapping = records(exportedB.mappings).find((row) => row.nativeId === local.bookmarkId);

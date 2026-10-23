@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 import { ackEnvelope } from '../src/sync-engine-wire.js';
 import { confirmNativeWait, projectNativeWaits } from '../src/native-wait.js';
 import { setupT02, reopenT02, t02Scope as scope } from '../tests/srg-t02-native-harness.js';
@@ -64,7 +64,13 @@ for (const trace of vectors.traces) test(`Lean/IDB lockstep: ${trace.name}`, asy
         });
         if (result.ok) await f.applier.resume();
         else assert.ok(['generation_mismatch', 'request_invalid'].includes(result.code), result.code);
-      } else if (a.kind === 'prune') await f.store.prunePullHistory(scope, 1);
+      } else if (a.kind === 'prune') {
+        // The model abstracts time. Its prune transition starts after the
+        // listener correlation grace period; fresh intents remain protected.
+        const intents = await f.store.listApplyIntents(scope);
+        const now = vi.spyOn(Date, 'now').mockReturnValue(Math.max(Date.now(), ...intents.map(intent => intent.expiresAt)) + 1);
+        try { await f.store.prunePullHistory(scope, 1); } finally { now.mockRestore(); }
+      }
       else f = await reopenT02(f);
       assert.deepEqual(await observe(f), checkpoint.expected, `${trace.name}, step ${index}: ${JSON.stringify(a)}`);
     }

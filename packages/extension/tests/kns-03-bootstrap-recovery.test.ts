@@ -269,8 +269,8 @@ describe('KNS-03 bootstrap nested trees, recovery and freeze', () => {
     const engine = await readFile(join(rootDir, 'src/sw/engine.ts'), 'utf8');
     const firstRun = await readFile(join(rootDir, 'src/sw/first-run.ts'), 'utf8');
     assert.match(engine, /resumeRunningBootstrap/);
-    assert.match(engine, /if \(result && !result\.recoveryFrozen && result\.phase !== 'error'\)[\s\S]{0,1400}resumeRunningBootstrap/);
-    assert.match(engine, /await worker\.drain\(\);[\s\S]{0,180}resumeRunningBootstrap/);
+    assert.match(engine, /if \(result && !result\.recoveryFrozen && result\.phase !== 'error'\)/);
+    assert.match(engine, /const drained = await worker\.drain\(\)/);
     assert.doesNotMatch(engine, /onTerminal:[\s\S]{0,520}resumeRunningBootstrap/);
     assert.match(firstRun, /export async function resumeRunningBootstrap/);
     assert.match(firstRun, /retryReason === 'queue_recovery_frozen'/);

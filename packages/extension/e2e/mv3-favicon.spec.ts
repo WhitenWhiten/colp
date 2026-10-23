@@ -27,16 +27,12 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { startRealStack } from './real-stack.js';
-import { KNOW_N_BACKEND_ONLY, knowNBackendRoot } from './cloud-product-fixtures.js';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
 import { installFixtureReplicaBinding, openExtensionOptions, signInExtension } from './extension-auth.js';
 import { FIXTURE_COLLECTION_ID } from './fixture-ids.js';
 
 const extensionPath = resolve(import.meta.dirname, '../dist/production');
 const SITE_URL = 'https://known.example/site.html';
-
-// Capture, classification, credits and the favicon helper are Know-N backend routes.
-test.skip(!knowNBackendRoot, KNOW_N_BACKEND_ONLY);
 
 test('captures a real favicon through the built MV3 + real backend helper and persists server rows', async () => {
   test.setTimeout(180_000);
@@ -54,7 +50,7 @@ test('captures a real favicon through the built MV3 + real backend helper and pe
     await site.goto(SITE_URL, { waitUntil: 'domcontentloaded' });
     await site.bringToFront();
     await waitForTabFavicon(page);
-    await nativeSave(page);
+    await nativeSave(page, bar);
     await expect.poll(async () => {
       const rows = await evidence<any>(page, 'exportFaviconSidecarEvidence') as any[];
       return rows.filter((row) => row.collectionId === FIXTURE_COLLECTION_ID).length;
@@ -91,7 +87,7 @@ test('offline drain keeps the sidecar and posts it once the browser is online ag
     await waitForTabFavicon(page);
     // Go offline immediately after the save materializes the sidecar, before
     // the engine's scheduled drain can reach the helper.
-    await nativeSave(page);
+    await nativeSave(page, bar);
     await context.setOffline(true);
     await expect.poll(async () => {
       const rows = await evidence<any>(page, 'exportFaviconSidecarEvidence') as any[];
@@ -145,7 +141,7 @@ test('manual protection: a real policy none command makes the next automatic cap
     await site.goto(SITE_URL, { waitUntil: 'domcontentloaded' });
     await site.bringToFront();
     await waitForTabFavicon(page);
-    await nativeSave(page);
+    await nativeSave(page, bar);
     await expect.poll(async () => {
       const rows = await evidence<any>(page, 'exportFaviconSidecarEvidence') as any[];
       return rows.filter((row) => row.collectionId === FIXTURE_COLLECTION_ID).length;
@@ -180,7 +176,7 @@ test('clear leg: the clear consumer DELETEs the auto-captured binding from the r
     await site.goto(SITE_URL, { waitUntil: 'domcontentloaded' });
     await site.bringToFront();
     await waitForTabFavicon(page);
-    await nativeSave(page);
+    await nativeSave(page, bar);
     await expect.poll(async () => {
       const rows = await evidence<any>(page, 'exportFaviconSidecarEvidence') as any[];
       return rows.filter((row) => row.collectionId === FIXTURE_COLLECTION_ID).length;
@@ -200,7 +196,7 @@ test('clear leg: the clear consumer DELETEs the auto-captured binding from the r
     // icon" button sends, driven over the real bookmark native id. The
     // sidecar row is already gone (the drain posted it), so the native id
     // comes from the real bookmark tree.
-    const matches = await page.evaluate(() => chrome.bookmarks.search({ url: SITE_URL }));
+    const matches = await page.evaluate(url => chrome.bookmarks.search({ url }), SITE_URL);
     const nativeId = matches[0]?.id as string | undefined;
     expect(nativeId).toBeTruthy();
     const cleared = await page.evaluate(
@@ -246,7 +242,11 @@ async function waitForTabFavicon(page: Page) {
     .then((tabs) => tabs[0]?.favIconUrl ?? '')), { timeout: 30_000 }).toContain('known.example');
 }
 /** Real SW native save (the same handler the context-menu save drives). */
-async function nativeSave(page: Page) {
+async function nativeSave(page: Page, parentNativeId: string) {
+  // Saving now requires an explicit configured folder; it has no implicit root destination.
+  await page.evaluate(({ collectionId, folderNativeId }) => chrome.storage.local.set({
+    'known.sync.folder.v1': { collectionId, folderNativeId },
+  }), { collectionId: FIXTURE_COLLECTION_ID, folderNativeId: parentNativeId });
   const result = await page.evaluate(async () => {
     const response = await chrome.runtime.sendMessage(
       { kind: 'known.save.native', entry: 'page', userGesture: true });

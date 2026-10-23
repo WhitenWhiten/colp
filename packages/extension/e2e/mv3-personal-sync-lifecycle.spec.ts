@@ -180,7 +180,7 @@ test('Pause survives browser restart, reconciles edits on both sides, and discon
   } finally { await context?.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
 });
 
-test('metadata opt-out holds an immutable old retry until user-confirmed reset archives it', async () => {
+test('metadata opt-out preserves an immutable unknown retry and refuses reset before its outcome settles', async () => {
   test.setTimeout(120000);
   const stack = await startRealStack(), profile = await mkdtemp(resolve(tmpdir(), 'known-metadata-queue-'));
   let context: BrowserContext | undefined;
@@ -239,17 +239,17 @@ test('metadata opt-out holds an immutable old retry until user-confirmed reset a
     expect(await page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.sync.attention.get' }))).toMatchObject({ ok: true, attention: { terminal: true, terminalCode: 'metadata_sync_disabled' } });
     await showOptionsPane(page, 'sync-center');
     await expect(page.locator('#sync-attention-settings-terminal-copy')).toContainText('not allowed to sync', { timeout: 12000 });
-    await page.getByRole('button', { name: 'Reset sync on this device', exact: true }).click();
-    await Promise.all([page.waitForEvent('load'), page.getByRole('button', { name: 'Reset sync', exact: true }).click()]);
-    await expect(page.locator('body')).toHaveAttribute('data-pane', 'sync');
-    await expect.poll(() => page.evaluate(() => chrome.storage.local.get('known.auth.binding.v1').then(values =>
-      (values['known.auth.binding.v1'] as { replicaId?: string })?.replicaId))).not.toBe(scope.replicaId);
-    const archived = await page.evaluate(async scope => {
-      const { createSyncStateStore } = await import(chrome.runtime.getURL('sync-state-store.js'));
-      const store = createSyncStateStore(); try { return await store.exportArchive(scope); } finally { store.close(); }
-    }, scope) as { queue: QueueOperation[] };
-    expect(archived.queue[0]!.attempt).toEqual(before.queue[0]!.attempt);
-    expect(archived.queue[1]!.status).toBe('pending');
+    expect(await page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.sync.attention.get' })))
+      .toMatchObject({ ok: true, attention: { rebuildAvailable: false, rebuildUnavailableReason: 'upload_outcome_unsettled' } });
+    await expect(page.getByRole('button', { name: 'Reset sync on this device', exact: true })).toHaveCount(0);
+    expect(await page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.scope.rebuild.preview' })))
+      .toEqual({ ok: false, code: 'upload_outcome_unsettled' });
+    await evidence(page, 'wakeOutboundPushEvidence');
+    const retained = await evidence(page, 'exportOutboundPushEvidence') as { queue: QueueOperation[] };
+    expect(retained.queue[0]!.attempt).toEqual(before.queue[0]!.attempt);
+    expect(retained.queue[1]!.status).toBe('pending');
+    expect(await page.evaluate(() => chrome.storage.local.get('known.auth.binding.v1').then(values =>
+      (values['known.auth.binding.v1'] as { replicaId?: string })?.replicaId))).toBe(scope.replicaId);
     expect(await page.evaluate(id => chrome.bookmarks.get(id), local.bookmark)).toHaveLength(1);
   } finally { await context?.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
 });

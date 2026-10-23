@@ -165,7 +165,7 @@ export interface RealStack {
   /** Change only the isolated test collection's availability for lifecycle acceptance. */
   setFixtureCollectionUnavailable(unavailable: boolean): Promise<void>;
   forceFixtureReplicaRecovery(): Promise<void>;
-  observations(): Promise<Record<string, unknown>>;
+  observations(replicaId?: string): Promise<Record<string, unknown>>;
   canonicalSiblingOrder(parentId: string): Promise<ReadonlyArray<{
     readonly id: string; readonly parentId: string; readonly positionToken: string;
     readonly title: string; readonly url: string | null;
@@ -676,7 +676,7 @@ export async function startRealStack(options: {readonly classification?:boolean;
   const faviconObjectStore = createMemoryFaviconObjectStore();
   const faviconHelperIdentity = createPostgresIdentityUnitOfWork(isolated.runtime.db);
   const faviconHelperCollections = createPostgresCollectionsUnitOfWork(isolated.runtime.db);
-  if (knowNBackendRoot) (await import('../../server/src/transport/colp-sync/sync-favicon-helper-routes.js')).registerSyncFaviconHelperRoutes(app, {
+  (await import('../../server/src/transport/colp-sync/sync-favicon-helper-routes.js')).registerSyncFaviconHelperRoutes(app, {
     enabled: process.env.KNOWN_FEATURE_FAVICON_POLICY === 'true',
     extensionCollectionRoutes: {
       credentialVerifier,
@@ -932,18 +932,18 @@ export async function startRealStack(options: {readonly classification?:boolean;
         from nodes where collection_id=$1 and kind='bookmark' and url=$2 and deleted_at is null order by id`, [COLLECTION_ID, url]);
       return result.rows.map((row) => row.extensions as Record<string, unknown>);
     },
-    async observations() {
+    async observations(replicaId = REPLICA_ID) {
       const libraries = await isolated.runtime.pool.query('select id from collections where owner_subject_id=$1 and is_library and deleted_at is null', [fixtureAccount?.subjectId ?? SUBJECT]);
       if (libraries.rows[0]) activeLibraryId = libraries.rows[0].id;
       const sessions = await isolated.runtime.pool.query('select count(*)::int as count from sync_sessions');
       const receipts = await isolated.runtime.pool.query('select count(*)::int as count from sync_session_idempotency_receipts');
-      const replica = await isolated.runtime.pool.query('select status from sync_replicas where replica_id=$1', [REPLICA_ID]);
+      const replica = await isolated.runtime.pool.query('select status from sync_replicas where replica_id=$1', [replicaId]);
       const mutations = await isolated.runtime.pool.query(
         'select count(*)::int as count from nodes where collection_id=$1 and not is_root and folder_role is null', [activeLibraryId]);
       const pushReceipt = await isolated.runtime.pool.query(`select result_digest,result_json from sync_sequence_receipts
-        where replica_id=$1 order by sequence_number limit 1`, [REPLICA_ID]);
+        where replica_id=$1 order by sequence_number limit 1`, [replicaId]);
       const sequenceReceipts = await isolated.runtime.pool.query(`select sequence_number,operation_id as op_id,result_digest,result_json
-        from sync_sequence_receipts where replica_id=$1 order by sequence_number`, [REPLICA_ID]);
+        from sync_sequence_receipts where replica_id=$1 order by sequence_number`, [replicaId]);
       const canonicalNodes = await isolated.runtime.pool.query(`select id,parent_id,title,url,is_root,folder_role,deleted_at,
         position_token,resource_revision,children_revision from nodes where collection_id=$1 order by created_at,id`, [activeLibraryId]);
       const canonicalSiblings = await isolated.runtime.pool.query(`select id,parent_id,position_token,title,url

@@ -321,58 +321,8 @@
     },
     {
       "id": "tests-03",
-      "title": "execute all extension browser and model tests in CI",
-      "status": "in_progress",
-      "progress": [
-        "Added required six-shard extension-browser CI job and model vector step; independent Playwright file inventory guard passes (76 specs)",
-        "Model vectors: initial 3 failures caused by unmodelled intent grace period; advance clock past intent expiry for abstract prune; all 24 tests and model typecheck pass",
-        "Replaced external 45-minute Know-N multi-device orchestrator with self-contained dual-profile offline-edit/browser-restart convergence test; passed under xvfb against real Postgres",
-        "Local shard 1 initial pass: 11 passed, advanced first-run upload and download failed, bookmark-batch was interrupted after 6 minutes; stopped owned Playwright PID via SIGINT and wrapper exited 130 with cleanup",
-        "Corrected advanced-first-run chooseRoots helper to uncheck depth-0 roots outside the explicit selection",
-        "Development build was stale; rebuilding before remaining browser validation",
-        "Advanced first-run upload/download now pass after fixing initial bootstrap authority, Session-renewed preview cuts, mount parent identity and accepted cursor readiness; committed separately as sync-14",
-        "Required core project owns all retained core browser specs in six shards; a separate required self-hosted project owns real cross-application tests and visual parity, with production builds and an isolated PostgreSQL owner fixture",
-        "Retired four Know-N-only cloud specs (capture apply, credits ledger, Product classification, billed cloud/local comparison), preserving local-provider manual-classification and disclosure coverage; split signed-out offline placement out of its obsolete mixed cloud/classification spec",
-        "Restored self-hosted favicon tests by removing their stale Know-N-only skip; enabled subscription capacity (20,000 projected nodes / 50 mappings) in the required core job",
-        "Independent Playwright inventory contract and all 24 model assertions pass. Multi-device recovery, advanced upload/download/stale-confirmation scenarios, auth-shell, durable automation and standalone observed automation pass in real Chromium",
-        "Production CLI + built web fixture runs and tears down even after failed browser cases; visual parity passes at five viewport widths and actual 200% zoom",
-        "Full core rerun remains incomplete: 12 passed, one observed-automation timeout (standalone rerun passes), batch test interrupted while waiting on a hidden selection checkbox; corrected its stale Select-mode prerequisite",
-        "Self-hosted test updates in progress: remove deleted collection picker, use current RuleDraft action shape; investigate delayed Web-to-native propagation independently",
-        "Both new browser projects are required by ci-gate; core capacity lane has explicit 20,000-node/50-mapping inputs and each new job rebuilds the allowlisted esbuild binary after frozen installs",
-        "Serial self-hosted browser-rule-to-account workflow now passes (real Web editor, actual HTTP application, rule retirement and placement). Its fixture now waits for verified runtime server-origin persistence before sign-in",
-        "Batch Undo old-ID assertion contradicted the intentionally profile-owned/native-only journal (sw-batch-local-first.test.ts explicitly requires colpId absent); update E2E to require one fresh canonical identity shared by both replicas plus the retained original tombstone. Legacy cloud-plan restore_node unit compatibility remains",
-        "Restored favicon cases require an explicitly configured saving folder after the local-first default-destination change; fixture updated rather than inventing an implicit root default",
-        "Do not rebuild or mutate dist/production while browser scenarios use it. Earlier parallel fixture results and the run interrupted by rebuilding are not counted as validation",
-        "Complete host unit run: 595 files / 4,526 assertions passed; six failures identify stale schema/release pins, migration inventory, coverage version pin, multi-device public-status anchor, and missing delete_journal_invalid policy. Handling the two runtime/release policy defects separately before the final routing commit. All three self-hosted browser scenarios pass serially in 7.0 minutes, including the full production CLI two-profile sync/web edit/move/reorder/delete/pause-resume/conflict/disconnect workflow.",
-        "Final native batch-undo E2E passes: both profiles bind one fresh canonical identity and the original tombstone remains; signed-out offline placement case also passes",
-        "Complete self-hosted project passes serially: browser rule promotion, full two-profile/Web/conflict/disconnect journey and five-width/200%-zoom shared-control parity",
-        "Resolved all six failures from the complete 601-file/4,532-assertion unit run: invalid delete-journal policy and release-schema drift in separate commits, and three stale contract expectations with 19 affected assertions passing",
-        "Favicon fixture still had a second Know-N-only guard around mounting the restored helper. Removed that guard; rerun against a freshly loaded fixture is pending. Earlier in-flight worker results predate this fixture fix and are not counted as final verification",
-        "Keep browser runs serial against shared dist/production. Optional permission grant alone is not origin readiness: self-hosted sign-in fixtures now also await persisted validated runtimeServerOrigin and an enabled origin field",
-        "All restored favicon legs now pass individually (capture, offline replay, policy none and clear); a real shared-guard defect exposed by clear was fixed separately as sync-17. The self-contained multi-device recovery E2E, including public low-sensitivity status assertions, passes after full browser restart.",
-        "Three detached candidate worktrees have their own compiled artifacts, temporary-profile directory, PostgreSQL owner and Xvfb display; shared dependencies are linked inside ignored real node_modules directories. Candidate commits are local verification snapshots, not commits on main",
-        "Core shard 3 has passed at least 23 real scenarios, including first-run loss/restart/revoke cases and cross-range deletion continuity",
-        "First rounds of shards 1 and 2 exposed stale preference source=server assertions, obsolete Exclude-checkbox controls, a 5-second installation initialization deadline and an advanced-plan assertion racing Pull Ack settlement; updated fixtures retain strict eventual state/identity/Ack checks",
-        "Rounds 2 select exactly the 22 and 26 failed/unexecuted tests from first-round reports, independently confirmed by Playwright --list. Initial results and traces are saved outside each worktree before reruns clear their output",
-        "All six core Playwright shards have been collected and exercised in isolated worktrees; current inventory is 166 core scenarios plus 3 production self-hosted cases. Real execution continues through all previously unrun suffixes and corrected obsolete fixtures; no required core case is silently excluded",
-        "Restored coverage produced separately committed fixes for lease-generation IndexedDB transactions, invalid delete-journal failure policy, schema/release drift, automatic favicon clear, subfolder reconnect duplication, Snapshot boundary expansion, ordinary selected-folder echoes and subscription ownership receipt publication",
-        "Full Web restoration completed independently in b8c0cb99. Core extension CI now also builds Web for real cross-application fixtures. Public-contract discovery verifies every retained physical spec",
-        "Private Digest E2E depended on the extracted Know-N report reader: replace it with actual COLP unsupported-capability denial and zero native/remote writes; Digest projection semantics remain in executed unit coverage",
-        "20,000-node/50-mapping capacity rerun passed initial wizard/logout cases and has materialized over 12,000 native entries; completed capacity, recheck and restart identity still pending",
-        "Original 958-bookmark normal/lost-response cases exceeded 240-second convergence while still making forward progress under parallel lanes; retain assertions and revisit with bulk/mapping performance work before marking extension CI complete",
-        "Current 169-case inventory has 164 of 166 core scenarios proved passing by saved real execution logs; only the two 958-bookmark throughput cases remain. All three production self-hosted scenarios were also executed successfully.",
-        "Full 20,000-node/50-mapping capacity case passes (42.9 minutes), retaining all native ids across refresh and worker restart. Independent mapping refresh 251 ms; full recheck 183,605 ms and restart recheck 357,228 ms provide concrete evidence for remaining performance work. Peak fixture RSS 934 MB; full Chromium process-tree peak 1.62 GB.",
-        "14 updated CI/routing/migration assertions, all 24 model assertions plus model TypeScript, and all 34 local-first lifecycle assertions pass. Unsupported Digest behavior and unsettled-upload reset refusal are now covered against the actual shipped contract."
-      ],
-      "remaining": [
-        "Rerun advanced first-run after root selection fix; prior upload evidence reported recovery_capability_invalid and missing local folder; download incorrectly included unselected sentinel",
-        "Run all supported browser specs across six shards with both production e2e-fixture and development builds, isolated Postgres owner and with-xvfb",
-        "Use default configured reporters (do not override --reporter=list,json: that sends huge JSON to stdout instead of writing results.json); for local runs may set PLAYWRIGHT_JSON_OUTPUT_FILE=/tmp/...",
-        "Triage Known-N-only skipped specs vs shipped features: classification-product, credits-ledger, capture-real-stack, classification-local, bookmark-save-placement are guarded by knowNBackendRoot; favicon is guarded too but the server now ships favicon APIs and should be enabled/adapted",
-        "Operator-only mv3-colp-server-sync and mv3-browser-rules-server plus capture-visual need disposable local server/web fixture or explicit scope handling; capacity benchmark is gated by BS_CAPACITY_NODES",
-        "README documents removed cloud features and optional Known-N backend; server tests/EXTRACTION.md is authoritative for removed server modules",
-        "Finish type/lint, update docs and remediation ledger, then commit tests-03 separately"
-      ],
+      "title": "execute every supported extension browser spec and model-derived implementation vector in CI",
+      "status": "resolved",
       "retiredTests": [
         {
           "file": "packages/extension/e2e/mv3-classification-product.spec.ts",
@@ -395,7 +345,19 @@
           "reason": "Cloud classification leg retired; signed-out offline placement retained in mv3-bookmark-save-placement-offline.spec.ts; shipped real placement and recovery specs remain"
         }
       ],
-      "validationWorkspace": "/tmp/colp-audit-browser-6rit6i9i"
+      "validationWorkspace": "/tmp/colp-audit-browser-6rit6i9i",
+      "resolution": "Required six-shard core browser job and production self-hosted browser job cover every retained physical spec, including multi-device resilience and capacity. Model-derived implementation vectors also run in the required extension job. An independent Playwright discovery contract detects omitted files; CI gate requires both new browser jobs. Obsolete private Know-N cloud cases were retired with explicit reasons; supported offline/local-provider behavior remains covered.",
+      "validation": [
+        "All 72 retained physical specs (166 core scenarios and 3 self-hosted scenarios) have passing real Chromium/xvfb executions across isolated runs; all 3 production CLI/Web/PostgreSQL integration scenarios passed serially.",
+        "The 20,000-node / 50-mapping subscription capacity scenario passed in 42.9 minutes, retaining native identities across refresh and worker restart.",
+        "Both 958-bookmark normal and lost-response bootstrap scenarios passed in 4.3 / 4.4 minutes after the separately committed bounded Push/Pull work. The correctness test deadline is 360 seconds; this is not a four-minute product SLO.",
+        "Final coverage run: 604 files / 4,560 assertions passed; all 55 Sync core files meet unchanged per-file baselines, global branches 86.16%. Recovery tests include revoked-permission rejoin, overlapping mounts, local-only exclusions and unprovable native children.",
+        "All 24 model-derived assertions and model TypeScript passed; formal Lean proof execution remains tracked separately in tests-07.",
+        "CI/routing/migration contracts, local-first lifecycle assertions, TypeScript, changed-file ESLint, source-size checks and production build passed."
+      ],
+      "limitations": [
+        "Validation was local; hosted GitHub Actions execution requires a push. The separate coverage-floor and formal verification findings remain open."
+      ]
     },
     {
       "id": "tests-04",

@@ -29,11 +29,9 @@ test('L-06 real account preferences recover offline edits and expose a concurren
     const pageB = (await openExtensionOptions(contextB)).page;
     await login(pageA, stack.extensionBindings[0]);
     await login(pageB, stack.extensionBindings[1]);
-    const initialA = await message(pageA, { kind: 'known.bookmark.preferences.get' });
-    const initialB = await message(pageB, { kind: 'known.bookmark.preferences.get' });
-    expect(initialA).toMatchObject({ scope: 'account', pending: false, conflict: false, source: 'server' });
-    expect(initialB).toMatchObject({ scope: 'account', revision: initialA.revision, preferences: initialA.preferences });
     const originalServer = await serverRead(pageB);
+    const initialA = await settledRead(pageA, { revision: originalServer.body.revision, etag: originalServer.etag });
+    const initialB = await settledRead(pageB, { revision: initialA.revision, preferences: initialA.preferences });
     const offlineValue: BookmarkPreferences = { bookmarkInsertPosition: 'top', foldersFirst: false };
 
     // Browser A loses transport; B still reads the real account resource.
@@ -53,8 +51,8 @@ test('L-06 real account preferences recover offline edits and expose a concurren
     const recovered = await message(pageA, { kind: 'known.bookmark.preferences.local' });
     expect(recovered.revision).not.toBe(initialA.revision);
     expect(await serverRead(pageB)).toMatchObject({ body: { ...offlineValue, revision: recovered.revision }, etag: recovered.etag });
-    expect(await message(pageB, { kind: 'known.bookmark.preferences.get' })).toMatchObject({
-      preferences: offlineValue, revision: recovered.revision, pending: false, conflict: false });
+    // Account defaults arrive without replacing this browser's native-operation preferences.
+    await settledRead(pageB, { preferences: initialB.preferences, accountDefaults: offlineValue, revision: recovered.revision });
     expect(patchResponses.some(row => row.status === 200
       && row.commandId === offlineRecord.pending?.commandId && row.ifMatch === initialA.etag)).toBe(true);
 
@@ -65,8 +63,8 @@ test('L-06 real account preferences recover offline edits and expose a concurren
     expect(await update(pageA, localValue)).toMatchObject({ pending: true, conflict: false,
       revision: recovered.revision, preferences: localValue });
     const staleRecord = await accountRecord(pageA);
-    const writtenB = await update(pageB, remoteValue);
-    expect(writtenB).toMatchObject({ preferences: remoteValue, pending: false, conflict: false });
+    await update(pageB, remoteValue);
+    const writtenB = await settledRead(pageB, { preferences: remoteValue });
     expect(writtenB.revision).not.toBe(recovered.revision);
     const winningServer = await serverRead(pageB);
     expect(winningServer).toMatchObject({ body: { ...remoteValue, revision: writtenB.revision } });
@@ -122,6 +120,16 @@ async function message(page: Page, request: BookmarkPreferencesRequest) {
 
 function update(page: Page, preferences: BookmarkPreferences) {
   return message(page, { kind: 'known.bookmark.preferences.update', userGesture: true, ...preferences });
+}
+
+/** Preferences return their local projection immediately while Product HTTP runs in the background. */
+async function settledRead(page: Page, expected: Record<string, unknown>) {
+  let value = await message(page, { kind: 'known.bookmark.preferences.get' });
+  await expect.poll(async () => {
+    value = await message(page, { kind: 'known.bookmark.preferences.get' });
+    return value;
+  }, { timeout: 30_000 }).toMatchObject({ scope: 'account', pending: false, conflict: false, ...expected });
+  return value;
 }
 
 async function serverRead(page: Page): Promise<{ status: number; etag: string | null; body: Record<string, unknown> }> {

@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 import { gotoOptions, openExtensionOptions, waitForLibraryBinding, showOptionsPane } from './extension-auth.js';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
 
-// Uses an operator-provided self-hosted server. No in-process backend, seeded
+// Uses an operator-provided or disposable production CLI server. No in-process backend, seeded
 // bindings, manufactured receipts, or mocked server responses.
 const origin = process.env.COLP_I2_ORIGIN;
 const email = process.env.COLP_I2_EMAIL;
@@ -15,7 +15,7 @@ const extension = resolve(import.meta.dirname, '../dist/production');
 test.use({ trace: 'off', actionTimeout: 20_000 });
 
 test('COLP Server: real first sync, two profiles, web edit, conflict and disconnect', async ({}, info) => {
-  test.skip(!origin || !email || !password, 'Set COLP_I2_ORIGIN, COLP_I2_EMAIL and COLP_I2_PASSWORD');
+  if (!origin || !email || !password) throw new Error('Run npm run test:e2e:self-hosted for an isolated owner server.');
   test.setTimeout(600_000);
   const dirs: string[] = [], contexts: BrowserContext[] = [];
   const webBrowser = await chromium.launch({ headless: false, channel: 'chromium' });
@@ -73,7 +73,10 @@ test('COLP Server: real first sync, two profiles, web edit, conflict and disconn
     }, { timeout: 60_000 }).toBe(1);
     process.stdout.write('I2: browser addition visible in web\n');
     await editInWeb(web, 'I2 browser addition', 'I2 edited in web');
-    await expect.poll(() => bookmarkTitle(a.page, added.id), { timeout: 60_000 }).toBe('I2 edited in web');
+    const incomingStartedAt = Date.now();
+    await expect.poll(() => bookmarkTitle(a.page, added.id), { timeout: 120_000 }).toBe('I2 edited in web');
+    await info.attach('web-to-browser-latency', { contentType: 'application/json',
+      body: JSON.stringify({ milliseconds: Date.now() - incomingStartedAt }) });
     process.stdout.write('I2: web edit visible in browser\n');
     await web.screenshot({ path: info.outputPath('web-edit.png'), fullPage: true });
 
@@ -165,7 +168,7 @@ test('COLP Server: real first sync, two profiles, web edit, conflict and disconn
           cursorAligned: value.engine?.lastPublishedCursor === value.engine?.lastAckedCursor },
           queue: (value.queue ?? []).map((row: { status: string; recovery?: { code: string }; payload?: { type: string } }) =>
             ({ status: row.status, recovery: row.recovery?.code, type: row.payload?.type })),
-          diagnostics: (value.diagnostics ?? []).map((row: { code: string }) => row.code),
+          diagnostics: (value.diagnostics ?? []).map(row => row.code),
           engine: { phase: state.value?.phase, lastError: value.engine?.lastError, errorCode: state.value?.errorCode,
             recoveryFrozen: state.value?.recoveryFrozen, notBeforeDeltaMs: value.engine ? value.engine.notBefore - Date.now() : null,
             updatedAgoMs: value.engine ? Date.now() - value.engine.updatedAt : null,
@@ -203,6 +206,9 @@ async function connect(page: Page): Promise<void> {
   await grantOptionalBookmarks(page, page.locator('#login-email'), 'COLP I2 server permission',
     { origins: [`${origin}/*`] }, async () => { await page.locator('#server-origin').fill(`${origin}${permissionAttempt++ % 2 ? '/' : ''}`); });
   if (origin!.startsWith('http:')) expect(warnings).toBeGreaterThanOrEqual(1);
+  await expect.poll(() => page.evaluate(async () => (await chrome.storage.local.get('runtimeServerOrigin')).runtimeServerOrigin),
+    { timeout: 25_000 }).toBe(origin);
+  await expect(page.locator('#server-origin')).toBeEnabled();
   await page.locator('#login-email').fill(email!);
   await page.locator('#login-password').fill(password!);
   await page.locator('#login-submit').click();

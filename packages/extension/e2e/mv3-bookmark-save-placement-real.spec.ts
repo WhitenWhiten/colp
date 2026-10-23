@@ -5,12 +5,12 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { startRealStack } from './real-stack.js';
 import { openExtensionOptions } from './extension-auth.js';
-import { evidence, grantBookmarks, login } from './kns-08-harness.js';
+import { KNS08_BINDINGS, confirmFirstRun, evidence, grantBookmarks, login, waitFirstRunProductQuiet } from './kns-08-harness.js';
 import { FIXTURE_COLLECTION_ID } from './fixture-ids.js';
 
 const extensionPath = resolve(import.meta.dirname, '../dist/production');
 const COLLECTION_ID = FIXTURE_COLLECTION_ID;
-const ROOT_COLP_ID = 'p3-27-root';
+test.use({ actionTimeout: 20_000 });
 
 test('SP-07 G2 preserves save placement through PostgreSQL and a second browser profile', async ({}, testInfo) => {
   test.setTimeout(300_000);
@@ -23,9 +23,10 @@ test('SP-07 G2 preserves save placement through PostgreSQL and a second browser 
     contextB = await launch(profileB, stack.browserHostResolverRules);
     let pageA = (await openExtensionOptions(contextA)).page;
     const pageB = (await openExtensionOptions(contextB)).page;
-    await login(pageA, stack.extensionBindings[0]); await login(pageB, stack.extensionBindings[1]);
+    await login(pageA, KNS08_BINDINGS[0]); await login(pageB, KNS08_BINDINGS[1]);
     await grantBookmarks(pageA); await grantBookmarks(pageB);
-    const rootA = await configureRoot(pageA); const rootB = await configureRoot(pageB);
+    const rootA = await configureRoot(pageA, stack, KNS08_BINDINGS[0]); const rootB = await configureRoot(pageB, stack, KNS08_BINDINGS[1]);
+    const rootColpId = (await evidence<any>(pageA, 'exportOutboundPushEvidence')).mappings.find((row: any) => row.nativeId === rootA)!.colpId as string;
     await wakeUntilQuiet(pageA); await wakeUntilQuiet(pageB);
     await cacheSaveTarget(pageA, rootA); await cacheSaveTarget(pageB, rootB);
 
@@ -78,12 +79,12 @@ test('SP-07 G2 preserves save placement through PostgreSQL and a second browser 
     await cacheSaveTarget(pageA, rootA);
     await setPreference(pageA, 'bottom');
 
-    const beforeLost = Number((await stack.observations()).serverMutationCount);
+    const beforeLost = Number((await stack.observations(KNS08_BINDINGS[0].replicaId)).serverMutationCount);
     await stack.commitAfterDisconnect();
     await nativePageSave(pageA, contextA, 'https://known.example/g2/lost-response');
     await expect.poll(async () => {
       await evidence(pageA, 'wakeDurableEngineEvidence').catch(() => undefined);
-      return Number((await stack.observations()).serverMutationCount);
+      return Number((await stack.observations(KNS08_BINDINGS[0].replicaId)).serverMutationCount);
     }, { timeout: 30_000 }).toBeGreaterThan(beforeLost);
     await expect.poll(async () => (await evidence<any>(pageA, 'exportOutboundPushEvidence'))
       .queue.some((row: any) => row.status === 'unknown'), { timeout: 30_000 }).toBe(true);
@@ -100,7 +101,7 @@ test('SP-07 G2 preserves save placement through PostgreSQL and a second browser 
       idempotencyKey: unknown.idempotencyKey, digest: unknown.digest });
     // Terminal compaction intentionally removes transport/anchor payload fields.
     // Compare the actual operation bodies observed by HTTP before/after restart.
-    const replayObservations = await stack.observations();
+    const replayObservations = await stack.observations(KNS08_BINDINGS[0].replicaId);
     const replayOperations = (replayObservations.pushRequests as Array<{ body: string }>)
       .flatMap(request => JSON.parse(request.body).operations as Array<{ opId: string }>)
       .filter(operation => operation.opId === unknown.opId);
@@ -108,7 +109,7 @@ test('SP-07 G2 preserves save placement through PostgreSQL and a second browser 
     for (const operation of replayOperations) expect(operation).toEqual(replayOperations[0]);
 
     await setPreference(pageB, 'top');
-    const server = await stack.canonicalSiblingOrder(ROOT_COLP_ID);
+    const server = await stack.canonicalSiblingOrder(rootColpId);
     await pullUntilOrder(pageB, rootB, server.map((row) => row.id));
     const parentMapping = (await evidence<any>(pageA, 'exportOutboundPushEvidence')).mappings
       .find((row: any) => row.nativeId === pendingFolder.id);
@@ -148,7 +149,7 @@ test('SP-07 G2 preserves save placement through PostgreSQL and a second browser 
     const [localA, localB, observations] = await Promise.all([
       evidence<any>(pageA, 'exportOutboundPushEvidence'),
       evidence<any>(pageB, 'exportOutboundPushEvidence'),
-      stack.observations(),
+      stack.observations(KNS08_BINDINGS[0].replicaId),
     ]);
     expect(localA.queue.every((row: any) => row.status === 'terminal')).toBe(true);
     expect(localA.bookmarkEvents.every((row: any) => row.status === 'processed')).toBe(true);
@@ -157,7 +158,7 @@ test('SP-07 G2 preserves save placement through PostgreSQL and a second browser 
     const settledMutations = observations.serverMutationCount;
     await evidence(pageA, 'wakeDurableEngineEvidence');
     await evidence(pageB, 'wakeDurableEngineEvidence');
-    expect((await stack.observations()).serverMutationCount).toBe(settledMutations);
+    expect((await stack.observations(KNS08_BINDINGS[0].replicaId)).serverMutationCount).toBe(settledMutations);
     await testInfo.attach('g2-placement-authority', { contentType: 'application/json', body: JSON.stringify({
       server, orderA, orderB, nestedServer, nestedA, nestedB,
       replay: { before: unknown, after: replayed },
@@ -179,9 +180,11 @@ async function launch(profile: string, resolver: string): Promise<BrowserContext
       `--host-resolver-rules=${resolver}`, '--no-proxy-server', '--ignore-certificate-errors'] });
 }
 
-async function configureRoot(page: Page): Promise<string> {
+async function configureRoot(page: Page, stack: Awaited<ReturnType<typeof startRealStack>>, binding: typeof KNS08_BINDINGS[number]): Promise<string> {
   const bar = await page.evaluate(async () => (await chrome.bookmarks.getTree())[0]!.children![0]!.id);
-  return evidence<string>(page, 'configureDurableEngineEvidence', bar);
+  const title = await page.evaluate(async id => (await chrome.bookmarks.get(id))[0]!.title, bar);
+  await confirmFirstRun(page, [title]); await waitFirstRunProductQuiet(page, stack, binding);
+  return bar;
 }
 
 async function cacheSaveTarget(page: Page, parentNativeId: string): Promise<void> {
@@ -194,7 +197,7 @@ async function cacheSaveTarget(page: Page, parentNativeId: string): Promise<void
 
 async function setPreference(page: Page, position: 'top' | 'bottom'): Promise<void> {
   const result = await page.evaluate((bookmarkInsertPosition) => chrome.runtime.sendMessage({
-    kind: 'known.bookmark.preferences.update', userGesture: true, bookmarkInsertPosition, foldersFirst: true,
+    kind: 'known.bookmark.preferences.update', userGesture: true, bookmarkInsertPosition, foldersFirst: false,
   }), position) as { readonly ok?: boolean };
   expect(result.ok).toBe(true);
 }
@@ -221,7 +224,7 @@ async function nativeWindowSave(page: Page, context: BrowserContext, urls: reado
     if (!await preview.evaluate(() => chrome.permissions.contains({ permissions: ['tabs'] }))) {
       await grantOptionalBookmarks(preview, 'Allow tab access', 'Known tab preview', { permissions: ['tabs'] });
     }
-    await preview.locator('#tabs-allow-cloud').check();
+    await expect(preview.locator('#tabs-allow-cloud')).toHaveCount(0);
     const selected = await page.evaluate(async () => (await chrome.storage.local.get('known.sync.folder.v1'))['known.sync.folder.v1']) as { folderNativeId: string };
     await preview.locator('#tabs-target').selectOption(selected.folderNativeId);
     await expect(preview.locator('#tabs-confirm')).toBeEnabled(); await preview.locator('#tabs-confirm').click();

@@ -30,7 +30,7 @@ describe('P3-28 legacy migration and upgrade rollback', () => {
       'diagnostics', 'durable_sequences',
       'effect_pages', 'import_nodes', 'import_plans', 'local_sync_exclusions', 'mount_bindings', 'native_mappings', 'outbound_queue',
       'pull_events', 'pull_pages', 'receipts', 'recovery_nodes', 'recovery_staging', 'remote_delete_decisions',
-      'remote_delete_policies', 'remote_observations', 'replica_leases',
+      'remote_delete_members', 'remote_delete_policies', 'remote_observations', 'replica_leases',
       'retired_archives', 'schema_metadata', 'scope_command_plans', 'scope_previews', 'sync_engine', 'sync_scopes']);
   });
 

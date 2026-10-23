@@ -6,6 +6,7 @@ import { startRealStack } from './real-stack.js';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
 import { installFixtureReplicaBinding, openExtensionOptions, chooseLibraryMetadata, waitForLibraryBinding, signInExtension, showOptionsPane } from './extension-auth.js';
 import { FIXTURE_COLLECTION_ID } from './fixture-ids.js';
+import { KNS08_BINDINGS, confirmFirstRun, waitFirstRunProductQuiet } from './kns-08-harness.js';
 
 const extensionPath = resolve(import.meta.dirname, '../dist/production');
 const PIN = 'https://known.example/extensions/bookmark-pin-v1';
@@ -23,11 +24,11 @@ test('a pin travels from one browser to the server and the other browser, and ba
   const profileB = await mkdtemp(resolve(tmpdir(), 'known-pins-profileB-'));
   const contextA = await launch(profileA, stack.browserHostResolverRules); let contextB: BrowserContext | undefined;
   try {
-    const pageA = await extensionPage(contextA); await login(pageA, stack.extensionBindings[0]); await grantBookmarks(pageA, 'A');
+    const pageA = await extensionPage(contextA); await login(pageA, KNS08_BINDINGS[0]); await grantBookmarks(pageA, 'A');
     contextB = await launch(profileB, stack.browserHostResolverRules);
-    const pageB = await extensionPage(contextB); await login(pageB, stack.extensionBindings[1]); await grantBookmarks(pageB, 'B');
-    const rootA = await evidence<string>(pageA, 'configureDurableEngineEvidence', await barOf(pageA));
-    const rootB = await evidence<string>(pageB, 'configureDurableEngineEvidence', await barOf(pageB));
+    const pageB = await extensionPage(contextB); await login(pageB, KNS08_BINDINGS[1]); await grantBookmarks(pageB, 'B');
+    const rootA = await initializeMount(pageA, stack, KNS08_BINDINGS[0]);
+    const rootB = await initializeMount(pageB, stack, KNS08_BINDINGS[1]);
     await wakeUntilSleeping(pageA); await wakeUntilSleeping(pageB);
     await topOfFolder(pageA); await topOfFolder(pageB);
 
@@ -86,6 +87,11 @@ async function grantBookmarks(page: Page, suffix: string) {
   await chooseLibraryMetadata(page, 'sync');
 }
 async function barOf(page: Page) { return (await page.evaluate(() => chrome.bookmarks.getTree()))[0]!.children![0]!.id; }
+async function initializeMount(page: Page, stack: Awaited<ReturnType<typeof startRealStack>>, binding: typeof KNS08_BINDINGS[number]) {
+  const title = await page.evaluate(async () => (await chrome.bookmarks.getTree())[0]!.children![0]!.title);
+  await confirmFirstRun(page, [title]); await waitFirstRunProductQuiet(page, stack, binding);
+  return barOf(page);
+}
 async function topOfFolder(page: Page) {
   expect(await page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.bookmark.preferences.update', userGesture: true,
     bookmarkInsertPosition: 'top', foldersFirst: true }))).toMatchObject({ ok: true });

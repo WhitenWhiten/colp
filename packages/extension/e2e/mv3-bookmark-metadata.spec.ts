@@ -18,10 +18,10 @@ test('guest tags and notes persist through restart and clearing retains the pend
     await page.goto(`chrome-extension://${EXTENSION_ID}/options.html#bookmarks`);
     await grantOptionalBookmarks(page, 'Allow bookmark access', 'Metadata'); await page.reload();
     await context.setOffline(true);
-    await page.getByRole('button', { name: 'New bookmark' }).click();
+    await page.locator('#manager-new-bookmark').click();
     await page.getByLabel('New bookmark name').fill('Metadata bookmark');
     await page.getByLabel('New bookmark URL').fill('https://example.org/metadata-bookmark');
-    await page.getByRole('button', { name: 'Add bookmark' }).click();
+    await page.locator('form').filter({ has: page.getByLabel('New bookmark name') }).getByRole('button', { name: 'Add bookmark', exact: true }).click();
     const edit = async () => {
       await page.getByRole('button', { name: 'Edit bookmark Metadata bookmark', exact: true }).click();
       return page.getByRole('dialog', { name: 'Edit bookmark' });
@@ -66,10 +66,10 @@ test('a guest can edit a note without truncating retained overflow or legacy tag
     const page = context.pages()[0] ?? await context.newPage();
     await page.goto(`chrome-extension://${EXTENSION_ID}/options.html#bookmarks`);
     await grantOptionalBookmarks(page, 'Allow bookmark access', 'Retained tags'); await page.reload();
-    await page.getByRole('button', { name: 'New bookmark' }).click();
+    await page.locator('#manager-new-bookmark').click();
     await page.getByLabel('New bookmark name').fill('Retained tags');
     await page.getByLabel('New bookmark URL').fill('https://example.org/retained-tags');
-    await page.getByRole('button', { name: 'Add bookmark' }).click();
+    await page.locator('form').filter({ has: page.getByLabel('New bookmark name') }).getByRole('button', { name: 'Add bookmark', exact: true }).click();
     await expect(page.locator('#manager-feedback')).toHaveText('Bookmark added.');
     const tags = [...Array.from({ length: 80 }, (_, i) => `tag-${i}`), '😀'.repeat(48)];
     await page.evaluate(async tags => {

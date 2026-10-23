@@ -47,6 +47,10 @@ test('sign-in preserves device saving choices and the guest timeline, while gues
     await page.goto(`chrome-extension://${EXTENSION_ID}/options.html#bookmarks`);
     await expect(page.locator('#side-name')).toHaveText('Not signed in');
     await grantOptionalBookmarks(page, 'Allow bookmark access', 'Know-N continuity'); await grantTabAccess(context);
+    await page.evaluate(async () => {
+      const folder = (await chrome.bookmarks.getTree())[0]!.children![0]!;
+      await chrome.storage.local.set({ 'known.sync.folder.v1': { collectionId: 'device', folderNativeId: folder.id } });
+    });
     await context.route('https://example.test/**', route => route.fulfill({ contentType: 'text/html', body: '<title>Saved as guest</title>' }));
     const target = await context.newPage(); await target.goto('https://example.test/guest-record');
     const popup = await openPopupOver(context, target); await expect(popup.locator('#save')).toBeEnabled(); await popup.locator('#save').click();

@@ -11,6 +11,7 @@ test.each(['deep', 'cycle', 'disjoint'] as const)('subtree overlap is conservati
   request.onupgradeneeded = () => {
     const queue = request.result.createObjectStore('queue', { keyPath: 'sequence' });
     queue.createIndex(INDEXES.queueByStatusSequence, ['scopeKey', 'status', 'sequence']);
+    queue.createIndex(INDEXES.queueByAttempt, ['scopeKey', 'status', 'attempt.sessionId', 'sequence']);
     const mappings = request.result.createObjectStore('mappings', { keyPath: 'nativeId' });
     mappings.createIndex(INDEXES.mappingByNativeId, ['scopeKey', 'nativeId']);
     mappings.createIndex(INDEXES.mappingByColpId, ['scopeKey', 'colpId']);

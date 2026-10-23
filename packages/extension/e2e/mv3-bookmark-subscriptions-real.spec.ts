@@ -117,7 +117,7 @@ test('BS paused mapping still clears explicitly revoked source while content gat
   }
 });
 
-test('BS four-step wizard works before personal sync binding and preserves accidental native additions', async () => {
+test('BS four-step wizard works before personal sync confirmation and preserves accidental native additions', async () => {
   test.setTimeout(180_000);
   const stack = await startRealStack({ subscriptions: true });
   const fixture = stack.subscriptionProduct!;
@@ -130,7 +130,8 @@ test('BS four-step wizard works before personal sync binding and preserves accid
     await page.locator('#login-password').fill(EXTENSION_FIXTURE_PASSWORD);
     await page.locator('#login-submit').click();
     await expect(page.locator('body')).toHaveAttribute('data-state', 'connected', { timeout: 20_000 });
-    expect(await page.evaluate(async () => (await chrome.storage.local.get('known.sync.collection.v1'))['known.sync.collection.v1'])).toBeUndefined();
+    await expect.poll(() => page.evaluate(async () => (await chrome.storage.local.get('known.sync.collection.v1'))['known.sync.collection.v1'])).toBe(stack.collectionId);
+    expect(await page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.firstRun.status' }))).toMatchObject({ ok: true, firstRun: 'none' });
     await page.locator('#nav-subscriptions').click();
     await page.getByRole('button', { name: 'Add subscription', exact: true }).click();
     await page.locator('.subscription-source-row').filter({ hasText: 'Shared subscription source' }).getByRole('button', { name: 'Choose', exact: true }).click();
@@ -155,7 +156,8 @@ test('BS four-step wizard works before personal sync binding and preserves accid
     expect((await page.evaluate(id => chrome.bookmarks.get(id), personal.id))[0]).toMatchObject({ title: personal.title, url: personal.url });
     const diagnostics = await send<Array<{ reasonCode: string; resolution: string }>>(page, { kind: 'diagnostics', mappingId: mapping.mappingId });
     expect(diagnostics.some(d => d.reasonCode === 'readonly_native_created' && d.resolution === 'preserved')).toBe(true);
-    expect(await page.evaluate(async () => (await chrome.storage.local.get('known.sync.collection.v1'))['known.sync.collection.v1'])).toBeUndefined();
+    await expect.poll(() => page.evaluate(async () => (await chrome.storage.local.get('known.sync.collection.v1'))['known.sync.collection.v1'])).toBe(stack.collectionId);
+    expect(await page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.firstRun.status' }))).toMatchObject({ ok: true, firstRun: 'none' });
   } finally {
     await context?.close().catch(() => undefined);
     await stack.close();
@@ -163,63 +165,26 @@ test('BS four-step wizard works before personal sync binding and preserves accid
   }
 });
 
-test('BS private Digest recent20 and latest preserve content identity and revoke one held edition while paused', async () => {
-  test.setTimeout(240_000);
+test('BS COLP refuses unsupported Digest mounts without creating native or remote mappings', async () => {
   const stack = await startRealStack({ subscriptions: true });
-  const fixture = stack.subscriptionProduct!;
-  const digest = await fixture.seedDigest();
-  const profile = profileDir('a');
+  const fixture = stack.subscriptionProduct!; const profile = profileDir('a');
   let context: BrowserContext | undefined;
   try {
     context = await launchPersistent(profile, stack.browserHostResolverRules);
     const page = (await openExtensionOptions(context)).page;
-    await login(page, stack.extensionBindings[0]);
-    await grantBookmarks(page);
-    const mounted = await mount(page, digest.seriesId, 'recent', 20);
-    const root = mounted.local.rootNativeId!;
-    const folders = () => page.evaluate(async root => (await chrome.bookmarks.getChildren(root)).filter(n => !n.url).map(n => ({ id: n.id, title: n.title })), root);
-    expect(await folders()).toHaveLength(20);
-    const latestFolder = (await folders()).find(n => n.title === 'Edition 21')!;
-    const latestContent = await nativeSource(page, latestFolder.id, fixture.sourceUrl);
-    const olderFolder = (await folders()).find(n => n.title === 'Edition 20')!;
-    const olderContent = await nativeSource(page, olderFolder.id, fixture.sourceUrl);
-    const change = async (mode: 'latest'|'recent', limit: number) => {
-      const detail = await send<{ mapping: Mapping; etag: string }>(page, { kind: 'mapping', mappingId: mounted.mapping.mappingId });
-      await send(page, { kind: 'patch', mappingId: mounted.mapping.mappingId, expectedGeneration: mounted.mapping.generation, ifMatch: detail.etag, patch: { digestMode: mode, editionLimit: limit } });
-      const result = await send<LocalMapping>(page, { kind: 'refresh', mappingId: mounted.mapping.mappingId, expectedGeneration: mounted.mapping.generation });
-      expect(result.state, JSON.stringify(result)).toBe('current');
-    };
-    await change('latest', 1);
-    expect(await folders()).toHaveLength(0);
-    expect((await nativeSource(page, root, fixture.sourceUrl)).id).toBe(latestContent.id);
-    await change('recent', 10);
-    expect(await folders()).toHaveLength(10);
-    expect((await nativeSource(page, (await folders()).find(n => n.title === 'Edition 21')!.id, fixture.sourceUrl)).id).toBe(latestContent.id);
-    await change('recent', 20);
-    expect(await folders()).toHaveLength(20);
-    const beforeRevokeOlder = (await folders()).find(n => n.title === 'Edition 20')!;
-    const heldOlder = await nativeSource(page, beforeRevokeOlder.id, fixture.sourceUrl);
-    await send(page, { kind: 'pause', mappingId: mounted.mapping.mappingId, expectedGeneration: mounted.mapping.generation });
-    fixture.setContentEnabled(false);
-    await fixture.withdrawEdition(digest.editionIds[20]!);
-    await send(page, { kind: 'refresh', mappingId: mounted.mapping.mappingId, expectedGeneration: mounted.mapping.generation });
-    expect(await folders()).toHaveLength(19);
-    expect((await folders()).some(n => n.title === 'Edition 21')).toBe(false);
-    expect((await nativeSource(page, beforeRevokeOlder.id, fixture.sourceUrl)).id).toBe(heldOlder.id);
-    // IDs are not guessed from identical URLs across editions.
-    expect(latestContent.id).not.toBe(olderContent.id);
-    const reader = await page.evaluate(async ({ seriesId, editionId }) => {
-      const response = await fetch('https://known.example/api/v1/me/report-readers/' + seriesId + '/editions/' + editionId, { credentials: 'include', cache: 'no-store' });
-      return { status: response.status, session: Boolean(response.headers.get('Known-Subscription-Session')), body: await response.json() };
-    }, { seriesId: digest.seriesId, editionId: digest.editionIds[19]! });
-    expect(reader.status).toBe(200);
-    expect(reader.session).toBe(true);
-    expect(reader.body.series.openUrl).toBe('https://known.example/library/digests/' + digest.seriesId + '/read');
-    expect(reader.body.edition.editionId).toBe(digest.editionIds[19]);
+    await login(page, stack.extensionBindings[0]); await grantBookmarks(page);
+    const before = await page.evaluate(() => chrome.bookmarks.getTree());
+    const response = await page.evaluate(command => chrome.runtime.sendMessage({
+      type: 'BOOKMARK_SUBSCRIPTIONS', requestId: crypto.randomUUID(), command,
+    }), { kind: 'mountPreview', sourceType: 'digest_series', sourceId: 'unsupported-digest-series',
+      digestMode: 'recent', editionLimit: 20, checkIntervalMinutes: 15,
+      exitPolicy: { onUnfollow: 'keep', onUnsubscribe: 'keep' }, parentNativeId: '1',
+      localAlias: 'Unsupported Digest', profileLabel: 'Acceptance browser' });
+    expect(response).toEqual({ ok: false, error: 'feature_temporarily_unavailable' });
+    expect(await page.evaluate(() => chrome.bookmarks.getTree())).toEqual(before);
+    expect((await fixture.lifecycle()).mappings).toEqual([]);
   } finally {
-    await context?.close().catch(() => undefined);
-    await stack.close();
-    await rm(profile, { recursive: true, force: true });
+    await context?.close(); await stack.close(); await rm(profile, { recursive: true, force: true });
   }
 });
 
@@ -336,7 +301,8 @@ test('BS logout preserves cleanup evidence and relogin requires explicit restora
       await page.locator('#login-password').fill(EXTENSION_FIXTURE_PASSWORD);
       await page.locator('#login-submit').click();
       await expect(page.locator('body')).toHaveAttribute('data-state', 'connected', { timeout: 20_000 });
-      expect(await page.evaluate(async () => (await chrome.storage.local.get('known.sync.collection.v1'))['known.sync.collection.v1'])).toBeUndefined();
+      await expect.poll(() => page.evaluate(async () => (await chrome.storage.local.get('known.sync.collection.v1'))['known.sync.collection.v1'])).toBe(stack.collectionId);
+    expect(await page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.firstRun.status' }))).toMatchObject({ ok: true, firstRun: 'none' });
     };
     await accountLogin();
     await page.evaluate(() => {
@@ -475,9 +441,9 @@ test('BS measured profile capacity uses real native nodes and independent mappin
     expect((await readSubscriptionDb(page, 'nodes')).map(n => n.nativeId).sort()).toEqual(owned.map(n => n.nativeId).sort());
     const memory = await page.evaluate(() => { const m = (performance as Performance & { memory?: { usedJSHeapSize: number; totalJSHeapSize: number } }).memory; return m ? { usedJSHeapSize: m.usedJSHeapSize, totalJSHeapSize: m.totalJSHeapSize } : null; });
     const operations = await readSubscriptionDb(page, 'operations');
-    const nativeCalls = Object.fromEntries(['create', 'update', 'move', 'remove'].map(kind => [kind, operations.filter(op => op.kind === kind).length]));
+    const retainedJournalOperations = Object.fromEntries(['create', 'update', 'move', 'remove'].map(kind => [kind, operations.filter(op => op.kind === kind).length]));
     await sampleMemory();
-    const measurement = { browser: process.env.KNS_08_BROWSER ?? 'chromium', mappingCount, managedNodes: budget, smallMountMs, largeMountMs, independentRefreshMs, recheckMs, restartRecheckMs, optionsHeap: memory, sampledPeak: peak, nativeCalls, stableNativeIdentity: true, setup: 'Completed fixture caches expired between preparatory mounts; steady-state profile capacity. Process RSS is sampled every two seconds and includes test/browser overhead, not isolated pagination heap.' };
+    const measurement = { browser: process.env.KNS_08_BROWSER ?? 'chromium', mappingCount, managedNodes: budget, smallMountMs, largeMountMs, independentRefreshMs, recheckMs, restartRecheckMs, optionsHeap: memory, sampledPeak: peak, retainedJournalOperations, stableNativeIdentity: true, setup: 'Completed fixture caches expired between preparatory mounts; steady-state profile capacity. Process RSS is sampled every two seconds and includes test/browser overhead, not isolated pagination heap.' };
     console.log('BOOKMARK_SUBSCRIPTION_CAPACITY ' + JSON.stringify(measurement));
     await testInfo.attach('subscription-capacity', { contentType: 'application/json', body: JSON.stringify(measurement) });
   } finally {

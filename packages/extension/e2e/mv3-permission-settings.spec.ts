@@ -15,7 +15,7 @@ test('a guest grants and revokes bookmark permission in General settings without
     const page = context.pages()[0] ?? await context.newPage();
     const url = `chrome-extension://${EXTENSION_ID}/options.html#general`;
     await page.goto(url); await expect(page.locator('#side-name')).toHaveText('Not signed in');
-    await expect(page.locator('#pref-permissions')).toContainText("Your browser's account sync");
+    await expect(page.locator('#pref-permissions')).toContainText('Your browser’s own account sync is separate.');
     await grantOptionalBookmarks(page, page.locator('#permissions-grant-bookmarks'), 'Know-N permission settings');
     await expect(page.locator('#permissions-status-bookmarks')).toHaveText('Allowed');
     const id = await page.evaluate(async () => {

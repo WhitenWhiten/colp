@@ -41,11 +41,11 @@ test('create mutation with a missing revision mapping resumes with the original 
     const event: any = create(91);
     let fail = true;
     const applier = createPullApplier({ ...f.options, store: { ...f.store,
-      getMappingByColpId: async (scope, nodeId) => {
+      getCurrentPullMapping: async (scope, nodeId) => {
         if (fail && nodeId === 'root-colp' && f.api.calls.some(c => c.kind === 'create')) {
           fail = false; throw new Error('parent_revision_mapping_missing');
         }
-        return f.store.getMappingByColpId(scope, nodeId);
+        return f.store.getCurrentPullMapping(scope, nodeId);
       } } });
     await f.applier.stage(f.page([event], 'cursor-1'));
     await assert.rejects(applier.resume(), /mapping_missing/);

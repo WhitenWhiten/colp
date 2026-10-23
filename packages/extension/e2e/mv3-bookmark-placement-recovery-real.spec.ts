@@ -3,13 +3,12 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { startRealStack } from './real-stack.js';
-import { openExtensionOptions, showOptionsPane } from './extension-auth.js';
-import { evidence, grantBookmarks, login } from './kns-08-harness.js';
+import { openExtensionOptions } from './extension-auth.js';
+import { KNS08_BINDINGS, confirmFirstRun, evidence, grantBookmarks, login, waitFirstRunProductQuiet } from './kns-08-harness.js';
 import { FIXTURE_COLLECTION_ID } from './fixture-ids.js';
 
 const extensionPath = resolve(import.meta.dirname, '../dist/production');
 const COLLECTION_ID = FIXTURE_COLLECTION_ID;
-const ROOT_COLP_ID = 'p3-27-root';
 
 for (const scenario of [
   { position: 'top', mutation: 'move' },
@@ -27,9 +26,10 @@ for (const scenario of [
       contextB = await launch(profileB, stack.browserHostResolverRules);
       let pageA = (await openExtensionOptions(contextA)).page;
       const pageB = (await openExtensionOptions(contextB)).page;
-      await login(pageA, stack.extensionBindings[0]); await login(pageB, stack.extensionBindings[1]);
+      await login(pageA, KNS08_BINDINGS[0]); await login(pageB, KNS08_BINDINGS[1]);
       await grantBookmarks(pageA); await grantBookmarks(pageB);
-      const rootA = await configureRoot(pageA); const rootB = await configureRoot(pageB);
+      const rootA = await configureRoot(pageA, stack, KNS08_BINDINGS[0]); const rootB = await configureRoot(pageB, stack, KNS08_BINDINGS[1]);
+    const rootColpId = (await evidence<any>(pageA, 'exportOutboundPushEvidence')).mappings.find((row: any) => row.nativeId === rootA)!.colpId as string;
       await wakeUntilQuiet(pageA); await wakeUntilQuiet(pageB);
       await cacheSaveTarget(pageA, rootA);
       await pageA.evaluate(async (parentId) => {
@@ -38,7 +38,7 @@ for (const scenario of [
         await chrome.bookmarks.create({ parentId, title: 'R04 last', url: 'https://known.example/r04/last' });
       }, rootA);
       await convergePush(pageA);
-      const initialServer = await stack.canonicalSiblingOrder(ROOT_COLP_ID);
+      const initialServer = await stack.canonicalSiblingOrder(rootColpId);
       await pullUntilOrder(pageB, rootB, initialServer.map((node) => node.id));
       const anchor = scenario.position === 'top' ? initialServer[0]! : initialServer.at(-1)!;
       const destination = initialServer.find((node) => node.title === 'R04 destination')!;
@@ -76,7 +76,7 @@ for (const scenario of [
         parentId: rootB, position: scenario.position });
       await pageB.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.connectivity.online' }));
       await convergePush(pageB);
-      const changedServer = await stack.canonicalSiblingOrder(ROOT_COLP_ID);
+      const changedServer = await stack.canonicalSiblingOrder(rootColpId);
       expect(changedServer.some((node) => node.id === anchor.id)).toBe(false);
       expect(changedServer.some((node) => node.url === 'https://known.example/r04/concurrent')).toBe(true);
       if (scenario.mutation === 'move') {
@@ -93,7 +93,7 @@ for (const scenario of [
       expect(retained).toMatchObject({ opId: queued.opId, sequence: queued.sequence });
       await pageA.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.connectivity.online' }));
       await convergePush(pageA);
-      const server = await stack.canonicalSiblingOrder(ROOT_COLP_ID);
+      const server = await stack.canonicalSiblingOrder(rootColpId);
       const saved = server.filter((node) => node.url === savedUrl);
       expect(saved).toHaveLength(1);
       expect(server.map((node) => node.id)).toEqual(scenario.position === 'top'
@@ -104,7 +104,7 @@ for (const scenario of [
       const [orderA, orderB, stateA, stateB, observations] = await Promise.all([
         mappedOrder(pageA, rootA), mappedOrder(pageB, rootB),
         evidence<any>(pageA, 'exportOutboundPushEvidence'),
-        evidence<any>(pageB, 'exportOutboundPushEvidence'), stack.observations(),
+        evidence<any>(pageB, 'exportOutboundPushEvidence'), stack.observations(KNS08_BINDINGS[0].replicaId),
       ]);
       expect(orderA.native.filter((node) => node.url === savedUrl)).toEqual([
         expect.objectContaining({ id: savedNative.id, colpId: saved[0]!.id }),
@@ -121,7 +121,7 @@ for (const scenario of [
           pushRequests: observations.pushRequests, canonicalSiblingOrders: observations.canonicalSiblingOrders,
         }, null, 2) });
     } catch (error) {
-      const observations = await stack.observations().catch(() => null);
+      const observations = await stack.observations(KNS08_BINDINGS[0].replicaId).catch(() => null);
       const page = contextA?.pages().find(item => item.url().startsWith('chrome-extension:'));
       const local = page ? await evidence(page, 'exportOutboundPushEvidence').catch(() => null) : null;
       await testInfo.attach('r04-failure-authority', { contentType: 'application/json',
@@ -148,13 +148,14 @@ test('SP-07 R-04 deleted save parent requires explicit placement recovery', asyn
     contextB = await launch(profileB, stack.browserHostResolverRules);
     pageA = (await openExtensionOptions(contextA)).page;
     const pageB = (await openExtensionOptions(contextB)).page;
-    await login(pageA, stack.extensionBindings[0]); await login(pageB, stack.extensionBindings[1]);
+    await login(pageA, KNS08_BINDINGS[0]); await login(pageB, KNS08_BINDINGS[1]);
     await grantBookmarks(pageA); await grantBookmarks(pageB);
-    const rootA = await configureRoot(pageA); const rootB = await configureRoot(pageB);
+    const rootA = await configureRoot(pageA, stack, KNS08_BINDINGS[0]); const rootB = await configureRoot(pageB, stack, KNS08_BINDINGS[1]);
+    const rootColpId = (await evidence<any>(pageA, 'exportOutboundPushEvidence')).mappings.find((row: any) => row.nativeId === rootA)!.colpId as string;
     await wakeUntilQuiet(pageA); await wakeUntilQuiet(pageB);
     const folder = await pageA.evaluate(parentId => chrome.bookmarks.create({ parentId, title: 'R04 deleted parent' }), rootA);
     await convergePush(pageA);
-    const rootServer = await stack.canonicalSiblingOrder(ROOT_COLP_ID);
+    const rootServer = await stack.canonicalSiblingOrder(rootColpId);
     const parentColpId = rootServer.find(row => row.title === folder.title)!.id;
     await pullUntilOrder(pageB, rootB, rootServer.map(row => row.id));
     const parentB = (await mappedOrder(pageB, rootB)).native.find(row => row.colpId === parentColpId)!.id;
@@ -178,28 +179,35 @@ test('SP-07 R-04 deleted save parent requires explicit placement recovery', asyn
     await expect.poll(async () => {
       await evidence(pageA!, 'wakeDurableEngineEvidence');
       const state = await evidence<any>(pageA!, 'exportOutboundPushEvidence');
-      return { frozen: state.engine?.recoveryFrozen, code: state.scope?.metadata?.recoveryCode };
-    }, { timeout: 60_000 }).toEqual({ frozen: true, code: 'create_placement_parent_deleted' });
-    // Repeated wakes must retain an explainable pending operation, not silently reparent it.
+      const held = state.queue.find((row: any) => row.opId === queued.opId);
+      return { frozen: state.engine?.recoveryFrozen, status: held?.status, code: held?.recovery?.code };
+    }, { timeout: 60_000 }).toEqual({ frozen: false, status: 'set_aside', code: 'create_placement_parent_deleted' });
+    // The missing destination holds this item; later saves retain their own live lane.
     await evidence(pageA, 'wakeDurableEngineEvidence');
     const state = await evidence<any>(pageA, 'exportOutboundPushEvidence');
     const pending = state.queue.find((row: any) => row.opId === queued.opId);
-    expect(pending).toMatchObject({ status: 'unknown', sequence: queued.sequence,
+    expect(pending).toMatchObject({ status: 'set_aside', sequence: queued.sequence,
       payload: { payload: { parentId: parentColpId } } });
-    expect(state.engine.recoveryFrozen).toBe(true);
+    expect(state.engine.recoveryFrozen).toBe(false);
     const attention = await pageA.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.sync.attention.get' }));
-    expect(attention).toMatchObject({ ok: true, attention: { terminal: true,
-      terminalCode: 'create_placement_parent_deleted' } });
-    await showOptionsPane(pageA, 'sync-center');
-    await expect(pageA.locator('#sync-attention-settings')).toContainText('save location needs review');
-    const observations = await stack.observations();
+    expect(attention).toMatchObject({ ok: true, attention: { terminal: false,
+      issues: expect.arrayContaining([expect.objectContaining({ code: 'create_placement_parent_deleted' })]) } });
+    expect(await pageA.evaluate(url => chrome.bookmarks.search({ url }), savedUrl)).toHaveLength(1);
+    const unrelatedUrl = 'https://known.example/g2/recovery/unrelated-save';
+    await pageA.evaluate(({ parentId, url }) => chrome.bookmarks.create({ parentId, title: 'Unrelated save', url }),
+      { parentId: rootA, url: unrelatedUrl });
+    await expect.poll(async () => {
+      await evidence(pageA!, 'wakeDurableEngineEvidence');
+      return ((await stack.observations(KNS08_BINDINGS[0].replicaId)).canonicalNodes as any[]).some(row => row.url === unrelatedUrl && row.deleted_at === null);
+    }, { timeout: 60_000 }).toBe(true);
+    const observations = await stack.observations(KNS08_BINDINGS[0].replicaId);
     expect((observations.canonicalNodes as any[]).some(row => row.url === savedUrl)).toBe(false);
     await testInfo.attach('r04-parent-recovery-authority', { contentType: 'application/json',
       body: JSON.stringify({ queued, pending, engine: state.engine, scope: state.scope, attention, observations }, null, 2) });
   } catch (error) {
     await testInfo.attach('r04-parent-failure-authority', { contentType: 'application/json',
       body: JSON.stringify({ local: pageA ? await evidence(pageA, 'exportOutboundPushEvidence').catch(() => null) : null,
-        observations: await stack.observations() }, null, 2) });
+        observations: await stack.observations(KNS08_BINDINGS[0].replicaId) }, null, 2) });
     throw error;
   } finally {
     await contextA?.close().catch(() => undefined); await contextB?.close().catch(() => undefined);
@@ -214,9 +222,11 @@ async function launch(profile: string, resolver: string): Promise<BrowserContext
       `--host-resolver-rules=${resolver}`, '--no-proxy-server', '--ignore-certificate-errors'] });
 }
 
-async function configureRoot(page: Page): Promise<string> {
+async function configureRoot(page: Page, stack: Awaited<ReturnType<typeof startRealStack>>, binding: typeof KNS08_BINDINGS[number]): Promise<string> {
   const bar = await page.evaluate(async () => (await chrome.bookmarks.getTree())[0]!.children![0]!.id);
-  return evidence<string>(page, 'configureDurableEngineEvidence', bar);
+  const title = await page.evaluate(async id => (await chrome.bookmarks.get(id))[0]!.title, bar);
+  await confirmFirstRun(page, [title]); await waitFirstRunProductQuiet(page, stack, binding);
+  return bar;
 }
 
 async function cacheSaveTarget(page: Page, parentNativeId: string): Promise<void> {
@@ -229,7 +239,7 @@ async function cacheSaveTarget(page: Page, parentNativeId: string): Promise<void
 
 async function setPreference(page: Page, position: 'top' | 'bottom'): Promise<void> {
   const result = await page.evaluate((bookmarkInsertPosition) => chrome.runtime.sendMessage({
-    kind: 'known.bookmark.preferences.update', userGesture: true, bookmarkInsertPosition, foldersFirst: true,
+    kind: 'known.bookmark.preferences.update', userGesture: true, bookmarkInsertPosition, foldersFirst: false,
   }), position) as { readonly ok?: boolean };
   expect(result.ok).toBe(true);
 }

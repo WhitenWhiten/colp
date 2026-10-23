@@ -34,8 +34,8 @@
     "shots": "node scripts/with-xvfb.mjs node scripts/options-shots.mjs",
     "test:e2e:smoke": "npm run build:development && node scripts/with-xvfb.mjs npx playwright test e2e/mv3-sync-state-store.spec.ts e2e/mv3-classification-disclosure-security.spec.ts",
     "test:e2e:local-first": "npm run build:development && node scripts/with-xvfb.mjs npx playwright test e2e/mv3-local-saving.spec.ts e2e/mv3-local-import.spec.ts e2e/mv3-local-bookmark-management.spec.ts e2e/mv3-local-save-cloud-unavailable.spec.ts e2e/mv3-local-backup.spec.ts",
-    "test:e2e": "npm run build -- --config config/e2e-fixture.json && npm run build:development && node ../server/scripts/with-postgres.mjs -- npm run test:e2e:inner",
-    "test:e2e:inner": "node scripts/with-xvfb.mjs npx playwright test",
+    "test:e2e": "npm run build -- --config config/e2e-fixture.json && npm run build:development && npm --prefix ../web run build && node ../server/scripts/with-postgres.mjs -- npm run test:e2e:inner && npm run test:e2e:self-hosted",
+    "test:e2e:inner": "node scripts/with-xvfb.mjs npx playwright test --project=core",
     "evidence:phase3-extension-auth-shell": "npm run build -- --config config/e2e-fixture.json && node ../server/scripts/with-postgres.mjs -- node scripts/with-xvfb.mjs npx playwright test e2e/mv3-auth-shell.spec.ts && node scripts/verify-release-artifact.mjs dist/production",
     "evidence:phase3-indexeddb-sync-state": "npm run build && npm run build:development && node scripts/with-xvfb.mjs npx playwright test e2e/mv3-sync-state-store.spec.ts && node scripts/verify-release-artifact.mjs dist/production",
     "evidence:phase3-bookmark-roots": "npm run build -- --config config/e2e-fixture.json && node ../server/scripts/with-postgres.mjs -- npm run evidence:phase3-bookmark-roots:inner",
@@ -73,7 +73,8 @@
     "evidence:kns-09-acceptance": "npm run kns-09:receipt",
     "verify": "npm run check:tokens && npm run check:i18n && npm run typecheck && npm run test && npm run evidence:phase3-extension-auth-shell",
     "evidence:bookmark-subscriptions": "npm run build -- --config config/e2e-fixture.json && node ../server/scripts/with-postgres.mjs -- node scripts/with-xvfb.mjs npx playwright test e2e/mv3-bookmark-subscriptions-real.spec.ts",
-    "evidence:bookmark-subscriptions:capacity": "npm run build -- --config config/e2e-fixture.json && BS_CAPACITY_NODES=20000 BS_CAPACITY_MAPPINGS=50 node ../server/scripts/with-postgres.mjs -- node scripts/with-xvfb.mjs npx playwright test e2e/mv3-bookmark-subscriptions-real.spec.ts -g \"measured profile capacity\""
+    "evidence:bookmark-subscriptions:capacity": "npm run build -- --config config/e2e-fixture.json && BS_CAPACITY_NODES=20000 BS_CAPACITY_MAPPINGS=50 node ../server/scripts/with-postgres.mjs -- node scripts/with-xvfb.mjs npx playwright test e2e/mv3-bookmark-subscriptions-real.spec.ts -g \"measured profile capacity\"",
+    "test:e2e:self-hosted": "npm --prefix ../server run build && npm --prefix ../web run build && node ../server/scripts/with-postgres.mjs --isolated-owner -- node scripts/with-xvfb.mjs node ../../scripts/with-self-hosted-browser.mjs -- node node_modules/@playwright/test/cli.js test --project=self-hosted"
   },
   "devDependencies": {
     "@fontsource-variable/instrument-sans": "^5.3.0",

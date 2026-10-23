@@ -116,5 +116,12 @@ describe('currentPullMapping page-local shadow', () => {
     assert.equal((await currentPullMapping(store, scope, 'colp-live')) ?? null, null);
     await putDurable('native-live', 'colp-live', 'Live');
     assert.equal((await currentPullMapping(store, scope, 'colp-live'))?.nativeId, 'native-live');
+    const fallback = { listPullEvents: store.listPullEvents, getMappingByColpId: store.getMappingByColpId };
+    assert.equal((await currentPullMapping(fallback, scope, 'colp-durable'))?.nativeId, 'native-shadow');
+    assert.equal(await currentPullMapping(fallback, scope, 'colp-deleted'), null);
+    assert.equal(await currentPullMapping(fallback, scope, 'colp-unbound'), null);
+    assert.equal(await currentPullMapping(fallback, scope, 'colp-missing'), null);
+    assert.equal((await currentPullMapping(fallback, scope, 'colp-live'))?.nativeId, 'native-live');
+    store.close();
   });
 });

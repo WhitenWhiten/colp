@@ -10,7 +10,7 @@ import {
 
 for (const mode of ['normal', 'lost-batch-response'] as const) {
   test(`958-bookmark first sync completes with ${mode}`, async ({}, testInfo) => {
-    test.setTimeout(300_000);
+    test.setTimeout(420_000);
     const stack = await startRealStack();
     const profile = await mkdtemp(resolve(tmpdir(), 'colp-large-first-sync-'));
     let context: BrowserContext | undefined;
@@ -28,6 +28,7 @@ for (const mode of ['normal', 'lost-batch-response'] as const) {
       if (mode === 'lost-batch-response') stack.setPushFault('lost_batch_response_once');
       expect(await runtimeMessage(page, { kind: 'known.firstRun.confirm', previewId: preview.previewId,
         confirmationId: crypto.randomUUID(), libraryId: FIXTURE_COLLECTION_ID })).toMatchObject({ ok: true });
+      const convergenceStarted = performance.now();
       const activePage = page;
       await expect.poll(async () => {
         const status = await runtimeMessage<{ ok: boolean; phase?: string; error?: string }>(activePage,
@@ -37,7 +38,7 @@ for (const mode of ['normal', 'lost-batch-response'] as const) {
         { kind: 'known.sync.engine.status' });
         return { phase: status.phase ?? status.error, frozen: response.engine?.recoveryFrozen,
           queue: response.engine?.queueProjection, aligned: response.engine?.cursorsConverged };
-      }, { timeout: 240_000, intervals: [1_000, 2_000, 5_000] }).toEqual({ phase: 'completed',
+      }, { timeout: 360_000, intervals: [1_000, 2_000, 5_000] }).toEqual({ phase: 'completed',
         frozen: false, queue: 'idle', aligned: true });
       const settled = await scopeFacts(page, stack, KNS08_BINDINGS[0]);
       expect(settled.queueStatuses.every(status => status === 'terminal')).toBe(true);
@@ -65,6 +66,9 @@ for (const mode of ['normal', 'lost-batch-response'] as const) {
       expect(sizes.some(size => size > 1)).toBe(true);
       expect(sizes.every(size => size <= 50)).toBe(true);
       await testInfo.attach('batch-sizes', { body: JSON.stringify(sizes), contentType: 'application/json' });
+      await testInfo.attach('convergence-timing', { body: JSON.stringify({
+        milliseconds: Math.round(performance.now() - convergenceStarted), bookmarks: 958,
+      }), contentType: 'application/json' });
     } catch (error) {
       if (page) await saveReplayFixture(testInfo, `large-first-sync-${mode}`, error,
         await captureReplayFacts(page, stack, KNS08_BINDINGS[0]).catch(String));

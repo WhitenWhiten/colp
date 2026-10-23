@@ -133,28 +133,6 @@ export async function createBookmarkSubscriptionProductFixture(
       // The independent backend suite verifies the eight-live-cache admission.
       await runtime.db.updateTable('bookmark_subscription_snapshots').set({ expires_at: new Date(0) }).where('account_id', '=', actor.id).execute();
     },
-    async seedDigest(count = 21) {
-      const seriesId = 'subscription-digest-' + randomUUID();
-      const editionIds: string[] = [];
-      const client = await runtime.pool.connect();
-      try {
-        await client.query('begin');
-        await client.query("insert into resource_id_ledger(resource_id,resource_type) values($1,'digest_series')", [seriesId]);
-        await client.query("insert into digest_series(id,owner_subject_id,title,visibility,state,resource_revision,content_revision,policy_revision,commit_ordinal) values($1,$2,'Private subscription Digest','private','active','r1','c1','p1',1)", [seriesId, ownerSubject]);
-        await client.query("insert into digest_members(series_id,subject_id,role) values($1,$2,'owner'),($1,$3,'viewer')", [seriesId, ownerSubject, actor.subjectId]);
-        for (let i = 1; i <= count; i++) {
-          const id = 'subscription-edition-' + randomUUID(); editionIds.push(id);
-          await client.query("insert into resource_id_ledger(resource_id,resource_type) values($1,'digest_edition')", [id]);
-          await client.query("insert into digest_editions(id,series_id,source_collection_id,issue_key,edition_ordinal,title_snapshot,source_content_revision,resource_revision,state,published_at) values($1,$2,$3,$4,$5,$6,'c1','r1','published',current_timestamp + ($5::bigint*interval '1 second'))", [id, seriesId, collectionId, 'issue-' + i, i, 'Edition ' + i]);
-        }
-        await client.query('commit');
-      } catch (error) { await client.query('rollback'); throw error; }
-      finally { client.release(); }
-      return { seriesId, editionIds };
-    },
-    async withdrawEdition(id: string) {
-      await runtime.pool.query("update digest_editions set state='withdrawn',withdrawn_at=current_timestamp where id=$1", [id]);
-    },
     async lifecycle() {
       const [subscriptions, mappings, actions] = await Promise.all([
         runtime.db.selectFrom('bookmark_subscriptions').selectAll().where('account_id', '=', actor.id).execute(),

@@ -154,6 +154,10 @@ test('the automatic result panel pins the bookmark it just saved on Done', async
   test.setTimeout(90_000);
   const { context, profile, page } = await launch();
   try {
+    await page.evaluate(async () => {
+      const folder = (await chrome.bookmarks.getTree())[0]!.children![0]!;
+      await chrome.storage.local.set({ 'known.sync.folder.v1': { collectionId: 'device', folderNativeId: folder.id } });
+    });
     await grantTabAccess(context);
     await page.bringToFront();
     await page.locator('#nav-saving').click();

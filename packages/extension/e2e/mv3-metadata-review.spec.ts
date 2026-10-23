@@ -16,10 +16,11 @@ test('the bookmark editor reviews stale drafts and cloud conflicts locally', asy
     const page = context.pages()[0] ?? await context.newPage();
     await page.goto(`chrome-extension://${EXTENSION_ID}/options.html#bookmarks`);
     await grantOptionalBookmarks(page, 'Allow bookmark access', 'Review'); await page.reload(); await context.setOffline(true);
-    await page.getByRole('button', { name: 'New bookmark' }).click();
+    await page.getByRole('button', { name: 'Add bookmark', exact: true }).click();
     await page.getByLabel('New bookmark name').fill('Review bookmark');
     await page.getByLabel('New bookmark URL').fill('https://example.org/review-bookmark');
-    await page.getByRole('button', { name: 'Add bookmark' }).click();
+    await page.locator('form').filter({ has: page.getByLabel('New bookmark name') })
+      .getByRole('button', { name: 'Add bookmark', exact: true }).click();
     const edit = async () => { await page.getByRole('button', { name: 'Edit bookmark Review bookmark', exact: true }).click(); return page.getByRole('dialog', { name: 'Edit bookmark' }); };
     let editor = await edit(); await editor.getByLabel('Note', { exact: true }).fill('Before');
     await editor.getByRole('button', { name: 'Save', exact: true }).click(); await expect(page.locator('.mgr-note')).toHaveText('Before');
