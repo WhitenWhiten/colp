@@ -1,13 +1,8 @@
-import { convergeOwnerWork, createAutomationMaintenanceLoop, resumeOwnerBudgets } from '../infrastructure/automation/index.js';
-import { retainAutomationHistory } from '../infrastructure/automation/index.js';
-import { createDeliveryWorker } from '../infrastructure/automation/index.js';
-import { createWebhookVerifier } from '../infrastructure/automation/index.js';
-import { createTargetWorkerService } from '../infrastructure/automation/index.js';
 import { createAutomationIngestRoute, createAutomationManualRoute, automationManualRegistration, automationIngestRegistration, automationResumeRegistration, AUTOMATION_RESUME_EVENT } from '../infrastructure/outbox/index.js';
 import { createAutomationSourceInspector, createManualRunConsumer, createAutomationRuntime, setAutomationCaptureEnabled } from '../infrastructure/automation/index.js';
 import { createAutomationHealthMonitor } from '../infrastructure/automation/index.js';
 import { createAutomationBindingVerifier } from './automation-binding-verifier.js';
-import { createWorkerApprovalApplier } from './automation-approval-composition.js';
+import { composeWorkerAutomationMaintenance } from './worker-automation-maintenance.js';
 import { createMcpSecurityEpochReader } from './api-mcp-oauth-composition.js';
 import { createPostgresMcpOauthRevocationStore } from '../infrastructure/database/index.js';
 import { createDatabaseFaviconStore, FaviconProviderCache } from '../infrastructure/collections/index.js';
@@ -402,32 +397,9 @@ export function buildWorker(
       eventsEnabled:config.mcpEventsEnabled === true,workerEnabled: config.automationWorkEnabled === true,
       verifyTargetBinding: createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,createPostgresMcpOauthRevocationStore({ db: database.db }))),
     }) : undefined;
-  const deliveryWorker = config.mcpEventsEnabled && database && config.automationWebhookMasterKey
-    ? createDeliveryWorker(database.db,createTargetWorkerService(database.db,
-      createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,createPostgresMcpOauthRevocationStore({ db: database.db }))),async () => {}).authorize,
-      createWebhookVerifier(config.automationWebhookMasterKey,{ ...(config.automationWebhookPreviousMasterKey ? { previousMasterKey: config.automationWebhookPreviousMasterKey } : {}) })) : undefined;
-  const automationApprovals = database ? createWorkerApprovalApplier(config, database.db, metrics) : undefined;
-  let retentionAfter = '';
   // Capture alone (shadow mode) still needs the facts retention sweep.
   const automationMaintenance = (config.automationRulesEnabled || config.automationCaptureEnabled) && database
-    ? createAutomationMaintenanceLoop({
-      delivery: deliveryWorker,
-      async maintain() {
-        const owner=await database.db.selectFrom('accounts').select('id').where('id','>',retentionAfter).orderBy('id').limit(1).executeTakeFirst();
-        if(!owner){retentionAfter='';return;}
-        // A failed Owner is retried on the next sweep, without starving others.
-        retentionAfter=owner.id;
-        await retainAutomationHistory(database.db,owner.id,config.mcpWriteEnabled === true);
-        if(config.automationWorkEnabled){
-          await resumeOwnerBudgets(database.db,owner.id);
-          // Owner and run reads only report; leases and committed plans converge here.
-          await convergeOwnerWork(database.db,owner.id,config.publication.serverUuid);
-        }
-        // Decided, expired or cancelled proposals converge without the worker that produced them.
-        await automationApprovals?.sweep(owner.id);
-      },
-      onError(kind) {metrics.increment(`automation.${kind}.error`);},
-    }) : undefined;
+    ? composeWorkerAutomationMaintenance(config, database.db, metrics) : undefined;
   const baseProjectionSink = originalProjectionSink && automationHealth ? automationHealth.wrap(originalProjectionSink) : originalProjectionSink;
   if (config.mcp && options.mcpReadChangeSignalSource === undefined) {
     throw new Error(

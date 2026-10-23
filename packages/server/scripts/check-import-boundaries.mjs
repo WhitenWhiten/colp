@@ -409,6 +409,7 @@ const rootEntryTargets = new Set([
 // deliberately includes the module aggregate only at its actual entrypoint.
 const bootstrapTargets = new Set([
   'bootstrap/automation-approval-composition.ts',
+  'bootstrap/worker-automation-maintenance.ts',
   'bootstrap/automation-binding-verifier.ts',
   'modules/automation/index.ts',
   'infrastructure/automation/index.ts',

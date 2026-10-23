@@ -25,6 +25,7 @@ export { retainAutomationHistory } from './retention-worker.js';
 export { createAutomationMaintenanceLoop } from './maintenance-loop.js';
 export { resumeOwnerBudgets } from './budget-wakes.js';
 export { convergeOwnerWork } from './owner-maintenance.js';
+export { createOwnerMaintenanceBatch, createPostgresOwnerMaintenanceQueue } from './owner-maintenance-queue.js';
 
 export { createManualRunConsumer } from './manual-run-consumer.js';
 
