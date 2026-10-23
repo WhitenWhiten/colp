@@ -10,7 +10,7 @@ Earlier 20-gate receipts were recorded against commits made before the extension
 
 | Field | Value |
 |---|---|
-| COLP package | `@know-n/colp` `0.2.0` |
+| COLP package | `@know-n/colp` `0.2.2-automation-client-id.1`, the build vendored in `packages/server/vendor/` until 0.2.2 is published |
 | Server package | `@know-n/colp-server` `0.1.0` (`packages/server`) |
 | Extension package | `known-extension` `0.1.2` |
 | IndexedDB | `known-phase3-indexeddb-entry` version **23** |

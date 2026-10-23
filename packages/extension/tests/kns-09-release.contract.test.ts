@@ -46,7 +46,10 @@ describe('KNS-09 AC-10 release gate contract', () => {
     assert.match(extensionCi, /npm run evidence:trash-restore/);
     assert.match(extensionCi, /KNS09_E2E_RESULT/);
     assert.match(extensionCi, /run: npm run test:unit\n\s+working-directory: packages\/server/);
-    assert.match(JSON.parse(readFileSync(resolve(packageRoot, 'package.json'), 'utf8')).dependencies['@know-n/colp'], /^\d+\.\d+\.\d+$/u);
+    // An exact registry release, or the one build the server vendors until that
+    // release is published; scripts/check-sdk-pins.mjs pins its integrity.
+    assert.match(JSON.parse(readFileSync(resolve(packageRoot, 'package.json'), 'utf8')).dependencies['@know-n/colp'],
+      /^(?:\d+\.\d+\.\d+|file:\.\.\/server\/vendor\/know-n-colp-\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?\.tgz)$/u);
   });
 
   test('runbook and pin refuse v9 rollback and personal fields', () => {
