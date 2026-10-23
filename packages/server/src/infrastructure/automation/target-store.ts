@@ -97,14 +97,25 @@ export function createTargetStore(tx: DatabaseTransaction,ownerId: string,verify
           await sql`INSERT INTO automation_executors(id,owner_id,target_id,configuration_json) VALUES(${key},${ownerId},${(input as ExecutorInput).targetId!},${JSON.stringify(input)}::jsonb)
             ON CONFLICT(id) DO UPDATE SET configuration_json=EXCLUDED.configuration_json,target_id=EXCLUDED.target_id,revision=automation_executors.revision+1 WHERE automation_executors.owner_id=${ownerId}`.execute(tx);
         } else {
-          const previous = id ? (await sql<{ configuration_json: ConnectionProfileInput }>`SELECT configuration_json FROM automation_connection_profiles
-            WHERE id=${key} AND owner_id=${ownerId} FOR UPDATE`.execute(tx)).rows[0]?.configuration_json : undefined;
+          const previousRow = id ? (await sql<{ configuration_json: ConnectionProfileInput; revision: string }>`SELECT configuration_json,revision FROM automation_connection_profiles
+            WHERE id=${key} AND owner_id=${ownerId} FOR UPDATE`.execute(tx)).rows[0] : undefined;
+          const previous = previousRow?.configuration_json;
           // Renames keep pairings; a different credential, client, opt-in or worker catalog does not.
           const reauthorize = !!previous && profileAuthorityChanged(previous,input as ConnectionProfileInput);
           await sql`INSERT INTO automation_connection_profiles(id,owner_id,configuration_json) VALUES(${key},${ownerId},${JSON.stringify(input)}::jsonb)
             ON CONFLICT(id) DO UPDATE SET configuration_json=EXCLUDED.configuration_json,revision=automation_connection_profiles.revision+1,
               observation_json=CASE WHEN ${reauthorize} THEN NULL ELSE automation_connection_profiles.observation_json END
             WHERE automation_connection_profiles.owner_id=${ownerId}`.execute(tx);
+          if (previousRow && !reauthorize) {
+            // Display edits preserve only bindings that were current before this update.
+            await sql`UPDATE automation_pairings g SET profile_revision=p.revision
+              FROM automation_targets t,automation_connection_profiles p
+              WHERE g.target_id=t.id AND t.profile_id=p.id AND p.id=${key} AND p.owner_id=${ownerId}
+              AND g.profile_revision=${String(previousRow.revision)}::bigint`.execute(tx);
+            if (eventsEnabled !== false) await sql`UPDATE automation_event_subscriptions s SET profile_revision=p.revision
+              FROM automation_connection_profiles p WHERE s.profile_id=p.id AND p.id=${key} AND p.owner_id=${ownerId}
+              AND s.profile_revision=${String(previousRow.revision)}::bigint`.execute(tx);
+          }
           if (reauthorize) await sql`UPDATE automation_targets SET paired=false,pairing_generation=pairing_generation+1,revision=revision+1 WHERE owner_id=${ownerId} AND profile_id=${key}`.execute(tx);
         }
         await touchAutomationConfiguration(tx,ownerId);
