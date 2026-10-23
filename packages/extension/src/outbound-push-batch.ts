@@ -85,8 +85,7 @@ export async function sendBootstrapCreateBatch(input: {
     }
     const value = await Promise.race([readBoundedJson(response, RESPONSE_BYTES, 'push_batch_response_invalid'), timeout]);
     const document = value as { batchId?: unknown; results?: unknown; serverCursor?: unknown } | null;
-    if (!document || !Array.isArray(document.results) || document.results.length !== rows.length
-        || Object.keys(document).some((key) => !['batchId', 'results', 'serverCursor'].includes(key))) {
+    if (!document || !Array.isArray(document.results) || document.results.length !== rows.length) {
       throw new SyncFailureError('push_batch_response_invalid');
     }
     const results = document.results;

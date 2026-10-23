@@ -12,18 +12,18 @@ export interface ParsedPushResult {
 }
 
 export function parseSyncPushResult(value: unknown, binding: { readonly opId: string; readonly sequence: number }): ParsedPushResult {
-  const document = exactRecord(value, ['batchId', 'results', 'serverCursor'], 'push_result');
+  const document = responseRecord(value, ['batchId', 'results', 'serverCursor'], 'push_result');
   opaque(document.batchId, 'batchId'); opaque(document.serverCursor, 'serverCursor');
   if (!Array.isArray(document.results) || document.results.length !== 1) {
     throw new Error('push_response_invalid');
   }
-  const result = exactRecord(document.results[0], ['opId', 'sequence', 'status', 'targetId', 'revision', 'cursor',
+  const result = responseRecord(document.results[0], ['opId', 'sequence', 'status', 'targetId', 'revision', 'cursor',
     'conflictId', 'boundCollection', 'transform', 'code', 'retryAfterSeconds', 'warnings'], 'operation_result',
   ['targetId', 'revision', 'cursor', 'conflictId', 'boundCollection', 'transform', 'code', 'retryAfterSeconds']);
   opaque(result.opId, 'opId'); if (result.opId !== binding.opId || result.sequence !== binding.sequence
       || !Number.isSafeInteger(result.sequence) || Number(result.sequence) < 1 || !ALL_STATUSES.has(String(result.status))
       || !Array.isArray(result.warnings) || result.warnings.length > 1_000) throw new Error('push_response_invalid');
-  for (const warning of result.warnings) validateWarning(warning);
+  result.warnings = result.warnings.map(validateWarning);
   for (const field of ['targetId', 'revision', 'cursor', 'conflictId'] as const) {
     if (result[field] !== undefined) opaque(result[field], field);
   }
@@ -58,6 +58,7 @@ export function parseSyncPushResult(value: unknown, binding: { readonly opId: st
       && [result.revision, result.cursor, result.conflictId, result.transform].some((item) => item !== undefined)) {
     throw new Error('push_response_invalid');
   }
+  document.results = [result];
   return { document: document as unknown as SyncPushResult & JsonObject,
     result: result as unknown as SyncPushResult['results'][number] & JsonObject, terminal: TERMINAL.has(status) };
 }
@@ -71,7 +72,7 @@ export interface ParsedColpProblem { readonly code: string; readonly status: num
   readonly currentRevision?: string; readonly currentSubtree?: ParsedSubtreeSummary }
 const SUBTREE_DIGEST = /^sha-256=:[A-Za-z0-9+/]{43}=:$/u;
 export function parseColpProblem(value: unknown): ParsedColpProblem {
-  const problem = exactRecord(value, ['type', 'title', 'status', 'detail', 'instance', 'code', 'expectedSequence',
+  const problem = responseRecord(value, ['type', 'title', 'status', 'detail', 'instance', 'code', 'expectedSequence',
     'currentRevision', 'currentEtag', 'currentSubtree', 'supportedVersions', 'retryAfterSeconds', 'snapshotUrl', 'conflictId',
     'retryable', 'errors', 'links'], 'problem', ['detail', 'instance', 'expectedSequence', 'currentRevision',
     'currentEtag', 'currentSubtree', 'supportedVersions', 'retryAfterSeconds', 'snapshotUrl', 'conflictId', 'retryable', 'errors', 'links']);
@@ -96,7 +97,7 @@ export function parseColpProblem(value: unknown): ParsedColpProblem {
 }
 
 function parseSubtreeSummary(value: unknown): ParsedSubtreeSummary {
-  const summary = exactRecord(value, ['version', 'count', 'digest', 'memberIdsDigest'], 'push_problem');
+  const summary = responseRecord(value, ['version', 'count', 'digest', 'memberIdsDigest'], 'push_problem');
   if (summary.version !== 1 || !Number.isSafeInteger(summary.count) || Number(summary.count) < 1
       || typeof summary.digest !== 'string' || !SUBTREE_DIGEST.test(summary.digest)
       || typeof summary.memberIdsDigest !== 'string' || !SUBTREE_DIGEST.test(summary.memberIdsDigest)) {
@@ -105,21 +106,23 @@ function parseSubtreeSummary(value: unknown): ParsedSubtreeSummary {
   return { version: 1, count: Number(summary.count), digest: summary.digest, memberIdsDigest: summary.memberIdsDigest };
 }
 
-function exactRecord(value: unknown, allowed: readonly string[], label: string, optional: readonly string[] = []) {
+function responseRecord(value: unknown, allowed: readonly string[], label: string, optional: readonly string[] = []) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${label}_invalid`);
   const record = value as Record<string, unknown>;
-  if (Object.keys(record).some((key) => !allowed.includes(key))
-      || allowed.some((key) => !optional.includes(key) && !(key in record))) throw new Error(`${label}_invalid`);
-  return record;
+  if (allowed.some((key) => !optional.includes(key) && !Object.hasOwn(record, key))) throw new Error(`${label}_invalid`);
+  // Optional response extensions must not change receipt bytes or enter local storage.
+  return Object.fromEntries(allowed.filter(key => Object.hasOwn(record, key)).map(key => [key, record[key]]));
 }
 function opaque(value: unknown, label: string): asserts value is string {
   if (typeof value !== 'string' || !OPAQUE_ID.test(value)) throw new Error(`${label}_invalid`);
 }
 function positiveInteger(value: unknown) { if (!Number.isSafeInteger(value) || Number(value) < 1) {
   throw new Error('positive_integer_invalid'); } return Number(value); }
-function validateWarning(value: unknown) { const warning = exactRecord(value, ['code', 'message', 'nodeId', 'path', 'lossy'],
+function validateWarning(value: unknown) { const warning = responseRecord(value, ['code', 'message', 'nodeId', 'path', 'lossy'],
   'warning', ['nodeId', 'path', 'lossy']);
   if (typeof warning.code !== 'string' || typeof warning.message !== 'string'
       || (warning.nodeId !== undefined && (typeof warning.nodeId !== 'string' || !OPAQUE_ID.test(warning.nodeId)))
       || (warning.path !== undefined && typeof warning.path !== 'string')
-      || (warning.lossy !== undefined && typeof warning.lossy !== 'boolean')) throw new Error('warning_invalid'); }
+      || (warning.lossy !== undefined && typeof warning.lossy !== 'boolean')) throw new Error('warning_invalid');
+  return warning;
+}

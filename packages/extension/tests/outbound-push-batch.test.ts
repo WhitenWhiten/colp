@@ -14,6 +14,21 @@ import { installOutboundPushIndexedDb, scope, json, problem } from './outbound-p
 installOutboundPushIndexedDb();
 
 describe('first-sync transport batches', () => {
+  test('additive batch and operation fields still settle every committed receipt', async () => {
+    const f = await fixture(2, 2);
+    try {
+      const worker = createOutboundPushWorker({ ...f.options, fetch: async (_url, init) => {
+        const response = await success(String(init?.body)).json();
+        response.serverMetadata = { version: 2 };
+        for (const result of response.results) result.newOptionalField = true;
+        return json(200, response);
+      } });
+      assert.equal((await worker.drain()).outcome, 'terminal');
+      assert.equal((await f.store.listQueue(scope, 'terminal')).length, 2);
+      assert.equal((await f.store.listMappings(scope)).length, 2);
+    } finally { f.store.close(); }
+  });
+
   test('batches schema-valid operations from the real bootstrap producer', async () => {
     const f = await fixture(100, 50, 0, row => ({ ...row, ...operationPayload({
       type: 'create_node', reason: 'local-only', opId: String(row.opId), parentId: 'root-push',

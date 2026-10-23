@@ -71,7 +71,13 @@
     {
       "id": "sync-08",
       "title": "accept additive push response and problem fields",
-      "status": "pending"
+      "status": "resolved",
+      "validation": [
+        "Reproduced failures for additive document, result, warning, Problem, subtree and batch fields",
+        "Tolerant readers project known fields into durable receipts and preserve strict operation id, sequence, status and required-field checks",
+        "68 relevant parser, singleton/batch push, authority-denial and stale-delete assertions pass",
+        "Extension TypeScript, targeted ESLint, source-size gate and whitespace checks pass"
+      ]
     },
     {
       "id": "sync-09",
@@ -108,7 +114,8 @@
         "All IP-based HTTP admissions plus memory auth/search/sync/effect adapters and Redis key codecs use the shared identity",
         "256 host rotations consume exactly one memory bucket; a distinct legitimate client remains admitted without a capacity rejection",
         "103 relevant HTTP/rate-limit assertions pass; server TypeScript, targeted ESLint, import boundaries and whitespace checks pass"
-      ]
+      ],
+      "commit": "fff29e71"
     },
     {
       "id": "security-02",
