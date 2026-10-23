@@ -1,12 +1,13 @@
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
 import type { QueueOperation, SyncScope } from './sync-state/types.js';
+import { DATABASE_VERSION } from './sync-state/schema.js';
 import {
   incrementCounter, observeDuration, persistKns09Metrics, pushDiagnosis, putLocator, rememberFirstRunOutcome,
   resetKns09DurableMetricsForTests, restoreKns09Metrics, snapshotKns09DurableMetrics, clearCounter,
 } from './kns-09-metrics.js';
 
-export const KNS09_SCHEMA_VERSION = 21;
+export const KNS09_SCHEMA_VERSION = DATABASE_VERSION;
 export const KNS09_MUTATION_STORAGE_KEY = 'known.kns09.mutations.v1';
 export const KNS09_DEFAULT_MUTATIONS = Object.freeze({ coordinator: true, ui: true });
 
@@ -55,7 +56,7 @@ export type Kns09FaultFixture = {
   readonly stopCounts: Readonly<Record<Kns09StopReason, number>>;
 };
 export type Kns09Diagnosis = {
-  readonly readableSchema: boolean; readonly rollbackBinary: 'keep-v21' | 'do-not-install-older';
+  readonly readableSchema: boolean; readonly rollbackBinary: `keep-v${typeof KNS09_SCHEMA_VERSION}` | 'do-not-install-older';
   readonly drainSafe: boolean; readonly silentDelete: boolean; readonly duplicatePushRisk: boolean;
   readonly stopExpansion: boolean; readonly conclusion: string;
 };
@@ -212,7 +213,7 @@ export async function hydrateKns09Metrics(): Promise<void> {
 
 export function diagnoseKns09Fault(fixture: Kns09FaultFixture): Kns09Diagnosis {
   const readableSchema = fixture.databaseVersion === KNS09_SCHEMA_VERSION;
-  const rollbackBinary = readableSchema ? 'keep-v21' : 'do-not-install-older';
+  const rollbackBinary = readableSchema ? `keep-v${KNS09_SCHEMA_VERSION}` as const : 'do-not-install-older';
   const drainSafe = fixture.coordinatorMutations === false && fixture.uiMutations === false;
   const deletes = fixture.queue.filter((row) => row.payloadType === 'delete_node' || row.payloadType === 'delete_subtree');
   const silentDelete = deletes.length > 0 && fixture.uiMutations === true;

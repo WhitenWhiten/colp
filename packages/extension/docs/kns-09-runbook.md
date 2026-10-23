@@ -4,7 +4,7 @@ Owner: Release on-call. Do not change Merge or Delete semantics from this runboo
 
 ## Locate identities
 
-Full `scopeKey`, `mountId`, `replicaId`, and `opId` stay on the device (IndexedDB `known-phase3-indexeddb-entry` v21). Remote logs and metrics carry only `collectionHash` / `replicaHash` from `locatorHash()` in `src/kns-09-release.ts`.
+Full `scopeKey`, `mountId`, `replicaId`, and `opId` stay on the device (IndexedDB `known-phase3-indexeddb-entry` v22). Remote logs and metrics carry only `collectionHash` / `replicaHash` from `locatorHash()` in `src/kns-09-release.ts`.
 
 On the device (options page / SW evidence, redacted export):
 
@@ -21,7 +21,7 @@ Use Product Sync Center trash restore (single, bulk, or subtree) or COLP `restor
 
 ## Stale cursor
 
-If Pull returns `sync_cursor_expired` / engine `recoveryFrozen`, do not write the old cursor. Let recovery rebase, or pause Sync (`coordinator`/`ui` false) and drain Push. Pull apply also pauses when `coordinator` is false. A v9–v20 binary cannot read a v21 database.
+If Pull returns `sync_cursor_expired` / engine `recoveryFrozen`, do not write the old cursor. Let recovery rebase, or pause Sync (`coordinator`/`ui` false) and drain Push. Pull apply also pauses when `coordinator` is false. A v9–v21 binary cannot read a v22 database.
 
 ## Safe queue drain
 
@@ -38,7 +38,7 @@ Fixture: `tests/fixtures/kns-09-rollback-drill.json`.
 npm run kns-09:contracts
 ```
 
-Expected diagnosis: `readableSchema=true`, `rollbackBinary=keep-v21`, `drainSafe=true`, `silentDelete=false`, `duplicatePushRisk=false`, `conclusion=pause_mutations_and_drain`. Offline + claimed queue + pending work: do not install v9/v10/v11/v12/v13/v14/v15/v16/v17/v18/v19/v20, do not silent-delete, and do not double-enqueue.
+Expected diagnosis: `readableSchema=true`, `rollbackBinary=keep-v22`, `drainSafe=true`, `silentDelete=false`, `duplicatePushRisk=false`, `conclusion=pause_mutations_and_drain`. Offline + claimed queue + pending work: do not install v9/v10/v11/v12/v13/v14/v15/v16/v17/v18/v19/v20/v21, do not silent-delete, and do not double-enqueue.
 
 ## Schema v17 rollback rule
 
@@ -66,4 +66,4 @@ Promote a SHA only when the acceptance receipt and both evidence scripts are gre
 
 ## Rollout and stop
 
-Internal dual Profile → small percent → full. Each stage needs one sync cycle and one offline recovery window. Any non-zero `kns09.stop.*` stops expansion. Keep mutation switches closed until the owning KNS task is green; do not roll back to a binary older than v21.
+Internal dual Profile → small percent → full. Each stage needs one sync cycle and one offline recovery window. Any non-zero `kns09.stop.*` stops expansion. Keep mutation switches closed until the owning KNS task is green; do not roll back to a binary older than v22.

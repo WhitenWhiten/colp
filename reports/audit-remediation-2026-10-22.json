@@ -719,15 +719,23 @@
         "Registered delete_journal_invalid as replica/stop with Pull freeze, so corrupt persisted deletion evidence cannot keep native application running through unknown-code retry accounting",
         "The prior complete unit run reproduced the missing-policy guard failure; seven failure-policy assertions pass after correction",
         "Remote delete member journal and circuit-breaker suites pass, along with targeted ESLint"
-      ]
+      ],
+      "commit": "1296a308"
     },
     {
       "id": "tests-09",
       "title": "Keep release diagnosis, rollback reader guidance and evidence scripts aligned with schema v22",
-      "status": "pending",
+      "status": "resolved",
       "evidence": [
         "DATABASE_VERSION is 22 but KNS09_SCHEMA_VERSION, scripts, diagnosis and docs still require v21; existing unit and index-upgrade guards fail",
         "Current release evidence scripts refuse the actual current schema; rollback guidance can name a reader unable to open an upgraded database"
+      ],
+      "validation": [
+        "KNS09 runtime diagnosis derives schema identity from DATABASE_VERSION, including its typed keep-v22 rollback label",
+        "Release manifest and acceptance generators explicitly pin the shipped schema v22; current rollback drill and docs now require a reader that can open v22, while retaining historical v21/v20 upgrade notes",
+        "20 release, rollback, acceptance and historical-index migration assertions pass, including refusal to claim compatibility with the previous schema",
+        "Real manifest generation succeeds against the current source; manifest remains distinct from an acceptance verdict and no acceptance gate was bypassed",
+        "Extension TypeScript and targeted ESLint pass"
       ]
     }
   ],

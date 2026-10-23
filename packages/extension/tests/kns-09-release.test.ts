@@ -150,12 +150,15 @@ describe('KNS-09 metrics and rollback', () => {
       Kns09FaultFixture;
     const diagnosis = diagnoseKns09Fault(raw);
     assert.equal(diagnosis.readableSchema, true);
-    assert.equal(diagnosis.rollbackBinary, 'keep-v21');
+    assert.equal(diagnosis.rollbackBinary, 'keep-v22');
     assert.equal(diagnosis.drainSafe, true);
     assert.equal(diagnosis.silentDelete, false);
     assert.equal(diagnosis.duplicatePushRisk, false);
     assert.equal(diagnosis.stopExpansion, false);
     assert.equal(diagnosis.conclusion, 'pause_mutations_and_drain');
+    const priorSchema = diagnoseKns09Fault({ ...raw, databaseVersion: KNS09_SCHEMA_VERSION - 1 });
+    assert.equal(priorSchema.readableSchema, false);
+    assert.equal(priorSchema.rollbackBinary, 'do-not-install-older');
     const v9 = diagnoseKns09Fault({ ...raw, databaseVersion: 9 });
     assert.equal(v9.readableSchema, false);
     assert.equal(v9.rollbackBinary, 'do-not-install-older');
