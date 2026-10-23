@@ -997,6 +997,20 @@
         "packages/server/tests/unit/sync/sync-bootstrap-snapshot.test.ts",
         "packages/server/tests/integration/sync/sync-recovery-validation-postgres.integration.test.ts"
       ]
+    },
+    {
+      "id": "tests-10",
+      "title": "expand MCP mutation shard globs before checking complete and exclusive source ownership",
+      "status": "resolved",
+      "discoveredDuring": "performance-05 full SDK regression run",
+      "resolution": "The existing shard contract compared change-plan*.ts as a literal filename with the physical inventory. It now expands every configured target with the filesystem glob resolver, rejects empty matches, and retains complete and exclusive ownership checks against all actual MCP source files.",
+      "validation": [
+        "The complete SDK run reported this one unrelated failure among 11,456 assertions; the failing diff was the unexpanded change-plan wildcard versus its nine files.",
+        "All 7 MCP quality gate configuration assertions pass after the fix. No mutation source or score floor was removed; executing formal and mutation verification in CI remains tracked in tests-07."
+      ],
+      "evidence": [
+        "packages/node/tests/mcp/t01-quality-gates-contract.test.ts"
+      ]
     }
   ],
   "workspaceNote": "Concurrent change in packages/extension/docs/site-adapters/README.md is unrelated user work. Preserve it and do not stage/revert it."

@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'node:fs';
+import { globSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -154,7 +154,11 @@ describe('MCP quality gate configuration', () => {
       mcpWriteMutationConfig,
       mcpReadMutationConfig,
     ];
-    const assignedSources = shardConfigs.flatMap(({ mutate }) => mutate as readonly string[]);
+    const assignedSources = shardConfigs.flatMap(({ mutate }) => (mutate as readonly string[]).flatMap(pattern => {
+      const matches = globSync(pattern, { cwd: packageRoot });
+      expect(matches.length, `Mutation target ${pattern} must resolve to source files`).toBeGreaterThan(0);
+      return matches.map(file => file.replaceAll('\\', '/'));
+    }));
     const actualSources = collectMcpSourceFiles(resolve(packageRoot, 'src', 'mcp')).sort();
 
     expect([...assignedSources].sort()).toEqual(actualSources);
