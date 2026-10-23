@@ -1,5 +1,6 @@
 import { lockActiveSyncReplicasForCollection } from '../database/lock-order.js';
 import { hasCompleteDeleteGroup } from './sync-delete-group-integrity.js';
+import { MAX_TOMBSTONE_APPEND_MEMBERS, MAX_TOMBSTONE_INSERT_BATCH } from './sync-node-tombstone-postgres.js';
 import { randomUUID } from 'node:crypto';
 import { sql, type Kysely } from 'kysely';
 import { createUnitOfWork, type DatabaseTransaction } from '../database/unit-of-work.js';
@@ -25,6 +26,7 @@ export interface SyncTombstonePurgeResult {
 
 export interface SyncTombstonePurgeCoordinatorOptions {
   readonly workerId: string;
+  /** Maximum identities per INSERT; a complete delete group commits atomically. */
   readonly batchSize: number;
   readonly leaseDurationMs: number;
   readonly faultInjector?: { afterPhase?(phase: SyncTombstonePurgeFaultPhase): Promise<void> };
@@ -188,7 +190,7 @@ export class PostgresSyncTombstonePurgeCoordinator {
         ORDER BY target_id FOR UPDATE`.execute(transaction);
       const group = groupResult.rows;
       if (group.length < 1 || !await hasCompleteDeleteGroup(transaction, claim.collectionId, first.operation_id, first.affected_count)
-          || group.length > this.options.batchSize
+          || group.length > MAX_TOMBSTONE_APPEND_MEMBERS
           || group.some((row) => row.purge_after > now
             || BigInt(row.delete_commit_ordinal) !== BigInt(first.delete_commit_ordinal))) {
         return this.finishEmpty(transaction, state, claim, now, currentBoundary, true);
@@ -221,11 +223,14 @@ export class PostgresSyncTombstonePurgeCoordinator {
             && first.operation_id <= state.purged_through_stable_id)) {
         throw new TypeError('Stored purge boundary would regress.');
       }
-      await transaction.insertInto('sync_purged_node_id_watermarks').values(group.map((row) => ({
-        collection_id: claim.collectionId, target_id: row.target_id,
-        delete_commit_ordinal: BigInt(row.delete_commit_ordinal), delete_revision: row.delete_revision,
-        delete_operation_id: row.operation_id, purge_state_revision: nextRevision, purged_at: now,
-      }))).execute();
+      const insertBatchSize = Math.min(this.options.batchSize, MAX_TOMBSTONE_INSERT_BATCH);
+      for (let offset = 0; offset < group.length; offset += insertBatchSize) {
+        await transaction.insertInto('sync_purged_node_id_watermarks').values(group.slice(offset, offset + insertBatchSize).map((row) => ({
+          collection_id: claim.collectionId, target_id: row.target_id,
+          delete_commit_ordinal: BigInt(row.delete_commit_ordinal), delete_revision: row.delete_revision,
+          delete_operation_id: row.operation_id, purge_state_revision: nextRevision, purged_at: now,
+        }))).execute();
+      }
       await this.options.faultInjector.afterPhase?.('identity_watermarks');
       const compacted = await sql`UPDATE sync_node_tombstones SET
           payload_json=jsonb_set(payload_json,'{extensions}','{}'::jsonb,true),

@@ -5,6 +5,7 @@ import { createMigrator, runMigrations } from '../../../src/infrastructure/datab
 import { insertTestAuditEvent, insertTestOperation } from '../../support/ledger-split-writes.js';
 import {
   createPostgresReplicaRetentionWindowPort,
+  createPostgresSyncNodeTombstonePort,
   PostgresSyncTombstonePurgeCoordinator,
   SyncTombstonePurgeFenceLostError,
 } from '../../../src/infrastructure/sync/index.js';
@@ -236,6 +237,43 @@ describeWithPostgres('P3-23 durable Tombstone purge coordinator', () => {
       'update nodes set title=$3 where collection_id=$1 and id=$2', [COLLECTION, target.target, 'resurrected']),
     /deleted Node identity/u);
     await isolated.runtime.pool.query('alter table sync_node_tombstones enable trigger sync_node_tombstones_immutable');
+  });
+
+  test('delete groups larger than the insert batch purge atomically without blocking later groups', async () => {
+    const members = Array.from({ length: 5 }, (_, index) => ({
+      targetId: `purge-large-group-${index}`, kind: index === 0 ? 'folder' as const : 'bookmark' as const,
+      deleteRevision: 'large-group-r1', extensions: { private: 'retained until purge' },
+    }));
+    for (const [index, member] of members.entries()) {
+      await isolated.runtime.pool.query("insert into resource_id_ledger(resource_id,resource_type) values ($1,'node')", [member.targetId]);
+      await isolated.runtime.pool.query(`insert into nodes(id,collection_id,parent_id,kind,title,url,position_token,resource_revision,children_revision,deleted_at,deleted_commit_ordinal)
+        values ($1,$2,$3,$4,'Deleted group member',$5,$6,$7,'ch1',$8,250)`,
+      [member.targetId, COLLECTION, index === 0 ? 'purge-root' : members[0]!.targetId, member.kind,
+        index === 0 ? null : `https://example.test/group/${index}`, `group${index}`, member.deleteRevision,
+        new Date(BASE_TIME.getTime() - RETENTION_MS)]);
+    }
+    await isolated.runtime.pool.query("insert into resource_id_ledger(resource_id,resource_type) values ('purge-large-operation','operation')");
+    await insertTestOperation(isolated.runtime.db, { operationId: 'purge-large-operation', collectionId: COLLECTION,
+      commitOrdinal: 250n, operationType: 'delete_subtree', payloadJson: {}, actorPrincipalId: ACCOUNT });
+    for (const member of members) {
+      await isolated.runtime.pool.query(`insert into sync_node_revision_history(collection_id,resource_id,revision,kind,payload_json,commit_ordinal,operation_id)
+        values ($1,$2,$3,$4,'{}',250,'purge-large-operation')`, [COLLECTION, member.targetId, member.deleteRevision, member.kind]);
+    }
+    await isolated.runtime.db.transaction().execute(transaction => createPostgresSyncNodeTombstonePort(transaction).append({
+      collectionId: COLLECTION, rootTargetId: members[0]!.targetId, operationId: 'purge-large-operation',
+      scope: 'subtree', deleteCommitOrdinal: 250n, deleteCursor: 'large-group-cursor',
+      deletedAt: new Date(BASE_TIME.getTime() - RETENTION_MS), purgeAfter: BASE_TIME, members,
+    }));
+    await assert.rejects(coordinator(randomUUID(), 'identity_watermarks').runBatch({ now: BASE_TIME }), /fault:identity_watermarks/);
+    const watermarks = () => isolated.runtime.pool.query("select 1 from sync_purged_node_id_watermarks where delete_operation_id='purge-large-operation'");
+    assert.equal((await watermarks()).rowCount, 0);
+    const retryAt = new Date(BASE_TIME.getTime() + 30_001);
+    const result = await coordinator().runBatch({ now: retryAt });
+    assert.equal(result.purgedCount, 5);
+    assert.equal(result.purgedThrough.commitOrdinal, '250');
+    assert.equal((await watermarks()).rowCount, 5);
+    await seedTombstone('after-large-group', 251, BASE_TIME);
+    assert.equal((await coordinator().runBatch({ now: retryAt })).purgedCount, 1);
   });
 
   test('all write-point faults roll back payload, watermarks, and boundary together', async () => {
