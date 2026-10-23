@@ -1,3 +1,4 @@
+import { appendAgentActivityOutbox } from '../activity/index.js';
 import { appendRevisions } from './canonical-revisions.js';
 import { serverMoveOperation } from './server-move-operation.js';
 import type { Operation } from '@know-n/colp/types';
@@ -89,7 +90,6 @@ const DEFAULT_MAX_DELETE_SUBTREE_NODES = 10_000;
 const DEFAULT_MAX_DELETE_SUBTREE_DEPTH = 256;
 const HARD_MAX_DELETE_SUBTREE_NODES = 100_000;
 const HARD_MAX_DELETE_SUBTREE_DEPTH = 1_024;
-
 function searchUrlHost(value: string | null): string | null {
   if (value === null) return null;
   try {
@@ -101,7 +101,6 @@ function searchUrlHost(value: string | null): string | null {
     return null;
   }
 }
-
 async function upsertPendingCollectionLinkHealth(
   tx: DatabaseTransaction,
   row: { readonly id: string; readonly collection_id: string; readonly kind: string; readonly url: string | null },
@@ -1718,6 +1717,7 @@ export function createPostgresCanonicalMutationPorts(
     facts: {
       async capture(tx, event, input, allocation) {
         const facts = postgresPlanFacts(event.plan);
+        if (facts.resourceKind === 'node') await appendAgentActivityOutbox(tx, event, input);
         if (facts.resourceKind === 'node' && facts.automation) await captureAutomationFacts(tx, event, input, allocation, facts.automation);
         await options.faultInjector?.afterPhase?.({ phase: 'facts', transaction: tx });
       },
