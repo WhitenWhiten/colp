@@ -406,6 +406,7 @@ describe('P3-27 Better Auth credential lifecycle', () => {
         return new Response(null, { status: 404 });
       },
     });
+    await store.saveCredential(fixtureCredential(config(), NOW)); await store.clearCredential();
     assert.equal(await store.loadCredential(), null, 'the restarted profile starts with no credential');
 
     const status = await controller.status();
@@ -431,6 +432,7 @@ describe('P3-27 Better Auth credential lifecycle', () => {
     const cookies = memoryCookies();
     cookies.values.set(`https://known.example/:${SESSION_COOKIE_NAME}`, COOKIE_VALUE);
     const store = createCredentialStore(new MemoryStorageArea(), () => NOW);
+    await store.saveCredential(fixtureCredential(config(), NOW)); await store.clearCredential();
     const controller = createAuthController({
       config: config(), store, now: () => NOW, origin: EXTENSION_ORIGIN, cookies,
       fetch: async (url) => {
@@ -454,6 +456,7 @@ describe('P3-27 Better Auth credential lifecycle', () => {
     cookies.values.set(`https://known.example/:${SESSION_COOKIE_NAME}`, COOKIE_VALUE);
     const local = new MemoryStorageArea();
     const store = createCredentialStore(createSplitCredentialStorage(local), () => NOW);
+    await store.saveCredential(fixtureCredential(config(), NOW)); await store.clearCredential();
     const controller = createAuthController({
       config: config(), store, now: () => NOW, origin: EXTENSION_ORIGIN, cookies,
       fetch: async (url) => {

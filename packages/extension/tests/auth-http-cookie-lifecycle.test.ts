@@ -8,6 +8,7 @@ import { config, EXTENSION_ORIGIN, memoryCookies, NOW, sessionJson } from './aut
 test('loopback HTTP login, rotation, restart restoration and logout use the non-Secure cookie', async () => {
   const build = resolveRuntimeConfig(config(), 'http://127.0.0.1:8080');
   const cookies = memoryCookies(); const set = vi.spyOn(cookies, 'set');
+  const durableStorage = new MemoryStorageArea();
   let rotate = false;
   const fetcher: typeof fetch = async (url, init) => {
     if (String(url).endsWith('/sign-in/username')) return new Response('{}', { headers: { 'Set-Cookie': 'known_session=initial-token; Path=/; HttpOnly' } });
@@ -19,7 +20,7 @@ test('loopback HTTP login, rotation, restart restoration and logout use the non-
     return new Response(null, { status: 404 });
   };
   const create = () => {
-    const store = createCredentialStore(new MemoryStorageArea(), () => NOW);
+    const store = createCredentialStore(durableStorage, () => NOW);
     return { store, auth: createAuthController({ config: build, store, cookies, fetch: fetcher, origin: EXTENSION_ORIGIN, now: () => NOW }) };
   };
   const initial = create();
@@ -27,6 +28,7 @@ test('loopback HTTP login, rotation, restart restoration and logout use the non-
   rotate = true;
   expect((await initial.auth.ensureFreshCredential(true)).accessToken).toBe('rotated-token');
   for (const [details] of set.mock.calls) expect(details).toMatchObject({ name: 'known_session', secure: false, httpOnly: true, sameSite: 'lax' });
+  await initial.store.clearCredential(); // Only session credentials disappear; durable identity remains.
   const restarted = create();
   expect((await restarted.auth.status()).status).toBe('connected');
   expect((await restarted.store.loadCredential())?.accessToken).toBe('rotated-token');

@@ -202,7 +202,15 @@
     {
       "id": "security-07",
       "title": "bind extension session-cookie adoption to expected identity",
-      "status": "pending"
+      "status": "resolved",
+      "validation": [
+        "Credential publication persists only a generation-bound subject/server/issuer/audience/client identity pin in local metadata; bearer cookies and Sessions remain session-scoped",
+        "Cookie restoration requires the existing pin and an authoritative matching session user before avatar lookup or credential publication; fresh profiles and different Web accounts stay signed out",
+        "Explicit sign-in can replace the pin; authority cleanup removes it and revocation invalidates it; a still-live legacy credential backfills its pin once per worker generation before a later browser reset",
+        "Restoring unbound adoption fails the new fresh-profile and foreign-account regressions; 68 auth/storage/authority assertions and 12 focused pin/storage assertions pass, including absence of bearer material in local storage",
+        "All six real Chromium/Postgres auth and two-profile recovery cases pass under xvfb, including full browser restart, forced worker termination, server revocation, logout and offline-edit convergence (2.5 minutes)",
+        "Extension TypeScript, targeted ESLint and production fixture build pass"
+      ]
     },
     {
       "id": "tests-01",
@@ -939,7 +947,8 @@
         "301 Pull/recovery/native-wait/engine assertions, 30 budget/batch/scheduler/permission assertions and focused mapping-shadow tests pass; extension TypeScript, source-size and changed-file lint pass",
         "Real Chromium/Postgres 958-bookmark normal and lost-batch-response cases both converge (4.3/4.4 minutes), preserving exact native/canonical counts, immutable retry identities and empty queue/capture/Ack state",
         "The previously unexecuted correctness scenarios use a measured six-minute convergence budget and now attach actual timings; no four-minute product latency target is claimed. Idle whole-library work remains separately tracked under performance-08"
-      ]
+      ],
+      "commit": "04be4781"
     }
   ],
   "workspaceNote": "Concurrent change in packages/extension/docs/site-adapters/README.md is unrelated user work. Preserve it and do not stage/revert it."

@@ -265,7 +265,7 @@ describe('SYNC-Q-015 service worker logout barrier', () => {
     assert.doesNotMatch(worker, /requestQueue = /);
     assert.match(fence, /authority_fenced/);
     assert.match(credentials, /AUTHORITY_GENERATION_KEY/);
-    assert.match(credentials, /clearAuthority: \(\) => storage\.remove\(\[TRANSACTION, CREDENTIAL, SESSION, BINDING\]\)/);
+    assert.match(credentials, /clearAuthority: \(\) => storage\.remove\(\[TRANSACTION, CREDENTIAL, SESSION, BINDING, EXPECTED_IDENTITY\]\)/);
   });
 
   test('LANE-CAPTURE-ENGINE-RACE: engine and bookmark work overlap by design', async () => {

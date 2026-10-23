@@ -69,7 +69,10 @@ describe('credential storage is not readable from extension pages', () => {
     }
     assert.equal(JSON.stringify(inLocal).includes('session-cookie-value'), false,
       'the access token must never reach local storage');
+    assert.equal((inLocal['known.auth.identity.v1'] as { subject?: string })?.subject, 'subject-1',
+      'the non-secret account pin must survive a browser-session reset');
     const inSession = await session.get(null);
+    assert.equal(inSession['known.auth.identity.v1'], undefined);
     assert.equal(JSON.stringify(inSession).includes('session-cookie-value'), true,
       'the credential is expected in the session area');
   });

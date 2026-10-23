@@ -275,35 +275,21 @@ function credentialFromSession(
   });
 }
 
-/**
- * Re-establish the credential from the browser's session cookie.
- *
- * `chrome.storage.session` is cleared when the browser session ends, but the
- * session cookie lives in the browser's COOKIE JAR and survives a restart — and the
- * credential's `accessToken` IS that cookie's value. Nothing consulted the cookie
- * when the stored credential was missing, so a restarted profile reported
- * `signed_out` and made the user sign in again although the cookie proving the
- * session was still there. That is a product regression, not a storage tradeoff:
- * every browser restart forced a fresh login.
- *
- * Nothing new is persisted to a page-readable area. The cookie stays in the
- * browser's jar (which extension pages cannot read) and the rebuilt credential
- * stays in the `TRUSTED_CONTEXTS` session area, so the property that an injected
- * options/popup script cannot read a credential is unchanged. Deliberately NOT a
- * refresh token in `local`: that would hold a mintable secret in the very area the
- * split was made to clear.
- *
- * Fails closed. An absent, expired or rejected cookie returns null and the caller
- * reports `authentication_required` / `signed_out`, so a stale cookie can never
- * conjure a session that the authority does not accept.
- */
+/** Restore only the account this profile already authorized. The generation-bound
+ * identity pin is non-secret local metadata; credentials remain session-scoped.
+ * A fresh installation never adopts an unrelated login from the server's cookie jar. */
 async function restoreCredentialFromCookie(
   dependencies: Dependencies, auth: AuthClient, expectedGeneration: number,
 ): Promise<StoredCredential | null> {
+  const expected = await dependencies.store.loadExpectedIdentity();
+  if (!expected || expected.serverOrigin !== dependencies.config.serverOrigin
+      || expected.issuer !== dependencies.config.issuer || expected.audience !== dependencies.config.audience
+      || expected.clientId !== dependencies.config.clientId) return null;
   const cookieValue = await readHostCookie(dependencies);
   if (!cookieValue) return null;
   try {
     const session = await auth.getSession(cookieValue);
+    if (session.user.id !== expected.subject) return null;
     const next = await credentialFromLiveSession(dependencies, auth, session.cookieValue, session);
     if (next.expiresAt <= (dependencies.now ?? Date.now)()) return null;
     // Throws when the authority is fenced, which is the point: a revoked authority

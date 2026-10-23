@@ -14,6 +14,13 @@ const proofKey = (scope: Pick<SyncScope, 'serverOrigin' | 'accountId' | 'replica
 const BINDING = 'known.auth.binding.v1';
 const BROWSER_PROFILE = 'known.auth.browser-profile.v1';
 const SIGN_OUT_REASON = 'known.auth.signOutReason.v1';
+const EXPECTED_IDENTITY = 'known.auth.identity.v1';
+type AccountIdentity = Pick<StoredCredential, 'serverOrigin' | 'issuer' | 'audience' | 'clientId'> & { readonly subject: string };
+
+function accountIdentity(value: StoredCredential): AccountIdentity | null {
+  return value.subject ? { subject: value.subject, serverOrigin: value.serverOrigin, issuer: value.issuer,
+    audience: value.audience, clientId: value.clientId } : null;
+}
 
 export class MemoryStorageArea implements StorageArea {
   private readonly values = new Map<string, unknown>();
@@ -24,6 +31,7 @@ export class MemoryStorageArea implements StorageArea {
 
 export function createCredentialStore(storage: StorageArea, now: () => number = Date.now) {
   const fence = createAuthorityFence(storage);
+  let identityGeneration: number | undefined;
   return Object.freeze({
     fence,
     saveTransaction: (value: OAuthTransaction) => storage.set({ [TRANSACTION]: value }),
@@ -37,11 +45,27 @@ export function createCredentialStore(storage: StorageArea, now: () => number = 
     async saveCredential(value: StoredCredential, expectedGeneration?: number): Promise<void> {
       const current = await fence.assertWritable(expectedGeneration);
       const generation = expectedGeneration ?? current.generation;
-      await storage.set({ [CREDENTIAL]: stamp(value, generation) });
+      const identity = accountIdentity(value);
+      await storage.set({ [CREDENTIAL]: stamp(value, generation),
+        ...(identity ? { [EXPECTED_IDENTITY]: stamp(identity, generation) } : {}) });
       await reclaimIfFenced(storage, fence, CREDENTIAL, generation);
+      if (identity) { await reclaimIfFenced(storage, fence, EXPECTED_IDENTITY, generation); identityGeneration = generation; }
     },
     async loadCredential(): Promise<StoredCredential | null> {
-      return unstamp(await read<Stamped<StoredCredential>>(storage, CREDENTIAL), await fence.read());
+      const raw = await read<Stamped<StoredCredential>>(storage, CREDENTIAL); const current = await fence.read();
+      const value = unstamp(raw, current); const identity = value && accountIdentity(value);
+      // Migrate a still-live pre-pin credential once per worker generation.
+      // A browser-session reset cannot manufacture this proof from a host cookie.
+      if (identity && identityGeneration !== current.generation) {
+        await fence.assertWritable(current.generation);
+        await storage.set({ [EXPECTED_IDENTITY]: stamp(identity, current.generation) });
+        await reclaimIfFenced(storage, fence, EXPECTED_IDENTITY, current.generation);
+        identityGeneration = current.generation;
+      }
+      return value;
+    },
+    async loadExpectedIdentity(): Promise<AccountIdentity | null> {
+      return unstamp(await read<Stamped<AccountIdentity>>(storage, EXPECTED_IDENTITY), await fence.read());
     },
     clearCredential: () => storage.remove(CREDENTIAL),
     async saveSession(value: StoredSession, expectedGeneration?: number): Promise<void> {
@@ -144,7 +168,7 @@ export function createCredentialStore(storage: StorageArea, now: () => number = 
     loadSignOutReason: async (): Promise<string | null> =>
       (await read<{ readonly code?: string }>(storage, SIGN_OUT_REASON))?.code ?? null,
     clearSignOutReason: () => storage.remove(SIGN_OUT_REASON),
-    clearAuthority: () => storage.remove([TRANSACTION, CREDENTIAL, SESSION, BINDING]),
+    clearAuthority: () => storage.remove([TRANSACTION, CREDENTIAL, SESSION, BINDING, EXPECTED_IDENTITY]),
     activateAuthority: fence.activate,
     revokeAuthority: fence.revoke,
     assertWritable: fence.assertWritable,
