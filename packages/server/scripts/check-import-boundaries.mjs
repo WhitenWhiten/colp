@@ -147,6 +147,7 @@ function layerOf(path) {
 }
 
 const moduleEdges = {
+  activity: new Set(['automation']),
   automation: new Set(['commands', 'identity']),
   // Known-Command-Id idempotency: the identity avatar upload path consumes the
   // commands facade receipt port (same pattern as notifications/reading-progress).
@@ -201,6 +202,7 @@ const moduleEdges = {
   governance: new Set(['commands', 'collections', 'reports', 'publication', 'access-policy']),
 };
 const infrastructureEdges = {
+  activity: new Set(['database', 'outbox', 'telemetry']),
   automation: new Set(['database', 'collections', 'access-policy', 'telemetry', 'outbox', 'egress']),
   // Transaction composition for browser projections and atomic follow exit.
   'bookmark-subscriptions': new Set(['database','collections','reports','identity','telemetry']),
@@ -232,7 +234,7 @@ const infrastructureEdges = {
   // by several infrastructure surfaces. Keeping it in a leaf composition
   // surface prevents database <-> identity/access-policy directory cycles.
   collaboration: new Set(['access-policy', 'collections', 'database', 'identity', 'outbox']),
-  collections: new Set(['publication', 'access-policy', 'database', 'outbox', 'telemetry', 'egress', 'governance', 'security']),
+  collections: new Set(['activity', 'publication', 'access-policy', 'database', 'outbox', 'telemetry', 'egress', 'governance', 'security']),
   // CS-01: community PostgreSQL adapters are transaction-bound database
   // consumers (unit-of-work, receipts, audit), same shape as social.
   // CS-02: the rank-refresh durable outbox producer composes the shared
@@ -305,6 +307,7 @@ const infrastructureEdges = {
 // facades only; allowing a layer category here would let a new deep import
 // bypass the public contract without a graph review.
 const infrastructureModuleEdges = {
+  activity: new Set(['module:activity:facade', 'module:automation:facade']),
   automation: new Set(['module:mcp:facade', 'module:collections:facade', 'module:identity:facade', 'module:automation:facade', 'module:commands:facade', 'module:access-policy:facade']),
   'bookmark-subscriptions': new Set(['module:bookmark-subscriptions:facade','module:commands:facade','module:collections:facade','module:reports:facade']),
   'access-policy': new Set(['module:access-policy:facade']),
@@ -408,6 +411,7 @@ const rootEntryTargets = new Set([
 // Bootstrap composes the process from these concrete public surfaces. This
 // deliberately includes the module aggregate only at its actual entrypoint.
 const bootstrapTargets = new Set([
+  'infrastructure/activity/index.ts',
   'bootstrap/automation-approval-composition.ts',
   'bootstrap/worker-automation-maintenance.ts',
   'bootstrap/automation-binding-verifier.ts',
@@ -612,6 +616,8 @@ const bootstrapTargets = new Set([
 // layer graph remains explicit without granting every transport file access to
 // every bootstrap, infrastructure, or COLP path.
 const transportTargets = new Set([
+  'modules/activity/index.ts',
+  'transport/product/activity-routes.ts',
   'transport/product/folder-share-routes.ts',
   'modules/automation/index.ts',
   'transport/product/automation-rule-routes.ts',
