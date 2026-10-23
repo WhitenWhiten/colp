@@ -802,6 +802,11 @@ The client submits a semantic position:
 - `afterId` and `beforeId` may be omitted; omitting both means "place at the end".
 - When both are provided they must be adjacent; otherwise the server returns `position_context_stale` with a summary of the current child order.
 - The server assigns the position.
+- Stale Node or source/target children revisions alone do not reject a semantic move. The server rebases it
+  against the locked current Node and parents, preserves current content, and validates its anchors against
+  the current child order. A rebased move returns `rebased` with a `move_rebased` warning; its original
+  operation remains unchanged and its immutable effect records the committed placement. Cycles, invalid
+  ancestry, managed-bookmark restrictions, and missing or non-adjacent anchors remain errors.
 
 <a id="colp-section-12-2"></a>
 

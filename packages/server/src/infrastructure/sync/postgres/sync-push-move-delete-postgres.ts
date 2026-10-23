@@ -408,10 +408,12 @@ export async function evaluateCanonicalNodeMove(
   const revision = mutation.allocation.resourceRevision;
   if (!revision) throw new SyncPushHttpError('internal_error');
   const cursor = `sync-move-${mutation.allocation.commitOrdinal}`;
+  const status = mapped.rebased ? 'rebased' : 'applied';
   await persistAuthoritativeOperationEffect({
     transaction: tx, operation, commitOrdinal: mutation.allocation.commitOrdinal,
-    terminalStatus: 'applied', cursor, sourceParentId: current.parent_id ?? undefined,
+    terminalStatus: status, cursor, sourceParentId: current.parent_id ?? undefined,
     ...(options.faultInjector ? { faultInjector: options.faultInjector } : {}),
   });
-  return appliedPushResult(serverBatchId, operation, 'applied', mapped.targetId, revision, cursor);
+  return appliedPushResult(serverBatchId, operation, status, mapped.targetId, revision, cursor,
+    mapped.rebased ? [{ code: 'move_rebased', message: 'Move rebased on the current server placement.' }] : []);
 }

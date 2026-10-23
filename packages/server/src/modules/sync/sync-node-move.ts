@@ -38,6 +38,7 @@ export interface CanonicalSyncNodeMove {
   readonly expectedCurrentRevision: string;
   readonly sourceParentId: string;
   readonly newParentId: string;
+  readonly rebased: boolean;
   readonly relativePosition: Readonly<{ readonly afterId?: string; readonly beforeId?: string }>;
 }
 
@@ -97,9 +98,6 @@ export function evaluateSyncNodeMove(
   if (node.parentId !== sourceParent.id || targetParent.id !== newParentId) deny('resource_not_found');
   if (sourceParent.deleted || sourceParent.kind !== 'folder'
       || targetParent.deleted || targetParent.kind !== 'folder') deny('invalid_document');
-  if (node.revision !== baseRevision) deny('revision_conflict');
-  if (sourceParent.childrenRevision !== sourceRevision
-      || targetParent.childrenRevision !== targetRevision) deny('position_context_stale');
   if (newParentId === targetId || (node.kind === 'folder' && facts.targetAncestorIds.includes(targetId))) {
     deny('invalid_document');
   }
@@ -113,6 +111,11 @@ export function evaluateSyncNodeMove(
     expectedCurrentRevision: node.revision,
     sourceParentId: sourceParent.id,
     newParentId,
+    // A semantic move owns placement only. The last server commit wins against
+    // locked current facts, preserving concurrent content edits. Anchor validity
+    // is still checked by the transaction's canonical placement resolver.
+    rebased: node.revision !== baseRevision || sourceParent.childrenRevision !== sourceRevision
+      || targetParent.childrenRevision !== targetRevision,
     relativePosition: Object.freeze({
       ...(typeof afterId === 'string' ? { afterId } : {}),
       ...(typeof beforeId === 'string' ? { beforeId } : {}),

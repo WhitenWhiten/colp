@@ -42,6 +42,7 @@ describe('P3-14 canonical Node move evaluator', () => {
     assert.deepEqual(crossParent, {
       targetId: 'move-node-1', expectedCurrentRevision: 'move-node-r1',
       sourceParentId: 'move-source-parent-1', newParentId: 'move-target-parent-1',
+      rebased: false,
       relativePosition: { afterId: 'anchor-a', beforeId: 'anchor-b' },
     });
     assert.equal('fields' in crossParent, false);
@@ -53,17 +54,19 @@ describe('P3-14 canonical Node move evaluator', () => {
     assert.deepEqual(same.relativePosition, { beforeId: 'first-child' });
   });
 
-  test('rejects stale resource and source/target Children Revision fences', () => {
+  test('rebases stale resource and source/target Children Revision fences on the locked current state', () => {
     const facts = {
       node: node(),
       sourceParent: parent({ id: 'move-source-parent-1', childrenRevision: 'source-children-r1' }),
       targetParent: parent(), targetAncestorIds: ['move-target-parent-1'],
     } as const;
-    expectCode(() => evaluateSyncNodeMove(operation({ baseRevision: 'stale-node' }), facts), 'revision_conflict');
-    expectCode(() => evaluateSyncNodeMove(operation({ baseSourceParentRevision: 'stale-source' }), facts),
-      'position_context_stale');
-    expectCode(() => evaluateSyncNodeMove(operation({ baseTargetParentRevision: 'stale-target' }), facts),
-      'position_context_stale');
+    for (const patch of [{ baseRevision: 'stale-node' }, { baseSourceParentRevision: 'stale-source' },
+      { baseTargetParentRevision: 'stale-target' }]) {
+      const rebased = evaluateSyncNodeMove(operation(patch), facts);
+      assert.equal(rebased.rebased, true);
+      assert.equal(rebased.expectedCurrentRevision, facts.node.revision);
+      assert.equal(rebased.sourceParentId, facts.node.parentId);
+    }
   });
 
   test('rejects Root, self/descendant cycles, deleted/non-folder parents, and cross-Collection facts', () => {

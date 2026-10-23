@@ -1421,7 +1421,78 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
     recordPhase3SyncPushScenario('move');
   }, 20_000);
 
-  test('P3-14 rejects stale move fences, Root/cycles/foreign parents and rolls back injected faults', async () => {
+  test('concurrent folder moves commit in server order with a durable rebase notice and exact restart replay', async () => {
+    const moving = await seedNode('folder', { title: 'Concurrent folder',
+      extensions: { 'https://extensions.example/concurrent-move': { retained: ['unchanged'] } } });
+    const targets = await Promise.all([seedNode('folder'), seedNode('folder')]);
+    const rootRevision = (await isolated.runtime.pool.query('select children_revision from nodes where id=$1',
+      [ROOT])).rows[0].children_revision as string;
+    // Establish independent authorities first; the competing mutations below
+    // are concurrent. Registration/Session lock interaction is a separate path.
+    const authorities = [await context('owner', '0.2'), await context('owner', '0.2')];
+    const servers = await Promise.all(authorities.map(value => start(value)));
+    const requests = authorities.map((value, index) => syncNodeMovePushRequest({
+      sessionId: value.session.sessionId, replicaId: value.replica.replicaId, collectionId: COLLECTION,
+      targetId: moving.id, baseRevision: moving.revision, newParentId: targets[index]!.id,
+      baseSourceParentRevision: rootRevision, baseTargetParentRevision: targets[index]!.payload.childrenRevision as string,
+      opId: `concurrent-folder-move-${randomUUID()}`,
+    }));
+    const responses = await Promise.all(servers.map((server, index) => blackBox(server.origin).push({
+      idempotencyKey: `concurrent-folder-${index}`, request: requests[index]!,
+    })));
+    for (const response of responses) assert.equal(response.status, 200, JSON.stringify(response.body));
+    assert.deepEqual(responses.map(response => result(response.body).results[0]!.status).sort(), ['applied', 'rebased']);
+    const effects = (await isolated.runtime.pool.query(`select operation_id,terminal_status,effect_json
+      from sync_operation_effects where operation_id=any($1::text[]) order by commit_ordinal`,
+    [requests.map(request => request.operations[0]!.opId)])).rows;
+    assert.equal(effects.length, 2);
+    assert.deepEqual(effects.map(row => row.terminal_status), ['applied', 'rebased']);
+    const lastIndex = requests.findIndex(request => request.operations[0]!.opId === effects[1]!.operation_id);
+    const final = (await isolated.runtime.pool.query('select parent_id,payload_json from nodes where id=$1', [moving.id])).rows[0];
+    assert.equal(final.parent_id, targets[lastIndex]!.id);
+    assert.equal(effects[1]!.effect_json.node.parentId, final.parent_id);
+    assert.equal(final.payload_json.title, moving.payload.title);
+    assert.deepEqual(final.payload_json.extensions, moving.payload.extensions);
+    assert.equal(result(responses[lastIndex]!.body).results[0]!.warnings?.[0]?.code, 'move_rebased');
+    const beforeReplay = await facts(authorities[lastIndex]!.replica.replicaId, moving.id);
+    await servers[lastIndex]!.app.close();
+    const restarted = await start(authorities[lastIndex]!);
+    const replay = await blackBox(restarted.origin).push({ idempotencyKey: `concurrent-folder-${lastIndex}`,
+      request: requests[lastIndex]! });
+    assert.deepEqual(replay, responses[lastIndex]);
+    assert.deepEqual(await facts(authorities[lastIndex]!.replica.replicaId, moving.id), beforeReplay);
+  }, 20_000);
+
+  test('stale move resource and parent revisions preserve current content and unknown extensions', async () => {
+    const target = await seedNode('folder');
+    const original = await seedNode('bookmark', { title: 'Before edit' });
+    const current = await setCurrent(original, { title: 'Edited elsewhere', description: 'Concurrent description',
+      tags: ['concurrent-tag'], extensions: { 'https://extensions.example/current': { retained: true } } });
+    const authority = await context('owner', '0.2');
+    const server = await start(authority);
+    const request = syncNodeMovePushRequest({ sessionId: authority.session.sessionId,
+      replicaId: authority.replica.replicaId, collectionId: COLLECTION, targetId: original.id,
+      baseRevision: original.revision, newParentId: target.id, baseSourceParentRevision: 'old-source-children',
+      baseTargetParentRevision: 'old-target-children', opId: `stale-move-content-${randomUUID()}` });
+    const response = await blackBox(server.origin).push({ idempotencyKey: 'stale-move-content', request });
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    const rebased = result(response.body).results[0]!;
+    assert.equal(rebased.status, 'rebased');
+    assert.equal(rebased.warnings?.[0]?.code, 'move_rebased');
+    const final = (await isolated.runtime.pool.query('select parent_id,payload_json from nodes where id=$1', [original.id])).rows[0];
+    assert.equal(final.parent_id, target.id);
+    for (const key of ['title', 'url', 'description', 'tags', 'extensions']) {
+      assert.deepEqual(final.payload_json[key], current.payload[key], key);
+    }
+    const effect = (await isolated.runtime.pool.query('select terminal_status,effect_json from sync_operation_effects where operation_id=$1',
+      [request.operations[0]!.opId])).rows[0];
+    assert.equal(effect.terminal_status, 'rebased');
+    assert.equal(effect.effect_json.status, 'rebased');
+    assert.deepEqual(effect.effect_json.node.extensions, current.payload.extensions);
+    assert.equal(effect.effect_json.node.title, current.payload.title);
+  }, 20_000);
+
+  test('P3-14 rejects Root/cycles/foreign parents and invalid anchors and rolls back injected faults', async () => {
     const source = await seedNode('folder', { title: 'Reject source' });
     const descendant = await seedNode('folder', { title: 'Reject descendant' });
     const descendantPayload = { ...descendant.payload, parentId: source.id };
@@ -1431,10 +1502,6 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
       [ROOT])).rows[0].children_revision as string;
     const before = (await isolated.runtime.pool.query('select to_jsonb(n) node from nodes n where id=$1', [source.id])).rows[0].node;
     for (const item of [
-      { label: 'stale-node', targetId: source.id, baseRevision: 'stale-node-r9', newParentId: ROOT,
-        sourceRevision: source.payload.childrenRevision, targetRevision: 'root-children-r1' },
-      { label: 'stale-source', targetId: source.id, baseRevision: source.revision, newParentId: ROOT,
-        sourceRevision: 'stale-children-r9', targetRevision: 'root-children-r1' },
       { label: 'cycle', targetId: source.id, baseRevision: source.revision, newParentId: descendant.id,
         sourceRevision: rootChildrenRevision, targetRevision: descendant.payload.childrenRevision },
       { label: 'stale-anchor', targetId: source.id, baseRevision: source.revision, newParentId: ROOT,
@@ -1507,12 +1574,14 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
         opId: `p3-14-concurrent-${index}-${randomUUID()}` }),
     }));
     const outcomes = await Promise.all(requests);
-    assert.equal(outcomes.filter((outcome) => outcome.status === 200).length, 1);
-    assert.equal(outcomes.filter((outcome) => (outcome.body as Problem).code === 'position_context_stale').length, 1);
+    assert.equal(outcomes.filter((outcome) => outcome.status === 200).length, 2);
+    assert.deepEqual(outcomes.map(outcome => result(outcome.body).results[0]!.status).sort(), ['applied', 'rebased']);
+    const rebased = outcomes.map(outcome => result(outcome.body).results[0]!).find(row => row.status === 'rebased')!;
+    assert.equal(rebased.warnings?.[0]?.code, 'move_rebased');
     const ordered = (await isolated.runtime.pool.query(`select id from nodes where parent_id=$1 and deleted_at is null
       order by position_token collate "C"`, [target.id])).rows.map((row) => row.id);
     assert.equal(ordered.at(-1), anchor.id);
-    assert.equal(ordered.length, 2);
+    assert.equal(ordered.length, 3);
 
     const managed = await seedNode('folder', { title: 'Managed target' });
     const managedCandidate = await seedNode('bookmark', { title: 'Managed candidate',

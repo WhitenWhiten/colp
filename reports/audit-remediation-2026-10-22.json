@@ -98,7 +98,15 @@
     {
       "id": "sync-09",
       "title": "rebase concurrent moves",
-      "status": "pending"
+      "status": "resolved",
+      "resolution": "Semantic moves rebase stale Node and source/target children revisions against the locked current state. The last server commit wins while preserving current content; canonical anchor, cycle and managed ancestry checks remain authoritative. Rebased receipts and immutable effects carry rebased status and the source receives a durable move_rebased notice.",
+      "validation": [
+        "Updated domain regressions fail against the prior rejection behavior and all 4 move evaluator checks pass after the change.",
+        "5 real-Postgres move scenarios pass: competing moves of the same folder, competing anchored placements, preservation of concurrent content/extensions, exact restarted receipt replay, structural/managed denials and injected rollback phases. The 36 unrelated cases in the shared fixture were deliberately not run.",
+        "14 additional real-Postgres transaction lock-order and direct collection move contract checks pass; direct API concurrency guards remain unchanged.",
+        "22 existing extension push-wire and rebase compatibility assertions pass; server TypeScript, focused ESLint, import boundaries and diff checks pass.",
+        "Protocol section 12.1 now spells out stale semantic move rebasing, durable notices and retained anchor/security constraints. No generated wire shape or public SDK change is required."
+      ]
     },
     {
       "id": "sync-10",
@@ -502,7 +510,8 @@
         "Deletion journals wait for settled acknowledged authority and drained queue history; unresolved outcomes, native mappings and bootstrap/recovery work protect them. Existing indexed remote-delete member cleanup remains tied to expired unreferenced page-complete intents.",
         "Source rows, summaries, grace markers and maintenance positions share one atomic transaction. Old orphan summaries are removed; operation/effect replay facts survive. Existing stores support lazy adoption without a schema migration or open-time history scan.",
         "Extension TypeScript, focused ESLint, source-size gate and development build pass. The authority document now records this explicit retention policy instead of the prior storage-growth debt."
-      ]
+      ],
+      "commit": "b30c6fa3"
     },
     {
       "id": "performance-08",
@@ -1030,6 +1039,19 @@
       ],
       "evidence": [
         "packages/node/tests/mcp/t01-quality-gates-contract.test.ts"
+      ]
+    },
+    {
+      "id": "sync-23",
+      "title": "Investigate replica registration and Session issuance lock inversion under concurrent authority setup",
+      "status": "pending",
+      "severity": "medium",
+      "confidence": "Reproduced through production persistence functions in integration authority setup; isolate the registration/Session interaction before choosing a fix.",
+      "discoveredDuring": "sync-09 concurrent folder move regression setup",
+      "evidence": [
+        "Running two context(owner, 0.2) preparations concurrently in sync-node-update-postgres.integration.test.ts fails before either competing move is sent, with PostgreSQL 40P01.",
+        "The deadlock stack ends at replica-postgres.ts createReplica inserting sync_devices; the FK waits for KEY SHARE on accounts while the other transaction waits on an advisory lock.",
+        "Establishing both authorities sequentially permits the actual move requests to run concurrently and isolates their correctness. The independent registration/Session path remains open because the user requested stopping after sync-09."
       ]
     }
   ],
