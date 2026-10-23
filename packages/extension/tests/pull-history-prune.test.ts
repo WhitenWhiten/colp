@@ -97,6 +97,9 @@ describe('P3-28 pull history pruning', () => {
     const events = await store.listPullEvents(scope);
     assert.deepEqual(events.map((event) => event.eventId).sort(), ['e2', 'e3', 'e4']);
     assert.equal(await store.getPullEvent(scope, 'e1'), null);
+    assert.equal(await store.isPullOperationApplied(scope, 'remote-e1', 'sha256:e1-op', 'sha256:e1'), true);
+    await assert.rejects(() => store.isPullOperationApplied(scope, 'remote-e1', 'sha256:changed', 'sha256:e1'),
+      /pull_event_conflict/);
     const exported = await store.exportScope(scope);
     assert.equal(exported.effectPages.length, 0);
     assert.equal(exported.cursor?.cursor, 'cursor-3');

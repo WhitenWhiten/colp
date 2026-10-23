@@ -137,6 +137,14 @@ export function createPullPageStager(options: PullApplierOptions, now: () => num
       if (event.operation.collectionId !== options.scope.collectionId || event.effect.collectionId !== options.scope.collectionId) {
         throw new SyncFailureError('pull_source_binding_invalid');
       }
+      if (await options.store.isPullOperationApplied(options.scope, event.operation.opId,
+        event.effect.operationDigest, event.effect.effectDigest)) {
+        stagedEvents.push({ eventId, cursor: event.cursor, operationId: event.operation.opId,
+          effectId: event.effect.effectId, effectDigest: event.effect.effectDigest,
+          operationDigest: event.effect.operationDigest, kind: event.effect.kind,
+          payload: plainJson(event), initialState: 'authority_committed' });
+        continue;
+      }
       if (event.operation.replicaId === options.scope.replicaId
           && event.operation.source?.adapterProfile === 'known-conflict-resolution') {
         const queued = (await options.store.listQueue(options.scope, undefined, event.operation.sequence - 1, 1))[0];

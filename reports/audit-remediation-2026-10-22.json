@@ -1,0 +1,462 @@
+{
+  "source": "User-supplied comprehensive repository audit, 2026-10-22",
+  "approach": "One finding per commit, ordered by correctness, verification, security, capacity/performance and maintainability. Existing fixes are verified and recorded.",
+  "issues": [
+    {
+      "id": "sync-01",
+      "title": "expire abandoned replicas and exclude expired leases from purge gates",
+      "status": "pending"
+    },
+    {
+      "id": "sync-02",
+      "title": "suppress canonicalized remote create echoes",
+      "status": "resolved",
+      "validation": [
+        "Regression: canonical host, default port, escaped path and trailing slash callbacks do not create local events; different query remains a local create",
+        "Related bookmark capture, recovery overlay and pull-applier suites; extension TypeScript and targeted ESLint"
+      ],
+      "commit": "a89f1e37"
+    },
+    {
+      "id": "sync-03",
+      "title": "make denied-ack recovery idempotent for foreign creates",
+      "status": "resolved",
+      "validation": [
+        "Reproduced two natives after denied Ack and reissued foreign create",
+        "71 relevant tests pass; applied digest evidence survives pruning and rejects changed operation bytes; later local edits survive",
+        "Extension TypeScript, targeted ESLint and source-size gate pass"
+      ]
+    },
+    {
+      "id": "sync-04",
+      "title": "reject foreign session credentials without terminating target sessions",
+      "status": "pending"
+    },
+    {
+      "id": "sync-05",
+      "title": "retain pending local moves during remote subtree deletion",
+      "status": "pending"
+    },
+    {
+      "id": "sync-06",
+      "title": "correlate same-parent downward moves correctly",
+      "status": "pending"
+    },
+    {
+      "id": "sync-07",
+      "title": "preserve committed-prefix receipts in non-atomic push batches",
+      "status": "pending"
+    },
+    {
+      "id": "sync-08",
+      "title": "accept additive push response and problem fields",
+      "status": "pending"
+    },
+    {
+      "id": "sync-09",
+      "title": "rebase concurrent moves",
+      "status": "pending"
+    },
+    {
+      "id": "sync-10",
+      "title": "recover moves into deleted parents",
+      "status": "pending"
+    },
+    {
+      "id": "sync-11",
+      "title": "enforce operation dependencies",
+      "status": "pending"
+    },
+    {
+      "id": "sync-12",
+      "title": "enforce bootstrap session mode on the server",
+      "status": "pending"
+    },
+    {
+      "id": "sync-13",
+      "title": "allow conflicts on deleted nodes to be resolved",
+      "status": "pending"
+    },
+    {
+      "id": "security-01",
+      "title": "normalize IPv6 rate limit identities and resist bucket exhaustion",
+      "status": "pending"
+    },
+    {
+      "id": "security-02",
+      "title": "add SPA CSP, frame-ancestors and HSTS",
+      "status": "pending"
+    },
+    {
+      "id": "security-03",
+      "title": "bound DCR client names",
+      "status": "pending"
+    },
+    {
+      "id": "security-04",
+      "title": "validate master secret strength",
+      "status": "pending"
+    },
+    {
+      "id": "security-05",
+      "title": "bound MCP approval backlog",
+      "status": "pending"
+    },
+    {
+      "id": "security-06",
+      "title": "deny Azure metadata egress",
+      "status": "pending"
+    },
+    {
+      "id": "security-07",
+      "title": "bind extension session-cookie adoption to expected identity",
+      "status": "pending"
+    },
+    {
+      "id": "tests-01",
+      "title": "restore live CI routing contracts and remove stale path declarations",
+      "status": "pending"
+    },
+    {
+      "id": "tests-02",
+      "title": "execute all server test projects in CI",
+      "status": "pending"
+    },
+    {
+      "id": "tests-03",
+      "title": "execute all extension browser and model tests in CI",
+      "status": "pending"
+    },
+    {
+      "id": "tests-04",
+      "title": "execute all web E2E and acceptance tests in CI",
+      "status": "pending"
+    },
+    {
+      "id": "tests-05",
+      "title": "restore real-Postgres product receipt replay coverage",
+      "status": "pending"
+    },
+    {
+      "id": "tests-06",
+      "title": "enforce server coverage and raise extension engine coverage",
+      "status": "pending"
+    },
+    {
+      "id": "tests-07",
+      "title": "execute mutation and formal model verification in CI",
+      "status": "pending"
+    },
+    {
+      "id": "performance-01",
+      "title": "support snapshot materialization beyond aggregate tree limits",
+      "status": "pending"
+    },
+    {
+      "id": "performance-02",
+      "title": "reduce per-operation transaction cost for bulk upload",
+      "status": "pending"
+    },
+    {
+      "id": "performance-03",
+      "title": "scale evidence maintenance to ingestion",
+      "status": "pending"
+    },
+    {
+      "id": "performance-04",
+      "title": "bound owner maintenance work",
+      "status": "pending"
+    },
+    {
+      "id": "performance-05",
+      "title": "avoid repeated SDK pulled-operation clones",
+      "status": "pending"
+    },
+    {
+      "id": "performance-06",
+      "title": "avoid full mapping scans on every extension event and tick",
+      "status": "pending"
+    },
+    {
+      "id": "performance-07",
+      "title": "prune completed extension queue and journal records",
+      "status": "pending"
+    },
+    {
+      "id": "performance-08",
+      "title": "avoid whole-library work on idle sync passes",
+      "status": "pending"
+    },
+    {
+      "id": "performance-09",
+      "title": "stop completed local-import alarms",
+      "status": "pending"
+    },
+    {
+      "id": "performance-10",
+      "title": "avoid full native-tree reconciliation on every worker cold start",
+      "status": "pending"
+    },
+    {
+      "id": "quality-01",
+      "title": "restore server source-size gate",
+      "status": "pending"
+    },
+    {
+      "id": "quality-02",
+      "title": "consolidate web transports and error handling",
+      "status": "pending"
+    },
+    {
+      "id": "quality-03",
+      "title": "use current generated protocol types and SDK versions",
+      "status": "pending"
+    },
+    {
+      "id": "code-01",
+      "title": "change-plan.ts 2252 行，createChangePlanService 单函数 493 行并承担 4 类生命周期",
+      "file": "packages/node/src/mcp/change-plan.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-02",
+      "title": "own-data 校验原语复制 14 份，且副本已出现 Proxy 校验漂移",
+      "file": "packages/node/src/mcp/2026-07-28/write.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-03",
+      "title": "5 个同步核心源文件超过 600 行上限，最大 1048 行",
+      "file": "packages/node/src/sync/push-transaction.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-04",
+      "title": "协调器函数 100–236 行且深嵌套，结果经外层可变闭包变量传递",
+      "file": "packages/node/src/sync/push-transaction.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-05",
+      "title": "两个上帝文件越过 600 行上限：公共投影 720 行、Node 写入守卫 948 行",
+      "file": "packages/node/src/server/publication-public-projection.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-06",
+      "title": "buildPlan 单函数 170 行、7 路 switch，另有 2 个 100+ 行安全函数",
+      "file": "packages/node/src/server/node-write-guard.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-07",
+      "title": "安全/发布层规模失控：8 个超 600 行文件与 200 行级函数",
+      "file": "packages/node/src/feed/client-poll.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-08",
+      "title": "Publisher 端口快照在 6 个文件重复实现，安全硬化易漏改",
+      "file": "packages/node/src/publisher/node-move.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-09",
+      "title": "ColpClient 是 1534 行文件中的上帝类，混合发现、传输、缓存与写操作",
+      "file": "packages/node/src/client/index.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-10",
+      "title": "validateSnapshotSemantics 单函数 564 行，内嵌 8 个闭包且最深 5 层",
+      "file": "packages/node/src/semantic/snapshot.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-11",
+      "title": "冲突解决事务核心是 192 行巨型函数，同文件分支函数还有 11 个位置参数",
+      "file": "packages/server/src/infrastructure/sync/sync-conflict-resolution-postgres.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-12",
+      "title": "AES-GCM 的 AAD 由三处手工拼装，字段集与取值来源必须逐字一致",
+      "file": "packages/server/src/infrastructure/sync/sync-conflict-postgres.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-13",
+      "title": "writeNode 单函数 451 行、5 层嵌套，混合 delete/create/update/move/restore 五条写入路径",
+      "file": "packages/server/src/infrastructure/collections/canonical-mutation-postgres-ports.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-14",
+      "title": "ancestor_restricted 用无环/深度/软删保护的递归 CTE 计算，与 WHERE 使用的规范谓词语义分叉",
+      "file": "packages/server/src/infrastructure/publication/postgres-snapshot-read.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-15",
+      "title": "超 600 行上帝文件与超长工厂函数：schema、连接运行时、计划状态机混居",
+      "file": "packages/server/src/infrastructure/database/runtime.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-16",
+      "title": "better-auth-runtime.ts 1035 行上帝模块，单文件承载 22 个顶层函数",
+      "file": "packages/server/src/infrastructure/auth/better-auth-runtime.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-17",
+      "title": "favicon 单条与批量执行各写一套 CAS/补偿，护栏已分叉",
+      "file": "packages/server/src/modules/collections/application/favicon-job-execution.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-18",
+      "title": "批量周期只在页首续租，违反 FO-08 每项续租契约",
+      "file": "packages/server/src/modules/collections/application/favicon-batch-execution.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-19",
+      "title": "MCP 模块 13 个文件超 600 行，6 个已超过 baseline 自身 cap",
+      "file": "packages/server/src/modules/mcp/change-plan-planner.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-20",
+      "title": "Read operations 工厂单函数 348 行，另有 175-218 行校验/聚合函数",
+      "file": "packages/server/src/modules/mcp/operations.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-21",
+      "title": "低风险写工具的白名单与 scope 校验在 4 个模块逐字复制",
+      "file": "packages/server/src/modules/mcp/low-risk-node-update.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-22",
+      "title": "三个 application 文件逾 600 行，createBrowserSessionAuthority 单函数 251 行",
+      "file": "packages/server/src/modules/auth/application/browser-session-authority.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-23",
+      "title": "MCP 读路由 1724 行、单函数 641 行，另有 644 行文件缺 600 行豁免",
+      "file": "packages/server/src/transport/mcp/mcp-read-routes.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-24",
+      "title": "7 套游标签名/封装并行实现，轮换、MAC 绑定与销毁语义互不一致",
+      "file": "packages/server/src/modules/commands/application/keyed-cursor.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-25",
+      "title": "853 行 node-routes：4 个路由 + 7 个手写解析器，folder/bookmark 校验整段复制",
+      "file": "packages/server/src/transport/product/node-routes.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-26",
+      "title": "buildApiApp 是 453 行上帝函数，app.ts 整体超过 600 行上限",
+      "file": "packages/server/src/transport/app.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-27",
+      "title": "http-security.ts 784 行，混合路由映射、限流器、memory 适配器与安全头",
+      "file": "packages/server/src/transport/http-security.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-28",
+      "title": "六个文件越过 600 行上限：api.ts 无历史豁免，config-social/mcp-write 已超出各自豁免值",
+      "file": "packages/server/src/bootstrap/api.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-29",
+      "title": "四个组合根函数各 334–568 行，单函数完成整条启动装配",
+      "file": "packages/server/src/bootstrap/worker.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-30",
+      "title": "runSyncEngine 是 205 行、串行承担 12+ 职责的上帝函数",
+      "file": "packages/extension/src/sw/engine.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-31",
+      "title": "handleSyncStateEvidence 用 161 行、40 分支 switch 承载内嵌证据通道",
+      "file": "packages/extension/src/sw/evidence.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-32",
+      "title": "核心同步仓库是 500+ 行工厂闭包，并内含 85–117 行超长事务函数",
+      "file": "packages/extension/src/sync-state/queue-repository.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-33",
+      "title": "openRuleEditor 是 308 行的上帝函数，混合授权、UI 构建与提交",
+      "file": "packages/extension/src/automation/rule-editor-dialog.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-34",
+      "title": "文件夹加载失败被 .catch(() => undefined) 静默吞掉",
+      "file": "packages/extension/src/automation/rule-editor-dialog.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-35",
+      "title": "批量执行把 api.get 失败当作节点不存在，delete 项直接记为 applied",
+      "file": "packages/extension/src/bookmark-batch-executor.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-36",
+      "title": "first-run 引导绑定函数 506 行，混合 DOM 装配、轮询、预览、注意力列表与草稿状态",
+      "file": "packages/extension/src/first-run-ui.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-37",
+      "title": "callAndCommit 139 行单一分派：五类 effect 分支内嵌建树/恢复逻辑并复制收尾代码",
+      "file": "packages/extension/src/pull-apply-runtime.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-38",
+      "title": "启动/选项装配由 300–490 行巨型闭包承担，单函数串起全流程",
+      "file": "packages/extension/src/bootstrap/coordinator.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-39",
+      "title": "持久化 advanced plan 的读取用 `as unknown as` 绕过类型，无任何结构校验",
+      "file": "packages/extension/src/bootstrap/advanced-run.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-40",
+      "title": "核心引擎被少数 100+ 行巨型函数承载全部决策",
+      "file": "packages/extension/src/durable-sync-engine.ts",
+      "status": "pending"
+    },
+    {
+      "id": "code-41",
+      "title": "service-worker onMessage 是 293 行 if 链，重复同一响应模板",
+      "file": "packages/extension/src/service-worker.ts",
+      "status": "pending"
+    }
+  ]
+}

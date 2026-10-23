@@ -23,7 +23,7 @@ import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
 import { describe, test } from 'vitest';
 import {
-  ack, emptyPullPage, json, pullEventsPage, scope, setup,
+  ack, emptyPullPage, json, problem, pullEventsPage, scope, setup,
 } from './durable-sync-engine-harness.js';
 import { pullFixtures } from './pull-effect-fixtures.js';
 
@@ -34,6 +34,34 @@ function remoteCreateBookmark() {
 }
 
 describe('A-12/SR-16 durable engine harness over the real Pull applier', () => {
+  test('reissued foreign creates after a denied Ack reuse their applied native identity', async () => {
+    const fixture = await setup({ useRealPullApplier: true });
+    try {
+      fixture.pullResponses.push(json(200, pullEventsPage([remoteCreateBookmark()], 'cursor-first')));
+      fixture.ackResponses.push(problem(410, 'stale_replica', {}));
+      await fixture.engine.wake('manual');
+      const first = await fixture.store.getMappingByColpId(scope, 'node-created-1');
+      assert.ok(first);
+      assert.equal((await fixture.store.getEngineState(scope))?.authorityRefreshRequired, true);
+      fixture.chromeNodes.get(first.nativeId)!.title = 'Later local edit';
+
+      fixture.forcedSessions.push({ sessionId: 'session-fresh', state: 'active',
+        snapshotRequired: false, cursor: 'cursor-0' });
+      fixture.pullResponses.push(json(200, pullEventsPage([remoteCreateBookmark()], 'cursor-reissued')));
+      fixture.ackResponses.push(json(200, ack('cursor-reissued')));
+      fixture.clock.now += 30_000;
+      await fixture.engine.wake('alarm');
+
+      assert.equal([...fixture.chromeNodes.values()].filter(node => node.url).length, 1);
+      assert.equal((await fixture.store.getMappingByColpId(scope, 'node-created-1'))?.nativeId, first.nativeId);
+      assert.equal(fixture.chromeNodes.get(first.nativeId)?.title, 'Later local edit');
+      const state = await fixture.store.getEngineState(scope);
+      assert.equal(state?.phase, 'sleeping');
+      assert.equal(state?.lastAckedCursor, 'cursor-reissued');
+      assert.equal(state?.lastError, undefined);
+    } finally { await fixture.store.close(); }
+  });
+
   test('the real createPullApplier applies an event-carrying Pull page and persists it', async () => {
     const fixture = await setup({ useRealPullApplier: true });
     fixture.pullResponses.push(json(200, pullEventsPage([remoteCreateBookmark()], 'cursor-1')));

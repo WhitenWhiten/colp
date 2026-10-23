@@ -112,6 +112,7 @@ export function createSyncStateStore(options: StoreOptions = {}) {
     stagePullPage: pull.stagePullPage, listPullEvents: pull.listPullEvents,
     listPullEventsByPage: pull.listPullEventsByPage,
     hasPullEventsAwaitingConfirmation: pull.hasPullEventsAwaitingConfirmation, getPullEvent: pull.getPullEvent,
+    isPullOperationApplied: pull.isPullOperationApplied,
     listPullPages: pull.listPullPages, loadPullApplyWorkset: pull.loadPullApplyWorkset, prunePullHistory: pull.prunePullHistory,
     pullOperationsCovered: pull.pullOperationsCovered, getCursor: pull.getCursor, listAckIntents: engine.listAckIntents,
     hasRecoveryStaging: recovery.hasRecoveryStaging,

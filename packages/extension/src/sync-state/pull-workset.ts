@@ -55,6 +55,29 @@ export function putPullTerminalFacts(tx: IDBTransaction, scopeKeyValue: string, 
   for (const opId of opIds) store.put({
     id: pullTerminalFactId(scopeKeyValue, opId), scopeKey: scopeKeyValue, kind: 'pull_terminal_fact', opId,
   });
+  if (event.state === 'page_complete' && event.kind !== 'conflict') store.put({
+    id: appliedFactId(scopeKeyValue, String(event.operationId)), scopeKey: scopeKeyValue,
+    kind: 'pull_applied_fact', operationDigest: event.operationDigest, effectDigest: event.effectDigest,
+  });
+}
+
+const appliedFactId = (key: string, opId: string) => `pull-applied:${key}:${opId}`;
+
+/** Cursor signatures change on authority renewal; committed operation identity does not. */
+export async function wasPullOperationApplied(db: IDBDatabase, key: string, operationId: string,
+  operationDigest: string, effectDigest: string): Promise<boolean> {
+  const tx = db.transaction([STORES.diagnostics, STORES.pullEvents], 'readonly');
+  const done = transactionDone(tx);
+  const fact = await requestValue(tx.objectStore(STORES.diagnostics).get(appliedFactId(key, operationId))) as UnknownRecord | undefined;
+  // Also recognize retained pages written before durable applied facts existed.
+  const rows = fact ? [fact] : (await requestValue(tx.objectStore(STORES.pullEvents)
+    .index(INDEXES.pullEventByOperation).getAll([key, operationId])) as UnknownRecord[])
+    .filter(row => row.state === 'page_complete');
+  await done;
+  if (rows.some(row => row.operationDigest !== operationDigest || row.effectDigest !== effectDigest)) {
+    throw new SyncStateError('pull_event_conflict');
+  }
+  return rows.length > 0;
 }
 
 export async function coveredPullOperationIds(db: IDBDatabase, scopeKeyValue: string,

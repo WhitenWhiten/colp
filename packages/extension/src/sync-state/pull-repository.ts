@@ -29,7 +29,7 @@ import { validateLocalSyncExclusion, type LocalSyncExclusionRecord } from './rem
 import { validateMountBinding } from './mount-repository.js';
 import { validateRemoteObservation, validateScopeCommandPlan } from './scope-facts-repository.js';
 import {
-  coveredPullOperationIds, pruneCompletedPullPages, putPullTerminalFacts, pullHistoryLimits,
+  coveredPullOperationIds, pruneCompletedPullPages, putPullTerminalFacts, pullHistoryLimits, wasPullOperationApplied,
   PULL_HISTORY_PAGE_KEEP, readOrderedPullEvents, readPullApplyWorkset, readPullPagesByState, type PullHistoryBudget,
 } from './pull-workset.js';
 import {
@@ -152,6 +152,12 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
     const tx = db.transaction(STORES.pullEvents, 'readonly'); const completion = transactionDone(tx);
     const value = await requestValue(tx.objectStore(STORES.pullEvents).get([key, boundedString(eventId, 'eventId')]));
     await completion; return clone((value as UnknownRecord | undefined) ?? null);
+  }
+
+  async function isPullOperationApplied(input: SyncScope, operationId: string, operationDigest: string, effectDigest: string) {
+    return wasPullOperationApplied(await open(), scopeKey(validateScope(input)),
+      boundedString(operationId, 'operationId'), boundedString(operationDigest, 'operationDigest'),
+      boundedString(effectDigest, 'effectDigest'));
   }
 
   async function listPullPages(input: SyncScope, states?: readonly string[]) {
@@ -573,7 +579,7 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
     pruneExpiredCompletedApplyIntents,
     stagePullPage, listPullEvents, listPullEventsByPage, hasPullEventsAwaitingConfirmation, getPullEvent,
     listPullPages, loadPullApplyWorkset, prunePullHistory, pullOperationsCovered, getCursor,
-    preparePullIntent, markPullBrowserCallStarted, observeApplyIntentEvent,
+    preparePullIntent, markPullBrowserCallStarted, observeApplyIntentEvent, isPullOperationApplied,
     observeApplyIntentPostState, observeApplyIntentChangeFields,
     recordPullApiEvidence, commitPullEvent, completePullPage,
     completeDetachedPullEvent: (scope: SyncScope, pageId: string, eventId: string) => completePullPage(scope, pageId, eventId), commitApplyIntent,
