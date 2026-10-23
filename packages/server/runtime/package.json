@@ -22,7 +22,7 @@
     "@node-rs/argon2": "2.1.0",
     "better-auth": "1.7.7",
     "dotenv": "^16.4.7",
-    "fastify": "5.12.5",
+    "fastify": "5.12.7",
     "ioredis": "^6.0.0",
     "jose": "6.2.12",
     "kysely": "^0.29.6",
@@ -46,6 +46,7 @@
     "source-map-js": "1.2.2",
     "undici": "8.10.2",
     "@grpc/grpc-js": "1.14.5",
-    "hono": "4.13.7"
+    "hono": "4.13.11",
+    "@better-auth/core": "1.7.7"
   }
 }
