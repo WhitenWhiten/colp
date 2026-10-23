@@ -1,7 +1,6 @@
 import { sql } from 'kysely';
 import { readCanonicalTreeCapacity } from './canonical-tree-capacity-ledger.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
-import { SNAPSHOT_TREE_CAPACITY, SnapshotTreeCapacityError } from '../../modules/collections/index.js';
 import { mapSnapshotCollection, mapSnapshotNode, snapshotParentRevisions, withSnapshotBinding, type SnapshotCollectionRow, type SnapshotNodeRow } from './snapshot-document.js';
 
 export interface CanonicalTreeSize { readonly nodes: number; readonly bytes: number }
@@ -25,18 +24,11 @@ export async function measureCanonicalTree(tx: DatabaseTransaction, collectionId
   return { nodes: rows.length, bytes: Buffer.byteLength(JSON.stringify(document), 'utf8') };
 }
 
-export function admitCanonicalTreeChange(before: CanonicalTreeSize, after: CanonicalTreeSize): void {
-  if ((after.nodes > SNAPSHOT_TREE_CAPACITY.maxNodes && after.nodes > before.nodes)
-    || (after.bytes > SNAPSHOT_TREE_CAPACITY.maxAggregateBytes && after.bytes > before.bytes)) {
-    throw new SnapshotTreeCapacityError();
-  }
-}
-
-/** The collection lock is held by canonical orchestration throughout this check. */
+/** Keep exact accounting under the collection lock; paged Sync has no aggregate tree quota. */
 export async function withCanonicalTreeCapacity<Result>(tx: DatabaseTransaction, collectionId: string, write: () => Promise<Result>): Promise<Result> {
-  const before = await readCanonicalTreeCapacity(tx, collectionId);
+  await readCanonicalTreeCapacity(tx, collectionId);
   const result = await write();
-  admitCanonicalTreeChange(before, await readCanonicalTreeCapacity(tx, collectionId));
+  await readCanonicalTreeCapacity(tx, collectionId);
   return result;
 }
 
@@ -44,7 +36,7 @@ export interface CanonicalTreeCapacityAdmission {
   execute<Result>(tx: DatabaseTransaction, collectionId: string, write: () => Promise<Result>): Promise<Result>;
 }
 
-/** An explicit atomic batch owns one before/after check, regardless of mutation count. */
+/** An explicit atomic batch reconciles accounting once, regardless of mutation count. */
 export async function withCanonicalTreeCapacityBatch<Result>(
   tx: DatabaseTransaction,
   collectionId: string | undefined,
@@ -68,7 +60,7 @@ export async function withCanonicalTreeCapacityBatch<Result>(
   try {
     const result = await work(admission);
     if (before && boundCollectionId !== undefined) {
-      admitCanonicalTreeChange(before, await readCanonicalTreeCapacity(tx, boundCollectionId));
+      await readCanonicalTreeCapacity(tx, boundCollectionId);
     }
     return result;
   } finally {

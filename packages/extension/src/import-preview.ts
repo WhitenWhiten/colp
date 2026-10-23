@@ -6,7 +6,6 @@ import { normalizeAnnotationNote, normalizeAnnotationTags } from './bookmark-ann
 
 import { bookmarkUrl as bookmarkUrlValidator,
   conversionPreview as conversionPreviewValidator } from './generated/import-preview-validators.js';
-import { SNAPSHOT_V02_SUPPORT } from './snapshot-v02-pages.js';
 import { canonicalJson as canonicalJsonValue } from './canonical-json.js';
 
 export interface ImportLimits {
@@ -20,7 +19,9 @@ export const DEFAULT_IMPORT_LIMITS: Readonly<ImportLimits> = Object.freeze({
   maxInputBytes: 4 * 1024 * 1024,
   maxDepth: 64,
   maxMembers: 64,
-  maxNodes: SNAPSHOT_V02_SUPPORT.maxNodes,
+  // One untrusted import document has its own parsing budget. It is not the
+  // aggregate size of a synced library assembled from multiple imports.
+  maxNodes: 10_000,
 });
 
 export type ImportErrorCode = 'input_invalid' | 'input_too_large' | 'depth_limit' | 'member_limit'

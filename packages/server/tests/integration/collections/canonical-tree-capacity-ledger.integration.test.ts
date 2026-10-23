@@ -5,7 +5,6 @@ import { performance } from 'node:perf_hooks';
 import { writeFile } from 'node:fs/promises';
 import { runMigrations } from '../../../src/infrastructure/database/index.js';
 import { measureCanonicalTree } from '../../../src/infrastructure/collections/canonical-tree-capacity.js';
-import { SNAPSHOT_TREE_CAPACITY } from '../../../src/modules/collections/index.js';
 import { readCanonicalTreeCapacity } from '../../../src/infrastructure/collections/canonical-tree-capacity-ledger.js';
 import { createIsolatedPostgresRuntime, describeWithPostgres,
   type IsolatedPostgresRuntime } from '../../support/postgres-test-runtime.js';
@@ -102,7 +101,6 @@ describeWithPostgres('exact incremental Snapshot capacity', () => {
       const full = await isolated.runtime.db.transaction().execute(tx => measureCanonicalTree(tx, collectionId));
       const fullMs = performance.now() - fullStarted;
       assert.deepEqual(incremental, full); assert.ok(maximumRows <= 2, 'warm accounting reads no whole-tree result');
-      assert.ok(full.bytes <= SNAPSHOT_TREE_CAPACITY.maxAggregateBytes, 'benchmark stays within supported Snapshot capacity');
       measurements.push({ nodes: count, incrementalMs, fullMs, maximumRows }); previous = count;
     }
     if (process.env.COLP_SYNC_BENCHMARK_OUTPUT) {

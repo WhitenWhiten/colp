@@ -1,10 +1,4 @@
-/** Same numbers T-01 froze on the extension Snapshot 0.2 support surface. */
-export const SNAPSHOT_TREE_CAPACITY = Object.freeze({
-  maxNodes: 10_000,
-  maxAggregateBytes: 2 * 1024 * 1024,
-});
-
-/** Website/import must refuse before accepting data that cannot be snapshotted. */
+/** An explicit storage/operator policy can deny a resource independently of pagination. */
 export class SnapshotTreeCapacityError extends Error {
   readonly code = 'payload_too_large' as const;
 

@@ -20,6 +20,30 @@ const session = {
 } as StoredSession;
 
 describe('advanced remote snapshot loader', () => {
+  test('loads a large library incrementally beyond the former aggregate limits', async () => {
+    const original = validPages();
+    const [root, folder] = original[0]!.nodes;
+    const bookmark = original[1]!.nodes[0]!;
+    let calls = 0;
+    const loaded = await loadCompleteRemoteSnapshot({ endpoint: 'https://sync.example/v1/snapshot',
+      origin: 'chrome-extension://extension', credential: { accessToken: 'access-token' }, session, scope,
+      fetcher: async () => {
+        const sequence = ++calls; const last = sequence === 121;
+        const body = { ...original[0],
+          page: { sequence, hasMore: !last, nextCursor: last ? null : `large-page-${sequence + 1}` },
+          parentRevisions: sequence === 1 ? original[0]!.parentRevisions : [],
+          nodes: [...(sequence === 1 ? [root!, folder!] : []),
+            ...Array.from({ length: 100 }, (_, index) => ({ ...bookmark, id: `large-${sequence}-${index}`,
+              position: `P${String(sequence * 100 + index).padStart(6, '0')}`, description: 'x'.repeat(200) }))],
+        };
+        return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      } });
+    assert.equal(calls, 121);
+    assert.equal(loaded.pageCount, 121);
+    assert.equal(loaded.remoteFacts.length, 12_102);
+    assert.equal(new Set(loaded.remoteFacts.map(node => node.nodeId)).size, 12_102);
+    assert.equal(loaded.remoteFacts.at(-1)?.parentId, folder!.id);
+  });
   test('S-03 AUD-06 different per-page parentRevisions succeed; same parent conflict fails', async () => {
     const pages = validPages();
     let count = 0;

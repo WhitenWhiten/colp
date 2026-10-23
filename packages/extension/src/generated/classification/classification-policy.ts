@@ -11,7 +11,7 @@ export const CLASSIFICATION_POLICY = Object.freeze({
   maxAddedTags: 3, maxFinalTags: 64,
 });
 
-/** Bounds derived materialized-path data; the raw tree budget lives in SNAPSHOT_TREE_CAPACITY. */
+/** Independent bounds on derived materialized-path data used by classification. */
 export const CLASSIFICATION_TAXONOMY_BUDGET = Object.freeze({
   /** Copied ancestor-path entries across the resolved taxonomy; bounds expanded heap. */
   maxPathEntries: 1_000_000,

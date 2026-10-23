@@ -399,7 +399,20 @@
     {
       "id": "performance-01",
       "title": "support snapshot materialization beyond aggregate tree limits",
-      "status": "pending"
+      "status": "resolved",
+      "resolution": "Removed default aggregate Snapshot node/byte ceilings and canonical write rejection. Server materializes immutable parent-first nodes in 500-row cursor batches inside the original repeatable-read transaction, validates each batch and verifies whole-tree reachability against the frozen live count. Stored page reads transfer only the requested nodes and parent authority, with legacy inline/paged compatibility. Extension enforces per-page budgets, accumulates each fetched page once, preserves restart graph checks, rejects repeated/non-progressing continuations, and separates untrusted import parsing from library capacity.",
+      "validation": [
+        "Real PostgreSQL 12,001-node / >2 MiB regression failed with payload_too_large before the fix and passes afterward; instrumentation confirms at most 500 node rows transferred per query, stable frozen node replay, complete persisted count and completion stamp.",
+        "25 focused PostgreSQL assertions passed across large materialization, PATCH/atomic batch growth beyond the old byte ceiling, legacy 0.1/0.2 inline/paged rows, invalid-cycle rollback, explicit quota atomicity, session security epoch, lifecycle authority, conflict recovery and incremental canonical accounting.",
+        "32 domain/HTTP/clock assertions and 3 migration contracts passed.",
+        "39 focused extension assertions passed, including 12,001-node live/staged graph replay, a 12,102-node loader, interrupted recovery, malformed chains and retained per-page size checks.",
+        "Real Chromium under xvfb: advanced upload with lost response/full browser restart and advanced download/native identity binding both passed (1.6 minutes). Owned fixtures shut down.",
+        "Server/extension TypeScript, focused ESLint, server import boundaries/migration ordering, extension source size, production builds and diff checks passed."
+      ],
+      "migration": "202611020100_sync_snapshot_parent_revision_rows",
+      "limitations": [
+        "Total persisted storage and extension graph/fact memory still grow with library size. Individual page budgets and explicitly configured application quotas continue to apply; no claim of unlimited physical capacity."
+      ]
     },
     {
       "id": "performance-02",

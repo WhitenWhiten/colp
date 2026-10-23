@@ -33,6 +33,8 @@ export interface SyncBootstrapAuthorityResult {
    * stored paged read. Absent, the service derives the page from `nodes`.
    */
   readonly pageNodes?: readonly SnapshotNode[];
+  /** Trusted paged authority verified the complete immutable graph at materialization. */
+  readonly graphVerified?: boolean;
   readonly parentRevisions?: readonly AuthoritativeParentRevision[];
   readonly protocolVersion?: '0.1' | '0.2';
   readonly snapshotId?: string;
@@ -144,7 +146,7 @@ export function createSyncBootstrapSnapshotService(options: {
       const generatedAt = source.generatedAt ?? new Date(now()).toISOString();
       const snapshotId = source.snapshotId ?? stableSnapshotId(source);
       if (cursor && snapshotId !== cursor.snapshotId) throw new SyncBootstrapSnapshotError('snapshot_expired');
-      if (!cursor) assertSyncBootstrapSnapshotGraph(source, snapshotId, generatedAt);
+      if (!cursor && !source.graphVerified) assertSyncBootstrapSnapshotGraph(source, snapshotId, generatedAt);
       const offset = cursor?.offset ?? 0;
       const sequence = cursor?.sequence ?? 1;
       // FIX-M-014 (SYNC-R09): a stored paged authority returns only the

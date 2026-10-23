@@ -24,6 +24,36 @@ function page(overrides: Partial<SnapshotV02Page> & Pick<SnapshotV02Page, 'pageS
 }
 
 describe('C-04 complete Snapshot is one frozen tree', () => {
+  test('accepts a valid paged tree beyond 10,000 nodes and 2 MiB of retained content', () => {
+    const accumulator = createSnapshotV02Accumulator();
+    const pages = [page({ pageSequence: 1, hasMore: true, nextCursor: 'page-2',
+      parentRevisions: [{ parentId: 'root', childrenRevision: 'r-root' }],
+      nodes: [{ id: 'root', kind: 'root', parentId: null }] })];
+    assert.equal(accumulator.add(pages[0]!).ok, true);
+    for (let batch = 0; batch < 40; batch++) {
+      const last = batch === 39;
+      const current = page({ pageSequence: batch + 2, hasMore: !last,
+        nextCursor: last ? null : `page-${batch + 3}`, parentRevisions: [],
+        nodes: Array.from({ length: 300 }, (_, index) => ({ id: `bookmark-${batch}-${index}`,
+          parentId: 'root', kind: 'bookmark', content: { title: 'Bookmark', description: 'x'.repeat(300) } })) });
+      pages.push(current);
+      const result = accumulator.add(current);
+      assert.equal(result.ok, true, `page ${batch + 2} must be accepted`);
+      if (last && result.ok) { assert.equal(result.complete, true); assert.equal(result.graphChecked, true); }
+    }
+    assert.equal(accumulator.nodes, 12_001);
+    assert.ok(accumulator.bytes > 2 * 1024 * 1024);
+    const resumed = accumulateSnapshotV02Pages(snapshotV02PagesFromStaging({ collectionId: 'collection-a',
+      header: { snapshotId: 'snap-1', revision: 'rev-1', syncCursor: 'cut-1', lastPage: 40,
+        nextCursor: null, complete: true, materializationVersion: 'parent-first-v1' },
+      nodes: pages.flatMap(page => page.nodes.map(node => ({ page: page.pageSequence - 1,
+        colpId: node.id, parentId: node.parentId, kind: node.kind === 'root' ? 'Folder' as const : 'Bookmark' as const,
+        mapping: { projection: { content: node.content,
+          childrenRevision: page.parentRevisions.find(parent => parent.parentId === node.id)?.childrenRevision } } }))),
+    }));
+    assert.equal(resumed.ok, true);
+    if (resumed.ok) { assert.equal(resumed.complete, true); assert.equal(resumed.graphChecked, true); }
+  });
   test('merges parentRevisions by parentId and rejects a per-parent conflict, not array inequality', () => {
     const first = page({
       pageSequence: 1, hasMore: true, nextCursor: 'p2',
@@ -108,10 +138,10 @@ describe('C-04 complete Snapshot is one frozen tree', () => {
     if (!cycle.ok) assert.equal(cycle.code, 'graph_invalid');
   });
 
-  test('freezes the supported Snapshot capacity and does not claim 0.1 assembleSnapshotPages', async () => {
+  test('freezes per-page Snapshot budgets and does not claim 0.1 assembleSnapshotPages', async () => {
     assert.equal(SNAPSHOT_V02_SUPPORT.commonBookmarkCount, 3_000);
-    assert.equal(SNAPSHOT_V02_SUPPORT.maxNodes, 10_000);
-    assert.equal(SNAPSHOT_V02_SUPPORT.maxAggregateBytes, 2 * 1024 * 1024);
+    assert.equal(SNAPSHOT_V02_SUPPORT.maxPageNodes, 500);
+    assert.equal(SNAPSHOT_V02_SUPPORT.maxPageBytes, 2 * 1024 * 1024);
     const source = await import('../src/snapshot-v02-pages.js');
     assert.equal('assembleSnapshotPages' in source, false);
   });
@@ -134,7 +164,7 @@ describe('C-04 complete Snapshot is one frozen tree', () => {
       parentRevisions: [{ parentId: 'root', childrenRevision: 'children-root' }],
       nodes: [
         { id: 'root', parentId: null, kind: 'root' },
-        ...Array.from({ length: SNAPSHOT_V02_SUPPORT.maxNodes }, (_, index) => ({
+        ...Array.from({ length: SNAPSHOT_V02_SUPPORT.maxPageNodes }, (_, index) => ({
           id: `bookmark-${index}`, parentId: 'root', kind: 'bookmark' as const,
         })),
       ],
@@ -143,8 +173,8 @@ describe('C-04 complete Snapshot is one frozen tree', () => {
     if (!tooMany.ok) assert.equal(tooMany.code, 'budget_exceeded');
     const huge = accumulateSnapshotV02Pages([page({
       pageSequence: 1,
-      parentRevisions: [{ parentId: 'x'.repeat(SNAPSHOT_V02_SUPPORT.maxAggregateBytes), childrenRevision: 'children' }],
-      nodes: [{ id: 'x'.repeat(SNAPSHOT_V02_SUPPORT.maxAggregateBytes), parentId: null, kind: 'root' }],
+      parentRevisions: [{ parentId: 'x'.repeat(SNAPSHOT_V02_SUPPORT.maxPageBytes), childrenRevision: 'children' }],
+      nodes: [{ id: 'x'.repeat(SNAPSHOT_V02_SUPPORT.maxPageBytes), parentId: null, kind: 'root' }],
     })]);
     assert.equal(huge.ok, false);
     if (!huge.ok) assert.equal(huge.code, 'budget_exceeded');
@@ -170,19 +200,19 @@ describe('C-04 complete Snapshot is one frozen tree', () => {
     const hugeTitle = accumulateSnapshotV02Pages([page({
       pageSequence: 1,
       parentRevisions: [{ parentId: 'root', childrenRevision: 'children-root' }],
-      nodes: [{ id: 'root', parentId: null, kind: 'root', title: 't'.repeat(SNAPSHOT_V02_SUPPORT.maxAggregateBytes) }],
+      nodes: [{ id: 'root', parentId: null, kind: 'root', title: 't'.repeat(SNAPSHOT_V02_SUPPORT.maxPageBytes) }],
     })]);
     assert.equal(hugeTitle.ok, false);
     if (!hugeTitle.ok) assert.equal(hugeTitle.code, 'budget_exceeded');
     const hugeUrl = accumulateSnapshotV02Pages([page({
       pageSequence: 1,
       parentRevisions: [{ parentId: 'root', childrenRevision: 'children-root' }],
-      nodes: [{ id: 'root', parentId: null, kind: 'root', url: `https://example.test/${'u'.repeat(SNAPSHOT_V02_SUPPORT.maxAggregateBytes)}` }],
+      nodes: [{ id: 'root', parentId: null, kind: 'root', url: `https://example.test/${'u'.repeat(SNAPSHOT_V02_SUPPORT.maxPageBytes)}` }],
     })]);
     assert.equal(hugeUrl.ok, false);
     if (!hugeUrl.ok) assert.equal(hugeUrl.code, 'budget_exceeded');
     const hugeCursor = accumulateSnapshotV02Pages([page({
-      pageSequence: 1, syncCursor: 'c'.repeat(SNAPSHOT_V02_SUPPORT.maxAggregateBytes),
+      pageSequence: 1, syncCursor: 'c'.repeat(SNAPSHOT_V02_SUPPORT.maxPageBytes),
       parentRevisions: [{ parentId: 'root', childrenRevision: 'children-root' }],
       nodes: [{ id: 'root', parentId: null, kind: 'root' }],
     })]);
@@ -194,7 +224,7 @@ describe('C-04 complete Snapshot is one frozen tree', () => {
     const overflow = kept.add(page({
       pageSequence: 2,
       parentRevisions: [{ parentId: 'folder-a', childrenRevision: 'children-a' }],
-      nodes: [{ id: 'folder-a', parentId: 'root', kind: 'folder', title: 't'.repeat(SNAPSHOT_V02_SUPPORT.maxAggregateBytes) }],
+      nodes: [{ id: 'folder-a', parentId: 'root', kind: 'folder', title: 't'.repeat(SNAPSHOT_V02_SUPPORT.maxPageBytes) }],
     }));
     assert.equal(overflow.ok, false);
     if (!overflow.ok) assert.equal(overflow.code, 'budget_exceeded');
@@ -235,7 +265,7 @@ describe('C-04 complete Snapshot is one frozen tree', () => {
   });
 
   test('live snapshot content and staged projection content share one byte budget', () => {
-    const title = 't'.repeat(SNAPSHOT_V02_SUPPORT.maxAggregateBytes);
+    const title = 't'.repeat(SNAPSHOT_V02_SUPPORT.maxPageBytes);
     const source = {
       id: 'root', collectionId: 'collection-a', createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z', revision: 'rev-node', kind: 'root' as const, parentId: null,

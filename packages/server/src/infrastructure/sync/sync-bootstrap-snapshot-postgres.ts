@@ -7,7 +7,7 @@ import type {
 import type { VerifiedExtensionCredential } from '../../modules/identity/index.js';
 import {
   INITIAL_SYNC_PULL_PURGE_BOUNDARY, SyncBootstrapSnapshotError,
-  assertSyncBootstrapSnapshotGraph, buildSyncRouteAuthorityContext,
+  buildSyncRouteAuthorityContext,
   createSyncBootstrapSnapshotService, syncPullCursorContext,
   type AttachmentExposurePolicyPort, type SyncBootstrapAuthority,
   type SyncBootstrapAuthorityResult, type SyncPullCursorContext,
@@ -16,16 +16,14 @@ import {
 import { rollbackTransaction, type DatabaseRuntime } from '../database/index.js';
 import { SNAPSHOT_COMPLETED_AT_SQL, snapshotExpiresAtSql } from './sync-bootstrap-snapshot-clock.js';
 import { snapshotPageByteBudget } from './sync-transport-budget.js';
-import { mapSnapshotCollection as mapCollection, mapSnapshotNode, SnapshotDocumentError, snapshotParentRevisions, withSnapshotBinding, type SnapshotCollectionRow as CollectionRow, type SnapshotNodeRow as NodeRow } from '../collections/snapshot-document.js';
-import { cleanupExpiredSnapshots, insertSnapshotNodeRows } from './sync-bootstrap-snapshot-persist.js';
+import { mapSnapshotCollection as mapCollection, withSnapshotBinding, type SnapshotCollectionRow as CollectionRow } from '../collections/snapshot-document.js';
+import { cleanupExpiredSnapshots, readSnapshotParentRevisions } from './sync-bootstrap-snapshot-persist.js';
+import { materializeSnapshotNodes } from './sync-bootstrap-snapshot-materialize.js';
 import {
   confirmSnapshotOpenConflicts, freezeSnapshotOpenConflicts, readSnapshotOpenConflictPage,
   readVisiblePullUpper,
 } from './sync-snapshot-conflict-recovery.js';
-import { SNAPSHOT_TREE_CAPACITY } from '../../modules/collections/index.js';
-import {
-  orderSnapshotNodesParentFirst, snapshotMaterializationIdentity,
-} from '../../modules/sync/index.js';
+import { snapshotMaterializationIdentity } from '../../modules/sync/index.js';
 
 interface AuthorityRow {
   session_id: string; account_id: string; collection_id: string; replica_id: string;
@@ -66,15 +64,6 @@ interface SnapshotStoredDocument {
   nodes?: SnapshotNode[];
 }
 
-/**
- * FIX-M-014: auditable Snapshot size caps (node count and serialized document
- * bytes). T-10 / ADR-0027: these are the SAME aggregate support numbers the
- * write-side admission uses, so a tree that is accepted can always be
- * materialized; they are not a second, independently chosen limit.
- */
-const DEFAULT_MAX_SNAPSHOT_NODES: number = SNAPSHOT_TREE_CAPACITY.maxNodes;
-const DEFAULT_MAX_SNAPSHOT_BYTES: number = SNAPSHOT_TREE_CAPACITY.maxAggregateBytes;
-
 export function createPostgresSyncBootstrapSnapshotApplication(
   runtime: Pick<DatabaseRuntime, 'pool'>,
   options: { readonly cursorSecret: string | Uint8Array; readonly cursorKeyId?: string; readonly cursorTtlMs?: number;
@@ -94,16 +83,15 @@ export function createPostgresSyncBootstrapSnapshotApplication(
      * attachment projection stays empty.
      */
     readonly attachmentExposure: AttachmentExposurePolicyPort;
-    /** FIX-M-014: maximum Nodes per materialised Snapshot (fail closed with payload_too_large). */
+    /** Optional operator quota; ordinary paged Snapshots have no aggregate node ceiling. */
     readonly maxSnapshotNodes?: number;
-    /** FIX-M-014: maximum serialized document bytes per materialised Snapshot. */
+    /** Optional operator quota on the complete projected document. */
     readonly maxSnapshotBytes?: number;
   },
 ) {
-  const maxSnapshotNodes = options.maxSnapshotNodes ?? DEFAULT_MAX_SNAPSHOT_NODES;
-  const maxSnapshotBytes = options.maxSnapshotBytes ?? DEFAULT_MAX_SNAPSHOT_BYTES;
-  if (!Number.isSafeInteger(maxSnapshotNodes) || maxSnapshotNodes < 1) throw new TypeError('Invalid Sync Snapshot node limit.');
-  if (!Number.isSafeInteger(maxSnapshotBytes) || maxSnapshotBytes < 1) throw new TypeError('Invalid Sync Snapshot byte limit.');
+  const { maxSnapshotNodes, maxSnapshotBytes } = options;
+  if (maxSnapshotNodes !== undefined && (!Number.isSafeInteger(maxSnapshotNodes) || maxSnapshotNodes < 1)) throw new TypeError('Invalid Sync Snapshot node limit.');
+  if (maxSnapshotBytes !== undefined && (!Number.isSafeInteger(maxSnapshotBytes) || maxSnapshotBytes < 1)) throw new TypeError('Invalid Sync Snapshot byte limit.');
   return Object.freeze({
     async listOpenConflicts(input: { readonly credential: VerifiedExtensionCredential; readonly sessionId: string;
       readonly snapshotId: string; readonly offset: number; readonly limit: number; readonly origin: string }) {
@@ -151,8 +139,8 @@ function createPostgresAuthority(
   pullCursorKeyring?: SyncPullCursorKeyring,
   recoveryProofRetentionMs?: number,
   recovery?: NonNullable<Parameters<typeof createPostgresSyncBootstrapSnapshotApplication>[1]['recovery']>,
-  maxSnapshotNodes = DEFAULT_MAX_SNAPSHOT_NODES,
-  maxSnapshotBytes = DEFAULT_MAX_SNAPSHOT_BYTES,
+  maxSnapshotNodes?: number,
+  maxSnapshotBytes?: number,
 ): SyncBootstrapAuthority {
   return Object.freeze({
     async load(input: { readonly sessionId: string; readonly snapshotId?: string; readonly limit: number;
@@ -168,7 +156,7 @@ function createPostgresAuthority(
         if (!authority) throw new SyncBootstrapSnapshotError('resource_not_found');
         if (input.snapshotId) {
           const stored = await loadStored(client, input.snapshotId, authority, cursorKeyId,
-            input.offset ?? 0, input.limit, false,
+            input.offset ?? 0, input.limit,
             snapshotPageByteBudget(authority.binding_json));
           await client.query('commit');
           return stored;
@@ -203,7 +191,7 @@ function createPostgresAuthority(
         if (authority.replica_state !== 'active' && authority.replica_state !== 'recovery_required') {
           throw new SyncBootstrapSnapshotError(authority.replica_state === 'retired' ? 'replica_retired' : 'stale_replica');
         }
-        const snapshot = await loadStored(client, input.snapshotId, authority, cursorKeyId, 0, 1, false);
+        const snapshot = await loadStored(client, input.snapshotId, authority, cursorKeyId, 0, 1);
         const result = await client.query(`update sync_bootstrap_snapshots set completed_at=${SNAPSHOT_COMPLETED_AT_SQL}
           where snapshot_id=$1 and session_id=$2 and account_id=$3 and collection_id=$4 and replica_id=$5
             and lease_generation=$6 and policy_revision=$7 and content_revision=$8
@@ -315,24 +303,19 @@ async function materialize(
   pullLimit: number,
   pullCursorKeyring?: SyncPullCursorKeyring,
   recoveryProofRetentionMs?: number,
-  maxSnapshotNodes = DEFAULT_MAX_SNAPSHOT_NODES,
-  maxSnapshotBytes = DEFAULT_MAX_SNAPSHOT_BYTES,
+  maxSnapshotNodes?: number,
+  maxSnapshotBytes?: number,
 ): Promise<SyncBootstrapAuthorityResult> {
   const collectionResult = await client.query<CollectionRow & { commit_ordinal: string }>(`select id,kind,title,summary,visibility,root_node_id,content_revision,commit_ordinal::text,
       created_at,updated_at,payload_json from collections where id=$1 and content_revision=$2 and policy_revision=$3`,
   [authority.collection_id, authority.content_revision, authority.policy_revision]);
   const row = collectionResult.rows[0];
   if (!row) throw new SyncBootstrapSnapshotError('snapshot_expired');
-  const nodeResult = await client.query<NodeRow>(`select id,collection_id,parent_id,kind,is_root,title,url,position_token,visibility,
-      resource_revision,children_revision,created_at,updated_at,payload_json from nodes where collection_id=$1 and deleted_at is null`,
-  [authority.collection_id]);
-  const orderedRows = orderSnapshotNodesParentFirst(nodeResult.rows, (node) => ({
-    id: node.id, parentId: node.parent_id, isRoot: node.is_root, kind: node.kind, positionToken: node.position_token,
-  }));
-  if (!orderedRows.ok) throw new Error('Authoritative Sync Snapshot graph is not a parent-first tree');
+  const counted = await client.query<{ count: string }>(
+    'select count(*)::text as count from nodes where collection_id=$1 and deleted_at is null', [authority.collection_id]);
+  const nodeCount = Number(counted.rows[0]!.count);
+  if (maxSnapshotNodes !== undefined && nodeCount > maxSnapshotNodes) throw new SyncBootstrapSnapshotError('payload_too_large');
   const collection = withSnapshotBinding(mapCollection(row), authority.binding_mode, authority.root_node_id);
-  const nodes = orderedRows.ordered.map(mapNode);
-  const parentRevisions = snapshotParentRevisions(orderedRows.ordered);
   const identity = snapshotMaterializationIdentity({
     protocolVersion: authority.protocol_version, sessionId: authority.session_id, replicaId: authority.replica_id,
     leaseGeneration: authority.lease_generation, contentRevision: authority.content_revision,
@@ -345,22 +328,6 @@ async function materialize(
     : undefined;
   const bootstrapCursor = cursorFacts?.cursor ?? `boot_${createHmac('sha256', cursorSecret)
     .update(`sync-bootstrap-ack-v1:${cursorKeyId}:${identity}`).digest('base64url').slice(0, 32)}`;
-  const materialized: SyncBootstrapAuthorityResult = {
-    sessionId: authority.session_id, collectionId: authority.collection_id, replicaId: authority.replica_id,
-    leaseGeneration: Number(authority.lease_generation), sessionExpiresAt: authority.expires_at.toISOString(),
-    replicaState: authority.replica_state, bindingMode: authority.binding_mode,
-    bindingRootNodeId: authority.root_node_id, contentRevision: authority.content_revision,
-    policyRevision: authority.policy_revision, bootstrapCursor, collection, nodes, parentRevisions,
-    protocolVersion: authority.protocol_version,
-    snapshotId, generatedAt: generatedAt.toISOString(),
-    nodeCount: nodes.length,
-  };
-  // FIX-M-014 (SYNC-R09): auditable Snapshot size caps; a collection that
-  // exceeds them fails closed before any durable row is written.
-  if (nodes.length > maxSnapshotNodes) throw new SyncBootstrapSnapshotError('payload_too_large');
-  const documentBytes = Buffer.byteLength(JSON.stringify({ collection, nodes, parentRevisions }));
-  if (documentBytes > maxSnapshotBytes) throw new SyncBootstrapSnapshotError('payload_too_large');
-  assertSyncBootstrapSnapshotGraph(materialized, snapshotId, generatedAt.toISOString());
   await client.query(`insert into resource_id_ledger(resource_id,resource_type) values ($1,'sync_bootstrap_snapshot') on conflict do nothing`, [snapshotId]);
   await cleanupExpiredSnapshots(client, authority.collection_id, snapshotId);
   // FIX-M-014: v2 rows persist the small header in snapshot_json plus one
@@ -368,22 +335,29 @@ async function materialize(
   const inserted = await client.query(`insert into sync_bootstrap_snapshots(snapshot_id,session_id,account_id,collection_id,replica_id,lease_generation,
       policy_revision,content_revision,binding_mode,binding_root_node_id,snapshot_json,bootstrap_cursor,cursor_key_id,
       generated_at,expires_at,recovery_pull_page_limit,storage_version,node_count)
-    values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,current_timestamp,${snapshotExpiresAtSql('$14')},$15,2,$16) on conflict(snapshot_id) do nothing`,
+    values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
+      $11::jsonb || jsonb_build_object('parentRevisions', (
+        select coalesce(jsonb_agg(jsonb_build_object('parentId',id,'childrenRevision',children_revision)
+          order by id collate "C"),'[]'::jsonb) from nodes
+        where collection_id=$4 and deleted_at is null and (is_root or kind='folder'))),
+      $12,$13,current_timestamp,${snapshotExpiresAtSql('$14')},$15,2,$16) on conflict(snapshot_id) do nothing`,
   [snapshotId, authority.session_id, authority.account_id, authority.collection_id, authority.replica_id, authority.lease_generation,
     authority.policy_revision, authority.content_revision, authority.binding_mode, authority.root_node_id,
-    JSON.stringify({ collection, parentRevisions, nodeCount: nodes.length,
+    JSON.stringify({ collection, nodeCount,
       ...(cursorFacts ? { sourceCommitOrdinal: row.commit_ordinal } : {}) }), bootstrapCursor, cursorKeyId, ttl,
-    authority.replica_state === 'recovery_required' && pullCursorKeyring ? pullLimit : null, nodes.length]);
+    authority.replica_state === 'recovery_required' && pullCursorKeyring ? pullLimit : null, nodeCount]);
   if (inserted.rowCount !== 1) {
     // The Snapshot already exists (identical identity facts): the stored row
     // is authoritative, including any legacy v1 row from before the migration.
-    return loadStored(client, snapshotId, authority, cursorKeyId, 0, pullLimit, true,
+    return loadStored(client, snapshotId, authority, cursorKeyId, 0, pullLimit,
       snapshotPageByteBudget(authority.binding_json));
   }
-  await insertSnapshotNodeRows(client, snapshotId, nodes);
+  await materializeSnapshotNodes(client, { snapshotId, collection, expectedNodes: nodeCount,
+    protocolVersion: authority.protocol_version, syncCursor: bootstrapCursor, generatedAt: generatedAt.toISOString(),
+    ...(maxSnapshotBytes === undefined ? {} : { maxBytes: maxSnapshotBytes }) });
   if (cursorFacts) await freezeSnapshotOpenConflicts(client, snapshotId, authority.collection_id, cursorFacts.tuple);
-  return { ...materialized,
-    snapshotPageBytes: snapshotPageByteBudget(authority.binding_json) };
+  return loadStored(client, snapshotId, authority, cursorKeyId, 0, pullLimit,
+    snapshotPageByteBudget(authority.binding_json));
 }
 
 async function initialPullCursor(
@@ -485,8 +459,13 @@ async function withSnapshotClient<T>(pool: { connect(): Promise<PoolClient> },
 }
 
 async function loadStored(client: PoolClient, snapshotId: string, authority: AuthorityRow, cursorKeyId: string,
-  offset: number, limit: number, full: boolean, snapshotPageBytes?: number): Promise<SyncBootstrapAuthorityResult> {
-  const storedResult = await client.query<StoredRow>('select * from sync_bootstrap_snapshots where snapshot_id=$1 and session_id=$2 and expires_at>current_timestamp', [snapshotId, authority.session_id]);
+  offset: number, limit: number, snapshotPageBytes?: number): Promise<SyncBootstrapAuthorityResult> {
+  const storedResult = await client.query<StoredRow>(`select snapshot_id,session_id,collection_id,replica_id,
+    lease_generation,policy_revision,content_revision,binding_mode,binding_root_node_id,
+    case when storage_version=1 then snapshot_json else snapshot_json - 'parentRevisions' end as snapshot_json,
+    bootstrap_cursor,cursor_key_id,
+    generated_at,expires_at,storage_version,node_count from sync_bootstrap_snapshots
+    where snapshot_id=$1 and session_id=$2 and expires_at>current_timestamp`, [snapshotId, authority.session_id]);
   const stored = storedResult.rows[0];
   if (!stored) throw new SyncBootstrapSnapshotError('snapshot_expired');
   if (stored.cursor_key_id !== cursorKeyId) {
@@ -505,33 +484,26 @@ async function loadStored(client: PoolClient, snapshotId: string, authority: Aut
         || document.nodeCount !== nodeCount) {
       throw new SyncBootstrapSnapshotError('internal_error');
     }
-    const pageResult = await client.query<{ node_json: SnapshotNode }>(full
-      ? `select node_json from sync_bootstrap_snapshot_nodes where snapshot_id=$1 order by node_index asc`
-      : `select node_json from sync_bootstrap_snapshot_nodes where snapshot_id=$1 and node_index>=$2
-          order by node_index asc limit $3`,
-    full ? [snapshotId] : [snapshotId, offset, limit + 1]);
-    const rows = pageResult.rows.map((row) => row.node_json);
-    if (full) {
-      if (rows.length !== nodeCount) throw new SyncBootstrapSnapshotError('internal_error');
-      return result(authority, stored, document, rows, nodeCount, undefined, snapshotPageBytes);
-    }
-    const hasExtra = rows.length > limit;
-    const pageNodes = hasExtra ? rows.slice(0, limit) : rows;
+    const pageResult = await client.query<{ node_json: SnapshotNode; children_revision: string | null }>(
+      `select node_json,children_revision from sync_bootstrap_snapshot_nodes where snapshot_id=$1 and node_index>=$2
+        order by node_index asc limit $3`, [snapshotId, offset, limit]);
+    const pageNodes = pageResult.rows.map(row => row.node_json);
     if (offset > nodeCount || pageNodes.length < Math.min(limit, nodeCount - offset)) {
       throw new SyncBootstrapSnapshotError('internal_error');
     }
-    return result(authority, stored, document, [], nodeCount, pageNodes, snapshotPageBytes);
+    const parentRevisions = authority.protocol_version === '0.2'
+      ? await readSnapshotParentRevisions(client, snapshotId, pageResult.rows) : undefined;
+    return result(authority, stored, { ...document, parentRevisions }, [], nodeCount, pageNodes, snapshotPageBytes);
   }
   // Legacy v1 row: the full document is stored inline; versioned read keeps
   // serving it exactly until the row expires (FIX-M-014).
   if (!Array.isArray(document.nodes)) throw new SyncBootstrapSnapshotError('internal_error');
   const legacyNodes = document.nodes;
-  if (full) return result(authority, stored, document, legacyNodes, legacyNodes.length, undefined, snapshotPageBytes);
   const pageNodes = legacyNodes.slice(offset, offset + limit);
   if (offset > legacyNodes.length || pageNodes.length < Math.min(limit, legacyNodes.length - offset)) {
     throw new SyncBootstrapSnapshotError('internal_error');
   }
-  return result(authority, stored, document, [], legacyNodes.length, pageNodes, snapshotPageBytes);
+  return result(authority, stored, document, legacyNodes, legacyNodes.length, pageNodes, snapshotPageBytes);
 }
 
 function parseStoredDocument(value: unknown): SnapshotStoredDocument {
@@ -561,7 +533,7 @@ function result(authority: AuthorityRow, stored: StoredRow, document: SnapshotSt
     nodes: nodes.map((node) => structuredClone(node)),
     ...(pageNodes ? { pageNodes: pageNodes.map((node) => structuredClone(node)) } : {}),
     ...(document.parentRevisions ? { parentRevisions: structuredClone(document.parentRevisions) } : {}),
-    nodeCount,
+    nodeCount, graphVerified: stored.storage_version === 2,
     protocolVersion: authority.protocol_version,
     snapshotId: stored.snapshot_id, generatedAt: stored.generated_at.toISOString(),
     ...(snapshotPageBytes === undefined ? {} : { snapshotPageBytes }) });
@@ -579,12 +551,4 @@ function comparePullTuple(left: SyncPullTuple, right: SyncPullTuple): number {
 function isExpectedSnapshotAuthorityConstraint(error: unknown): boolean {
   if (!error || typeof error !== 'object' || !('code' in error)) return false;
   return ['23502', '23503', '23505', '23514', '23P01', '40001', '40P01'].includes(String(error.code));
-}
-
-function mapNode(row: NodeRow): SnapshotNode {
-  try { return mapSnapshotNode(row); }
-  catch (error) {
-    if (error instanceof SnapshotDocumentError) throw new SyncBootstrapSnapshotError('internal_error', error.message);
-    throw error;
-  }
 }

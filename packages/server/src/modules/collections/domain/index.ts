@@ -65,7 +65,6 @@ export {
   type CollectionsErrorCode,
 } from './errors.js';
 export {
-  SNAPSHOT_TREE_CAPACITY,
   SnapshotTreeCapacityError,
 } from './snapshot-tree-capacity.js';
 export {

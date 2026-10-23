@@ -185,9 +185,18 @@ array. If a non-atomic batch fails midway, its successful prefix commits durably
 client can recover them by sending singleton requests with the original operation
 bytes and `Idempotency-Key: <opId>`. Multi-operation atomic batches are rejected.
 
-Snapshot capacity admission uses an exact incremental ledger. Migration
+Sync bootstrap and recovery Snapshots are materialized in 500-row database cursor
+batches inside one repeatable-read transaction. The immutable node rows serve
+bounded pages; the former 10,000-node / 2 MiB aggregate ceiling no longer rejects
+large libraries or their writes. Negotiated per-page transport budgets still
+apply, and explicit materialization quotas remain available to application ports.
+Migration `202611020100_sync_snapshot_parent_revision_rows` adds page-local parent
+revision authority. Existing inline and paged Snapshots remain readable, and the
+complete parent header remains compatible with the preceding server binary.
+
+Canonical size accounting uses an exact incremental ledger. Migration
 `202610280100_canonical_tree_capacity` installs transactional change tracking;
-existing collections initialize on their first admission. To backfill and verify
+existing collections initialize on their first write. To backfill and verify
 all collections before serving traffic, build the server and run
 `node scripts/backfill-canonical-tree-capacity.mjs --check` with `DATABASE_URL` set.
 The command locks one collection at a time and compares the ledger to the full

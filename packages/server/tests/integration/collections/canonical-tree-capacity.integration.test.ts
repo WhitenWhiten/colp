@@ -10,7 +10,7 @@ import { createIsolatedPostgresRuntime, describeWithPostgres, type IsolatedPostg
 import { resetCollectionNodeContractFixture, type CollectionNodeContractNode } from '../../support/collection-node-contract-postgres.js';
 import { runMigrations } from '../../../src/infrastructure/database/index.js';
 import { createPostgresCanonicalMutationUnitOfWork, createPostgresExportJobWorkerRepository, createPostgresExportJobEnqueueUnitOfWork, createPostgresReadableReplicaEnqueueUnitOfWork, createPostgresReadableReplicaWorkerRepository, createPostgresReadableReplicaUnitOfWork } from '../../../src/infrastructure/collections/index.js';
-import { SnapshotTreeCapacityError, SNAPSHOT_TREE_CAPACITY, updateCollectionNode, createMyExportJob, ExportJobConflictError, enqueueNodeReadableExtract, getNodeReadableReplica } from '../../../src/modules/collections/index.js';
+import { updateCollectionNode, createMyExportJob, ExportJobConflictError, enqueueNodeReadableExtract, getNodeReadableReplica } from '../../../src/modules/collections/index.js';
 describeWithPostgres('C-04 canonical Snapshot capacity', () => {
   let isolated: IsolatedPostgresRuntime;
   beforeAll(async () => {
@@ -25,7 +25,7 @@ describeWithPostgres('C-04 canonical Snapshot capacity', () => {
   },180000);
   afterAll(async()=>isolated?.close());
   const actor={principalId:'ZWVlZWVlZWVlZWVlZWVlZQ',subjectId:'ZmZmZmZmZmZmZmZmZmZmZg'};
-  test('PATCH uses actual Snapshot document bytes and rolls back every canonical effect', async () => {
+  test('PATCH and atomic batches can grow beyond the old aggregate Snapshot byte limit', async () => {
     const collectionId = 'ampqampqampqampqampqag';
     const root = 'a2tra2tra2tra2tra2traw';
     const nodeId = 'bGxsbGxsbGxsbGxsbGxsbA';
@@ -40,7 +40,7 @@ describeWithPostgres('C-04 canonical Snapshot capacity', () => {
     const measure = () => createUnitOfWork(isolated.runtime.db).execute(({ transaction }) => measureCanonicalTree(transaction, collectionId));
     // Calibrate a valid authority payload to the actual serializer, not the old five-field estimate.
     const initial = await measure();
-    const target = SNAPSHOT_TREE_CAPACITY.maxAggregateBytes - 8000;
+    const target = 2 * 1024 * 1024 - 8000;
     const extra = target - initial.bytes;
     assert.ok(extra > 0);
     let remaining = extra;
@@ -56,18 +56,19 @@ describeWithPostgres('C-04 canonical Snapshot capacity', () => {
       (SELECT count(*) FROM outbox_events) AS outbox, (SELECT count(*) FROM product_command_receipts) AS receipts,
       (SELECT commit_ordinal FROM collections WHERE id=$1) AS ordinal`, [collectionId]);
     const before = await snapshot();
-    await assert.rejects(createPostgresCanonicalMutationUnitOfWork(isolated.runtime.db).execute(ports => updateCollectionNode(ports, {
+    await createPostgresCanonicalMutationUnitOfWork(isolated.runtime.db).execute(ports => updateCollectionNode(ports, {
       actor: { ...actor, principalType: 'account' }, command: { commandId: randomUUID(), fingerprint: 'capacity-test' },
       collectionId, nodeId, ifMatch: '"r2"', patch: { description: '界'.repeat(5461) },
-    })), SnapshotTreeCapacityError);
-    assert.deepEqual((await snapshot()).rows, before.rows);
-    assert.equal((await measure()).bytes, target);
+    }));
+    assert.notDeepEqual((await snapshot()).rows, before.rows);
+    assert.ok((await measure()).bytes > 2 * 1024 * 1024);
+    const current = await isolated.runtime.db.selectFrom('nodes').select('resource_revision').where('id', '=', nodeId).executeTakeFirstOrThrow();
     const accepted = await createPostgresCanonicalMutationUnitOfWork(isolated.runtime.db).execute(ports => updateCollectionNode(ports, {
       actor: { ...actor, principalType: 'account' }, command: { commandId: randomUUID(), fingerprint: 'capacity-small' },
-      collectionId, nodeId, ifMatch: '"r2"', patch: { description: '界'.repeat(100) },
+      collectionId, nodeId, ifMatch: `"${current.resource_revision}"`, patch: { description: '界'.repeat(100) },
     }));
     assert.equal(accepted.kind, 'updated');
-    assert.ok((await measure()).bytes <= SNAPSHOT_TREE_CAPACITY.maxAggregateBytes);
+    assert.ok((await measure()).bytes < 2 * 1024 * 1024);
     const beforeBatch = await snapshot();
     let writes = 0;
     let scans = 0;
@@ -79,7 +80,7 @@ describeWithPostgres('C-04 canonical Snapshot capacity', () => {
       },
       async transformResult({ result }) { return result; },
     });
-    await assert.rejects(createUnitOfWork(observed).execute(({ transaction }) =>
+    await createUnitOfWork(observed).execute(({ transaction }) =>
       withCanonicalTreeCapacityBatch(transaction, collectionId, async treeCapacityAdmission => {
         const canonical = createCanonicalMutationApplication(createPostgresCanonicalMutationPorts(transaction, { treeCapacityAdmission }));
         for (const size of [5000, 9000]) {
@@ -91,9 +92,10 @@ describeWithPostgres('C-04 canonical Snapshot capacity', () => {
             } });
           writes++;
         }
-      })), SnapshotTreeCapacityError);
+      }));
     assert.equal(writes, 2, 'the whole atomic batch reaches its one final capacity decision');
     assert.equal(scans, 0, 'warm admission never serializes the whole collection');
-    assert.deepEqual((await snapshot()).rows, beforeBatch.rows, 'all batch effects roll back together');
+    assert.notDeepEqual((await snapshot()).rows, beforeBatch.rows, 'the atomic batch commits beyond the former aggregate ceiling');
+    assert.ok((await measure()).bytes > 2 * 1024 * 1024);
   });
 });

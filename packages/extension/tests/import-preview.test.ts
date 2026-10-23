@@ -11,7 +11,6 @@ import {
   previewChromeBookmarkImport,
   previewNetscapeBookmarkImport,
 } from '../src/import-preview.js';
-import { SNAPSHOT_V02_SUPPORT } from '../src/snapshot-v02-pages.js';
 
 const fixture = (name: string) => readFile(resolve('tests/fixtures', name));
 
@@ -126,7 +125,6 @@ describe('P3-34 Netscape bookmark preview', () => {
   });
 
   test('S-04 import preview refuses above the Snapshot node cap before accepting data', () => {
-    assert.equal(DEFAULT_IMPORT_LIMITS.maxNodes, SNAPSHOT_V02_SUPPORT.maxNodes);
     assert.equal(DEFAULT_IMPORT_LIMITS.maxNodes, 10_000);
   });
 

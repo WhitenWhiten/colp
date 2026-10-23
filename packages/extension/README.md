@@ -144,6 +144,11 @@ The unit and browser tests import `packages/server`, so run `npm ci` there too; 
 and must run under xvfb (`scripts/with-xvfb.mjs`). The required `extension-browser` CI job runs every core spec across six shards, including multi-device recovery and subscription capacity.
 The `self-hosted-browser` job runs the cross-application and layout specs against the production CLI and built Web application, with a disposable database and owner; `npm run test:e2e:self-hosted` runs it locally. It closes the application and removes the database even when a browser test fails. No external server or saved owner credentials are required.
 
+Sync Snapshot validation applies its 500-node / 2 MiB limits to each page.
+Complete libraries may exceed 10,000 nodes and 2 MiB; bootstrap reads and validates
+each new page once. Untrusted import-document and classification-context budgets
+are independent of the size of an existing synced library.
+
 Four inherited cloud-only specs (capture apply, credits ledger, Product classification, and the billed cloud/local classification comparison) are retired with the server modules they imported. The shipped local-provider path remains covered by `mv3-manual-classification.spec.ts` and disclosure/security tests. The old mixed cloud-classification/placement spec is replaced by its signed-out offline placement case; real placement and recovery specs remain. The inherited Digest-edition browser journey depended on Know-N’s report reader, which this server does not ship; its replacement verifies explicit capability denial and zero native or remote writes. Digest projection semantics remain in the subscription unit suites. Favicon capture, replay, policy and clear tests run against the restored self-hosted helper. The multi-device recovery test now owns two real Chromium profiles and a PostgreSQL fixture instead of requiring a private external runner.
 
 `npm run shots` renders the

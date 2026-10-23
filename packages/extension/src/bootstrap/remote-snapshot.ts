@@ -7,11 +7,11 @@ import { sessionTransportBudget } from '../colp-transport-budget-browser.js';
 import type { SyncScope } from '../sync-state-store.js';
 import type { StoredCredential, StoredSession } from '../types.js';
 import type { DurableSyncSnapshot } from '../durable-sync-engine-types.js';
-import { consumeSnapshotV02Pages, snapshotV02RejectMessage } from '../snapshot-v02-consume.js';
+import { snapshotV02RejectMessage, toSnapshotV02Page } from '../snapshot-v02-consume.js';
+import { createSnapshotV02Accumulator, type SnapshotV02Accumulation } from '../snapshot-v02-pages.js';
 import { digest, type RemoteNodeFact } from './matcher.js';
 
 const PAGE_LIMIT = 100;
-const MAX_PAGES = 1_000;
 const REQUEST_TIMEOUT_MS = 15_000;
 
 export interface CompleteRemoteSnapshot {
@@ -38,9 +38,12 @@ export async function loadCompleteRemoteSnapshot(input: {
     throw new Error('snapshot_timeout_invalid');
   }
   const fetcher = input.fetcher ?? fetch; const pages: DurableSyncSnapshot[] = []; const pageDigests: string[] = [];
+  const accumulator = createSnapshotV02Accumulator();
+  let accumulated: SnapshotV02Accumulation = { ok: false, code: 'sequence_gap' };
+  const continuations = new Set<string>();
   let classificationBytes=0;
   const nodes: SnapshotNode[] = []; const seen = new Set<string>(); let pageCursor: string | undefined;
-  for (let pageNumber = 0; pageNumber < MAX_PAGES; pageNumber += 1) {
+  for (let pageNumber = 0; ; pageNumber += 1) {
     const url = new URL(endpoint); url.searchParams.set('sessionId', input.session.sessionId);
     url.searchParams.set('limit', String(PAGE_LIMIT)); if (pageCursor) url.searchParams.set('pageCursor', pageCursor);
     let response: Response; const timeout = new AbortController();
@@ -68,7 +71,7 @@ export async function loadCompleteRemoteSnapshot(input: {
     const page = document as DurableSyncSnapshot;
     validatePage(page, input.scope, pageNumber, pages[0]);
     pages.push(page);
-    const accumulated = consumeSnapshotV02Pages(pages);
+    accumulated = accumulator.add(toSnapshotV02Page(page));
     if (!accumulated.ok) throw new Error(snapshotV02RejectMessage(accumulated.code));
     for (const node of page.nodes) {
       if (seen.has(node.id)) throw new Error('snapshot_node_duplicate');
@@ -80,9 +83,9 @@ export async function loadCompleteRemoteSnapshot(input: {
       if (page.page.nextCursor !== null) throw new Error('snapshot_chain_invalid');
       break;
     }
-    if (!page.page.nextCursor) throw new Error('snapshot_chain_invalid');
+    if (!page.page.nextCursor || page.nodes.length === 0 || continuations.has(page.page.nextCursor)) throw new Error('snapshot_chain_invalid');
     pageCursor = page.page.nextCursor;
-    if (pageNumber === MAX_PAGES - 1) throw new Error('payload_too_large');
+    continuations.add(pageCursor);
   }
   const first = pages[0]; const last = pages.at(-1);
   if (!first || !last || last.page.hasMore || last.page.nextCursor !== null) throw new Error('snapshot_incomplete');
@@ -102,12 +105,11 @@ export async function loadCompleteRemoteSnapshot(input: {
   for (let index = 0; index < pending.length; index += 1) {
     const current = pending[index]!;
     if (reachable.has(current)) throw new Error('snapshot_graph_cycle');
-    reachable.add(current); pending.push(...(children.get(current) ?? []));
+    reachable.add(current); for (const child of children.get(current) ?? []) pending.push(child);
   }
   if (reachable.size !== nodes.length) throw new Error('snapshot_graph_unreachable');
-  const complete = consumeSnapshotV02Pages(pages);
-  if (!complete.ok || !complete.complete) throw new Error(complete.ok ? 'snapshot_incomplete' : snapshotV02RejectMessage(complete.code));
-  const childrenRevisions = complete.parentRevisions;
+  if (!accumulated.complete) throw new Error('snapshot_incomplete');
+  const childrenRevisions = accumulated.parentRevisions;
   return { ...(input.classificationProjection?{classificationProjection:{collection:first.collection,nodes}}:{}),snapshotId: first.snapshotId, revision: first.revision, syncCursor: first.syncCursor,
     remoteFacts: nodes.map((node) => remoteFact(node, childrenRevisions)), pageCount: pages.length,
     identityDigest: digest({ snapshotId: first.snapshotId, revision: first.revision,

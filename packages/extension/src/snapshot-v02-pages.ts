@@ -3,8 +3,8 @@
  */
 export const SNAPSHOT_V02_SUPPORT = Object.freeze({
   commonBookmarkCount: 3_000,
-  maxNodes: 10_000,
-  maxAggregateBytes: 2 * 1024 * 1024,
+  maxPageNodes: 500,
+  maxPageBytes: 2 * 1024 * 1024,
 });
 
 export const SNAPSHOT_MATERIALIZATION_SORT_VERSION = 'parent-first-v1';
@@ -138,8 +138,8 @@ export function createSnapshotV02Accumulator(): SnapshotV02Accumulator {
         pageIds.add(node.id);
       }
       const addedBytes = snapshotV02PageWireBytes(page);
-      if (seenIds.size + pageIds.size > SNAPSHOT_V02_SUPPORT.maxNodes
-          || bytes + addedBytes > SNAPSHOT_V02_SUPPORT.maxAggregateBytes) {
+      if (pageIds.size > SNAPSHOT_V02_SUPPORT.maxPageNodes
+          || addedBytes > SNAPSHOT_V02_SUPPORT.maxPageBytes) {
         return { ok: false, code: 'budget_exceeded' };
       }
       const folderIds = page.nodes.filter((node) => node.kind === 'root' || node.kind === 'folder').map((node) => node.id);
@@ -218,7 +218,7 @@ function graphValid(pages: readonly SnapshotV02Page[]): boolean {
     const current = pending[index]!;
     if (reachable.has(current)) return false;
     reachable.add(current);
-    pending.push(...(children.get(current) ?? []));
+    for (const child of children.get(current) ?? []) pending.push(child);
   }
   return reachable.size === nodes.length;
 }
