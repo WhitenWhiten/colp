@@ -110,10 +110,20 @@ describe('the unified owner activity signal', () => {
     for (const [kind, words] of [['run_completed', 'finished'], ['run_partial', 'partly finished'], ['run_failed', 'failed'], ['run_attention', 'needs your decision']] as const) {
       expect(activityTitle({ ...item, kind, run: { id: 'run-1', ruleId: 'rule-1', ruleName: 'Reading digest', status: 'completed', outputCount: 1, attention: null } })).toBe(`Reading digest ${words}`);
     }
+    const folder = (nodeId: string, count: number) => ({ nodeId, title: nodeId, count });
+    expect(activityTitle({ ...item, folders: [folder('LLM Papers', 6), folder('Reading', 1)] })).toBe('Claude added 7 bookmarks to LLM Papers and 1 more folder');
+    expect(activityTitle({ ...item, folders: [folder('LLM Papers', 5), folder('Reading', 1), folder('Later', 1)] }))
+      .toBe('Claude added 7 bookmarks to LLM Papers and 2 more folders');
     const panel = activityPanel(server([], { activity: { unreadCount: 1, latest: item, fetchedAt: NOW } }), WEB);
     expect(panel.querySelector('.list-row-title')?.textContent).toBe('Claude added 7 bookmarks to LLM Papers');
+    expect(panel.querySelector<HTMLElement>('.badge')?.dataset.tone).toBe('accent');
     expect(panel.querySelector('.badge')?.textContent).toBe('New');
-    expect(panel.querySelector<HTMLAnchorElement>('a')?.href).toBe('https://colp.example/activity');
-    expect(panel.querySelector('a')?.textContent).toBe('Open on the web');
+    // The row is the way in: it opens the web inbox, where reading happens, like the popup's Open.
+    const row = panel.querySelector<HTMLAnchorElement>('a.list-row')!;
+    expect([row.href, row.target]).toEqual(['https://colp.example/activity', '_blank']);
+    expect(panel.querySelectorAll('a')).toHaveLength(1);
+    const empty = activityPanel(server([], { activity: { unreadCount: 0, latest: null, fetchedAt: NOW } }), WEB);
+    expect(empty.querySelector('.empty-title')?.textContent).toBe('No activity yet');
+    expect(empty.querySelector('a')).toBeNull();
   });
 });

@@ -323,12 +323,14 @@ function serverEmpty(server: AutomationServerView, webUrl: string | null): HTMLE
 type ActivityTab = 'browser' | 'server' | 'activity';
 
 /**
- * Recent activity, kept apart by where it happened: what this browser filed
- * (the server confirms each one after it syncs) and what the server did
- * afterwards. Two tabs over one card, never one merged list.
+ * Recent activity, kept apart by where it happened: the account's inbox when
+ * the server has one (read on the web), what this browser filed (the server
+ * confirms each one after it syncs) and what the server did afterwards. Tabs
+ * over one card, never one merged list.
  */
 function activityGroup(view: AutomationStateView, chosen: ActivityTab | null, choose: (tab: ActivityTab) => void): HTMLElement | null {
-  const tabs: ActivityTab[] = view.server ? ['browser', 'server', ...(view.server.activity ? ['activity' as const] : [])] : ['browser'];
+  // The account's inbox leads when the server has one: it is the tab that opens first.
+  const tabs: ActivityTab[] = view.server ? [...(view.server.activity ? ['activity' as const] : []), 'browser', 'server'] : ['browser'];
   if (!view.placements.length && !view.server) return null;
   const current = chosen && tabs.includes(chosen) ? chosen : view.server?.activity ? 'activity' : view.placements.length || !view.server ? 'browser' : 'server';
   const section = el('section', undefined, 'set-group automation-activity');
@@ -378,7 +380,11 @@ function activityGroup(view: AutomationStateView, chosen: ActivityTab | null, ch
     tabButton.setAttribute('aria-controls', `${id}-panel`);
     tabButton.setAttribute('aria-selected', String(tab === current));
     tabButton.tabIndex = tab === current ? 0 : -1;
-    if (count) tabButton.append(el('span', count > 99 ? '99+' : String(count), 'automation-tab-count'));
+    if (count) {
+      const tally = el('span', count > 99 ? '99+' : String(count), 'automation-tab-count');
+      if (tab === 'activity') tally.dataset.tone = 'accent';
+      tabButton.append(tally);
+    }
     buttons.push(tabButton);
     rail.append(tabButton);
     const panel = panels[tab]();

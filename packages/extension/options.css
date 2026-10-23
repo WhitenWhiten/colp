@@ -1522,13 +1522,15 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
 .automation-recipe-missing { color: var(--warning); }
 .automation-run-glyph[data-tone="warning"] { color: var(--warning); }
 .automation-run-glyph[data-tone="danger"] { color: var(--danger); }
-/* A result the server reports unread (AW-60): the kit's badge in the accent tokens. */
-.automation-runs .badge[data-tone="accent"] { background: var(--accent-soft); color: var(--accent-ink); }
+/* A result or an activity item the server reports unread (AW-60): the kit's badge in the accent tokens. */
+.automation-rules .badge[data-tone="accent"] { background: var(--accent-soft); color: var(--accent-ink); }
 
 /* Recent activity: the tabs sit on the group's title line; each panel says where its rows come from. */
 .automation-activity-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); }
 .automation-tabs button { display: inline-flex; align-items: center; gap: var(--hair-40); }
 .automation-tab-count { color: var(--faint); font-variant-numeric: tabular-nums; }
+/* Activity counts what is unread, as the web's accent count does; the other tabs count rows. */
+.automation-tab-count[data-tone="accent"] { color: var(--accent-ink); font-weight: var(--weight-semibold); }
 .automation-panel-lede { margin: 0; padding: var(--hair-65) var(--space-4); border-bottom: 1px solid var(--line); background: var(--paper); color: var(--muted); font-size: var(--text-xs); line-height: var(--leading-body); }
 .automation-activity-card .empty { padding-block: var(--space-6); }
 .automation-freshness { display: flex; align-items: center; gap: var(--hair-40); margin: 0; padding: var(--hair-55) var(--space-4); border-top: 1px solid var(--line); color: var(--muted); font-size: var(--text-xs); line-height: var(--leading-body); }

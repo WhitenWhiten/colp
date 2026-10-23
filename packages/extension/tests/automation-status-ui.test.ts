@@ -126,7 +126,11 @@ describe('Options › Automations with the server’s status', () => {
     const body = await render(view({ server: server({ activity: { unreadCount: 120, latest: item, fetchedAt: NOW } }) }));
     const tab = body.querySelector<HTMLElement>('#automation-inbox-heading')!;
     const panel = body.querySelector<HTMLElement>('#automation-inbox-heading-panel')!;
+    // The tab that opens first comes first, and its count is what is unread.
+    expect(Array.from(body.querySelectorAll('[role="tab"]')).map((node) => node.id))
+      .toEqual(['automation-inbox-heading', 'automation-placements-heading', 'automation-server-heading']);
     expect(tab.textContent).toBe('Activity99+');
+    expect(tab.querySelector<HTMLElement>('.automation-tab-count')?.dataset.tone).toBe('accent');
     expect(tab.getAttribute('aria-selected')).toBe('true');
     expect(panel.hidden).toBe(false);
     expect(text(panel)).toContain('Claude added 7 bookmarks to LLM Papers');

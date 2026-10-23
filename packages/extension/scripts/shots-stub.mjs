@@ -30,6 +30,8 @@
 //   Automations page: auto-paused, auto-expired, auto-none, auto-off (server has no automations), auto-rejected,
 //     auto-missing (a rule's folder is not mapped here), auto-empty (signed in, active, no rules),
 //     auto-server-offline (last runs read 3 h ago), auto-server-signin (no web sign-in), auto-server-empty (no runs yet),
+//     activity (the account's activity inbox: 7 unread, the latest an agent's bookmarks), activity-run (the latest a run
+//     waiting on a decision), activity-long (a long agent and folder name), activity-empty (nothing yet),
 //     browser-empty (no rules in this browser), browser-none (signed out, nothing filed yet),
 //     browser-overlap (signed in: one browser rule conflicts with an account rule, one duplicates one),
 //     browser-move (signed in: one browser rule is moving to the account, one has an unsynced folder)
@@ -44,7 +46,8 @@
 //     risk-browse (with risk: on while browsing too; doc 17 RW-15 – RW-17)
 //   Popup only: existing, suggest, suggesting, retrying, local, longtitle, longfolder, nofavicon, perm, attention, stuck,
 //   autoline, autonoline, autoboot, autolocal, autoattention, autowaiting, autoexisting (auto* = automatic card),
-//   digest (one new digest), digests-stale (two, last read 3 h ago).
+//   digest (one new digest), digests-stale (two, last read 3 h ago),
+//   activity (7 new from the account's agents), activity-stale (the same, last read 3 h ago).
 export function installStub(messages) {
   const now = Date.now();
   const params = new URL(location.href).searchParams;
@@ -439,6 +442,8 @@ export function installStub(messages) {
             since: '2026-10-09T00:00:00Z', expires: null, evidenceUrl: null, expired: false, freshness: 'stale' }] } };
       case 'known.risk.mode': case 'known.risk.exception.add': case 'known.risk.exception.remove': case 'known.risk.remove': return { ok: true };
       case 'known.automation.digest':
+        if (has('activity', 'activity-stale')) return { ok: true, digest: { count: 7, activity: true, digests: false, url: 'https://known.example/activity',
+          ruleName: null, fetchedAt: now - (has('activity-stale') ? 3 * 3600e3 : 60e3), stale: has('activity-stale') } };
         return { ok: true, digest: has('digest') ? { count: 1, digests: true, url: 'https://known.example/automations/runs/run-3', ruleName: 'Weekly reading digest', fetchedAt: now - 60e3, stale: false }
           : has('digests-stale') ? { count: 2, digests: true, url: 'https://known.example/automations/digests', ruleName: null, fetchedAt: now - 3 * 3600e3, stale: true } : null };
       case 'known.automation.state': case 'known.automation.refresh': {
@@ -459,7 +464,21 @@ export function installStub(messages) {
         const serverRule = (id, name, ruleState, inBrowser, waiting = 0, cost = null) => ({ id, name, state: ruleState, inBrowser, waiting, held: 0, approvals: 0, cost });
         const run = (id, ruleName, status, ago, extra = {}) => ({ id, ruleName, kind: 'intake', status, held: false, explanation: null, at: now - ago,
           unread: false, outputCount: 0, url: `https://known.example/automations/runs/${id}`, ...extra });
-        const server = signedOut || has('auto-off') ? null : has('auto-server-signin') ? { fetchedAt: null, problem: 'signedOut', rules: [], runs: [] } : {
+        // The account's activity inbox (doc 19): its unread count and latest item, read beside the runs.
+        const long = has('activity-long');
+        const latestActivity = has('activity-run') ? { id: 'act-2', kind: 'run_attention', state: 'unread', revision: '4', occurredAt: iso(now - 30 * 60e3),
+          updatedAt: iso(now - 12 * 60e3), readAt: null, count: 1, agent: null, collection: { id: 'c-1', title: 'Personal' }, folders: [], items: [],
+          run: { id: 'run-9', ruleId: 'r4', ruleName: 'Weekly reading digest', status: 'review', outputCount: 1, attention: 'awaitingApproval' } }
+          : { id: 'act-1', kind: 'agent_bookmarks_added', state: 'unread', revision: '3', occurredAt: iso(now - 40 * 60e3), updatedAt: iso(now - 12 * 60e3),
+            readAt: null, count: 7, agent: { clientId: 'claude', name: long ? 'Claude Desktop research assistant on the studio workstation' : 'Claude', kind: 'oauth_client' },
+            collection: { id: 'c-1', title: 'Personal' }, folders: [{ nodeId: 'f-papers', title: long ? 'Large language model papers and their replication notes' : 'LLM Papers', count: 6 },
+              { nodeId: 'f-reading', title: 'Reading', count: 1 }],
+            items: [{ nodeId: 'n-1', title: 'Attention Is All You Need', host: 'arxiv.org', occurredAt: iso(now - 12 * 60e3) },
+              { nodeId: 'n-2', title: 'Scaling Laws for Neural Language Models', host: 'arxiv.org', occurredAt: iso(now - 20 * 60e3) }], run: null };
+        const activity = has('activity', 'activity-run', 'activity-long', 'activity-empty')
+          ? { unreadCount: has('activity-empty') ? 0 : 7, latest: has('activity-empty') ? null : latestActivity, fetchedAt: now - 50e3 } : null;
+        const server = signedOut || has('auto-off') ? null : has('auto-server-signin') ? { fetchedAt: null, problem: 'signedOut', rules: [], runs: [], activity } : {
+          activity,
           fetchedAt: now - (has('auto-server-offline') ? 3 * 3600e3 : 50e3), problem: has('auto-server-offline') ? 'offline' : null,
           rules: [serverRule('r1', 'arXiv papers', 'active', true), serverRule('r2', 'GitHub repositories to Programming', 'degraded', true, 3),
             serverRule('r3', 'Recipes from my favourite food sites', 'active', true),

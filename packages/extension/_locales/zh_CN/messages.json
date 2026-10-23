@@ -10280,8 +10280,8 @@
     "description": "$1 new digests"
   },
   "automation_activityEmptyHint": {
-    "message": "智能体添加书签或完成工作后，更新会显示在这里。",
-    "description": "Updates appear here when an agent adds bookmarks or finishes work."
+    "message": "智能体添加书签或规则完成工作后，你会在这里看到。",
+    "description": "When an agent adds bookmarks or a rule finishes work, you’ll see it here."
   },
   "automation_activityEmptyTitle": {
     "message": "暂无动态",
@@ -10296,24 +10296,20 @@
     "description": "$1 finished"
   },
   "automation_activityLede": {
-    "message": "智能体添加的新书签及其工作进展。",
-    "description": "New bookmarks from your agents and updates on their work."
+    "message": "智能体添加的新书签、完成的工作，以及等你决定的事项。",
+    "description": "New bookmarks from your agents, finished work, and decisions waiting for you."
   },
   "automation_activityLibrary": {
     "message": "你的书签库",
     "description": "your library"
   },
-  "automation_activityMoreFolders": {
-    "message": "$1，以及另外 $2 个文件夹",
-    "description": "$1 and $2 more folders"
+  "automation_activityMoreFolders_other": {
+    "message": "$2，以及另外 $1 个文件夹",
+    "description": "$2 and $1 more folders"
   },
   "automation_activityOpen": {
     "message": "打开",
     "description": "Open"
-  },
-  "automation_activityOpenWeb": {
-    "message": "在网页上打开",
-    "description": "Open on the web"
   },
   "automation_activityPartial": {
     "message": "$1 已部分完成",

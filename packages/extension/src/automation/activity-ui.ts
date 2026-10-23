@@ -1,10 +1,19 @@
-import { createIcon } from '../icons.js';
+import { createIcon, type IconName } from '../icons.js';
 import { el, emptyBlock } from '../library-dom.js';
 import { t, tn } from '../i18n.js';
 import { when } from '../subscriptions-ui/dom.js';
-import type { ActivityItem } from './activity-types.js';
+import type { ActivityItem, ActivityKind } from './activity-types.js';
 import type { AutomationServerView } from './messages.js';
 import { serverFreshness } from './status-ui.js';
+
+/** The web inbox's glyphs: tone only for a problem, as on the run rows. */
+const GLYPH: Record<ActivityKind, [IconName, 'warning' | 'danger' | undefined]> = {
+  agent_bookmarks_added: ['bookmark', undefined],
+  run_completed: ['check', undefined],
+  run_partial: ['alert', 'warning'],
+  run_failed: ['alert', 'danger'],
+  run_attention: ['alert', 'warning'],
+};
 
 /** The same plain sentences as the web inbox. Names are server-resolved owner metadata. */
 export function activityTitle(item: ActivityItem): string {
@@ -12,7 +21,8 @@ export function activityTitle(item: ActivityItem): string {
     const agent = item.agent?.name || t('automation_activityAgent', 'An agent');
     const folder = item.folders[0]?.title || item.collection?.title || t('automation_activityLibrary', 'your library');
     const added = tn('automation_activityAdded', item.count, '$2 added $1 bookmark to $3', '$2 added $1 bookmarks to $3', agent, folder);
-    return item.folders.length > 1 ? t('automation_activityMoreFolders', '$1 and $2 more folders', added, item.folders.length - 1) : added;
+    const more = item.folders.length - 1;
+    return more > 0 ? tn('automation_activityMoreFolders', more, '$2 and $1 more folder', '$2 and $1 more folders', added) : added;
   }
   const name = item.run?.ruleName || t('automation_activityRule', 'A rule');
   switch (item.kind) {
@@ -23,41 +33,39 @@ export function activityTitle(item: ActivityItem): string {
   }
 }
 
-/** A preview only: read state changes on the web inbox. */
+/**
+ * A preview only: the newest item, as a row that opens the web inbox, where
+ * reading happens (as the toolbar count and the popup's Open do). Nothing
+ * here marks anything read.
+ */
 export function activityPanel(server: AutomationServerView, webUrl: string | null): HTMLElement {
   const panel = el('div', undefined, 'automation-panel');
-  panel.append(el('p', t('automation_activityLede', 'New bookmarks from your agents and updates on their work.'), 'automation-panel-lede'));
+  panel.append(el('p', t('automation_activityLede', 'New bookmarks from your agents, finished work, and decisions waiting for you.'), 'automation-panel-lede'));
   const activity = server.activity!;
   const latest = activity.latest;
   if (latest) {
-    const list = el('ul', undefined, 'automation-rules');
-    const row = el('li', undefined, 'list-row automation-run');
-    const tile = el('span', undefined, 'favicon-tile automation-run-glyph');
-    tile.append(createIcon(latest.kind === 'agent_bookmarks_added' ? 'bookmark' : latest.kind === 'run_completed' ? 'check' : 'alert', 16));
-    if (latest.kind === 'run_failed') tile.dataset.tone = 'danger';
-    if (latest.kind === 'run_partial' || latest.kind === 'run_attention') tile.dataset.tone = 'warning';
+    const list = el('ul', undefined, 'automation-rules automation-inbox');
+    const item = el('li');
+    const row = webUrl ? el('a', undefined, 'list-row automation-inbox-item') : el('div', undefined, 'list-row automation-inbox-item');
+    if (row instanceof HTMLAnchorElement) { row.href = new URL('/activity', webUrl!).href; row.target = '_blank'; row.rel = 'noreferrer'; }
+    const [glyph, tone] = GLYPH[latest.kind];
+    const tile = el('span', undefined, 'favicon-tile automation-run-glyph'); tile.append(createIcon(glyph, 16));
+    if (tone) tile.dataset.tone = tone;
     const main = el('div', undefined, 'list-row-main');
-    main.append(el('p', activityTitle(latest), 'list-row-title'));
+    const title = el('p', activityTitle(latest), 'list-row-title'); title.title = title.textContent ?? '';
     const meta = el('p', undefined, 'list-row-meta');
     if (latest.run && latest.count) meta.append(el('span', tn('automation_activityDigests', latest.count, '$1 new digest', '$1 new digests')), el('span', undefined, 'sep'));
     meta.append(when(Date.parse(latest.updatedAt)));
-    main.append(meta);
-    if (latest.items.length) main.append(el('p', latest.items.map((item) => item.title || item.host).filter(Boolean).join(' · '), 'list-row-meta'));
-    row.append(tile, main);
-    if (latest.state === 'unread') {
-      const tail = el('div', undefined, 'list-row-tail');
-      const badge = el('span', t('automation_runNew', 'New'), 'badge'); badge.dataset.tone = 'accent';
-      tail.append(badge); row.append(tail);
-    }
-    list.append(row); panel.append(list);
-  } else panel.append(emptyBlock({ icon: 'check', title: t('automation_activityEmptyTitle', 'No activity yet'),
-    hint: t('automation_activityEmptyHint', 'Updates appear here when an agent adds bookmarks or finishes work.') }));
-  if (webUrl) {
-    const link = el('a', undefined, 'btn btn-secondary btn-sm');
-    link.href = new URL('/activity', webUrl).href; link.target = '_blank'; link.rel = 'noreferrer';
-    link.append(el('span', t('automation_activityOpenWeb', 'Open on the web')), createIcon('arrow-up-right', 14));
-    const foot = el('div', undefined, 'automation-panel-lede'); foot.append(link); panel.append(foot);
-  }
+    main.append(title, meta);
+    const samples = latest.items.map((member) => member.title || member.host).filter(Boolean).join(' · ');
+    if (samples) { const line = el('p', undefined, 'list-row-meta'); line.append(el('span', samples, 'grow')); main.append(line); }
+    const tail = el('div', undefined, 'list-row-tail');
+    if (latest.state === 'unread') { const badge = el('span', t('automation_runNew', 'New'), 'badge'); badge.dataset.tone = 'accent'; tail.append(badge); }
+    if (webUrl) tail.append(createIcon('arrow-up-right', 14));
+    row.append(tile, main, tail);
+    item.append(row); list.append(item); panel.append(list);
+  } else panel.append(emptyBlock({ icon: 'bell', title: t('automation_activityEmptyTitle', 'No activity yet'),
+    hint: t('automation_activityEmptyHint', 'When an agent adds bookmarks or a rule finishes work, you’ll see it here.') }));
   panel.append(serverFreshness({ ...server, fetchedAt: activity.fetchedAt, problem: server.activityProblem ?? null }));
   return panel;
 }

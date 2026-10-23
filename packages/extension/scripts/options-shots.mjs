@@ -150,6 +150,8 @@ const STATES = [
   ['automations-risk-browse', 'options.html?shot=signedout,risk,risk-browse#automations'],
   ['automations-risk-subscribe', 'options.html?shot=signedout,risk#automations', async (p) => {
     await p.click('[data-risk-subscribe]'); await p.fill('dialog input[type="url"]', 'https://lists.example.org/phish.json'); await p.waitForTimeout(300); }, false],
+  // The account's activity inbox (doc 19): the latest item and the unread count, a run waiting on you, long names, nothing yet.
+  ...['activity', 'activity-run', 'activity-long', 'activity-empty'].map((name) => [`automations-${name}`, `options.html?shot=${name}#automations`]),
   // A rule filed a page starred in the browser while Know-N was in front (AW-20).
   ['automations-notice', 'options.html#automations', (p) => p.evaluate(() => window.__workerMessage({ kind: 'known.automation.notice',
     text: 'Moved “Attention Is All You Need” to Academic by rule “arXiv papers”.', attention: false }))],
@@ -390,6 +392,8 @@ for (const width of widths) {
   await popup('digest', 'manual,digest');
   await popup('digests-stale', 'manual,digests-stale');
   await popup('auto-digest', 'auto,digest');
+  await popup('auto-activity', 'auto,activity');
+  await popup('auto-activity-stale', 'auto,activity-stale');
   await popup('stuck', 'manual,stuck');
   // Automatic capture result card
   await popup('auto', 'auto');
