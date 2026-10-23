@@ -393,10 +393,10 @@ export function loadSyncTombstonePurgeConfig(env: NodeJS.ProcessEnv): SyncTombst
 }
 
 export function loadSyncEvidenceMaintenanceConfig(env: NodeJS.ProcessEnv): SyncEvidenceMaintenanceConfig {
-  // R15 global evidence/proof maintenance worker. Disabled by default so existing
-  // deployments keep the R14 Pull-local opportunistic cleanup behavior unchanged;
-  // enabling it adds the standalone global sweep as the primary mechanism.
-  const evidenceMaintenanceEnabled = (env.SYNC_EVIDENCE_MAINTENANCE_ENABLED ?? 'false').toLowerCase();
+  // Sync produces durable evidence even after a replica stops pulling. Keep
+  // its global retention worker on with Sync; an explicit operator opt-out wins.
+  const evidenceMaintenanceEnabled = (env.SYNC_EVIDENCE_MAINTENANCE_ENABLED
+    ?? ((env.SYNC_SESSION_ENABLED ?? 'false').toLowerCase() === 'true' ? 'true' : 'false')).toLowerCase();
   if (evidenceMaintenanceEnabled !== 'true' && evidenceMaintenanceEnabled !== 'false') {
     throw new Error('SYNC_EVIDENCE_MAINTENANCE_ENABLED must be true or false');
   }

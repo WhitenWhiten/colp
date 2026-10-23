@@ -79,12 +79,14 @@ describe('self-hosted preset', () => {
     const tlsConfig = loadConfig(tls);
     expect(tlsConfig.syncSession?.extensionAuth.issuer).toBe('https://colp.test/api/v1/auth');
     expect(tlsConfig.syncSession?.allowedOrigins).toEqual(['chrome-extension://pplpnpegpnghcddhmpgkbfkdfadjiaen']);
+    expect(tlsConfig.syncEvidenceMaintenance.enabled).toBe(true);
     expect(tlsConfig.publication.endpoints.syncSessions).toBe('https://colp.test/colp/v0.1/sync/sessions');
     expect(tlsConfig.publication.endpoints.syncEffectPages).toMatch(/\{effectId\}.*\{pageNumber\}$/u);
 
     const loopback = baseEnv({ COLP_SERVER_ORIGIN: 'http://localhost:8080', COLP_INSECURE_HTTP: 'true' });
     applySelfHostedPreset(loopback);
     expect(loadConfig(loopback).syncSession?.extensionAuth.jwksUri).toBe('http://localhost:8080/api/v1/auth/jwks');
+    expect(loadConfig(loopback).syncEvidenceMaintenance.enabled).toBe(true);
   });
 
   it('builds the COLP 0.2 sync manifest the extension discovers, on https and loopback http', () => {

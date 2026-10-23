@@ -24,6 +24,10 @@ const EMPTY_RESULT: SyncEvidenceMaintenanceResult = Object.freeze({
 });
 
 describe('R15 sync evidence maintenance configuration', () => {
+  test('enables retention maintenance with Sync sessions unless the operator disables it', () => {
+    assert.equal(loadConfig(syncEnv()).syncEvidenceMaintenance.enabled, true);
+    assert.equal(loadConfig(syncEnv({ SYNC_EVIDENCE_MAINTENANCE_ENABLED: 'false' })).syncEvidenceMaintenance.enabled, false);
+  });
   test('supplies behavior-preserving defaults with the worker disabled', () => {
     const config = loadConfig({ ...BASE_ENV });
     assert.deepEqual(config.syncEvidenceMaintenance, {

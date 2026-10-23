@@ -196,6 +196,14 @@ complete parent header remains compatible with the preceding server binary.
 Continuation cursors use the Snapshot header's frozen expiry, so delayed page
 replays retain the same response digest across application restarts.
 
+Sync evidence maintenance starts with enabled Sync sessions; operators can set
+`SYNC_EVIDENCE_MAINTENANCE_ENABLED=false`. Each transaction keeps its configured
+row bound (500 by default). Busy cleanup yields after 20 batches or after its
+one-second budget is reached between transactions, then continues after 250 ms;
+idle cleanup uses the configured interval (60 seconds by default). Ack and
+checkpoint retention stays intact, and protected rows do not displace actionable
+work or inflate the backlog-age gauge. Shutdown waits for the current transaction.
+
 Canonical size accounting uses an exact incremental ledger. Migration
 `202610280100_canonical_tree_capacity` installs transactional change tracking;
 existing collections initialize on their first write. To backfill and verify

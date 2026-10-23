@@ -132,10 +132,11 @@ Adapted (the shipped promise is still asserted, against repository paths):
   `devops/docker-compose.yml` (AUTH_API_REPLICAS, shared Redis Sync limiters,
   effect-page limit override, evidence maintenance default) are removed. The
   self-hosted `deploy/compose.yaml` is single-instance and runs server
-  defaults. Observation for maintainers: Know-N's compose enabled
-  `SYNC_EVIDENCE_MAINTENANCE_ENABLED` by default; the self-hosted preset leaves
-  it (and `SYNC_TOMBSTONE_PURGE_ENABLED`) at the server default `false`. That
-  is a deployment decision, not changed here.
+  defaults. Evidence maintenance now follows enabled Sync sessions, with an
+  explicit `SYNC_EVIDENCE_MAINTENANCE_ENABLED=false` operator opt-out; behavioral
+  configuration, scheduler and PostgreSQL retention tests own that contract.
+  `SYNC_TOMBSTONE_PURGE_ENABLED` remains an explicit deployment option,
+  defaulting to `false`.
 
 Removed (the subject is not part of this package):
 

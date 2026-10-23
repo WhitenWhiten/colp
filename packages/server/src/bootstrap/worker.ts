@@ -706,6 +706,7 @@ export function buildWorker(
         leaseDurationMs: config.syncEvidenceMaintenance.leaseDurationMs,
       }), {
         intervalMs: config.syncEvidenceMaintenance.intervalMs,
+        batchSize: config.syncEvidenceMaintenance.batchSize,
         onStart() { maintenanceStartedAt = performance.now(); },
         onResult(result) {
           const durationMs = Math.max(0, performance.now() - maintenanceStartedAt);

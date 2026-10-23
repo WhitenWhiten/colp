@@ -8,12 +8,12 @@
  * candidate rows are the only unit of claim.
  *
  * Metric contract (counters/gauges wired in bootstrap/worker.ts):
- * - attempted : candidate rows considered this run (proofs + evidence), capped by batchSize
+ * - attempted : actionable proof/evidence/lineage/page candidates, capped by batchSize
  * - deleted   : recovery proofs deleted + cursor evidence rows deleted
  * - redacted  : cursor evidence rows whose checkpoint-referenced cursor was redacted to NULL
- * - skipped   : expired evidence protected only by an Ack receipt (candidate but not acted on)
+ * - skipped   : claimed evidence/pages protected by a concurrent authority change
  * - errors    : run-level failures (a throw is reported through the job's onError)
- * - gauge oldest_expired_age : age (ms) of the oldest expired candidate, computed with DB time
+ * - gauge oldest_expired_age : age (ms) of the oldest actionable expired candidate, using DB time
  */
 export const SYNC_EVIDENCE_MAINTENANCE_METRICS = Object.freeze({
   runs: 'sync.evidence_maintenance.runs',
@@ -29,13 +29,13 @@ export type SyncEvidenceMaintenanceMetricName
   = typeof SYNC_EVIDENCE_MAINTENANCE_METRICS[keyof typeof SYNC_EVIDENCE_MAINTENANCE_METRICS];
 
 export interface SyncEvidenceMaintenanceResult {
-  /** Candidate rows considered this run (proofs + evidence), capped by batchSize. */
+  /** Actionable candidate rows across all four stores, capped by batchSize. */
   readonly attempted: number;
   /** Recovery proofs deleted + cursor evidence rows deleted. */
   readonly deleted: number;
   /** Cursor evidence rows whose checkpoint-referenced cursor was redacted to NULL. */
   readonly redacted: number;
-  /** Expired evidence protected only by an Ack receipt (candidate but not acted on). */
+  /** Claimed evidence/pages protected by a concurrent authority change. */
   readonly skipped: number;
   /** Run-level failures; success reports 0 and a throw surfaces through onError. */
   readonly errors: number;

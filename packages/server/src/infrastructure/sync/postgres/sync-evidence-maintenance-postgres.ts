@@ -20,6 +20,29 @@ interface EvidenceClassificationRow {
   ack_protected: boolean;
 }
 
+/** Retained Ack evidence must not consume every slot ahead of reclaimable work. */
+function actionableEvidence(now: Date) {
+  return sql`evidence.cursor IS NOT NULL
+    AND (evidence.cursor_expires_at <= ${now} OR EXISTS (
+      SELECT 1 FROM sync_replicas replica WHERE replica.replica_id=evidence.replica_id
+        AND replica.status IN ('recovery_required','retired')))
+    AND (NOT EXISTS (SELECT 1 FROM sync_ack_receipts receipt
+      WHERE receipt.replica_id=evidence.replica_id AND receipt.cursor_digest=evidence.cursor_digest)
+      OR EXISTS (SELECT 1 FROM sync_replicas replica
+        WHERE replica.replica_id=evidence.replica_id AND replica.checkpoint_cursor=evidence.cursor))`;
+}
+
+function actionablePages(now: Date) {
+  return sql`(page.page_expires_at <= ${now} OR EXISTS (
+      SELECT 1 FROM sync_replicas replica WHERE replica.replica_id=page.replica_id
+        AND replica.status IN ('recovery_required','retired')))
+    AND NOT EXISTS (SELECT 1 FROM sync_ack_receipts receipt
+      WHERE receipt.replica_id=page.replica_id AND receipt.cursor_digest=page.next_cursor_digest)
+    AND NOT EXISTS (SELECT 1 FROM sync_replicas replica JOIN sync_pull_cursor_evidence evidence
+      ON evidence.replica_id=replica.replica_id AND evidence.cursor=replica.checkpoint_cursor
+      WHERE replica.replica_id=page.replica_id AND evidence.cursor_digest=page.next_cursor_digest)`;
+}
+
 /**
  * R15 global evidence/proof maintenance coordinator.
  *
@@ -38,7 +61,8 @@ interface EvidenceClassificationRow {
  *    keeping cursor_digest + tuple authority; the UPDATE predicate mirrors the
  *    trigger's UPDATE allowance. Redacted rows are excluded from future runs
  *    (cursor IS NOT NULL), so repeated runs are idempotent.
- * 5. Ack-protected-only evidence is left intact (skipped).
+ * 5. Ack-protected-only evidence and protected page envelopes stay intact and
+ *    do not occupy candidate slots. A protection race is still classified at write time.
  *
  * Every DML statement re-checks the full trigger-allowed predicate so the
  * retention triggers are always satisfied and never reject a worker statement.
@@ -83,11 +107,7 @@ export class PostgresSyncEvidenceMaintenanceCoordinator implements SyncEvidenceM
         evidence AS MATERIALIZED (
           SELECT 'evidence'::text AS kind, evidence.evidence_id AS id, evidence.cursor_expires_at AS expiry
           FROM sync_pull_cursor_evidence AS evidence
-          WHERE evidence.cursor IS NOT NULL
-            AND (evidence.cursor_expires_at <= ${now}
-              OR EXISTS (SELECT 1 FROM sync_replicas AS replica
-                WHERE replica.replica_id = evidence.replica_id
-                  AND replica.status IN ('recovery_required', 'retired')))
+          WHERE ${actionableEvidence(now)}
           ORDER BY evidence.cursor_expires_at, evidence.evidence_id
           LIMIT ${this.options.batchSize}
           FOR UPDATE SKIP LOCKED
@@ -106,10 +126,7 @@ export class PostgresSyncEvidenceMaintenanceCoordinator implements SyncEvidenceM
         pages AS MATERIALIZED (
           SELECT 'page'::text AS kind, page.page_id AS id, page.page_expires_at AS expiry
           FROM sync_pull_page_evidence AS page
-          WHERE page.page_expires_at <= ${now}
-             OR EXISTS (SELECT 1 FROM sync_replicas AS replica
-               WHERE replica.replica_id = page.replica_id
-                 AND replica.status IN ('recovery_required', 'retired'))
+          WHERE ${actionablePages(now)}
           ORDER BY page.page_expires_at, page.page_id
           LIMIT ${this.options.batchSize}
           FOR UPDATE SKIP LOCKED
@@ -309,40 +326,30 @@ async function databaseNow(transaction: DatabaseTransaction, override?: Date): P
   return now;
 }
 
-/** Age (ms) of the oldest expired candidate across both tables, computed in SQL with DB time. */
+/** Inspect at most one oldest actionable result per table; held retention is not backlog. */
 async function computeOldestExpiredAgeMs(transaction: DatabaseTransaction, now: Date): Promise<number> {
   const result = await sql<{ oldest: Date | null }>`
     SELECT MIN(expiry)::timestamptz AS oldest
     FROM (
-      SELECT proof.proof_expires_at AS expiry
+      (SELECT proof.proof_expires_at AS expiry
       FROM sync_pull_cursor_recovery_proofs AS proof
       WHERE proof.proof_expires_at <= ${now}
-         OR proof.consumed_at IS NOT NULL
-         OR EXISTS (SELECT 1 FROM sync_replicas AS replica
-           WHERE replica.replica_id = proof.replica_id
-             AND replica.status IN ('recovery_required', 'retired'))
+      ORDER BY proof.proof_expires_at LIMIT 1)
       UNION ALL
-      SELECT evidence.cursor_expires_at AS expiry
+      (SELECT evidence.cursor_expires_at AS expiry
       FROM sync_pull_cursor_evidence AS evidence
-      WHERE evidence.cursor IS NOT NULL
-        AND (evidence.cursor_expires_at <= ${now}
-          OR EXISTS (SELECT 1 FROM sync_replicas AS replica
-            WHERE replica.replica_id = evidence.replica_id
-              AND replica.status IN ('recovery_required', 'retired')))
+      WHERE ${actionableEvidence(now)} AND evidence.cursor_expires_at <= ${now}
+      ORDER BY evidence.cursor_expires_at LIMIT 1)
       UNION ALL
-      SELECT lineage.lineage_expires_at AS expiry
+      (SELECT lineage.lineage_expires_at AS expiry
       FROM sync_pull_cursor_lineage AS lineage
       WHERE lineage.lineage_expires_at <= ${now}
-         OR EXISTS (SELECT 1 FROM sync_replicas AS replica
-           WHERE replica.replica_id = lineage.replica_id
-             AND replica.status IN ('recovery_required', 'retired'))
+      ORDER BY lineage.lineage_expires_at LIMIT 1)
       UNION ALL
-      SELECT page.page_expires_at AS expiry
+      (SELECT page.page_expires_at AS expiry
       FROM sync_pull_page_evidence AS page
-      WHERE page.page_expires_at <= ${now}
-         OR EXISTS (SELECT 1 FROM sync_replicas AS replica
-           WHERE replica.replica_id = page.replica_id
-             AND replica.status IN ('recovery_required', 'retired'))
+      WHERE ${actionablePages(now)} AND page.page_expires_at <= ${now}
+      ORDER BY page.page_expires_at LIMIT 1)
     ) AS expired_candidates
     WHERE expiry <= ${now}
   `.execute(transaction);
@@ -353,6 +360,9 @@ async function computeOldestExpiredAgeMs(transaction: DatabaseTransaction, now: 
 
 export interface SyncEvidenceMaintenanceJobOptions {
   readonly intervalMs: number;
+  /** Must match the coordinator's per-transaction bound; defaults to 500. */
+  readonly batchSize?: number;
+  readonly now?: () => number;
   readonly onStart?: () => void;
   readonly onResult?: (result: SyncEvidenceMaintenanceResult) => void;
   readonly onError?: (error: unknown) => void;
@@ -360,27 +370,57 @@ export interface SyncEvidenceMaintenanceJobOptions {
 
 export class SyncEvidenceMaintenanceJob {
   private timer: NodeJS.Timeout | undefined;
-  private running = false;
+  private running: Promise<void> | undefined;
+  private active = false;
+  private stopped = false;
   constructor(private readonly coordinator: SyncEvidenceMaintenanceCoordinator,
     private readonly options: SyncEvidenceMaintenanceJobOptions) {
-    if (!Number.isInteger(options.intervalMs) || options.intervalMs < 1) {
+    if (!Number.isSafeInteger(options.intervalMs) || options.intervalMs < 1) {
       throw new TypeError('Invalid maintenance interval.');
     }
+    if (options.batchSize !== undefined && (!Number.isSafeInteger(options.batchSize)
+      || options.batchSize < 1 || options.batchSize > 20_000)) throw new TypeError('Invalid maintenance batch size.');
   }
   start(): void {
-    if (this.timer) return;
-    this.timer = setInterval(() => { void this.tick(); }, this.options.intervalMs);
+    if (this.active) return;
+    this.active = true; this.stopped = false; this.schedule(0);
+  }
+  async stop(): Promise<void> {
+    this.active = false; this.stopped = true;
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = undefined;
+    await this.running;
+  }
+  async tick(): Promise<void> {
+    if (this.running || this.stopped) return;
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = undefined;
+    this.running = this.drain();
+    try { await this.running; }
+    finally { this.running = undefined; }
+  }
+  private schedule(delay: number): void {
+    if (!this.active) return;
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = setTimeout(() => { this.timer = undefined; void this.tick(); }, delay);
     this.timer.unref();
   }
-  stop(): void { if (this.timer) clearInterval(this.timer); this.timer = undefined; }
-  async tick(): Promise<void> {
-    if (this.running) return;
-    this.running = true;
+  private async drain(): Promise<void> {
+    const now = this.options.now ?? (() => performance.now());
+    const deadline = now() + 1_000;
+    let backlog = false;
     try {
-      this.options.onStart?.();
-      const result = await this.coordinator.runBatch();
-      this.options.onResult?.(result);
-    } catch (error) { this.options.onError?.(error); }
-    finally { this.running = false; }
+      // Each transaction keeps its existing row/lock bound. A burst yields
+      // after 20 batches or one second, then resumes after 250 ms if still full.
+      for (let batch = 0; batch < 20 && !this.stopped; batch++) {
+        this.options.onStart?.();
+        const result = await this.coordinator.runBatch();
+        this.options.onResult?.(result);
+        backlog = result.attempted >= (this.options.batchSize ?? 500)
+          && result.deleted + result.redacted > 0;
+        if (!backlog || now() >= deadline) break;
+      }
+    } catch (error) { backlog = false; this.options.onError?.(error); }
+    finally { this.schedule(backlog ? 250 : this.options.intervalMs); }
   }
 }

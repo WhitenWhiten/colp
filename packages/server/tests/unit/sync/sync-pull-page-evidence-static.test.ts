@@ -37,7 +37,5 @@ test('Pull read path no longer runs request-entry evidence cleanup DML', async (
   assert.doesNotMatch(source, /DELETE FROM sync_pull_cursor_lineage/u);
 });
 
-// Know-N's compose enabled SYNC_EVIDENCE_MAINTENANCE_ENABLED by default. The
-// self-hosted preset currently leaves the worker maintenance jobs at the
-// server default (off); enabling them is an operator/maintainer decision
-// recorded in tests/EXTRACTION.md, not a contract this suite asserts.
+// Evidence maintenance follows enabled Sync sessions. Configuration, self-hosted
+// activation and bounded draining are exercised by their behavioral test owners.

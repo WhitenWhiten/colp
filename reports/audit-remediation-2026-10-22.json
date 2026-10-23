@@ -432,7 +432,15 @@
     {
       "id": "performance-03",
       "title": "scale evidence maintenance to ingestion",
-      "status": "pending"
+      "status": "resolved",
+      "resolution": "Replaced one-batch-per-minute cleanup with bounded backlog draining: immediate startup, up to 20 batches / one second between transactions, a 250 ms continuation while full, configured idle interval, per-batch metrics, non-overlap and awaited shutdown. Sync enables its evidence maintenance by default with explicit opt-out. Ack/checkpoint-protected evidence remains intact and no longer occupies actionable candidate slots; the oldest actionable age query reads one oldest result per table.",
+      "validation": [
+        "Red regressions reproduced the single-batch ceiling, disabled maintenance with Sync enabled, and starvation behind older Ack-protected evidence.",
+        "36 evidence-project checks passed, including all 17 real PostgreSQL cases. One wake reclaimed 1,201 rows in 500/500/201 transactions, and older Ack-protected rows remained unchanged. Concurrent SKIP LOCKED, rollback, retention triggers, index and backlog-age checks passed.",
+        "All 14 focused job/runtime-capacity checks passed, covering multi-batch draining, burst limits, elapsed-time budget, prompt continuation, error backoff and awaited shutdown.",
+        "All 32 self-hosted preset/entry and worker/job lifecycle checks passed, including HTTPS and loopback activation; the separate Pull boundary static check passed.",
+        "Production build/typecheck, focused ESLint, import boundaries and diff checks passed."
+      ]
     },
     {
       "id": "performance-04",

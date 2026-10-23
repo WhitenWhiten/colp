@@ -4,6 +4,7 @@ import { afterAll, beforeAll, test } from 'vitest';
 import { createMigrator, runMigrations } from '../../../src/infrastructure/database/index.js';
 import {
   PostgresSyncEvidenceMaintenanceCoordinator,
+  SyncEvidenceMaintenanceJob,
   createPostgresReplicaStore,
   createPostgresSyncSessionIssuer,
 } from '../../../src/infrastructure/sync/index.js';
@@ -193,6 +194,60 @@ describeWithPostgres('R15 global evidence/proof maintenance worker', () => {
     });
   }
 
+  test('older Ack-protected evidence cannot starve later reclaimable rows in a small batch', async () => {
+    const value = await context('protected-backlog');
+    const protectedIds: string[] = [];
+    for (let index = 0; index < 6; index++) {
+      const evidence = await seedEvidence(value, `protected-backlog-${index}`, `protected-backlog-cursor-${index}`,
+        new Date(BASE_TIME.getTime() - 7_200_000));
+      await seedAck(value, evidence, `protected-backlog-${index}`);
+      protectedIds.push(String(evidence.evidenceId));
+    }
+    for (let index = 0; index < 4; index++) await seedEvidence(value, `reclaimable-${index}`, `reclaimable-cursor-${index}`,
+      new Date(BASE_TIME.getTime() - 3_600_000));
+    const first = await coordinator(randomUUID(), 3).runBatch({ now: BASE_TIME });
+    const second = await coordinator(randomUUID(), 3).runBatch({ now: BASE_TIME });
+    assert.equal(first.deleted, 3);
+    assert.equal(second.deleted, 1);
+    assert.equal(second.oldestExpiredAgeMs, 0, 'protected retention is not actionable cleanup backlog');
+    const retained = await isolated.runtime.pool.query<{ cursor: string }>(
+      'select cursor from sync_pull_cursor_evidence where evidence_id=any($1::bigint[])', [protectedIds]);
+    assert.equal(retained.rows.length, 6);
+    assert.ok(retained.rows.every(row => row.cursor.startsWith('protected-backlog-cursor-')));
+  });
+
+  test('one cleanup wake drains more than 500 real expired evidence rows in bounded transactions', async () => {
+    const value = await context('burst');
+    const template = await seedEvidence(value, 'burst-template', 'burst-template-cursor',
+      new Date(BASE_TIME.getTime() - 3_600_000));
+    const records = Array.from({ length: 1_200 }, (_, index) => {
+      const cursor = `burst-cursor-${index}`;
+      return { cursor, cursor_digest: digest(cursor) };
+    });
+    await isolated.runtime.pool.query(`insert into sync_pull_cursor_evidence
+      (cursor,cursor_digest,session_id,account_id,collection_id,replica_id,lease_generation,
+       policy_revision,protocol_version,tuple_commit_ordinal,tuple_stream_kind,tuple_stable_id,
+       cursor_expires_at,issued_at,upper_commit_ordinal,upper_stream_kind,upper_stable_id,
+       collection_revision,page_limit,purge_commit_ordinal,purge_stream_kind,purge_stable_id)
+      select item.cursor,item.cursor_digest,source.session_id,source.account_id,source.collection_id,
+       source.replica_id,source.lease_generation,source.policy_revision,source.protocol_version,
+       source.tuple_commit_ordinal,source.tuple_stream_kind,source.tuple_stable_id,source.cursor_expires_at,
+       source.issued_at,source.upper_commit_ordinal,source.upper_stream_kind,source.upper_stable_id,
+       source.collection_revision,source.page_limit,source.purge_commit_ordinal,source.purge_stream_kind,source.purge_stable_id
+      from sync_pull_cursor_evidence source cross join jsonb_to_recordset($1::jsonb) as item(cursor text,cursor_digest text)
+      where source.evidence_id=$2`, [JSON.stringify(records), template.evidenceId]);
+    const runner = coordinator();
+    const batches: number[] = [];
+    const job = new SyncEvidenceMaintenanceJob({ runBatch: () => runner.runBatch({ now: BASE_TIME }) }, {
+      intervalMs: 60_000, batchSize: 500, now: () => 0, onResult: result => batches.push(result.deleted),
+    });
+    await job.tick(); await job.stop();
+    assert.deepEqual(batches, [500, 500, 201]);
+    const remaining = await isolated.runtime.pool.query('select count(*)::int as count from sync_pull_cursor_evidence where replica_id=$1',
+      [value.replica.replicaId]);
+    assert.equal(remaining.rows[0]?.count, 0);
+  });
+
   test('globally sweeps expired proofs and evidence across multiple replicas with no Pull involved', async () => {
     const a = await context('global-a');
     const b = await context('global-b');
@@ -229,25 +284,21 @@ describeWithPostgres('R15 global evidence/proof maintenance worker', () => {
     assert.equal(live.rowCount, 1);
   });
 
-  test('expired evidence referenced by an Ack receipt is skipped, never deleted or redacted', async () => {
+  test('Ack-protected evidence stays unchanged and does not consume cleanup slots', async () => {
     const value = await context('ack-protected');
     const evidence = await seedEvidence(value, 'ack-protected-evidence', 'ack-protected-cursor',
       new Date(BASE_TIME.getTime() - 3_600_000));
     await seedAck(value, evidence, 'protected');
 
     const result = await coordinator().runBatch({ now: BASE_TIME });
-    assert.equal(result.attempted, 1);
+    assert.equal(result.attempted, 0);
     assert.equal(result.deleted, 0);
     assert.equal(result.redacted, 0);
-    assert.equal(result.skipped, 1);
+    assert.equal(result.skipped, 0);
 
     const row = await isolated.runtime.pool.query<{ cursor: string | null }>(
       'select cursor from sync_pull_cursor_evidence where evidence_id=$1', [evidence.evidenceId]);
     assert.equal(row.rows[0]?.cursor, evidence.cursor);
-    // Redact the leftover cursor so this ack-protected row stops being a candidate
-    // for later runs (the retention trigger permits the expiry redaction).
-    await isolated.runtime.pool.query(
-      'update sync_pull_cursor_evidence set cursor=null where evidence_id=$1', [evidence.evidenceId]);
   });
 
   test('expired checkpoint-referenced evidence is only redacted, keeping digest and tuple authority', async () => {
@@ -379,10 +430,10 @@ describeWithPostgres('R15 global evidence/proof maintenance worker', () => {
     assert.equal(aResult.deleted + bResult.deleted, 6);
     assert.equal(aResult.deleted + aResult.redacted + aResult.skipped, aResult.attempted);
     assert.equal(bResult.deleted + bResult.redacted + bResult.skipped, bResult.attempted);
-    // Only evidence rows the worker still considers candidates (cursor intact).
-    // Redacted rows retained for Ack/checkpoint authority keep cursor=NULL.
+    // Other replicas retain their Ack evidence. This subject's claimed rows are exhausted.
     const remaining = await isolated.runtime.pool.query(
-      'select count(*)::int as count from sync_pull_cursor_evidence where cursor is not null and cursor_expires_at <= $1', [BASE_TIME]);
+      'select count(*)::int as count from sync_pull_cursor_evidence where cursor is not null and cursor_expires_at <= $1 and replica_id=$2',
+      [BASE_TIME, value.replica.replicaId]);
     assert.equal(remaining.rows[0]?.count, 0);
     for (const item of seeded) {
       const row = await isolated.runtime.pool.query('select 1 from sync_pull_cursor_evidence where evidence_id=$1',
@@ -453,23 +504,23 @@ describeWithPostgres('R15 global evidence/proof maintenance worker', () => {
 
   test('oldestExpiredAgeMs measures the oldest remaining expired candidate with DB time', async () => {
     const value = await context('age');
-    // Expired, ack-protected evidence stays behind after the run (2h old at BASE_TIME).
+    // The protected 2h-old row remains intact; only actionable debt affects age.
     const evidence = await seedEvidence(value, 'age-evidence', 'age-cursor',
       new Date(BASE_TIME.getTime() - 7_200_000));
     await seedAck(value, evidence, 'age-protected');
+    await seedEvidence(value, 'age-actionable', 'age-actionable-cursor',
+      new Date(BASE_TIME.getTime() - 10_800_000));
     // A 4h-old proof is deleted this run and must not dominate the gauge afterwards.
     await seedProof(value, 'age-proof', 'age-proof-cursor',
       new Date(BASE_TIME.getTime() - 14_400_000));
 
-    const result = await coordinator().runBatch({ now: BASE_TIME });
-    assert.equal(result.attempted, 2);
+    const result = await coordinator(randomUUID(), 1).runBatch({ now: BASE_TIME });
+    assert.equal(result.attempted, 1);
     assert.equal(result.deleted, 1);
-    assert.equal(result.skipped, 1);
-    assert.equal(result.oldestExpiredAgeMs, 7_200_000);
-    // Redact the leftover cursor so this ack-protected row stops being a candidate
-    // for later runs (the retention trigger permits the expiry redaction).
-    await isolated.runtime.pool.query(
-      'update sync_pull_cursor_evidence set cursor=null where evidence_id=$1', [evidence.evidenceId]);
+    assert.equal(result.skipped, 0);
+    assert.equal(result.oldestExpiredAgeMs, 10_800_000);
+    const next = await coordinator(randomUUID(), 1).runBatch({ now: BASE_TIME });
+    assert.equal(next.deleted, 1); assert.equal(next.oldestExpiredAgeMs, 0);
   });
 
   test('a run with real database time sweeps rows expired relative to current_timestamp', async () => {
