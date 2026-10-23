@@ -404,6 +404,7 @@ export function useAnnotationWorkflow(locator: AnnotationSubjectLocator | null, 
     if (!locator) return false
     const existing = pendingRef.current
     if (!forceNew && existing && (state === 'unknown')) {
+      if (existing.kind !== 'create-note' && existing.kind !== 'update-note') return false
       return execute(existing)
     }
     if (forceNew && existing) productClient.abandonAnnotationIntent(existing.intentId)
@@ -470,8 +471,8 @@ export function useAnnotationWorkflow(locator: AnnotationSubjectLocator | null, 
   ): Promise<boolean> => {
     if (!locator) return false
     const existing = pendingRef.current
-    if (!forceNew && existing && state === 'unknown'
-      && (existing.kind === 'create-tldr' || existing.kind === 'update-tldr')) {
+    if (!forceNew && existing && state === 'unknown') {
+      if (existing.kind !== 'create-tldr' && existing.kind !== 'update-tldr' && existing.kind !== 'delete-tldr') return false
       return execute(existing)
     }
     if (forceNew && existing) productClient.abandonAnnotationIntent(existing.intentId)

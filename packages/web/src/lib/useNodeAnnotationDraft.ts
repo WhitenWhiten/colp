@@ -88,21 +88,31 @@ export function useNodeAnnotationDraft(annotation: AnnotationWorkflow, open: boo
    * report a clean save.
    */
   const save = useCallback(async (): Promise<boolean> => {
-    let ok = true
-    if (tldrDirty) {
-      ok = (await annotation.saveTldr(
+    const pendingKind = annotation.state === 'unknown' ? annotation.pending?.kind : undefined
+    const pendingTldr = pendingKind === 'create-tldr' || pendingKind === 'update-tldr' || pendingKind === 'delete-tldr'
+    const pendingNote = pendingKind === 'create-note' || pendingKind === 'update-note'
+    const saveTldr = async () => {
+      if (!tldrDirty && !pendingTldr) return true
+      const saved = await annotation.saveTldr(
         tldrDraft,
         tldrVisibilityTouched ? tldrVisibility : undefined,
-      )) && ok
-    }
-    if (noteDirty) {
-      ok = (await annotation.saveNote(false, noteVisibilityTouched ? noteVisibility : undefined)) && ok
-    }
-    if (ok) {
+      )
+      if (!saved) return false
       setTldrVisibilityTouched(false)
-      setNoteVisibilityTouched(false)
+      return true
     }
-    return ok
+    const saveNote = async () => {
+      if (!noteDirty && !pendingNote) return true
+      const saved = await annotation.saveNote(false, noteVisibilityTouched ? noteVisibility : undefined)
+      if (!saved) return false
+      setNoteVisibilityTouched(false)
+      return true
+    }
+    // Resolve the retained intent before starting another mutation, including
+    // when the user edited the other field while its result was unknown.
+    return pendingNote
+      ? await saveNote() && await saveTldr()
+      : await saveTldr() && await saveNote()
   }, [
     annotation, noteDirty, noteVisibility, noteVisibilityTouched, tldrDirty, tldrDraft,
     tldrVisibility, tldrVisibilityTouched,

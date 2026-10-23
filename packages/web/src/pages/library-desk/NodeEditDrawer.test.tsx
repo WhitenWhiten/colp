@@ -288,6 +288,54 @@ describe('Node edit drawer', () => {
     expect(mocks.updateAnnotation.mock.calls[1]?.[3]).toBe('"revision-2"')
   })
 
+  it('settles an unknown TL;DR with the same intent before saving the note', async () => {
+    const { ProductApiError } = await import('../../api/errors')
+    const { productClient } = await import('../../api')
+    const ids = vi.spyOn(productClient, 'newCommandId')
+      .mockReturnValueOnce('11111111-1111-4111-8111-111111111111')
+      .mockReturnValue('22222222-2222-4222-8222-222222222222')
+    try {
+      mocks.createAnnotation
+        .mockRejectedValueOnce(new ProductApiError({ status: 0, code: 'transport_error', message: 'network lost', recovery: 'same_request', sameRequestRetrySafe: true }))
+        .mockResolvedValueOnce(annotation({ value: 'My summary' }))
+        .mockResolvedValueOnce(annotation({ id: 'note-id', type: 'note', value: 'My note' }))
+      mountDrawer()
+      await waitForDom(domFinishedLoading)
+      type('nd-tldr', 'My summary')
+      type('nd-note', 'My note')
+      await save()
+      expect(mocks.createAnnotation).toHaveBeenCalledTimes(1)
+      expect(control('nd-note').value).toBe('My note')
+      await save()
+      expect(mocks.createAnnotation).toHaveBeenCalledTimes(3)
+      const [initial, retry, note] = mocks.createAnnotation.mock.calls
+      expect(retry?.[3]?.intentId).toBe(initial?.[3]?.intentId)
+      expect(note?.[2]).toMatchObject({ type: 'note', value: 'My note' })
+      expect(ids).toHaveBeenCalledTimes(2)
+    } finally { ids.mockRestore() }
+  })
+
+  it('resolves an unknown note before applying a newly edited TL;DR', async () => {
+    const { ProductApiError } = await import('../../api/errors')
+    mocks.createAnnotation
+      .mockResolvedValueOnce(annotation({ value: 'My summary', visibility: 'public' }))
+      .mockRejectedValueOnce(new ProductApiError({ status: 0, code: 'transport_error', message: 'network lost', recovery: 'same_request', sameRequestRetrySafe: true }))
+      .mockResolvedValueOnce(annotation({ id: 'note-id', type: 'note', value: 'My note' }))
+    mountDrawer()
+    await waitForDom(domFinishedLoading)
+    type('nd-tldr', 'My summary')
+    setVisibility('TL;DR', 'Public')
+    type('nd-note', 'My note')
+    await save()
+    expect(mocks.createAnnotation).toHaveBeenCalledTimes(2)
+    type('nd-tldr', 'Edited after unknown note')
+    await save()
+    expect(mocks.createAnnotation).toHaveBeenCalledTimes(3)
+    expect(mocks.createAnnotation.mock.calls[2]?.[3]?.intentId).toBe(mocks.createAnnotation.mock.calls[1]?.[3]?.intentId)
+    expect(mocks.updateAnnotation).toHaveBeenCalledTimes(1)
+    expect(mocks.updateAnnotation.mock.calls[0]?.[2]).toMatchObject({ value: 'Edited after unknown note' })
+  })
+
   it('saves note text and its visibility through the same workflow', async () => {
     mountDrawer()
     await waitForDom(() => !control('nd-note').disabled)
