@@ -767,7 +767,16 @@ describeWithPostgres('Product command receipt PostgreSQL semantics', () => {
        where principal_id like $1 and not compact_claim and result_bytes is not null`,
       [`${prefix}-%`]);
     assert.equal(remaining.rows[0]!.count, '5');
-    assert.equal(await purgeExpired(10_000), 5);
+    const second = await purgeExpired(10_000);
+    if (second !== 5) {
+      const diagnostics = await runtime.pool.query(`select principal_id, result_bytes is not null as full_result,
+        result_expires_at <= current_timestamp as expired, compact_claim, xmin::text,
+        (select json_agg(json_build_object('state',state,'wait',wait_event_type,'query',query))
+          from pg_stat_activity where datname=current_database() and pid<>pg_backend_pid()
+            and application_name='known-command-receipt-test') as connections
+        from product_command_receipts where principal_id like $1 and not compact_claim`, [`${prefix}-%`]);
+      assert.equal(second, 5, JSON.stringify(diagnostics.rows));
+    }
   }, 120_000);
 
   test('already compacted receipts re-purge to zero and leave the row byte-identical', async () => {

@@ -22,7 +22,7 @@
     "test:archive-memory": "vitest run --project unit tests/unit/ledger-archive/segment-payload-cache.test.ts",
     "test:system:inner": "vitest run --project system",
     "test:system": "node scripts/with-postgres.mjs -- npm run test:system:inner",
-    "test:integration:inner": "vitest run --project postgres --fileParallelism=false --testTimeout=60000 --hookTimeout=120000 --exclude tests/integration/product/product-command-receipt.integration.test.ts tests/integration",
+    "test:integration:inner": "vitest run --project postgres --fileParallelism=false --testTimeout=60000 --hookTimeout=120000 tests/integration",
     "test:integration": "node scripts/with-postgres.mjs -- npm run test:integration:inner",
     "test:integration:file": "node scripts/with-postgres.mjs -- node node_modules/vitest/vitest.mjs run --project postgres --fileParallelism=false --testTimeout=60000 --hookTimeout=120000",
     "db:migrate": "tsx src/infrastructure/database/migrate.ts",

@@ -80,7 +80,8 @@
         "Real PostgreSQL: prefix receipt replay is identical and only one canonical write exists; denied suffix remains unconsumed and skipped successor gets sequence_gap",
         "13 real-Postgres integration tests, 27 HTTP unit tests and 46 extension tests pass; TypeScript, targeted ESLint, import boundaries and source-size checks pass",
         "Protocol documents partial non-atomic result arrays; atomic responses still require complete identity-matched results"
-      ]
+      ],
+      "commit": "bfcfa9d4"
     },
     {
       "id": "sync-08",
@@ -300,7 +301,13 @@
     {
       "id": "tests-05",
       "title": "restore real-Postgres product receipt replay coverage",
-      "status": "pending"
+      "status": "resolved",
+      "validation": [
+        "Removed the explicit exclusion from the real CI six-shard PostgreSQL integration command",
+        "All 26 receipt semantics tests pass in two consecutive complete isolated-Postgres runs, including exact status/bytes/header replay, real lost COMMIT acknowledgement, rollback, active claim concurrency, compaction and concurrent purgers",
+        "The first run reported a transient zero-row second purge with five full-result rows remaining; the isolated case and two subsequent complete runs pass. Retain failure-only row/connection diagnostics and track the unresolved intermittency independently as tests-08",
+        "Targeted ESLint passes; no receipt assertion, bound or runtime behavior weakened"
+      ]
     },
     {
       "id": "tests-06",
@@ -635,6 +642,16 @@
         "Both real-Postgres Chromium advanced-first-run upload (lost response and profile restart) and download scenarios pass under xvfb (2.6 minutes)"
       ],
       "commit": "b471c841"
+    },
+    {
+      "id": "tests-08",
+      "title": "Investigate transient zero-row second receipt purge in the restored PostgreSQL suite",
+      "status": "pending",
+      "evidence": [
+        "First complete isolated run failed second ceiling purge: expected 5, received 0",
+        "Isolated ceiling case and two subsequent complete runs pass without runtime changes",
+        "Failure-only diagnostic now records remaining rows, expiry flags and active test connections without weakening the assertion"
+      ]
     }
   ],
   "workspaceNote": "Concurrent change in packages/extension/docs/site-adapters/README.md is unrelated user work. Preserve it and do not stage/revert it."
