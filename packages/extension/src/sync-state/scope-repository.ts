@@ -189,7 +189,7 @@ export async function collectExport(tx: IDBTransaction, key: string) { const sco
   const [mappings, queue, receipts, intents, recoveryHeaders, recoveryNodes, bookmarkEvents, pullPages, pullEvents,
     effectPages, ackIntents, importPlans, importNodes, compactSummaries, mountBindings, scopePreviews, bootstrapRuns,
     deletionJournal, advancedPlans, advancedSteps, remoteDeleteDecisions, localSyncExclusions,
-    batchPlans, batchItems, remoteObservations, scopeCommandPlans] = await Promise.all([
+    batchPlans, batchItems, remoteObservations, scopeCommandPlans, deleteMembers] = await Promise.all([
     rows<ReturnType<typeof validateMapping>>(STORES.mappings), rows<QueueOperation>(STORES.queue),
     rows<ReceiptRecord>(STORES.receipts), rows<IntentRecord>(STORES.intents), rows<RecoveryHeader>(STORES.recovery),
     rows<RecoveryNodeRecord>(STORES.recoveryNodes), rows<BookmarkEventRecord>(STORES.bookmarkEvents),
@@ -202,7 +202,7 @@ export async function collectExport(tx: IDBTransaction, key: string) { const sco
     rows<UnknownRecord>(STORES.remoteDeleteDecisions), rows<UnknownRecord>(STORES.localSyncExclusions),
     rows<UnknownRecord>(STORES.batchPlans), rows<UnknownRecord>(STORES.batchItems),
     rows<RemoteObservationRecord>(STORES.remoteObservations),
-    rows<ScopeCommandPlanRecord>(STORES.scopeCommandPlans)]);
+    rows<ScopeCommandPlanRecord>(STORES.scopeCommandPlans), rows<UnknownRecord>(STORES.deleteMembers)]);
   const compactionWatermark = await requestValue(tx.objectStore(STORES.compactionWatermarks).get(key));
   const diagnostics = await requestValue<UnknownRecord[]>(tx.objectStore(STORES.diagnostics)
     .index(INDEXES.diagnosticByScope).getAll(IDBKeyRange.bound([key, ''], [key, '\uffff'])));
@@ -212,7 +212,7 @@ export async function collectExport(tx: IDBTransaction, key: string) { const sco
     engine: engine ?? null, ackIntents, importPlans, importNodes,
     compactionWatermark: compactionWatermark ?? null, compactSummaries, mountBindings, scopePreviews, bootstrapRuns,
     deletionJournal, advancedPlans, advancedSteps, remoteDeletePolicy: remoteDeletePolicy ?? null,
-    remoteDeleteDecisions, localSyncExclusions, batchPlans, batchItems, remoteObservations, scopeCommandPlans };
+    remoteDeleteDecisions, localSyncExclusions, batchPlans, batchItems, remoteObservations, scopeCommandPlans, deleteMembers };
 }
 
 export function createScopeRepository(ctx: SyncStoreRuntime) {
@@ -253,7 +253,8 @@ export function createScopeRepository(ctx: SyncStoreRuntime) {
           const currentCursor = await requestValue(cursorStore.get(scope.scopeKey)) as UnknownRecord | undefined;
           const ackIntents = await cursorPage<AckIntentRecord>(tx.objectStore(STORES.ackIntents),
             scopeRowsRange(scope.scopeKey), Number.MAX_SAFE_INTEGER);
-          const recovery = await cursorPage<RecoveryHeader>(tx.objectStore(STORES.recovery),
+          const deleteMembers = await cursorPage<UnknownRecord>(tx.objectStore(STORES.deleteMembers), null, Number.MAX_SAFE_INTEGER);
+    const recovery = await cursorPage<RecoveryHeader>(tx.objectStore(STORES.recovery),
             scopeRowsRange(scope.scopeKey), 1);
           const engineStore = tx.objectStore(STORES.engine);
           const engine = await requestValue(engineStore.get(scope.scopeKey)) as DurableSyncEngineState | undefined;
@@ -439,7 +440,7 @@ export function createScopeRepository(ctx: SyncStoreRuntime) {
     const db = await open(); const structural = structuralProblems(db);
     if (structural.length) { ctx.setDiagnosticReadOnly(); throw new SyncStateError('corruption_detected'); }
     const tx = db.transaction([STORES.scopes, STORES.mappings, STORES.sequences, STORES.queue, STORES.receipts,
-      STORES.cursors, STORES.intents, STORES.recovery, STORES.recoveryNodes, STORES.leases, STORES.bookmarkEvents,
+      STORES.cursors, STORES.intents, STORES.deleteMembers, STORES.recovery, STORES.recoveryNodes, STORES.leases, STORES.bookmarkEvents,
       STORES.pullPages, STORES.pullEvents, STORES.effectPages, STORES.engine, STORES.ackIntents,
       STORES.importPlans, STORES.importNodes, STORES.diagnostics, STORES.metadata], 'readwrite');
     const completion = transactionDone(tx);
@@ -454,6 +455,7 @@ export function createScopeRepository(ctx: SyncStoreRuntime) {
     const queue = await cursorPage<QueueOperation>(tx.objectStore(STORES.queue), null, Number.MAX_SAFE_INTEGER);
     const cursors = await cursorPage<UnknownRecord>(tx.objectStore(STORES.cursors), null, Number.MAX_SAFE_INTEGER);
     const intents = await cursorPage<IntentRecord>(tx.objectStore(STORES.intents), null, Number.MAX_SAFE_INTEGER);
+    const deleteMembers = await cursorPage<UnknownRecord>(tx.objectStore(STORES.deleteMembers), null, Number.MAX_SAFE_INTEGER);
     const recovery = await cursorPage<RecoveryHeader>(tx.objectStore(STORES.recovery), null, Number.MAX_SAFE_INTEGER);
     const recoveryNodes = await cursorPage<RecoveryNodeRecord>(tx.objectStore(STORES.recoveryNodes), null, Number.MAX_SAFE_INTEGER);
     const leases = await cursorPage<LeaseRecord>(tx.objectStore(STORES.leases), null, Number.MAX_SAFE_INTEGER);
@@ -491,6 +493,8 @@ export function createScopeRepository(ctx: SyncStoreRuntime) {
     const pullEventKeys = new Set(pullEvents.map((event) => `${event.scopeKey}\u001f${event.eventId}`));
     if (cursors.some((record) => !validCursorAuthority(record, scopeKeys, receiptsById, pullPageDigests))) problems.push('cursor_evidence_invalid');
     if (intents.some((intent) => !scopeKeys.has(intent.scopeKey))) problems.push('orphan_intent');
+    const intentKeys = new Set(intents.map(intent => JSON.stringify([intent.scopeKey, intent.intentId])));
+    if (deleteMembers.some(row => !intentKeys.has(JSON.stringify([row.scopeKey, row.intentId])))) problems.push('orphan_delete_member');
     if (engines.some((engine) => !scopeKeys.has(engine.scopeKey))
         || ackIntents.some((intent) => !scopeKeys.has(intent.scopeKey))) problems.push('orphan_engine_fact');
     const queueOpIds = new Set(queue.map((record) => `${record.scopeKey}\u001f${record.opId}`));
@@ -520,6 +524,7 @@ export function createScopeRepository(ctx: SyncStoreRuntime) {
     validateRows(STORES.mappings, mappings, (record) => validateMappingRecord(scopeOf(record), record, maxRecordBytes));
     validateRows(STORES.receipts, receipts, (record) => validateReceipt(scopeOf(record), sequenceOf(record), record, maxRecordBytes));
     validateRows(STORES.intents, intents, (record) => validateIntentIntegrity(record as unknown as UnknownRecord, maxIntegrityBytes));
+    validateRows(STORES.deleteMembers, deleteMembers, record => validateRecord(record, maxRecordBytes));
     validateRows(STORES.pullPages, pullPages, (record) => validatePullPageIntegrity(record, maxIntegrityBytes));
     validateRows(STORES.pullEvents, pullEvents, (record) => validatePullEventIntegrity(record, maxIntegrityBytes));
     validateRows(STORES.effectPages, effectPages, (record) => validateEffectPageIntegrity(record, maxIntegrityBytes));

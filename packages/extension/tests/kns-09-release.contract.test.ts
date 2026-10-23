@@ -68,7 +68,7 @@ describe('KNS-09 AC-10 release gate contract', () => {
     assert.match(pin, /version \*\*21\*\*/u, 'the release pin must name schema v21');
     assert.doesNotMatch(pin, /version \*\*(?!21)\d+\*\*/u, 'no stale version pin may remain');
     assert.match(pin, /coordinator: false/);
-    assert.match(schema, /DATABASE_VERSION = 21/);
+    assert.match(schema, /DATABASE_VERSION = 22/);
     assert.equal(KNS09_SCHEMA_VERSION, 21);
     assert.equal(KNS09_MUTATION_STORAGE_KEY, 'known.kns09.mutations.v1');
     assert.match(controls, /do-not-install-older|keep-v21/);

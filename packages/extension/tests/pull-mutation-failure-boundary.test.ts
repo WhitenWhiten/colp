@@ -24,7 +24,7 @@ test('review: failure after a native delete must not be committed as an unapplie
     assert.notEqual((await f.store.getCursor(scope))?.cursor, 'cursor-1', 'must retain incomplete apply state');
     assert.equal((await f.store.listPullIssues(scope)).length, 0);
     const intent = (await f.store.listApplyIntents(scope))[0]!;
-    assert.equal(intent.anchors?.deleteMemberResults && (intent.anchors.deleteMemberResults as any)['node-1'], 'applied');
+    assert.equal((await f.store.listDeleteMembers(scope, intent.intentId)).find(row => row.colpId === 'node-1')?.result, 'applied');
     await f.store.putMapping(scope, { nativeId: 'native-parent', colpId: 'missing-parent', rootNativeId: 'native-root',
       nodeKind: 'folder', projection: { revision: 'r1', digest: 'sha256:parent' } });
     await restoreAuthority(f);

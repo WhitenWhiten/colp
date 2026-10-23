@@ -38,7 +38,9 @@ export async function pruneExpiredCompletedIntents(
         cursorAfter = { expiresAt: intent.expiresAt, intentId: intent.intentId };
         const event = intent.eventId
           ? await requestValue(events.get([key, intent.eventId])) as UnknownRecord | undefined : undefined;
-        if (expiredCompletedIntentCanBeDeleted(intent, event, referenced)) { cursor.delete(); deleted += 1; }
+        if (expiredCompletedIntentCanBeDeleted(intent, event, referenced)) { cursor.delete();
+          tx.objectStore(STORES.deleteMembers).delete(IDBKeyRange.bound([key, intent.intentId], [key, intent.intentId, []]));
+          deleted += 1; }
         cursor.continue();
       })().catch(reject);
     };

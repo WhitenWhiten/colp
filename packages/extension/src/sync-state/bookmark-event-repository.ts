@@ -134,8 +134,10 @@ export function createBookmarkEventRepository(ctx: SyncStoreRuntime) {
     const target = boundedString(nativeId, 'nativeId');
     const db = await writableDatabase();
     let matched = false;
-    await runTransaction(db, [STORES.intents, STORES.bookmarkEvents], 'readwrite', async (tx) => {
-      await iterateCursor(tx.objectStore(STORES.intents), scopeRowsRange(key), (raw) => {
+    await runTransaction(db, [STORES.intents, STORES.deleteMembers, STORES.bookmarkEvents], 'readwrite', async (tx) => {
+      matched = await requestValue(tx.objectStore(STORES.deleteMembers).index('by_scope_native_result')
+        .count(IDBKeyRange.only([key, target, 'applied']))) > 0;
+      if (!matched) await iterateCursor(tx.objectStore(STORES.intents), scopeRowsRange(key), (raw) => {
         const intent = raw as IntentRecord;
         if (intent.liveWorkKind !== 'delete' || !intent.anchors) return;
         const members = intent.anchors.deleteMemberSet;

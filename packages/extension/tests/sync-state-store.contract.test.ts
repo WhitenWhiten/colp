@@ -19,7 +19,7 @@ describe('P3-28 static IndexedDB contract', () => {
   test('pins database identity, version, stores and required compound indexes', async () => {
     const source = await readSyncStateSource();
     for (const token of [
-      "DATABASE_NAME = 'known-phase3-indexeddb-entry'", 'DATABASE_VERSION = 21',
+      "DATABASE_NAME = 'known-phase3-indexeddb-entry'", 'DATABASE_VERSION = 22',
       "remoteObservations: 'remote_observations'", "scopeCommandPlans: 'scope_command_plans'",
       "batchPlans: 'bookmark_batch_plans'", "batchItems: 'bookmark_batch_items'",
       "scopes: 'sync_scopes'", "mappings: 'native_mappings'", "queue: 'outbound_queue'",

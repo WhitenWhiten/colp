@@ -6,6 +6,7 @@
  * | 20 | `pull_pages` `by_scope_pull_page_state`; `pull_events` `by_scope_pull_operation`.
  *     Upgrade from v19 is createIndex only. Queue, intents, and pull history are
  *     not cursor-scanned. |
+ * | 22 | Per-member remote delete journal; legacy intent anchors migrate lazily. |
  * | 21 | `apply_intents` `by_scope_native_target` and `by_scope_completed_expiry`.
  *     Upgrade from v20 is createIndex only. Intent rows are not cursor-scanned. |
  * | 19 | Bookmark event operation/ordinal index for bounded upload evidence reads. |
@@ -39,7 +40,7 @@
  * Superseded authority digests, kept so past releases stay identifiable:
  * `srg-v16-pull-page-index-v1`, `srg-v17-diagnostic-park-index-v1`,
  * `clf-v18-confirmation-intents-v1`, `bsr-v19-bookmark-operation-index-v1`,
- * `u18-v20-pull-workset-index-v1`.
+ * `u18-v20-pull-workset-index-v1`, `u21-apply-intent-target-index-v1`.
  */
 
 /** Set by the v16→v17 upgrade; clears once the adoption sweep has completed. */
@@ -50,9 +51,9 @@ import { stableCode } from './errors.js';
 import { scopeKey, validateScopeRecord } from './scope-key.js';
 
 export const DATABASE_NAME = 'known-phase3-indexeddb-entry';
-export const DATABASE_VERSION = 21;
+export const DATABASE_VERSION = 22;
 export const LARGE_QUEUE_CONTRACT_SIZE = 10_000;
-export const AUTHORITY_DIGEST = 'u21-apply-intent-target-index-v1';
+export const AUTHORITY_DIGEST = 'u22-delete-member-journal-v1';
 export const V15_BACKFILL_KEY = 'v15-backfill';
 /**
  * The `parked` discriminator, and the key value of `by_scope_parked`.
@@ -67,7 +68,7 @@ export const STORES = Object.freeze({
   classificationIntents: 'classification_confirmation_intents',
   scopes: 'sync_scopes', mappings: 'native_mappings', queue: 'outbound_queue',
   sequences: 'durable_sequences', receipts: 'receipts', cursors: 'cursors',
-  intents: 'apply_intents', recovery: 'recovery_staging', recoveryNodes: 'recovery_nodes',
+  deleteMembers: 'remote_delete_members', intents: 'apply_intents', recovery: 'recovery_staging', recoveryNodes: 'recovery_nodes',
   leases: 'replica_leases', archives: 'retired_archives', diagnostics: 'diagnostics',
   metadata: 'schema_metadata', bookmarkEvents: 'bookmark_events',
   pullPages: 'pull_pages', pullEvents: 'pull_events', effectPages: 'effect_pages',
@@ -109,7 +110,7 @@ export const INDEXES = Object.freeze({
 export const SCOPE_ROW_STORES = Object.freeze([
   STORES.classificationIntents,
   STORES.scopes, STORES.mappings, STORES.queue, STORES.sequences, STORES.receipts,
-  STORES.cursors, STORES.intents, STORES.recovery, STORES.recoveryNodes, STORES.leases,
+  STORES.cursors, STORES.intents, STORES.deleteMembers, STORES.recovery, STORES.recoveryNodes, STORES.leases,
   STORES.bookmarkEvents, STORES.pullPages, STORES.pullEvents, STORES.effectPages,
   STORES.engine, STORES.ackIntents, STORES.importPlans, STORES.importNodes,
   STORES.compactionWatermarks, STORES.compactSummaries, STORES.mounts, STORES.previews,
@@ -126,9 +127,10 @@ export function structuralProblems(db: IDBDatabase): string[] {
   const tx = db.transaction([STORES.queue, STORES.mappings, STORES.receipts, STORES.intents,
     STORES.recoveryNodes, STORES.archives, STORES.diagnostics, STORES.bookmarkEvents, STORES.pullPages, STORES.pullEvents,
     STORES.effectPages, STORES.importPlans, STORES.importNodes, STORES.compactionWatermarks,
-    STORES.compactSummaries, STORES.mounts, STORES.remoteDeleteDecisions, STORES.localSyncExclusions,
+    STORES.deleteMembers, STORES.compactSummaries, STORES.mounts, STORES.remoteDeleteDecisions, STORES.localSyncExclusions,
     STORES.batchPlans, STORES.batchItems, STORES.remoteObservations, STORES.scopeCommandPlans], 'readonly');
   const expected: Array<[string, readonly string[]]> = [
+    [STORES.deleteMembers, ['by_scope_native_result']],
     [STORES.queue, [INDEXES.queueBySequence, INDEXES.queueByOpId, INDEXES.queueByStatusSequence,
       INDEXES.queueByClaimSequence, INDEXES.queueByTargetRevision]],
     [STORES.mappings, [INDEXES.mappingByNativeId, INDEXES.mappingByColpId]],
@@ -181,6 +183,8 @@ export function upgrade(db: IDBDatabase, tx: IDBTransaction, oldVersion: number,
 function createStores(db: IDBDatabase) {
   const create = (name: string, options: IDBObjectStoreParameters) => db.objectStoreNames.contains(name)
     ? null : db.createObjectStore(name, options);
+  create(STORES.deleteMembers, { keyPath: ['scopeKey', 'intentId', 'colpId'] })
+    ?.createIndex('by_scope_native_result', ['scopeKey', 'nativeId', 'result']);
   create(STORES.classificationIntents, { keyPath: ['scopeKey', 'intentId'] });
   create(STORES.scopes, { keyPath: 'scopeKey' });
   const mappings = create(STORES.mappings, { keyPath: ['scopeKey', 'nativeId'] });

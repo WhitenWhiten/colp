@@ -37,7 +37,7 @@ describe('KNS-00 spelling freeze', () => {
       assert.match(authority, new RegExp(`\`${store}\``));
     }
     assert.match(authority, /firstRun: 'none' \| 'deferred' \| 'running' \| 'completed'/);
-    assert.match(schema, /DATABASE_VERSION = 21/);
+    assert.match(schema, /DATABASE_VERSION = 22/);
     assert.doesNotMatch(schema, /DATABASE_VERSION = 9/);
   });
 

@@ -111,9 +111,9 @@ test('AUDIT: an uncaptured local URL survives remote deletion', async () => {
 
 test('delete does not call Chrome when persisting the local preimage fails', async () => {
   const f = await setup();
-  const persist = f.store.persistApplyIntentFacts;
-  const store = { ...f.store, persistApplyIntentFacts: async (...args: Parameters<typeof persist>) => {
-    if (args[2].anchors?.deletePreimages) throw new Error('preimage storage unavailable');
+  const persist = f.store.saveDeleteMember;
+  const store = { ...f.store, saveDeleteMember: async (...args: Parameters<typeof persist>) => {
+    if (args[3].preimage) throw new Error('preimage storage unavailable');
     return persist(...args);
   } };
   const applier = createPullApplier({ ...f.options, store });
@@ -125,11 +125,11 @@ test('delete does not call Chrome when persisting the local preimage fails', asy
 test('a local edit during the durable delete barrier must survive', async () => {
   const f = await setup();
   const savedUrl = 'https://local-only.example/during-delete-barrier';
-  const persist = f.store.persistApplyIntentFacts;
+  const persist = f.store.saveDeleteMember;
   let edited = false;
-  const store = { ...f.store, persistApplyIntentFacts: async (...args: Parameters<typeof persist>) => {
+  const store = { ...f.store, saveDeleteMember: async (...args: Parameters<typeof persist>) => {
     const saved = await persist(...args);
-    if (!edited && args[2].anchors?.deletePreimages) {
+    if (!edited && args[3].preimage) {
       edited = true;
       f.api.seed({ id: 'native-node', parentId: 'native-root', index: 0, title: 'Edited during barrier', url: savedUrl });
     }

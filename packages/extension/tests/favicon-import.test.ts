@@ -304,7 +304,7 @@ describe('BF-I source contracts', () => {
     assert.doesNotMatch(source, /<all_urls>/);
     assert.doesNotMatch(source, /\/api\/v1\/collections\/.*\/favicon/);
     assert.doesNotMatch(source, /create_attachment/);
-    assert.match(source, /DATABASE_VERSION = 21/);
+    assert.match(source, /DATABASE_VERSION = 22/);
     assert.match(source, /Known-Command-Id/);
     assert.match(source, /colp\/v0\.1\/sync\/collections/);
     const preview = await readFile(resolve(root, 'src/import-preview.ts'), 'utf8');

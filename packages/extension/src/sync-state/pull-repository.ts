@@ -197,7 +197,7 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
 
   async function preparePullIntent(input: SyncScope, eventId: string, intentInput: Record<string, unknown>): Promise<void> {
     assertWritable(); const key = scopeKey(validateScope(input)); const intent = validateIntent(key, intentInput, maxRecordBytes);
-    const db = await writableDatabase(); await runTransaction(db, [STORES.scopes, STORES.pullEvents, STORES.intents],
+    const db = await writableDatabase(); await runTransaction(db, [STORES.scopes, STORES.pullEvents, STORES.intents, STORES.deleteMembers],
       'readwrite', async (tx) => {
         await requireActiveScope(tx, key); const events = tx.objectStore(STORES.pullEvents);
         const event = await requestValue(events.get([key, boundedString(eventId, 'eventId')])) as UnknownRecord | undefined;
@@ -208,7 +208,8 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
             && ['intent_prepared', 'browser_call_started', 'native_event_observed'].includes(String(prior.state))) {
           throw new SyncStateError('intent_correlation_active');
         }
-        if (prior) intents.delete([key, prior.intentId]);
+        if (prior) { intents.delete([key, prior.intentId]);
+          tx.objectStore(STORES.deleteMembers).delete(IDBKeyRange.bound([key, prior.intentId], [key, prior.intentId, []])); }
         intents.add(intent); events.put({ ...event, state: 'intent_prepared', intentId: intent.intentId });
       });
   }
@@ -493,7 +494,7 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
       readonly operationDigest: string } } }, faults: FaultOptions = {}): Promise<void> {
     assertWritable(); const key = scopeKey(validateScope(input)); boundedString(intentId, 'intentId');
     const mapping = validateMapping(key, update.mapping, maxRecordBytes); const cursor = validateCursor(key, update.cursor, maxRecordBytes);
-    const db = await writableDatabase(); await runTransaction(db, [STORES.scopes, STORES.receipts, STORES.intents, STORES.mappings, STORES.cursors],
+    const db = await writableDatabase(); await runTransaction(db, [STORES.scopes, STORES.receipts, STORES.intents, STORES.deleteMembers, STORES.mappings, STORES.cursors],
       'readwrite', async (tx) => {
         await requireActiveScope(tx, key); const intents = tx.objectStore(STORES.intents);
         const intent = await requestValue(intents.get([key, intentId])) as IntentRecord | undefined;
@@ -503,6 +504,7 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
         if (!receipt || receipt.operationDigest !== cursor.evidence.operationDigest) throw new SyncStateError('cursor_evidence_unbound');
         tx.objectStore(STORES.mappings).put(mapping); inject(faults.fault, 'after_mapping', tx);
         tx.objectStore(STORES.cursors).put(cursor); intents.delete([key, intentId]);
+        tx.objectStore(STORES.deleteMembers).delete(IDBKeyRange.bound([key, intentId], [key, intentId, []]));
       });
   }
 
@@ -561,7 +563,7 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
   } = {}): Promise<ExpiredIntentPruneResult> {
     assertWritable(); const key = scopeKey(validateScope(input)); const limit = Math.min(32, Math.max(1, options.limit ?? 32));
     const db = await writableDatabase(); let result: ExpiredIntentPruneResult | undefined;
-    await runTransaction(db, [STORES.intents, STORES.pullEvents], 'readwrite', async (tx) => {
+    await runTransaction(db, [STORES.intents, STORES.deleteMembers, STORES.pullEvents], 'readwrite', async (tx) => {
       result = await pruneExpiredCompletedIntents(tx, key, Date.now(), limit, options.after);
     });
     return result!;

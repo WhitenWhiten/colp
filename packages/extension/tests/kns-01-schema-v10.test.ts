@@ -50,7 +50,7 @@ describe('IndexedDB v9 to v10', () => {
   test('upgrade backfills sync_scopes only and does not cursor-scan queue or recovery stores', async () => {
     const source = await readSyncStateSource();
     const schema = await readFile(new URL('../src/sync-state/schema.ts', import.meta.url), 'utf8');
-    assert.match(schema, /DATABASE_VERSION = 21/);
+    assert.match(schema, /DATABASE_VERSION = 22/);
     assert.match(schema, /function backfillSyncScopesV10/);
     assert.match(schema, /oldVersion > DATABASE_VERSION/);
     const backfill = source.match(/function backfillSyncScopesV10\(tx: IDBTransaction\) \{[\s\S]*?\n\}/);

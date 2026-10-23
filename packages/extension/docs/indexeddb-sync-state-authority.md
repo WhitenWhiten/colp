@@ -1,6 +1,6 @@
 # IndexedDB Sync State Authority
 
-The production database is `known-phase3-indexeddb-entry`, schema version 20. Keeping the P3-03
+The production database is `known-phase3-indexeddb-entry`, schema version 22. Keeping the P3-03
 database name is intentional: v1 and v2 installations enter the real IndexedDB upgrade transaction.
 Version 3 is reserved for failed/preformal development builds. Version 4 is the P3-28/P3-29 authority, version 5 adds
 the P3-30 event inbox, version 6 adds P3-32 Pull/effect staging, version 7 adds the P3-33 lifecycle and Ack
@@ -350,3 +350,7 @@ open the upgraded database (`VersionError`). If rollback is required, close adva
 reader, and drain already durable queue work with its original operation identity. Never downgrade the database or
 recreate a plan from a changed browser tree. Archived scopes retain the plan and step rows for diagnosis while live
 scope cleanup removes both rows together.
+
+### Version 22: remote delete member journal
+
+`remote_delete_members` owns each remote deletion member, preimage, and result under `(scopeKey, intentId, colpId)`. The parent apply intent owns only aggregate counts; each member update and its parent counts commit in one transaction. Pre-v22 member anchors migrate lazily in the same transaction before deletion resumes. Scope archives include the journal, account cleanup removes it, and expired completed intent pruning removes its child rows atomically.

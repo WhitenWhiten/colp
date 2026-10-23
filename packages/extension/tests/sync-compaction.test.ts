@@ -274,7 +274,7 @@ describe('sync compaction upgrade contract', () => {
     const compaction = await readFile(new URL('../src/sync-compaction.ts', import.meta.url), 'utf8');
     const queue = await readFile(new URL('../src/bookmark-event-queue.ts', import.meta.url), 'utf8');
     const engine = await readFile(new URL('../src/durable-sync-engine.ts', import.meta.url), 'utf8');
-    assert.match(source, /DATABASE_VERSION = 21/);
+    assert.match(source, /DATABASE_VERSION = 22/);
     assert.match(source, /p3-36-compaction-v1/);
     assert.match(source, /srg-v15-native-result-v1/);
     assert.match(source, /compactionWatermarks: 'compaction_watermarks'/);

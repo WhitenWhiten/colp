@@ -108,7 +108,7 @@ describe('KNS-09 acceptance receipt rejects incomplete gates', () => {
     const schema = readFileSync(resolve(import.meta.dirname, '../src/sync-state/schema.ts'), 'utf8');
     const pin = indexedDbPin(schema);
     assert.equal(pin.version, DATABASE_VERSION);
-    assert.equal(pin.version, 21);
+    assert.equal(pin.version, 22);
     const envelope = {
       indexedDb: pin,
       rollback: rollbackPin(pin.version),
@@ -116,8 +116,8 @@ describe('KNS-09 acceptance receipt rejects incomplete gates', () => {
     };
     const parsed = JSON.parse(JSON.stringify(envelope)) as typeof envelope;
     assert.equal(parsed.indexedDb.name, 'known-phase3-indexeddb-entry');
-    assert.equal(parsed.indexedDb.version, 21);
-    assert.match(parsed.rollback, /v20 over v21/);
+    assert.equal(parsed.indexedDb.version, 22);
+    assert.match(parsed.rollback, /v21 over v22/);
     const receipt = readFileSync(resolve(import.meta.dirname, '../scripts/kns-09-acceptance-receipt.mjs'), 'utf8');
     const manifest = readFileSync(resolve(import.meta.dirname, '../scripts/kns-09-release-manifest.mjs'), 'utf8');
     assert.match(receipt, /indexedDb,/);

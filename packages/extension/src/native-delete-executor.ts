@@ -14,16 +14,15 @@ import { classifyNativeCallFacts } from './native-call-result.js';
 import type { PullBookmarkApi } from './pull-applier-types.js';
 import { isNonChromeNativeId, isProtectedNativeRoot, mayMutateNative } from './pull-mount-apply.js';
 import { nativeIsLocallyExcluded } from './remote-delete-exclusion.js';
-import type { ApplyIntentFactsPatch } from './sync-state/intent-facts-repository.js';
+import type { DeleteMemberResult } from './sync-state/delete-member-repository.js';
+export type { DeleteMemberResult } from './sync-state/delete-member-repository.js';
 import type {
   IntentRecord, JsonObject, MappingInput, MountBindingRecord, SyncScope, createSyncStateStore,
 } from './sync-state-store.js';
 
 type Store = Pick<ReturnType<typeof createSyncStateStore>,
-  'getApplyIntent' | 'persistApplyIntentFacts' | 'getMappingByNativeId' | 'getLocalSyncExclusion' | 'listQueue' | 'listPullIssues' | 'listLocalIssues' | 'listMappings'
-  | 'listRemoteDeleteDecisions' | 'listApplyIntents' | 'getPullEvent' | 'getScope' | 'getMappingByColpId'>;
-
-export type DeleteMemberResult = 'not_started' | 'applied' | 'absent' | 'retained' | 'protected' | 'failed';
+  'getApplyIntent' | 'getMappingByNativeId' | 'getLocalSyncExclusion' | 'listQueue' | 'listPullIssues' | 'listLocalIssues' | 'listMappings'
+  | 'prepareDeleteMembers' | 'saveDeleteMember' | 'listRemoteDeleteDecisions' | 'listApplyIntents' | 'getPullEvent' | 'getScope' | 'getMappingByColpId'>;
 
 export interface DeleteMember {
   readonly colpId: string;
@@ -43,6 +42,9 @@ const TERMINAL: ReadonlySet<string> = new Set(['applied', 'absent', 'retained', 
 /** Delete has fixed member identities; its receipt is the whole member ledger,
  * not a newly returned native id as for create. Partial/invalid ledgers prove nothing. */
 export function hasTerminalDeleteEvidence(intent: Pick<IntentRecord, 'liveWorkKind' | 'anchors'>): boolean {
+  const counts = intent.anchors?.deleteJournal as JsonObject | undefined;
+  if (counts) return intent.liveWorkKind === 'delete' && Number.isSafeInteger(counts.memberCount)
+    && Number(counts.memberCount) > 0 && counts.terminalCount === counts.memberCount && counts.failedCount === 0;
   const raw = intent.anchors?.deleteMemberSet; const ledger = readDeleteAnchors(intent.anchors);
   return intent.liveWorkKind === 'delete' && Array.isArray(raw) && ledger !== null
     && ledger.members.length === raw.length
@@ -62,18 +64,22 @@ export async function executeRemoteDeleteMembers(input: {
   readonly writable: boolean;
   readonly crash?: (boundary: string) => void;
 }): Promise<RemoteDeleteMemberOutcome> {
-  const frozen = await persistMemberSet(input);
-  const results = { ...frozen.results };
+  const journal = await input.store.prepareDeleteMembers(input.scope, input.intentId, input.members);
+  const frozen = { members: journal.map(({ colpId, nativeId }) => ({ colpId, nativeId })) };
+  const results = Object.fromEntries(journal.map(row => [row.colpId, row.result]));
+  const saveResult = async (row: DeleteMember, result: DeleteMemberResult) => {
+    await input.store.saveDeleteMember(input.scope, input.intentId, row.colpId, { result });
+    results[row.colpId] = result;
+  };
   const memberNative = new Set(frozen.members.map((row) => row.nativeId));
   const byNative = new Map(frozen.members.map((row) => [row.nativeId, row]));
   const mappingByNative = new Map(input.mappings.map((row) => [row.nativeId, row]));
   if (!input.writable) {
     for (const row of frozen.members) {
       if (TERMINAL.has(results[row.colpId] ?? '')) continue;
-      if (isProtectedNativeRoot(row.nativeId, input.mounts)) results[row.colpId] = 'protected';
-      else if (isNonChromeNativeId(row.nativeId)) results[row.colpId] = 'absent';
+      if (isProtectedNativeRoot(row.nativeId, input.mounts)) await saveResult(row, 'protected');
+      else if (isNonChromeNativeId(row.nativeId)) await saveResult(row, 'absent');
     }
-    await writeResults(input, frozen.members, results);
     return summarize(frozen.members, results);
   }
   const order = await orderMembers(input.api, frozen.members, results);
@@ -84,12 +90,11 @@ export async function executeRemoteDeleteMembers(input: {
   for (const row of order) {
     const prior = results[row.colpId];
     if (prior && TERMINAL.has(prior)) continue;
-    if (isNonChromeNativeId(row.nativeId)) { results[row.colpId] = 'absent'; continue; }
+    if (isNonChromeNativeId(row.nativeId)) { await saveResult(row, 'absent'); continue; }
     // G4: a bookmark with a change set aside on this browser is never deleted for
     // the server; it stays in place, outside sync, and its folder stays with it.
     if (issues.nativeRoots.has(row.nativeId) || dependsOnIssue([row.colpId], issues.roots, ancestry)) {
-      results[row.colpId] = 'retained';
-      await writeResults(input, frozen.members, results);
+      await saveResult(row, 'retained');
       continue;
     }
     const mapping = mappingByNative.get(row.nativeId);
@@ -97,67 +102,56 @@ export async function executeRemoteDeleteMembers(input: {
       const current = await lookupBookmark(id => input.api.get(id), row.nativeId);
       if (current.class === 'present' && await withinPrivateNativeBoundary({ store: input.store, scope: input.scope,
         mapping, privateRoots, lookup: id => lookupBookmark(native => input.api.get(native), id) })) {
-        results[row.colpId] = 'protected'; await writeResults(input, frozen.members, results); continue;
+        await saveResult(row, 'protected'); continue;
       }
       if (current.class !== 'present' && current.class !== 'not_found') throw deleteFailure(current);
     }
     if (isProtectedNativeRoot(row.nativeId, input.mounts)
       || (mapping !== undefined && !mayMutateNative(mapping, input.mounts))) {
-      results[row.colpId] = 'protected';
-      await writeResults(input, frozen.members, results);
+      await saveResult(row, 'protected');
       continue;
     }
     const looked = await lookupBookmark((id) => input.api.get(id), row.nativeId);
     const classified = classifyLookup(looked);
     if (classified === 'failed') {
-      results[row.colpId] = 'failed';
-      await writeResults(input, frozen.members, results, 'failed');
+      await saveResult(row, 'failed');
       throw deleteFailure(looked);
     }
     if (classified === 'absent') {
-      results[row.colpId] = 'absent';
-      await writeResults(input, frozen.members, results);
+      await saveResult(row, 'absent');
       continue;
     }
     // Persist the complete local preimage before any destructive Chrome call.
     // Uncaptured changes stay native and follow the existing retained/exclusion path.
     const current = looked.class === 'present' ? looked.nodes[0] : undefined;
     if (!current) throw new SyncFailureError('native_call_failed');
-    const intent = await input.store.getApplyIntent(input.scope, input.intentId);
-    if (!intent) throw new SyncFailureError('intent_not_found');
-    const priorImages = intent.anchors?.deletePreimages;
-    await patchIntent(input, { anchors: { ...intent.anchors,
-      deletePreimages: { ...(priorImages && typeof priorImages === 'object' && !Array.isArray(priorImages)
-        ? priorImages : {}), [row.colpId]: { nativeId: row.nativeId, colpId: row.colpId,
-        title: current.title ?? '', ...(current.url === undefined ? {} : { url: current.url }),
-        ...(current.parentId === undefined ? {} : { parentId: current.parentId }) } },
+    await input.store.saveDeleteMember(input.scope, input.intentId, row.colpId, { preimage: {
+      nativeId: row.nativeId, colpId: row.colpId, title: current.title ?? '',
+      ...(current.url === undefined ? {} : { url: current.url }),
+      ...(current.parentId === undefined ? {} : { parentId: current.parentId }),
     } });
     if (!mapping || Object.keys(unqueuedNativeContentFields(current,
       nativeContent(mapping.projection.content ?? {}), {})).length > 0) {
-      results[row.colpId] = 'retained';
-      await writeResults(input, frozen.members, results);
+      await saveResult(row, 'retained');
       continue;
     }
     if (mapping?.nodeKind === 'folder'
       && await shouldRetain(input, row.nativeId, memberNative, byNative, results)) {
-      results[row.colpId] = 'retained';
-      await writeResults(input, frozen.members, results);
+      await saveResult(row, 'retained');
       continue;
     }
     // IndexedDB persistence and folder checks yield to browser edits. Re-read
     // after those barriers; never remove a node whose saved preimage is stale.
     const fresh = await lookupBookmark((id) => input.api.get(id), row.nativeId);
     if (fresh.class === 'not_found') {
-      results[row.colpId] = 'absent';
-      await writeResults(input, frozen.members, results);
+      await saveResult(row, 'absent');
       continue;
     }
     if (fresh.class !== 'present') throw deleteFailure(fresh);
     const latest = fresh.nodes[0];
     if (!latest) throw new SyncFailureError('native_call_failed');
     if (latest.title !== current.title || latest.url !== current.url || latest.parentId !== current.parentId) {
-      results[row.colpId] = 'retained';
-      await writeResults(input, frozen.members, results);
+      await saveResult(row, 'retained');
       continue;
     }
     try {
@@ -169,12 +163,10 @@ export async function executeRemoteDeleteMembers(input: {
           || !/non-empty folder/iu.test(error.message)) throw error;
       const children = await lookupBookmarkChildren((id) => input.api.getChildren(id), row.nativeId);
       if (children.class !== 'present' || children.nodes.length === 0) throw error;
-      results[row.colpId] = 'retained';
-      await writeResults(input, frozen.members, results);
+      await saveResult(row, 'retained');
       continue;
     }
-    results[row.colpId] = 'applied';
-    await writeResults(input, frozen.members, results);
+    await saveResult(row, 'applied');
     input.crash?.('after_delete_member');
   }
   return summarize(frozen.members, results);
@@ -266,48 +258,6 @@ async function orderMembers(api: PullBookmarkApi, members: readonly DeleteMember
     (rank.get(left.nativeId) ?? 1_000_000) - (rank.get(right.nativeId) ?? 1_000_000));
 }
 
-async function persistMemberSet(input: {
-  readonly store: Store; readonly scope: SyncScope; readonly intentId: string;
-  readonly members: readonly DeleteMember[];
-}): Promise<{ members: readonly DeleteMember[]; results: Record<string, DeleteMemberResult> }> {
-  const intent = await input.store.getApplyIntent(input.scope, input.intentId);
-  const stored = readDeleteAnchors(intent?.anchors);
-  if (stored) return stored;
-  const results: Record<string, DeleteMemberResult> = {};
-  for (const row of input.members) results[row.colpId] = 'not_started';
-  await patchIntent(input, {
-    liveWorkKind: 'delete', replayState: 'started', nativeResult: 'not_started',
-    anchors: deleteAnchors(input.members, results),
-  });
-  return { members: input.members, results };
-}
-
-async function writeResults(input: {
-  readonly store: Store; readonly scope: SyncScope; readonly intentId: string;
-}, members: readonly DeleteMember[], results: Record<string, DeleteMemberResult>,
-  nativeResult?: 'failed' | 'absent' | 'applied_with_evidence'): Promise<void> {
-  const allDone = members.every((row) => TERMINAL.has(results[row.colpId] ?? ''));
-  const anyFailed = members.some((row) => results[row.colpId] === 'failed');
-  await patchIntent(input, {
-    liveWorkKind: 'delete',
-    anchors: deleteAnchors(members, results),
-    nativeResult: nativeResult ?? (anyFailed ? 'failed' : allDone ? 'applied_with_evidence' : 'not_started'),
-    replayState: allDone ? 'awaiting_receipt' : 'started',
-    ...(nativeResult === 'failed' ? { nativeResultConfirmation: { kind: 'failed' as const, code: 'permission_denied' } }
-      : {}),
-  });
-}
-
-async function patchIntent(input: {
-  readonly store: Store; readonly scope: SyncScope; readonly intentId: string;
-}, facts: ApplyIntentFactsPatch): Promise<void> {
-  const intent = await input.store.getApplyIntent(input.scope, input.intentId);
-  if (!intent) throw new SyncFailureError('intent_not_found');
-  await input.store.persistApplyIntentFacts(input.scope, input.intentId, { ...facts,
-    ...(facts.anchors ? { anchors: { ...intent.anchors, ...facts.anchors } } : {}),
-  });
-}
-
 function summarize(members: readonly DeleteMember[],
   results: Record<string, DeleteMemberResult>): RemoteDeleteMemberOutcome {
   const deletedNativeIds: string[] = [];
@@ -321,14 +271,6 @@ function summarize(members: readonly DeleteMember[],
     if (results[row.colpId] === 'protected') protectedNativeIds.push(row.nativeId);
   }
   return { members, results, deletedNativeIds, retainedNativeIds, protectedNativeIds };
-}
-
-function deleteAnchors(members: readonly DeleteMember[],
-  results: Record<string, DeleteMemberResult>): JsonObject {
-  return {
-    deleteMemberSet: members.map((row) => ({ colpId: row.colpId, nativeId: row.nativeId })),
-    deleteMemberResults: { ...results },
-  };
 }
 
 function readDeleteAnchors(anchors: JsonObject | undefined): {
