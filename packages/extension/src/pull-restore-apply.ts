@@ -5,6 +5,7 @@ import type { PullApplierOptions, PullBookmarkApi, PullNode } from './pull-appli
 import { classifyBookmarkApiFailure } from './bookmark-api-error.js';
 import { executePullNativeCreate } from './pull-create-evidence.js';
 import { digest } from './pull-codec.js';
+import { nativeEventCorrelation } from './native-event-correlation.js';
 import { chromeCreate, mappingFor, nodeContent, nodeCreate } from './pull-projection.js';
 import {
   boundNativeId, isNonChromeNativeId, planRestored, unmountedNativeId,
@@ -304,7 +305,7 @@ async function recordRestoreCreateEvidence(input: {
 }
 
 function restoreCreateCorrelation(parentNativeId: string, node: JsonObject): string {
-  return digest({ kind: 'create', nativeId: '', details: { parentId: parentNativeId, node } });
+  return nativeEventCorrelation('create', '', { parentId: parentNativeId, node });
 }
 
 function stripScope(mapping: MappingInput & { readonly scopeKey?: string }): MappingInput {

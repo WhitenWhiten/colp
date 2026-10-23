@@ -27,6 +27,7 @@ import { capturePendingSubtreeDeletion } from './subtree-observation.js';
 import { LOCAL_DELETE_MEMBER_ID_BOUND } from './pull-local-delete-supersede.js';
 import { resolveEventIdentityTokens } from './bookmark-event-resolve.js';
 import { createProjectionSuppression, projectionSuppresses, type ProjectionChangeFields } from './recovery-overlay.js';
+import { nativeEventCorrelation } from './native-event-correlation.js';
 import { recordMoveOutOfBoundaryShift } from './scope-range-shift.js';
 import { completeCreatePlacement, resolveCreatePlacement } from './bookmark-event-create-placement.js'; import type { CreatePlacementConsumeResult } from './bookmark-create-placement.js';
 import { createBookmarkEventHealer, type EventDependency, type EventIdentity as LocalIdentity,
@@ -536,7 +537,7 @@ export function createBookmarkEventQueue(options: QueueOptions) {
       select: subtreeSelector(nativeId) });
   }
   function correlationFor(kind: string, nativeId: string, details: JsonObject) {
-    return digestJson({ kind, nativeId: kind === 'create' ? '' : nativeId, details });
+    return nativeEventCorrelation(kind, nativeId, details);
   }
   async function hasApplyIntent(kind: string, nativeId: string, details: JsonObject) {
     const correlationId = correlationFor(kind, nativeId, details);

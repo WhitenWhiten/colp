@@ -1,4 +1,5 @@
 import { digestJson } from './bookmark-event-codec.js';
+import { nativeBookmarkUrl } from './native-event-correlation.js';
 import { occupancyByNative, virtualNativeId } from './projection-native-occupancy.js';
 import type { JsonObject, MappingInput, QueueOperation } from './sync-state-store.js';
 
@@ -283,8 +284,10 @@ export function projectionSuppresses(
   if (!event.suppression) return false;
   const chromeKind = event.kind === 'change' ? 'update' : event.kind === 'remove' ? 'delete' : event.kind;
   return intents.some((intent) => {
+    const suppression = intent.kind === 'create' && intent.parentNativeId && intent.title !== undefined
+      ? createProjectionSuppression(intent.parentNativeId, intent.title, intent.url) : intent.suppression;
     if (intent.state === 'terminal' || intent.kind !== chromeKind
-        || intent.suppression !== event.suppression
+        || suppression !== event.suppression
         || (intent.kind !== 'create' && intent.nativeId !== event.nativeId
           && intent.observedNativeId !== event.nativeId)) return false;
     if (intent.kind === 'move') {
@@ -338,7 +341,7 @@ function intent(
 /** Stable listener correlation for a create callback whose native id is not
  * known until Chrome allocates it. */
 export function createProjectionSuppression(parentNativeId: string, title: string, url?: string): string {
-  return `recovery:create:v2:${digestJson([parentNativeId, title, url ?? null])}`;
+  return `recovery:create:v2:${digestJson([parentNativeId, title, url === undefined ? null : nativeBookmarkUrl(url)])}`;
 }
 
 function nestedString(payload: JsonObject, outer: string, inner: string): string | undefined {

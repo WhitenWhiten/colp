@@ -6,6 +6,7 @@ import { SyncFailureError } from './sync-failure-class.js';
 import { setAsideFailedPullItem, setAsidePullItem } from './pull-item-set-aside.js';
 import { createPullBookmarkEvidence, readOptional } from './pull-bookmark-evidence.js';
 import { createExpectation, executePullNativeCreate, recoverCreatedNative, sidecarExpectation } from './pull-create-evidence.js';
+import { nativeEventCorrelation } from './native-event-correlation.js';
 import { applyRemoteDeletion } from './pull-delete-apply.js';
 import type { SyncPullEventV02 } from '@know-n/colp/types';
 import type { JsonObject, JsonValue, MappingInput, RemoteObservationRecord } from './sync-state-store.js';
@@ -128,9 +129,9 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
   }
 
   async function prepare(eventId: string, event: Extract<SyncPullEventV02, { kind: 'operation' }>) {
-    const expectation = await expected(event); const correlationId = digest({ kind: expectation.eventKind,
-      nativeId: expectation.nativeId, details: 'correlationDetails' in expectation
-        ? expectation.correlationDetails : expectation.details });
+    const expectation = await expected(event); const correlationId = nativeEventCorrelation(expectation.eventKind,
+      expectation.nativeId, ('correlationDetails' in expectation
+        ? expectation.correlationDetails : expectation.details) as JsonObject);
     await options.store.preparePullIntent(options.scope, eventId, { intentId: `intent:${eventId}`, correlationId,
       operationId: event.operation.opId, eventId, effectId: event.effect.effectId, state: 'intent_prepared',
       expected: { kind: expectation.eventKind, nativeId: expectation.nativeId || `pending:${event.effect.effectId}` },
@@ -546,12 +547,12 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       const { index: _index, ...rest } = details as JsonObject & { readonly index?: JsonValue };
       details = rest; nativeId = '';
     }
-    const correlationId = digest({ kind: event.kind, nativeId, details });
+    const correlationId = nativeEventCorrelation(event.kind, nativeId, details as JsonObject);
     const evidence = { eventDigest: correlationId, ...(event.kind === 'create' ? { nativeId: event.nativeId } : {}) };
     if (await options.store.observeApplyIntentEvent(options.scope, correlationId, evidence)) return true;
     if (event.kind !== 'create' || !details || typeof details !== 'object' || Array.isArray(details)
         || !('node' in details)) return false;
-    const fallback = digest({ kind: 'create', nativeId: '', details: { node: (details as { readonly node: unknown }).node } });
+    const fallback = nativeEventCorrelation('create', '', { node: (details as JsonObject).node! });
     return options.store.observeApplyIntentEvent(options.scope, fallback, { eventDigest: fallback, nativeId: event.nativeId });
   }
   return Object.freeze({ preflight, preflightMapping, resume, observe });
