@@ -501,16 +501,8 @@ describeWithPostgres('ledger payload purge migration rollback', () => {
   beforeAll(async () => { isolated = await createIsolatedPostgresRuntime('payload_purge_down_up'); }, 120_000);
   afterAll(async () => isolated?.close());
 
-  test('incremental archive bindings survive migration down and up', async () => {
-    const migrator = createMigrator(isolated.runtime.db, undefined, isolated.schema);
-    const latest = await migrator.migrateToLatest(); if (latest.error) throw latest.error;
-    const down = await migrator.migrateDown(); if (down.error) throw down.error;
-    const definition = async () => (await isolated.runtime.pool.query("select pg_get_functiondef('guard_sync_history_floor_transition()'::regprocedure) definition")).rows[0].definition as string;
-    assert.doesNotMatch(await definition(), /OLD.floor_commit_ordinal \+ 1/);
-    const up = await migrator.migrateUp(); if (up.error) throw up.error;
-    assert.match(await definition(), /OLD.floor_commit_ordinal \+ 1/);
-  });
-
+  // Both cases share one schema, and credit integrity between their migrations
+  // refuses to roll back, so they migrate forward to named steps in order.
   test('supports empty down/up and recreates all guards', async () => {
     const migrator = createMigrator(isolated.runtime.db, undefined, isolated.schema);
     const before = await migrator.migrateTo('202610010700_ledger_archive_export_jobs');
@@ -522,5 +514,15 @@ describeWithPostgres('ledger payload purge migration rollback', () => {
       from information_schema.tables where table_schema=current_schema()
         and table_name in ('ledger_payload_purge_jobs','ledger_payload_purge_receipts')`);
     assert.equal(relations.rows[0]!.count, 2);
+  });
+
+  test('incremental archive bindings survive migration down and up', async () => {
+    const migrator = createMigrator(isolated.runtime.db, undefined, isolated.schema);
+    const bound = await migrator.migrateTo('202611010600_incremental_ledger_archives'); if (bound.error) throw bound.error;
+    const down = await migrator.migrateDown(); if (down.error) throw down.error;
+    const definition = async () => (await isolated.runtime.pool.query("select pg_get_functiondef('guard_sync_history_floor_transition()'::regprocedure) definition")).rows[0].definition as string;
+    assert.doesNotMatch(await definition(), /OLD.floor_commit_ordinal \+ 1/);
+    const up = await migrator.migrateUp(); if (up.error) throw up.error;
+    assert.match(await definition(), /OLD.floor_commit_ordinal \+ 1/);
   });
 });

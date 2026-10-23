@@ -325,13 +325,6 @@ const COVERED: readonly CoveredBullet[] = Object.freeze([
     file: 'phase4b-mcp-compat-config.test.ts',
     title: 'invalid MCP compat flag values fail closed like the read flag',
   },
-  {
-    id: '9.4-wrapper-pin',
-    section: '9.4',
-    bullet: 'real-client wrapper refuses non-pinned Codex/Claude versions',
-    file: 'phase4b-mcp-compat-real-clients.test.ts',
-    title: 'wrapper refuses Codex and Claude versions that are not the T-09 pins',
-  },
 ]);
 
 const OUT_OF_SCOPE: readonly SkippedBullet[] = Object.freeze([
@@ -346,6 +339,12 @@ const OUT_OF_SCOPE: readonly SkippedBullet[] = Object.freeze([
     section: '9.4',
     bullet: 'Codex CLI 0.150.1 and Claude Code 2.1.250 fixed-binary E2E',
     skipReason: 'T-09 real binaries; 2026-08-28 evidence records handshake pass and full-checklist fail; curl/SDK/wrapper pin tests are not a substitute; recommendedClients stays empty',
+  },
+  {
+    id: '9.4-wrapper-pin',
+    section: '9.4',
+    bullet: 'real-client wrapper refuses non-pinned Codex/Claude versions',
+    skipReason: 'T-09 external-client evidence CLI and its wrapper stay in Know-N; tests/EXTRACTION.md retires its suite',
   },
   {
     id: '9.4-real-approval-operator',
@@ -414,7 +413,7 @@ test('every §9.1 / §9.2 / §9.3 bullet maps to an existing test file and title
 });
 
 test('§9.4 mcp.md and real binaries are inventoried as out of scope with skip reasons', () => {
-  assert.equal(OUT_OF_SCOPE.length >= 3, true);
+  assert.equal(OUT_OF_SCOPE.length >= 4, true);
   for (const entry of OUT_OF_SCOPE) {
     assert.match(entry.skipReason, /T-09|T-10/u);
     assert.doesNotMatch(entry.skipReason, /covered by T-0[0-8]/u);
@@ -424,6 +423,7 @@ test('§9.4 mcp.md and real binaries are inventoried as out of scope with skip r
     '9.4-codex-claude-binaries',
     '9.4-mcp-md-llms',
     '9.4-real-approval-operator',
+    '9.4-wrapper-pin',
   ]);
 });
 

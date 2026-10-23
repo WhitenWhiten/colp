@@ -2148,12 +2148,19 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
       });
       seen.push(...page.events);
     }
+    // Mirrors readSyncPullStreamCut: a dismissed Conflict is announced again
+    // as resolved at its dismissal ordinal (audit sync-13 dismisses one here).
     const expected = (await isolated.runtime.pool.query(`select stable_id from (
-      select commit_ordinal,sync_stream_kind stream_kind,operation_id stable_id from operations
-      where collection_id=$1 and sync_wire_present
+      select commit_ordinal,sync_stream_kind stream_kind,operation_id stable_id from operations o
+      where collection_id=$1 and sync_wire_present and operation_type <> 'sync.conflict.dismissed'
+        and not exists (select 1 from sync_conflicts c where c.collection_id=o.collection_id and c.operation_id=o.operation_id)
       union all
       select commit_ordinal,sync_stream_kind stream_kind,conflict_id stable_id from sync_conflicts
       where collection_id=$1
+      union all
+      select r.commit_ordinal,c.sync_stream_kind stream_kind,c.conflict_id stable_id from operations r
+      join sync_conflicts c on c.collection_id=r.collection_id and c.resolved_by_operation_id=r.operation_id
+      where r.collection_id=$1 and r.operation_type='sync.conflict.dismissed' and c.status='resolved'
     ) stream order by commit_ordinal,stream_kind,stable_id collate "C"`, [COLLECTION])).rows
       .map((row) => row.stable_id);
     assert.deepEqual(seen.map((event) => event.kind === 'operation'
