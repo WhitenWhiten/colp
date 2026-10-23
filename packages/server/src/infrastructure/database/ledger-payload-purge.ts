@@ -238,10 +238,11 @@ async function operationSegmentBindingMatches(
   if (segment.ledger_family !== 'operation'
       || segment.source_relation !== 'public.operation_payloads'
       || segment.source_scope !== `collection:${job.scope_key}`
-      || job.lower_bound !== '1'
+      || BigInt(job.lower_bound) < 1n
       || job.floor_commit_ordinal === null
       || job.floor_tie_breaker === null
-      || job.floor_revision === null) {
+      || job.floor_revision === null
+      || BigInt(job.upper_bound) !== BigInt(job.floor_commit_ordinal) + 1n) {
     return false;
   }
   const floorOrdinal = BigInt(job.floor_commit_ordinal);
@@ -279,10 +280,11 @@ async function outboxSegmentBindingMatches(
   if (segment.ledger_family !== 'outbox_social'
       || segment.source_relation !== 'public.outbox_events'
       || segment.source_scope !== job.scope_key
-      || job.lower_bound !== '1'
+      || BigInt(job.lower_bound) < 1n
       || job.floor_commit_ordinal === null
       || job.floor_tie_breaker === null
-      || job.floor_revision === null) {
+      || job.floor_revision === null
+      || BigInt(job.upper_bound) !== BigInt(job.floor_commit_ordinal) + 1n) {
     return false;
   }
   const floorOrdinal = BigInt(job.floor_commit_ordinal);

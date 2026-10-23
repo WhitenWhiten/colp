@@ -114,7 +114,7 @@ export async function createPostgresSocialOutboxLedgerArchiveSource(
     async readPage(input: Parameters<LedgerArchiveSource<SocialOutboxArchiveOrdinalRow>['readPage']>[0]) {
       assertPage(input.limit, input.bounds.lowerInclusive, input.bounds.upperExclusive, floorOrdinal);
       input.signal?.throwIfAborted();
-      const after = input.afterExclusive ?? 0n;
+      const after = input.afterExclusive ?? input.bounds.lowerInclusive - 1n;
       const result = await sql<PhysicalRow>`
         WITH selected_ordinals AS (
           SELECT DISTINCT source.commit_ordinal
@@ -122,6 +122,7 @@ export async function createPostgresSocialOutboxLedgerArchiveSource(
            WHERE source.handler_name = ${SOCIAL_OUTBOX_HANDLER}
              AND source.event_type = ${SOCIAL_OUTBOX_EVENT_TYPE}
              AND source.aggregate_scope = ${sourceScope}
+             AND source.commit_ordinal >= ${input.bounds.lowerInclusive}
              AND source.commit_ordinal > ${after}
              AND source.commit_ordinal < ${input.bounds.upperExclusive}
            ORDER BY source.commit_ordinal
@@ -158,7 +159,7 @@ export async function createPostgresSocialOutboxLedgerArchiveSource(
       `.execute(database);
       input.signal?.throwIfAborted();
       const groups = groupRows(result.rows, sourceScope);
-      assertDense(groups, input.afterExclusive, floorOrdinal, input.limit, floorDomainEventId);
+      assertDense(groups, after, floorOrdinal, input.limit, floorDomainEventId);
       return Object.freeze({
         rows: Object.freeze(groups.slice(0, input.limit)),
         hasMore: groups.length > input.limit,
@@ -251,12 +252,12 @@ function assertUniqueOrderedIdentities(events: readonly SocialOutboxArchiveEvent
 
 function assertDense(
   groups: readonly SocialOutboxArchiveOrdinalRow[],
-  after: bigint | undefined,
+  after: bigint,
   floorOrdinal: bigint,
   limit: number,
   floorDomainEventId: string,
 ): void {
-  let expected = (after ?? 0n) + 1n;
+  let expected = after + 1n;
   for (const group of groups) {
     if (group.commitOrdinal !== expected) throw sourceError(
       'archive_source_outbox_range_not_dense', 'Social Outbox ordinal range is not dense.',
@@ -290,8 +291,8 @@ function assertPage(limit: number, lower: bigint, upper: bigint, floor: bigint):
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 10_000) {
     throw new RangeError('archive_source_page_size_invalid');
   }
-  if (lower !== 1n || upper !== floor + 1n) throw sourceError(
-    'archive_source_outbox_bounds_invalid', 'Social Outbox archive bounds must be [1, floor + 1).',
+  if (lower < 1n || lower >= upper || upper !== floor + 1n) throw sourceError(
+    'archive_source_outbox_bounds_invalid', 'Social Outbox archive bounds must be a nonempty segment ending at floor + 1.',
   );
 }
 

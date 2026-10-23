@@ -117,7 +117,7 @@ describeWithPostgres('social Outbox production archive source', () => {
         && error.stableCode === 'archive_source_outbox_range_not_dense',
     );
     await assert.rejects(
-      () => gapSource.readPage({ bounds: { lowerInclusive: 2n, upperExclusive: 4n }, limit: 10 }),
+      () => gapSource.readPage({ bounds: { lowerInclusive: 0n, upperExclusive: 4n }, limit: 10 }),
       (error: unknown) => error instanceof SocialOutboxArchiveSourceError
         && error.stableCode === 'archive_source_outbox_bounds_invalid',
     );

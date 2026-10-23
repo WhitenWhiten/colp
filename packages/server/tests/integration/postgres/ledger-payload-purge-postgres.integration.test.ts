@@ -76,6 +76,55 @@ describeWithPostgres('fenced ledger payload purge executor', () => {
     await rm(archiveRoot, { recursive: true, force: true });
   });
 
+  test('two successive operation segments advance the same floor and purge only their own payloads', async () => {
+    const collectionId = `incremental-${randomUUID()}`;
+    await seedCollection(isolated, collectionId, `root-${randomUUID()}`);
+    for (const ordinal of [1n, 2n]) {
+      const operationId = `incremental-operation-${randomUUID()}`;
+      await isolated.runtime.pool.query("insert into resource_id_ledger(resource_id,resource_type) values ($1,'operation')", [operationId]);
+      await isolated.runtime.db.transaction().execute(transaction => appendOperationWithPayload(transaction, {
+        operationId, collectionId, commitOrdinal: ordinal, operationType: 'incremental-test',
+        payloadJson: { ordinal: ordinal.toString() }, syncWireJson: { operationId }, actorPrincipalId: null,
+        createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      }));
+      const segmentId = await exportVerifiedSegment(
+        await createPostgresOperationLedgerArchiveSource(isolated.runtime.db, `collection:${collectionId}`), ordinal, ordinal + 1n,
+      );
+      await isolated.runtime.pool.query(`update sync_history_floors set floor_commit_ordinal=$2,
+        floor_stable_id=$3,archive_segment_id=$4,state_revision=$2 where collection_id=$1`,
+      [collectionId, ordinal.toString(), operationId, segmentId]);
+      await transitionReaderCutover(isolated, segmentId);
+      const claim = await enqueueAndClaim(isolated, executorRole, { segmentId, family: 'operation', scopeKey: collectionId,
+        lower: ordinal, upper: ordinal + 1n, floorOrdinal: ordinal, floorTieBreaker: operationId, floorRevision: ordinal });
+      assert.equal((await applyAsExecutor(isolated, executorRole, claim)).status, 'succeeded');
+      await assertReceiptAndDetached(isolated, claim.jobId, segmentId, 1, 1n);
+    }
+    const rows = await isolated.runtime.pool.query(`select payload_source from operations where collection_id=$1`, [collectionId]);
+    assert.deepEqual(rows.rows.map(row => row.payload_source), ['archive', 'archive']);
+    assert.equal((await isolated.runtime.pool.query('select 1 from operation_payloads where collection_id=$1', [collectionId])).rowCount, 0);
+  });
+
+  test('two successive social Outbox segments export and purge after the old hot prefix is gone', async () => {
+    const scope = `incremental-social-${randomUUID()}`;
+    await isolated.runtime.pool.query(`insert into outbox_retention_floors(handler_name,event_type,aggregate_scope)
+      values ('social.publish-collection-change','social.collection-change',$1)`, [scope]);
+    for (const ordinal of [1n, 2n]) {
+      const eventId = `incremental-event-${randomUUID()}`;
+      await seedOutbox(isolated, scope, eventId, ordinal, '2025-01-01T00:00:00.000Z', 'completed');
+      await isolated.runtime.pool.query(`update outbox_retention_floors set floor_commit_ordinal=$2,
+        floor_domain_event_id=$3,state_revision=$2 where aggregate_scope=$1`, [scope, ordinal.toString(), eventId]);
+      const segmentId = await exportVerifiedSegment(
+        await createPostgresSocialOutboxLedgerArchiveSource(isolated.runtime.db, scope), ordinal, ordinal + 1n,
+      );
+      await transitionReaderCutover(isolated, segmentId);
+      const claim = await enqueueAndClaim(isolated, executorRole, { segmentId, family: 'outbox_social', scopeKey: scope,
+        lower: ordinal, upper: ordinal + 1n, floorOrdinal: ordinal, floorTieBreaker: eventId, floorRevision: ordinal });
+      assert.equal((await applyAsExecutor(isolated, executorRole, claim)).status, 'succeeded');
+      await assertReceiptAndDetached(isolated, claim.jobId, segmentId, 1, 1n);
+    }
+    assert.equal((await isolated.runtime.pool.query('select 1 from outbox_events where aggregate_scope=$1', [scope])).rowCount, 0);
+  });
+
   test('operation cutover retains facts, atomically removes payload, detaches, and receipts', async () => {
     const collectionId = `purge-collection-${randomUUID()}`;
     const operationId = `purge-operation-${randomUUID()}`;
@@ -451,6 +500,16 @@ describeWithPostgres('ledger payload purge migration rollback', () => {
   let isolated: IsolatedPostgresRuntime;
   beforeAll(async () => { isolated = await createIsolatedPostgresRuntime('payload_purge_down_up'); }, 120_000);
   afterAll(async () => isolated?.close());
+
+  test('incremental archive bindings survive migration down and up', async () => {
+    const migrator = createMigrator(isolated.runtime.db, undefined, isolated.schema);
+    const latest = await migrator.migrateToLatest(); if (latest.error) throw latest.error;
+    const down = await migrator.migrateDown(); if (down.error) throw down.error;
+    const definition = async () => (await isolated.runtime.pool.query("select pg_get_functiondef('guard_sync_history_floor_transition()'::regprocedure) definition")).rows[0].definition as string;
+    assert.doesNotMatch(await definition(), /OLD.floor_commit_ordinal \+ 1/);
+    const up = await migrator.migrateUp(); if (up.error) throw up.error;
+    assert.match(await definition(), /OLD.floor_commit_ordinal \+ 1/);
+  });
 
   test('supports empty down/up and recreates all guards', async () => {
     const migrator = createMigrator(isolated.runtime.db, undefined, isolated.schema);
