@@ -51,7 +51,11 @@ export function createRunOutputStore(tx: DatabaseTransaction, actor: AutomationA
         ON CONFLICT(owner_id,run_id) DO UPDATE SET through_created_at=EXCLUDED.through_created_at,through_output_id=EXCLUDED.through_output_id
         WHERE (automation_run_reads.through_created_at,automation_run_reads.through_output_id)<(EXCLUDED.through_created_at,EXCLUDED.through_output_id)
         RETURNING run_id`.execute(tx)).rows;
-      if (changed.length) await sql`UPDATE automation_runs SET revision=revision+1,updated_at=clock_timestamp() WHERE id=${runId}`.execute(tx);
+      if (changed.length) {
+        await sql`UPDATE automation_runs SET revision=revision+1,updated_at=clock_timestamp() WHERE id=${runId}`.execute(tx);
+        await sql`UPDATE activity_items SET read_at=clock_timestamp(),revision=revision+1
+          WHERE run_id=${runId} AND account_id=${actor.accountId} AND read_at IS NULL`.execute(tx);
+      }
       return { receipt: { id: randomUUID(), status: 'completed', resourceId: runId, diagnostics: [] },
         revision: String(BigInt(run.revision) + (changed.length ? 1n : 0n)) };
     },
