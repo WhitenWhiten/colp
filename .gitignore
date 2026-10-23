@@ -9,6 +9,7 @@
 *.py[cod]
 *.tgz
 !packages/server/vendor/know-n-colp-*.tgz
+!packages/web/vendor/braces-*.tgz
 *.tsbuildinfo
 .env
 .env.*

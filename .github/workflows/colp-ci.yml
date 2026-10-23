@@ -401,8 +401,8 @@ jobs:
       - name: Build web
         run: npm run build
         working-directory: packages/web
-      - name: Production dependency audit
-        run: node ../../scripts/audit-dependencies.mjs --omit=dev --audit-level=high
+      - name: Production and development dependency audit
+        run: npm run scan:dependencies
         working-directory: packages/web
 
   # The browser extension imports COLP Server's generated API types and runs its

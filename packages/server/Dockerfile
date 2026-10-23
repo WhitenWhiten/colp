@@ -26,6 +26,7 @@ FROM node:22-alpine@sha256:b6f26b36c8ff49624cfdac716b8ea1138d606df02586a77d364bb
 WORKDIR /src/packages/web
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 COPY packages/web/package.json packages/web/package-lock.json packages/web/.npmrc ./
+COPY packages/web/vendor ./vendor
 RUN npm ci --ignore-scripts \
     && npm rebuild esbuild --ignore-scripts=false
 COPY packages/web/tsconfig.json packages/web/vite.config.ts packages/web/vitest.config.ts packages/web/index.html ./
