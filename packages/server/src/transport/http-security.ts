@@ -722,7 +722,12 @@ export function installHttpSecurity(
     applySecurityHeaders(reply, { enableHsts });
 
     const path = request.url.split('?', 1)[0] ?? request.url;
-    const subject = authRateLimitSubjectForPath(request, path, familyByPath);
+    // The router decodes static segments. Bind registered routes to their
+    // canonical template so alternate URL encodings consume the same bucket.
+    // Keep raw-path admission for manifest entries that are not mounted yet.
+    const routePath = request.routeOptions.url;
+    const subject = (routePath === undefined ? null : authRateLimitSubjectForPath(request, routePath, familyByPath))
+      ?? authRateLimitSubjectForPath(request, path, familyByPath);
     if (subject === null) return;
 
     const outcome = await limiter.consume(subject);
