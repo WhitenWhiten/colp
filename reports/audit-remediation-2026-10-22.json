@@ -819,6 +819,19 @@
         "Resolve ordinary folder mounts by exact remote identity or this replica’s own pending bootstrap mount operation before parent-range filtering; special-role and foreign-custom-key protections remain in force",
         "All 650 assertions in 82 relevant Pull, mount, bootstrap and projection consumer suites pass; TypeScript, targeted lint, source-size and production build pass",
         "Real Chromium coverage expansion from 12/28 to 28/28 folders now completes and verifies the entire preview and native/server convergence; stale-tree rejection also passes. Two-profile journey progresses to a separate existing private-root projection expectation, corrected in the CI restoration work"
+      ],
+      "commit": "8c387896"
+    },
+    {
+      "id": "sync-21",
+      "title": "Recognize subscription create receipts across separate ownership transactions",
+      "status": "resolved",
+      "validation": [
+        "Real 20,000-node/50-mapping browser capacity run stops at its first small mount with readonly_native_created and recovery_identity_uncertain",
+        "New deterministic regression holds the issued reply, publishes its received receipt after the initial event lookup, then commits ownership after the handler has read no owner: the old handler disables the mapping and increments its epoch",
+        "An exact create receipt is re-read independently of ownership visibility before classifying an intrusion; it suppresses only the journalled native id",
+        "All 162 assertions in 28 subscription suites pass; TypeScript, targeted lint, source-size, production and development builds pass",
+        "Real Chromium wizard preserves accidental foreign additions; logout/relogin restores the same subscription correctly; complete 20,000-node capacity rerun continues separately under extension CI validation"
       ]
     }
   ],

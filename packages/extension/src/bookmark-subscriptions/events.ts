@@ -28,7 +28,10 @@ async function handleEvent(event:BookmarkCaptureEvent):Promise<boolean>{
   if(own){await db.changeOperation(own.id,{eventConsumed:true});return true;}
   if(event.kind==='created'&&(await db.pendingOperations()).some(o=>o.kind==='create'&&o.phase!=='received'&&o.parentNativeId===current?.parentId))return true;
   const owned=await db.nodeForNative(event.nativeId);const mappings=await db.all('mappings');let row=mappings.find(m=>m.id===owned?.mappingId&&m.state!=='detached');
-  if(event.kind==='created'&&owned){const receipt=(await db.operationsForNative(event.nativeId)).find(o=>o.kind==='create');if(receipt){await db.changeOperation(receipt.id,{eventConsumed:true});return true;}}
+  // The receipt and ownership commit in separate transactions. A create may
+  // have become received after the first operation read but before ownership
+  // was visible; its exact native receipt still proves this is our callback.
+  if(event.kind==='created'){const receipt=(await db.operationsForNative(event.nativeId)).find(o=>o.kind==='create');if(receipt){await db.changeOperation(receipt.id,{eventConsumed:true});return true;}}
   if(!row&&current)row=await containingMapping(current.parentId,mappings);
   if(!row)return isSubscriptionExcluded(event.nativeId);
   if(row.cleanup||row.state==='terminating')return true;
