@@ -4,6 +4,66 @@
  */
 
 export interface paths {
+    "/api/v1/me/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List agent and automation activity
+         * @description Browser session only. Private per-account agent activity; returns 404 when the feature is disabled.
+         */
+        get: operations["listMyActivity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/activity/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the unread activity count and latest item
+         * @description Browser session only. Private per-account agent activity; returns 404 when the feature is disabled.
+         */
+        get: operations["getMyActivitySummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/activity/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark activity items read
+         * @description Browser session only. Private per-account agent activity; returns 404 when the feature is disabled.
+         */
+        post: operations["markMyActivityRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/agents": {
         parameters: {
             query?: never;
@@ -5201,6 +5261,75 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ActivityAgent: {
+            clientId: string;
+            name: string | null;
+            /** @enum {string} */
+            kind: "oauth_client" | "api_key" | "unknown";
+        };
+        ActivityFolder: {
+            nodeId: string;
+            title: string | null;
+            count: number;
+        };
+        ActivityMember: {
+            nodeId: string;
+            title: string | null;
+            host: string | null;
+            /** Format: date-time */
+            occurredAt: string;
+        };
+        ActivityRun: {
+            id: string;
+            ruleId: string;
+            ruleName: string | null;
+            status: string;
+            outputCount: number;
+            /** @enum {string|null} */
+            attention: "review" | "awaitingApproval" | null;
+        };
+        ActivityItem: {
+            id: string;
+            /** @enum {string} */
+            kind: "agent_bookmarks_added" | "run_completed" | "run_partial" | "run_failed" | "run_attention";
+            /** @enum {string} */
+            state: "unread" | "read";
+            revision: string;
+            /** Format: date-time */
+            occurredAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: date-time */
+            readAt: string | null;
+            count: number;
+            agent: components["schemas"]["ActivityAgent"] | null;
+            collection: {
+                id: string;
+                title: string | null;
+            } | null;
+            folders: components["schemas"]["ActivityFolder"][];
+            items: components["schemas"]["ActivityMember"][];
+            run: components["schemas"]["ActivityRun"] | null;
+        };
+        ActivityPage: {
+            items: components["schemas"]["ActivityItem"][];
+            nextCursor: string | null;
+            unreadCount: number;
+        };
+        ActivitySummary: {
+            unreadCount: number;
+            latest: components["schemas"]["ActivityItem"] | null;
+            revision: string;
+        };
+        ActivityReadRequest: {
+            ids: string[];
+        } | {
+            through: string;
+        };
+        ActivityReadResult: {
+            readCount: number;
+            unreadCount: number;
+        };
         AutomationCapabilities: {
             /** @constant */
             contractVersion: "0.2.1-design";
@@ -12003,6 +12132,107 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listMyActivity: {
+        parameters: {
+            query?: {
+                state?: "unread" | "all";
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Private activity for the signed-in owner. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["AuthenticationRequired"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getMyActivitySummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Private activity for the signed-in owner. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivitySummary"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["AuthenticationRequired"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    markMyActivityRead: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Exact allowed Product Web origin. Duplicate or null values fail. */
+                Origin: components["parameters"]["Origin"];
+                /** @description Session-bound CSRF token returned by getSession. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+                "Known-Command-Id": components["parameters"]["KnownCommandId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActivityReadRequest"];
+            };
+        };
+        responses: {
+            /** @description Private activity for the signed-in owner. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityReadResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["AuthenticationRequired"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
     listMyAgents: {
         parameters: {
             query?: never;

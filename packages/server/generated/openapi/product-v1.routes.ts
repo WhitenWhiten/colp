@@ -577,6 +577,21 @@ export const PRODUCT_ROUTE_MANIFEST = [
   },
   {
     "method": "GET",
+    "path": "/api/v1/me/activity",
+    "operationId": "listMyActivity"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/activity/read",
+    "operationId": "markMyActivityRead"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/activity/summary",
+    "operationId": "getMyActivitySummary"
+  },
+  {
+    "method": "GET",
     "path": "/api/v1/me/agents",
     "operationId": "listMyAgents"
   },

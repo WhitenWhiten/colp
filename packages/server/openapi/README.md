@@ -22,6 +22,11 @@ compiles the generated-client usage fixture through `tsconfig.openapi.json`. Run
 `npm run openapi:generate` only when an intentional contract edit requires new
 generated artifacts.
 
+Version **1.102.0** adds the owner-private Activity list, summary, and read operations,
+behind `KNOWN_FEATURE_AGENT_ACTIVITY`. The web contract advances to **1.94.0**.
+Compatibility checks explicitly compare against the accepted **1.101.0** baseline;
+this additive delivery does not create a new compatibility baseline.
+
 ## Baseline policy after freeze
 
 | File | Role |

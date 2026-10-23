@@ -38,7 +38,7 @@
     "openapi:examples": "node scripts/validate-openapi-examples.mjs --document openapi/colp-server-v1.yaml",
     "openapi:generate": "node scripts/generate-openapi.mjs",
     "openapi:drift": "node scripts/generate-openapi.mjs --check",
-    "openapi:breaking": "node scripts/check-openapi-breaking.mjs",
+    "openapi:breaking": "node scripts/check-openapi-breaking.mjs --baseline openapi/baselines/product-v1.1.101.0.yaml",
     "openapi:ci": "npm run openapi:automation && npm run openapi:lint && npm run openapi:catalog && npm run openapi:examples && npm run openapi:drift && npm run openapi:breaking",
     "verify:phase5:contracts": "vitest run tests/unit/phase5/phase5-free-social-contract.test.ts",
     "verify:phase5:social-events": "vitest run tests/unit/phase5/phase5-social-event-contract.test.ts",
