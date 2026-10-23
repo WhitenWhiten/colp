@@ -5,6 +5,8 @@ import { digestIndicator, toolbarBadge } from '../src/automation/digest-indicato
 import type { AutomationRunView, AutomationServerView } from '../src/automation/messages.js';
 import { runBadge } from '../src/automation/status-ui.js';
 import { digestLine, paintDigestNote } from '../src/popup-digest.js';
+import { item } from './automation-activity-fixture.js';
+import { activityPanel, activityTitle } from '../src/automation/activity-ui.js';
 import { createPopupNote } from '../src/popup-note.js';
 
 /**
@@ -16,7 +18,7 @@ const WEB = 'https://colp.example/automations';
 const run = (id: string, over: Partial<AutomationRunView> = {}): AutomationRunView => ({ id, ruleName: 'Weekly reading digest', kind: 'batch',
   status: 'completed', held: false, explanation: null, at: NOW, unread: false, outputCount: 0, url: `${WEB}/runs/${id}`, ...over });
 const server = (runs: AutomationRunView[], over: Partial<AutomationServerView> = {}): AutomationServerView =>
-  ({ fetchedAt: NOW - 60_000, problem: null, rules: [], runs, ...over });
+  ({ activity: null, fetchedAt: NOW - 60_000, problem: null, rules: [], runs, ...over });
 
 beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(NOW); });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); document.body.replaceChildren(); });
@@ -79,5 +81,39 @@ describe('the popup line', () => {
     expect(host.textContent).toBe('This browser only');
     note.set('dest', undefined);
     expect(note.current()).toBe('digest');
+  });
+});
+
+
+describe('the unified owner activity signal', () => {
+  it('prefers activity over digest runs and suppresses the fallback when activity is read', () => {
+    const oldRuns = [run('old', { unread: true, outputCount: 1 })];
+    const activity = { unreadCount: 7, latest: item, fetchedAt: NOW };
+    const indicator = digestIndicator(server(oldRuns, { activity, fetchedAt: null, problem: 'offline' }), WEB)!;
+    expect(indicator).toMatchObject({ activity: true, count: 7, url: 'https://colp.example/activity', fetchedAt: NOW, stale: false });
+    expect(toolbarBadge(indicator)).toEqual({ text: '7', color: BADGE_ACCENT, title: '7 new from your agents.' });
+    expect(digestLine(indicator).textContent).toBe('7 new from your agents · Open');
+    expect(digestIndicator(server(oldRuns, { activity: { ...activity, unreadCount: 0 } }), WEB)).toBeNull();
+    expect(digestIndicator(server(oldRuns, { activity: null }), WEB)).toMatchObject({ count: 1, digests: true });
+  });
+
+  it('uses the activity read age and failure independently and keeps the popup sentence concise', () => {
+    const indicator = digestIndicator(server([], { activity: { unreadCount: 1, latest: item, fetchedAt: NOW - 120_000 }, activityProblem: 'offline' }), WEB)!;
+    expect(indicator).toMatchObject({ ruleName: 'Claude', fetchedAt: NOW - 120_000, stale: true });
+    expect(digestLine(indicator).textContent).toBe('1 new from your agents · as of 2 minutes ago · Open');
+    expect(toolbarBadge(indicator).color).toBe(BADGE_MUTED);
+  });
+
+  it('uses the web item vocabulary and existing row patterns for the Options preview', () => {
+    expect(activityTitle(item)).toBe('Claude added 7 bookmarks to LLM Papers');
+    expect(activityTitle({ ...item, agent: null, count: 1 })).toBe('An agent added 1 bookmark to LLM Papers');
+    for (const [kind, words] of [['run_completed', 'finished'], ['run_partial', 'partly finished'], ['run_failed', 'failed'], ['run_attention', 'needs your decision']] as const) {
+      expect(activityTitle({ ...item, kind, run: { id: 'run-1', ruleId: 'rule-1', ruleName: 'Reading digest', status: 'completed', outputCount: 1, attention: null } })).toBe(`Reading digest ${words}`);
+    }
+    const panel = activityPanel(server([], { activity: { unreadCount: 1, latest: item, fetchedAt: NOW } }), WEB);
+    expect(panel.querySelector('.list-row-title')?.textContent).toBe('Claude added 7 bookmarks to LLM Papers');
+    expect(panel.querySelector('.badge')?.textContent).toBe('New');
+    expect(panel.querySelector<HTMLAnchorElement>('a')?.href).toBe('https://colp.example/activity');
+    expect(panel.querySelector('a')?.textContent).toBe('Open on the web');
   });
 });

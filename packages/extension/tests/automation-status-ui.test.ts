@@ -4,6 +4,7 @@ import type { AutomationPlacementView, AutomationRunView, AutomationServerView, 
 
 vi.mock('../src/bookmark-subscriptions/guards.js', () => ({ exclusionIds: async () => new Set<string>() }));
 
+import { item } from './automation-activity-fixture.js';
 import { bindAutomationsPane } from '../src/automation/options-pane.js';
 import { placementBadge, ruleServerBadge, ruleServerMeta, runBadge, runRow, runTitle, serverFreshness } from '../src/automation/status-ui.js';
 
@@ -15,7 +16,7 @@ const NOW = Date.parse('2026-10-14T08:00:00.000Z');
 const run = (over: Partial<AutomationRunView> = {}): AutomationRunView => ({ id: 'run-1', ruleName: 'arXiv papers', kind: 'intake',
   status: 'completed', held: false, explanation: null, at: NOW - 120_000, unread: false, outputCount: 0,
   url: 'https://colp.example/automations/runs/run-1', ...over });
-const server = (over: Partial<AutomationServerView> = {}): AutomationServerView => ({ fetchedAt: NOW - 60_000, problem: null, rules: [], runs: [], ...over });
+const server = (over: Partial<AutomationServerView> = {}): AutomationServerView => ({ activity: null, fetchedAt: NOW - 60_000, problem: null, rules: [], runs: [], ...over });
 /** Text as it reads on screen: separators are drawn by CSS, and rows, lines and badges stand apart. */
 function text(node: Node | null): string {
   const walk = (current: Node): string => {
@@ -119,6 +120,18 @@ describe('Options › Automations with the server’s status', () => {
     expect(Array.from(runs.querySelectorAll('.automation-run')).map((row) => (row as HTMLElement).dataset.status)).toEqual(['failed', 'waiting']);
     expect(text(runs)).toContain('Not moved: the rule’s folder is unavailable.');
     expect(text(runs.querySelector('.automation-freshness'))).toBe('Updated 1 minute ago.');
+  });
+
+  it('opens the Activity preview by default, caps its unread count and leaves reading to the web', async () => {
+    const body = await render(view({ server: server({ activity: { unreadCount: 120, latest: item, fetchedAt: NOW } }) }));
+    const tab = body.querySelector<HTMLElement>('#automation-inbox-heading')!;
+    const panel = body.querySelector<HTMLElement>('#automation-inbox-heading-panel')!;
+    expect(tab.textContent).toBe('Activity99+');
+    expect(tab.getAttribute('aria-selected')).toBe('true');
+    expect(panel.hidden).toBe(false);
+    expect(text(panel)).toContain('Claude added 7 bookmarks to LLM Papers');
+    expect(panel.querySelector<HTMLAnchorElement>('a')?.href).toBe('https://colp.example/activity');
+    expect(vi.mocked(chrome.runtime.sendMessage).mock.calls.some(([message]) => String((message as { kind: string }).kind).includes('read'))).toBe(false);
   });
 
   it('says each rule in the web’s words and opens it on the web, with rules that only work on the server', async () => {

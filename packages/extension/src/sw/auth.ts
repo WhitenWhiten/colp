@@ -11,7 +11,7 @@ import { fetchSyncEndpoints } from '../manifest-client.js';
 import { clearSaveContextCache } from '../save-context-cache.js';
 import type { AuthExtensionRequest, ExtensionResponse, StoredCredential } from '../types.js';
 import { scheduleSyncEngineWake } from './engine.js';
-import { clearAccountAutomation } from './automation.js';
+import { clearAccountAutomation, retryActivityAfterSignIn } from './automation.js';
 import { COLLECTION_BINDING, WELCOME_FLAG, safeError, store, sw, syncState, workCoordinator } from './runtime.js';
 import { createRuntimeAuth, currentSyncScope, enforceManagedPolicy, ensureSyncScope, hasBoundCollection,
   loadConfig, pushSessionAuthority, retire, scheduleSessionFreshen, stateAfterFailure } from './scope.js';
@@ -109,6 +109,8 @@ export async function handle(message: AuthExtensionRequest, _context: AuthorityC
     await clearAccountAutomation({ serverOrigin: previous.serverOrigin, accountId: previous.subject })
       .catch((error) => logBackgroundFailure('auth.clear-previous-account-automation', error));
   }
+  if (credential.subject) await retryActivityAfterSignIn({ serverOrigin: credential.serverOrigin, accountId: credential.subject })
+    .catch((error) => logBackgroundFailure('auth.retry-activity', error));
   try { await ensureLibraryBinding({ login: true }); } catch { /* Sign-in stays usable when library discovery is temporarily offline. */ }
   if (!await hasBoundCollection()) return { ok: true, state: { ...await auth.status(), ...(await libraryUnsupported() ? { errorCode: 'sync_unsupported' } : {}) } };
   try {

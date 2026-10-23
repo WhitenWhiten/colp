@@ -2,6 +2,7 @@ import { requestValue, transactionDone } from '../sync-state/idb.js';
 import type { SnapshotStateArea } from './bundle-store.js';
 import type { ObservedPlacement } from './observed-create.js';
 import { AUTOMATION_BUNDLE_KEY, AUTOMATION_CHANGED_KEY, AUTOMATION_RECEIPTS_KEY } from './messages.js';
+import { ACTIVITY_STATUS_KEY } from './activity-status.js';
 import { SERVER_STATUS_KEY } from './server-status.js';
 
 /**
@@ -21,7 +22,7 @@ const VERSION = 1;
 const STATE = 'state', INTENTS = 'intents';
 const MIGRATED_KEYS = [AUTOMATION_BUNDLE_KEY, AUTOMATION_RECEIPTS_KEY] as const;
 /** One account's records, each naming its owner, and the receipt list, whose entries each name theirs. */
-const ACCOUNT_RECORDS = [AUTOMATION_BUNDLE_KEY, SERVER_STATUS_KEY] as const;
+const ACCOUNT_RECORDS = [AUTOMATION_BUNDLE_KEY, SERVER_STATUS_KEY, ACTIVITY_STATUS_KEY] as const;
 const owns = (value: unknown, ownerKey: string) =>
   Boolean(value) && typeof value === 'object' && (value as { ownerKey?: unknown }).ownerKey === ownerKey;
 

@@ -11,6 +11,7 @@ import { createReceiptStore, newPlacementReceipt, settled, syncReceipts, type Pl
 import { syncReceiptEvidence } from '../automation/receipt-evidence.js';
 import { decidePreSave, type PreSaveDecision, type PreSaveInput } from '../automation/pre-save.js';
 import { createServerStatusStore, readServerStatus, serverStatusDue } from '../automation/server-status.js';
+import { activityStatusDue, createActivityStatusStore, readActivitySummary } from '../automation/activity-status.js';
 import { digestIndicator, toolbarBadge, type DigestIndicator } from '../automation/digest-indicator.js';
 import { showAutomationBadge, writeAutomationBadge } from '../action-badge.js';
 import { readSaveFeedback, saveFeedbackIsError } from '../save-feedback.js';
@@ -81,12 +82,18 @@ async function run(manual: boolean): Promise<void> {
   const bundles = createBundleStore(automationArea(), owner), receipts = createReceiptStore(automationArea()), now = Date.now();
   const record = await bundles.read(), ownerKey = automationOwnerKey(owner);
   const status = createServerStatusStore(automationArea(), ownerKey);
+  const activity = createActivityStatusStore(automationArea(), ownerKey);
+  const activityDue = activityStatusDue(await activity.read(), now, manual);
   const bundleDue = manual || refreshDue(record, now);
   const statusDue = record.problem?.kind !== 'unavailable' && (manual || serverStatusDue(await status.read(), now));
   const receiptsDue = (await receipts.list()).some((receipt) => receipt.ownerKey === ownerKey && !settled(receipt.state) && receipt.nextAttemptAt <= now);
-  if (!bundleDue && !receiptsDue && !statusDue) return;
+  if (!bundleDue && !receiptsDue && !statusDue && !activityDue) return;
   // Read with the browser's web sign-in, apart from Sync's authority below.
-  if (statusDue) { await status.apply(await readServerStatus(owner.serverOrigin), now); await paintDigestBadge(owner); }
+  await Promise.all([
+    statusDue ? readServerStatus(owner.serverOrigin).then((result) => status.apply(result, now)) : null,
+    activityDue ? readActivitySummary(owner.serverOrigin).then((result) => activity.apply(result, now)) : null,
+  ]);
+  if (statusDue || activityDue) await paintDigestBadge(owner);
   if (!bundleDue && !receiptsDue) return;
   let authority: Awaited<ReturnType<typeof pushSessionAuthority>>;
   try { authority = await pushSessionAuthority(); }
@@ -130,6 +137,11 @@ async function flushReceipts(owner: AutomationOwner, device: DeviceAuthority, re
     // Each attempt is a new command: the receipt id, not the command, makes a retry idempotent.
     post: (input) => postIntakeReceipt(device, input, crypto.randomUUID()),
   });
+}
+
+/** A new sign-in permits retrying a previously missing activity endpoint. */
+export async function retryActivityAfterSignIn(owner: AutomationOwner): Promise<void> {
+  await createActivityStatusStore(automationArea(), automationOwnerKey(owner)).retryAfterSignIn();
 }
 
 /**
@@ -330,13 +342,17 @@ async function placementViews(ownerKey: string): Promise<AutomationPlacementView
 /** The server's last-read status, joined to rule names; null where the server has no automations. */
 async function serverView(owner: AutomationOwner, record: BundleRecord, origin: string): Promise<AutomationServerView | null> {
   const status = await createServerStatusStore(automationArea(), automationOwnerKey(owner)).read();
-  if (record.problem?.kind === 'unavailable' || status.problem?.kind === 'unavailable') return null;
+  const activity = await createActivityStatusStore(automationArea(), automationOwnerKey(owner)).read();
+  const activityAvailable = activity.fetchedAt !== null && activity.problem?.kind !== 'unavailable';
+  if (!activityAvailable && (record.problem?.kind === 'unavailable' || status.problem?.kind === 'unavailable')) return null;
   const local = record.bundle?.rules ?? [], bundled = new Set(local.map((rule) => rule.ruleId));
   const names = new Map<string, string>([...local.map((rule) => [rule.ruleId, rule.definition.name] as const),
     ...status.rules.map((rule) => [rule.id, rule.name] as const)]);
   const problem = status.problem && (status.fetchedAt === null || status.problem.at >= status.fetchedAt) ? status.problem.kind : null;
   return {
-    fetchedAt: status.fetchedAt, problem,
+    fetchedAt: status.fetchedAt, problem: problem === 'unavailable' ? null : problem,
+    activity: activityAvailable ? { unreadCount: activity.unreadCount, latest: activity.latest, fetchedAt: activity.fetchedAt! } : null,
+    activityProblem: activityAvailable && activity.problem ? activity.problem.kind : null,
     // A paused bundle carries no rules, so the rule's own definition says whether it files bookmarks here.
     rules: status.rules.map((rule) => ({ id: rule.id, name: rule.name, state: rule.state, inBrowser: rule.intake ?? bundled.has(rule.id),
       waiting: rule.usage?.waiting ?? null, held: rule.usage?.held ?? null, approvals: rule.usage?.approvals ?? null, cost: rule.usage?.cost || null })),

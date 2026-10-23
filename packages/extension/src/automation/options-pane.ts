@@ -1,3 +1,4 @@
+import { activityPanel } from './activity-ui.js';
 import { faviconTile } from '../bookmark-manager-dom.js';
 import { createIcon } from '../icons.js';
 import { button, el, emptyBlock, iconButton, inlineAlert } from '../library-dom.js';
@@ -27,8 +28,8 @@ import { placementBadge, ruleConditions, ruleServerBadge, ruleServerMeta, runRow
  * Academic") and each opening its page on the web, where they are made and
  * changed. This browser's own rules come next (browser-rules-pane.ts); they are
  * made here and need no account, so signed out they lead the page. Recent
- * activity keeps this browser's placements and the server's runs apart, in two
- * tabs. Everything shown comes from the worker (status-ui.ts); nothing here
+ * activity previews the account inbox beside this browser's placements and
+ * the server's runs. Everything shown comes from the worker (status-ui.ts); nothing here
  * decides whether a rule runs.
  */
 export interface AutomationsPane {
@@ -319,7 +320,7 @@ function serverEmpty(server: AutomationServerView, webUrl: string | null): HTMLE
   return emptyBlock({ icon: 'server', title: t('automation_serverChecking', 'Checking your server…') });
 }
 
-type ActivityTab = 'browser' | 'server';
+type ActivityTab = 'browser' | 'server' | 'activity';
 
 /**
  * Recent activity, kept apart by where it happened: what this browser filed
@@ -327,9 +328,9 @@ type ActivityTab = 'browser' | 'server';
  * afterwards. Two tabs over one card, never one merged list.
  */
 function activityGroup(view: AutomationStateView, chosen: ActivityTab | null, choose: (tab: ActivityTab) => void): HTMLElement | null {
-  const tabs: ActivityTab[] = view.server ? ['browser', 'server'] : ['browser'];
+  const tabs: ActivityTab[] = view.server ? ['browser', 'server', ...(view.server.activity ? ['activity' as const] : [])] : ['browser'];
   if (!view.placements.length && !view.server) return null;
-  const current = chosen && tabs.includes(chosen) ? chosen : view.placements.length || !view.server ? 'browser' : 'server';
+  const current = chosen && tabs.includes(chosen) ? chosen : view.server?.activity ? 'activity' : view.placements.length || !view.server ? 'browser' : 'server';
   const section = el('section', undefined, 'set-group automation-activity');
   section.setAttribute('aria-labelledby', 'automation-activity-heading');
   const head = el('div', undefined, 'set-group-head automation-activity-head');
@@ -339,10 +340,12 @@ function activityGroup(view: AutomationStateView, chosen: ActivityTab | null, ch
   const rail = el('div', undefined, 'view-switch automation-tabs');
   rail.setAttribute('role', 'tablist'); rail.setAttribute('aria-labelledby', 'automation-activity-heading');
   const labels: Record<ActivityTab, [string, string, number]> = {
+    activity: ['automation-inbox-heading', t('automation_tabActivity', 'Activity'), view.server?.activity?.unreadCount ?? 0],
     browser: ['automation-placements-heading', t('automation_tabBrowser', 'This browser'), view.placements.length],
     server: ['automation-server-heading', t('automation_tabServer', 'Your server'), view.server?.runs.length ?? 0],
   };
   const panels: Record<ActivityTab, () => HTMLElement> = {
+    activity: () => activityPanel(view.server!, view.webUrl),
     browser: () => {
       const panel = el('div', undefined, 'automation-panel');
       // Only an account rule's placement has a server to confirm it; this browser's own rows never wait for one.
@@ -375,7 +378,7 @@ function activityGroup(view: AutomationStateView, chosen: ActivityTab | null, ch
     tabButton.setAttribute('aria-controls', `${id}-panel`);
     tabButton.setAttribute('aria-selected', String(tab === current));
     tabButton.tabIndex = tab === current ? 0 : -1;
-    if (count) tabButton.append(el('span', String(count), 'automation-tab-count'));
+    if (count) tabButton.append(el('span', count > 99 ? '99+' : String(count), 'automation-tab-count'));
     buttons.push(tabButton);
     rail.append(tabButton);
     const panel = panels[tab]();

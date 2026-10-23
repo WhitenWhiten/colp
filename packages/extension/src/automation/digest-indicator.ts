@@ -2,19 +2,10 @@ import { BADGE_ACCENT, BADGE_MUTED } from '../badge-colors.js';
 import { formatMoment, t, tn } from '../i18n.js';
 import type { AutomationServerView } from './messages.js';
 
-/**
- * New automation results (a digest, a review) as the toolbar badge and the
- * popup show them.
- *
- * This is a projection of the server's own read state: the runs it reports as
- * unread with at least one output, newest first. Nothing here counts content,
- * keeps a read ledger of its own, or marks anything read. Reading happens on
- * the run's web page, and the next status read clears the badge. When the
- * server can't be read, the badge keeps the last answer, turns muted, and its
- * tooltip says how old the answer is.
- */
+/** The server’s owner-facing unread count, with the digest projection for older servers. */
 export interface DigestIndicator {
   readonly count: number;
+  readonly activity?: boolean;
   /** Every unread run is a batch run, so the results are digests. */
   readonly digests: boolean;
   /** Where "Read" goes: the one run, or the web's Digests page for several. */
@@ -29,6 +20,14 @@ export interface DigestIndicator {
 export interface ToolbarBadge { readonly text: string; readonly color: string; readonly title: string }
 
 export function digestIndicator(server: AutomationServerView | null, webUrl: string | null): DigestIndicator | null {
+  if (server?.activity) {
+    const activity = server.activity;
+    if (!activity.unreadCount || !webUrl) return null;
+    const latest = activity.latest;
+    return { count: activity.unreadCount, activity: true, digests: false, url: new URL('/activity', webUrl).href,
+      ruleName: activity.unreadCount === 1 ? latest?.run?.ruleName ?? latest?.agent?.name ?? null : null,
+      fetchedAt: activity.fetchedAt, stale: Boolean(server.activityProblem) };
+  }
   if (!server?.fetchedAt) return null;
   const unread = server.runs.filter((run) => run.unread && run.outputCount > 0);
   const newest = unread[0];
@@ -40,7 +39,8 @@ export function digestIndicator(server: AutomationServerView | null, webUrl: str
 }
 
 /** "1 new digest", or "2 new results from your automations" when not all are digests. */
-export function digestLabel(indicator: Pick<DigestIndicator, 'count' | 'digests'>): string {
+export function digestLabel(indicator: Pick<DigestIndicator, 'count' | 'digests' | 'activity'>): string {
+  if (indicator.activity) return tn('automation_newActivity', indicator.count, '$1 new from your agents', '$1 new from your agents');
   return indicator.digests
     ? tn('automation_newDigests', indicator.count, '$1 new digest', '$1 new digests')
     : tn('automation_newResults', indicator.count, '$1 new result from your automations', '$1 new results from your automations');

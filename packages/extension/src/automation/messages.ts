@@ -1,3 +1,4 @@
+import type { ActivityItem } from './activity-types.js';
 import type { BrowserDecisionEntry } from '../capture/contracts.js';
 import type { DigestIndicator } from './digest-indicator.js';
 import type { RulesetProblem } from './ruleset-format.js';
@@ -476,6 +477,9 @@ export interface AutomationRunView {
 }
 
 export interface AutomationServerView {
+  /** The owner’s activity inbox; null for older servers or while it has not been read. */
+  readonly activity: { readonly unreadCount: number; readonly latest: ActivityItem | null; readonly fetchedAt: number } | null;
+  readonly activityProblem?: 'offline' | 'signedOut' | 'rateLimited' | 'server' | 'invalid' | null;
   /** When the server was last read; null before the first good read. */
   readonly fetchedAt: number | null;
   /** Why the latest read failed, when it failed after that copy was read. */

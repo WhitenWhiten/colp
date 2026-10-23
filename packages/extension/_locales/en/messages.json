@@ -146,6 +146,57 @@
   "automation_accountRulesSignIn": {
     "message": "Sign in to a COLP server to also use the rules you keep there. They work on every device, and run before this browser’s."
   },
+  "automation_activityAdded_one": {
+    "message": "$2 added $1 bookmark to $3"
+  },
+  "automation_activityAdded_other": {
+    "message": "$2 added $1 bookmarks to $3"
+  },
+  "automation_activityAgent": {
+    "message": "An agent"
+  },
+  "automation_activityAttention": {
+    "message": "$1 needs your decision"
+  },
+  "automation_activityDigests_one": {
+    "message": "$1 new digest"
+  },
+  "automation_activityDigests_other": {
+    "message": "$1 new digests"
+  },
+  "automation_activityEmptyHint": {
+    "message": "Updates appear here when an agent adds bookmarks or finishes work."
+  },
+  "automation_activityEmptyTitle": {
+    "message": "No activity yet"
+  },
+  "automation_activityFailed": {
+    "message": "$1 failed"
+  },
+  "automation_activityFinished": {
+    "message": "$1 finished"
+  },
+  "automation_activityLede": {
+    "message": "New bookmarks from your agents and updates on their work."
+  },
+  "automation_activityLibrary": {
+    "message": "your library"
+  },
+  "automation_activityMoreFolders": {
+    "message": "$1 and $2 more folders"
+  },
+  "automation_activityOpen": {
+    "message": "Open"
+  },
+  "automation_activityOpenWeb": {
+    "message": "Open on the web"
+  },
+  "automation_activityPartial": {
+    "message": "$1 partly finished"
+  },
+  "automation_activityRule": {
+    "message": "A rule"
+  },
   "automation_addCondition": {
     "message": "Add condition"
   },
@@ -775,6 +826,12 @@
   },
   "automation_needBookmarks": {
     "message": "Know-N needs access to your bookmarks to file pages into a folder."
+  },
+  "automation_newActivity_one": {
+    "message": "$1 new from your agents"
+  },
+  "automation_newActivity_other": {
+    "message": "$1 new from your agents"
   },
   "automation_newDigests_one": {
     "message": "$1 new digest"
@@ -2176,6 +2233,9 @@
   },
   "automation_subscriptionUse": {
     "message": "Use this subscription"
+  },
+  "automation_tabActivity": {
+    "message": "Activity"
   },
   "automation_tabBrowser": {
     "message": "This browser"
