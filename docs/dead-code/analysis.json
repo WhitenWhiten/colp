@@ -602,7 +602,7 @@
         "createPhase4bMcpPackageEvidence"
       ]
     },
-    "importBindingsRemovedFromExistingFiles": 555,
+    "importBindingsRemovedFromExistingFiles": 556,
     "localCleanup": {
       "unused-destructured-binding": 46,
       "positional-parameter-preserved": 23,
@@ -697,6 +697,22 @@
         "files": 1,
         "tests": 14,
         "result": "passed"
+      },
+      "extensionPlaywrightSmoke": {
+        "files": [
+          "packages/extension/e2e/mv3-sync-state-store.spec.ts",
+          "packages/extension/e2e/mv3-classification-disclosure-security.spec.ts"
+        ],
+        "tests": 5,
+        "result": "passed using real Chromium under xvfb after rebuilding the development artifact",
+        "covers": [
+          "Worker termination and full browser restart",
+          "Cross-context unique indexes and lease fences",
+          "IndexedDB versionchange and blocked connections",
+          "Pinned v1/v2 database upgrades",
+          "Local classification disclosure across language changes"
+        ],
+        "fullE2ESuite": "not run"
       }
     },
     "other": [
@@ -715,6 +731,20 @@
       ],
       "result": "Same three failures reproduced using untouched source from the baseline commit in an isolated temporary copy with the same Lean vectors; unrelated retention-model mismatch preserved."
     },
-    "testSelectionNote": "The first extension related-test discovery also included model tests and three Playwright spec files. The browser specs failed to initialize under Vitest; no browser run occurred. Follow-up unit verification uses --dir tests."
+    "testSelectionNote": "The first extension related-test discovery also included model tests and three Playwright spec files. The browser specs failed to initialize under Vitest; no browser run occurred. Follow-up unit verification uses --dir tests.",
+    "followUpTestAudit": {
+      "filesScanned": 451,
+      "scope": "E2E and server integration source identifier/string references to the 255 explicitly removed declarations",
+      "remainingRemovedDeclarationReferences": [],
+      "fixedUnusedIntegrationImport": {
+        "file": "packages/server/tests/integration/collections/canonical-mutation-postgres.integration.test.ts",
+        "name": "SOCIAL_PUBLIC_ACTIVITY_HANDLER_MODE",
+        "issue": "The unused import remained after deleting the export, producing TS2724 when typechecking this integration file; the normal server tsconfig only includes production sources.",
+        "verification": "Targeted semantic diagnostics now exactly match the untouched baseline source; no missing-export diagnostic remains.",
+        "baselineCommit": "82a57a6b5d677961984352bb71b9d35130f59fbc",
+        "preexistingDiagnosticCount": 9
+      },
+      "fullPostgresSuite": "not run"
+    }
   }
 }
