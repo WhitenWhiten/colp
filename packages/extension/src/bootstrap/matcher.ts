@@ -116,8 +116,10 @@ export function matchLocalRemote(input: {
       ...(remote.parentId ? { remoteParentNodeId: remote.parentId } : {}) });
     }
   };
-  for (const local of input.local) if (local.folderRole) {
-    const candidates = input.remote.filter(row => row.folderRole === local.folderRole && row.parentId === input.rootNodeId);
+  for (const local of input.local) {
+    const role = local.folderRole ?? mountsByRoot.get(local.nativeId)?.rootRole;
+    if (!role) continue;
+    const candidates = input.remote.filter(row => row.folderRole === role && row.parentId === input.rootNodeId);
     if (candidates.length === 1) pair(local.nativeId, candidates[0]!.nodeId);
   }
   for (const mapping of input.mappings) pair(mapping.nativeId, mapping.colpId);
@@ -305,7 +307,7 @@ function pairStructureByParentDepth(
   for (const row of input.remote) {
     if (consumedR.has(row.nodeId) || row.kind === 'separator' || row.folderRole === 'root') continue;
     const key = encodeFactKey([
-      remoteIndex.mountOf.get(row.nodeId) ?? row.nodeId, row.parentId, row.title, row.url,
+      row.parentId, row.kind, row.title, row.url,
     ]);
     const bucket = remoteBuckets.get(key) ?? [];
     bucket.push(row.nodeId);
@@ -313,7 +315,10 @@ function pairStructureByParentDepth(
   }
   const byDepth = new Map<number, LocalNodeFact[]>();
   for (const row of input.local) {
-    if (consumedL.has(row.nativeId) || row.kind === 'separator') continue;
+    // True browser roots have their own role/source-key eligibility checks.
+    // Only ordinary folders below an identified parent use structural pairing.
+    if (consumedL.has(row.nativeId) || row.kind === 'separator'
+        || row.parentNativeId === null && mountsByRoot.has(row.nativeId)) continue;
     const level = depth(row, localIndex.byId);
     const list = byDepth.get(level) ?? [];
     list.push(row);
@@ -381,9 +386,11 @@ function structureKey(local: LocalNodeFact, mappingByNative: ReadonlyMap<string,
   remoteIndex: ReturnType<typeof buildRemoteIndex>,
   mountsByRoot: ReadonlyMap<string, MountFact>): string {
   return encodeFactKey([
-    mountRemoteId(local.mountNativeRootId, mounts, remoteIndex, rootNodeId, mappingByNative, mountsByRoot),
+    // An authoritative parent identifies the container globally. A selected
+    // ordinary subfolder is a local boundary inside that container, not a new
+    // remote mount; its browser-local mount key cannot participate in pairing.
     mappedParent(local, mappingByNative, mounts, rootNodeId, remoteIndex, mountsByRoot),
-    local.title, local.url,
+    local.kind, local.title, local.url,
   ]);
 }
 

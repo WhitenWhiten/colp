@@ -6,6 +6,7 @@ import { scanBoundary } from '../src/bookmark-boundary.js';
 import { localFactsFromRoots } from '../src/bootstrap/local-facts.js';
 import { recordBoundaryDiagnostics } from '../src/bootstrap/boundary-diagnostics.js';
 import { createBootstrapCoordinator, type ConfirmInput } from '../src/bootstrap/coordinator.js';
+import { matchLocalRemote } from '../src/bootstrap/matcher.js';
 import type { NormalizedBookmarkNode, NormalizedBookmarkRoot } from '../src/chrome-bookmark-tree.js';
 import { bar, scope, setup } from './sync-recovery-hardening-fixture.js';
 
@@ -51,6 +52,21 @@ describe('bootstrap privacy and representability match its preview', () => {
     assert.equal(localFactsFromRoots(roots, ['2'])[0]?.structureOnly, true, 'the unselected ancestor contributes only its structure');
     const excluded = scanBoundary({ roots, selectedNativeIds: ['2'], privateNativeIds: ['2'] });
     assert.equal(excluded.mounts.length, 0);
+  });
+
+  test('reconnect pairs a selected ordinary subfolder inside its authoritative parent', () => {
+    const report = matchLocalRemote({ scopeKey: 'reconnect', confirmationId: 'fresh-replica',
+      local: localFactsFromRoots(roots, ['2']), mappings: [], rootNodeId: 'root', bootstrapMode: 'merge',
+      mounts: [{ nativeRootId: '2', customSourceKey: 'folder:2', remoteMountNodeId: null }],
+      remote: [...base.remoteFacts!,
+        { nodeId: 'saved-bookmark', parentId: 'private-folder', kind: 'bookmark', title: '3',
+          url: 'https://example.com/private', revision: 'r1' },
+        { nodeId: 'other-parent', parentId: 'bar', kind: 'folder', title: 'Elsewhere', revision: 'r1' },
+        { nodeId: 'same-title-elsewhere', parentId: 'other-parent', kind: 'folder', title: 'Private', revision: 'r1' }],
+    });
+    assert.deepEqual(report.matched, [{ nativeId: '1', nodeId: 'bar' },
+      { nativeId: '2', nodeId: 'private-folder' }, { nativeId: '3', nodeId: 'saved-bookmark' }]);
+    assert.deepEqual(report.planned, []);
   });
 
   test('preserves explicit preview exclusions when resuming stale durable facts', async () => {

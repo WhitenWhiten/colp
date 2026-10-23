@@ -776,17 +776,18 @@
         "Restored browser coverage reproduces settings-section horizontal overflow on coarse-pointer mobile and tablet lanes; the switch pseudo-element extends past the trailing column edge",
         "Reserve its existing hit-area overhang in coarse-pointer toggle rows, preserving the control and touch target",
         "Real Chromium under xvfb passes favicon settings behavior and horizontal overflow assertions at desktop, phone and two tablet widths"
-      ]
+      ],
+      "commit": "2f7a2eee"
     },
     {
       "id": "sync-18",
       "title": "Reconnect ordinary selected subfolders without re-uploading their existing canonical nodes",
-      "status": "in_progress",
+      "status": "resolved",
       "validation": [
         "Reproduced duplicate folder and bookmark on reconnect in real Chromium",
         "New unit regression proves selected local mount keys prevent pairing inside an already authoritative remote parent",
         "Parent identity, node kind and exact title/URL now bind structural matches; true custom browser roots retain their separate eligibility rules",
-        "238 assertions in all 26 matcher/coordinator consumer suites pass; TypeScript, targeted lint and source-size gate pass; real Chromium reconnect verification pending"
+        "238 assertions in all 26 matcher/coordinator consumer suites pass; TypeScript, targeted lint and source-size gate pass; real Chromium reconnect preserves the identical canonical id set and native tree across disconnect, fresh replica, reload and re-confirmation. That test subsequently reaches an unrelated outdated range-preview copy assertion, updated with the CI fixture work."
       ]
     }
   ],
