@@ -27,7 +27,7 @@ export interface AdapterManifest {
     entry: string;
     runAt: 'document_start' | 'document_idle';
   };
-  capabilities: readonly ('observeFavorites' | 'enumerateCollections' | 'enumerateItems' | 'mountCaptureControl')[];
+  capabilities: readonly ('observeFavorites' | 'resolveItem' | 'readMemberships' | 'enumerateCollections' | 'enumerateItems' | 'mountCaptureControl')[];
   /** Refers only to audited probes shipped with the extension. */
   bundledProbeIds?: readonly string[];
   /** Refers only to audited, named operations implemented by the host. */
@@ -41,6 +41,18 @@ export interface SiteItem {
   url: string;
   title: string;
 }
+
+/** Host supplies namespace/version from its approved registry, not a page claim. */
+export interface ContentIdentity {
+  siteKey: string;
+  identityVersion: number;
+  itemId: Id;
+}
+
+export type ItemResolutionResult =
+  | { status: 'resolved'; item: SiteItem }
+  | { status: 'unresolved'; reason: 'unsupportedUrl' | 'ambiguousIdentity' | 'pageUnavailable' }
+  | { status: 'failed'; error: ReadFailure };
 
 export interface SiteCollection {
   id: Id;
@@ -139,6 +151,8 @@ export type AdapterMessage = AdapterEnvelope & (
   | { operation: 'capture'; data: CaptureControlRequest }
   | { operation: 'read'; recipeId: string; params: Readonly<Record<string, string | number | boolean | null>> }
   | { operation: 'page.result'; readSessionId: Id; pageRequestId: Id; result: PageResult }
+  | { operation: 'item.result'; resolutionId: Id; result: ItemResolutionResult }
+  | { operation: 'membership.result'; readSessionId: Id; readRequestId: Id; result: MembershipReadResult }
 );
 
 export type AdmissionReply =
@@ -168,6 +182,14 @@ export interface HostReply {
 /** Sent only on a bootstrapped port; not a callable page-authored host API. */
 export type HostCommand =
   | {
+      operation: 'resolveItem';
+      leaseId: Id;
+      resolutionId: Id;
+      /** Host-observed URL in this document, not an arbitrary fetch target. */
+      url: string;
+      deadlineAt: number;
+    }
+  | {
       operation: 'readPage';
       leaseId: Id;
       readSessionId: Id;
@@ -176,6 +198,14 @@ export type HostCommand =
       query:
         | { kind: 'collections'; cursor: string | null }
         | { kind: 'items'; collectionId: Id; cursor: string | null };
+    }
+  | {
+      operation: 'readMemberships';
+      leaseId: Id;
+      readSessionId: Id;
+      readRequestId: Id;
+      deadlineAt: number;
+      query: MembershipReadQuery;
     }
   | { operation: 'cancelRead'; readSessionId: Id }
   | { operation: 'invalidateLease'; leaseId: Id };
@@ -198,7 +228,7 @@ export interface AcceptedObservation {
   cause:
     | { kind: 'siteFavorite'; interactionId: Id }
     | { kind: 'siteImport'; importRunId: Id }
-    | { kind: 'reconcile' };
+    | { kind: 'reconcile'; readRequestId?: Id };
   observation: SiteObservation;
 }
 
@@ -265,19 +295,60 @@ export type PageResult =
   | { status: 'ok'; kind: 'items'; collectionId: Id; page: SourcePage<CollectionItem> }
   | { status: 'failed'; error: ReadFailure };
 
+export interface MembershipReadQuery {
+  itemId: Id;
+  /** Nonempty, unique, at most 64. Read only these edges. */
+  collectionIds: readonly Id[];
+}
+
+export type MembershipReadEdge = { collectionId: Id } & (
+  | {
+      state: 'present' | 'absent';
+      /** Fresh scoped evidence acquired after this host request. */
+      evidence: { kind: 'siteResponse'; operation: string } | { kind: 'refreshedDom'; detector: string };
+    }
+  | { state: 'unknown'; reason: 'notVisible' | 'inaccessible' | 'unsupported' | 'ambiguousState' }
+);
+
+export type MembershipReadResult =
+  | {
+      status: 'ok';
+      itemId: Id;
+      /** Exactly one result per requested edge; no omitted/extra/duplicate IDs. */
+      edges: readonly MembershipReadEdge[];
+      /** Comparable only through a host-supported site revision contract. */
+      sourceRevision?: string;
+    }
+  | { status: 'failed'; error: ReadFailure };
+
+/** Durable host record created before dispatch; never accepted from a page. */
+export interface MembershipReadRequest {
+  id: Id;
+  readSessionId: Id;
+  connectionId: Id;
+  collectorGeneration: number;
+  sourceSessionGeneration: number;
+  leaseId: Id;
+  baselineOrdinal: number;
+  deadlineAt: number;
+  query: MembershipReadQuery;
+}
+
 export interface SiteAdapter {
   /** Called before bootstrap and after account/route invalidation. */
   detectSource(context: { document: Document; signal: AbortSignal }): Promise<SourceIdentityClaim>;
   start(context: AdapterContext): Promise<void | Cleanup>;
+  resolveItem?(context: AdapterContext, url: string): Promise<ItemResolutionResult>;
   readItem?(context: AdapterContext, itemId: Id): Promise<SiteItem | null>;
+  readMemberships?(context: ReadContext, query: MembershipReadQuery): Promise<MembershipReadResult>;
   readCollectionsPage?(context: ReadContext, cursor: string | null): Promise<SourcePage<SiteCollection>>;
   readItemsPage?(context: ReadContext, collectionId: Id, cursor: string | null): Promise<SourcePage<CollectionItem>>;
   importResume?: 'stableCursor' | 'restartAndDeduplicate';
 }
 
 /**
- * Local host extension attached to a BrowserRule record.
- * Its existing RuleDefinition is still validated/evaluated by @know-n/colp.
+ * Local host extension attached to LocalRule in the proposed v3 ordered list.
+ * Existing predicates are compiled by @know-n/colp; list order decides the winner.
  * This is NOT an added field in the published RuleDefinition v1 schema.
  */
 export interface BrowserSiteRuleExtension {
@@ -286,11 +357,28 @@ export interface BrowserSiteRuleExtension {
     entries: readonly ('siteFavorite' | 'siteImport' | 'reconcile')[];
     purpose: 'sourceArchive';
     connectionId: Id;
-    /** Match any listed collection; omitted means all for this connection. */
+    /** Match the current edge's collection only; omitted means all for this connection. */
     collectionIds?: readonly Id[];
   };
-  layout: { kind: 'sourceCollections'; rootRole: 'destination' };
+  /** Requires a file action; resolves direct folder or local set role binding. */
+  layout: { kind: 'sourceCollections'; root: 'actionDestination' };
 }
+
+/** Pin even a no-match evaluation; list order and subscribed predicates can change. */
+export interface BrowserRuleSnapshot {
+  storageVersion: 3;
+  listRevision: number;
+  contentVersions: Readonly<Record<string, string>>;
+}
+
+export type BrowserRuleRef =
+  | { kind: 'rule'; ruleId: Id }
+  | { kind: 'setRule'; setId: Id; ruleId: Id }
+  | { kind: 'subscriptionEntry'; subscriptionId: Id; entryId: Id; contentVersion: string };
+
+export type PlacementRule =
+  | { source: 'browser'; entry: BrowserRuleRef; definitionDigest: string }
+  | { source: 'account'; id: Id; revision: string; bundleRevision: string; bindingRevision: string };
 
 export interface MountBinding {
   id: Id;
@@ -322,6 +410,17 @@ export interface NativeBinding<Kind extends 'bookmark' | 'folder' = 'bookmark' |
   proof: { kind: 'writeReceipt' | 'explicitAdoption'; id: Id };
 }
 
+/** Exists before any favorite; attach native proof only after the semantic save. */
+export interface CaptureContentBinding {
+  id: Id;
+  content: ContentIdentity;
+  captureIntentId: Id;
+  purpose: 'semantic';
+  native: NativeBinding<'bookmark'> | null;
+  /** null until adopted into a verified connection under the configured policy. */
+  connectionId: Id | null;
+}
+
 export interface RepresentationKey {
   connectionId: Id;
   itemId: Id;
@@ -342,18 +441,69 @@ export interface Representation extends RepresentationKey {
 
 export type TargetFolder =
   | { kind: 'native'; binding: NativeBinding<'folder'> }
-  | { kind: 'planned'; folderEffectId: Id };
+  | { kind: 'sourceFolder'; reservationId: Id };
 
-/** Planned parents resolve only after their folder effect has a proven receipt. */
+/** Unique (mountId, collectionId); shared across items, tabs, imports and plans. */
+export interface SourceFolderReservation {
+  id: Id;
+  mountId: Id;
+  collectionId: Id;
+  mountRevision: number;
+  parent: TargetFolder;
+  title: string;
+  /** Only this command may create the folder. Consumer effects never create it. */
+  commandId: Id;
+  payloadDigest: string;
+  state: 'reserved' | 'submitted' | 'unknown' | 'confirmed' | 'blocked';
+  /** Required when confirmed; unknown blocks every consumer, including new ones. */
+  native: NativeBinding<'folder'> | null;
+}
+
+/** Persist with the plan; execution still checks that consumer's current approval. */
+export interface FolderReservationConsumer {
+  reservationId: Id;
+  planId: Id;
+  effectId: Id;
+}
+
+/** Frozen host preview; its digest covers scope, snapshots, counts and logical effects. */
+export interface ImportPreview {
+  id: Id;
+  importRunId: Id;
+  revision: number;
+  digest: string;
+  pageReceiptsDigest: string;
+  ledgerOrdinal: number;
+  browserRules: BrowserRuleSnapshot;
+  policyRevision: number;
+  classificationPolicyDigest: string;
+  mounts: readonly { id: Id; revision: number }[];
+  coverage: 'complete' | 'partial';
+  /** References frozen draft plans; they gain write authorization only at commit. */
+  planIds: readonly Id[];
+  counts: { createFolders: number; createBookmarks: number; reuseBookmarks: number; review: number };
+}
+
+/** Created only by an extension-page commit, never by page acknowledgments. */
+export interface ImportApproval {
+  id: Id;
+  importRunId: Id;
+  previewId: Id;
+  previewRevision: number;
+  previewDigest: string;
+  approvedAt: number;
+}
+
+/** Source-folder parents resolve only from their shared reservation's receipt. */
 export type SaveEffect = {
   effectId: Id;
-  /** Stable across outbox retries; persisted before crossing databases. */
+  /** Stable consumer command; ensureSourceFolder's native command belongs to its reservation. */
   commandId: Id;
   /** Logical effect digest; resolved native command has a separate outbox digest. */
   payloadDigest: string;
   dependsOn: readonly Id[];
 } & (
-  | { kind: 'ensureSourceFolder'; mountId: Id; collectionId: Id; parent: TargetFolder; title: string }
+  | { kind: 'ensureSourceFolder'; reservationId: Id }
   | { kind: 'createBookmark'; representation: RepresentationKey; item: SiteItem; parent: TargetFolder }
   | { kind: 'reuseBookmark'; native: NativeBinding<'bookmark'>; representation: RepresentationKey; expectedManualRevision: number }
   | {
@@ -365,7 +515,7 @@ export type SaveEffect = {
 
 export type PlanTrigger =
   | { kind: 'observation'; observationId: Id }
-  | { kind: 'import'; importRunId: Id; pageReceiptId: Id }
+  | { kind: 'import'; importRunId: Id; previewId: Id }
   | { kind: 'semanticSave'; captureIntentId: Id };
 
 /** A plan for a source-linked intent; ordinary captures keep their own contract. */
@@ -377,8 +527,12 @@ export interface SavePlan {
   installationGeneration: number;
   collectorGeneration: number;
   sourceSessionGeneration: number;
+  /** Required for import dispatch; draft import plans have null until exact preview approval. */
+  importApprovalId: Id | null;
+  /** Null only if browser rules were not evaluated, e.g. an account rule won. */
+  browserRules: BrowserRuleSnapshot | null;
   /** Semantic classification can proceed when no deterministic rule matched. */
-  rule: { id: Id; revision: string } | null;
+  rule: PlacementRule | null;
   /** Semantic plans need not have a source mount. */
   mount: { id: Id; revision: number } | null;
   policyRevision: number;

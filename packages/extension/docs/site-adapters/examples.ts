@@ -2,6 +2,8 @@
 import type {
   AdapterManifest, BrowserSiteRuleExtension, MountBinding, SavePolicy, SiteObservation, SourcePage, CollectionItem,
   BootstrapRequest, HostCommand, AdapterMessage, SavePlan,
+  BrowserRuleSnapshot, CaptureContentBinding, SourceFolderReservation, FolderReservationConsumer,
+  MembershipReadRequest, ImportPreview, ImportApproval,
 } from './contracts.js';
 
 export const manifest = {
@@ -12,7 +14,7 @@ export const manifest = {
   identityVersion: 1,
   matches: ['https://www.bilibili.com/*', 'https://space.bilibili.com/*'],
   execution: { mode: 'bundled', entry: 'bilibili.js', runAt: 'document_idle' },
-  capabilities: ['observeFavorites', 'enumerateCollections', 'enumerateItems', 'mountCaptureControl'],
+  capabilities: ['observeFavorites', 'resolveItem', 'readMemberships', 'enumerateCollections', 'enumerateItems', 'mountCaptureControl'],
 } satisfies AdapterManifest;
 
 export const collections = {
@@ -54,12 +56,23 @@ export const siteRuleExtension = {
     purpose: 'sourceArchive',
     connectionId: 'connection:local-bilibili-self',
   },
-  layout: { kind: 'sourceCollections', rootRole: 'destination' },
+  layout: { kind: 'sourceCollections', root: 'actionDestination' },
 } satisfies BrowserSiteRuleExtension;
 
-// The associated BrowserRule still contains its existing RuleDefinition and
-// folderNativeId binding. Its import-enabled variant explicitly sets
-// definition.policy.imports = 'include' after the user's import preview.
+export const ruleForB = {
+  ...siteRuleExtension,
+  admission: { ...siteRuleExtension.admission, collectionIds: ['folder:102'] },
+} satisfies BrowserSiteRuleExtension;
+
+export const ruleForC = {
+  ...siteRuleExtension,
+  admission: { ...siteRuleExtension.admission, collectionIds: ['folder:103'] },
+} satisfies BrowserSiteRuleExtension;
+
+// LocalRule in the proposed v3 list retains RuleDefinition and action; a file
+// action resolves its direct folderNativeId or its local set's role binding.
+// Import admission also requires definition.policy.imports = 'include'.
+// That rule setting alone does not approve any import preview.
 export const mount = {
   id: 'mount:1',
   connectionId: 'connection:local-bilibili-self',
@@ -71,6 +84,10 @@ export const mount = {
   revision: 1,
   aiDestination: 'excluded',
 } satisfies MountBinding;
+
+export const browserRules = {
+  storageVersion: 3, listRevision: 7, contentVersions: {},
+} satisfies BrowserRuleSnapshot;
 
 export const keepBoth = {
   revision: 1,
@@ -113,30 +130,135 @@ export const readBReply = {
   result: { status: 'ok', kind: 'items', collectionId: 'folder:102', page: lastPageOfB },
 } satisfies AdapterMessage;
 
-// Internal host fixture. No folder ID exists for B until its receipt is proven.
+export const resolvePopupItem = {
+  operation: 'resolveItem', leaseId: 'fixture-lease', resolutionId: 'resolution:1',
+  url: addToB.item.url, deadlineAt: 1700000030000,
+} satisfies HostCommand;
+
+export const resolvedPopupItem = {
+  protocolVersion: 1, operation: 'item.result', requestId: 'reply:resolution:1',
+  leaseId: 'fixture-lease', capability: 'fixture-only', resolutionId: 'resolution:1',
+  result: { status: 'resolved', item: addToB.item },
+} satisfies AdapterMessage;
+
+// Host record created with semantic intent before any favorite membership.
+// Native proof is attached after the save; later adoption binds the connection.
+export const popupContentBinding = {
+  id: 'content-binding:1',
+  content: { siteKey: manifest.siteKey, identityVersion: manifest.identityVersion, itemId: addToB.item.id },
+  captureIntentId: 'semantic-intent:1', purpose: 'semantic', native: null, connectionId: null,
+} satisfies CaptureContentBinding;
+
+export const membershipRead = {
+  id: 'membership-read:1', readSessionId: 'reconcile:1', connectionId: mount.connectionId,
+  collectorGeneration: 1, sourceSessionGeneration: 1, leaseId: 'fixture-lease',
+  baselineOrdinal: 42, deadlineAt: 1700000030000,
+  query: { itemId: addToB.item.id, collectionIds: ['folder:102', 'folder:103'] },
+} satisfies MembershipReadRequest;
+
+export const readMemberships = {
+  operation: 'readMemberships', leaseId: membershipRead.leaseId,
+  readSessionId: membershipRead.readSessionId, readRequestId: membershipRead.id,
+  deadlineAt: membershipRead.deadlineAt, query: membershipRead.query,
+} satisfies HostCommand;
+
+export const membershipReadReply = {
+  protocolVersion: 1, operation: 'membership.result', requestId: 'reply:membership:1',
+  leaseId: 'fixture-lease', capability: 'fixture-only',
+  readSessionId: membershipRead.readSessionId, readRequestId: membershipRead.id,
+  result: {
+    status: 'ok', itemId: addToB.item.id,
+    edges: [
+      { collectionId: 'folder:102', state: 'absent', evidence: { kind: 'refreshedDom', detector: 'fixture.fresh-membership' } },
+      { collectionId: 'folder:103', state: 'unknown', reason: 'inaccessible' },
+    ],
+  },
+} satisfies AdapterMessage;
+
+// Internal host fixture. This is the only native create command for B, even
+// when different item plans join it. Reservation alone is not write approval.
+export const sharedFolderB = {
+  id: 'folder-reservation:B', mountId: mount.id, collectionId: 'folder:102', mountRevision: mount.revision,
+  parent: { kind: 'native', binding: mount.root }, title: 'B',
+  commandId: 'command:create-folder:B', payloadDigest: 'fixture-folder-digest', state: 'reserved', native: null,
+} satisfies SourceFolderReservation;
+
 export const archivePlan = {
   id: 'plan:1', trigger: { kind: 'observation', observationId: 'observation:1' },
   purpose: 'sourceArchive', connectionId: mount.connectionId,
   installationGeneration: 1, collectorGeneration: 1, sourceSessionGeneration: 1,
-  rule: { id: mount.rootRuleId, revision: 'fixture-rule-revision' },
+  importApprovalId: null, browserRules,
+  rule: { source: 'browser', entry: { kind: 'rule', ruleId: mount.rootRuleId }, definitionDigest: 'fixture-rule-digest' },
   mount: { id: mount.id, revision: mount.revision }, policyRevision: keepBoth.revision,
   classificationPolicyDigest: 'fixture-policy-digest', classification: 'disabled',
   effects: [
     {
-      kind: 'ensureSourceFolder', effectId: 'effect:folder:B', commandId: 'command:folder:B',
-      payloadDigest: 'fixture-folder-digest', dependsOn: [], mountId: mount.id, collectionId: 'folder:102',
-      parent: { kind: 'native', binding: mount.root }, title: 'B',
+      kind: 'ensureSourceFolder', effectId: 'effect:folder-consumer:1:B', commandId: 'command:folder-consumer:1:B',
+      payloadDigest: 'fixture-consumer-1-digest', dependsOn: [], reservationId: sharedFolderB.id,
     },
     {
       kind: 'createBookmark', effectId: 'effect:bookmark:1:B', commandId: 'command:bookmark:1:B',
-      payloadDigest: 'fixture-bookmark-digest', dependsOn: ['effect:folder:B'],
+      payloadDigest: 'fixture-bookmark-digest', dependsOn: ['effect:folder-consumer:1:B'],
       representation: {
         connectionId: mount.connectionId, itemId: addToB.item.id, purpose: 'sourceArchive',
         sourceCollectionId: 'folder:102', mountId: mount.id,
       },
-      item: addToB.item, parent: { kind: 'planned', folderEffectId: 'effect:folder:B' },
+      item: addToB.item, parent: { kind: 'sourceFolder', reservationId: sharedFolderB.id },
     },
   ],
+} satisfies SavePlan;
+
+export const secondArchivePlan = {
+  ...archivePlan, id: 'plan:2', trigger: { kind: 'observation', observationId: 'observation:2' },
+  effects: [
+    {
+      kind: 'ensureSourceFolder', effectId: 'effect:folder-consumer:2:B', commandId: 'command:folder-consumer:2:B',
+      payloadDigest: 'fixture-consumer-2-digest', dependsOn: [], reservationId: sharedFolderB.id,
+    },
+    {
+      kind: 'createBookmark', effectId: 'effect:bookmark:2:B', commandId: 'command:bookmark:2:B',
+      payloadDigest: 'fixture-bookmark-2-digest', dependsOn: ['effect:folder-consumer:2:B'],
+      representation: {
+        connectionId: mount.connectionId, itemId: 'video:2', purpose: 'sourceArchive',
+        sourceCollectionId: 'folder:102', mountId: mount.id,
+      },
+      item: { ...addToB.item, id: 'video:2', url: 'https://example.com/video/2', title: 'Video2' },
+      parent: { kind: 'sourceFolder', reservationId: sharedFolderB.id },
+    },
+  ],
+} satisfies SavePlan;
+
+export const folderConsumers = [
+  { reservationId: sharedFolderB.id, planId: archivePlan.id, effectId: 'effect:folder-consumer:1:B' },
+  { reservationId: sharedFolderB.id, planId: secondArchivePlan.id, effectId: 'effect:folder-consumer:2:B' },
+] satisfies readonly FolderReservationConsumer[];
+
+// Independent import scenario: scanning is over; these frozen draft effects are
+// not executable until the extension-page approval below is recorded.
+export const frozenPreview = {
+  id: 'preview:1', importRunId: 'import:1', revision: 1, digest: 'fixture-preview-digest',
+  pageReceiptsDigest: 'fixture-pages-digest', ledgerOrdinal: 42, browserRules,
+  policyRevision: keepBoth.revision, classificationPolicyDigest: 'fixture-policy-digest',
+  mounts: [{ id: mount.id, revision: mount.revision }], coverage: 'complete', planIds: ['plan:import:1'],
+  counts: { createFolders: 1, createBookmarks: 1, reuseBookmarks: 0, review: 0 },
+} satisfies ImportPreview;
+
+export const importApproval = {
+  id: 'approval:1', importRunId: frozenPreview.importRunId, previewId: frozenPreview.id,
+  previewRevision: frozenPreview.revision, previewDigest: frozenPreview.digest, approvedAt: 1700000040000,
+} satisfies ImportApproval;
+
+export const importDraftPlan = {
+  ...archivePlan, id: 'plan:import:1',
+  trigger: { kind: 'import', importRunId: frozenPreview.importRunId, previewId: frozenPreview.id },
+  effects: archivePlan.effects.map((effect, index) => ({
+    ...effect, effectId: `effect:import:${index}`, commandId: `command:import:${index}`,
+    payloadDigest: `fixture-import-effect-${index}-digest`, dependsOn: index === 0 ? [] : ['effect:import:0'],
+  })),
+} satisfies SavePlan;
+
+export const approvedImportPlan = {
+  ...importDraftPlan, importApprovalId: importApproval.id,
 } satisfies SavePlan;
 
 // Expected outcomes for a future planner fixture. These paths are presentation
@@ -162,4 +284,31 @@ export const acceptanceExamples = [
     policy: keepBoth,
     expectedPaths: ['/root/videos/bilibili/B/Video1', '/root/videos/bilibili/C/Video1'],
   },
+  {
+    sequence: ['resolvePopupItem', 'popupSemanticSave', 'addToB'],
+    policy: semanticWins,
+    expectedPaths: ['/root/servers/network-configuration/Video1'],
+  },
+  {
+    sequence: ['popupSaveUnresolvedShortLink', 'addToB'],
+    policy: semanticWins, expectedState: 'adoptionRequired',
+  },
+] as const;
+
+// Behavioral specifications for future planner tests, not executable assertions.
+export const boundaryExamples = [
+  { scenario: 'twoItemsFirstAddedToB', plans: [archivePlan.id, secondArchivePlan.id], expectedFolderCreates: 1 },
+  { scenario: 'sharedFolderOutcomeUnknown', expectedState: 'bothConsumersBlocked', expectedReplacementCreates: 0 },
+  { scenario: 'cancelFirstConsumer', expectedState: 'secondConsumerMayContinue' },
+  { scenario: 'BAndCWithOnlyBAdmitted', admittedCollections: ['folder:102'], expectedCollections: ['folder:102'] },
+  { scenario: 'BAndCWithSeparateRules', expectedRoots: { 'folder:102': 'mount:B', 'folder:103': 'mount:C' } },
+  { scenario: 'overlappingRulesForB', expectedWinner: 'firstEligibleMatch', laterMatches: 'shadowed' },
+  { scenario: 'firstMatchHasMissingRoot', expectedState: 'blocked', expectedFallback: false },
+  { scenario: 'singleCopyPrimaryBlocked', expectedState: 'review', expectedFallback: false },
+  { scenario: 'readbackAfterOrdinal42', edge: 'folder:102', noInterveningObservation: true, expectedState: 'absent' },
+  { scenario: 'readbackWithObservationAt43', edge: 'folder:102', expectedState: 'unresolved' },
+  { scenario: 'inaccessibleReadback', edge: 'folder:103', expectedState: 'unresolved' },
+  { scenario: 'scanAcknowledgedWithoutApproval', expectedImportWrites: 0 },
+  { scenario: 'pageArrivesAfterPreviewFreeze', expectedPreviewExtension: false },
+  { scenario: 'ruleListReorderedBeforeCommit', expectedState: 'previewRequired' },
 ] as const;

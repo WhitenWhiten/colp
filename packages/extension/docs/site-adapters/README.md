@@ -1,6 +1,6 @@
 # Website favorites adapter design
 
-Status: proposal, not implemented. Research date: October 18, 2026. Repository baseline: `67ece2543094ae114b1d99abe793437e4d856d89`.
+Status: proposal, not implemented. Initial research: October 18, 2026. Integration review: October 22, 2026, against repository baseline `7a58017aeeb8fbaf3ee6defd00a594974f0950e4`.
 
 Use website adapters running in the page, a source relationship ledger persisted by the host extension, existing automation evaluation, and a shared save planner. Adapters extract items, collections, and membership changes. The host decides whether to save, how many copies to keep, where they belong, and whether to invoke JEV. Bilibili is the first validation target.
 
@@ -37,20 +37,31 @@ With both locations enabled, an item belonging to B and C may have one copy in e
 
 An unassociated bookmark with the same URL is a possible existing item, not a source representation the extension may automatically take over. Offer reuse, save another, or skip; establish the association only after user consent. Automatic policies must respect subsequent manual edits, moves, and deletions.
 
+### Linking a semantic save before the first favorite
+
+The automatic reuse outcomes above require a proven content binding. Before a popup save enters copy planning, the host resolves `(siteKey, identityVersion, itemId)` using a bundled, versioned URL normalizer or a `resolveItem` command to the verified adapter in the current document. The command pins the host-observed URL, lease, request ID, and deadline. Its reply must match that document and URL and pass the site's identity checks. The host supplies the namespace and normalization version from the installed registry; the page cannot select a connection or native bookmark. `readItem(itemId)` alone does not perform this initial resolution.
+
+Persist a `CaptureContentBinding` with the semantic intent and attach the proven native receipt when saving completes, even if no favorite membership exists yet. Content identity is independent of account membership. A bundled URL normalizer can resolve supported URLs without a signed-in site session; page-dependent resolution requires a valid lease. An unbound content binding can later join the verified connection under the user's copy policy. A binding already associated with another connection needs an explicit adoption decision; do not merge accounts automatically.
+
+Claim that binding atomically with the connection/item reservation. In single-copy mode a pending or unknown semantic create remains a dependency, so a concurrent favorite cannot create a replacement copy. Multiple candidate bindings, weak canonical-URL identity, or changed native identity require review. Keep the semantic intent's durable command/receipt reference until the content binding and any adopted representation acknowledge it.
+
+Short links, unsupported URL variants, identity migrations, and unavailable adapters may leave resolution unresolved. Ordinary local saving still works, but later favorite processing offers explicit adoption instead of automatic reuse. Do not infer site identity from an equal URL or title. Once resolved, URL aliases may help find the bound item without changing its identity. Add fixtures for popup-first saving, parameterized URLs, unresolved short links, signed-out URL resolution, and a second source account.
+
 Before reusing a native ID, compare its bound creation identity with the current node. The existing [bookmark annotation](../../src/bookmark-annotation-store.ts) and [folder description](../../src/folder-description-store.ts) checks compare dateAdded when available but permit missing values. They are useful integration points, not sufficient proof for automatic source management. Persist the device-local binding, node kind, dateAdded when available, and original write receipt or explicit adoption. Missing identity proof or a mismatched node enters detached/review; matching URL/title is insufficient.
 
 ## Integration boundaries in the current code
 
 | Existing location | Current behavior | Design requirement |
 | --- | --- | --- |
-| [Manifest](../../manifest.base.json) | MV3, Chrome 121 minimum; optional site access; no scripting, userScripts, or webNavigation | Request exact site access and optional scripting/webNavigation when enabling the feature; enable user scripts separately |
+| [Manifest](../../manifest.base.json) | MV3, Chrome 121 minimum; optional site access and webNavigation; no scripting or userScripts | Add optional scripting, reuse the existing webNavigation grant, and request exact site access when enabling; enable user scripts separately |
 | [Build](../../scripts/build.mjs), [release verifier](../../scripts/verify-release-artifact.mjs), and [manifest tests](../../tests/manifest-security.test.ts) | ESM entry points; permission arrays are asserted exactly; tests assume no page bridge | Add separate classic-script bundles and update the explicit permission/transport contracts together |
 | [Chrome declarations](../../src/chrome.d.ts) | A handwritten subset; MessageSender lacks frameId, origin, and documentLifecycle; new script APIs are absent | Add narrow, version-aware API declarations and browser-backed checks; types do not establish runtime availability |
 | [Sender validation](../../src/sw/messages.ts) | Accepts only options, popup, and capture-tabs pages | Preserve the existing boundary; add a dedicated adapter entry and onUserScriptMessage |
-| [Capture entry](../../src/sw/capture.ts) | Resolves a fallback folder before rulesDecision; a rule match suppresses folder classification | Plan first, allow a rule to resolve the root independently, and separate sourceArchive from semantic tasks |
+| [Capture entry](../../src/sw/capture.ts) | Allows rules to select a target without a default folder; a rule match suppresses folder classification | Preserve folderless rule selection; execute approved plans without repeating placement or deriving classification from popup preferences |
 | [Rule dispatch](../../src/sw/automation.ts) | Account rules run first; browser rules decide only when no account rule matches | Preserve existing entry ordering; explicitly admit new site entries without expanding old rules |
-| [Browser rules](../../src/automation/browser-rules.ts) | Reuses RuleDefinition, binds native destination IDs, and excludes imports by default | Add host admission and layout settings; reuse predicates, arbitration, and the rule UI |
-| [Rule evaluation](../../src/automation/runtime-profile.ts) | One input snapshot, multiple matches, shared placement arbitration | Keep it as the deterministic core; do not introduce a plugin-defined rule language |
+| [Browser rule storage](../../src/automation/rule-list-record.ts) and [flattening](../../src/automation/rule-list-flatten.ts) | v2 ordered list of local rules, sets, and subscriptions; closed parsers discard unsupported fields/entries | Introduce v3 with validated source admission/layout and preserve list order, role bindings, and subscription versions |
+| [Browser rule evaluation](../../src/automation/rule-list-decide.ts) | First eligible match wins; errors and unavailable destinations stop evaluation; later matches are shadowed in preview | Filter admission per membership edge before the same ordered evaluation; preserve predicate compilation and stop behavior |
+| [Account evaluation](../../src/automation/runtime-profile.ts) | Shared profile uses multiple matches and placement arbitration | Preserve account behavior for ordinary entries; do not substitute it for browser list semantics |
 | [Capture state](../../src/capture/state.ts) | An exact URL match ends as existing unless another copy was requested | Resolve reuse, another copy, or a move by item identity, purpose, and membership before entering this path |
 | [Capture store](../../src/capture/store.ts) | Claims commands durably, but coalesces active non-saveAnother tasks by scope/URL; retry comparison covers URL, target, and saveAnother | Planned effects need distinct identities and full command-digest checks; do not alias different purposes or collection copies |
 | [Classification triggers](../classification-triggers.md) | Implicit form-open suggestions skip existing bookmarks; explicit requests may classify them | Preserve the default and expose explicit save-as-semantic or classify-this-copy actions |
@@ -68,7 +79,7 @@ Two verified compatibility constraints determine the release stages:
 
 ### Required host refactoring
 
-The current CaptureSource union has no site entries, and startCapture derives automatic saving and classification from popup preferences, resolves a fallback folder, and calls rulesDecision again. Passing a plan's final folder to this function would allow another rule to replace it and could trigger tag classification on a source archive. Build an internal `executePlannedSave(planId, effectId)` boundary that loads an approved durable plan, checks its fences, and starts capture/native execution with an explicit purpose and classification disposition. Reuse the coordinator, write intents, annotations, and recovery; do not run admission or placement a second time. A page cannot call this boundary or submit its arguments as authority.
+The current CaptureSource union has no site entries, and startCapture derives automatic saving and classification from popup preferences and calls rulesDecision. It already permits a rule to choose a target without a default folder. Passing a plan's final folder to this function would still allow another rule to replace it and could trigger tag classification on a source archive. Build an internal `executePlannedSave(planId, effectId)` boundary that loads an approved durable plan, checks its fences, and starts capture/native execution with an explicit purpose and classification disposition. Reuse the coordinator, write intents, annotations, and recovery; do not run admission or placement a second time. A page cannot call this boundary or submit its arguments as authority.
 
 Add site capture metadata through a versioned capture-store migration, including old pending tasks and history display. Ordinary captures retain their behavior. Source-archive effects explicitly disable both folder and tag model requests even when automatic popup saving is enabled. Semantic effects follow existing rule/provider/consent controls. These changes, folder-create recovery, and the destination policy are prerequisites, not existing SDK features.
 
@@ -109,7 +120,7 @@ USER_SCRIPT isolates extension internals but is not a complete sandbox for arbit
 
 | Feature | Manifest and activation change | Failure behavior |
 | --- | --- | --- |
-| Bundled observation | Add optional scripting and webNavigation; request them and exact HTTPS page origins from an extension-page enable action | Remain disabled if denied; activeTab only supports an explicitly invoked, temporary session |
+| Bundled observation | Add optional scripting and reuse optional webNavigation; request missing grants and exact HTTPS page origins from an extension-page enable action | Remain disabled if denied; activeTab only supports an explicitly invoked, temporary session |
 | Native archiving | Reuse optional bookmarks and the existing writable-folder picker | Record no write authorization until permission and a root are available |
 | Audited background read | Request the recipe's data origin separately from page matches | DOM-only operation or a visible unavailable capability |
 | Community execution | Phase D adds userScripts to optional_permissions; request it separately and check the browser toggle/API | Disable this runtime without affecting bundled adapters |
@@ -208,13 +219,17 @@ Digest the validated operation and its data, excluding renewable lease/capabilit
 
 The transport deduplication key includes installation generation, document session, and requestId. It excludes the renewable lease ID so reconnecting within the same document cannot bypass deduplication. The representation key includes connection, item, purpose, source collection, and stable mount ID, not mount revision or title. Transport deduplication prevents replay; representation identity prevents duplicate copies after refresh, import, or repeated observation. A new requestId cannot bypass an existing representation, and global URL deduplication cannot discard a requested second purpose. Changes to a mount root require a migration plan instead of silently generating a new representation key.
 
-Atomically reserve representation effects in the source store before enqueueing native writes. Serialize single-copy decisions by connection/item across all purposes and tabs; uniqueness per purpose alone would still allow a source and semantic copy to race. Repeated classification uses a stable intent/command identity and the existing classification receipts, never the observation requestId alone. Source state observations do not create new archive effects unless a separately authorized import/reconcile plan permits them.
+Atomically reserve representation effects in the source store before enqueueing native writes. Serialize single-copy decisions by connection/item across all purposes and tabs; uniqueness per purpose alone would still allow a source and semantic copy to race. Separately reserve source-folder creation by `(mountId, collectionId)` across items and plans; item serialization does not prevent two videos from creating the same missing folder. Repeated classification uses a stable intent/command identity and the existing classification receipts, never the observation requestId alone. Source state observations do not create new archive effects unless a separately authorized import/reconcile plan permits them.
 
 An event without durable acknowledgment may be lost when its page closes. Repair through authorized reconciliation or a later import. Do not promise observation of phone activity while the browser is closed or end-to-end exactly-once execution.
 
 ## Batch import and fact merging
 
-An extension page creates importRun and pins the source account, collectorGeneration, adapter version, rules, folder bindings, copy policy, and classification-policy version. The user chooses structure preservation or rule-based organization and reviews local effects. The first version does not invoke AI during bulk import; semantic organization requires a separate authorized task.
+Version one uses scan → frozen preview → explicit commit. An extension page creates importRun with read authorization and pins the source account, collectorGeneration, adapter version, rules, folder bindings, copy policy, and classification-policy version. Scanning persists pages and source facts but authorizes no native writes. The user chooses structure preservation or rule-based organization; structure preservation uses a source rule bound to the chosen mount. The first version does not invoke AI during bulk import; semantic organization requires a separate authorized task.
+
+After scanning ends, freeze a bounded preview of the collected set: page-receipt digest, ledger baseline, rule/policy snapshots, logical effects and their digest, destination bindings, counts, and coverage. A partial scan can be previewed only with its omissions visibly identified and scanning stopped; no later page extends that preview. The extension-page commit creates an approval bound to the exact preview ID/revision/digest. Only plans covered by that approval become executable. Page acknowledgments are read receipts, not approvals. Do not stream bookmark creation while discovery is still running.
+
+Recheck ledger conflicts, suppression, destination identity, rule versions, and policy at commit and before dispatch. A change affecting an unsent effect blocks it and requires a new preview; do not silently add items, change destinations, or enlarge approval. Live archiving may continue under its separate authorization, so a completed live copy must be reflected in a refreshed import preview. Resolving an unchanged shared folder dependency to its proven native ID is expected execution, not a new logical effect. Cancellation stops further scanning/dispatch, retains facts and confirmed writes, and records any late result without compensation. Resuming a scan does not restore an expired or invalidated write approval.
 
 The host pulls pages and advances the cursor after acknowledging each page. Allow only one traversal that changes a given collector document at a time. DOM pagination changes the visible page, so show progress and a stop action. Prefer a dedicated import tab, stopping when it closes or the user takes control.
 
@@ -222,7 +237,7 @@ The host pulls pages and advances the cursor after acknowledging each page. Allo
 
 The host cannot call a page-local readItemsPage function directly. After bootstrap, the SDK opens a dedicated runtime port (onConnect for bundled scripts, onUserScriptConnect for community scripts). The host sends bounded read-page commands over that verified port; user-script downlink uses the established port, not an assumed tabs.sendMessage route into USER_SCRIPT. Each command pins readSessionId, pageRequestId, requested collection/cursor, lease, and deadline. The response repeats the identifiers; the host derives the import cause and scope from its own command record.
 
-Permit one outstanding page per traversal. A source-store transaction records the page digest, merge work, next cursor, and receipt before acknowledgment; the next command is issued only after that transaction commits. Lost acknowledgments replay the same page result and request identity. An unsolicited result, changed payload for the same request, expired lease, cursor cycle, or collection mismatch cannot advance the run. Typed read errors distinguish unavailable page, signed-out, rate-limited, unsupported extraction, and malformed data. Port loss pauses DOM traversal, while already acknowledged pages and approved native effects remain durable.
+Permit one outstanding page per traversal. A source-store transaction records the page digest, fact-merge work, next cursor, and receipt before acknowledgment; the next command is issued only after that transaction commits. Lost acknowledgments replay the same page result and request identity. An unsolicited result, changed payload for the same request, expired lease, cursor cycle, or collection mismatch cannot advance the run. Typed read errors distinguish unavailable page, signed-out, rate-limited, unsupported extraction, and malformed data. Port loss pauses scanning; already acknowledged pages remain durable, but cannot cause writes before preview approval. A committed frozen import can continue without its scanning tab while its host authorization remains valid.
 
 If reaching a requested DOM page changes the route/document, invalidate the old read command as usual; the durable run retains its last acknowledged cursor. After bootstrap on the new page, the host may issue a new pageRequestId for that cursor only after checking the same source and requested collection/page. The adapter checks whether it is already on that page before clicking again. Never accept the old lease's reply merely because navigation was expected. If position cannot be established or the user navigated elsewhere, pause or restart-and-deduplicate instead. This separates import progress from page lifetime without exempting import tabs from navigation validation.
 
@@ -238,29 +253,43 @@ For each item/collection edge, retain the last applied host ordinal and evidence
 
 Live observation and import share the item/membership ledger while preserving distinct siteFavorite, siteImport, and reconcile causes. Importing existing content does not manufacture a fresh user click or another semantic classification task.
 
+### Resolving conflicting membership reports
+
+Use a host-issued `readMemberships` command for a specific item and a nonempty bounded set of collection IDs. Persist a `MembershipReadRequest` with the connection, collector/source generations, lease, deadline, and ledger baseline ordinal before dispatch. The adapter returns exactly one `present`, `absent`, or `unknown` result for each requested edge. A positive or negative result needs fresh, scoped evidence obtained after this request, such as a site response or a deliberately refreshed membership dialog; a previously loaded DOM state is insufficient. Missing rows in a best-effort collection traversal, a missing checkbox, access denial, and extraction failure yield `unknown`, not `absent`.
+
+The host validates reply correlation and scope, deduplicates the result, and merges it atomically with a read receipt. Resolve an edge only if no accepted observation touched it after the request's baseline, or if a host-supported source revision comparator establishes that the read is newer. A sourceRevision string alone is not sortable proof. Otherwise retain the conflict and request a fresh read. An unsolicited `membership.observed` report cannot clear a conflict by claiming to be this read.
+
+Read authorization is separate from permission to reconstruct bookmarks. Reconciliation can settle source facts without creating a save plan; projection needs an existing authorized reconcile policy or a new reviewed plan. Confirmed absence retains archive copies. If the adapter cannot perform a fresh scoped read, keep the edge unresolved and expose retry/manual review. Mark membership readback as an independent capability in phase A; collection enumeration alone does not establish it.
+
 ## Reusing automation
 
-Phase one adds BrowserSiteRuleExtension as browser-host configuration associated with the existing BrowserRule record:
+Phase one adds BrowserSiteRuleExtension to a versioned LocalRule in the browser's ordered list, including local set rules. The old BrowserRule interface is a legacy migration input, not the current runtime record:
 
-- admission selects entries, purpose, connection, and optionally source collections.
-- definition retains RuleDefinition, finite predicates, URL normalization, and priority.
-- layout maps source collections into real folders below the selected root.
+- admission selects entry, purpose, connection, and the current membership edge's collection.
+- definition retains RuleDefinition, finite predicates, and URL normalization; browser list order determines precedence.
+- layout maps that collection below the destination resolved from LocalRule.action, including a set's role binding.
 
-Admission matches authorized host facts through fixed settings, without another expression language. Rules remain editable, previewable, pausable, and inspectable for conflicts in automation. Website settings reference ruleId instead of copying classification logic. Shareable packages contain no native folder bindings and cannot enable rules on installation.
+Admission matches authorized host facts through fixed settings, without another expression language. Rules remain editable, previewable, pausable, and inspectable in automation. Website settings reference ruleId instead of copying classification logic. Source layout requires a file action; keepHere is not a mount definition. Shared/subscribed rules cannot grant source admission: copy into a local rule and explicitly configure the connection and mount first. Shareable packages contain no native folder or source-account bindings and cannot enable rules on installation.
 
-Upgrade local rule storage to v2 and validate admission/layout explicitly. The current v1 parseRule retains some unknown fields while its executor does not understand source restrictions. Writing source rules into the v1 key would let old versions execute them as ordinary URL rules. Migrate legacy rules with admission limited to original entries; write new source rules only to v2 storage so rollback versions cannot see them. Backups and imports preserve format and required capabilities rather than dropping fields and enabling a rule with different meaning.
+The current key is already known.automation.browserRules.v2. Its closed parsers drop unsupported rules, so extending that key would expose new data to an incompatible rollback reader. Introduce known.automation.browserRules.v3 with a version: 3 record and closed validation of admission/layout. Migrate v2 preserving order, sets, role bindings, subscriptions, pause state, and revision; older v1 data first follows the existing v1-to-v2 migration. Rules without source admission remain limited to original entries.
+
+Write v3 and remove active v1/v2 keys in one automation-store transaction; retain any migration export outside legacy runtime keys. Do not dual-write source rules into v2. A rollback build sees no migrated list and cannot execute source rules; warn that migrated browser automation requires the newer build. On upgrade again, if an older build wrote fresh legacy rules, preserve both records and require an explicit merge rather than silently importing or discarding them. Backups, imports, copies between sets, and account-editor handoff must preserve required capabilities or reject the operation. Unknown v3 capabilities block activation and remain available for repair/export instead of being stripped.
+
+Evaluate each eligible `(connectionId, itemId, collectionId)` edge independently. Apply source admission before the existing first-match loop, preserving list/set order, missing-input skips, error stops, unavailable-binding stops, and preview's shadowed matches. A rule limited to B cannot authorize C because the same item also belongs to B. If B and C match different rules, produce distinct plans with their own mount/root; if both match one rule, they share a mount but retain distinct collection folders. No match produces no archive effect for that edge and is reported as unmatched. Then apply copy policy under the connection/item reservation: both-locations keeps eligible collection copies, while single-copy uses the chosen eligible primary collection or review. A missing/blocked primary cannot silently fall back to another collection.
+
+Pin `BrowserRuleSnapshot` even when no browser rule matched: list revision and evaluated subscription content versions. Record the winner separately in SavePlan.rule with its rule/set/subscription identity and definition digest when present. Set role-binding changes, reorder, subscription refresh, and admission edits invalidate unsent plans/previews through these snapshots. Ordinary semantic plans retain the existing account-first outcome and its rule/bundle/binding revisions when applicable. Do not reinterpret a blocked first match as permission to try a later rule.
 
 The source toggle controls observation admission. Global automation and individual-rule pauses share dispatch state, prevent new effects, and retain pending work. Recheck pause, authorization, and pinned versions before every effect; page confirmation does not bypass host pause state.
 
 New site entries do not run legacy rules without explicit admission. Existing popup, shortcut, and menu entries retain explicit-folder → account-rule → browser-rule → automatic-classification ordering. Mount rules default to sourceArchive and cannot intercept a popup semantic save solely because the URL is on bilibili.com.
 
-Local sourceArchive evaluation preserves the actual source category. Imports retain import facts and require policy.imports: include plus a confirmed import plan. Reuse pure predicates and placement arbitration with host-authorized rulePlacement intent. Do not call the legacy server bookmark.intake path or relabel import as sync to evade exclusions. The approved host plan supplies rulePlacement; the adapter cannot.
+Local sourceArchive evaluation preserves the actual source category. Imports retain import facts and require policy.imports: include plus a confirmed frozen preview. The current browser evaluator constructs ordinary pre-save facts; refactor its ordered loop to accept host-prepared facts and apply source admission/import policy before predicate evaluation. Reuse predicate compilation and first-match behavior with host-authorized rulePlacement intent. Do not call the legacy server bookmark.intake path or relabel import as sync to evade exclusions. The approved host plan supplies rulePlacement; the adapter cannot.
 
-Layout deterministically maps source collections below the chosen root. It is separate from AI classify.refine and root classification. Missing or unwritable roots, unknown ancestry, and conflicting rules wait for repair instead of falling back to an unclassified video bucket.
+Layout deterministically maps source collections below the chosen root. It is separate from AI classify.refine and root classification. Missing or unwritable roots, unknown ancestry, and unresolved source facts wait for repair instead of falling back to an unclassified video bucket. Overlapping browser rules follow first-match order; later matches are shown as shadowed, not a new arbitration conflict.
 
 Map folders by `(mountId, collectionId)`, using titles only for display. Same-name collections get distinct bindings; adopt an existing same-name folder only after user choice. Store the last host-written title/parent and a manual-edit revision. Source renames may update an owned folder only while these still match; local renames or moves retain user ownership. Version one treats changed source ancestry or a changed mount root as a previewed migration, and retains empty folders. Source membership removal retains the native copy as historical archive; in single-copy mode, an existing historical copy also counts until the user authorizes relocation or removal.
 
-A configured mount root is a setting, not an explicit folder selection for each save. A real per-save folder selection still wins. Rules must be able to select a mount root without an ordinary default folder, requiring separation of the current startCapture fallback-folder prerequisite from rule evaluation.
+A configured mount root is a setting, not an explicit folder selection for each save. A real per-save folder selection still wins. Preserve startCapture's existing ability to select a rule destination without an ordinary default folder when introducing planned execution.
 
 ### Dynamic folders and account rules
 
@@ -324,11 +353,13 @@ Use a separate site-adapters IndexedDB for source facts and plans. Existing capt
 | installations | Package digest, version, runtime, enabled state, grants, and installation generation |
 | connections | Site-account scope, active collector, collectorGeneration, and state |
 | observations | Request identity, digest, host context, acceptance ordinal, and processing state |
-| documentLeases / readRequests | Verified context, expiry, source generation, outstanding page commands, and replay receipts |
+| documentLeases / readRequests | Verified context, expiry, source generation, page/identity/membership commands, read baselines, and replay receipts |
 | collections / items / memberships | Source entities/relationships, versions, and observation coverage |
+| contentBindings | Account-independent content identity, semantic intent, native receipt, and optional adopted connection |
 | mounts / folderMappings | ruleId, root binding, collection mapping, naming ownership, and AI policy |
+| folderReservations / folderConsumers | Unique mount/collection creation task, immutable input, shared command/receipt, and dependent plan effects |
 | representations | Item, purpose, source collection, native/canonical identity, and active/detached/suppressed state |
-| importRuns / importPages | Scope, cursor, coverage, acknowledged progress, and failures |
+| importRuns / importPages / importPreviews / importApprovals | Read scope/checkpoints, coverage, frozen effect digest, counts, and exact extension-page approval |
 | savePlans / effects / outbox | Pinned rule/policy versions, effects, commands, receipts, and retries |
 | overrides | Manual moves/deletions, suppression of reconstruction, and primary-collection choices |
 
@@ -340,9 +371,13 @@ The capture store's current URL-based active-task coalescing must not merge plan
 
 Folder creation also needs write-ahead intent and native-ID binding. A same-name getChildren result does not prove ownership. Reuse personal-folder permission checks and batch-writing mechanisms, but do not assume bookmark-create receipts already cover new folder workflows. Name ambiguity, unknown outcomes, or user intervention require review.
 
-During preview, reference uncreated folders by planned effect ID, never fabricated native IDs. Effects form an acyclic dependency graph. Bind a parent's proven native ID into successor bookmark commands only after its receipt exists. Changed inputs require a new preview instead of silently altering prepared native writes.
+Reserve one `SourceFolderReservation` per `(mountId, collectionId)` in a source-store transaction. Compatible consumers share its commandId, immutable creation payload, and receipt; an `ensureSourceFolder` effect only joins this task and never issues its own folder-create command. A preview may reserve a logical task without granting write authority. Dispatch requires at least one still-authorized committed consumer and a current mount binding; check each consumer independently before its bookmark effect. Changed inputs to an unsubmitted create require review or a refreshed preview, not a second concurrent reservation. A confirmed folder is reused through its proven binding; authorized source renames use the existing naming/manual-edit fences and a separate mutation receipt without rewriting its original creation payload.
 
-An effect's digest covers its immutable logical input, including planned-parent references. After dependencies resolve, persist a separate resolved command payload/digest in the outbox before first dispatch and never rebuild it differently on retry.
+If the shared task is submitted or unknown, every consumer waits for that task's recovery. A crash or a cancelled consumer cannot release it for another create. Cancelling one plan does not cancel another valid consumer; when none remains, stop unsent work and retain any issued result. Keep the confirmed reservation/binding to prevent future imports from creating another folder. Explicit repair or migration may replace a settled binding only after its consumers are fenced; it never bypasses an unknown native outcome.
+
+During preview, reference uncreated folders by shared reservation ID, never fabricated native IDs. Effects and nested folder reservations form an acyclic dependency graph; reject cycles across plans as well as within one plan. Bind a parent's proven native ID into successor bookmark commands only after its receipt exists. Changed logical inputs require a new preview instead of silently altering prepared native writes.
+
+An effect's digest covers its immutable logical input, including shared parent references and the referenced reservation's creation digest. A frozen preview digest covers these logical effects and pinned snapshots, excluding mutable execution status, its own digest, and the later approval ID. Attaching that exact approval or resolving a parent receipt does not change the approved logical work. After dependencies resolve, persist a separate resolved command payload/digest, including current authorization, in the outbox before first dispatch and never rebuild it differently on retry.
 
 Pre-register a recovery alarm before durable admission, following startCapture, and inspect pending work on startup and relevant events. Drain bounded batches and checkpoint between effects. An alarm or port is a wake-up aid, not a persistent process. Preserve backpressure and errors in storage; suspended/offline documents require a resumed collector session, not a service-worker DOM substitute.
 
@@ -362,7 +397,7 @@ Develop against local adapter files and sanitized DOM/JSON fixtures, with protoc
 
 An adapter inspector can display the detected item, source collections, and proposed facts in a dry run without bookmark writes. Exclude cookies, tokens, page bodies, and model keys. Keep private parameters locally and strip account/folder bindings from exported packages.
 
-Track capabilities separately: live confirmation, collection enumeration, and item enumeration may fail independently. Report adapter/runtime version, last confirmed observation, coverage, queue size, and a bounded error code. Repeated extraction/schema failures pause the affected capability without marking the source empty. Keep selectors and endpoint projections within the site module and associate fixtures with the observed site variant/date. Adapter code updates with no new grants still revalidate protocol/identity compatibility; added domains, probes, or recipes wait for explicit authorization. Retain the previous digest for rollback, but rollback never reduces generations or reverses ledger migrations.
+Track capabilities separately: live confirmation, item identity resolution, membership readback, collection enumeration, and item enumeration may fail independently. Report adapter/runtime version, last confirmed observation, coverage, queue size, and a bounded error code. Repeated extraction/schema failures pause the affected capability without marking the source empty. Keep selectors and endpoint projections within the site module and associate fixtures with the observed site variant/date. Adapter code updates with no new grants still revalidate protocol/identity compatibility; added domains, probes, or recipes wait for explicit authorization. Retain the previous digest for rollback, but rollback never reduces generations or reverses ledger migrations.
 
 ## Bilibili validation points
 
@@ -378,6 +413,7 @@ Probe the bundled adapter in this order:
 4. Emit confirmed changes as delta. Do not send complete unless all collections are known to be loaded.
 5. End the interaction on cancellation, failure, account change, or navigation change. Unconfirmed input produces no save plan.
 6. First validate DOM traversal for A/B/C import. Add a named host read recipe only if an evaluated, usable endpoint exists. Report missing capability rather than falling back to broad, hidden collection.
+7. Verify a fresh membership read for a requested video and collection, including confirmed absence and inaccessible/unknown state. Also verify popup item resolution before any favorite exists. Report these capabilities independently if only part of the site flow works.
 
 Produce sanitized fixtures for adding to B, adding to B/C together, moving membership from B to C, existing multiple memberships, cancellation, business failure, slow responses, and SPA navigation. Protocol and planner tests should use these shapes instead of an idealized successful click alone.
 
@@ -388,11 +424,11 @@ These are proposed module boundaries, not existing implementations:
 | Module | Responsibility | Existing integration |
 | --- | --- | --- |
 | src/site-adapters/runtime/ | Package registry, page lifecycle, user-script execution, and dedicated transport | Thin service-worker dispatch |
-| src/site-adapters/sources/ | Connections, source entities/relationships, import pagination, and merging | Separate source IndexedDB; no ownership of Sync storage |
-| src/site-adapters/planning/ | Admission, source layout, copy policy, plans, and outbox | Existing evaluator and capture/native execution |
+| src/site-adapters/sources/ | Connections, content bindings, source relationships, import scanning, and scoped reconciliation | Separate source IndexedDB; no ownership of Sync storage |
+| src/site-adapters/planning/ | Per-edge admission, source layout, shared folder reservations, frozen previews, copy policy, and outbox | Ordered browser evaluator and capture/native execution |
 | src/site-adapters/adapters/bilibili/ | Site detection, confirmation, extraction, and DOM import | No direct chrome.bookmarks or provider credentials |
 | src/classification-destination-policy.ts | Identity-based exclusion and application checks | Local taxonomy, preview cache, capture classification, and editor application |
-| Browser rule extensions in src/automation/ | Entry admission, layout, v2 storage, preview, and pause | Shared evaluator and unchanged ordering for ordinary entries |
+| Browser rule extensions in src/automation/ | Entry admission, layout, v3 migration, snapshots, preview, and pause | Existing first-match list and unchanged account-first ordering for ordinary entries |
 | Plan integration in src/capture/ | Valid tasks for sourceArchive and semantic purposes | Existing receipts, annotations, history, and manual-edit protection |
 
 Plan execution is an internal host API. Web pages cannot submit approved automation decisions or native IDs. Generate production SDK runtime schemas, host validators, and adapter development types from one contract so TypeScript types are backed by message validation.
@@ -401,9 +437,9 @@ Plan execution is an internal host API. Web pages cannot submit approved automat
 
 | Phase | Deliverable | Acceptance |
 | --- | --- | --- |
-| A Browser and site probes | Controlled pages, bundled script, dedicated ingress, sanitized real-site observations | Video/list dialogs, success/failure evidence, stable collection IDs, and SPA navigation |
-| B Local sources and mounting | Source ledger, BrowserRule admission, mappings, and write-ahead plans | A/B/C import, live B archive, repeated import, unknown outcomes, and manual moves |
-| C JEV and copy policies | Purpose separation, AI subtree exclusion, and explicit existing-copy classification | Both action orders follow policy; mount rules do not swallow semantic popup requests |
+| A Browser and site probes | Controlled pages, bundled script, dedicated ingress, sanitized real-site observations | Video/list dialogs, identity resolution, fresh membership readback or declared unavailability, stable collection IDs, and SPA navigation |
+| B Local sources and mounting | Source ledger, v3 ordered-rule admission, shared folder reservations, and frozen import previews | A/B/C scan/approve/import, live B archive, repeated/concurrent import, conflict readback, unknown outcomes, and manual moves |
+| C JEV and copy policies | Content bindings, purpose separation, AI subtree exclusion, and explicit existing-copy classification | Both action orders follow policy or documented adoption; mount rules do not swallow semantic popup requests |
 | D Community packages | USER_SCRIPT isolation, capability tokens, installation, and revocation | Reject forged/stale ingress and MAIN impersonation; deny writes from surviving old scripts; verify cleanup and update re-registration |
 | E Account and cloud contracts | Profile negotiation, source admission, final-placement receipts, and cloud destination policy | Server-verified final effects, no duplicate admission across devices, explicit rejection by older clients |
 
@@ -430,6 +466,12 @@ Required acceptance matrix:
 17. Two tabs and simultaneous source/semantic intents reserve the correct number of copies; contradictory reports remain unresolved, and a lost page acknowledgment does not advance import twice.
 18. Source removals retain archive copies; same-name folder creation, identity changes across adapter upgrades, missing dateAdded, and cross-device backup restore require the documented proof or review.
 19. Source archive effects make zero model calls, including tag requests, with automatic popup saving enabled. No legacy rule reselects the approved final parent.
+20. v1/v2 migration preserves ordinary list order, sets, role bindings, and subscriptions; rollback never executes v3 source rules. Re-upgrade detects competing legacy edits. Reorder, binding changes, and subscription refresh invalidate pending snapshots, including a no-match semantic plan.
+21. Different items concurrently targeting one previously absent collection folder share one native create; unknown results block every consumer. Cancelling one plan preserves other authorized consumers and does not cause a replacement create.
+22. Popup-first saving records content identity before any favorite. Supported URL variants reuse that identity; unresolved short links require adoption, and another account cannot take over the binding automatically.
+23. Scoped membership reads distinguish present/absent/unknown; stale DOM, partial pagination, and inaccessible collections cannot prove absence. An observation accepted during readback prevents stale conflict resolution.
+24. B-only admission never creates C; B/C rules may select different roots. Later matches are shadowed, blocked first matches stop, and single-copy mode reviews an unavailable primary instead of selecting another by arrival order.
+25. Scanning, page acknowledgments, and an unapproved preview produce zero import writes. Approval covers only the frozen set; partial coverage is visible, late pages cannot enlarge it, changes require a fresh preview, and cancellation retains confirmed writes.
 
 Use unit tests for fact merging, planning policies, and permission boundaries, plus focused Chromium integration tests for worlds, sender identity, revocation, DOM lifecycle, and worker recovery. All Playwright runs must use xvfb, and temporary services must stop afterward. Real Bilibili smoke validation uses an authorized account and a small set of reversible actions rather than bulk collection.
 

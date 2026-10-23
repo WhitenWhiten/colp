@@ -1,8 +1,20 @@
 # Browser capabilities and implementation references
 
-Checked on October 18, 2026. Browser capabilities come from official API documentation and Chromium schemas. External projects provide visible interfaces and source-code references; their existence does not establish platform authorization or verified current compatibility.
+Initial research: October 18, 2026. Repository integration and the userScripts version boundaries were rechecked on October 22, 2026. Browser capabilities come from official API documentation and Chromium schemas. External projects provide visible interfaces and source-code references; their existence does not establish platform authorization or verified current compatibility.
 
-The repository baseline is `67ece2543094ae114b1d99abe793437e4d856d89`. The integration table in [README](README.md#integration-boundaries-in-the-current-code) describes code inspected at that baseline; proposed interfaces are not exported production APIs. Chrome is the supported runtime for this proposal. Other Chromium products and Firefox need separate capability/behavior tests. Links to moving branches are research pointers; implementation fixtures must record the inspected commit and browser/site version.
+The integration baseline is `7a58017aeeb8fbaf3ee6defd00a594974f0950e4`, superseding the initial review at `67ece2543094ae114b1d99abe793437e4d856d89`. The integration table in [README](README.md#integration-boundaries-in-the-current-code) describes code inspected at the newer baseline; proposed interfaces are not exported production APIs. Chrome is the supported runtime for this proposal. Other Chromium products and Firefox need separate capability/behavior tests. Links to moving branches are research pointers; implementation fixtures must record the inspected commit and browser/site version.
+
+## Current repository integration
+
+| Evidence | Consequence for this proposal |
+| --- | --- |
+| [Rule list records and closed parsers](../../src/automation/rule-list-record.ts), [store and legacy migration](../../src/automation/rule-list-store.ts) | v2 already belongs to the ordered rule list. Source admission/layout needs a distinct v3 migration and rollback boundary. BrowserRule is a legacy input. |
+| [Flattening local rules, sets, and subscriptions](../../src/automation/rule-list-flatten.ts), [first-match evaluation](../../src/automation/rule-list-decide.ts) | Preserve ordered evaluation and stop behavior; pin list revision, content versions, and the winning entry. Source collection admission is evaluated per membership edge. |
+| [Pre-save fact construction](../../src/automation/pre-save.ts), [browser dispatch](../../src/sw/automation-browser.ts) | Ordinary browser saves currently use pre-save facts. Site/import facts need an explicit host path; a source rule must not inherit a fabricated sync origin. |
+| [Capture entry](../../src/sw/capture.ts) | Rule-selected destinations already work without a default folder. Planned execution still needs to bypass repeated placement and popup-derived classification. |
+| [Manifest](../../manifest.base.json), [Chrome declarations](../../src/chrome.d.ts) | webNavigation is already optional and has limited declarations; add only missing scripting APIs and navigation/sender fields needed by adapters. |
+
+The ordered rule UI's subscription-based site collections and an adapter's website favorite collections are different concepts. Preserve existing subscription conditions and their version tracking; use the new source admission fields for favorite membership. Draft examples do not exercise the production parser, evaluator, browser worlds, or Bilibili session flows.
 
 ## Network and page capabilities
 
