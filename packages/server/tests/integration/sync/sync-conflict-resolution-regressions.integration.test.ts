@@ -79,8 +79,8 @@ describeWithPostgres('Conflict resolution preserves Pull integrity and concurren
     assert.equal(node.url, 'https://later.test/');
   });
 
-  test('server dismiss publishes a resolved conflict without a deletion effect and Pull advances', async () => {
-    const conflictId = await openConflict('dismiss-conflict', 'dismiss-incoming', 1, 'delete_update');
+  test.each(['delete_update', 'concurrent_field_update'] as const)('%s server dismiss publishes a resolved conflict without a deletion effect and Pull advances', async type => {
+    const conflictId = await openConflict('dismiss-conflict', 'dismiss-incoming', 1, type);
     await isolated.runtime.pool.query(`update collections set commit_ordinal=greatest(commit_ordinal,1),
       payload_json=jsonb_set(payload_json,'{commitOrdinal}',to_jsonb(greatest(commit_ordinal,1)::text)) where id=$1`, [COLLECTION]);
     await isolated.runtime.pool.query(`update nodes set deleted_at=now(), deleted_commit_ordinal=1,

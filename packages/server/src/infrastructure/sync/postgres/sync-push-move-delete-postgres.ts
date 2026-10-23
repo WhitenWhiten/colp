@@ -1,4 +1,5 @@
 import { sql } from 'kysely';
+import { resolveRecoveredParent } from '../sync-recovered-parent-postgres.js';
 import type { Operation } from '@know-n/colp/types';
 import { SUBTREE_OBSERVATION_EXTENSION, subtreeDeleteSource } from '@know-n/colp/sync';
 import {
@@ -255,11 +256,12 @@ export async function evaluateCanonicalNodeMove(
   await tx.selectFrom('collections').select('id')
     .where('id', '=', transaction.authority.collectionId).forUpdate().executeTakeFirstOrThrow();
   const payload = operation.payload;
-  const newParentId = payload && typeof payload === 'object' && !Array.isArray(payload)
+  const requestedParentId = payload && typeof payload === 'object' && !Array.isArray(payload)
     ? (payload as Record<string, unknown>).newParentId : undefined;
-  if (typeof operation.targetId !== 'string' || typeof newParentId !== 'string') {
+  if (typeof operation.targetId !== 'string' || typeof requestedParentId !== 'string') {
     throw new SyncPushHttpError('invalid_document');
   }
+  let newParentId: string = requestedParentId;
   const current = await tx.selectFrom('nodes').select([
     'id', 'collection_id', 'parent_id', 'kind', 'is_root', 'title', 'url', 'description', 'tags',
     'visibility', 'resource_revision', 'deleted_at', 'payload_json',
@@ -269,6 +271,21 @@ export async function evaluateCanonicalNodeMove(
     throw new SyncPushHttpError(current?.is_root ? 'invalid_document' : 'resource_not_found');
   }
 
+  const requestedParent = await tx.selectFrom('nodes').select(['id', 'kind', 'deleted_at'])
+    .where('collection_id', '=', transaction.authority.collectionId).where('id', '=', newParentId).executeTakeFirst();
+  if (!requestedParent) throw new SyncPushHttpError('resource_not_found');
+  if (requestedParent.kind !== 'folder') throw new SyncPushHttpError('invalid_document');
+  const recoveredParent = requestedParent.deleted_at !== null;
+  if (recoveredParent) {
+    // Reuse restore's mount-aware recovered placement. The immutable submitted
+    // operation remains unchanged; its effect carries the actual destination.
+    const collection = await tx.selectFrom('collections').select('root_node_id')
+      .where('id', '=', transaction.authority.collectionId).executeTakeFirstOrThrow();
+    newParentId = await resolveRecoveredParent(tx, { collectionId: transaction.authority.collectionId,
+      originalParentId: requestedParent.id, rootNodeId: collection.root_node_id,
+      actorPrincipalId: transaction.authority.accountId, managedCapabilities: managedAncestry,
+      now: new Date(), options });
+  }
   const sourcePath = await loadCanonicalAncestorPath(tx, transaction.authority.collectionId, current.parent_id);
   const targetPath = current.parent_id === newParentId
     ? sourcePath : await loadCanonicalAncestorPath(tx, transaction.authority.collectionId, newParentId);
@@ -300,7 +317,10 @@ export async function evaluateCanonicalNodeMove(
   );
   let mapped;
   try {
-    mapped = evaluateSyncNodeMove(operation, {
+    const placementOperation = recoveredParent ? { ...operation, payload: {
+      ...(operation.payload as Record<string, unknown>), newParentId, afterId: null, beforeId: null,
+    } } as Operation : operation;
+    mapped = evaluateSyncNodeMove(placementOperation, {
       node: {
         id: lockedCurrent.id, collectionId: lockedCurrent.collection_id,
         parentId: lockedCurrent.parent_id, revision: lockedCurrent.resource_revision,
@@ -408,12 +428,13 @@ export async function evaluateCanonicalNodeMove(
   const revision = mutation.allocation.resourceRevision;
   if (!revision) throw new SyncPushHttpError('internal_error');
   const cursor = `sync-move-${mutation.allocation.commitOrdinal}`;
-  const status = mapped.rebased ? 'rebased' : 'applied';
+  const status = recoveredParent || mapped.rebased ? 'rebased' : 'applied';
   await persistAuthoritativeOperationEffect({
     transaction: tx, operation, commitOrdinal: mutation.allocation.commitOrdinal,
     terminalStatus: status, cursor, sourceParentId: current.parent_id ?? undefined,
     ...(options.faultInjector ? { faultInjector: options.faultInjector } : {}),
   });
   return appliedPushResult(serverBatchId, operation, status, mapped.targetId, revision, cursor,
-    mapped.rebased ? [{ code: 'move_rebased', message: 'Move rebased on the current server placement.' }] : []);
+    recoveredParent ? [{ code: 'parent_deleted_recovered', message: 'The deleted destination was replaced by its recovered folder.' }]
+      : mapped.rebased ? [{ code: 'move_rebased', message: 'Move rebased on the current server placement.' }] : []);
 }

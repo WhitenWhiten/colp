@@ -1352,6 +1352,81 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
     assert.deepEqual(await facts(value.replica.replicaId, node.id), committed);
   }, 20_000);
 
+  test('audit sync-10 moves into a deleted destination recover under its live mount with exact replay', async () => {
+    const mount = await seedNode('folder', { title: 'Mount' });
+    await isolated.runtime.pool.query(`update nodes set payload_json=payload_json || '{"folderRole":"bookmarks-bar"}'::jsonb where id=$1`, [mount.id]);
+    const destination = await seedNode('folder', { parentId: mount.id });
+    const moving = await seedNode('bookmark', { title: 'Preserved', extensions: { 'https://example.test/ext': { keep: true } } });
+    const value = await context('owner', '0.2'), server = await start(value);
+    const deletion = syncNodeDeletePushRequest({ sessionId: value.session.sessionId, replicaId: value.replica.replicaId,
+      collectionId: COLLECTION, targetId: destination.id, baseRevision: destination.revision, opId: `delete-parent-${randomUUID()}` });
+    assert.equal((await blackBox(server.origin).push({ idempotencyKey: 'delete-parent', request: deletion })).status, 200);
+    const root = (await isolated.runtime.pool.query('select children_revision from nodes where id=$1', [ROOT])).rows[0];
+    const request = syncNodeMovePushRequest({ sessionId: value.session.sessionId, replicaId: value.replica.replicaId,
+      collectionId: COLLECTION, targetId: moving.id, baseRevision: moving.revision, sequence: 2,
+      newParentId: destination.id, beforeId: 'obsolete-anchor', baseSourceParentRevision: root.children_revision,
+      baseTargetParentRevision: destination.payload.childrenRevision as string, opId: `recover-move-${randomUUID()}` });
+    const response = await blackBox(server.origin).push({ idempotencyKey: 'recover-move', request });
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    assert.equal(result(response.body).results[0]!.status, 'rebased');
+    assert.equal(result(response.body).results[0]!.warnings?.[0]?.code, 'parent_deleted_recovered');
+    const rows = (await isolated.runtime.pool.query(`select n.parent_id,n.title,n.payload_json,p.parent_id mount,p.payload_json->>'folderRole' role
+      from nodes n join nodes p on p.id=n.parent_id where n.id=$1`, [moving.id])).rows[0];
+    assert.equal(rows.mount, mount.id); assert.equal(rows.role, 'recovered'); assert.equal(rows.title, 'Preserved');
+    assert.deepEqual(rows.payload_json.extensions, moving.payload.extensions);
+    const effect = (await isolated.runtime.pool.query('select effect_json from sync_operation_effects where operation_id=$1',
+      [request.operations[0]!.opId])).rows[0].effect_json;
+    validateAuthoritativePullEvent({ kind: 'operation', cursor: 'test-cursor', operation: request.operations[0]!, effect }, '0.2');
+    assert.equal(effect.placement.parentId, rows.parent_id);
+    const before = await facts(value.replica.replicaId, moving.id);
+    await server.app.close(); const restarted = await start(value);
+    assert.deepEqual(await blackBox(restarted.origin).push({ idempotencyKey: 'recover-move', request }), response);
+    assert.deepEqual(await facts(value.replica.replicaId, moving.id), before);
+  });
+
+  test('audit sync-10 root recovery and its move roll back together before a successful retry', async () => {
+    const parent = await seedNode('folder');
+    const node = await seedNode('bookmark');
+    const value = await context('owner', '0.2'), server = await start(value);
+    const deleted = syncNodeDeletePushRequest({ sessionId: value.session.sessionId, replicaId: value.replica.replicaId,
+      collectionId: COLLECTION, targetId: parent.id, baseRevision: parent.revision, opId: `fallback-parent-${randomUUID()}` });
+    assert.equal((await blackBox(server.origin).push({ idempotencyKey: 'fallback-parent', request: deleted })).status, 200);
+    const source = (await isolated.runtime.pool.query('select children_revision from nodes where id=$1', [ROOT])).rows[0];
+    const request = syncNodeMovePushRequest({ sessionId: value.session.sessionId, replicaId: value.replica.replicaId,
+      collectionId: COLLECTION, targetId: node.id, baseRevision: node.revision, sequence: 2,
+      newParentId: parent.id, baseSourceParentRevision: source.children_revision,
+      baseTargetParentRevision: parent.payload.childrenRevision as string, opId: `fallback-move-${randomUUID()}` });
+    const before = await facts(value.replica.replicaId, node.id);
+    const faulty = await start(value, { failAt: 'move_facts_loaded' });
+    assert.equal((await blackBox(faulty.origin).push({ idempotencyKey: 'fallback-move', request })).status, 500);
+    assert.deepEqual(await facts(value.replica.replicaId, node.id), before);
+    const retry = await blackBox(server.origin).push({ idempotencyKey: 'fallback-move', request });
+    assert.equal(retry.status, 200, JSON.stringify(retry.body));
+    const placement = (await isolated.runtime.pool.query(`select p.parent_id,p.payload_json->>'folderRole' role
+      from nodes n join nodes p on p.id=n.parent_id where n.id=$1`, [node.id])).rows[0];
+    assert.equal(placement.parent_id, ROOT); assert.equal(placement.role, 'recovered');
+  });
+
+  test('audit sync-13 server resolution closes a content conflict deleted afterward without resurrection', async () => {
+    const opened = await openConflict();
+    const current = (await isolated.runtime.pool.query('select resource_revision from nodes where id=$1', [opened.node.id])).rows[0];
+    const server = await start(opened.value);
+    const deletion = syncNodeDeletePushRequest({ sessionId: opened.value.session.sessionId, replicaId: opened.value.replica.replicaId,
+      collectionId: COLLECTION, targetId: opened.node.id, baseRevision: current.resource_revision, sequence: 2,
+      opId: `conflicted-delete-${randomUUID()}` });
+    assert.equal((await blackBox(server.origin).push({ idempotencyKey: 'delete-conflicted', request: deletion })).status, 200);
+    const before = (await isolated.runtime.pool.query('select to_jsonb(n) value from nodes n where id=$1', [opened.node.id])).rows[0].value;
+    await assert.rejects(resolver(opened.value).resolve(resolveInput(opened,
+      { resolution: 'incoming', baseConflictRevision: opened.revision }, 'no-resurrection')),
+      (error: unknown) => error instanceof SyncConflictResolutionError && error.code === 'unsupported_operation');
+    const input = resolveInput(opened, { resolution: 'server', baseConflictRevision: opened.revision }, 'accept-deleted');
+    const response = await resolver(opened.value).resolve(input);
+    assert.equal(response.conflict.status, 'resolved');
+    assert.deepEqual(await resolver(opened.value).resolve(input), response);
+    assert.deepEqual((await isolated.runtime.pool.query('select to_jsonb(n) value from nodes n where id=$1', [opened.node.id])).rows[0].value, before);
+    assert.equal((await isolated.runtime.pool.query('select 1 from sync_node_tombstones where target_id=$1', [opened.node.id])).rowCount, 1);
+  });
+
   test('P3-14 moves canonical Node identity across parents and reorders it with exact restart replay', async () => {
     const source = await seedNode('folder', { title: 'Move source' });
     const target = await seedNode('folder', { title: 'Move target',

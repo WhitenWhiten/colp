@@ -132,6 +132,13 @@ An empty instance has no Collection to bind to. When a client needs to create th
 - `merge`: both sides are kept; ID mapping, duplicate detection, and conflict generation are performed.
 - `mirror`: the server is authoritative and extra local content may be deleted. This requires additional confirmation.
 
+The server persists the selected mode in the Session binding. Until the Replica has acknowledged
+bootstrap authority, `download` and `mirror` Sessions cannot Push; `upload` permits only Node creates
+and is admitted only when the Collection has no live non-root Nodes. Use `merge` to retain an existing
+server tree. After bootstrap acknowledgement, ordinary authorized synchronization is permitted.
+Omitted modes and legacy Session bindings retain `merge` behavior. Idempotent Session replay cannot
+change the bound mode.
+
 Response:
 
 ```json
@@ -410,6 +417,12 @@ Status:
 With `atomic=true`, the server must first complete preflight checks of scope, sequence, dependencies, schema, authorization, and preconditions; if any of them fails, the whole request returns a problem and every sequence stays unconsumed. Once inside the transaction, business state, canonical operations, sequence receipts, conflicts, cursors, audit, and outbox must all commit or all roll back. If any operation cannot reach a committable terminal state, the whole transaction rolls back, and the server must not return per-item results that look consumed. A server that does not support the required atomic boundary must reject the request rather than commit partially.
 
 With `atomic=false`, the server processes the array in order, with a complete rollback boundary for each operation. It may coalesce a bounded contiguous prefix into one database transaction using per-operation savepoints. A failed member must roll back its resource state, receipt, cursor, audit and outbox together; successful prefix results must be committed before they are returned. A dependency inside a batch must point to an operation that has already reached a terminal state or to an earlier operation in the array; when a dependency has not reached a terminal state, the current operation returns `deferred` / `dependency_pending` and must not execute ahead of it. When a dependency was `rejected`, the current operation may end as `rejected` / `dependency_failed` and consume its own sequence. If the encompassing transaction fails, no rolled-back result may be reported as durable and clients can safely retry its uncommitted sequences.
+
+Dependency lookup is scoped to the authorized Collection and runs inside the same transaction as
+the operation and its receipt. Missing and deferred dependencies leave the current sequence unconsumed;
+an exact retry may advance after the prerequisite commits. Self and forward references within the
+submitted batch fail preflight. System-authored canonical operations can satisfy dependencies without
+a client sequence receipt.
 
 If processing stops after one or more durable results, the server returns `200` with those results as an ordered prefix of the request and the last committed `serverCursor`. It must not invent results for unprocessed operations. Clients persist the returned receipts and retry only the remaining suffix (or the deferred operation before its successors). If no operation produced a durable result, the server returns the original Problem. Atomic requests always require a complete result array.
 
@@ -735,6 +748,13 @@ not certify a browser or server deployment.
 | Move that would create a cycle | Reject |
 | ACL / publication | No automatic merge; handled as separate management conflicts |
 
+A move into a retained deleted parent uses the owning live mount's `recovered` folder, falling back
+to the Collection-root `recovered` folder when that mount is gone. Obsolete destination anchors are
+discarded. The result and effect are `rebased`; the submitted Operation and its digest remain unchanged,
+while the effect's Node, placement and target parent revision all identify the final recovered parent.
+An `applied` move must still use its requested parent. Missing or foreign parent identities are not
+inferred, and cycle and managed-ancestry checks still apply.
+
 <a id="colp-section-10-3"></a>
 
 ### 10.3 Conflict
@@ -760,6 +780,10 @@ not certify a browser or server deployment.
 Conflict content is private sync data and does not enter the public Feed.
 
 A conflict must carry its own `revision`. A resolution uses `If-Match` and `Idempotency-Key`; a custom value goes through the same schema, URL, authorization, and visibility checks as an ordinary write.
+
+If a Node is deleted after a content conflict opens, choosing `server` closes the conflict while
+retaining the deletion and its tombstone. Incoming, custom and duplicate choices cannot implicitly
+restore a deleted Node. The dismissal has its own durable resolution receipt and is replayable.
 
 `both` applies only to conflicts that can safely be copied into two independent resources, such as a bookmark title or URL divergence. The server must generate a new ID for the copied object and write the resolution into the log as an authoritative operation; ACL, delete, publication, and key conflicts must not use `both`.
 

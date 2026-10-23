@@ -159,6 +159,8 @@ describeWithPostgres('P3-08 Sync Session real HTTP/PostgreSQL black box', () => 
     const firstServer = await start();
     const first = await client(firstServer.origin).create({ idempotencyKey: 'restart-key', request: wireRequest() });
     assert.equal(first.status, 201);
+    assert.equal((await isolated.runtime.pool.query('select binding_json from sync_sessions where session_id=$1',
+      [first.body.sessionId])).rows[0].binding_json.bootstrapMode, 'download');
     assert.equal(first.body.collection.snapshotRequired, true);
     const snapshot = await client(firstServer.origin).snapshot({ sessionId: first.body.sessionId, limit: 100 });
     assert.equal(snapshot.mode, 'sync');
@@ -222,9 +224,16 @@ describeWithPostgres('P3-08 Sync Session real HTTP/PostgreSQL black box', () => 
     await isolated.runtime.pool.query(`update nodes set payload_json=jsonb_set(payload_json,'{folderRole}',
       '"invalid-role"'::jsonb,true) where id='http-folder-special'`);
     try {
-      const invalid = await fetch(`${server.origin}/private-entry/snapshot-download?sessionId=${encodeURIComponent(session.body.sessionId)}&limit=2`, {
+      // Stored materializations are immutable; corrupt live data must be
+      // checked through a fresh Session rather than replaying the old snapshot.
+      const replay = await client(server.origin).snapshot({ sessionId: session.body.sessionId, limit: 2,
+        pageCursor: first.page.nextCursor! });
+      assert.equal(replay.nodes[0]?.folderRole, 'bookmarks-bar');
+      const fresh = await client(server.origin).create({ idempotencyKey: 'invalid-folder-role-session', request: wireRequest() });
+      assert.equal(fresh.status, 201);
+      const invalid = await fetch(`${server.origin}/private-entry/snapshot-download?sessionId=${encodeURIComponent(fresh.body.sessionId)}&limit=2`, {
         headers: { Authorization: `Bearer ${TOKEN}`, Origin: ORIGIN,
-          'Known-Sync-Session': session.body.sessionId },
+          'Known-Sync-Session': fresh.body.sessionId },
       });
       assert.equal(invalid.status, 500, await invalid.clone().text());
       assert.equal((await invalid.json() as { readonly code?: unknown }).code, 'internal_error');

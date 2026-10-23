@@ -64,6 +64,7 @@ export function mapSessionError(error: unknown): SyncPushHttpError {
     return new SyncPushHttpError('internal_error', undefined, undefined, { cause: error });
   }
   switch (error.code) {
+    case 'bootstrap_mode_invalid': return new SyncPushHttpError('invalid_document');
     case 'credential_invalid':
     case 'session_expired':
     case 'session_revoked': return new SyncPushHttpError('authentication_required');

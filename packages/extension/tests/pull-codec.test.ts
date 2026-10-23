@@ -14,6 +14,25 @@ import { pullFixtures } from './pull-effect-fixtures.js';
 const collectionId = 'collection-codec';
 
 describe('Pull protocol codec', () => {
+  test('accepts a rebased recovered move without relaxing applied placement or target revision binding', () => {
+    const event = structuredClone(pullFixtures.mutationEvent({ kind: 'move', sequence: 1,
+      collectionId, targetId: 'node', parentId: 'deleted-parent' })) as Extract<SyncPullEventV02, { effect: { kind: 'node_moved' } }>;
+    if (event.effect.kind !== 'node_moved') throw new Error('fixture');
+    const node = event.effect.node;
+    if (node.kind === 'root') throw new Error('fixture cannot move a root');
+    const recovered = { ...event, effect: { ...event.effect, status: 'rebased' as const,
+      node: { ...node, parentId: 'recovered' }, placement: { ...event.effect.placement, parentId: 'recovered' },
+      parentRevisions: [{ parentId: 'recovered', childrenRevision: 'recovered-r1' }] } };
+    recovered.effect.effectDigest = canonicalAuthoritativeEffectDigest(recovered.effect);
+    assert.equal(validatePullEvent(recovered), recovered);
+    const applied = { ...recovered, effect: { ...recovered.effect, status: 'applied' as const } };
+    applied.effect.effectDigest = canonicalAuthoritativeEffectDigest(applied.effect);
+    assert.throws(() => validatePullEvent(applied), /pull_effect_binding_invalid/);
+    const mismatch = { ...recovered, effect: { ...recovered.effect,
+      parentRevisions: [{ parentId: 'deleted-parent', childrenRevision: 'wrong' }] } };
+    mismatch.effect.effectDigest = canonicalAuthoritativeEffectDigest(mismatch.effect);
+    assert.throws(() => validatePullEvent(mismatch), /pull_effect_binding_invalid/);
+  });
   test('keeps the browser-safe canonical digest stable across object key order', () => {
     const expected = 'sha256:43258cff783fe7036d8a43033f830adfc60ec037382473548ac742b888292777';
     assert.equal(stable({ b: 2, a: 1 }), '{"a":1,"b":2}');

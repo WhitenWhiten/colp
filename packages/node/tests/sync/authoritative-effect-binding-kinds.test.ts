@@ -76,6 +76,16 @@ describe(`assertEffectBinding ${evidence}`, () => {
   });
 
   describe('node_moved', () => {
+    it('accepts an authoritative recovered destination only for a rebased move', () => {
+      const { operation, effect } = fixture('move_node');
+      const recovered = { ...(effect as object), status: 'rebased',
+        node: { ...folderNode, parentId: 'recovered' }, placement: { ...placement, parentId: 'recovered' },
+        parentRevisions: [{ parentId: 'folder-1', childrenRevision: 'source-r2' },
+          { parentId: 'recovered', childrenRevision: 'recovered-r2' }] };
+      expect(binding(operation, recovered)).not.toThrow();
+      expect(binding(operation, { ...recovered, status: 'applied' })).toThrow();
+      expect(binding(operation, { ...recovered, parentRevisions: [parentRevision] })).toThrow();
+    });
     const cases: Array<[string, Record<string, unknown>]> = [
       ['node id', { node: { ...folderNode, id: 'node-9' } }],
       ['node collectionId', { node: { ...folderNode, collectionId: 'collection-x' } }],

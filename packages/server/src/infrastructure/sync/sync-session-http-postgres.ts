@@ -166,6 +166,7 @@ async function issueInUnitOfWork(
         }).where('replica_id', '=', replica.replica_id).execute();
       }
       const baseIssueInput: SyncSessionIssueInput = {
+          ...(request.collection.bootstrapMode === undefined ? {} : { bootstrapMode: request.collection.bootstrapMode }),
           credential: input.credential,
           idempotencyKey: input.idempotencyKey,
           requestFingerprint: input.requestFingerprint,
@@ -301,6 +302,7 @@ function mapIssueError(error: unknown): SyncSessionHttpError {
   if (error instanceof SyncSessionHttpError) return error;
   if (!(error instanceof SyncSessionIssueError)) return new SyncSessionHttpError('internal_error');
   switch (error.code) {
+    case 'bootstrap_mode_invalid': return new SyncSessionHttpError('invalid_document');
     case 'credential_invalid': return new SyncSessionHttpError('authentication_required');
     case 'not_found': return new SyncSessionHttpError('resource_not_found');
     case 'stale_replica': return new SyncSessionHttpError('stale_replica');

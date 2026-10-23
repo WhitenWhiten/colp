@@ -1,4 +1,3 @@
-import { BROWSER_FOLDER_ROLES } from '../../generated/browser-folder-roles.js';
 import { withCanonicalTreeCapacity } from '../collections/canonical-tree-capacity.js';
 import { assertManagedAncestryWritable, loadLockedManagedAncestryChain, managedAncestryNodeFact, type ManagedAncestryCapabilities } from './managed-ancestry-policy.js';
 import { randomBytes } from 'node:crypto';
@@ -18,10 +17,8 @@ import type { ReportSourceInvalidationOutboxPort } from '../outbox/report-source
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { persistSyncOperationProjection } from './postgres/sync-pull-postgres.js';
 import { persistAuthoritativeOperationEffect } from './sync-operation-effects-postgres.js';
-import { createSystemRecoveredFolder } from './postgres/sync-recovered-create-postgres.js';
+import { resolveRecoveredParent } from './sync-recovered-parent-postgres.js';
 import type { PostgresSyncNodeCreateOptions } from './postgres/sync-push-types-postgres.js';
-
-const MOUNT_ROLES = new Set<string>([...BROWSER_FOLDER_ROLES, 'custom']);
 
 export interface ApplyCanonicalNodeRestoreInput {
   readonly operation: Operation;
@@ -170,35 +167,14 @@ async function resolveRestorePlacement(
       };
     }
   }
-  const mountParentId = await liveMountParentId(tx, input.collectionId, originalParentId, input.rootNodeId);
-  assertManagedAncestryWritable(await loadLockedManagedAncestryChain(tx, input.collectionId, mountParentId), input.managedCapabilities);
-  const recovered = await createSystemRecoveredFolder(tx, {
-    collectionId: input.collectionId, parentId: mountParentId, actorPrincipalId: input.actorPrincipalId,
-    now: input.now, nodeId: input.nodeId,
-    reportSourceInvalidation: input.reportSourceInvalidation,
-    ...(input.faultInjector ? { faultInjector: input.faultInjector } : {}),
+  const parentId = await resolveRecoveredParent(tx, {
+    collectionId: input.collectionId, originalParentId, rootNodeId: input.rootNodeId,
+    actorPrincipalId: input.actorPrincipalId, managedCapabilities: input.managedCapabilities,
+    now: input.now, options: { nodeId: input.nodeId, reportSourceInvalidation: input.reportSourceInvalidation,
+      ...(input.faultInjector ? { faultInjector: input.faultInjector } : {}) },
   });
-  return {
-    parentId: recovered.nodeId,
-    positionToken: await allocateNearOriginal(tx, input.collectionId, recovered.nodeId, input.node.id, null),
-  };
-}
-
-async function liveMountParentId(
-  tx: DatabaseTransaction, collectionId: string, startParentId: string | null, rootNodeId: string,
-): Promise<string> {
-  let cursor = startParentId;
-  const seen = new Set<string>();
-  while (cursor && !seen.has(cursor)) {
-    seen.add(cursor);
-    const row = await tx.selectFrom('nodes').select(['id', 'parent_id', 'is_root', 'deleted_at', 'payload_json'])
-      .where('collection_id', '=', collectionId).where('id', '=', cursor).executeTakeFirst();
-    if (!row || row.is_root) break;
-    const role = typeof row.payload_json?.folderRole === 'string' ? row.payload_json.folderRole : null;
-    if (role && MOUNT_ROLES.has(role) && row.deleted_at === null) return row.id;
-    cursor = row.parent_id;
-  }
-  return rootNodeId;
+  return { parentId,
+    positionToken: await allocateNearOriginal(tx, input.collectionId, parentId, input.node.id, null) };
 }
 
 async function allocateNearOriginal(

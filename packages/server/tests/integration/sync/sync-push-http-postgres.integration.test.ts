@@ -120,7 +120,7 @@ describeWithPostgres('P3-11 real HTTP/PostgreSQL single-operation Push admission
   })));
   afterAll(async () => isolated?.close());
 
-  async function context(sessionDurationSeconds = 900, maxBatchOperations = 1) {
+  async function context(sessionDurationSeconds = 900, maxBatchOperations = 1, bootstrapMode?: 'download' | 'mirror' | 'merge') {
     const suffix = randomUUID();
     const contextCredential = await mintVerifiedExtensionCredentialFixture({
       issuer: ISSUER, audience: 'known-api', clientId: 'known-extension',
@@ -152,7 +152,7 @@ describeWithPostgres('P3-11 real HTTP/PostgreSQL single-operation Push admission
       requestFingerprint: `push-fingerprint-${suffix}`, collectionId: COLLECTION,
       replicaId: replica.replicaId, expectedLeaseGeneration: replica.leaseGeneration,
       expectedLifecycleRevision: replica.lifecycleRevision, binding: replica.binding,
-      requestedScopes: ['sync:push'], origin: ORIGIN,
+      requestedScopes: ['sync:push'], origin: ORIGIN, ...(bootstrapMode ? { bootstrapMode } : {}),
     });
     return { replica, issuer, session: issued.session, credential: contextCredential };
   }
@@ -271,6 +271,83 @@ describeWithPostgres('P3-11 real HTTP/PostgreSQL single-operation Push admission
     }));
     return { ...requests[0]!, operations: requests.flatMap(request => request.operations) };
   }
+
+  test('audit sync-11 missing dependencies defer without side effects and exact retries advance after another replica commits', async () => {
+    const producer = await context(), consumer = await context();
+    const producerServer = await start(producer), consumerServer = await start(consumer);
+    const dependency = createBatch(producer, 1);
+    const request = createBatch(consumer, 1);
+    request.operations[0]!.dependencies = [dependency.operations[0]!.opId];
+    const send = () => client(consumerServer.origin).push({ idempotencyKey: 'dependency-retry', request });
+    const deferred = await send();
+    assert.equal(deferred.status, 200);
+    assert.equal((deferred.body as SyncPushResult).results[0]!.status, 'deferred');
+    assert.equal((deferred.body as SyncPushResult).results[0]!.code, 'dependency_pending');
+    assert.equal((await isolated.runtime.pool.query('select 1 from operations where operation_id=$1', [request.operations[0]!.opId])).rowCount, 0);
+    assert.deepEqual(await send(), deferred);
+    assert.equal((await client(producerServer.origin).push({ idempotencyKey: 'dependency-producer', request: dependency })).status, 200);
+    const applied = await send();
+    assert.equal((applied.body as SyncPushResult).results[0]!.status, 'applied');
+    assert.deepEqual(await send(), applied);
+    assert.equal((await isolated.runtime.pool.query('select next_sequence::int from sync_sequence_lanes where replica_id=$1',
+      [consumer.replica.replicaId])).rows[0].next_sequence, 2);
+  });
+
+  test('audit sync-11 earlier batch dependencies commit in order and forward or self dependencies are rejected before writes', async () => {
+    const value = await context(900, 50), server = await start(value, { maxBatchOperations: 50 });
+    for (const self of [false, true]) {
+      const invalid = createBatch(value, 2);
+      invalid.operations[0]!.dependencies = [invalid.operations[self ? 0 : 1]!.opId];
+      const response = await client(server.origin).push({ idempotencyKey: `forward-${self}`, request: invalid });
+      assert.equal(response.status, 422);
+      assert.equal(problem(response.body).code, 'invalid_document');
+      assert.equal((await isolated.runtime.pool.query('select 1 from sync_sequence_receipts where replica_id=$1',
+        [value.replica.replicaId])).rowCount, 0);
+    }
+    const request = createBatch(value, 2);
+    request.operations[1]!.dependencies = [request.operations[0]!.opId];
+    const response = await client(server.origin).push({ idempotencyKey: 'ordered-dependency', request });
+    assert.equal(response.status, 200);
+    assert.deepEqual((response.body as SyncPushResult).results.map(row => row.status), ['applied', 'applied']);
+  });
+
+  test('audit sync-11 rejected dependencies consume a rejected successor without mutating nodes', async () => {
+    const producer = await context();
+    const producerServer = await start(producer, { application: createPostgresSyncPushApplication(isolated.runtime.db,
+      producer.issuer, { nodeId: () => 'push-http-node' }) });
+    const dependency = createBatch(producer, 1);
+    const refused = await client(producerServer.origin).push({ idempotencyKey: 'refused-producer', request: dependency });
+    assert.equal((refused.body as SyncPushResult).results[0]!.status, 'rejected');
+    const consumer = await context(), consumerServer = await start(consumer);
+    const request = createBatch(consumer, 1); request.operations[0]!.dependencies = [dependency.operations[0]!.opId];
+    const response = await client(consumerServer.origin).push({ idempotencyKey: 'failed-dependency', request });
+    assert.equal(response.status, 200);
+    assert.equal((response.body as SyncPushResult).results[0]!.code, 'dependency_failed');
+    assert.equal((await isolated.runtime.pool.query('select 1 from operations where operation_id=$1', [request.operations[0]!.opId])).rowCount, 0);
+    assert.equal((await isolated.runtime.pool.query('select next_sequence::int from sync_sequence_lanes where replica_id=$1',
+      [consumer.replica.replicaId])).rows[0].next_sequence, 2);
+  });
+
+  test('audit sync-12 download and mirror cannot Push before bootstrap Ack but permit later ordinary edits', async () => {
+    for (const mode of ['download', 'mirror'] as const) {
+      const value = await context(900, 1, mode), server = await start(value), request = createBatch(value, 1);
+      const denied = await client(server.origin).push({ idempotencyKey: `bootstrap-${mode}`, request });
+      assert.equal(denied.status, 403);
+      assert.equal(problem(denied.body).code, 'insufficient_scope');
+      assert.equal((await isolated.runtime.pool.query('select 1 from sync_sequence_receipts where replica_id=$1',
+        [value.replica.replicaId])).rowCount, 0);
+      // Install the durable post-Ack authority fact; the actual Ack transaction
+      // and its proof requirements are covered by the recovery/ack suites.
+      await isolated.runtime.pool.query(`update sync_replicas set checkpoint_cursor='bootstrap-complete',
+        checkpoint_commit_ordinal=1, checkpoint_stream_kind=1, checkpoint_stable_id='bootstrap-complete',
+        wire_json=wire_json || jsonb_build_object('checkpoint',
+          jsonb_build_object('acknowledgedCursor','bootstrap-complete','acknowledgedCommitOrdinal','1'))
+        where replica_id=$1`, [value.replica.replicaId]);
+      const accepted = await client(server.origin).push({ idempotencyKey: `bootstrap-${mode}`, request });
+      assert.equal(accepted.status, 200);
+      assert.equal((accepted.body as SyncPushResult).results[0]!.status, 'applied');
+    }
+  });
 
   test('batch Push commits in order, replays concurrently and recovers singleton receipts without duplicate nodes', async () => {
     const value = await context(900, 50); const server = await start(value, { maxBatchOperations: 50 });

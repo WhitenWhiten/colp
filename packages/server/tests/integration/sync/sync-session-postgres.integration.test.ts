@@ -16,6 +16,8 @@ import {
   type SyncSessionIssueFaultPhase,
 } from '../../../src/infrastructure/sync/index.js';
 import { createPostgresReplicaStore } from '../../../src/infrastructure/sync/index.js';
+import { createPostgresSyncPushApplication } from '../../../src/infrastructure/sync/index.js';
+import { SyncPushHttpError } from '../../../src/modules/sync/index.js';
 import type { ReplicaRecord } from '../../../src/modules/sync/index.js';
 import {
   createIsolatedPostgresRuntime,
@@ -42,6 +44,66 @@ describeWithPostgres('P3-07 durable Sync Session issuance', () => {
   }, 20_000);
 
   afterAll(async () => harness?.close());
+
+  test('audit sync-23 registration waits before taking the collection gate while Session holds account authority', async () => {
+    const replica = await harness.createReplica('owner');
+    let release!: () => void, held!: () => void;
+    const hold = new Promise<void>(resolve => { release = resolve; });
+    const locked = new Promise<void>(resolve => { held = resolve; });
+    const issue = harness.issuer({ faultInjector: { async afterPhase(phase: string) {
+      if (phase === 'account') { held(); await hold; }
+    } } }).issue(harness.command('owner', replica));
+    await locked;
+    const registration = harness.createReplica('owner');
+    const completed = Promise.all([issue, registration]);
+    try {
+      await waitForCondition(async () => (await harness.isolated.runtime.pool.query(`select 1 from pg_stat_activity
+        where datname=current_database() and wait_event_type='Lock' and query like '%accounts%'`)).rowCount! > 0, { description: 'registration blocked on account authority', pollIntervalMs: 10 });
+      const client = await harness.isolated.runtime.pool.connect();
+      try {
+        await client.query('begin');
+        const gate = await client.query(`select pg_try_advisory_xact_lock(1263675657, hashtext($1)) acquired`, [replica.collectionId]);
+        assert.equal(gate.rows[0].acquired, true, 'blocked registration must not hold the collection gate');
+        await client.query('commit');
+      } finally { await client.query('rollback'); client.release(); }
+    } finally { release(); await completed; }
+  });
+
+  test('audit sync-12 persists bootstrap mode, binds replay, and refuses upload over existing server nodes', async () => {
+    for (const bootstrapMode of ['download', 'mirror', 'merge', 'upload'] as const) {
+      const replica = await harness.createReplica('owner');
+      const command = harness.command('owner', replica, { bootstrapMode });
+      const issued = await harness.issuer().issue(command);
+      const row = (await harness.isolated.runtime.pool.query('select binding_json from sync_sessions where session_id=$1',
+        [issued.session.sessionId])).rows[0];
+      assert.equal(row.binding_json.bootstrapMode, bootstrapMode);
+      assert.equal((await harness.issuer().issue(command)).state, 'replayed');
+      if (bootstrapMode === 'upload') {
+        await assert.rejects(createPostgresSyncPushApplication(harness.isolated.runtime.db, harness.issuer()).admit({
+          credential: harness.evidence('owner'), origin: ORIGIN, mediaType: 'application/json', endpointIdentity: 'syncPush',
+          requestFingerprint: 'upload-update', idempotencyKey: 'upload-update', request: { sessionId: issued.session.sessionId,
+            batchId: `${issued.session.sessionId}.upload-update`, atomic: false, operations: [{
+              type: 'update_node_content', opId: `upload-update-${randomUUID()}`, replicaId: replica.replicaId,
+              sequence: 1, collectionId: replica.collectionId, targetId: `root-${replica.collectionId}`,
+              baseRevision: 'r1', occurredAt: new Date().toISOString(), dependencies: [],
+              payload: { base: { title: 'Root' }, value: { title: 'Overwrite' } },
+            }] },
+        }), (error: unknown) => error instanceof SyncPushHttpError && error.code === 'invalid_document');
+      }
+      await assert.rejects(harness.issuer().issue({ ...command, bootstrapMode: bootstrapMode === 'merge' ? 'download' : 'merge' }),
+        (error: unknown) => error instanceof SyncSessionIssueError && error.code === 'idempotency_key_reuse');
+    }
+    const replica = await harness.createReplica('owner');
+    const id = `nonempty-${randomUUID()}`;
+    await harness.isolated.runtime.pool.query("insert into resource_id_ledger(resource_id,resource_type) values ($1,'node')", [id]);
+    await harness.isolated.runtime.pool.query(`insert into nodes(id,collection_id,parent_id,kind,is_root,title,
+      position_token,resource_revision,children_revision) values ($1,$2,$3,'folder',false,'Existing','Z','r1','ch1')`,
+      [id, replica.collectionId, `root-${replica.collectionId}`]);
+    try {
+      await assert.rejects(harness.issuer().issue(harness.command('owner', replica, { bootstrapMode: 'upload' })),
+        (error: unknown) => error instanceof SyncSessionIssueError && error.code === 'bootstrap_mode_invalid');
+    } finally { await harness.isolated.runtime.pool.query('delete from nodes where id=$1', [id]); }
+  });
 
   test('migrates empty and upgrades exactly from P3-06', async () => {
     const tables = await harness.isolated.runtime.pool.query<{ table_name: string }>(`

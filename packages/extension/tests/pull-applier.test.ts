@@ -10,6 +10,8 @@ import { createBookmarkEventQueue, type BookmarkEventApi } from '../src/bookmark
 import { createSyncStateStore, type SyncScope } from '../src/sync-state-store.js';
 import { honestChrome } from './kns-05-pull-harness.js';
 import { pullFixtures } from './pull-effect-fixtures.js';
+import { canonicalAuthoritativeEffectDigest } from '@know-n/colp/sync/canonical';
+import type { SyncPullEventV02 } from '@know-n/colp/types';
 
 const scope: SyncScope = { environment: 'production', serverId: 'server-pull', serverOrigin: 'https://known.example',
   accountId: 'account-pull', browserProfileId: 'profile-pull', collectionId: 'collection-pull',
@@ -18,6 +20,27 @@ let indexedDB: IDBFactory;
 beforeEach(() => { indexedDB = new IDBFactory(); });
 
 describe('P3-32 durable Pull authority', () => {
+  test('applies a recovered-folder create before its rebased move without duplicating the bookmark', async () => {
+    const f = await setup();
+    const recovered = pullFixtures.createEvent({ kind: 'Folder', sequence: 1, collectionId: scope.collectionId,
+      parentId: 'root-colp', folderRole: 'recovered' });
+    const move = pullFixtures.mutationEvent({ kind: 'move', sequence: 2, collectionId: scope.collectionId,
+      targetId: 'node-1', parentId: 'deleted-parent' }) as Extract<SyncPullEventV02, { effect: { kind: 'node_moved' } }>;
+    const node = move.effect.node;
+    if (node.kind === 'root') throw new Error('fixture');
+    const event = { ...move, effect: { ...move.effect, status: 'rebased' as const,
+      node: { ...node, parentId: 'node-created-1' }, placement: { ...move.effect.placement, parentId: 'node-created-1' },
+      parentRevisions: [{ parentId: 'root-colp', childrenRevision: 'root-r2' },
+        { parentId: 'node-created-1', childrenRevision: 'recovered-r2' }] } };
+    event.effect.effectDigest = canonicalAuthoritativeEffectDigest(event.effect);
+    await f.applier.stage(f.page([recovered, event])); await f.applier.resume();
+    const parent = await f.store.getMappingByColpId(scope, 'node-created-1'); assert.ok(parent);
+    assert.equal((await f.api.get('native-node'))[0]!.parentId, parent.nativeId);
+    assert.equal(f.api.calls.filter(call => call.kind === 'create').length, 1);
+    assert.equal((await f.store.getMappingByColpId(scope, 'node-1'))?.nativeId, 'native-node');
+    assert.equal((await f.store.getCursor(scope))?.cursor, 'cursor-next');
+    f.store.close();
+  });
   test('stages a complete validated page before mutation and advances cursor only after every event commits', async () => {
     const fixture = await setup(); const page = fixture.page([fixture.createEvent('Bookmark'),
       fixture.createEvent('Folder', 2, 'node-created-1')]);

@@ -17,7 +17,7 @@ import type { DatabaseTransaction } from '../../database/unit-of-work.js';
 import type { ReplicaRetentionWindowPort } from '../replica-lifecycle-postgres.js';
 
 export type SyncSessionIssueFaultPhase =
-  | 'receipt' | 'generation' | 'session' | 'binding' | 'lease' | 'audit' | 'finalize';
+  | 'account' | 'receipt' | 'generation' | 'session' | 'binding' | 'lease' | 'audit' | 'finalize';
 
 export interface SyncSessionIssueFaultInjector {
   afterPhase?(phase: SyncSessionIssueFaultPhase): void | Promise<void>;
@@ -81,6 +81,7 @@ export interface Authority {
 }
 
 export interface SessionAuthority {
+  readonly bootstrapMode?: 'download' | 'upload' | 'merge' | 'mirror';
   readonly accountId: string;
   readonly principalSubjectId: string;
   readonly credential: VerifiedExtensionCredential;

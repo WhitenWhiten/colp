@@ -110,11 +110,11 @@ export function assertEffectBinding(
     const sourceRevision = effect.parentRevisions[0];
     const targetRevision = effect.parentRevisions.at(-1);
     if (effect.node.id !== move.targetId || effect.node.collectionId !== move.collectionId
-      || effect.placement.parentId !== payload.newParentId
+      || (effect.status !== 'rebased' && effect.placement.parentId !== payload.newParentId)
       || effect.node.parentId !== effect.placement.parentId
       || effect.node.position !== effect.placement.position
       || (effect.parentRevisions.length !== 1 && effect.parentRevisions.length !== 2)
-      || targetRevision?.parentId !== payload.newParentId
+      || targetRevision?.parentId !== effect.placement.parentId
       || (effect.parentRevisions.length === 2 && sourceRevision?.parentId === targetRevision.parentId)) {
       throw new TypeError('node_moved effect lacks authoritative source/target parent revisions.');
     }

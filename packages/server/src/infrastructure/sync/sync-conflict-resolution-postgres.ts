@@ -203,9 +203,9 @@ async function resolveInTransaction(
     .where('id', '=', conflict.target_id).forUpdate().executeTakeFirst();
   if (!current || !current.payload_json) deny('resource_not_found');
   if (current.deleted_at !== null) {
-    // FIX-M-015: only a historical delete_update may resolve a deleted target;
-    // all other conflict menus remain concealed/unsupported as originally advertised.
-    if (conflict.conflict_type !== 'delete_update') deny('resource_not_found');
+    // Deletion can follow any open content conflict. Choosing the current
+    // server state closes that conflict without resurrecting the node. Other
+    // choices require an explicit restore first; deletion still dominates.
     if (command.resolution !== 'server') deny('unsupported_operation');
     return dismissDeleteUpdateConflict(transaction, { ...input, replicaId: author.replicaId }, command, options, authority,
       conflict, current, operationId, claimedSequence, requestDigest, occurredAt);

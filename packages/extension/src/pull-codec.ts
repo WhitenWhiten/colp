@@ -66,9 +66,10 @@ export function validatePullEvent(candidate: SyncPullEventV02): SyncPullEventV02
   } else if (effect.kind === 'node_moved') {
     const target = effect.parentRevisions.at(-1);
     if (operation.type !== 'move_node' || effect.node.id !== operation.targetId
-        || effect.node.collectionId !== operation.collectionId || effect.placement.parentId !== operation.payload.newParentId
+        || effect.node.collectionId !== operation.collectionId
+        || (effect.status !== 'rebased' && effect.placement.parentId !== operation.payload.newParentId)
         || effect.node.parentId !== effect.placement.parentId || effect.node.position !== effect.placement.position
-        || target?.parentId !== operation.payload.newParentId
+        || target?.parentId !== effect.placement.parentId
         || (effect.parentRevisions.length === 2 && effect.parentRevisions[0]?.parentId === target.parentId)) {
       throw new SyncFailureError('pull_effect_binding_invalid');
     }

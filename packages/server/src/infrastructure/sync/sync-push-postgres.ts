@@ -9,6 +9,8 @@ import type { SyncPushResult } from '@know-n/colp/types';
 import type { DatabaseSchema } from '../database/runtime.js';
 import { DatabaseOperationError } from '../database/errors.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
+import { evaluatePushDependencies } from './postgres/sync-push-dependencies-postgres.js';
+import { assertBootstrapPushMode } from './postgres/sync-push-bootstrap-mode-postgres.js';
 import {
   evaluateUnsupportedSyncOperation,
   SyncPushHttpError,
@@ -139,6 +141,9 @@ export function createPostgresSyncPushApplication(
           origin: input.origin,
         }),
       }, async (_context, transaction) => {
+        await assertBootstrapPushMode(transaction, session.sessionId, operation);
+        const dependency = await evaluatePushDependencies(operation, serverBatchId, transaction);
+        if (dependency) return dependency;
         if (operation.type === 'create_node') {
           return evaluateCanonicalNodeCreate(operation, serverBatchId, transaction, options, managedAncestry);
         }

@@ -135,6 +135,7 @@ export async function loadAuthority(
     .where('identity.subject', '=', input.credential.subject)
     .forUpdate('account').executeTakeFirst();
   if (!identity || identity.status !== 'active') throw new SyncSessionIssueError('credential_invalid');
+  await options.faultInjector.afterPhase?.('account');
   const securityEpoch = BigInt(identity.security_epoch);
   if (await isJoseSyncCredentialRevoked(transaction, {
     issuer: input.credential.issuer,
@@ -494,6 +495,7 @@ export class TransactionSessionStore implements SyncSessionStore {
     const existing = await this.load(session.sessionId);
     if (existing) return Object.freeze({ state: 'conflict' as const, session: existing });
     const bindingJson = {
+      bootstrapMode: authority.bootstrapMode ?? 'merge',
       accountId: authority.accountId,
       principalSubjectId: authority.principalSubjectId,
       credentialIssuer: authority.credential.issuer,

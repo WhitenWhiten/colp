@@ -25,11 +25,13 @@ export async function admitPushBatch(
 ): Promise<SyncPushResult> {
   const operations = input.request.operations;
   const first = operations[0];
+  const positions = new Map(operations.map((operation, index) => [operation.opId, index]));
   if (!first || operations.length > 50 || !first.collectionId
       || (operations.length > 1 && input.request.atomic)
       || new Set(operations.map((op) => op.opId)).size !== operations.length
       || operations.some((op, index) => op.collectionId !== first.collectionId
-        || op.replicaId !== first.replicaId || op.sequence !== first.sequence + index)) {
+        || op.replicaId !== first.replicaId || op.sequence !== first.sequence + index
+        || (op.dependencies ?? []).some(id => (positions.get(id) ?? -1) >= index))) {
     throw new SyncPushHttpError('invalid_document');
   }
   await coarseConcealment(db, input);

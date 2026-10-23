@@ -162,6 +162,12 @@ async function createReplica(
   options: Required<PostgresReplicaStoreOptions>,
 ): Promise<ReplicaRecord> {
   const input = validateReplicaCreateInput(rawInput, trusted);
+  // Account authority precedes the collection gate, as in Session issuance.
+  // Device/replica foreign keys take KEY SHARE on this account; acquiring that
+  // lock after the gate deadlocks with a Session holding the account FOR UPDATE.
+  const account = await transaction.selectFrom('accounts').select('id')
+    .where('id', '=', input.accountId).where('status', '=', 'active').forUpdate().executeTakeFirst();
+  if (!account) throw new ReplicaScopeNotFoundError();
   await lockCollectionReplicaGate(transaction, input.collectionId);
   const authorizedScope = await transaction
     .selectFrom('accounts')

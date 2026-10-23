@@ -21,6 +21,7 @@ export type SyncSessionIssueErrorCode =
   | 'idempotency_key_reuse'
   | 'session_expired'
   | 'session_revoked'
+  | 'bootstrap_mode_invalid'
   | 'integrity_failure';
 
 /**
@@ -59,6 +60,7 @@ export class SyncSessionIssueError extends Error {
 }
 
 export interface SyncSessionIssueInput {
+  readonly bootstrapMode?: 'download' | 'upload' | 'merge' | 'mirror';
   readonly credential: VerifiedExtensionCredential;
   readonly idempotencyKey: string;
   readonly requestFingerprint: string;
@@ -279,7 +281,11 @@ export function validateVerifiedExtensionCredential(value: unknown): VerifiedExt
 }
 
 export function validateSyncSessionIssueInput(value: unknown): Readonly<SyncSessionIssueInput> {
-  const supplied = plainRecord(value, 'Sync Session issue input');
+  const { bootstrapMode, ...supplied } = plainRecord(value, 'Sync Session issue input');
+  if (bootstrapMode !== undefined && (typeof bootstrapMode !== 'string'
+      || !['download', 'upload', 'merge', 'mirror'].includes(bootstrapMode))) {
+    throw new TypeError('Sync bootstrap mode is invalid');
+  }
   const candidate = Object.hasOwn(supplied, 'protocolVersion')
     ? supplied : { ...supplied, protocolVersion: '0.1' };
   exactKeys(candidate, ISSUE_KEYS, 'Sync Session issue input');
@@ -301,6 +307,7 @@ export function validateSyncSessionIssueInput(value: unknown): Readonly<SyncSess
     throw new TypeError('Sync Session protocol version is invalid');
   }
   return Object.freeze({
+    ...(bootstrapMode === undefined ? {} : { bootstrapMode: bootstrapMode as SyncSessionIssueInput['bootstrapMode'] }),
     credential: verified,
     idempotencyKey: nonEmpty(candidate.idempotencyKey, 'Idempotency key'),
     requestFingerprint: nonEmpty(candidate.requestFingerprint, 'Request fingerprint'),

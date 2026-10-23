@@ -158,6 +158,12 @@ export async function issueInTransaction(
     const binding = await transaction.selectFrom('sync_session_bindings').selectAll()
       .where('session_id', '=', receipt.session_id).executeTakeFirst();
     if (!sessionRow || !binding) throw new SyncSessionIssueError('integrity_failure');
+    // Legacy receipts already bind the original HTTP request fingerprint, but
+    // predate mode persistence. Preserve their exact replay and merge behavior.
+    if (sessionRow.binding_json.bootstrapMode !== undefined
+        && sessionRow.binding_json.bootstrapMode !== (input.bootstrapMode ?? 'merge')) {
+      throw new SyncSessionIssueError('idempotency_key_reuse');
+    }
     const authorityStillBound = sessionRow.account_id === authority.accountId
       && sessionRow.principal_subject_id === authority.subjectId
       && sessionRow.credential_issuer === input.credential.issuer
@@ -202,6 +208,12 @@ export async function issueInTransaction(
     });
   }
 
+  if (input.bootstrapMode === 'upload' && authority.replica.checkpoint_cursor === null) {
+    const existing = await transaction.selectFrom('nodes').select('id')
+      .where('collection_id', '=', input.collectionId).where('is_root', '=', false)
+      .where('deleted_at', 'is', null).limit(1).executeTakeFirst();
+    if (existing) throw new SyncSessionIssueError('bootstrap_mode_invalid');
+  }
   const renewed = await prepareReplicaForSession(transaction, authority, input, options);
   const sessionAuthorityFacts = classifySyncSessionAuthorityFacts({
     replicaState: renewed.status,
@@ -224,6 +236,7 @@ export async function issueInTransaction(
   const endpointCapability = nonEmpty(options.ids.endpointCapability(), 'Generated endpoint capability', 512);
   const expiresAt = new Date(authority.now.getTime() + options.sessionDurationSeconds * 1_000);
   const sessionAuthority: SessionAuthority = {
+    ...(input.bootstrapMode === undefined ? {} : { bootstrapMode: input.bootstrapMode }),
     accountId: authority.accountId,
     principalSubjectId: authority.subjectId,
     credential: input.credential,
