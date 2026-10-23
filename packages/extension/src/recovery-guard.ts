@@ -7,9 +7,10 @@ import { isSpecialMountRole } from './pull-mount-apply.js';
 import { virtualNativeId } from './projection-native-occupancy.js';
 import { pendingLocalDeletionIds } from './recovery-local-deletes.js';
 import {
-  hasProjectableVirtualChildren, projectVirtualSnapshotChildren, recoverSnapshotProjection,
+  hasProjectableVirtualChildren, PROJECTABLE_NATIVE_PREFIX, projectVirtualSnapshotChildren, recoverSnapshotProjection,
 } from './recovery-projection-executor.js';
 import type { MappingInput, MountBindingRecord, SyncScope, createSyncStateStore } from './sync-state-store.js';
+import type { MappingReadContext } from './sync-state/mapping-repository.js';
 
 type Store = Parameters<typeof recoverSnapshotProjection>[0]['store']
   & Pick<ReturnType<typeof createSyncStateStore>, 'registerScope' | 'getEngineState' | 'transitionEngine'
@@ -80,10 +81,14 @@ export async function recoverVerifiedOrFreeze(input: {
   });
 }
 
-export async function leftoverVirtualChildrenNeedReproject(store: Pick<Store, 'listMappings' | 'listMountBindings'>,
-  scope: SyncScope, live?: readonly MappingInput[]): Promise<boolean> {
-  const [rows, mounts] = live
-    ? [live, await store.listMountBindings(scope)] as const
+export async function leftoverVirtualChildrenNeedReproject(store: Pick<Store, 'listMappings' | 'listMountBindings'>
+  & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'hasMappingNativePrefix'>>,
+  scope: SyncScope, live?: readonly MappingInput[] | MappingReadContext): Promise<boolean> {
+  // Only a `recovery:` mapping can plan a create. An idle wake has none and skips the whole-library read.
+  if (store.hasMappingNativePrefix && !await store.hasMappingNativePrefix(scope, PROJECTABLE_NATIVE_PREFIX)) return false;
+  const preloaded = live && 'read' in live ? await live.read() : live;
+  const [rows, mounts] = preloaded
+    ? [preloaded, await store.listMountBindings(scope)] as const
     : await Promise.all([store.listMappings(scope), store.listMountBindings(scope)]);
   // A remote-only subtree has no Chrome parent. It is durable sidecar state,
   // not pending native work. Account for mounts bound after Snapshot cutover.

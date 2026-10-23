@@ -1,5 +1,6 @@
 import type { EngineOptions } from './durable-sync-engine-types.js';
 import { leftoverVirtualChildrenNeedReproject, unprotectedProjectionIntents } from './recovery-guard.js';
+import { PROJECTABLE_NATIVE_PREFIX } from './recovery-projection-executor.js';
 import type { MappingReadContext } from './sync-state/mapping-repository.js';
 import type { MappingInput } from './sync-state-store.js';
 
@@ -11,6 +12,11 @@ export async function resumeLocalProjection(options: Pick<EngineOptions, 'store'
   const now = options.now ?? Date.now;
   const initial = await store.getEngineState(scope);
   if (!initial || initial.recoveryFrozen && initial.localProjectionOwner === undefined) return;
+  // Work needs a `recovery:` mapping or a live projection intent. Most wakes have neither,
+  // so they skip the whole-library mapping read and the issue scans below.
+  if (initial.localProjectionOwner === undefined && store.hasMappingNativePrefix
+      && !await store.hasMappingNativePrefix(scope, PROJECTABLE_NATIVE_PREFIX)
+      && !(await store.listProjectionIntents(scope)).some(intent => intent.state !== 'terminal')) return;
   const readMappings = async () => mappingReads?.read() ?? store.listMappings(scope);
   let mappings = await readMappings();
   const pending = (rows: readonly MappingInput[]) => unprotectedProjectionIntents(store, scope, rows);

@@ -602,7 +602,14 @@
     {
       "id": "performance-08",
       "title": "avoid whole-library work on idle sync passes",
-      "status": "pending"
+      "status": "resolved",
+      "resolution": "The durable engine's leftover-projection checks run up to four times per wake. They now start from an index count of `recovery:` mappings plus the live projection intents, the only facts that can plan local projection. A quiet wake no longer reads, clones and orders every mapping or adds its own issue scans. The worker pass skips the whole-tree tag, note, pin and folder-description reconcile on an alarm when the acknowledged cursor has not moved since the last clean reconcile. Manual, start-up and reconnect passes still reconcile, as do passes that lifted a recovery freeze or saw a new cursor, and remote-only notes refresh at least every five minutes. The server-advised Pull cadence is unchanged.",
+      "validation": [
+        "An idle alarm wake over 5,000 mappings drops from 201 ms to 16 ms in the real engine and store under fake-indexeddb: 2 to 0 whole-library mapping reads, 11 to 4 issue snapshots",
+        "New idle-sync-pass-reads regressions fail with the index probes disabled; a leftover recovery mapping still takes the full projection path",
+        "New sw-metadata-quiet-pass regressions drive the real worker pass: quiet alarms skip after one clean reconcile; manual passes, new cursors, staged or failed reconciles and lifted freezes still reconcile. Two of the three fail without the gate",
+        "53 related engine, projection, recovery, metadata and worker suites pass (458 tests); extension TypeScript, targeted ESLint, source-size gate and development build pass"
+      ]
     },
     {
       "id": "performance-09",

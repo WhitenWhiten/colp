@@ -541,9 +541,11 @@ function skipVirtualChromeCreate(mapping: MappingInput): boolean {
   return isSpecialMountRole(role) || role === 'custom' || role === 'root' || role === 'managed-bookmarks';
 }
 
+/** Unmounted/sidecar identities are intentional remote-only state, not an interrupted create. */
+export const PROJECTABLE_NATIVE_PREFIX = 'recovery:';
+
 function projectableVirtualNative(nativeId: string): boolean {
-  // Unmounted/sidecar identities are intentional remote-only state, not an interrupted create.
-  return nativeId.startsWith('recovery:');
+  return nativeId.startsWith(PROJECTABLE_NATIVE_PREFIX);
 }
 
 function inheritBoundNativeParents(mappings: readonly MappingInput[]): MappingInput[] {

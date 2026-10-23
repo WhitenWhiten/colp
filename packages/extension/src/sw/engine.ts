@@ -38,6 +38,7 @@ import { currentSyncScope, currentSyncStatusAuthority, loadConfig, pushSessionAu
 import { createSyncAlarmScheduler } from '../sync-alarm.js';
 import { hasFreshPushQueueHead } from '../push-work-budget.js';
 import { reportReplicaHealth } from './replica-health.js';
+import { metadataPassDue, recordMetadataPass } from './metadata-pass.js';
 
 let syncAlarmScheduler: ReturnType<typeof createSyncAlarmScheduler> | undefined;
 
@@ -337,7 +338,14 @@ export async function runSyncEngine(reason: 'startup' | 'alarm' | 'online' | 'ma
       }
       if (await resumeRunningBootstrap(scope)) scheduleSyncEngineWake('manual');
       await drainFaviconSidecarsForCurrentScope();
-      const descriptions=await syncBrowserMetadata(scope,context,!result.lastError).catch(()=>({staged:0,needsSnapshot:false}));
+      // A quiet alarm pass skips the whole-tree metadata reconcile; a lifted freeze may have dropped captures.
+      const metadataCursor = engineState?.lastAckedCursor;
+      const metadata = frozenBeforeWake || await metadataPassDue(scope, reason, metadataCursor)
+        ? await syncBrowserMetadata(scope, context, !result.lastError).catch(() => undefined) : undefined;
+      if (metadata && metadataCursor && !result.lastError && metadata.staged === 0 && !metadata.needsSnapshot) {
+        await recordMetadataPass(scope, metadataCursor);
+      }
+      const descriptions=metadata??{staged:0,needsSnapshot:false};
       if(!result.lastError)await refreshLocalClassificationProjection(scope,context,async classificationProjection=>{
         const authority=await sessions.get();return loadCompleteRemoteSnapshot({endpoint:(await endpoints()).syncSnapshot,credential:authority.credential,
           session:authority.session,scope,origin:extensionOrigin(),fetcher:effects.fetch,

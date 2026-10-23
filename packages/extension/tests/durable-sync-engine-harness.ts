@@ -44,6 +44,8 @@ export async function setup(overrides: {
   serverAckCursor?: string | null;
   fetch?: typeof globalThis.fetch;
   compactScope?: ReturnType<typeof createSyncStateStore>['compactScope'];
+  /** Wraps the store the engine sees, e.g. to count whole-library reads. */
+  instrumentStore?: (store: ReturnType<typeof createSyncStateStore>) => ReturnType<typeof createSyncStateStore>;
 } = {}) {
   // There is deliberately no unnamed way back to the synthetic projector: an opt-out has to say
   // which non-production path it means.
@@ -51,7 +53,8 @@ export async function setup(overrides: {
     throw new Error('use_stand_in_projector');
   }
   const indexedDB = new IDBFactory(); const baseStore = createSyncStateStore({ indexedDB });
-  const store = overrides.compactScope ? { ...baseStore, compactScope: overrides.compactScope } : baseStore;
+  const compacting = overrides.compactScope ? { ...baseStore, compactScope: overrides.compactScope } : baseStore;
+  const store = overrides.instrumentStore?.(compacting) ?? compacting;
   await store.registerScope({ ...scope, lifecycle: 'active', lease: { leaseId: 'lease-1', expiresAt: 99_999 },
     checkpoint: { serverRevision: 'revision-0', cursor: 'cursor-0' },
     selectedRoots: overrides.emptyCollection ? [] : ['root-old'],

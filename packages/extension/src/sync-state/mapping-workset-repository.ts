@@ -37,5 +37,14 @@ export function createMappingWorksetRepository(ctx: SyncStoreRuntime,
     }
     await completion; return [...found.values()];
   }
-  return { hasMappingSibling, listMappingSubtree };
+
+  /** One index count instead of a whole-library read when the caller only asks whether such a mapping exists. */
+  async function hasMappingNativePrefix(input: SyncScope, prefix: string): Promise<boolean> {
+    const key = scopeKey(validateScope(input)); boundedString(prefix, 'prefix');
+    const db = await ctx.open(); const tx = db.transaction(STORES.mappings, 'readonly'); const completion = transactionDone(tx);
+    const count = await requestValue<number>(tx.objectStore(STORES.mappings).index(INDEXES.mappingByNativeId)
+      .count(IDBKeyRange.bound([key, prefix], [key, `${prefix}\uffff`])));
+    await completion; return count > 0;
+  }
+  return { hasMappingSibling, listMappingSubtree, hasMappingNativePrefix };
 }

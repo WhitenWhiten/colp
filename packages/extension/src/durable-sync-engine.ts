@@ -119,7 +119,7 @@ export function createDurableSyncEngine(options: EngineOptions) {
         current = claim.state; connectivityRestored = true;
       }
       const leftover = !current.recoveryFrozen && await leftoverVirtualChildrenNeedReproject(
-        options.store, options.scope, activeMappingReads ? await activeMappingReads.read() : undefined);
+        options.store, options.scope, activeMappingReads);
       const outstanding = await firstOutstanding();
       const explicitWake = reason === 'manual' || reason === 'startup' || confirmedOnline;
       const replicaReady = Boolean((await options.store.getCursor(options.scope))?.cursor
