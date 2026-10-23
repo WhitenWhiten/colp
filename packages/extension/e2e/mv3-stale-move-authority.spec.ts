@@ -6,8 +6,10 @@ import { KNS08_BINDINGS, confirmPreview, grantBookmarks, launchPersistent, liveC
   optionsPage, previewFirstRun, specialRoots, startRealStack, wakeEngine,
   waitFirstRunProductQuiet } from './kns-08-harness.js';
 
-async function staleMove(page: Page, nativeId: string, accelerate = false) {
-  return page.evaluate(async ({ nativeId, accelerate }) => {
+// Marks the bookmark's mapping with an obsolete Snapshot revision unless
+// `readOnly`, and returns the live (non-terminal) move row for it, if any.
+async function staleMove(page: Page, nativeId: string, readOnly = false) {
+  return page.evaluate(async ({ nativeId, readOnly }) => {
     const read = (request: IDBRequest<any>) => new Promise<any>((resolve, reject) => {
       request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
     });
@@ -19,20 +21,19 @@ async function staleMove(page: Page, nativeId: string, accelerate = false) {
       });
       const mappings = tx.objectStore('native_mappings'); const queue = tx.objectStore('outbound_queue');
       const mapping = (await read(mappings.getAll())).find((row: any) => row.nativeId === nativeId);
-      if (!accelerate) mappings.put({ ...mapping, projection: { ...mapping.projection,
+      if (!readOnly) mappings.put({ ...mapping, projection: { ...mapping.projection,
         revision: 'obsolete-snapshot-revision', resourceRevision: 'obsolete-snapshot-revision' } });
       const row = (await read(queue.getAll())).find((row: any) => row.payload?.type === 'move_node'
         && row.payload?.targetId === mapping.colpId && row.status !== 'terminal');
-      if (accelerate && row?.recovery?.code === 'revision_conflict' && !row.attempt) {
-        queue.put({ ...row, retry: { attempt: 220, notBefore: 0 } });
-      }
       await done;
-      return row ? { opId: row.opId, sequence: row.sequence, code: row.recovery?.code, bound: !!row.attempt } : null;
+      return row ? { opId: row.opId, sequence: row.sequence, code: row.recovery?.code } : null;
     } finally { db.close(); }
-  }, { nativeId, accelerate });
+  }, { nativeId, readOnly });
 }
 
-test('an old Snapshot move with 220 revision denials recovers through real Snapshot and Push', async () => {
+// A move owns placement only: the server rebases it on locked current state
+// instead of denying the obsolete base revision (protocol/docs/03-sync.md).
+test('an old Snapshot move is rebased onto the current server placement through real Push', async () => {
   test.setTimeout(180_000);
   const stack = await startRealStack(); const profile = await mkdtemp(resolve(tmpdir(), 'known-stale-move-'));
   let context: BrowserContext | undefined;
@@ -52,20 +53,21 @@ test('an old Snapshot move with 220 revision denials recovers through real Snaps
     await staleMove(page, ids.bookmark);
     await page.evaluate(async ids => { await chrome.bookmarks.move(ids.bookmark, { parentId: ids.folder }); }, ids);
     await expect.poll(async () => Boolean(await staleMove(page, ids.bookmark)), { timeout: 15_000 }).toBe(true);
+    const head = (await staleMove(page, ids.bookmark, true))!;
+    expect(head.opId).toBeTruthy(); expect(head.sequence).toBeGreaterThan(0);
     stack.setSyncOffline(false);
     await page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.connectivity.online' }));
-    let head: Awaited<ReturnType<typeof staleMove>>;
-    await expect.poll(async () => {
-      head = await staleMove(page, ids.bookmark, true);
-      return head?.code === 'revision_conflict' && !head.bound;
-    }, { timeout: 30_000 }).toBe(true);
     await wakeEngine(page);
     await waitFirstRunProductQuiet(page, stack, KNS08_BINDINGS[0], 60_000);
+    expect(await staleMove(page, ids.bookmark, true)).toBeNull();
+    const receipts = (await stack.observations(KNS08_BINDINGS[0].replicaId)).sequenceReceipts as
+      Array<{ op_id: string; result_json: { results?: Array<{ opId: string; status: string }> } }>;
+    const receipt = receipts.find(row => row.op_id === head.opId)?.result_json;
+    expect(receipt?.results?.find(row => row.opId === head.opId)?.status).toBe('rebased');
     const nodes = await liveCanonical(stack);
     const moved = nodes.find(node => node.url === 'https://example.test/move')!;
     const folder = nodes.find(node => node.title === 'Destination')!;
     expect(moved.parent_id).toBe(folder.id); expect(nodes.length).toBe(count);
-    expect(head!.opId).toBeTruthy(); expect(head!.sequence).toBeGreaterThan(0);
     const native = await page.evaluate(async id => (await chrome.bookmarks.get(id))[0], ids.bookmark);
     expect(native?.parentId).toBe(ids.folder);
   } finally { await context?.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }

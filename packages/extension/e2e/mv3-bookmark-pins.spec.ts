@@ -117,7 +117,8 @@ test('the popup saves a pinned bookmark at the end of the pinned section', async
     await tab.goto('https://pinned.example.test/', { waitUntil: 'domcontentloaded' });
     const popup = await openPopupOver(context, tab);
     await popup.setViewportSize({ width: 380, height: 600 });
-    await popup.locator('#dest-toggle').click();
+    // With no remembered folder the popup opens its own picker; a toggle click would race it closed.
+    await expect(popup.locator('#dest-toggle')).toHaveAttribute('aria-expanded', 'true');
     await popup.locator('#folder-tree').getByRole('option', { name: /^Pins/ }).click();
     const toggle = popup.locator('#folder-pin');
     await expect(toggle).toBeVisible();
@@ -137,7 +138,7 @@ test('the popup saves a pinned bookmark at the end of the pinned section', async
     await tab.goto('https://another.example.test/', { waitUntil: 'domcontentloaded' });
     const second = await openPopupOver(context, tab);
     await second.setViewportSize({ width: 380, height: 600 });
-    await second.locator('#dest-toggle').click();
+    await expect(second.locator('#dest-toggle')).toHaveAttribute('aria-expanded', 'true');
     await second.locator('#folder-tree').getByRole('option', { name: /^Pins/ }).first().click();
     await expect(second.locator('#folder-pin')).toHaveAttribute('aria-disabled', 'true');
     await second.locator('#folder-pin').click({ force: true });
