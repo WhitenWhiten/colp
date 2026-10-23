@@ -75,24 +75,27 @@ test('retention repository returns stable validation errors before issuing SQL',
 
 test('Outbox owns a readable composed database-schema slice with compatible public types',
   async () => {
-    const [runtime, tables, databaseIndex] = await Promise.all([
+    const [runtime, schema, tables, databaseIndex] = await Promise.all([
       readFile(new URL('../../../src/infrastructure/database/runtime.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../src/infrastructure/database/database-schema.ts', import.meta.url),
+        'utf8'),
       readFile(new URL('../../../src/infrastructure/database/outbox-tables.ts', import.meta.url),
         'utf8'),
       readFile(new URL('../../../src/infrastructure/database/index.ts', import.meta.url), 'utf8'),
     ]);
-    const schemaExtends = runtime.match(/interface\s+DatabaseSchema\s+extends\s+([^{]+)/u);
+    const schemaExtends = schema.match(/interface\s+DatabaseSchema\s+extends\s+([^{]+)/u);
     assert.ok(schemaExtends?.[1], 'DatabaseSchema must declare an extends list');
     const extended = schemaExtends[1].split(',').map((name) => name.trim()).filter((name) => name.length > 0);
     assert.ok(
       extended.includes('OutboxDatabaseSchema'),
       `DatabaseSchema extends list must include OutboxDatabaseSchema, got ${extended.join(', ')}`,
     );
-    assert.doesNotMatch(runtime, /outbox_events:[^\n]+outbox_dispatch_claims/iu);
+    assert.doesNotMatch(schema, /outbox_events:[^\n]+outbox_dispatch_claims/iu);
     for (const tableType of ['OutboxEventTable', 'OutboxDispatchClaimTable',
       'OutboxRetentionFloorTable', 'OutboxDatabaseSchema']) {
       assert.ok(tables.includes(`interface ${tableType}`), tableType);
     }
-    assert.match(runtime, /export type \{ OutboxEventTable \} from '.\/outbox-tables\.js'/u);
+    assert.match(schema, /export type \{ OutboxEventTable \} from '.\/outbox-tables\.js'/u);
+    assert.match(runtime, /export type \* from '.\/database-schema\.js'/u);
     assert.match(databaseIndex, /OutboxDatabaseSchema,[\s\S]*from '.\/outbox-tables\.js'/u);
   });

@@ -645,7 +645,7 @@
       "validation": [
         "check:source-size reports 1,055 files checked with 49 shrinking-only exceptions",
         "The new static contract passes: a 601-line new file and a capped file that grows fail, the npm and CI wiring is present, and the live tree passes",
-        "Server TypeScript, targeted ESLint and the unit CI-contract suites pass. The full static project has 2 failures that predate this change: outbox-retention-floors-migration-static and sync-conflict-migration-static still read the DatabaseSchema declaration that 386bee6f moved out of runtime.ts"
+        "Server TypeScript, targeted ESLint and the unit CI-contract suites pass. The full static project has 2 failures that predate this change: outbox-retention-floors-migration-static and sync-conflict-migration-static still read the DatabaseSchema declaration that 386bee6f moved out of runtime.ts. Fixed afterwards: both now read database-schema.ts, and the outbox case also requires runtime.ts to re-export it"
       ],
       "commit": "abb9cfc3"
     },
@@ -999,7 +999,8 @@
         "Journal clock analysis (realtime minus monotonic per entry): 372 backward steps over 50 ms between 01:32 and 04:50 PDT, all but one over 1 s, largest 6.5 s; since 09:00 the steps are under 0.5 s, which is why reruns pass",
         "A temporary 60-iteration loop of the ceiling case under five busy CPU cores passed while the clock was quiet; the harness was deleted",
         "product-command-receipt PostgreSQL suite passes twice after the change (26 tests each); targeted ESLint passes"
-      ]
+      ],
+      "commit": "9f533c12"
     },
     {
       "id": "sync-15",

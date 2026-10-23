@@ -6,7 +6,7 @@ const migrationUrl = new URL('../../../migrations/202607252000_sync_conflicts.ts
 const portUrl = new URL('../../../src/infrastructure/sync/sync-conflict-postgres.ts', import.meta.url);
 const pushUrl = new URL('../../../src/infrastructure/sync/sync-push-postgres.ts', import.meta.url);
 const pushCreateUrl = new URL('../../../src/infrastructure/sync/postgres/sync-push-create-update-postgres.ts', import.meta.url);
-const runtimeUrl = new URL('../../../src/infrastructure/database/runtime.ts', import.meta.url);
+const schemaUrl = new URL('../../../src/infrastructure/database/database-schema.ts', import.meta.url);
 const workerUrl = new URL('../../../src/bootstrap/worker.ts', import.meta.url);
 
 test('P3-17 migration creates Collection-private immutable open Conflict authority', async () => {
@@ -32,9 +32,9 @@ test('P3-17 migration creates Collection-private immutable open Conflict authori
 });
 
 test('P3-17 PostgreSQL port owns bounded redacted projections, deployment crypto, and worker-safe side effects', async () => {
-  const [port, pushFacade, pushCreate, runtime, worker] = await Promise.all([
+  const [port, pushFacade, pushCreate, schema, worker] = await Promise.all([
     readFile(portUrl, 'utf8'), readFile(pushUrl, 'utf8'), readFile(pushCreateUrl, 'utf8'),
-    readFile(runtimeUrl, 'utf8'), readFile(workerUrl, 'utf8'),
+    readFile(schemaUrl, 'utf8'), readFile(workerUrl, 'utf8'),
   ]);
   const push = `${pushFacade}\n${pushCreate}`;
   for (const required of [
@@ -52,7 +52,7 @@ test('P3-17 PostgreSQL port owns bounded redacted projections, deployment crypto
   assert.match(push, /status:\s*'conflicted'/u);
   assert.match(push, /appendOpenSyncConflict/u);
   assert.match(push, /conflictBoundary:\s*'persisted_open'/u);
-  assert.match(runtime, /sync_conflicts:\s*SyncConflictTable/u);
+  assert.match(schema, /sync_conflicts:\s*SyncConflictTable/u);
   assert.match(worker, /createSyncConflictOutboxRoute/u);
   assert.match(worker, /syncConflictEnvelopeRegistration/u);
 });
