@@ -62,6 +62,8 @@ export interface PostgresSyncSequenceFaultInjector {
 export interface PostgresSyncSequencePortOptions {
   readonly faultInjector?: PostgresSyncSequenceFaultInjector;
   readonly auditPayloadColdSource?: AuditPayloadColdSource;
+  /** A batch owns commit/rollback; every sequence operation uses this exact connection. */
+  readonly transaction?: DatabaseTransaction;
 }
 
 export interface StoredSyncSequenceReceipt<Result> {
@@ -428,6 +430,9 @@ export function createPostgresSyncSequencePort(
   db: Kysely<DatabaseSchema>,
   options: PostgresSyncSequencePortOptions = {},
 ): PostgresSyncSequencePort {
+  if (options.transaction !== undefined && (!db.isTransaction || options.transaction !== db)) {
+    throw new TypeError('Shared Sync Sequence transaction must be the supplied database');
+  }
   const coordinate = <Result>(rawInput: SyncSequenceAdmissionInput, evaluate: (
       context: SequenceEvaluationContext<Result>,
       transaction: PostgresSyncSequenceTransaction<Result>,
@@ -450,16 +455,7 @@ export function createPostgresSyncSequencePort(
         async execute<Value>(lane: SequenceLaneKey, work: (
           transaction: PostgresSyncSequenceTransaction<Result>,
         ) => Promise<Value>): Promise<Value> {
-          return createUnitOfWork(db, {
-            faultInjector: {
-              async afterCallbackBeforeCommit() {
-                await options.faultInjector?.afterPhase?.('before_commit');
-              },
-              async afterCommitAcknowledged() {
-                await options.faultInjector?.afterPhase?.('after_commit');
-              },
-            },
-          }).execute(async ({ transaction }) => {
+          const executeLocked = async ({ transaction }: { transaction: DatabaseTransaction }): Promise<Value> => {
             const locked = await lockAuthority(transaction, input);
             const { authority } = locked;
             if (lane.replicaId !== input.replicaId
@@ -483,7 +479,18 @@ export function createPostgresSyncSequencePort(
             await options.faultInjector?.afterPhase?.('locked');
             await assertAuthorityUnexpired(transaction, locked);
             return work(createTransactionAdapter<Result>(transaction, input, authority, options));
-          });
+          };
+          if (options.transaction) return executeLocked({ transaction: options.transaction });
+          return createUnitOfWork(db, {
+            faultInjector: {
+              async afterCallbackBeforeCommit() {
+                await options.faultInjector?.afterPhase?.('before_commit');
+              },
+              async afterCommitAcknowledged() {
+                await options.faultInjector?.afterPhase?.('after_commit');
+              },
+            },
+          }).execute(executeLocked);
         },
       };
       const host = createSyncHost({ owner: 'sequence', session: input.session,

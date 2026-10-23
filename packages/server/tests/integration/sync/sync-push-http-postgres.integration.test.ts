@@ -302,6 +302,72 @@ describeWithPostgres('P3-11 real HTTP/PostgreSQL single-operation Push admission
     assert.equal(changed.status, 409); assert.equal(problem(changed.body).code, 'idempotency_key_reused');
   });
 
+  test('one HTTP batch shares one PostgreSQL transaction across its durable receipts', async () => {
+    const value = await context(900, 50); const server = await start(value, { maxBatchOperations: 50 });
+    await isolated.runtime.pool.query('create table test_batch_transaction_evidence (top_xid bigint not null)');
+    await isolated.runtime.pool.query(`create function test_record_batch_transaction() returns trigger language plpgsql as $$
+      begin insert into test_batch_transaction_evidence values (txid_current()); return new; end $$`);
+    await isolated.runtime.pool.query(`create trigger test_batch_transaction_capture before insert on sync_sequence_receipts
+      for each row execute function test_record_batch_transaction()`);
+    try {
+      const request = createBatch(value, 3);
+      const response = await client(server.origin).push({ idempotencyKey: 'shared-batch-transaction', request });
+      assert.equal(response.status, 200);
+      assert.ok('results' in response.body); assert.equal(response.body.results.length, 3);
+      const evidence = await isolated.runtime.pool.query('select count(*)::int receipts, count(distinct top_xid)::int transactions from test_batch_transaction_evidence');
+      assert.deepEqual(evidence.rows, [{ receipts: 3, transactions: 1 }]);
+    } finally {
+      await isolated.runtime.pool.query('drop trigger test_batch_transaction_capture on sync_sequence_receipts');
+      await isolated.runtime.pool.query('drop function test_record_batch_transaction()');
+      await isolated.runtime.pool.query('drop table test_batch_transaction_evidence');
+    }
+  });
+
+  test('a failed later receipt rolls back its node and claim while the successful batch prefix commits', async () => {
+    const value = await context(900, 50); let finalized = 0;
+    const application = createPostgresSyncPushApplication(isolated.runtime.db, value.issuer, {
+      faultInjector: { afterPhase(phase) {
+        if (phase === 'before_receipt_finalize' && ++finalized === 2) throw new Error('later member receipt fault');
+      } },
+    });
+    const server = await start(value, { maxBatchOperations: 50, application });
+    const before = await isolated.runtime.pool.query('select count(*)::int count from nodes where collection_id=$1', [COLLECTION]);
+    const request = createBatch(value, 3);
+    const response = await client(server.origin).push({ idempotencyKey: 'batch-savepoint-rollback', request });
+    assert.equal(response.status, 200); assert.ok('results' in response.body);
+    assert.deepEqual(response.body.results.map(row => row.opId), [request.operations[0]!.opId]);
+    const after = await isolated.runtime.pool.query('select count(*)::int count from nodes where collection_id=$1', [COLLECTION]);
+    assert.equal(after.rows[0].count - before.rows[0].count, 1);
+    const claims = await isolated.runtime.pool.query(`select operation_id from sync_sequence_operation_claims
+      where operation_id=any($1::text[])`, [request.operations.map(op => op.opId)]);
+    assert.deepEqual(claims.rows.map(row => row.operation_id), [request.operations[0]!.opId]);
+    const retry = await client(server.origin).push({ idempotencyKey: 'batch-savepoint-rollback', request });
+    assert.equal(retry.status, 200); assert.ok('results' in retry.body); assert.equal(retry.body.results.length, 3);
+    assert.deepEqual(retry.body.results[0], response.body.results[0]);
+  });
+
+  test('a lost batch commit acknowledgement retains all receipts and replays without duplicate writes', async () => {
+    const value = await context(900, 50); let acknowledged = 0;
+    const application = createPostgresSyncPushApplication(isolated.runtime.db, value.issuer, {
+      faultInjector: { afterPhase(phase) {
+        if (phase === 'sequence_after_commit' && ++acknowledged === 1) throw new Error('lost batch commit acknowledgement');
+      } },
+    });
+    const server = await start(value, { maxBatchOperations: 50, application });
+    const request = createBatch(value, 3);
+    const lost = await client(server.origin).push({ idempotencyKey: 'batch-commit-unknown', request });
+    assert.ok(lost.status >= 500);
+    const committed = await isolated.runtime.pool.query('select count(*)::int count from sync_sequence_receipts where replica_id=$1', [value.replica.replicaId]);
+    assert.equal(committed.rows[0].count, 3);
+    const replay = await client(server.origin).push({ idempotencyKey: 'batch-commit-unknown', request });
+    assert.equal(replay.status, 200); assert.ok('results' in replay.body); assert.equal(replay.body.results.length, 3);
+    const again = await client(server.origin).push({ idempotencyKey: 'batch-commit-unknown', request });
+    assert.deepEqual(again.body, replay.body);
+    const nodes = await isolated.runtime.pool.query('select count(*)::int count from nodes where id=any($1::text[])',
+      [replay.body.results.map(row => row.targetId)]);
+    assert.equal(nodes.rows[0].count, 3);
+  });
+
   test('a batch failure returns its committed prefix and only the uncommitted suffix needs retry', async () => {
     const value = await context(900, 50); const server = await start(value, { maxBatchOperations: 50 });
     const request = createBatch(value, 3);

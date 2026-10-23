@@ -8,6 +8,7 @@ import { collectionSequenceScopeKey } from '@know-n/colp/sync';
 import type { SyncPushResult } from '@know-n/colp/types';
 import type { DatabaseSchema } from '../database/runtime.js';
 import { DatabaseOperationError } from '../database/errors.js';
+import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import {
   evaluateUnsupportedSyncOperation,
   SyncPushHttpError,
@@ -23,6 +24,7 @@ import {
 import {
   createPostgresSyncSequencePort,
   SyncSequencePersistenceError,
+  type PostgresSyncSequencePortOptions,
 } from './sync-sequence-postgres.js';
 import {
   mapSequenceError,
@@ -60,7 +62,7 @@ export function createPostgresSyncPushApplication(
   sessionIssuer: PostgresSyncSessionIssuer,
   options: PostgresSyncNodeCreateOptions = {},
 ): SyncPushHttpApplication {
-  const sequence = createPostgresSyncSequencePort(db, {
+  const sequenceOptions: PostgresSyncSequencePortOptions = {
     ...(options.auditPayloadColdSource === undefined
       ? {} : { auditPayloadColdSource: options.auditPayloadColdSource }),
     faultInjector: {
@@ -74,7 +76,8 @@ export function createPostgresSyncPushApplication(
         }
       },
     },
-  });
+  };
+  const sequence = createPostgresSyncSequencePort(db, sequenceOptions);
   return Object.freeze({
     runtimeOwnership: Object.freeze({
       operationIdReservationOwner: 'sequence' as const,
@@ -86,13 +89,20 @@ export function createPostgresSyncPushApplication(
     }),
     admit: (input: SyncPushHttpApplicationInput) => {
       options.metrics?.observe('sync.push.batch_operations', input.request.operations.length);
-      return admitPushBatch(db, sessionIssuer, input, admitSingle);
+      return admitPushBatch(db, sessionIssuer, input, admitSingle, {
+        beforeCommit: () => options.faultInjector?.afterPhase?.('sequence_before_commit'),
+        afterCommit: () => options.faultInjector?.afterPhase?.('sequence_after_commit'),
+      });
     },
   });
 
-  async function admitSingle(input: SyncPushHttpApplicationInput, session: VerifiedSyncSession): Promise<SyncPushResult> {
+  async function admitSingle(input: SyncPushHttpApplicationInput, session: VerifiedSyncSession,
+    transaction?: DatabaseTransaction): Promise<SyncPushResult> {
+    const database = transaction ?? db;
+    const sequenceOwner = transaction
+      ? createPostgresSyncSequencePort(transaction, { ...sequenceOptions, transaction }) : sequence;
     const operation = singleOperation(input);
-    const persisted = await db.selectFrom('sync_sessions').select('secret_digest')
+    const persisted = await database.selectFrom('sync_sessions').select('secret_digest')
       .where('session_id', '=', session.sessionId).executeTakeFirst();
     if (!persisted) throw new SyncPushHttpError('resource_not_found');
     const serverBatchId = `${session.sessionId}.${createHmac('sha256', persisted.secret_digest)
@@ -108,10 +118,10 @@ export function createPostgresSyncPushApplication(
       replicaWrite: session.authorizationScopes.includes('sync:push'),
     });
     try {
-      const coordinated = await sequence.coordinateAuthorized<SyncPushResult>({
+      const coordinated = await sequenceOwner.coordinateAuthorized<SyncPushResult>({
         session,
         replicaId: operation.replicaId,
-        leaseGeneration: await sessionLeaseGeneration(db, session.sessionId),
+        leaseGeneration: await sessionLeaseGeneration(database, session.sessionId),
         sequenceScope: collectionSequenceScopeKey(operation.collectionId!),
         sequence: operation.sequence,
         operationId: operation.opId,

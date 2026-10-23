@@ -4,12 +4,14 @@ import { sql, type Kysely } from 'kysely';
 import type { VerifiedSyncSession } from '@know-n/colp/sync';
 import type { SyncPushResult } from '@know-n/colp/types';
 import type { DatabaseSchema } from '../../database/runtime.js';
+import { createUnitOfWork, type DatabaseTransaction } from '../../database/unit-of-work.js';
 import { SyncPushHttpError, type SyncPushHttpApplicationInput } from '../../../modules/sync/index.js';
 import type { PostgresSyncSessionIssuer } from '../sync-session-postgres.js';
 import { coarseConcealment, mapSessionError } from './sync-push-admission-postgres.js';
 
 /**
- * Non-atomic transport batching keeps each Operation's existing transaction.
+ * Non-atomic transport batching commits a bounded prefix in one transaction.
+ * Savepoints isolate a denied member; its predecessors retain their receipts.
  * Batch members use opId as their individual idempotency key, so a lost batch
  * response can be recovered with the original singleton attempts. The outer
  * key is separately bound to the complete ordered array before any mutation.
@@ -17,7 +19,9 @@ import { coarseConcealment, mapSessionError } from './sync-push-admission-postgr
 export async function admitPushBatch(
   db: Kysely<DatabaseSchema>, issuer: PostgresSyncSessionIssuer,
   input: SyncPushHttpApplicationInput,
-  admitSingle: (input: SyncPushHttpApplicationInput, session: VerifiedSyncSession) => Promise<SyncPushResult>,
+  admitSingle: (input: SyncPushHttpApplicationInput, session: VerifiedSyncSession,
+    transaction?: DatabaseTransaction) => Promise<SyncPushResult>,
+  lifecycle: { beforeCommit?(): void | Promise<void>; afterCommit?(): void | Promise<void> } = {},
 ): Promise<SyncPushResult> {
   const operations = input.request.operations;
   const first = operations[0];
@@ -56,23 +60,32 @@ export async function admitPushBatch(
   if (binding.rows.length !== 1) throw new SyncPushHttpError('idempotency_key_reused');
   if (operations.length === 1) return admitSingle(input, session);
 
-  const results: SyncPushResult['results'] = [];
-  let serverCursor = 'sync-unchanged';
-  for (const operation of operations) {
-    try {
-      const result = await admitSingle({ ...input, idempotencyKey: operation.opId,
-        request: { ...input.request, operations: [operation] } }, session);
-      results.push(...result.results);
-      if (result.serverCursor !== 'sync-unchanged') serverCursor = result.serverCursor;
-      if (result.results.some(item => item.status === 'deferred')) break;
-    } catch (error) {
-      // Return only durable receipts. The failed sequence remains unconsumed;
-      // retrying the suffix reveals its Problem without replaying the prefix.
-      if (!(error instanceof SyncPushHttpError) || results.length === 0) throw error;
-      break;
+  return createUnitOfWork(db, { faultInjector: {
+    afterCallbackBeforeCommit: () => lifecycle.beforeCommit?.(),
+    afterCommitAcknowledged: () => lifecycle.afterCommit?.(),
+  } }).execute(async ({ transaction }) => {
+    const results: SyncPushResult['results'] = [];
+    let serverCursor = 'sync-unchanged';
+    for (const operation of operations) {
+      await sql`savepoint sync_push_member`.execute(transaction);
+      try {
+        const result = await admitSingle({ ...input, idempotencyKey: operation.opId,
+          request: { ...input.request, operations: [operation] } }, session, transaction);
+        await sql`release savepoint sync_push_member`.execute(transaction);
+        results.push(...result.results);
+        if (result.serverCursor !== 'sync-unchanged') serverCursor = result.serverCursor;
+        if (result.results.some(item => item.status === 'deferred')) break;
+      } catch (error) {
+        await sql`rollback to savepoint sync_push_member`.execute(transaction);
+        await sql`release savepoint sync_push_member`.execute(transaction);
+        // The outer commit makes this prefix durable before any response.
+        // A denied suffix retains its unconsumed sequence for singleton retry.
+        if (!(error instanceof SyncPushHttpError) || results.length === 0) throw error;
+        break;
+      }
     }
-  }
-  return { batchId: input.request.batchId, results, serverCursor };
+    return { batchId: input.request.batchId, results, serverCursor };
+  });
 }
 
 function canonicalJson(value: unknown): string {

@@ -304,7 +304,16 @@
         "Three detached candidate worktrees have their own compiled artifacts, temporary-profile directory, PostgreSQL owner and Xvfb display; shared dependencies are linked inside ignored real node_modules directories. Candidate commits are local verification snapshots, not commits on main",
         "Core shard 3 has passed at least 23 real scenarios, including first-run loss/restart/revoke cases and cross-range deletion continuity",
         "First rounds of shards 1 and 2 exposed stale preference source=server assertions, obsolete Exclude-checkbox controls, a 5-second installation initialization deadline and an advanced-plan assertion racing Pull Ack settlement; updated fixtures retain strict eventual state/identity/Ack checks",
-        "Rounds 2 select exactly the 22 and 26 failed/unexecuted tests from first-round reports, independently confirmed by Playwright --list. Initial results and traces are saved outside each worktree before reruns clear their output"
+        "Rounds 2 select exactly the 22 and 26 failed/unexecuted tests from first-round reports, independently confirmed by Playwright --list. Initial results and traces are saved outside each worktree before reruns clear their output",
+        "All six core Playwright shards have been collected and exercised in isolated worktrees; current inventory is 166 core scenarios plus 3 production self-hosted cases. Real execution continues through all previously unrun suffixes and corrected obsolete fixtures; no required core case is silently excluded",
+        "Restored coverage produced separately committed fixes for lease-generation IndexedDB transactions, invalid delete-journal failure policy, schema/release drift, automatic favicon clear, subfolder reconnect duplication, Snapshot boundary expansion, ordinary selected-folder echoes and subscription ownership receipt publication",
+        "Full Web restoration completed independently in b8c0cb99. Core extension CI now also builds Web for real cross-application fixtures. Public-contract discovery verifies every retained physical spec",
+        "Private Digest E2E depended on the extracted Know-N report reader: replace it with actual COLP unsupported-capability denial and zero native/remote writes; Digest projection semantics remain in executed unit coverage",
+        "20,000-node/50-mapping capacity rerun passed initial wizard/logout cases and has materialized over 12,000 native entries; completed capacity, recheck and restart identity still pending",
+        "Original 958-bookmark normal/lost-response cases exceeded 240-second convergence while still making forward progress under parallel lanes; retain assertions and revisit with bulk/mapping performance work before marking extension CI complete",
+        "Current 169-case inventory has 164 of 166 core scenarios proved passing by saved real execution logs; only the two 958-bookmark throughput cases remain. All three production self-hosted scenarios were also executed successfully.",
+        "Full 20,000-node/50-mapping capacity case passes (42.9 minutes), retaining all native ids across refresh and worker restart. Independent mapping refresh 251 ms; full recheck 183,605 ms and restart recheck 357,228 ms provide concrete evidence for remaining performance work. Peak fixture RSS 934 MB; full Chromium process-tree peak 1.62 GB.",
+        "14 updated CI/routing/migration assertions, all 24 model assertions plus model TypeScript, and all 34 local-first lifecycle assertions pass. Unsupported Digest behavior and unsettled-upload reset refusal are now covered against the actual shipped contract."
       ],
       "remaining": [
         "Rerun advanced first-run after root selection fix; prior upload evidence reported recovery_capability_invalid and missing local folder; download incorrectly included unselected sentinel",
@@ -384,7 +393,16 @@
     {
       "id": "performance-02",
       "title": "reduce per-operation transaction cost for bulk upload",
-      "status": "pending"
+      "status": "resolved",
+      "validation": [
+        "Reproduced three PostgreSQL top-level transaction ids for a three-operation HTTP batch using an actual receipt-insert trigger",
+        "Non-atomic batches now reuse one transaction and connection across at most 50 sequence operations; each member has a savepoint and its own immutable receipt; denied members roll back fully and the successful prefix commits before returning",
+        "Commit lifecycle hooks fire at the actual shared commit; singleton behavior, atomic-batch rejection, per-operation idempotency and credential/sequence/lock admission remain intact",
+        "Real PostgreSQL trigger proves all three receipts share one top-level transaction; fault after a later node write rolls back that member and its operation claim; lost shared COMMIT acknowledgement replays all durable receipts without duplicate nodes",
+        "35 real-Postgres HTTP/sequence/expiry/merge-reflow assertions and 48 HTTP/sequence/transaction-phase unit assertions pass; server TypeScript, targeted ESLint and import boundaries pass",
+        "Protocol and server documentation explicitly permit bounded shared commits with per-operation rollback boundaries and durable-prefix responses",
+        "The 958-node browser convergence case still exceeds its 240-second budget while making progress without freeze; transaction coalescing is verified independently, and remaining browser-side full-graph work stays tracked under performance-06/performance-08 and tests-03"
+      ]
     },
     {
       "id": "performance-03",
@@ -425,7 +443,8 @@
         "An interrupted running import retains its periodic retry through an exception; successful retry and completion remove it without resetting an existing alarm",
         "22 local-import, backup, view and alarm assertions pass; TypeScript, targeted lint, source-size and development build pass",
         "Real signed-out Chromium under xvfb imports offline, verifies chrome.alarms.get returns no recovery alarm after completion, and preserves the completed import across full browser restart (18.2 seconds)"
-      ]
+      ],
+      "commit": "c8a5b221"
     },
     {
       "id": "performance-10",
@@ -517,7 +536,12 @@
       "id": "code-12",
       "title": "AES-GCM 的 AAD 由三处手工拼装，字段集与取值来源必须逐字一致",
       "file": "packages/server/src/infrastructure/sync/sync-conflict-postgres.ts",
-      "status": "pending"
+      "status": "resolved",
+      "commit": "06a30f08",
+      "validation": [
+        "Already fixed before this remediation: encryption, private-payload reads and rotation share buildSyncConflictAad with one validated fourteen-field schema",
+        "4 focused AAD unit assertions pass; user audit independently confirms the earlier AAD drift is fixed"
+      ]
     },
     {
       "id": "code-13",
@@ -535,7 +559,12 @@
       "id": "code-15",
       "title": "超 600 行上帝文件与超长工厂函数：schema、连接运行时、计划状态机混居",
       "file": "packages/server/src/infrastructure/database/runtime.ts",
-      "status": "pending"
+      "status": "resolved",
+      "commit": "386bee6f",
+      "validation": [
+        "Already refactored before this remediation: database runtime is 166 lines; schema/table contracts and change-plan state contracts live in separate modules; the runtime only composes connection/health/cleanup behavior",
+        "All 35 current PostgreSQL integration assertions instantiate and close this actual runtime; source inspected against the original mixed-responsibility finding"
+      ]
     },
     {
       "id": "code-16",
@@ -679,7 +708,12 @@
       "id": "code-39",
       "title": "持久化 advanced plan 的读取用 `as unknown as` 绕过类型，无任何结构校验",
       "file": "packages/extension/src/bootstrap/advanced-run.ts",
-      "status": "pending"
+      "status": "resolved",
+      "commit": "9180e36f",
+      "validation": [
+        "Already fixed before this remediation: every advanced-plan activation/execution path parses metadata and step definitions through the explicit domain validator, without an unchecked as-unknown-as reader",
+        "226-line advanced-run composition and 353-line validator separate persistence from validation; 11 advanced record/run assertions pass, including corrupt persisted shapes and native-parent validation"
+      ]
     },
     {
       "id": "code-40",
