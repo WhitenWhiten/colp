@@ -557,6 +557,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     // Decrypt-only during rotation, until every subscription refreshed its secret under the new key.
     automationWebhookPreviousMasterKey: loadAutomationWebhookKey(env, 'AUTOMATION_WEBHOOK_PREVIOUS_MASTER_KEY'),
     ...loadAutomationFeatureFlags(env, mcpWriteEnabled),
+    agentActivityEnabled: parseCacheBooleanEnv(env, 'KNOWN_FEATURE_AGENT_ACTIVITY', false),
     nodeEnv,
     host: env.HOST ?? '127.0.0.1',
     port,

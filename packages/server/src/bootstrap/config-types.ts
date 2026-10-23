@@ -598,6 +598,7 @@ export interface CacheConfig {
 
 /** Default commit distinct-plan budget for development/test only; production must set env explicitly. */
 export interface AppConfig {
+  readonly agentActivityEnabled?: boolean;
   /** KNOWN_FEATURE_AUTOMATION_RULES: M1 configuration API (rules, bindings, preview). */
   readonly automationRulesEnabled?: boolean;
   /** KNOWN_FEATURE_AUTOMATION_CAPTURE: canonical facts capture (shadow first). */

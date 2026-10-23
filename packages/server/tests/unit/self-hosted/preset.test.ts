@@ -138,6 +138,7 @@ describe('self-hosted preset', () => {
     applySelfHostedPreset(env);
     const config = loadConfig(env);
     expect(config).toMatchObject({
+      agentActivityEnabled: true,
       automationRulesEnabled: true,
       automationCaptureEnabled: true,
       automationAdmissionEnabled: true,

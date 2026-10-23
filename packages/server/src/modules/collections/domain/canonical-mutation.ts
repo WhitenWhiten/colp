@@ -93,6 +93,7 @@ export interface CanonicalMutationInput {
   /** Server-owned provenance, never accepted directly from a resource DTO. */
   readonly automationContext?: {
     readonly origin: 'web' | 'mcp' | 'sync' | 'import' | 'restore' | 'automation' | 'system';
+    readonly agent?: { readonly clientId: string; readonly credentialBindingId: string };
     readonly rootRunId?: string;
     readonly stageId?: string;
     readonly hopCount?: number;
