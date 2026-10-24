@@ -93,15 +93,28 @@ function advanceProbeSchedule(prior: SyncCircuitBreaker | undefined, bucket: str
   const base = prior !== undefined && sameSyncProgress(prior.progress, progress) ? prior : undefined;
   const others = (base?.failures ?? []).filter(row => row.code !== bucket);
   const previous = base?.failures.find(row => row.code === bucket);
-  const attempts = [...(previous?.attempts.filter(at => now >= at) ?? []), now].slice(-CIRCUIT_THRESHOLD);
+  const attempts = [...(previous?.attempts.map(at => Math.min(at, now)) ?? []), now].slice(-CIRCUIT_THRESHOLD);
   const trips = base === undefined ? 0 : probe ? Math.min(base.trips + 1, 32) : base.trips;
   return { progress: base?.progress ?? progress, failures: [...others, { code: bucket, attempts }], trips,
     retryAt: now + stopProbeDelay(trips) };
 }
 
-/** Whether a stopped engine's next probe is due. A deadline beyond every schedule means the clock stepped back. */
+/** A clock that reads this much before the time a row was written has been corrected since; less is jitter. */
+export const CLOCK_STEP_TOLERANCE_MS = 60_000;
+
+/**
+ * Whether a stored deadline still holds. `notBefore` is an absolute time written under whatever clock the computer had
+ * then, and a clock that ran ahead and was corrected leaves a deadline hours away (W2B-P3-2). A clock that now reads
+ * earlier than the row's own write time cannot measure that wait, so the wait is over instead of stretched by the
+ * excursion: one early wake costs a request, a stretched wait stops sync for hours.
+ */
+export function deadlineHolds(state: Pick<DurableSyncEngineState, 'notBefore' | 'updatedAt'>, now: number): boolean {
+  return state.notBefore > now && state.updatedAt - now <= CLOCK_STEP_TOLERANCE_MS;
+}
+
+/** Whether a stopped engine's next probe is due. A deadline beyond every schedule also means the clock stepped back. */
 export function stopProbeDue(state: DurableSyncEngineState, now: number): boolean {
-  return state.notBefore <= now || state.notBefore - now > STOP_PROBE_DELAYS_MS[STOP_PROBE_DELAYS_MS.length - 1]!;
+  return !deadlineHolds(state, now) || state.notBefore - now > STOP_PROBE_DELAYS_MS[STOP_PROBE_DELAYS_MS.length - 1]!;
 }
 
 /** An `error` state written before probes existed: a stop code, no breaker row, nothing scheduled. */
@@ -127,7 +140,7 @@ export function advanceSyncCircuit(prior: SyncCircuitBreaker | undefined, code: 
   if (!code || policy && policy.class !== 'authority' && !integrity) return base;
   const counterCode = integrity ? 'replica_integrity_refresh' : policy ? code : 'unknown_external_failure';
   const failures = (base?.failures ?? []).map(row => ({ ...row,
-    attempts: row.attempts.filter(at => now >= at && (integrity || now - at < CIRCUIT_WINDOW_MS)) })).filter(row => row.attempts.length > 0);
+    attempts: row.attempts.map(at => Math.min(at, now)).filter(at => integrity || now - at < CIRCUIT_WINDOW_MS) })).filter(row => row.attempts.length > 0);
   const previous = failures.find(row => row.code === counterCode);
   const attempts = [...(previous?.attempts ?? []), now].slice(-CIRCUIT_THRESHOLD);
   const trips = base?.trips ?? 0;

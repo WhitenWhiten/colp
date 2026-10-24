@@ -2,7 +2,7 @@ import { ackEnvelope, headers, digest, jsonContentType, problemContentType } fro
 import { recoverAtSyncIssueCeiling } from './sync-issue-ceiling-recovery.js';
 import { enforceSyncIssueCeiling, SYNC_ISSUE_CEILING_CODE } from './sync-issue-ceiling.js';
 import { guardSyncWake, type WakeReason } from './sync-circuit-breaker-engine.js';
-import { circuitIsStopped, unprobedStop } from './sync-circuit-breaker.js';
+import { circuitIsStopped, deadlineHolds, unprobedStop } from './sync-circuit-breaker.js';
 import { engineBackoffDelay } from './durable-sync-engine-backoff.js';
 import { createEngineStateAccess, readDurableCursor } from './durable-sync-engine-state.js';
 import { SyncFailureError, refreshesAuthority, refreshesReplicaIntegrity, holdsInboundPull, holdsUnprovenIdentity, needsReplicaRebuild, persistentLocalSyncFailure, repullsOnExplicitRetry } from './sync-failure-class.js';
@@ -141,7 +141,7 @@ export function createDurableSyncEngine(options: EngineOptions) {
           || outstanding !== null && (current.phase === 'sleeping' && current.lastError === undefined
             || current.phase === 'offline')
           || inboundPull);
-      if (current.notBefore > now() && !connectivityRestored && !resumeLocalWork && !interruptedCycle && !leftover) {
+      if (deadlineHolds(current, now()) && !connectivityRestored && !resumeLocalWork && !interruptedCycle && !leftover) {
         options.schedule?.(current.notBefore - now()); return current;
       }
       if (current.recoveryFrozen && !current.authorityRefreshRequired
