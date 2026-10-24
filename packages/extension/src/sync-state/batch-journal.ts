@@ -1,6 +1,6 @@
 import { digestJson } from '../bookmark-event-codec.js';
 import { boundedString, clone, safeInteger, strictObject, validateRecord } from './codec.js';
-import { cursorPage, requestValue, runTransaction, scopeRowsRange, transactionDone } from './idb.js';
+import { cursorPage, cursorPageDescending, requestValue, runTransaction, scopeRowsRange, transactionDone } from './idb.js';
 export interface BatchJournalRuntime {
   readonly maxRecordBytes: number;
   readonly guardStores: readonly string[];
@@ -78,8 +78,8 @@ export function createBatchJournal(ctx: BatchJournalRuntime) {
         items = await loadItems(tx, key, planId, ctx.maxRecordBytes);
         reused = true; return;
       }
-      const existing = (await cursorPage<BatchPlanRecord>(plans, scopeRowsRange(key), 1_001))
-        .map((row) => readPlan(row, key, ctx.maxRecordBytes));
+      // W2A-08: the newest plans by update time, not an arbitrary first 1,001 by random id: a live plan is always among them.
+      const existing = (await newestPlans(plans, key, 1_001)).map((row) => readPlan(row, key, ctx.maxRecordBytes));
       if (existing.some((row) => LIVE.has(row.state))) throw new SyncStateError('batch_in_progress');
       plans.add(drafted);
       for (const item of draftedItems) tx.objectStore(STORES.batchItems).add(item);
@@ -90,7 +90,7 @@ export function createBatchJournal(ctx: BatchJournalRuntime) {
   async function listBatchPlans(partition: string): Promise<BatchPlanRecord[]> {
     const key = partition; const db = await ctx.open();
     const tx = db.transaction(STORES.batchPlans, 'readonly'); const done = transactionDone(tx);
-    const rows = await cursorPage<BatchPlanRecord>(tx.objectStore(STORES.batchPlans), scopeRowsRange(key), 1_001);
+    const rows = await newestPlans(tx.objectStore(STORES.batchPlans), key, 1_001);
     await done;
     return rows.map((row) => readPlan(row, key, ctx.maxRecordBytes))
       .sort((left, right) => right.updatedAt - left.updatedAt || left.planId.localeCompare(right.planId));
@@ -204,6 +204,19 @@ function itemTransition(from: BatchItemState, to: BatchItemState): boolean {
       : from === 'applied' ? ['undoing', 'changed'].includes(to)
         : from === 'undoing' ? ['undone', 'changed', 'failed', 'applied'].includes(to)
           : from === 'failed' && to === 'pending';
+}
+
+/**
+ * W2A-08: the newest plans by update time, not an arbitrary first N by random id: plans are never deleted, and
+ * a live plan is always among the newest (no other plan can start while one is live). The browser-local batch
+ * database predates the update-time index; there the partition's plans are read and the newest kept.
+ */
+async function newestPlans(plans: IDBObjectStore, key: string, limit: number): Promise<BatchPlanRecord[]> {
+  if (plans.indexNames.contains(INDEXES.batchPlanByUpdated)) {
+    return cursorPageDescending<BatchPlanRecord>(plans.index(INDEXES.batchPlanByUpdated), scopeRowsRange(key), limit);
+  }
+  const all = await cursorPage<BatchPlanRecord>(plans, scopeRowsRange(key), 50_000);
+  return all.sort((left, right) => (Number(right.updatedAt) || 0) - (Number(left.updatedAt) || 0)).slice(0, limit);
 }
 
 export function readPlan(input: unknown, key: string, maxBytes: number): BatchPlanRecord {

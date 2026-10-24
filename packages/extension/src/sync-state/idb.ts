@@ -19,6 +19,18 @@ export async function requireActiveScope(tx: IDBTransaction, key: string): Promi
   if (!scope) throw new SyncStateError('scope_not_found'); if (scope.lifecycle === 'retired') throw new SyncStateError('scope_retired'); return scope; }
 export async function cursorPage<T>(source: IDBObjectStore | IDBIndex, range: IDBKeyRange | null, limit: number): Promise<T[]> { const values: T[] = [];
   await iterateCursor(source, range, (value) => { values.push(value as T); return values.length < limit; }); return values; }
+/** The last `limit` entries of a range, newest first: how a window over a store that never shrinks stays on live work. */
+export async function cursorPageDescending<T>(source: IDBObjectStore | IDBIndex, range: IDBKeyRange | null, limit: number): Promise<T[]> {
+  const values: T[] = [];
+  await new Promise<void>((resolve, reject) => {
+    const request = source.openCursor(range, 'prev'); request.onerror = () => reject(request.error);
+    request.onsuccess = () => { const cursor = request.result;
+      if (!cursor) { resolve(); return; }
+      values.push(clone(cursor.value) as T);
+      if (values.length >= limit) resolve(); else cursor.continue(); };
+  });
+  return values;
+}
 export async function iterateCursor(source: IDBObjectStore | IDBIndex, range: IDBKeyRange | null,
   visit: (value: unknown, cursor: IDBCursorWithValue) => boolean | void) { await new Promise<void>((resolve, reject) => {
     const request = source.openCursor(range); request.onerror = () => reject(request.error); request.onsuccess = () => { const cursor = request.result;
