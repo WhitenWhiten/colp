@@ -22,6 +22,8 @@ export interface SyncStoreRuntime {
   isDiagnosticReadOnly(): boolean;
   setUpgradeFailed(): void;
   isUpgradeFailed(): boolean;
+  /** Closes the connection and forgets every sticky flag: the next call opens the database from scratch. */
+  reset(): void;
 }
 
 export function createSyncStoreRuntime(options: StoreOptions = {}): SyncStoreRuntime {
@@ -45,15 +47,18 @@ export function createSyncStoreRuntime(options: StoreOptions = {}): SyncStoreRun
 
   async function openConnection(): Promise<IDBDatabase> {
     const request = factory.open(DATABASE_NAME, DATABASE_VERSION);
-    let injectedUpgradeFailure = false;
+    let injectedUpgradeFailure = false; let upgrading = false;
     request.onblocked = (event) => options.onBlocked?.(event);
     request.onupgradeneeded = (event) => {
+      upgrading = true;
       if (options.injectUpgradeFailure) { injectedUpgradeFailure = true; request.transaction?.abort(); return; }
       upgrade(request.result, request.transaction!, event.oldVersion, maxRecordBytes);
     };
     try { connection = await requestValue(request); }
     catch (error) {
-      if (injectedUpgradeFailure) { upgradeFailed = true; throw new SyncStateError('upgrade_failed'); }
+      // W2A-01: an open that fails while the version change was running is an upgrade that did not finish
+      // (a full disk, a browser error), not a transaction that merely aborted.
+      if (injectedUpgradeFailure || upgrading) { upgradeFailed = true; throw new SyncStateError('upgrade_failed'); }
       if (error instanceof Error && error.name === 'VersionError') throw new SyncStateError('future_schema');
       throw stableError(error);
     }
@@ -68,13 +73,15 @@ export function createSyncStoreRuntime(options: StoreOptions = {}): SyncStoreRun
   }
 
   function close() { connection?.close(); connection = undefined; durableCache.clear(); }
+  /** W2A-01: after the database was deleted, nothing of the old one (connection, read-only flag, cache) may survive. */
+  function reset() { close(); diagnosticReadOnly = false; upgradeFailed = false; }
   function assertWritable() { if (diagnosticReadOnly) throw new SyncStateError('diagnostic_read_only'); }
   async function writableDatabase() { const db = await open(); assertWritable(); return db; }
   async function readOne(storeName: string, key: IDBValidKey) { const db = await open(); const tx = db.transaction(storeName, 'readonly');
     const completion = transactionDone(tx); const value = await requestValue(tx.objectStore(storeName).get(key)); await completion; return value; }
 
   return {
-    maxRecordBytes, factory, durableCache, open, close, writableDatabase, assertWritable, readOne,
+    maxRecordBytes, factory, durableCache, open, close, reset, writableDatabase, assertWritable, readOne,
     setDiagnosticReadOnly() { diagnosticReadOnly = true; },
     isDiagnosticReadOnly() { return diagnosticReadOnly; },
     setUpgradeFailed() { upgradeFailed = true; },

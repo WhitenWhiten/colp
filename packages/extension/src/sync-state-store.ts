@@ -4,6 +4,7 @@ import { createPullNativeDeferralRepository } from './sync-state/pull-native-def
 import { createQueueBackoffRepository } from './sync-state/queue-backoff-repository.js';
 import { createQueueBatchRepository } from './sync-state/queue-batch-repository.js';
 import { createQueueUnreadableRepository } from './sync-state/queue-unreadable-repository.js';
+import { createStorageStateRepository } from './sync-state/storage-state.js';
 import { createLocalPlacementRecoveryRepository } from './sync-state/local-placement-recovery-repository.js';
 import { createNativeMutationRepository } from './sync-state/native-mutation-repository.js';
 import { createClassificationRepository } from './sync-state/classification-repository.js';
@@ -66,7 +67,7 @@ export function createSyncStateStore(options: StoreOptions = {}) {
   return Object.freeze({
     ...createAutomationReceiptEvidenceRepository(ctx),
     ...createDeleteMemberRepository(ctx), ...createLocalPlacementRecoveryRepository(ctx), ...createPullNativeDeferralRepository(ctx),
-    open: ctx.open, close: ctx.close, ...createClassificationRepository(ctx),
+    open: ctx.open, close: ctx.close, ...createStorageStateRepository(ctx), ...createClassificationRepository(ctx),
     ...createNativeMutationRepository(ctx),
     ...createQueueBackoffRepository(ctx), ...createQueueUnreadableRepository(ctx), ...createQueueBatchRepository(ctx), ...createPullIssueRepository(ctx), ...advanced, ...remoteDelete, ...batch, ...facts, ...createReorderRepository(ctx),
     registerScope: scope.registerScope, getScope: scope.getScope,

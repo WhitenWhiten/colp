@@ -28,6 +28,8 @@ import { validBookmarkAnnotationNotice } from './bookmark-annotation-notice.js';
 import { handleClassificationRequest } from './sw/classification.js';
 import { validReplicaRebuildRequest } from './replica-rebuild.js';
 import { replicaRebuilder } from './sw/scope-rebuild.js';
+import { validSyncStorageResetRequest } from './sync-storage-reset.js';
+import { syncStorageReset } from './sw/storage-reset.js';
 import { writeAuthSnapshot } from './auth-snapshot.js';
 import { FAVICON_SIDECAR_ALARM } from './favicon-sidecar-store.js';
 import { handle, onExtensionInstalled } from './sw/auth.js';
@@ -450,6 +452,12 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (validReplicaRebuildRequest(message)) {
     void workCoordinator.run('engine', () => replicaRebuilder().handle(message)).then(respond,
       () => respond({ ok: false, code: 'rebuild_failed' }));
+    return true;
+  }
+  if (validSyncStorageResetRequest(message)) {
+    // W2A-01: the exit when the sync database itself cannot be used; serialized with every engine run.
+    void workCoordinator.run('engine', () => syncStorageReset().handle(message)).then(respond,
+      () => respond({ ok: false, code: 'storage_reset_failed' }));
     return true;
   }
   if (validNativeWaitRequest(message)) {

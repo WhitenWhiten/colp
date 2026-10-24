@@ -12,9 +12,10 @@ import type { SyncAttentionResponse } from '../types.js';
 import type { createSyncStateStore, QueueOperation, SyncScope } from '../sync-state-store.js';
 import type { WakeFailure } from './wake-failure.js';
 import { readVisibleWakeFailures, unreadableQueueDiagnostics, wakeFailureDiagnostics } from './engine-issues.js';
+import { readStorageAttention, unreadableStateAttention } from './storage-attention.js';
 
 export type SyncAttentionStore = NativeWaitStore & Pick<ReturnType<typeof createSyncStateStore>,
-  'getEngineState' | 'listQueue'> & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'listConsumedQueueIssues' | 'listBootstrapRuns' | 'listMappings' | 'listPullIssues' | 'listLocalIssues' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage' | 'listUnreadableQueue'>>;
+  'getEngineState' | 'listQueue'> & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'listConsumedQueueIssues' | 'listBootstrapRuns' | 'listMappings' | 'listPullIssues' | 'listLocalIssues' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage' | 'listUnreadableQueue' | 'storageState'>>;
 
 export interface SyncAttentionDeps {
   readonly scope: () => Promise<SyncScope>;
@@ -45,7 +46,9 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
     } };
   }
   let scope: SyncScope;
-  try { scope = await deps.scope(); } catch { return { ok: false, error: 'not_connected' }; }
+  // W2A-01: a store that cannot be read is a readable state of its own, not "not connected" or "unavailable".
+  try { scope = await deps.scope(); }
+  catch (error) { return await readStorageAttention(deps.store, error) ?? { ok: false, error: 'not_connected' }; }
   try {
     const [recorded, engine] = await Promise.all([
       deps.store.getScope(scope),
@@ -93,7 +96,10 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
       terminal: terminalCode !== undefined,
       ...(terminalCode ? { terminalCode } : {}),
     } };
-  } catch { return { ok: false, error: 'state_unavailable' }; }
+  } catch (error) {
+    return await readStorageAttention(deps.store, error) ?? await unreadableStateAttention(deps.store, scope, error)
+      ?? { ok: false, error: 'state_unavailable' };
+  }
 }
 
 /** Best-effort like `sw/remote-delete.ts#status`: a failed queue read still leaves the freeze visible. */

@@ -464,6 +464,14 @@ export interface PublicSyncAttention {
   readonly rebuildBlockedReason?: string;
   /** W2A-02: a Reset that was confirmed but has not finished can be given up (nothing is archived yet). */
   readonly rebuildCancelAvailable?: boolean;
+  /**
+   * W2A-01: the sync database cannot be used (`lastError` names why: `future_schema`, `diagnostic_read_only`,
+   * `upgrade_failed`, `storage_unavailable`, `quota_exceeded`, ...). Only then is the rest of this snapshot
+   * a synthetic one: no queue, issues or engine state can be read.
+   */
+  readonly storageState?: 'newer_version' | 'read_only' | 'upgrade_failed' | 'unavailable';
+  /** W2A-01: a confirmed "Reset local sync data" (`known.sync.storage.reset.preview` / `.confirm`) can recover it. */
+  readonly storageResetAvailable?: boolean;
   readonly retryAvailable?: boolean;
   readonly retryAt?: number;
   readonly retryAutomatic?: boolean;
