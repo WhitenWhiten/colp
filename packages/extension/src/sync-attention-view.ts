@@ -31,8 +31,11 @@ import type {
   PublicSyncAttention, RemoteDeleteResponse, SyncAttentionTerminalCode,
 } from './types.js';
 
-export let SYNC_ATTENTION_CONFLICT_LABEL: string, SYNC_ATTENTION_CENTER_LABEL: string, SYNC_ATTENTION_COPY_DIAGNOSTICS_LABEL: string, SYNC_ATTENTION_COPIED_COPY: string, SYNC_ATTENTION_COPY_FAILED_COPY: string;
+export let SYNC_ATTENTION_CONFLICT_LABEL: string, SYNC_ATTENTION_CENTER_LABEL: string, SYNC_ATTENTION_COPY_DIAGNOSTICS_LABEL: string, SYNC_ATTENTION_COPIED_COPY: string, SYNC_ATTENTION_COPY_FAILED_COPY: string, SYNC_ATTENTION_FOLDERS_LABEL: string;
+/** The Folders tab of this page, where bookmark access is allowed again. */
+const SYNC_FOLDERS_HREF = '#sync/folders';
 localized(() => {
+  SYNC_ATTENTION_FOLDERS_LABEL = t('sync_openFoldersTab', 'Open Folders');
   SYNC_ATTENTION_CONFLICT_LABEL = t('firstRun_reviewConflictsSyncCenter', 'Review conflicts in Sync center on the web');
   SYNC_ATTENTION_CENTER_LABEL = t('sync_openSyncCenterWeb', 'Open Sync center on the web');
   SYNC_ATTENTION_COPY_DIAGNOSTICS_LABEL = t('common_copyDiagnostics', 'Copy diagnostics');
@@ -57,6 +60,10 @@ export interface SyncAttentionInput {
   readonly waitCount?: number;
   readonly retryAt?: number;
   readonly retryAutomatic?: boolean;
+  /** Paused after repeated errors and resumes by itself: a pause, not a stop. */
+  readonly coolingDown?: boolean;
+  /** Bookmark access was removed after sync was set up. */
+  readonly permissionRequired?: boolean;
   readonly nativeWaitPending?: boolean;
   readonly remoteDeletePendingCount?: number;
   readonly phase?: string;
@@ -81,7 +88,9 @@ export interface SyncAttentionLink {
 export interface SyncAttentionView {
   readonly recovery: { readonly show: boolean; readonly copy: string; readonly report: string;
     /** "Retry sync" is worth offering for this state (the Sync center follows the same rule). */
-    readonly retry: boolean; readonly syncCenter: SyncAttentionLink };
+    readonly retry: boolean; readonly syncCenter: SyncAttentionLink;
+    /** Where bookmark access is allowed again, when that is the problem. */
+    readonly folders: SyncAttentionLink };
   /** Every item that could not sync, one row each (a window of the first rows plus how many more). */
   readonly issues: { readonly show: boolean; readonly rows: readonly SyncIssueRow[]; readonly more: number };
   readonly pause: { readonly show: boolean; readonly nativeWait: boolean;
@@ -190,7 +199,8 @@ export function describeSyncAttention(input: SyncAttentionInput): SyncAttentionV
   const code = syncAttentionTerminalCode(input.lastError, input.recoveryCode);
   const href = syncCenterHref(input.conflictHref);
   const conflict = (input.conflictPending === true || input.queueProjection === 'conflict') && href !== undefined;
-  const recovery = code === undefined && (input.recoveryFrozen === true || Boolean(input.lastError) || (input.issueCount ?? 0) > 0);
+  const permission = input.permissionRequired === true;
+  const recovery = permission || code === undefined && (input.recoveryFrozen === true || Boolean(input.lastError) || (input.issueCount ?? 0) > 0);
   const automatic = input.issues?.filter(issue => issue.recovery === 'automatic').length ?? 0;
   const decisions = Math.max(0, (input.issueCount ?? 0) - automatic);
   const issueCopy = [decisions ? tn('sync_itemsNeedAttention', decisions, '$1 item needs attention.', '$1 items need attention.') : '',
@@ -198,10 +208,13 @@ export function describeSyncAttention(input: SyncAttentionInput): SyncAttentionV
   const { rows, more } = syncIssueRows(input.issues);
   const problem = recoveryProblem(input);
   return {
-    recovery: { show: recovery, copy: (input.issueCount ?? 0) > 0 && !input.lastError ? issueCopy : recoveryFailureCopy(input, issueCopy),
-      report: terminalFreezeReport(input, href), retry: problem === undefined || problem.offersRetry,
+    recovery: { show: recovery,
+      copy: permission ? [describeSyncProblem('permission_required').sentence, issueCopy].filter(Boolean).join(' ')
+        : (input.issueCount ?? 0) > 0 && !input.lastError ? issueCopy : recoveryFailureCopy(input, issueCopy),
+      report: terminalFreezeReport(input, href), retry: !permission && (problem === undefined || problem.offersRetry),
       syncCenter: { show: recovery && href !== undefined && (input.issueCount ?? 0) > 0, ...(href ? { href } : {}),
-        label: SYNC_ATTENTION_CENTER_LABEL } },
+        label: SYNC_ATTENTION_CENTER_LABEL },
+      folders: { show: permission, href: SYNC_FOLDERS_HREF, label: SYNC_ATTENTION_FOLDERS_LABEL } },
     issues: { show: rows.length > 0, rows, more },
     pause: { show: nativeWait || remoteDeletePending, nativeWait, remoteDeletePending,
       copy: inboundPauseCopy(input) },
@@ -231,6 +244,7 @@ function problemContext(input: SyncAttentionInput) {
   return { resetOffered: resetOnCard(input, false),
     ...(input.rebuildUnavailableReason ? { resetUnavailableReason: input.rebuildUnavailableReason } : {}),
     ...(input.retryAt !== undefined ? { retryAt: input.retryAt } : {}),
+    ...(input.coolingDown ? { coolingDown: true } : {}),
     ...(input.retryAutomatic !== undefined ? { retryAutomatic: input.retryAutomatic } : {}) };
 }
 
@@ -261,6 +275,8 @@ export function syncAttentionInput(attention: PublicSyncAttention | undefined,
     issueCount: attention?.issueCount, issues: attention?.issues, rebuildAvailable: attention?.rebuildAvailable, rebuildUnavailableReason: attention?.rebuildUnavailableReason,
     waitCount: attention?.waitCount ?? 0,
     retryAt: attention?.retryAt, retryAutomatic: attention?.retryAutomatic,
+    ...(attention?.coolingDown ? { coolingDown: true } : {}),
+    ...(attention?.permissionRequired ? { permissionRequired: true } : {}),
     nativeWaitPending: attention?.nativeWaitPending === true,
     remoteDeletePendingCount: ok?.pendingCount ?? 0,
     ...(attention?.phase ? { phase: attention.phase } : {}),

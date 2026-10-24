@@ -3,6 +3,7 @@ import type {
   PublicAttentionSummary, PublicRootNode, PublicRootView,
 } from './types.js';
 import { localized, listCopy, t, tn } from './i18n.js';
+import { classifySyncFailure } from './sync-failure-class.js';
 
 export const FIRST_RUN_DRAFT = 'known.firstRun.draft.v1';
 
@@ -253,9 +254,11 @@ export function popupFirstRunStatus(input: {
   const engine = input.engine;
   if (!engine) return 'syncing';
   if (engine.conflictPending) return 'review-conflicts';
-  // The engine parks every retried failure in its offline phase; only a
-  // transport failure is a network wait, the rest is a server or local error.
-  if (engine.phase === 'offline') {
+  // The engine parks every retried failure in its offline phase (a frozen replica in its recovery phase);
+  // only a transport failure is a network wait, the rest is a server or local error.
+  const failingRecovery = engine.phase === 'recovery' && engine.errorCode !== undefined
+    && (classifySyncFailure(engine.errorCode)?.class ?? 'transient') === 'transient';
+  if (engine.phase === 'offline' || failingRecovery) {
     return engine.errorCode === undefined || engine.errorCode === 'network_unavailable'
       ? 'waiting-network' : 'retrying';
   }

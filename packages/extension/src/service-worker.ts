@@ -191,7 +191,7 @@ const nativeWaitDeps: NativeWaitDeps = {
 
 /** S7 / B2 (SR-09·SR-11·SR-13): the read-only attention read shared by popup and options. */
 const syncAttentionDeps: SyncAttentionDeps = { scope: currentSyncScope, store: syncState,
-  rebuildPending: () => replicaRebuilder().hasPending() };
+  rebuildPending: () => replicaRebuilder().hasPending(), bookmarkPermission: hasBookmarkPermission };
 
 /** SR-10 / A-08: the read-only ingress-diagnostic read behind the options list. */
 const ingressDiagnosticsDeps: IngressDiagnosticsDeps = { scope: currentSyncScope, store: syncState };

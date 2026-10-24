@@ -88,6 +88,15 @@ export function projectReplicaHealth(input: {
   const canRebuild = input.attention.rebuildAvailable === true
     || input.serverRebuild && input.attention.rebuildUnavailableReason !== 'rebuild_not_required';
   if (input.mode === 'target-unavailable') return { state: 'stopped', code: 'target_unavailable', issues, actions: [] };
+  // Access removed after setup: nothing can run and Retry cannot help; only a person can allow it again.
+  if (input.attention.permissionRequired) return { state: 'stopped', code: 'permission_required', issues, actions: [] };
+  // A breaker that tripped on something that ends by itself is a pause: the browser tries again on its own,
+  // and a Retry skips the wait. It is not a stop, so the Sync center does not call it one.
+  if (input.attention.coolingDown && !input.attention.terminal) {
+    const code = [input.attention.lastError].find((value) => value && CODE.test(value));
+    return { state: 'degraded', code: code ?? 'sync_failed', issues,
+      actions: ['retry', ...(canRebuild && total > 0 ? ['rebuild' as const] : [])] };
+  }
   if (input.attention.retryAutomatic === false || input.attention.terminal
       || input.attention.recoveryFrozen && refreshesReplicaIntegrity(input.attention.lastError ?? input.attention.recoveryCode)) {
     const code = [input.attention.terminalCode, input.attention.lastError].find((value) => value && CODE.test(value));
@@ -134,6 +143,8 @@ export interface ReplicaHealthReporterDeps {
   };
   readonly mode: () => Promise<PersonalSyncMode | undefined>;
   readonly rebuildPending?: () => Promise<boolean>;
+  /** Whether the browser still lets this extension read and change bookmarks. */
+  readonly bookmarkPermission?: () => Promise<boolean>;
   readonly credential: () => Promise<{ readonly accessToken: string; readonly serverOrigin: string; readonly subject?: string }>;
   readonly fetch: typeof fetch;
   readonly storage: Pick<StorageArea, 'get' | 'set'>;
@@ -275,7 +286,8 @@ async function readProjection(deps: ReplicaHealthReporterDeps): Promise<ReplicaH
   if (!deps.store.listBootstrapRuns) throw new Error('bootstrap_state_unavailable');
   const open = await readOpenSyncIssues(deps.store, deps.scope);
   const response = await handleSyncAttentionRequest({ scope: async () => deps.scope, store: deps.store, openIssues: open,
-    ...(deps.rebuildPending ? { rebuildPending: deps.rebuildPending } : {}) });
+    ...(deps.rebuildPending ? { rebuildPending: deps.rebuildPending } : {}),
+    ...(deps.bookmarkPermission ? { bookmarkPermission: deps.bookmarkPermission } : {}) });
   if (response.ok !== true) throw new Error('scope_unavailable');
   const issues = await withResolvedTitles(snapshotSyncIssues(open), deps.scope, deps.store.getMappingByColpId?.bind(deps.store));
   const stalled = await readStalledUpload(deps.store, deps.scope);

@@ -16,6 +16,7 @@ const f = vi.hoisted(() => ({
   extraMappings: [] as Array<{ nativeId: string; colpId: string; projection?: { revision: string } }>,
   captures: false, acknowledgement: false, frozen: false, aligned: true,
   lastError: undefined as string | undefined,
+  phase: undefined as string | undefined, breakerRetryAt: undefined as number | undefined,
 }));
 
 vi.mock('../src/sw/scope.js', () => ({
@@ -41,7 +42,9 @@ vi.mock('../src/sw/runtime.js', () => ({
     listQueue: async (_scope: unknown, status: string) => (f.queue.includes(status) ? [{ status, sequence: 1,
       opId: `op-${status}`, payload: { type: 'update_node_content', targetId: 'colp-b' }, recovery: { code: 'resource_not_found' } }] : []),
     getEngineState: async () => ({ recoveryFrozen: f.frozen, lastError: f.lastError,
-      lastPublishedCursor: 'cursor', lastAckedCursor: f.aligned ? 'cursor' : 'previous' }),
+      lastPublishedCursor: 'cursor', lastAckedCursor: f.aligned ? 'cursor' : 'previous',
+      ...(f.phase ? { phase: f.phase } : {}),
+      ...(f.breakerRetryAt ? { circuitBreaker: { progress: 'p', failures: [], trips: 1, retryAt: f.breakerRetryAt } } : {}) }),
     listBookmarkEventsByStatus: async () => f.captures ? [{ status: 'pending' }] : [],
     listAckIntents: async () => f.acknowledgement ? [{ state: 'pending' }] : [],
   },
@@ -53,7 +56,8 @@ function bookmark(id: string): ChromeBookmarkNode { return { id, title: id, url:
 
 beforeEach(() => {
   Object.assign(f, { permission: true, connected: true, firstRun: 'running', queue: ['pending'], extraMappings: [],
-    captures: false, acknowledgement: false, frozen: false, aligned: true, lastError: undefined });
+    captures: false, acknowledgement: false, frozen: false, aligned: true, lastError: undefined,
+    phase: undefined, breakerRetryAt: undefined });
   f.tree = [{ id: '0', title: '', children: [
     { id: 'bar', title: 'Bookmarks bar', folderType: 'bookmarks-bar', children: [
       bookmark('a'), bookmark('b'),
@@ -127,12 +131,43 @@ describe('handleSyncProgressRequest', () => {
     assert.deepEqual(response.ok && response.progress?.bookmarks, { synced: 1, total: 2 });
   });
 
-  test('answers null when sync is not set up, not connected, or bookmarks are off', async () => {
+  test('answers null when sync is not set up or not connected', async () => {
     f.firstRun = 'deferred';
     assert.deepEqual(await handleSyncProgressRequest(), { ok: true, progress: null });
-    f.firstRun = 'running'; f.permission = false;
+    f.firstRun = 'none'; f.permission = false;
+    assert.deepEqual(await handleSyncProgressRequest(), { ok: true, progress: null }, 'never set up: no access is not news');
+    f.firstRun = 'running'; f.permission = true; f.connected = false;
     assert.deepEqual(await handleSyncProgressRequest(), { ok: true, progress: null });
-    f.permission = true; f.connected = false;
-    assert.deepEqual(await handleSyncProgressRequest(), { ok: true, progress: null });
+  });
+
+  test('sync that is set up but lost bookmark access says so instead of vanishing (C-05)', async () => {
+    for (const firstRun of ['running', 'completed']) {
+      f.firstRun = firstRun; f.permission = false;
+      assert.deepEqual(await handleSyncProgressRequest(), { ok: true, progress: null, permissionRequired: true }, firstRun);
+    }
+    const { describeMissingPermission } = await import('../src/sync-progress-ui.js');
+    const view = describeMissingPermission();
+    assert.equal(view.show, true);
+    assert.equal(view.title, 'Bookmark access needed');
+    assert.match(view.note ?? '', /Allow it in the Folders tab/u);
+  });
+
+  test('a breaker cooldown is a pause that ends by itself, not a stop (C-06)', async () => {
+    f.firstRun = 'completed'; f.queue = []; f.phase = 'error'; f.breakerRetryAt = Date.now() + 600_000; f.lastError = 'stale_replica';
+    const response = await handleSyncProgressRequest();
+    assert.ok(response.ok && response.progress);
+    assert.equal(response.progress.retryAutomatic, false);
+    assert.equal(response.progress.coolingDown, true);
+    const { describeSyncProgress } = await import('../src/sync-progress-ui.js');
+    const view = describeSyncProgress(response.progress);
+    assert.equal(view.title, 'Sync will retry');
+    assert.match(view.note ?? '', /tries again on its own/u);
+    assert.doesNotMatch(view.note ?? '', /has stopped/u);
+    // A halt (no breaker deadline) is still a stop.
+    f.breakerRetryAt = undefined; f.lastError = 'queue_state_invalid';
+    const halted = await handleSyncProgressRequest();
+    assert.ok(halted.ok && halted.progress);
+    assert.equal(halted.progress.coolingDown, undefined);
+    assert.equal(describeSyncProgress(halted.progress).title, 'Action required');
   });
 });

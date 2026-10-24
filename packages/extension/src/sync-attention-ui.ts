@@ -4,7 +4,7 @@ import { el } from './library-dom.js';
 import { bindReplicaRebuildButton } from './replica-rebuild-ui.js';
 import {
   SYNC_ATTENTION_CENTER_LABEL, SYNC_ATTENTION_COPIED_COPY, SYNC_ATTENTION_COPY_DIAGNOSTICS_LABEL, SYNC_ATTENTION_COPY_FAILED_COPY,
-  describeSyncAttention, syncAttentionInput, withNativeWaitFallback, type SyncAttentionView,
+  SYNC_ATTENTION_FOLDERS_LABEL, describeSyncAttention, syncAttentionInput, withNativeWaitFallback, type SyncAttentionView,
 } from './sync-attention-view.js';
 import type { SyncIssueRow } from './sync-issue-rows.js';
 import type { NativeWaitResponse, PublicSyncAttention, RemoteDeleteResponse, SyncAttentionResponse } from './types.js';
@@ -34,6 +34,8 @@ interface AttentionNodes {
   readonly terminalRetry: HTMLButtonElement | null;
   readonly recoveryDiagnostics: HTMLButtonElement | null;
   readonly recoverySyncCenter: HTMLAnchorElement | null;
+  readonly recoveryFolders: HTMLAnchorElement | null;
+  readonly unreadable: HTMLElement | null;
   readonly issues: HTMLElement | null;
   readonly issuesMore: HTMLElement | null;
   readonly terminalCopy: HTMLElement | null;
@@ -64,6 +66,8 @@ function bindSyncAttention(hostId: string, syncPaneOnly: boolean): void {
     terminalRetry: document.getElementById(`${hostId}-terminal-retry`) as HTMLButtonElement | null,
     recoveryDiagnostics: document.getElementById(`${hostId}-recovery-diagnostics`) as HTMLButtonElement | null,
     recoverySyncCenter: document.getElementById(`${hostId}-recovery-sync-center`) as HTMLAnchorElement | null,
+    recoveryFolders: document.getElementById(`${hostId}-recovery-folders`) as HTMLAnchorElement | null,
+    unreadable: document.getElementById(`${hostId}-unreadable`),
     issues: document.getElementById(`${hostId}-issues`),
     issuesMore: document.getElementById(`${hostId}-issues-more`),
     terminalCopy: document.getElementById(`${hostId}-terminal-copy`),
@@ -85,13 +89,20 @@ function bindSyncAttention(hostId: string, syncPaneOnly: boolean): void {
   }
   if (nodes.syncCenter) nodes.syncCenter.textContent = SYNC_ATTENTION_CENTER_LABEL;
   if (nodes.recoverySyncCenter) nodes.recoverySyncCenter.textContent = SYNC_ATTENTION_CENTER_LABEL;
+  if (nodes.recoveryFolders) nodes.recoveryFolders.textContent = SYNC_ATTENTION_FOLDERS_LABEL;
   if (nodes.copyDiagnostics) {
     if (nodes.copyDiagnostics.dataset.keepLabel === undefined) nodes.copyDiagnostics.textContent = SYNC_ATTENTION_COPY_DIAGNOSTICS_LABEL;
     nodes.copyDiagnostics.addEventListener('click', () => { void copyDiagnostics(nodes, report); });
   }
 
+  let painted = false;
   const refresh = async (): Promise<void> => {
-    const [attention, policy] = await Promise.all([readAttention(), readRemoteDeletePolicy()]);
+    const [read, policy] = await Promise.all([readAttention(), readRemoteDeletePolicy()]);
+    const { attention } = read;
+    // A read that fails is not an empty card: keep what the last good reading showed, and say it may be out of date.
+    if (attention === undefined && read.error !== 'not_connected') { paintUnreadable(nodes, read.error ?? 'status_unreachable', painted); return; }
+    paintUnreadable(nodes, undefined, painted);
+    painted = true;
     const facts = syncAttentionInput(attention, policy);
     const view = describeSyncAttention(attention
       ? facts : withNativeWaitFallback(facts, await readNativeWaitCount()));
@@ -129,6 +140,7 @@ function paintSyncAttention(nodes: AttentionNodes, view: SyncAttentionView): voi
   setLine(nodes.recoveryCopy, view.recovery.show, view.recovery.copy);
   if (nodes.retry) nodes.retry.hidden = !view.recovery.retry;
   paintLink(nodes.recoverySyncCenter, view.recovery.syncCenter);
+  paintLink(nodes.recoveryFolders, view.recovery.folders);
   paintIssues(nodes, view);
   setLine(nodes.pause, view.pause.show, view.pause.copy);
   setLine(nodes.rejected, view.rejected.show, view.rejected.copy);
@@ -148,6 +160,17 @@ function paintSyncAttention(nodes: AttentionNodes, view: SyncAttentionView): voi
     const link = document.getElementById('open-native-wait');
     if (link) link.hidden = false;
   }
+}
+
+/** The status could not be read: say so beside whatever was last read, instead of blanking the card. */
+function paintUnreadable(nodes: AttentionNodes, code: string | undefined, kept = false): void {
+  if (!nodes.unreadable) return;
+  nodes.unreadable.hidden = code === undefined;
+  if (code === undefined) return;
+  nodes.unreadable.textContent = kept
+    ? t('sync_statusUnreadable', 'Couldn’t read sync status ($1). What is shown may be out of date.', code)
+    : t('sync_statusUnreadableFirst', 'Couldn’t read sync status ($1). Try again in a moment.', code);
+  nodes.host.hidden = false;
 }
 
 function paintLink(node: HTMLAnchorElement | null, link: { readonly show: boolean; readonly href?: string }): void {
@@ -200,9 +223,10 @@ function showFeedback(node: HTMLElement | null, text: string): void {
   node.textContent = text;
 }
 
-async function readAttention(): Promise<PublicSyncAttention | undefined> {
+async function readAttention(): Promise<{ readonly attention?: PublicSyncAttention; readonly error?: string }> {
   const response = await send<SyncAttentionResponse>({ kind: 'known.sync.attention.get' });
-  return response?.ok === true ? response.attention : undefined;
+  if (response?.ok === true) return { attention: response.attention };
+  return { error: response?.ok === false ? response.error : 'status_unreachable' };
 }
 
 /** SR-09's own signal, used only when the aggregate is unavailable. */

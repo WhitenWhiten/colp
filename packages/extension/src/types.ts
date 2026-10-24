@@ -426,6 +426,8 @@ export interface PublicSyncProgress {
   readonly issueCount?: number;
   /** False when the engine has stopped; progress must not promise another automatic retry. */
   readonly retryAutomatic?: boolean;
+  /** The engine paused after repeated errors and resumes by itself: with `retryAutomatic: false`, a pause and not a stop. */
+  readonly coolingDown?: boolean;
   /** preparing: comparing this browser with the collection; syncing: items left; done: everything has a server node. */
   readonly stage: 'preparing' | 'syncing' | 'done';
   /** The first sync's bootstrap is still running. */
@@ -435,7 +437,8 @@ export interface PublicSyncProgress {
   readonly bookmarks: { readonly synced: number; readonly total: number };
   readonly folders: { readonly synced: number; readonly total: number };
 }
-export type SyncProgressResponse = { readonly ok: true; readonly progress: PublicSyncProgress | null }
+/** `permissionRequired`: sync is set up but bookmark access was removed, so there is no count to show. */
+export type SyncProgressResponse = { readonly ok: true; readonly progress: PublicSyncProgress | null; readonly permissionRequired?: true }
   | { readonly ok: false; readonly error: 'state_unavailable' };
 export type SyncAttentionTerminalCode = 'metadata_sync_disabled' | 'replica_rebuild_pending' | 'pull_apply_target_missing' | 'pull_apply_evidence_missing'
   | 'anchor_mapping_missing' | 'payload_too_large' | 'recovery_identity_unproven'
@@ -465,6 +468,12 @@ export interface PublicSyncAttention {
   readonly retryAvailable?: boolean;
   readonly retryAt?: number;
   readonly retryAutomatic?: boolean;
+  /** The engine paused after repeated errors and resumes by itself at `retryAt`: a cooldown, not a stop. */
+  readonly coolingDown?: boolean;
+  /** How many times the circuit breaker has tripped without progress (diagnostics). */
+  readonly breakerTrips?: number;
+  /** Bookmark access was removed after sync was set up: nothing can read or change a bookmark until it is allowed again. */
+  readonly permissionRequired?: boolean;
   readonly phase?: PublicSyncEngineState['phase'];
   readonly recoveryFrozen: boolean;
   readonly queueProjection: PublicSyncEngineState['queueProjection'];

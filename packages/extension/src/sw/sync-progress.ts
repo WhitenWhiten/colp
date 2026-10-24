@@ -4,6 +4,8 @@ import { createChromeBookmarkTreeAdapter } from '../chrome-bookmark-tree.js';
 import { projectSyncProgress } from '../sync-progress.js';
 import { readOpenSyncIssues } from '../sync-issues.js';
 import { syncAttentionTerminalCode } from '../sync-attention-ui.js';
+import { circuitIsStopped } from '../sync-circuit-breaker.js';
+import { refreshesReplicaIntegrity } from '../sync-failure-class.js';
 import type { SyncScope } from '../sync-state-store.js';
 import type { SyncProgressResponse } from '../types.js';
 import { hasBookmarkPermission, syncState } from './runtime.js';
@@ -14,16 +16,18 @@ const LIVE_STATUSES = ['pending', 'claimed', 'deferred', 'unknown', 'gap', 'bloc
 
 /**
  * `known.sync.progress.get`: read-only, parameterless, like the attention
- * read. No lane, no wake, no gesture. Signed out, sync not set up, or no
- * bookmark access answers `progress: null`; the pages then show nothing.
+ * read. No lane, no wake, no gesture. Signed out or sync not set up answers
+ * `progress: null`; the pages then show nothing. Sync that is set up but has
+ * lost bookmark access has no tree to count, so it says why (`permissionRequired`)
+ * instead of leaving the bar to vanish.
  */
 export async function handleSyncProgressRequest(): Promise<SyncProgressResponse> {
   let scope: SyncScope;
   try { scope = await currentSyncScope({ allowStopped: true }); } catch { return { ok: true, progress: null }; }
-  if (!await hasBookmarkPermission()) return { ok: true, progress: null };
   const recorded = await syncState.getScope(scope);
   const firstRun = recorded?.firstRun ?? 'none';
   if (firstRun === 'none' || firstRun === 'deferred') return { ok: true, progress: null };
+  if (!await hasBookmarkPermission()) return { ok: true, progress: null, permissionRequired: true };
   const run = [...await syncState.listBootstrapRuns(scope)].sort((left, right) => right.updatedAt - left.updatedAt)[0];
   const preview = run?.previewId ? await syncState.getScopePreview(scope, run.previewId) : null;
   const [bindings, mappings] = await Promise.all([syncState.listMountBindings(scope), syncState.listMappings(scope)]);
@@ -49,11 +53,14 @@ export async function handleSyncProgressRequest(): Promise<SyncProgressResponse>
   const unsettled = engine?.recoveryFrozen === true || captures.length > 0
     || acknowledgements.some(row => row.state === 'pending')
     || Boolean(engine?.lastPublishedCursor && engine.lastPublishedCursor !== engine.lastAckedCursor);
+  const terminalCode = syncAttentionTerminalCode(engine?.lastError,
+    typeof recorded?.metadata?.recoveryCode === 'string' ? recorded.metadata.recoveryCode : undefined);
   return { ok: true, progress: projectSyncProgress({
     issueCount: issues.total,
-    ...(engine?.phase === 'error' || syncAttentionTerminalCode(engine?.lastError,
-      typeof recorded?.metadata?.recoveryCode === 'string' ? recorded.metadata.recoveryCode : undefined)
-      ? { retryAutomatic: false } : {}),
+    ...(engine?.phase === 'error' || terminalCode ? { retryAutomatic: false } : {}),
+    // A breaker that tripped on something that ends by itself is a pause, and says when it ends.
+    ...(terminalCode === undefined && circuitIsStopped(engine) && !refreshesReplicaIntegrity(engine?.lastError)
+      ? { coolingDown: true } : {}),
     firstRun, ...(run ? { runPhase: run.phase } : {}), roots: tree.roots, classifications: scan.classifications,
     // Provisional identities exist before a create has a server receipt.
     mappedNativeIds: new Set(mappings.filter((row) => !/^(pending-|local-|mount:)/u.test(row.colpId)

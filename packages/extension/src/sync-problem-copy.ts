@@ -12,6 +12,8 @@ export interface SyncProblemNext {
   readonly retryAt?: number;
   /** False once the engine has stopped instead of backing off. */
   readonly retryAutomatic?: boolean;
+  /** The engine paused after repeated errors and resumes by itself, even when `retryAt` has just passed. */
+  readonly coolingDown?: boolean;
   /** The Reset button is on this card. */
   readonly resetOffered?: boolean;
   /** This surface has no Reset button, but the Status tab does. */
@@ -101,7 +103,8 @@ export function nextClause(family: SyncProblemFamily, context: SyncProblemNext):
   switch (family) {
     case 'offline': case 'server_busy': case 'waiting': case 'authority': case 'unknown':
       if (context.retryAutomatic === false) {
-        return waits ? t('syncProblem_nextCooling', 'It paused after repeated errors and will try again at $1. Retry sync tries now.', time)
+        if (waits) return t('syncProblem_nextCooling', 'It paused after repeated errors and will try again at $1. Retry sync tries now.', time);
+        return context.coolingDown ? t('syncProblem_nextRetryingSoon', 'It paused after repeated errors and tries again shortly. Retry sync tries now.')
           : t('syncProblem_nextHalted', 'It stopped after repeated errors. Retry sync tries again now.');
       }
       return waits ? `${t('syncProblem_nextByItself', 'It will retry automatically.')} ${t('sync_recoveryNextAttempt', 'Next attempt: $1.', time)}`

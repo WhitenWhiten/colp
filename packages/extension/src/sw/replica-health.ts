@@ -46,7 +46,7 @@ async function send(force: boolean) {
   const report = (forced: boolean) => sendReplicaHealthReport({
     scope, store: syncState,
     mode: async () => policy ? (await policy.read(scope)).mode : undefined,
-    rebuildPending: () => replicaRebuilder().hasPending(),
+    rebuildPending: () => replicaRebuilder().hasPending(), bookmarkPermission: hasBookmarkPermission,
     // A credential refresh at most; never a Sync Session, which renews lease and cursors.
     credential: async () => createRuntimeAuth(await loadConfig()).ensureFreshCredential(),
     replicaProof: scope => store.loadReplicaReportProof(scope),

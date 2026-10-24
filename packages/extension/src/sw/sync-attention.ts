@@ -8,6 +8,8 @@ import { readOpenSyncIssues, type OpenSyncIssues } from '../sync-issues.js';
 import { hasConflictBarrier, hasRejectedBarrier, queueStatusProjection, stalledUploadHead } from '../engine-public-stability.js';
 import type { NativeWaitStore } from '../native-wait.js';
 import { syncAttentionTerminalCode } from '../sync-attention-ui.js';
+import { circuitIsStopped } from '../sync-circuit-breaker.js';
+import { refreshesReplicaIntegrity } from '../sync-failure-class.js';
 import type { SyncAttentionResponse } from '../types.js';
 import type { createSyncStateStore, QueueOperation, SyncScope } from '../sync-state-store.js';
 
@@ -19,7 +21,12 @@ export interface SyncAttentionDeps {
   readonly store: SyncAttentionStore;
   readonly openIssues?: OpenSyncIssues;
   readonly rebuildPending?: () => Promise<boolean>;
+  /** Whether the browser still lets this extension read and change bookmarks. Absent: not checked. */
+  readonly bookmarkPermission?: () => Promise<boolean>;
 }
+
+/** Open issues whose own sentence says the browser checks them automatically: they need nobody. */
+const AUTOMATIC_ISSUE_CODES: ReadonlySet<string> = new Set(['waiting_dependency', 'dependency_pending', 'dependency_parked']);
 
 /** Same status set `pendingDurableWorkFacts` live-scans (engine.ts), bounded to one page each. */
 const LIVE_STATUSES = ['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown', 'rejected', 'set_aside'] as const;
@@ -42,6 +49,11 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
       ? recorded.metadata.recoveryCode : undefined;
     const lastError = engine?.lastError;
     const terminalCode = syncAttentionTerminalCode(lastError, recoveryCode);
+    // Set up, then access removed: the engine returns before it does anything, so no error is ever recorded.
+    const setUp = recorded?.firstRun === 'completed' || recorded?.firstRun === 'running';
+    const permissionRequired = setUp && deps.bookmarkPermission !== undefined && !await deps.bookmarkPermission();
+    // A breaker that tripped on something that ends by itself resumes at `notBefore`: a pause, not a stop.
+    const coolingDown = terminalCode === undefined && circuitIsStopped(engine) && !refreshesReplicaIntegrity(lastError);
     const open = deps.openIssues ?? await readOpenSyncIssues(deps.store, scope);
     const capability = await readReplicaRepairCapability(deps.store, scope, open);
     const waits = open.waits;
@@ -53,7 +65,8 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
         && localIssueId(row) === issue.issueId);
       const operation = open.queue.find(row => row.opId === issue.opId);
       const merge = open.bootstrap.find(row => row.issueId === issue.issueId);
-      return { ...issue, ...(operation?.recovery?.expectedSequence ? { dependencySequence: operation.recovery.expectedSequence } : {}), ...(merge ? { reportId: merge.reportId, itemId: merge.itemId, recovery: 'decision' as const } : {}), ...(local ? { eventId: local.eventId, dependencyOpId: local.dependencyOpId,
+      return { ...issue, ...(AUTOMATIC_ISSUE_CODES.has(issue.code) ? { recovery: 'automatic' as const } : {}),
+        ...(operation?.recovery?.expectedSequence ? { dependencySequence: operation.recovery.expectedSequence } : {}), ...(merge ? { reportId: merge.reportId, itemId: merge.itemId, recovery: 'decision' as const } : {}), ...(local ? { eventId: local.eventId, dependencyOpId: local.dependencyOpId,
         dependencyEventId: local.dependencyEventId, rootCause: local.rootCause, attempts: local.attempts,
         recovery: local.recovery } : {}) };
     });
@@ -63,11 +76,15 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
       recoveryFrozen: engine?.recoveryFrozen === true,
       retryAutomatic: engine?.phase !== 'error' && terminalCode === undefined,
       ...(engine?.notBefore ? { retryAt: engine.notBefore } : {}),
+      ...(coolingDown ? { coolingDown: true } : {}),
+      ...(engine?.circuitBreaker?.trips ? { breakerTrips: engine.circuitBreaker.trips } : {}),
+      ...(permissionRequired ? { permissionRequired: true } : {}),
       ...queue,
       issueCount: open.total + (stalled ? 1 : 0), issues, rebuildAvailable: capability.rebuildAvailable,
       ...(capability.reason ? { rebuildUnavailableReason: capability.reason } : {}),
       retryAvailable: Boolean(stalled) || open.queue.some(row => row.recovery?.code === 'sequence_blocked' && row.attempt !== undefined),
-      nativeWaitPending: waits.length > 0,
+      // A wait for a parent folder ends when the parent arrives; only the others wait for a person.
+      nativeWaitPending: waits.some(wait => wait.waitReason !== 'waiting_dependency'),
       waitCount: waits.length,
       ...(lastError ? { lastError } : {}),
       ...(recoveryCode ? { recoveryCode } : {}),
