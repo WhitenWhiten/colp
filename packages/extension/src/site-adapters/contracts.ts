@@ -129,7 +129,7 @@ export type BootstrapRequest = {
   adapterId: Id;
   source: SourceIdentityClaim;
 } & (
-  | { runtime: 'bundled' }
+  | { runtime: 'bundled'; activationId: Id }
   | { runtime: 'userScript'; installationCredential: string }
 );
 
@@ -210,7 +210,8 @@ export type HostCommand =
       query: MembershipReadQuery;
     }
   | { operation: 'cancelRead'; readSessionId: Id }
-  | { operation: 'invalidateLease'; leaseId: Id };
+  | { operation: 'invalidateLease'; leaseId: Id }
+  | { operation: 'shutdown'; leaseId: Id };
 
 export type HostMessage = HostCommand | HostReply;
 

@@ -8,7 +8,7 @@ function harness() {
   const deps = { extensionId: 'ext', now: () => now, random: () => `nonce-${++n}`, read: async () => structuredClone(state),
     write: async (s: typeof state) => { state = structuredClone(s); }, permitted: async () => permitted, current: async () => current ? sender.url! : null };
   const transport = createSiteTransport(deps);
-  const hello = { protocolVersion: 1, operation: 'hello', runtime: 'bundled', adapterId: 'bundled.bilibili', source: { state: 'signedIn', accountId: '42' } };
+  const hello = { protocolVersion: 1, operation: 'hello', runtime: 'bundled', activationId: 'activation-1', adapterId: 'bundled.bilibili', source: { state: 'signedIn', accountId: '42' } };
   const ready = async () => { await transport.configure(true); await transport.bootstrap(hello, sender); await transport.confirm('42');
     const lease = await transport.bootstrap(hello, sender); if (lease.status !== 'ready') throw Error('not ready'); return lease; };
   return { transport, deps, sender, hello, ready, state: () => state, expired: () => { now += 61000; }, revoke: () => { permitted = false; }, stale: () => { current = false; } };

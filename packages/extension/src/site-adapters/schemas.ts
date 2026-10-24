@@ -24,7 +24,7 @@ export const observationSchema = union(
 );
 const source = union(object({ state: literal('signedIn'), accountId: id }), object({ state: literal('signedOut', 'unknown') }));
 const bootstrapFields = { protocolVersion: literal(1), operation: literal('hello'), adapterId: id, source };
-const bootstrapSchema = union(object({ ...bootstrapFields, runtime: literal('bundled') }),
+const bootstrapSchema = union(object({ ...bootstrapFields, runtime: literal('bundled'), activationId: id }),
   object({ ...bootstrapFields, runtime: literal('userScript'), installationCredential: str(256) }));
 export const failureSchema = object({ code: literal('signedOut', 'pageUnavailable', 'navigationChanged', 'rateLimited', 'unsupported', 'invalidData',
   'timeout', 'cancelled', 'challenge', 'network', 'capacity', 'staleCursor'), retryAfterMs: optional(integer) });
@@ -64,7 +64,7 @@ const commandSchema = union(
     query: union(object({ kind: literal('collections'), cursor: union(str(L.cursor), literal(null)) }),
       object({ kind: literal('items'), collectionId: id, cursor: union(str(L.cursor), literal(null)) })) }),
   object({ ...commandFields, operation: literal('readMemberships'), readSessionId: id, readRequestId: id, query }),
-  object({ operation: literal('cancelRead'), readSessionId: id }), object({ operation: literal('invalidateLease'), leaseId: id }),
+  object({ operation: literal('cancelRead'), readSessionId: id }), object({ operation: literal('invalidateLease', 'shutdown'), leaseId: id }),
 );
 export const validBootstrap = (v: unknown): v is BootstrapRequest => jsonBytes(v, 4096) && bootstrapSchema(v);
 export const validObservation = (v: unknown): v is SiteObservation => jsonBytes(v, L.observationBytes) && observationSchema(v);

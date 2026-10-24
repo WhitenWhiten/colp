@@ -116,7 +116,7 @@ export const lastPageOfB = {
 // A bundled hello is admitted only on the dedicated, browser-validated channel.
 // The claimed account still has to match an explicitly connected source.
 export const hello = {
-  protocolVersion: 1, operation: 'hello', runtime: 'bundled', adapterId: 'known.bilibili',
+  protocolVersion: 1, operation: 'hello', runtime: 'bundled', activationId: 'host-activation-1', adapterId: 'known.bilibili',
   source: { state: 'signedIn', accountId: 'fixture-account' },
 } satisfies BootstrapRequest;
 

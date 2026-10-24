@@ -1,5 +1,9 @@
+import type { AdapterMessage, HostCommand } from './contracts.js';
+import { validMembershipResult, validBootstrap } from './schemas.js';
+import { createReadScheduler } from './read-scheduler.js';
+import { LIMITS } from './limits.js';
 import { BILIBILI } from './bilibili/identity.js';
-import { initialTransportState, createSiteTransport, SITE_PORT, SITE_STATE_KEY, type SiteSender, type TransportState } from './transport.js';
+import { initialTransportState, createSiteTransport, SITE_PORT, SITE_STATE_KEY, type SiteSender, type TransportState, validSiteSender } from './transport.js';
 import { object, literal, str } from './schema.js';
 import { validAdapterMessage } from './schemas.js';
 const grants = { permissions: ['scripting', 'webNavigation'], origins: [...BILIBILI.matches] };
@@ -22,8 +26,46 @@ export const siteTransport = createSiteTransport({ extensionId: chrome.runtime.i
     const frame = await chrome.webNavigation.getFrame({ tabId: s.tab.id, frameId: 0 }).catch(() => null);
     return frame && frame.documentId === s.documentId && new URL(frame.url).origin === BILIBILI.origin && frame.documentLifecycle === 'active' ? frame.url : null;
   } });
+const activation = createReadScheduler(chrome.storage.local, 'known.siteAdapters.activation.v1');
+const reads = createReadScheduler(chrome.storage.local, 'known.siteAdapters.readQueue.v1');
+const INSPECTION = 'known.siteAdapters.inspection.v1';
+interface Inspection { command: Exclude<HostCommand, { operation: 'cancelRead' | 'invalidateLease' | 'shutdown' }>; documentId: string; result?: unknown }
+async function senderCurrent(sender: SiteSender): Promise<boolean> {
+  if (!validSiteSender(sender, chrome.runtime.id) || !await chrome.permissions.contains(grants) || !(await read()).enabled) return false;
+  const frame = await chrome.webNavigation.getFrame({ tabId: sender.tab.id, frameId: 0 });
+  return !!frame && frame.documentId === sender.documentId && new URL(frame.url).origin === BILIBILI.origin && frame.documentLifecycle === 'active';
+}
+async function inspect(kind: 'collections' | 'items' | 'resolve', collectionId?: string, cursor: string | null = null) {
+  const s = await read(), lease = s.leases.find(l => l.expiresAt > Date.now() && ports.has(l.id));
+  if (!lease) throw new Error('pageUnavailable');
+  const id = crypto.randomUUID(), deadlineAt = Math.min(Date.now() + LIMITS.commandMs, lease.expiresAt - 1000);
+  const acquired = await reads.acquire({ id, documentId: lease.documentId, deadlineAt });
+  if (acquired.status !== 'ready') return acquired;
+  const command: Inspection['command'] = kind === 'resolve' ? { operation: 'resolveItem', leaseId: lease.id, resolutionId: id, url: lease.url, deadlineAt }
+    : { operation: 'readPage', leaseId: lease.id, readSessionId: id, pageRequestId: id, deadlineAt,
+      query: kind === 'collections' ? { kind, cursor } : { kind, collectionId: collectionId!, cursor } };
+  await chrome.storage.local.set({ [INSPECTION]: { command, documentId: lease.documentId } });
+  ports.get(lease.id)!.postMessage(command);
+  return { status: 'reading' };
+}
+async function acceptInspection(message: AdapterMessage, documentId: string) {
+  const stored = (await chrome.storage.local.get(INSPECTION))[INSPECTION] as Inspection | undefined;
+  if (!stored || stored.documentId !== documentId || stored.command.leaseId !== message.leaseId || stored.command.deadlineAt <= Date.now()) return false;
+  const c = stored.command;
+  const matches = c.operation === 'readPage' && message.operation === 'page.result' && c.pageRequestId === message.pageRequestId && c.readSessionId === message.readSessionId
+    && (message.result.status === 'failed' || (message.result.kind === c.query.kind && (message.result.kind !== 'items' || (c.query.kind === 'items' && message.result.collectionId === c.query.collectionId))))
+    || c.operation === 'resolveItem' && message.operation === 'item.result' && c.resolutionId === message.resolutionId
+    || c.operation === 'readMemberships' && message.operation === 'membership.result' && c.readRequestId === message.readRequestId
+      && c.readSessionId === message.readSessionId && validMembershipResult(message.result, c.query);
+  if (!matches || !('result' in message)) return false;
+  if (stored.result !== undefined && JSON.stringify(stored.result) !== JSON.stringify(message.result)) return false;
+  await chrome.storage.local.set({ [INSPECTION]: { ...stored, result: message.result } });
+  const error = message.result.status === 'failed' ? message.result.error : null;
+  await reads.finish(message.requestId, error?.retryAfterMs);
+  return true;
+}
 const ports = new Map<string, chrome.runtime.Port>();
-function disconnectAll() { for (const p of ports.values()) { try { p.disconnect(); } catch { /* gone */ } } ports.clear(); }
+function disconnectAll() { for (const [id, p] of ports) { try { p.postMessage({ operation: 'shutdown', leaseId: id }); p.disconnect(); } catch { /* gone */ } } ports.clear(); }
 function management(sender: SiteSender) {
   if (sender.id !== chrome.runtime.id || !sender.url) return false;
   try { const u = new URL(sender.url); return u.protocol === 'chrome-extension:' && u.hostname === chrome.runtime.id
@@ -51,23 +93,49 @@ async function reconcile() {
 }
 const statusSchema = object({ kind: literal('known.siteAdapters.status') });
 const enableSchema = object({ kind: literal('known.siteAdapters.enable'), enabled: literal(true, false) });
+const inspectSchema = object({ kind: literal('known.siteAdapters.inspect'), operation: literal('collections', 'items', 'resolve'), collectionId: v => v === undefined || /^\d{1,20}$/u.test(String(v)), cursor: v => v === undefined || v === null || str(512)(v) });
 const confirmSchema = object({ kind: literal('known.siteAdapters.confirm'), accountId: str(128) });
 export function installSiteAdapters() {
   // Registered synchronously; initialization is awaited inside each handler.
   chrome.runtime.onMessage.addListener((raw, sender, respond) => {
     const d = raw as { kind?: string; request?: unknown; enabled?: boolean; accountId?: string } | null;
+    if (d?.kind === 'known.siteAdapters.activation') {
+      if (!object({ kind: literal('known.siteAdapters.activation') })(raw)) return false;
+      void (async () => {
+        await trustedStorage(); if (!await senderCurrent(sender)) return { status: 'unavailable', retryAfterMs: 500 };
+        const id = crypto.randomUUID();
+        const slot = await activation.acquire({ id, documentId: sender.documentId!, deadlineAt: Date.now() + LIMITS.activationMs }, true);
+        return slot.status === 'ready' ? { status: 'ready', activationId: slot.id, deadlineAt: slot.deadlineAt } : slot;
+      })().then(respond, () => respond({ status: 'unavailable' })); return true;
+    }
     if (d?.kind === 'known.siteAdapters.bootstrap') {
       if (!object({ kind: literal('known.siteAdapters.bootstrap'), request: () => true })(raw)) return false;
-      void siteTransport.bootstrap(d.request, sender).then(respond, () => respond({ status: 'unavailable', reason: 'disabled' })); return true;
+      void (async () => {
+        if (!validBootstrap(d.request) || d.request.runtime !== 'bundled') return { status: 'unavailable', reason: 'version' };
+        const slot = (await activation.current()).active;
+        if (!slot || slot.id !== d.request.activationId || slot.documentId !== sender.documentId || slot.deadlineAt <= Date.now() || !await senderCurrent(sender))
+          return { status: 'unavailable', reason: 'disabled' };
+        await activation.finish(slot.id);
+        return siteTransport.bootstrap(d.request, sender);
+      })().then(respond, () => respond({ status: 'unavailable', reason: 'disabled' })); return true;
     }
-    if (!management(sender) || !(statusSchema(raw) || enableSchema(raw) || confirmSchema(raw))) return false;
+    if (!management(sender) || !(statusSchema(raw) || enableSchema(raw) || confirmSchema(raw) || inspectSchema(raw))) return false;
     void (async () => {
       if (enableSchema(raw)) {
         if (d!.enabled && !await chrome.permissions.contains(grants)) throw new Error('permissionRequired');
-        await siteTransport.configure(d!.enabled!); disconnectAll(); await reconcile(); if (d!.enabled) await injectOpen();
+        await siteTransport.configure(d!.enabled!); disconnectAll();
+        if (!d!.enabled && await chrome.permissions.contains(grants)) for (const tab of await chrome.tabs.query({ url: [...BILIBILI.matches] })) {
+          if (tab.id !== undefined && !tab.incognito) await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'MAIN',
+            func: () => { window.dispatchEvent(new Event('known-site-probe-stop')); } }).catch(() => undefined);
+        }
+        await reconcile(); if (d!.enabled) await injectOpen();
       }
       if (confirmSchema(raw)) { await siteTransport.confirm(d!.accountId!); disconnectAll(); await injectOpen(); }
-      return siteTransport.status();
+      if (inspectSchema(raw)) {
+        const q = raw as { operation: 'collections' | 'items' | 'resolve'; collectionId?: string; cursor?: string | null };
+        await inspect(q.operation, q.collectionId, q.cursor);
+      }
+      return { ...await siteTransport.status(), inspection: (await chrome.storage.local.get(INSPECTION))[INSPECTION] ?? null };
     })().then(respond, e => respond({ error: e instanceof Error ? e.message : 'unavailable' })); return true;
   });
   chrome.runtime.onConnect.addListener(port => {
@@ -83,6 +151,10 @@ export function installSiteAdapters() {
         if (!lease || (leaseId && leaseId !== lease.id)) { port.disconnect(); close(); return; }
         leaseId = lease.id;
         const old = ports.get(lease.id); if (old && old !== port) old.disconnect(); ports.set(lease.id, port);
+        if (raw.operation.endsWith('.result')) {
+          const inspected = await acceptInspection(raw, lease.documentId);
+          port.postMessage({ operation: 'reply', requestId: raw.requestId, reply: inspected ? { status: 'readResult', value: 'inspected' } : { status: 'rejected', reason: 'staleContext' } }); return;
+        }
         // SA-01 is read-only. No durable acceptance is claimed before the ledger is integrated.
         port.postMessage({ operation: 'reply', requestId: raw.requestId, reply: { status: 'rejected', reason: 'paused' } });
       })().catch(() => { port.disconnect(); close(); }).finally(() => { busy = false; });
@@ -92,7 +164,6 @@ export function installSiteAdapters() {
     if (d.frameId !== 0) return;
     void siteTransport.invalidate(d.tabId).then(async () => {
       for (const [id, p] of ports) if (p.sender?.tab?.id === d.tabId) {
-        try { p.postMessage({ operation: 'invalidateLease', leaseId: id }); } catch { /* gone */ }
         p.disconnect(); ports.delete(id);
       }
       if ((await read()).enabled && await chrome.permissions.contains(grants) && new URL(d.url).origin === BILIBILI.origin)

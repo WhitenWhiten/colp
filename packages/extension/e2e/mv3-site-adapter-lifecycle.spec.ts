@@ -18,18 +18,37 @@ test('bundled inspector scopes worlds, reconnects routes and fences revocation w
     await context.route('https://www.bilibili.com/**', route => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Controlled site</title><h1>Fixture</h1><script>addEventListener("pageshow",e=>{document.documentElement.dataset.persisted=String(e.persisted)})</script>' }));
     await context.route('https://api.bilibili.com/x/web-interface/nav', route => route.fulfill({ contentType: 'application/json',
       headers: { 'access-control-allow-origin': 'https://www.bilibili.com', 'access-control-allow-credentials': 'true' }, body: JSON.stringify({ code: 0, data: { isLogin: true, mid: 42 } }) }));
+    await context.route('https://api.bilibili.com/x/v3/fav/folder/created/list-all*', route => route.fulfill({ contentType: 'application/json',
+      headers: { 'access-control-allow-origin': 'https://www.bilibili.com', 'access-control-allow-credentials': 'true' }, body: JSON.stringify({ code: 0, data: { list: [{ id: 101, title: 'Fixture collection' }] } }) }));
+    await context.route('https://api.bilibili.com/x/v3/fav/resource/deal', route => route.fulfill({ contentType: 'application/json',
+      headers: { 'access-control-allow-origin': 'https://www.bilibili.com', 'access-control-allow-credentials': 'true' }, body: JSON.stringify({ code: 0 }) }));
     const site = await context.newPage(); await site.goto('https://www.bilibili.com/video/av1');
     await page.goto(`${extensionOrigin}/site-adapters.html`);
     await grantOptionalBookmarks(page, 'Enable Bilibili inspector', 'Known adapter access', {
       permissions: ['scripting', 'webNavigation'], origins: ['https://www.bilibili.com/*'],
     });
     const readState = () => page.evaluate(async () => (await chrome.storage.local.get('known.siteAdapters.runtime.v1'))['known.siteAdapters.runtime.v1'] as { generation: number; leases: { id: string; documentId: string; url: string; routeEpoch: number }[]; candidateAccount: string | null });
-    await expect.poll(async () => (await readState()).candidateAccount).toBe('42');
+    await expect.poll(async () => (await readState()).candidateAccount, { timeout: 15000 }).toBe('42');
     await page.locator('#refresh').click(); await page.locator('#confirm').click();
     await expect.poll(async () => (await readState()).leases.length).toBe(1);
+    await page.locator('#read-catalog').click();
+    await expect.poll(async () => page.evaluate(async () => {
+      const state = (await chrome.storage.local.get('known.siteAdapters.inspection.v1'))['known.siteAdapters.inspection.v1'] as { result?: { status: string } } | undefined;
+      return state?.result?.status;
+    }), { timeout: 15000 }).toBe('ok');
     const first = (await readState()).leases[0]!;
     expect(await site.evaluate(() => ({ runtime: typeof (globalThis as any).chrome?.runtime?.sendMessage,
       slot: (globalThis as any).__knownSiteAdapterV1 }))).toEqual({ runtime: 'undefined', slot: undefined });
+    await site.evaluate(async () => {
+      const hints: unknown[] = []; (globalThis as any).fixtureHints = hints;
+      window.addEventListener('known-bilibili-favorite-hint', e => hints.push((e as CustomEvent).detail));
+      await fetch('https://api.bilibili.com/x/v3/fav/resource/deal', { method: 'POST', credentials: 'include',
+        body: new URLSearchParams({ rid: '1', type: '2', add_media_ids: '101', csrf: 'fixture-private' }) });
+    });
+    await expect.poll(() => site.evaluate(() => (globalThis as any).fixtureHints.length)).toBe(1);
+    const hint = await site.evaluate(() => (globalThis as any).fixtureHints[0]);
+    expect(hint).toMatchObject({ itemId: 'video:av:1', added: ['101'], removed: [], code: 0 });
+    expect(Object.keys(hint).sort()).toEqual(['added', 'code', 'interactionId', 'itemId', 'removed']);
     // MAIN synthetic messages cannot invoke the dedicated runtime ingress.
     await site.evaluate(() => window.postMessage({ kind: 'known.capture.start', userGesture: true }, '*'));
     await page.evaluate(async () => { await chrome.runtime.sendMessage({ kind: 'known.siteAdapters.enable', enabled: true }); });

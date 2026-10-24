@@ -1,5 +1,6 @@
+import { validBilibiliMessage } from './bilibili/wire.js';
 import type { AdapterMessage, BootstrapReply, BootstrapRequest } from './contracts.js';
-import { BILIBILI, decimal, validBilibiliItem } from './bilibili/identity.js';
+import { BILIBILI, decimal } from './bilibili/identity.js';
 import { LIMITS } from './limits.js';
 import { validAdapterMessage, validBootstrap } from './schemas.js';
 export const SITE_STATE_KEY = 'known.siteAdapters.runtime.v1';
@@ -79,7 +80,7 @@ export function createSiteTransport(deps: TransportDeps) {
       if (!s.enabled || s.sourceUnresolved || !lease || lease.expiresAt <= deps.now() || lease.generation !== s.generation
           || lease.sourceGeneration !== s.sourceGeneration || lease.accountId !== s.accountId || lease.documentId !== sender.documentId
           || lease.tabId !== sender.tab.id || lease.url !== currentUrl) return null;
-      if (m.operation === 'emit' && 'item' in m.data && !validBilibiliItem(m.data.item)) return null;
+      if (!validBilibiliMessage(m)) return null;
       return structuredClone(lease);
     }),
   };

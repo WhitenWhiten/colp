@@ -6,7 +6,7 @@ import { aidFromItem, collection, decimal, detail, resolveAvUrl, validBilibiliIt
 import { envelope, fixtures, observation, partialPage, video } from './fixtures/site-adapters/bilibili.js';
 describe('site adapter v1 trust boundary', () => {
   test('accepts closed bootstrap, observation, partial/error pages and command', () => {
-    expect(validBootstrap({ protocolVersion: 1, operation: 'hello', runtime: 'bundled', adapterId: 'bundled.bilibili', source: { state: 'signedIn', accountId: '42' } })).toBe(true);
+    expect(validBootstrap({ protocolVersion: 1, operation: 'hello', runtime: 'bundled', activationId: 'activation-1', adapterId: 'bundled.bilibili', source: { state: 'signedIn', accountId: '42' } })).toBe(true);
     expect(validObservation(observation)).toBe(true);
     expect(validAdapterMessage({ ...envelope, operation: 'emit', data: observation })).toBe(true);
     expect(validPageResult(partialPage)).toBe(true);
@@ -29,7 +29,7 @@ describe('site adapter v1 trust boundary', () => {
     let deep: unknown = null; for (let i = 0; i < 35; i++) deep = [deep];
     expect(jsonBytes(deep, 10000)).toBe(false);
     expect(validObservation({ type: 'catalog.upsert' })).toBe(false);
-    expect(validBootstrap({ protocolVersion: 2, operation: 'hello', runtime: 'bundled', adapterId: 'x', source: { state: 'unknown' } })).toBe(false);
+    expect(validBootstrap({ protocolVersion: 2, operation: 'hello', runtime: 'bundled', activationId: 'activation-1', adapterId: 'x', source: { state: 'unknown' } })).toBe(false);
   });
   test('readback has exactly one result per requested edge', () => {
     const query = { itemId: video.id, collectionIds: ['101', '102'] };

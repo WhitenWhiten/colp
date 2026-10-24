@@ -2,11 +2,15 @@ import { BILIBILI } from './bilibili/identity.js';
 const status = document.querySelector<HTMLPreElement>('#status')!;
 const confirm = document.querySelector<HTMLButtonElement>('#confirm')!;
 let candidate: string | null = null;
+let refreshTimer: ReturnType<typeof setTimeout> | undefined;
 async function send(message: unknown) {
-  const result = await chrome.runtime.sendMessage(message) as { candidateAccount?: string | null };
+  clearTimeout(refreshTimer);
+  const result = await chrome.runtime.sendMessage(message) as { candidateAccount?: string | null; inspection?: { command: { deadlineAt: number }; result?: unknown } };
   candidate = result.candidateAccount ?? null; confirm.hidden = !candidate;
   document.querySelector('#connection')!.textContent = candidate ? `Detected account ${candidate}. Confirm the account you want to connect.` : '';
   status.textContent = JSON.stringify(result, null, 2);
+  if (result.inspection && !result.inspection.result && result.inspection.command.deadlineAt > Date.now())
+    refreshTimer = setTimeout(() => { void send({ kind: 'known.siteAdapters.status' }); }, 500);
 }
 document.querySelector('#enable')!.addEventListener('click', () => {
   void chrome.permissions.request({ permissions: ['scripting', 'webNavigation'], origins: [...BILIBILI.matches] }).then(granted => {
@@ -17,3 +21,6 @@ document.querySelector('#disable')!.addEventListener('click', () => { void send(
 document.querySelector('#refresh')!.addEventListener('click', () => { void send({ kind: 'known.siteAdapters.status' }); });
 confirm.addEventListener('click', () => { if (candidate) void send({ kind: 'known.siteAdapters.confirm', accountId: candidate }); });
 void send({ kind: 'known.siteAdapters.status' });
+
+document.querySelector('#read-catalog')!.addEventListener('click', () => { void send({ kind: 'known.siteAdapters.inspect', operation: 'collections' }); });
+document.querySelector('#read-item')!.addEventListener('click', () => { void send({ kind: 'known.siteAdapters.inspect', operation: 'resolve' }); });
