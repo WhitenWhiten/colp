@@ -1,14 +1,17 @@
 import { t } from './i18n.js';
 import { createIcon } from './icons.js';
-import { el } from './library-dom.js';
+import { button, el } from './library-dom.js';
 import { bindReplicaRebuildButton } from './replica-rebuild-ui.js';
 import {
   SYNC_ATTENTION_CENTER_LABEL, SYNC_ATTENTION_COPIED_COPY, SYNC_ATTENTION_COPY_DIAGNOSTICS_LABEL, SYNC_ATTENTION_COPY_FAILED_COPY,
-  SYNC_ATTENTION_FOLDERS_LABEL, describeSyncAttention, retryOutcomeCopy, syncAttentionInput, syncRetryReading,
-  withNativeWaitFallback, type SyncAttentionView,
+  SYNC_ATTENTION_FOLDERS_LABEL, SYNC_ISSUE_ACTION_LIMIT, describeSyncAttention, issueActionOutcomeCopy, retryOutcomeCopy, syncAttentionInput,
+  syncRetryReading, withNativeWaitFallback, type SyncAttentionView,
 } from './sync-attention-view.js';
 import type { SyncIssueRow } from './sync-issue-rows.js';
-import type { NativeWaitResponse, PublicSyncAttention, RemoteDeleteResponse, SyncAttentionResponse, SyncRetryResponse } from './types.js';
+import type {
+  NativeWaitResponse, PublicSyncAttention, RemoteDeleteResponse, SyncAttentionResponse, SyncIssueActionRequest, SyncIssueActionResponse,
+  SyncIssueLocalAction, SyncRetryResponse,
+} from './types.js';
 
 /**
  * The binder for the Status card (options) and its popup twin. Everything it
@@ -42,6 +45,8 @@ interface AttentionNodes {
   readonly notes: HTMLElement | null;
   readonly issues: HTMLElement | null;
   readonly issuesMore: HTMLElement | null;
+  readonly issuesHint: HTMLElement | null;
+  readonly issuesBulk: HTMLElement | null;
   readonly terminalCopy: HTMLElement | null;
   readonly syncCenter: HTMLAnchorElement | null;
   readonly copyDiagnostics: HTMLButtonElement | null;
@@ -75,6 +80,8 @@ function bindSyncAttention(hostId: string, syncPaneOnly: boolean): void {
     notes: document.getElementById(`${hostId}-notes`),
     issues: document.getElementById(`${hostId}-issues`),
     issuesMore: document.getElementById(`${hostId}-issues-more`),
+    issuesHint: document.getElementById(`${hostId}-issues-hint`),
+    issuesBulk: document.getElementById(`${hostId}-issues-bulk`),
     terminalCopy: document.getElementById(`${hostId}-terminal-copy`),
     syncCenter: document.getElementById(`${hostId}-sync-center`) as HTMLAnchorElement | null,
     copyDiagnostics: document.getElementById(`${hostId}-copy-diagnostics`) as HTMLButtonElement | null,
@@ -99,6 +106,14 @@ function bindSyncAttention(hostId: string, syncPaneOnly: boolean): void {
     }
     showFeedback(target.feedback, retryOutcomeCopy(result.settled, syncRetryReading(await refresh())));
   }
+  /** Try again or Dismiss on named items; the card is read again, then says what happened. */
+  async function actOnIssues(action: SyncIssueLocalAction, ids: readonly string[]): Promise<void> {
+    showFeedback(nodes.feedback, t('syncIssue_actionWorking', 'Working…'));
+    const request: SyncIssueActionRequest = { kind: 'known.sync.issue.act', action, issueIds: ids.slice(0, SYNC_ISSUE_ACTION_LIMIT) };
+    const result = await send<SyncIssueActionResponse>(request, RETRY_REPLY_MS);
+    await refresh();
+    showFeedback(nodes.feedback, issueActionOutcomeCopy(action, result, ids.length));
+  }
   if (nodes.syncCenter) nodes.syncCenter.textContent = SYNC_ATTENTION_CENTER_LABEL;
   if (nodes.recoverySyncCenter) nodes.recoverySyncCenter.textContent = SYNC_ATTENTION_CENTER_LABEL;
   if (nodes.recoveryFolders) nodes.recoveryFolders.textContent = SYNC_ATTENTION_FOLDERS_LABEL;
@@ -120,7 +135,7 @@ function bindSyncAttention(hostId: string, syncPaneOnly: boolean): void {
     const view = describeSyncAttention(attention
       ? facts : withNativeWaitFallback(facts, await readNativeWaitCount()));
     report = view.terminal.show ? view.terminal.report : view.recovery.report;
-    paintSyncAttention(nodes, view);
+    paintSyncAttention(nodes, view, actOnIssues);
     const terminalRepair = document.getElementById(`${hostId}-rebuild`);
     if (terminalRepair) terminalRepair.hidden = attention?.rebuildAvailable !== true;
     let repair = document.getElementById(`${hostId}-issue-repair`);
@@ -145,7 +160,9 @@ function bindSyncAttention(hostId: string, syncPaneOnly: boolean): void {
   }
 }
 
-function paintSyncAttention(nodes: AttentionNodes, view: SyncAttentionView): void {
+type IssueAct = (action: SyncIssueLocalAction, ids: readonly string[]) => Promise<void>;
+
+function paintSyncAttention(nodes: AttentionNodes, view: SyncAttentionView, act: IssueAct): void {
   // The card is only as tall as what it can show: a line this page has no node for does not hold it open.
   nodes.host.hidden = !((view.pause.show && nodes.pause) || (view.rejected.show && nodes.rejected)
     || (view.conflict.show && nodes.conflict) || (view.terminal.show && nodes.terminal)
@@ -155,7 +172,7 @@ function paintSyncAttention(nodes: AttentionNodes, view: SyncAttentionView): voi
   if (nodes.retry) nodes.retry.hidden = !view.recovery.retry;
   paintLink(nodes.recoverySyncCenter, view.recovery.syncCenter);
   paintLink(nodes.recoveryFolders, view.recovery.folders);
-  paintIssues(nodes, view);
+  paintIssues(nodes, view, act);
   paintNotes(nodes, view);
   setLine(nodes.pause, view.pause.show, view.pause.copy);
   setLine(nodes.rejected, view.rejected.show, view.rejected.copy);
@@ -202,18 +219,70 @@ function paintNotes(nodes: AttentionNodes, view: SyncAttentionView): void {
 }
 
 /** One row per item that could not sync: its name, why, and what can be done about it. */
-function paintIssues(nodes: AttentionNodes, view: SyncAttentionView): void {
+function paintIssues(nodes: AttentionNodes, view: SyncAttentionView, act: IssueAct): void {
   if (!nodes.issues) return;
   nodes.issues.hidden = !view.issues.show;
-  nodes.issues.replaceChildren(...view.issues.rows.map(renderIssueRow));
+  nodes.issues.replaceChildren(...view.issues.rows.map(row => renderIssueRow(row, act)));
+  if (nodes.issuesHint) {
+    nodes.issuesHint.hidden = !view.issues.show || view.issues.hint === '';
+    nodes.issuesHint.textContent = view.issues.hint;
+  }
   if (nodes.issuesMore) {
     nodes.issuesMore.hidden = view.issues.more === 0;
     nodes.issuesMore.textContent = view.issues.more === 0 ? ''
       : t('syncIssue_more', 'and $1 more. Copy details lists all of them.', view.issues.more);
   }
+  paintBulk(nodes, view, act);
 }
 
-function renderIssueRow(row: SyncIssueRow): HTMLElement {
+/** What the bulk buttons were built for: the same items keep the same buttons, so a half-made choice survives a refresh. */
+const bulkSignature = new WeakMap<HTMLElement, string>();
+
+/** Every item of a kind at once, for the flood the window cannot show: Try again for all, or Dismiss all after a second press. */
+function paintBulk(nodes: AttentionNodes, view: SyncAttentionView, act: IssueAct): void {
+  const host = nodes.issuesBulk;
+  if (!host) return;
+  const { retry, dismiss } = view.issues.bulk;
+  host.hidden = !view.issues.show || retry.length < 2 && dismiss.length < 2;
+  const signature = `${retry.join(',')}|${dismiss.join(',')}`;
+  if (bulkSignature.get(host) === signature) return;
+  bulkSignature.set(host, signature);
+  const buttons: HTMLElement[] = [];
+  if (retry.length >= 2) {
+    buttons.push(actionButton(t('syncIssue_retryAll', 'Try again for all $1', retry.length), 'btn btn-secondary btn-sm', 'retry',
+      () => act('retry', retry)));
+  }
+  if (dismiss.length >= 2) {
+    // Many items at once: the first press asks, the second does it.
+    buttons.push(actionButton(t('syncIssue_dismissAll', 'Dismiss all $1', dismiss.length), 'btn btn-ghost btn-sm', 'dismiss',
+      () => act('dismiss', dismiss), t('syncIssue_dismissAllConfirm', 'Dismiss all $1? This browser keeps its versions.', dismiss.length)));
+  }
+  host.replaceChildren(...buttons);
+}
+
+/**
+ * A button that does one thing to named items. With a `question`, the first press only asks it (the label becomes
+ * the question) and the second does it; a pause puts the label back.
+ */
+function actionButton(label: string, className: string, action: SyncIssueLocalAction, run: () => Promise<void>,
+  question?: string): HTMLButtonElement {
+  const node = button(label, className);
+  node.dataset.syncIssueAction = action;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  node.addEventListener('click', () => {
+    if (question !== undefined && node.dataset.armed !== 'true') {
+      node.dataset.armed = 'true'; node.textContent = question;
+      timer = setTimeout(() => { delete node.dataset.armed; node.textContent = label; }, 6_000);
+      return;
+    }
+    if (timer) clearTimeout(timer);
+    delete node.dataset.armed; node.textContent = label; node.disabled = true;
+    void run().finally(() => { node.disabled = false; });
+  });
+  return node;
+}
+
+function renderIssueRow(row: SyncIssueRow, act: IssueAct): HTMLElement {
   const item = el('li', undefined, 'set-row sync-issue-item');
   item.dataset.syncIssue = row.key; item.dataset.code = row.code;
   const tile = el('span', undefined, 'favicon-tile'); tile.append(createIcon('bookmark', 16));
@@ -223,6 +292,17 @@ function renderIssueRow(row: SyncIssueRow): HTMLElement {
   text.append(el('p', row.title, 'set-row-title sync-issue-title'), hint);
   if (row.seen) text.append(el('p', row.seen, 'set-row-hint'));
   item.append(tile, text);
+  if (row.issueId && row.actions.length) {
+    const id = row.issueId;
+    const control = el('div', undefined, 'set-row-control');
+    for (const action of row.actions) {
+      const node = actionButton(action === 'retry' ? t('syncIssue_tryAgain', 'Try again') : t('common_dismiss', 'Dismiss'),
+        action === 'retry' ? 'btn btn-secondary btn-sm' : 'btn btn-ghost btn-sm', action, () => act(action, [id]));
+      if (action === 'dismiss') node.title = t('syncIssue_dismissTitle', 'Closes this item and keeps this browser’s version. Nothing is deleted.');
+      control.append(node);
+    }
+    item.append(control);
+  }
   return item;
 }
 

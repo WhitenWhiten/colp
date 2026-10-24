@@ -21,6 +21,15 @@ export interface SyncIssueRow {
 /** A row list is a window: the Status page paints this many and says how many more there are. */
 export const SYNC_ISSUE_ROW_LIMIT = 20;
 
+/** Every open item that offers an action, window or not: the ones one press can act on at once. */
+export interface SyncIssueBulk { readonly retry: readonly string[]; readonly dismiss: readonly string[] }
+
+export function syncIssueBulk(issues: readonly SyncIssueDiagnostic[] | undefined): SyncIssueBulk {
+  const ids = (action: SyncIssueLocalAction) => (issues ?? []).flatMap(issue =>
+    issue.issueId && issue.localActions?.includes(action) ? [issue.issueId] : []);
+  return { retry: ids('retry'), dismiss: ids('dismiss') };
+}
+
 /** An epoch or missing time means the browser never recorded when it first saw the item. */
 function knownMoment(value: string | number | undefined): number | undefined {
   const time = typeof value === 'string' ? Date.parse(value) : value;

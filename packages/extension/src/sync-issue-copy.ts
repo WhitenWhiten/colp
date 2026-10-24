@@ -59,7 +59,7 @@ export function issueSummaryCopy(issue: IssueSummaryInput): string {
   const specific = ITEM[issue.code];
   if (specific) return specific();
   if (issue.code.startsWith('apply_failed:')) {
-    return t('syncIssue_applyFailed', "The browser refused to apply this change from your library, so it was set aside. Try again re-applies it; Dismiss keeps this browser's version.");
+    return t('syncIssue_applyFailed', "The browser refused to apply this change from your library, so it was set aside. Dismiss keeps this browser's version.");
   }
   if (CODE_WHAT[issue.code]) return describeSyncProblem(issue.code).what;
   // A held upload that offers a retry never reached the server: this browser could not get it ready.

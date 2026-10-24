@@ -25,10 +25,10 @@ import { formatMoment, localized, t, tn } from './i18n.js';
  * surface and a code nobody wrote words for still reads as a sentence.
  */
 import { holdsUnprovenIdentity, needsReplicaRebuild } from './sync-failure-class.js';
-import { syncIssueRows, type SyncIssueRow } from './sync-issue-rows.js';
+import { syncIssueBulk, syncIssueRows, type SyncIssueBulk, type SyncIssueRow } from './sync-issue-rows.js';
 import { describeSyncProblem, problemOffersRetry } from './sync-problem-catalog.js';
 import type {
-  PublicSyncAttention, RemoteDeleteResponse, SyncAttentionTerminalCode,
+  PublicSyncAttention, RemoteDeleteResponse, SyncAttentionTerminalCode, SyncIssueActionResponse, SyncIssueLocalAction,
 } from './types.js';
 
 export let SYNC_ATTENTION_CONFLICT_LABEL: string, SYNC_ATTENTION_CENTER_LABEL: string, SYNC_ATTENTION_COPY_DIAGNOSTICS_LABEL: string, SYNC_ATTENTION_COPIED_COPY: string, SYNC_ATTENTION_COPY_FAILED_COPY: string, SYNC_ATTENTION_FOLDERS_LABEL: string;
@@ -55,6 +55,8 @@ localized(() => {
 export interface SyncAttentionInput {
   readonly issueCount?: number;
   readonly issues?: PublicSyncAttention['issues'];
+  /** Close to the point where sync stops for too many open items. */
+  readonly issueCeiling?: PublicSyncAttention['issueCeiling'];
   readonly rebuildAvailable?: boolean;
   readonly rebuildUnavailableReason?: string;
   readonly waitCount?: number;
@@ -101,8 +103,12 @@ export interface SyncAttentionView {
     readonly folders: SyncAttentionLink };
   /** Facts worth a line of their own beside the card: the server may be looking at old news, and so on. */
   readonly notes: { readonly show: boolean; readonly lines: readonly string[] };
-  /** Every item that could not sync, one row each (a window of the first rows plus how many more). */
-  readonly issues: { readonly show: boolean; readonly rows: readonly SyncIssueRow[]; readonly more: number };
+  /**
+   * Every item that could not sync, one row each (a window of the first rows plus how many more). `bulk` names
+   * every item that offers an action, window or not; `hint` says what Retry sync does not do for them.
+   */
+  readonly issues: { readonly show: boolean; readonly rows: readonly SyncIssueRow[]; readonly more: number;
+    readonly bulk: SyncIssueBulk; readonly hint: string };
   readonly pause: { readonly show: boolean; readonly nativeWait: boolean;
     readonly remoteDeletePending: boolean; readonly copy: string };
   readonly conflict: SyncAttentionLink;
@@ -228,7 +234,9 @@ export function describeSyncAttention(input: SyncAttentionInput): SyncAttentionV
   const problem = recoveryProblem(input);
   // Something is off: when it last worked is the first thing a person wants to know.
   const off = recovery || code !== undefined || rows.length > 0;
+  const bulk = syncIssueBulk(input.issues);
   const notes = [...(off && input.lastSyncedAt ? [t('sync_lastSynced', 'Last synced $1.', formatMoment(input.lastSyncedAt))] : []),
+    ...(code === undefined && input.issueCeiling ? [ceilingWarningCopy(input.issueCeiling)] : []),
     ...(input.healthDelivery ? [healthDeliveryCopy(input.healthDelivery)] : [])];
   return {
     recovery: { show: recovery,
@@ -240,7 +248,8 @@ export function describeSyncAttention(input: SyncAttentionInput): SyncAttentionV
         label: SYNC_ATTENTION_CENTER_LABEL },
       folders: { show: permission, href: SYNC_FOLDERS_HREF, label: SYNC_ATTENTION_FOLDERS_LABEL } },
     notes: { show: notes.length > 0, lines: notes },
-    issues: { show: rows.length > 0, rows, more },
+    issues: { show: rows.length > 0, rows, more, bulk,
+      hint: bulk.retry.length ? t('syncIssue_retryHint', 'Retry sync checks the server again. To release a held item, use Try again on it.') : '' },
     pause: { show: nativeWait || remoteDeletePending, nativeWait, remoteDeletePending,
       copy: inboundPauseCopy(input) },
     conflict: { show: conflict, ...(conflict && href ? { href } : {}), label: SYNC_ATTENTION_CONFLICT_LABEL },
@@ -268,6 +277,12 @@ function watchdogCopy(watchdog: NonNullable<PublicSyncAttention['watchdog']>): s
     : watchdog.title ? t('sync_watchdogStuckAt', 'Sync is stuck at “$1”: this upload has not moved since $2.', watchdog.title, since)
       : t('sync_watchdogStuck', 'Sync is stuck: the oldest change waiting to upload has not moved since $1.', since);
   return [what, describeSyncProblem(code).next, `(${code})`].join(' ');
+}
+
+/** Sync stops at a fixed number of open items; a person who is near it can still clear them a press at a time. */
+function ceilingWarningCopy(ceiling: { readonly open: number; readonly limit: number }): string {
+  return t('syncIssue_nearCeiling', 'Sync stops when $2 items are open, and $1 are open now. Try again or dismiss some of them before it does.',
+    ceiling.open, ceiling.limit);
 }
 
 /** The server's Sync center shows what this browser last managed to say, so a report that cannot be sent is news. */
@@ -329,12 +344,35 @@ export function retryOutcomeCopy(settled: boolean, after: SyncRetryReading | und
   return t('sync_retryStillFailing', 'Retried, but sync still reports a problem ($1). Copy details to investigate.', after.code ?? '?');
 }
 
+/**
+ * What the card says after Try again or Dismiss: how many were done, and why the others were not. The answer
+ * comes from the worker (`known.sync.issue.act`); no answer at all is said too, never read as success.
+ */
+export function issueActionOutcomeCopy(action: SyncIssueLocalAction, response: SyncIssueActionResponse | undefined, requested: number): string {
+  if (response === undefined) return t('syncIssue_actionNoReply', 'Sync did not answer. Try again in a moment.');
+  if (!response.ok) return t('syncIssue_actionError', 'Could not do that ($1). The items stay as they were.', response.error);
+  const more = requested > SYNC_ISSUE_ACTION_LIMIT ? ` ${t('syncIssue_actionMore', 'More items are left. Press again for the rest.')}` : '';
+  if (response.done === 0 && response.failed === 0) {
+    return `${t('syncIssue_actionNothing', 'Nothing changed: the item is gone or no longer offers this.')}${more}`;
+  }
+  const done = response.done === 0 ? '' : action === 'retry'
+    ? tn('syncIssue_actionRetried', response.done, 'Tried again. $1 item is back in the upload queue.', 'Tried again. $1 items are back in the upload queue.')
+    : tn('syncIssue_actionDismissed', response.done, 'Dismissed $1 item. This browser keeps its version.', 'Dismissed $1 items. This browser keeps its versions.');
+  const failed = response.failed === 0 ? ''
+    : tn('syncIssue_actionFailed', response.failed, '$1 item could not be tried again ($2). It stays as it was.',
+      '$1 items could not be tried again ($2). They stay as they were.', response.code ?? 'retry_failed');
+  return [done, failed, more.trim()].filter(Boolean).join(' ');
+}
+
+/** One press names at most this many items; the worker refuses a longer list. */
+export const SYNC_ISSUE_ACTION_LIMIT = 250;
+
 /** Facts from `known.sync.attention.get` plus the backend conflict href from `known.remoteDelete.policy.get`. */
 export function syncAttentionInput(attention: PublicSyncAttention | undefined,
   policy: RemoteDeleteResponse | undefined): SyncAttentionInput {
   const ok = policy?.ok === true ? policy : undefined;
   return {
-    issueCount: attention?.issueCount, issues: attention?.issues, rebuildAvailable: attention?.rebuildAvailable, rebuildUnavailableReason: attention?.rebuildUnavailableReason,
+    issueCount: attention?.issueCount, issues: attention?.issues, ...(attention?.issueCeiling ? { issueCeiling: attention.issueCeiling } : {}), rebuildAvailable: attention?.rebuildAvailable, rebuildUnavailableReason: attention?.rebuildUnavailableReason,
     waitCount: attention?.waitCount ?? 0,
     retryAt: attention?.retryAt, retryAutomatic: attention?.retryAutomatic,
     ...(attention?.coolingDown ? { coolingDown: true } : {}),

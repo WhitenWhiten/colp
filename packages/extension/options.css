@@ -479,7 +479,11 @@ body[data-first-run="syncing"] .folder-foot { display: none; }
 .native-wait-list:empty, #remote-delete-pending-list:empty, .sync-issue-list:empty { display: none; }
 .sync-issue-item .favicon-tile { flex: none; }
 .sync-issue-title { overflow-wrap: anywhere; }
-#sync-attention-settings-issues-more { margin: 0; }
+/* Try again / Dismiss sit beside the row and drop under it when the page is narrow. */
+.sync-issue-item { flex-wrap: wrap; }
+.sync-issue-item .set-row-control { max-width: none; flex-wrap: wrap; }
+#sync-attention-settings-issues-more, #sync-attention-settings-issues-hint { margin: 0; }
+#sync-attention-settings-issues-bulk[hidden] { display: none; }
 .native-wait-settings.native-wait-highlight .native-wait-list { border-color: var(--ink); box-shadow: var(--shadow-ring); }
 .native-wait-item .favicon-tile, .remote-delete-pending-item .favicon-tile { flex: none; }
 .native-wait-target { overflow-wrap: anywhere; }

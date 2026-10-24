@@ -128,7 +128,7 @@ describe('the Reset sentence never promises a button that is not there (C-13)', 
   });
 
   test('a ceiling stop names the way out that does not archive anything', () => {
-    assert.match(terminalFreezeReasonCopy('sync_issue_ceiling', { rebuildAvailable: true }), /Try again, release or dismiss/u);
+    assert.match(terminalFreezeReasonCopy('sync_issue_ceiling', { rebuildAvailable: true }), /Try again or dismiss some of the items below, or all of one kind/u);
   });
 });
 
