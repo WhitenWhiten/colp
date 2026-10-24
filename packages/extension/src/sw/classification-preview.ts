@@ -1,3 +1,4 @@
+import { classificationDestinationPolicy } from './classification-destination.js';
 import type { ClassificationPreviewReply } from '../classification-preview-reply.js';
 import type { AuthorityContext } from '../authority-fence.js';
 import { reuseClassificationPreview, type ClassificationPreviewMessage } from '../classification-preview-store.js';
@@ -28,10 +29,14 @@ export async function runPopupClassification(message: ClassificationPreviewMessa
   if (implicit && local !== await localClassificationEnabled()) {
     return { ok: false, error: 'manual_suggestions_disabled' };
   }
+  const destinationPolicy = await classificationDestinationPolicy.snapshot();
+  if (!local) await classificationDestinationPolicy.assertCloudSupported();
   const providerGeneration = local ? (await storedLocalClassification())?.generation ?? null : null;
   const reply = await reuseClassificationPreview({ message, execute, storage: chrome.storage.session,
-    binding: { ...scope, providerGeneration } });
+    binding: { ...scope, providerGeneration, destinationPolicyDigest: destinationPolicy.digest } });
   // Replayed suggestions cross the same authority boundary as live cloud results.
   if (!local) { await store.fence.assertWritable(context.generation); await assertCaptureScope(scope); }
-  return reply;
+  await classificationDestinationPolicy.assertCurrent(destinationPolicy.digest);
+  if (reply.nativeFolder) await classificationDestinationPolicy.assertAllowed(reply.nativeFolder.nativeId, destinationPolicy.digest);
+  return { ...reply, destinationPolicyDigest: destinationPolicy.digest };
 }

@@ -15,12 +15,16 @@ import type { SourcePolicyRecord } from './layout.js';
 import { createLane } from '../automation/lane.js';
 import { sourceAutomationsPaused } from '../sw/automation.js';
 const configureSchema = object({ kind: literal('known.siteAdapters.archive.configure'), rootNativeId: str(128),
-  collectionIds: array(v => typeof v === 'string' && /^[1-9]\d{0,19}$/u.test(v), 64, 1, v => v), live: literal(true, false) });
+  collectionIds: array(v => typeof v === 'string' && /^[1-9]\d{0,19}$/u.test(v), 64, 1, v => v), live: literal(true, false),
+  copies: v => v === undefined || literal('sourceAndSemantic', 'singlePreferSemantic', 'singleKeepExisting')(v),
+  primarySourceCollectionId: v => v === undefined || v === null || typeof v === 'string' && /^[1-9]\d{0,19}$/u.test(v),
+  aiDestination: v => v === undefined || literal('excluded', 'allowed')(v) });
 const disableSchema = object({ kind: literal('known.siteAdapters.archive.disable') });
 const startSchema = object({ kind: literal('known.siteAdapters.import.start') });
 const changeSchema = object({ kind: literal('known.siteAdapters.import.freeze', 'known.siteAdapters.import.resume', 'known.siteAdapters.import.cancel'), jobId: str(128) });
 const approveSchema = object({ kind: literal('known.siteAdapters.import.approve'), jobId: str(128), previewId: str(128), revision: integer, digest: str(128) });
-interface ArchiveConfig { connectionId: string; ruleId: string; root: NativeBinding<'folder'>; collectionIds: readonly string[]; live: boolean; state: 'pending' | 'active' | 'disabled' }
+interface ArchiveConfig { connectionId: string; ruleId: string; root: NativeBinding<'folder'>; collectionIds: readonly string[]; live: boolean; state: 'pending' | 'active' | 'disabled';
+  copies?: import('./contracts.js').SavePolicy['copies']; primarySourceCollectionId?: string | null; aiDestination?: 'excluded' | 'allowed' }
 interface RuntimePorts {
   source(): Promise<{ context: SourceContext; expiresAt: number } | null>;
   readSource(): Promise<{ context: SourceContext; expiresAt: number } | null>;
@@ -55,7 +59,7 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
     async status() { return { config: await config() ?? null, import: await importer.status() }; },
     async handle(raw: unknown) {
       if (configureSchema(raw)) return configureLane(async () => {
-        const input = raw as { rootNativeId: string; collectionIds: readonly string[]; live: boolean }, source = await ports.source();
+        const input = raw as { rootNativeId: string; collectionIds: readonly string[]; live: boolean; copies?: import('./contracts.js').SavePolicy['copies']; primarySourceCollectionId?: string | null; aiDestination?: 'excluded' | 'allowed' }, source = await ports.source();
         if (!source) throw new Error('pageUnavailable');
         if (!await chrome.permissions.contains({ permissions: ['bookmarks'] })) throw new Error('permissionRequired');
         const node = (await chrome.bookmarks.get(input.rootNativeId))[0];
@@ -65,6 +69,7 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
         await assertPlannedNative(binding);
         const catalog = await ports.catalog(), selected = catalog.filter(c => input.collectionIds.includes(c.id));
         if (selected.length !== input.collectionIds.length) throw new Error('refreshCatalogRequired');
+        if (input.primarySourceCollectionId && !input.collectionIds.includes(input.primarySourceCollectionId)) throw new Error('invalidPrimaryCollection');
         const c = source.context, old = await db.read<ArchiveConfig>('meta', configKey(c.connectionId));
         if (old) await sourceLayout.bindRoot(c.connectionId, old.ruleId, node.id);
         const saved = await browserRuleStore().saveRule({ ...(old ? { id: old.ruleId } : {}), draft: { name: 'Bilibili source archive', combinator: 'all',
@@ -72,9 +77,11 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
           site: { version: 1, admission: { entries: ['siteImport', 'reconcile'], purpose: 'sourceArchive', connectionId: c.connectionId, collectionIds: input.collectionIds },
             layout: { kind: 'sourceCollections', root: 'actionDestination' } } } }, Date.now());
         if (!saved.ok) throw new Error('ruleRejected');
-        let next: ArchiveConfig = { connectionId: c.connectionId, ruleId: saved.rule.id, root: binding, collectionIds: input.collectionIds, live: input.live, state: 'pending' };
+        let next: ArchiveConfig = { connectionId: c.connectionId, ruleId: saved.rule.id, root: binding, collectionIds: input.collectionIds, live: input.live, state: 'pending',
+          copies: input.copies ?? 'sourceAndSemantic', primarySourceCollectionId: input.primarySourceCollectionId ?? null, aiDestination: input.aiDestination ?? 'excluded' };
         await db.transaction(['meta'], 'readwrite', async tx => { tx.objectStore('meta').put(next, configKey(c.connectionId)); });
         const mount = await sourceLayout.bindRoot(c.connectionId, saved.rule.id, node.id);
+        await sourceLayout.configureMount(c.connectionId, saved.rule.id, input.aiDestination ?? 'excluded');
         for (let offset = 0; offset < selected.length; offset += 32) {
           const receipt = await siteLedger.acceptObservation(c, crypto.randomUUID(), { type: 'catalog.upsert', collections: selected.slice(offset, offset + 32) });
           if (receipt.status === 'rejected') throw new Error(receipt.reason);
@@ -82,7 +89,8 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
         const oldPolicy = await db.read<SourcePolicyRecord>('meta', `policy:${c.connectionId}`);
         await sourceLayout.configure({ connectionId: c.connectionId, enabled: true, liveArchive: input.live,
           admittedAfterOrdinal: old?.live && input.live ? oldPolicy?.admittedAfterOrdinal : await db.read<number>('meta', 'ordinal') ?? 0,
-          policy: { revision: (oldPolicy?.policy.revision ?? 0) + 1, copies: 'sourceAndSemantic', backgroundClassification: 'disabled', sourceRemoval: 'retainArchive' } });
+          policy: { revision: (oldPolicy?.policy.revision ?? 0) + 1, copies: input.copies ?? 'sourceAndSemantic',
+            ...(input.primarySourceCollectionId ? { primarySourceCollectionId: input.primarySourceCollectionId } : {}), backgroundClassification: 'disabled', sourceRemoval: 'retainArchive' } });
         next = { ...next, root: mount.root, state: 'active' };
         await db.transaction(['meta'], 'readwrite', async tx => { tx.objectStore('meta').put(next, configKey(c.connectionId)); });
         ports.alarm(Date.now() + 100); return { configured: true };

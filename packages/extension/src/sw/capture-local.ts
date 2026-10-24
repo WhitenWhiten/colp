@@ -1,3 +1,5 @@
+import { moveCaptureContent, assertCaptureContent } from '../capture/content-binding.js';
+import { classificationDestinationPolicy } from './classification-destination.js';
 import { isSubscriptionExcluded, personalBookmarks } from '../bookmark-subscriptions/guards.js';
 import { readCaptureControl } from '../capture/control.js';
 import type { AuthorityContext } from '../authority-fence.js';
@@ -87,7 +89,8 @@ async function classifyOnce(task: CaptureTask, ledger: CaptureStore, context: Au
   if (tagsOnly && tagMode === 'off') return write({ classification: 'none', reason: null, local: { ...local, state: 'kept' } });
   await write({ classification: 'running', reason: null, local: { ...local, commandId, state: 'running', fromNativeId: current.targetNativeId } });
   const document = classificationDocument(current, { tags: tagMode !== 'off', folder: !tagsOnly });
-  const reply = await runLocalClassification({ document, commandId, generation: context.generation, signal: context.signal, excludeBookmarkId: current.nativeId! });
+  await assertCaptureContent(current);
+  const reply = await runLocalClassification({ document, commandId, generation: context.generation, signal: context.signal, excludeBookmarkId: current.nativeId!, assertCurrent: () => assertCaptureContent(current) });
   current = await ledger.get(task.scope, task.captureId) ?? current;
   const running = current.local ?? local;
   if (!reply.ok && tagsOnly && reply.error === 'local_no_tags') return write({ classification: 'applied', reason: null, local: { ...running, state: 'kept' } });
@@ -104,6 +107,7 @@ async function classifyOnce(task: CaptureTask, ledger: CaptureStore, context: Au
     ...tagMode === 'suggest' && selectedTags.length ? { suggestedTags: selectedTags } : {} };
   const late = current.manualFence ? 'manually_edited' : await stopReason(current);
   if (late) return write({ classification: 'manual', reason: late, local: { ...running, ...suggestion, state: 'unknown' } });
+  if (!tagsOnly) await classificationDestinationPolicy.assertAllowed(folder.nativeId, reply.destinationPolicyDigest);
   const addedTags = tagMode === 'add' ? selectedTags : [];
   if (addedTags.length) {
     const annotations = createBookmarkAnnotationStore();
@@ -114,7 +118,8 @@ async function classifyOnce(task: CaptureTask, ledger: CaptureStore, context: Au
       await annotations.save(bookmark, { tags: [...new Set([...base.tags, ...addedTags])], note: base.note }, { preserveTags: true, base });
     } finally { annotations.close(); }
   }
-  if (folder.nativeId !== current.targetNativeId) await personalBookmarks.move(current.nativeId!, { parentId: folder.nativeId });
+  if (!tagsOnly) await classificationDestinationPolicy.assertAllowed(folder.nativeId, reply.destinationPolicyDigest);
+  if (folder.nativeId !== current.targetNativeId) await moveCaptureContent(current, folder.nativeId, () => personalBookmarks.move(current.nativeId!, { parentId: folder.nativeId }));
   const location = await nativeCaptureLocation(current.nativeId!, current.scope).catch(() => current.localLocation);
   return write({ classification: 'applied', classificationAppliedAt: Date.now(), reason: null, localLocation: location,
     local: { ...running, ...suggestion, state: folder.nativeId === current.targetNativeId ? 'kept' : 'applied' } });

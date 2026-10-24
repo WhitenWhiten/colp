@@ -1,3 +1,5 @@
+import { classificationDestinationPolicy } from './classification-destination.js';
+import { assertCaptureContent } from '../capture/content-binding.js';
 import { assertPlannedCaptureAuthority, plannedNativeFault } from '../capture/planned.js';
 import { isSubscriptionExcluded } from '../bookmark-subscriptions/guards.js';
 
@@ -74,6 +76,7 @@ async function receiptFor(nativeId: string, scope: CaptureScope, savedAt?: numbe
 
 export async function createNativeCapture(task: CaptureTask, reserved: (intentId: string) => Promise<void>, saved: (receipt: CaptureReceipt) => Promise<void>): Promise<CaptureReceipt> {
   if (!await hasBookmarkPermission()) throw new Error('permission_required');
+  await assertCaptureContent(task);
   await assertPlannedCaptureAuthority(task);
   const placementStore = createBookmarkCreatePlacementStore({ retainForConsumer: true, retainUntilAcknowledged: !!task.planned });
   const sidecar = createFaviconSidecarStore();
@@ -85,7 +88,7 @@ export async function createNativeCapture(task: CaptureTask, reserved: (intentId
       ...(task.scope.collectionId && task.sync !== 'local-only' ? { collectionId: task.scope.collectionId } : {}),
       placementStore, sidecar, bookmarks: {
         getChildren: id => chrome.bookmarks.getChildren(id),
-        async create(input) { await assertPlannedCaptureAuthority(task); await assertCaptureScope(task.scope); await assertBookmarkFolderAllowed(input.parentId); const node = await chrome.bookmarks.create(input); if (task.planned) await plannedNativeFault('afterBookmarkCreate', task.commandId); return node; /* savePagesThroughNativeIngress holds the shared boundary. */ },
+        async create(input) { if (task.aiDestinationPolicyDigest) { if (!input.parentId) throw new Error('destination_policy_unresolved'); await classificationDestinationPolicy.assertAllowed(input.parentId, task.aiDestinationPolicyDigest); } await assertCaptureContent(task); await assertPlannedCaptureAuthority(task); await assertCaptureScope(task.scope); await assertBookmarkFolderAllowed(input.parentId); const node = await chrome.bookmarks.create(input); if (task.planned) await plannedNativeFault('afterBookmarkCreate', task.commandId); return node; /* savePagesThroughNativeIngress holds the shared boundary. */ },
       }, onPlacementReserved: intent => reserved(intent.intentId),
       onNativeCreated: async node => {
         // The native write already succeeded. Its device fact does not depend on

@@ -5,10 +5,13 @@
 <p><button id="grant-archive" type="button">Choose a local bookmark root</button> <select id="archive-root" aria-label="Archive root"><option value="">Choose a root</option></select></p>
 <label>Collections <select id="archive-collections" aria-label="Archive collections" multiple size="6"></select></label>
 <p><label><input id="archive-live" type="checkbox"> Archive newly observed positive memberships in these collections</label></p>
+<p><label>Copies <select id="archive-copies"><option value="sourceAndSemantic">Keep source and semantic copies</option><option value="singlePreferSemantic">One copy, prefer semantic location</option><option value="singleKeepExisting">One copy, preserve existing location</option></select></label></p>
+<p><label>Primary collection for a new single source copy <select id="archive-primary"><option value="">Ask when multiple collections apply</option></select></label></p>
+<p><label><input id="archive-ai" type="checkbox"> Allow AI destinations inside this source root</label></p>
 <p><button id="configure-archive" type="button">Save archive settings</button> <button id="disable-archive" type="button">Pause archives</button></p>
 </fieldset><fieldset><legend>Import with a preview</legend>
 <p>Scanning and previewing create no bookmarks. Only the exact approved preview may write. Restarting a scan repeats discovery and deduplicates accepted items.</p>
 <button id="start-import" type="button">Scan selected collections</button> <button id="freeze-import" type="button" disabled>Stop and build preview</button> <button id="resume-import" type="button" disabled>Restart scan and deduplicate</button>
 <p id="import-summary" role="status">No import started.</p>
 <button id="approve-import" type="button" disabled>Approve this preview</button> <button id="cancel-import" type="button" disabled>Cancel import</button>
-</fieldset><p id="connection"></p><button id="confirm" type="button" hidden>Connect this account</button><pre id="status" role="status"></pre><a href="options.html">Back to settings</a></main><script type="module" src="site-settings.js"></script></body></html>
+</fieldset><fieldset><legend>Content associations</legend><p>Changing accounts never takes over an existing association automatically. Review the connected account before adopting a proven copy.</p><button id="read-bindings" type="button">Review saved content associations</button><div id="content-bindings"></div></fieldset><p id="connection"></p><button id="confirm" type="button" hidden>Connect this account</button><pre id="status" role="status"></pre><a href="options.html">Back to settings</a></main><script type="module" src="site-settings.js"></script></body></html>

@@ -1,0 +1,81 @@
+{
+  "fixture": true,
+  "realSite": false,
+  "observedAt": "2026-10-24T14:54:07.905Z",
+  "browserVersion": "149.0.7827.0",
+  "policies": [
+    {
+      "policy": "sourceAndSemantic",
+      "sourceFirstCopies": 2,
+      "semanticFirstCopies": 2
+    },
+    {
+      "policy": "singlePreferSemantic",
+      "sourceFirstCopies": 1,
+      "semanticFirstCopies": 1
+    },
+    {
+      "policy": "singleKeepExisting",
+      "sourceFirstCopies": 1,
+      "semanticFirstCopies": 1
+    }
+  ],
+  "modelCalls": 5,
+  "sourceSubtreeAndExamplesExcluded": true,
+  "toolbarSemanticIntent": true,
+  "explicitExistingCopyClassification": true,
+  "providerFailureRetainsArchiveAndSemanticCopy": true,
+  "popupBvResolvedInCurrentDocument": true,
+  "durationMs": 131147,
+  "stats": {
+    "startTime": "2026-10-24T14:47:47.346Z",
+    "duration": 140553.64899999998,
+    "expected": 3,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "runner": "OrbStack Linux arm64; forced xvfb",
+  "importRegressionMs": 139749,
+  "regressions": {
+    "mv3-local-saving.spec.ts": 13799,
+    "mv3-site-adapter-planned.spec.ts": 10354
+  },
+  "unitTests": {
+    "passed": 274,
+    "files": 25,
+    "command": "node packages/extension/scripts/with-orbstack.mjs run node_modules/.bin/vitest run tests/site-adapter-content.test.ts tests/site-adapter-import.test.ts tests/site-adapter-planned.test.ts tests/site-adapter-rules.test.ts tests/classification-destination-policy.test.ts tests/classification-destination-runtime.test.ts tests/classification-destination-boundary.test.ts tests/classification-trigger.test.ts tests/classification-local-taxonomy.test.ts tests/classification-local.test.ts tests/capture-local-automatic.test.ts tests/capture-editor-recovery.test.ts tests/capture-apply-recovery.test.ts tests/capture-contracts.test.ts tests/capture-coordinator.test.ts tests/capture-pre-save.test.ts tests/popup-classification-local.test.ts tests/popup-classification-rule.test.ts tests/popup-classification-auto.test.ts tests/popup-classification-retry.test.ts tests/popup-classification-billing.test.ts tests/popup-native-save.test.ts tests/popup-result-suggestions.test.ts tests/popup-result-actions.test.ts tests/popup-result-fields.test.ts"
+  },
+  "e2eCommands": [
+    "node packages/extension/scripts/with-orbstack.mjs e2e e2e/mv3-site-adapter-import.spec.ts e2e/mv3-site-adapter-semantic.spec.ts",
+    "node packages/extension/scripts/with-orbstack.mjs e2e e2e/mv3-site-adapter-semantic.spec.ts e2e/mv3-site-adapter-planned.spec.ts e2e/mv3-local-saving.spec.ts",
+    "node packages/extension/scripts/with-orbstack.mjs e2e e2e/mv3-site-adapter-semantic.spec.ts"
+  ],
+  "productionSha256": {
+    "site-adapter.js": "ea88e87e919fd51b3c0216eade668d15b78bba5d5c11e4c872a904fe5a8d8a59",
+    "site-probe.js": "adce621480b74a7224f7bab51e2adfd3650898b9cb19d91c38de02d12ee1f359",
+    "service-worker.js": "b4b569e1ce276b476bc176cfc73711cbfaaa6d54861c7783d3d334df62112e56"
+  },
+  "strictTypecheck": {
+    "heapMiB": 1536,
+    "passed": true,
+    "projectWide": "not completed: prepared VM memory limitation recorded in SA-04"
+  },
+  "releaseVerifier": {
+    "passed": true,
+    "files": 41,
+    "sourceMaps": false
+  },
+  "lint": "passed: all changed TypeScript files",
+  "cleanup": "temporary contexts/profiles/containers removed; no server started",
+  "explicitMountedFolderSelection": true,
+  "revocationRejectsLateSemanticMove": true,
+  "finalSemanticStats": {
+    "startTime": "2026-10-24T14:51:56.732Z",
+    "duration": 131387.24,
+    "expected": 1,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

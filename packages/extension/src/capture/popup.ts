@@ -50,7 +50,16 @@ export async function initializeCapturePopup(shell?: ResultShell): Promise<boole
   let task: CaptureTask | undefined, stopped = false, reading = false, dirty = false, timer: ReturnType<typeof setTimeout> | undefined;
   const resultFields = bindResultFields({ folders: shell.folders, fields: shell.fields, preview: Boolean(preview), ...(shell.pin ? { pin: shell.pin } : {}) });
   let suggestions: ReturnType<typeof bindResultSuggestions> | undefined;
-  const show = (next: CaptureTask) => { if (panel.removed()) return; task = next; panel.show(next);
+  const adoption = document.createElement('div'); adoption.id = 'capture-content-adoption'; document.getElementById('capture')!.append(adoption);
+  const show = (next: CaptureTask) => {
+    adoption.replaceChildren();
+    if (next.contentIntent && !next.nativeId && next.disposition === 'existing') for (const copy of next.existence?.exact ?? []) {
+      if (!copy.nativeId || !copy.writable) continue;
+      const button = document.createElement('button'); button.type = 'button'; button.textContent = `Adopt this copy: ${copy.path.join(' / ')}`;
+      button.onclick = () => { void request({ kind: 'known.siteAdapters.content.adopt', captureId: next.captureId, nativeId: copy.nativeId }).then(r => { if (r.task) show(r.task); }); };
+      adoption.append(button);
+    }
+ if (panel.removed()) return; task = next; panel.show(next);
     void resultFields.sync(next).then(() => suggestions?.sync(next)); };
   const actions = createResultActions({ preview: Boolean(preview), request, current: () => task, show, note: shell.note,
     fields: shell.fields, resultFields, folders: shell.folders, ...(shell.pin ? { pin: shell.pin } : {}),

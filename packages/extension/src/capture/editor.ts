@@ -1,7 +1,7 @@
 import type { CaptureTask } from './contracts.js';
 export interface CaptureEditRequest {
   readonly kind: 'known.capture.edit'; readonly captureId: string; readonly commandId: string; readonly parentNativeId: string;
-  readonly originalParentNativeId: string; readonly tags: readonly string[]; readonly userGesture: true;
+  readonly aiDestinationPolicyDigest?: string; readonly originalParentNativeId: string; readonly tags: readonly string[]; readonly userGesture: true;
 }
 /**
  * Explicit abandon/replace entry point for a correction whose outcome is
@@ -15,7 +15,8 @@ export interface CaptureEditCancelRequest {
 export function validCaptureEdit(value: unknown): value is CaptureEditRequest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const raw = value as Record<string, unknown>;
-  return raw.kind === 'known.capture.edit' && raw.userGesture === true && Object.keys(raw).length === 7
+  return raw.kind === 'known.capture.edit' && raw.userGesture === true && Object.keys(raw).every(k => ['kind','captureId','commandId','parentNativeId','originalParentNativeId','tags','userGesture','aiDestinationPolicyDigest'].includes(k))
+    && (raw.aiDestinationPolicyDigest === undefined || typeof raw.aiDestinationPolicyDigest === 'string' && /^sha256:[0-9a-f]{64}$/u.test(raw.aiDestinationPolicyDigest))
     && [raw.captureId, raw.commandId].every(id => typeof id === 'string' && /^[0-9a-f-]{36}$/u.test(id))
     && [raw.parentNativeId, raw.originalParentNativeId].every(id => typeof id === 'string' && /^[\w.-]{1,128}$/u.test(id))
     && Array.isArray(raw.tags) && raw.tags.length <= 64 && raw.tags.every(tag => typeof tag === 'string' && tag.length > 0 && tag.length <= 64);

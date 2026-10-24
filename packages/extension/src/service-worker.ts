@@ -319,7 +319,9 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     // Local previews use the user's own provider and must keep working signed out.
     void workCoordinator.run(message.kind === 'known.classification.local-preview' ? 'local-classification' : 'classification',
       context => handleClassificationRequest(message, context, sender)).then(respond,
-      () => respond({ok:false,error:'reconnect_required',status:401,sameRequestRetrySafe:false}));
+      error => respond(error instanceof Error && (/^destination_policy_/u.test(error.message) || error.message === 'cloud_destination_policy_unsupported')
+        ? { ok: false, error: error.message, status: 409, sameRequestRetrySafe: false }
+        : {ok:false,error:'reconnect_required',status:401,sameRequestRetrySafe:false}));
     return true;
   }
   if (validBookmarkPreferencesRequest(message)) {

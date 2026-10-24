@@ -24,6 +24,7 @@ const f = vi.hoisted(() => {
     decision: vi.fn() };
 });
 
+vi.mock('../src/sw/classification-destination.js', () => ({ classificationDestinationPolicy: { assertCloudSupported: async () => {} } }));
 vi.mock('../src/sw/capture-native.js', () => ({
   currentCaptureScope: async () => f.scope, assertCaptureScope: async () => {}, assertCaptureOwner: async () => {} }));
 vi.mock('../src/sw/capture.js', () => ({ get captureStore() { return f.ledger; } }));

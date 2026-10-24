@@ -10,6 +10,7 @@ export interface ClassificationSuggestion {
 
 export interface ClassificationPreviewReply {
   readonly ok: boolean;
+  readonly destinationPolicyDigest?: string;
   readonly result?: ClassificationSuggestion;
   readonly nativeFolder?: ClassificationNativeFolder | null;
   readonly error?: string;
@@ -26,7 +27,7 @@ export function retainClassificationReply(reply: ClassificationPreviewReply): Cl
     ...(reply.status === undefined ? {} : { status: reply.status }),
     ...(reply.sameRequestRetrySafe === undefined ? {} : { sameRequestRetrySafe: reply.sameRequestRetrySafe }) };
   const { folder, tags, candidateCoverage: coverage } = reply.result;
-  return { ok: true, result: {
+  return { ok: true, ...(reply.destinationPolicyDigest ? { destinationPolicyDigest: reply.destinationPolicyDigest } : {}), result: {
     folder: folder ? { decision: folder.decision, folderId: folder.folderId } : null,
     tags: { candidates: tags.candidates.map(tag => ({ tag: tag.tag, selected: tag.selected !== false })) },
     candidateCoverage: { policyVersion: coverage.policyVersion, l1Total: coverage.l1Total, l1Included: coverage.l1Included,

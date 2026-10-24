@@ -16,7 +16,7 @@ const running = new Map<string, Promise<ClassificationPreviewReply>>();
 /** Reopening a form observes its prior command; only an explicit action can retry an uncertain result. */
 export async function reuseClassificationPreview(input: {
   readonly message: ClassificationPreviewMessage;
-  readonly binding: CaptureScope & { readonly providerGeneration: string | null };
+  readonly binding: CaptureScope & { readonly providerGeneration: string | null; readonly destinationPolicyDigest?: string };
   readonly storage: StorageArea;
   readonly execute: (message: ClassificationPreviewMessage) => Promise<ClassificationPreviewReply>;
 }): Promise<ClassificationPreviewReply> {

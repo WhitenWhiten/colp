@@ -1,3 +1,4 @@
+import { moveSuggestedBookmark } from './classification-destination-client.js';
 import { personalBookmarks } from './bookmark-subscriptions/guards.js';
 import type { CaptureLocation } from './capture/contracts.js';
 import { repaintExistenceSaveControl } from './capture/manual-existence.js';
@@ -22,6 +23,7 @@ export interface AnnotationFields {
 export interface EditExistingHost {
   readonly titleInput: { value: string };
   /** The tab's own title: a title field still showing it has not been edited. */
+  readonly aiDestinationPolicyDigest?: () => string | undefined;
   readonly tabTitle: () => string;
   readonly save: HTMLButtonElement;
   readonly remove: HTMLButtonElement;
@@ -157,7 +159,9 @@ export function bindEditExisting(host: EditExistingHost): {
         if (title !== editing.title) await personalBookmarks.update(editing.nativeId, { title });
         const parentId = host.folders.chosenFolderId();
         if (parentId && parentId !== editing.parentId) {
-          await personalBookmarks.move(editing.nativeId, { parentId });
+          const policy = host.aiDestinationPolicyDigest?.();
+          if (policy) await moveSuggestedBookmark(editing.nativeId, parentId, policy, crypto.randomUUID(), { parentId: editing.parentId, dateAdded: editing.ref.dateAdded, title, url: editing.url });
+          else await personalBookmarks.move(editing.nativeId, { parentId });
           await host.commitFolder();
         }
         const annotation = host.annotation.read();

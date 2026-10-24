@@ -20,7 +20,7 @@ export function bindResultSuggestions(deps: {
   readonly note: PopupNote;
   readonly folders: ReturnType<typeof bindSaveFolderPicker>;
   readonly getManagedPrice?: () => Promise<{ readonly priceVersion: string; readonly unitPoints: number }>;
-  readonly apply: (nativeId: string) => Promise<boolean>;
+  readonly apply: (nativeId: string, aiDestinationPolicyDigest?: string) => Promise<boolean>;
   readonly onApplied: () => void;
   readonly pause: () => void;
 }) {
@@ -36,8 +36,8 @@ export function bindResultSuggestions(deps: {
         title: title.value.trim() || task.title, url: task.url };
     },
     inScope: async () => Boolean(deps.current()?.scope.collectionId),
-    async chooseFolder(nativeId) {
-      if (stopped || !await deps.apply(nativeId)) return false;
+    async chooseFolder(nativeId, _anyFolder, destinationPolicyDigest) {
+      if (stopped || !await (destinationPolicyDigest ? deps.apply(nativeId, destinationPolicyDigest) : deps.apply(nativeId))) return false;
       await deps.folders.adopt(nativeId);
       return true;
     },
@@ -52,10 +52,10 @@ export function bindResultSuggestions(deps: {
         && task.local.folderCandidateCount !== 0;
       const failed = task.automaticIntent && ['manual', 'failed'].includes(task.classification)
         && RETRYABLE_REASONS.has(task.reason ?? '');
-      const retry = !task.manualFence && (later || failed);
+      const retry = !task.manualFence && (later || failed || task.contentIntent?.mode === 'suggest' || task.contentIntent?.mode === 'reclassify' || !!task.contentIntent && task.classification === 'none');
       // A rule owns this folder: the result never offers a model's folder in its place.
-      if (!binding || stopped || seeded || loading || task.disposition !== 'new' || task.classification !== 'applied' && !retry
-        || !task.nativeId || !task.local && task.sync !== 'confirmed' || deps.folders.userPicked() || task.automation) return;
+      if (!binding || stopped || seeded || loading || task.disposition !== 'new' && !task.contentIntent || task.classification !== 'applied' && !retry
+        || !task.nativeId || !task.local && !task.contentIntent && task.sync !== 'confirmed' || deps.folders.userPicked() || task.automation) return;
       loading = true;
       const at = epoch;
       try {

@@ -1,3 +1,5 @@
+import { withDestinationPolicyBoundary } from '../classification-destination-boundary.js';
+import { classificationDestinationPolicy } from './classification-destination.js';
 import { withSubscriptionRead } from '../bookmark-subscriptions/barrier.js';
 import { personalSyncFetch } from '../personal-sync-fetch.js';
 import { isSubscriptionExcluded } from '../bookmark-subscriptions/guards.js';
@@ -39,17 +41,19 @@ async function executePreview(message: ClassificationPreviewMessage, context: Au
 }
 
 async function classificationClient(context: AuthorityContext, nodeId?: string) {
+  await classificationDestinationPolicy.assertCloudSupported();
   const config = await loadConfig(), credential = await store.loadCredential();
   if (!credential?.subject || credential.serverOrigin !== config.serverOrigin) throw new ClassificationProductError('reconnect_required', 401);
   const subject = credential.subject, scope = await currentSyncScope();
   if (scope.accountId !== subject) throw new ClassificationProductError('classification_scope_changed', 409);
   const client = createClassificationProductClient({ serverOrigin: config.serverOrigin, expectedAuthUserId: subject, signal: context.signal,
     fetch: personalSyncFetch(scope),
-    dispatch: send => withSubscriptionRead(async () => {
+    dispatch: send => withDestinationPolicyBoundary(() => withSubscriptionRead(async () => {
+      await classificationDestinationPolicy.assertCloudSupported();
       const mapped = nodeId && await syncState.getMappingByColpId(scope, nodeId);
       if (mapped && await isSubscriptionExcluded(mapped.nativeId)) throw new Error('subscription_classification_excluded');
       return send();
-    }),
+    })),
     async assertCurrent() {
       await store.fence.assertWritable(context.generation);
       const current = await store.loadCredential();
@@ -76,7 +80,8 @@ async function resolveFolder(folderId: string | null, scope: SyncScope, context:
 }
 
 function classificationFailure(error: unknown, retrySafe: boolean) {
-  return { ok: false as const, error: error instanceof ClassificationProductError ? error.code : 'classification_unavailable',
+  return { ok: false as const, error: error instanceof ClassificationProductError ? error.code
+    : error instanceof Error && (/^destination_policy_/u.test(error.message) || error.message === 'cloud_destination_policy_unsupported') ? error.message : 'classification_unavailable',
     status: error instanceof ClassificationProductError ? error.status : 0,
     sameRequestRetrySafe: error instanceof ClassificationProductError ? error.sameRequestRetrySafe : retrySafe };
 }

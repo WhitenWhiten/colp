@@ -9,7 +9,7 @@ export type CaptureRequest =
     readonly saveAnother: boolean; readonly allowUnverifiedCloud: boolean; readonly userGesture?: true;
     readonly annotation?: BookmarkAnnotationInput;
     /** `explicit`: the user picked the folder for this save; no rule overrides it. */
-    readonly folderChoice?: 'explicit' | 'default' }
+    readonly folderChoice?: 'explicit' | 'default'; readonly aiDestinationPolicyDigest?: string }
   | { readonly kind: 'known.capture.get' | 'known.capture.resume' | 'known.capture.check' | 'known.capture.report.retry' | 'known.capture.decision.check'; readonly captureId: string }
   | { readonly kind: 'known.capture.undo' | 'known.capture.apply'; readonly captureId: string; readonly commandId: string; readonly userGesture: true }
   /** The popup's Undo removed the saved bookmark: the capture ends as cancelled instead of staying "saved". */
@@ -44,9 +44,10 @@ export function validCaptureRequest(value: unknown): value is CaptureRequest {
     && (raw.collectionId === undefined || typeof raw.collectionId === 'string' && /^[\w.-]{1,128}$/u.test(raw.collectionId))
     && (raw.insertPosition === undefined || raw.insertPosition === 'top' || raw.insertPosition === 'bottom')
     && (raw.annotation === undefined || validAnnotation(raw.annotation))
+    && (raw.aiDestinationPolicyDigest === undefined || typeof raw.aiDestinationPolicyDigest === 'string' && /^sha256:[0-9a-f]{64}$/u.test(raw.aiDestinationPolicyDigest))
     && (raw.folderChoice === undefined || raw.folderChoice === 'explicit' || raw.folderChoice === 'default')
     && Object.keys(raw).every(key => ['kind', 'commandId', 'trigger', 'url', 'title', 'parentNativeId',
-      'saveAnother', 'allowUnverifiedCloud', 'userGesture', 'collectionId', 'insertPosition', 'annotation', 'folderChoice'].includes(key));
+      'saveAnother', 'allowUnverifiedCloud', 'userGesture', 'collectionId', 'insertPosition', 'annotation', 'folderChoice', 'aiDestinationPolicyDigest'].includes(key));
 }
 
 export type CapturePanelRequest =

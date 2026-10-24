@@ -4,6 +4,10 @@ import { preferenceHash } from './preferences-navigation.js';
 export interface ClassificationErrorFeedback { readonly text: string; readonly settingsHash?: string }
 export function classificationErrorFeedback(error: string | undefined, local: boolean, retrySafe = false): ClassificationErrorFeedback {
   const messages: Record<string, string> = {
+    cloud_destination_policy_unsupported: 'This server cannot enforce source folder exclusions. Use your configured local AI service or choose a folder manually.',
+    destination_policy_changed: 'Folder eligibility changed. Ask for a new suggestion or choose a folder manually.',
+    destination_policy_excluded: 'This folder is excluded from AI destinations. You can choose it manually.',
+    destination_policy_needs_rebind: 'A source root needs rebinding in Site adapters before AI suggestions can run.',
     insufficient_credits: t('popup_notEnoughCreditsClassification', 'Not enough credits for a suggestion. You can still save.'),
     billing_consent_required: t('popup_classificationNeedsPriceConfirmation', 'The suggestion needs a price confirmation. Update the extension and try again.'),
     credit_price_changed: t('popup_classificationPriceChangedStart', 'The suggestion price changed. Start a new request.'),

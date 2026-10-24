@@ -1,3 +1,5 @@
+import { classificationDestinationPolicy } from './classification-destination.js';
+import { moveCaptureContent } from '../capture/content-binding.js';
 import { withSubscriptionRead } from '../bookmark-subscriptions/barrier.js';
 import { assertPersonalNativeAllowed } from '../bookmark-subscriptions/guards.js';
 import { assertPersonalCapture } from '../bookmark-subscriptions/capture-boundary.js';
@@ -34,14 +36,17 @@ export function handleCaptureEdit(request: CaptureEditRequest) {
     let current = await captureStore.getForOwner(scope, request.captureId);
     if (!current?.nativeId || current.save !== 'local-saved' || current.scope.collectionId !== scope.collectionId) throw new Error('capture_edit_unavailable');
     await assertPersonalCapture(current);await assertPersonalNativeAllowed(request.parentNativeId);
+    if (request.aiDestinationPolicyDigest) await classificationDestinationPolicy.assertAllowed(request.parentNativeId, request.aiDestinationPolicyDigest);
     const previous = supersededEditIntent(current.editIntent) ? undefined : current.editIntent;
+    const aiDestinationPolicyDigest = previous?.aiDestinationPolicyDigest ?? request.aiDestinationPolicyDigest;
+    if (aiDestinationPolicyDigest) await classificationDestinationPolicy.assertAllowed(request.parentNativeId, aiDestinationPolicyDigest);
     if (previous && !previous.completed && (previous.commandId !== request.commandId || previous.parentNativeId !== request.parentNativeId
       || JSON.stringify(previous.tags) !== JSON.stringify(request.tags))) throw new Error('capture_edit_pending');
     if (previous?.commandId === request.commandId && previous.completed) return { ok: true, task: current };
     const preferences = await readEffectiveBookmarkPreferences(), control = await readCaptureControl(scope);
     let intent: NonNullable<CaptureTask['editIntent']> = previous && !previous.completed ? previous : { commandId: request.commandId, parentNativeId: request.parentNativeId,
       originalParentNativeId: request.originalParentNativeId, tags: request.tags, ifMatch: current.automatic?.decision?.nodeEtag ?? null, completed: false,
-      learningEligible: preferences.learnFromCorrections !== false, evidenceGeneration: control.evidenceGeneration ?? 0 };
+      ...(aiDestinationPolicyDigest ? { aiDestinationPolicyDigest } : {}), learningEligible: preferences.learnFromCorrections !== false, evidenceGeneration: control.evidenceGeneration ?? 0 };
     // Human intent fences model work immediately, but validation does not admit a command.
     const fenced: CaptureTask = { ...current, manualFence: current.manualFence + 1,
       classification: 'manual', revision: current.revision + 1, updatedAt: Date.now() };
@@ -90,7 +95,8 @@ export function handleCaptureEdit(request: CaptureEditRequest) {
             await annotations.save(node, { tags, note: base.note }, { preserveTags: true, base });
           });
         } finally { annotations.close(); }
-        if (node.parentId !== intent.parentNativeId) await personalBookmarks.move(capture.nativeId!, { parentId: intent.parentNativeId });
+        if (intent.aiDestinationPolicyDigest) await classificationDestinationPolicy.assertAllowed(intent.parentNativeId, intent.aiDestinationPolicyDigest);
+        if (node.parentId !== intent.parentNativeId) await moveCaptureContent(capture, intent.parentNativeId, () => personalBookmarks.move(capture.nativeId!, { parentId: intent.parentNativeId }));
         return capture.automatic?.decision ?? undefined;
       };
     }

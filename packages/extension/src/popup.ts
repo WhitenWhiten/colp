@@ -1,3 +1,4 @@
+import type { CaptureTask } from './capture/contracts.js';
 import { hydrateIcons } from './icons.js';
 import { initializeCapturePopup, allowManualCapture } from './capture/popup.js';
 import { showManualCaptureExistence, repaintExistenceSaveControl } from './capture/manual-existence.js';
@@ -98,7 +99,7 @@ const risk = bindPopupRisk({ notice: element('risk-notice'), page: currentPage }
 urlInput.addEventListener('change', () => { void rule.refresh(); void risk.refresh(); });
 bindDestUi({ destToggle: element('dest-toggle') as HTMLButtonElement, destPanel: element('dest-panel'), destSearch: element('dest-search') as HTMLInputElement });
 const editExisting = bindEditExisting({ titleInput, tabTitle: () => tabTitle, save, remove: element('remove-bookmark') as HTMLButtonElement,
-  folders, commitFolder: () => folders.commit(selectedCollection()?.id ?? DEVICE_FOLDER_SCOPE), setFeedback, annotation: fields.annotation, pin });
+  folders, aiDestinationPolicyDigest: () => classification?.destinationPolicy(), commitFolder: () => folders.commit(selectedCollection()?.id ?? DEVICE_FOLDER_SCOPE), setFeedback, annotation: fields.annotation, pin });
 let library: Library | undefined;
 const deviceSave = bindDeviceSave({ enableControls: enableSaveControls, initTarget: initSaveTarget,
   showExistence: showManualCaptureExistence, showPersistedFeedback: showPersistedSaveFeedback, currentUrl: () => tabUrl });
@@ -424,7 +425,7 @@ async function submit(hasUserGesture: boolean): Promise<void> {
     const typed = captureAnnotation({ tags: fields.tags.tags(), note: fields.noteField.value });
     const annotation = pin.pinned() ? { ...(typed ?? { tags: [], note: null }), pinned: true as const } : typed;
     const saved = await savePopupNativePage({title,url,favIconUrl},parentNativeId,localOnly?undefined:collectionId,
-      frozenInsertPosition, annotation, target.folderChoice);
+      frozenInsertPosition, annotation, target.folderChoice, classification?.destinationPolicy());
     nativeId = saved.nativeId;
     await rule.saved(saved.task);
     ruleLine = saved.task.disposition === 'new' ? automationSaveLine(saved.task.automation) : null;
@@ -508,3 +509,12 @@ async function request(message: ExtensionRequest): Promise<ExtensionResponse> {
       state: { status: 'error', environment: 'production', serverOrigin: '', errorCode: 'extension_unavailable' } };
   }
 }
+
+document.addEventListener('known:semantic-save', () => { void (async () => {
+  const page = currentPage(); if (!page) return;
+  const target = folders.userPicked() ? folders.chosenFolderId() : undefined;
+  const reply = await chrome.runtime.sendMessage({ kind: 'known.capture.start', commandId: crypto.randomUUID(), trigger: 'manual-popup', userGesture: true,
+    url: page.url, title: page.title, saveAnother: false, allowUnverifiedCloud: true, ...(target ? { parentNativeId: target, folderChoice: 'explicit' } : {}) }) as { ok?: boolean; error?: string; task?: CaptureTask };
+  if (!reply.ok || !reply.task) { setFeedback(reply.error ?? 'Semantic save could not start. Choose a default bookmark folder.', 'error'); return; }
+  location.href = `popup.html?resumeOnly=${reply.task.captureId}&surface=${crypto.randomUUID()}`;
+})().catch(() => setFeedback('Semantic save could not start. Choose a default bookmark folder.', 'error')); });

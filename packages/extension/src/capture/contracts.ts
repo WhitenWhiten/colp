@@ -36,6 +36,9 @@ export interface CaptureTask {
   /** Absent on captures migrated from DB v1–v3. Never accepted by capture message parsers. */
   readonly planned?: import('./planned.js').PlannedCaptureMetadata;
   readonly nativeDateAdded?: number;
+  readonly aiDestinationPolicyDigest?: string;
+  /** Host-derived content reservation; no page message may supply this metadata. */
+  readonly contentIntent?: import('./content-binding.js').CaptureContentIntent & { readonly desiredParentId?: string };
   readonly captureId: string;
   readonly commandId: string;
   readonly batchId: string | null;
@@ -92,7 +95,7 @@ export interface CaptureTask {
   readonly feedbackKind?: FeedbackKind;
   readonly feedbackServerRevision?: number;
   readonly remoteFeedback?: { readonly revision: number; readonly kind: FeedbackKind | null };
-  readonly editIntent?: { readonly commandId: string; readonly parentNativeId: string; readonly originalParentNativeId: string;
+  readonly editIntent?: { readonly aiDestinationPolicyDigest?: string; readonly commandId: string; readonly parentNativeId: string; readonly originalParentNativeId: string;
     readonly tags: readonly string[]; readonly ifMatch: string | null; readonly completed: boolean;
     /** A local edit stays local on replay, even if sync has since resumed. */
     readonly execution?: 'native';

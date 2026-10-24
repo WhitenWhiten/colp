@@ -20,6 +20,7 @@ const f = vi.hoisted(() => ({
   aiTagMode: undefined as 'off' | 'suggest' | 'add' | undefined,
 }));
 
+vi.mock('../src/sw/classification-destination.js', () => ({ classificationDestinationPolicy: { snapshot: async () => ({ digest: 'fixture-policy', excluded: new Set(), constrained: false }), assertAllowed: async () => {}, assertCurrent: async () => {}, assertCloudSupported: async () => {} } }));
 vi.mock('../src/sw/runtime.js', () => ({
   workCoordinator: { run: async (lane: string, work: (context: { generation: number; signal: AbortSignal }) => unknown) => {
     f.lanes.push(lane); return work({ generation: 1, signal: new AbortController().signal }); } } }));
@@ -96,6 +97,13 @@ test('an intentional new copy stays eligible although its URL already has anothe
   ], similar: [], coverage: { local: 'complete', cloud: 'not-checked', collectionIds: [], checkedAt: Date.now(), stale: false } } }));
   expect(await classifyLocalCapture(created, f.ledger!)).toMatchObject({ classification: 'applied' });
   expect(f.classify).toHaveBeenCalledOnce(); expect(f.move).toHaveBeenCalledOnce();
+});
+test('an explicitly bound semantic reclassification can classify an existing copy without a fabricated create', async () => {
+  f.classify.mockResolvedValue(reply('l2', 'recipes'));
+  const created = await f.ledger!.claim(seed({ disposition: 'existing', contentIntent: { bindingId: 'binding', itemId: 'video:av:1', connectionId: null,
+    mode: 'reclassify', captureIntentId: task.captureId, nativeId: 'saved', dateAdded: 10, title: 'Pasta', url: 'https://example.org/pasta', parentId: 'inbox' } }));
+  expect(await classifyLocalCapture(created, f.ledger!)).toMatchObject({ disposition: 'existing', save: 'local-saved', classification: 'applied' });
+  expect(f.move).toHaveBeenCalledOnce(); expect(f.classify).toHaveBeenCalledOnce();
 });
 
 test('automatic own-AI tags are saved locally without erasing the user note', async () => {

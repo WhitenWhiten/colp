@@ -1,3 +1,4 @@
+import { createContentBindings } from '../src/site-adapters/content-bindings.js';
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, expect, test, vi } from 'vitest';
@@ -17,7 +18,7 @@ import type { SourceContext } from '../src/site-adapters/ledger-types.js';
 import type { PlannedExecutionPorts, PlannedNativeResult } from '../src/site-adapters/planned-types.js';
 import { video } from './fixtures/site-adapters/bilibili.js';
 afterEach(() => vi.restoreAllMocks());
-async function fixture() {
+async function fixture(copies: import('../src/site-adapters/contracts.js').SavePolicy['copies'] = 'sourceAndSemantic') {
   let time = Date.now(); vi.spyOn(Date, 'now').mockImplementation(() => time);
   const db = createSourceDatabase(new IDBFactory()), ledger = createSourceLedger(db), storage = new MemoryStorageArea();
   const a = await ledger.setAuthority({ enabled: true, installationGeneration: 1, sourceSessionGeneration: 1, accountId: '42', negativeReadback: false });
@@ -30,9 +31,10 @@ async function fixture() {
     definition: checked.definition, compiledFrom: { contentVersions: {} }, createdAt: time, updatedAt: time };
   let record: RuleListRecord = { version: 3, revision: 1, enabled: true, entries: [{ kind: 'rule', rule }] };
   const nodes = new Map<string, LayoutNativeNode>([['root', { id: 'root', title: 'Root', dateAdded: 10 }]]);
-  const layout = createSourceLayout(db, { rules: async () => flattenList(record), paused: async () => false, deviceId: async () => 'device',
+  const content = createContentBindings(db, async (b, expected) => { const n = nodes.get(b.nativeId); if (!n || n.dateAdded !== b.dateAdded || expected && (n.title !== expected.title || n.parentId !== expected.parentId)) throw new Error('content_binding_needs_review'); });
+  const layout = createSourceLayout(db, { sourceCopies: input => content.sourceDecision(input), rules: async () => flattenList(record), paused: async () => false, deviceId: async () => 'device',
     lookup: async id => nodes.get(id) ?? null, assertRoot: async b => { if (nodes.get(b.nativeId)?.dateAdded !== b.dateAdded) throw new Error('bindingUnavailable'); } });
-  await layout.configure({ connectionId: context.connectionId, enabled: true, liveArchive: true, policy: { revision: 1, copies: 'sourceAndSemantic', backgroundClassification: 'disabled', sourceRemoval: 'retainArchive' } });
+  await layout.configure({ connectionId: context.connectionId, enabled: true, liveArchive: true, policy: { revision: 1, copies, backgroundClassification: 'disabled', sourceRemoval: 'retainArchive' } });
   const native = new Map<string, PlannedNativeResult>(), counts = { folder: 0, bookmark: 0 };
   const execution: PlannedExecutionPorts = {
     deviceId: async () => 'device', scope: async () => ({ serverOrigin: 'https://known.test', accountId: null, authorityGeneration: 1, collectionId: null }),
@@ -184,4 +186,18 @@ test('a missing collection on one live edge does not discard an independently ad
   await createLiveSourcePlanner(f.db, f.layout, () => {}).wake();
   const row = await f.db.read<{ planning: { planIds: string[]; edges: { collectionId: string; status: string }[] } }>('observations', receipt.receiptId);
   expect(row?.planning.planIds).toHaveLength(1); expect(row?.planning.edges).toEqual([{ collectionId: '102', status: 'sourceFactsUnresolved' }, { collectionId: '101', status: 'planned' }]); await f.db.close();
+});
+
+test('single-copy source planning requires an eligible primary and reuses the confirmed copy for another edge', async () => {
+  const f = await fixture('singleKeepExisting'); await f.scan();
+  await f.ledger.acceptObservation(f.context(), 'multi', { type: 'membership.observed', item: video, memberships: { mode: 'delta', added: ['101', '102'], removed: [] } });
+  const input = { context: f.context(), itemId: video.id, entry: 'reconcile' as const, trigger: { kind: 'observation' as const, observationId: 'multi' } };
+  await expect(f.layout.plan({ ...input, collectionId: '101' })).rejects.toThrow('primarySourceCollectionRequired');
+  await f.layout.configure({ connectionId: f.context().connectionId, enabled: true, liveArchive: true,
+    policy: { revision: 2, copies: 'singleKeepExisting', primarySourceCollectionId: '101', backgroundClassification: 'disabled', sourceRemoval: 'retainArchive' } });
+  expect((await f.layout.plan({ ...input, collectionId: '102' })).status).toBe('policySkipped');
+  const plan = await f.layout.plan({ ...input, collectionId: '101' }); if (plan.status !== 'planned') throw new Error('plan');
+  for (const e of plan.plan.effects) expect((await f.executor.execute(plan.plan.id, e.effectId)).status).toBe('confirmed');
+  expect((await f.layout.plan({ ...input, collectionId: '102' })).status).toBe('represented');
+  expect(f.counts).toEqual({ folder: 1, bookmark: 1 }); await f.db.close();
 });

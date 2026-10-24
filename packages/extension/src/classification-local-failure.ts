@@ -17,6 +17,7 @@ export function localClassificationFailure(error: unknown): string {
     return error.code === 'contract_drift' ? 'local_request_failed' : 'local_classification_failed';
   }
   if (error instanceof Error) {
+    if (/^destination_policy_/u.test(error.message)) return error.message;
     if (error.name === 'TimeoutError') return 'local_timeout';
     if (error.message === 'local_taxonomy_too_large') return 'local_taxonomy_too_large';
     if (error.message === 'local_authority_changed') return 'local_settings_changed';

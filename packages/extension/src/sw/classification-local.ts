@@ -1,3 +1,4 @@
+import { classificationDestinationPolicy } from './classification-destination.js';
 import { exclusionIds, isSubscriptionExcluded } from '../bookmark-subscriptions/guards.js';
 import type {AuthorityContext} from '../authority-fence.js';
 import type {ClassificationRequest} from '../classification-messages.js';
@@ -53,17 +54,18 @@ export function localClassificationPreview(message:LocalPreviewRequest,context:A
 
 /** Shared by the popup and automatic save: one provider call over native folders, spent once per command id. */
 export async function runLocalClassification(input:{readonly document:ClassificationPreviewRequest;readonly commandId:string;
-  readonly generation:number;readonly signal:AbortSignal;readonly excludeBookmarkId?:string}){
+  readonly generation:number;readonly signal:AbortSignal;readonly excludeBookmarkId?:string; readonly assertCurrent?:()=>Promise<void>}){
   const credential=await localClassificationCredential();
   if(!credential)return {ok:false as const,error:'local_key_required'};
   if(busy)return {ok:false as const,error:'local_call_in_progress'};
   busy=true;
   try{
     const synced=await syncedContext(input.generation);
+    const policy=await classificationDestinationPolicy.snapshot();
     const tree=await chrome.bookmarks.getTree() as FolderTreeNode[];
     const descriptions=new Map<string,string|null>(synced?.descriptions??[]);
     for(const [id,description] of await readNativeFolderDescriptions(tree))descriptions.set(id,description);
-    const folders=nativeClassificationFolders(tree,{excluded:await exclusionIds(),excludeBookmarkId:input.excludeBookmarkId,descriptions});
+    const folders=nativeClassificationFolders(tree,{excluded:new Set([...await exclusionIds(),...policy.excluded]),excludeBookmarkId:input.excludeBookmarkId,descriptions});
     const document=input.document;
     // A rule's placement asks for tags only (`folder:false`); nothing is sent when there are no tags to choose from.
     const folder=!('folder' in document.requested)||document.requested.folder!==false;
@@ -77,8 +79,12 @@ export async function runLocalClassification(input:{readonly document:Classifica
       document:{...document,requested},commandId:input.commandId,signal:input.signal,
       async assertCurrent(){
         if((await localClassificationCredential())?.generation!==credential.generation)throw new Error('local_authority_changed');
+        await classificationDestinationPolicy.assertCurrent(policy.digest);
+        await input.assertCurrent?.();
       }});
-    return {ok:true as const,result,nativeFolder:await suggestedFolder(result.folder?.folderId),tagsNeedSync:false};
+    const nativeFolder=await suggestedFolder(result.folder?.folderId);
+    if(nativeFolder)await classificationDestinationPolicy.assertAllowed(nativeFolder.nativeId,policy.digest);
+    return {ok:true as const,result,nativeFolder,tagsNeedSync:false,destinationPolicyDigest:policy.digest};
   }catch(error){
     return {ok:false as const,error:localClassificationFailure(error)};
   }finally{busy=false;}

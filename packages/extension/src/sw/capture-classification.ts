@@ -1,3 +1,5 @@
+import { withDestinationPolicyBoundary } from '../classification-destination-boundary.js';
+import { classificationDestinationPolicy } from './classification-destination.js';
 import { withSubscriptionRead } from '../bookmark-subscriptions/barrier.js';
 import { personalSyncFetch } from '../personal-sync-fetch.js';
 import { isSubscriptionExcluded, assertPersonalNativeAllowed } from '../bookmark-subscriptions/guards.js';
@@ -47,9 +49,13 @@ export function classifySavedCapture(task: CaptureTask, ledger: CaptureStore): P
     if (classificationTriggerReason({ kind: 'saved-capture', task }) || !task.scope.accountId || !task.scope.collectionId) return task;
     const read = async () => { await assertCaptureScope(task.scope); const fresh = await ledger.get(task.scope, task.captureId);
       if (!fresh) throw new Error('capture_not_found'); return fresh; };
+    try { await classificationDestinationPolicy.assertCloudSupported(); } catch (error) {
+      const current = await read(), next = { ...current, classification: 'manual' as const, reason: error instanceof Error ? error.message : 'destination_policy_unresolved', revision: current.revision + 1, updatedAt: Date.now() };
+      await ledger.update(next, current.revision); return next;
+    }
     const client = createClassificationProductClient({ serverOrigin: task.scope.serverOrigin, expectedAuthUserId: task.scope.accountId,
       fetch: personalSyncFetch({ serverOrigin: task.scope.serverOrigin, accountId: task.scope.accountId, collectionId: task.scope.collectionId }),
-      dispatch: send=>withSubscriptionRead(async()=>{const current=await read();if(current.nativeId&&await isSubscriptionExcluded(current.nativeId)||current.targetNativeId&&await isSubscriptionExcluded(current.targetNativeId))throw new Error('subscription_capture_excluded');return send();}),
+      dispatch: send=>withDestinationPolicyBoundary(()=>withSubscriptionRead(async()=>{await classificationDestinationPolicy.assertCloudSupported();const current=await read();if(current.nativeId&&await isSubscriptionExcluded(current.nativeId)||current.targetNativeId&&await isSubscriptionExcluded(current.targetNativeId))throw new Error('subscription_capture_excluded');return send();})),
       assertCurrent: () => assertCaptureScope(task.scope), assertMutation: async () => {
         const current = await read(), control = await readCaptureControl(task.scope);
         if(current.nativeId)await assertPersonalNativeAllowed(current.nativeId);

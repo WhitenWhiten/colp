@@ -40,7 +40,11 @@ export async function showManualCaptureExistence(url: string): Promise<void> {
   const label = document.createElement('label'), checkbox = document.createElement('input');
   checkbox.type = 'checkbox'; checkbox.id = 'capture-save-another'; checkbox.dataset.url = url;
   label.className = 'check-line'; label.append(checkbox, document.createTextNode(t('capture_saveAnotherCopy', 'Save another copy')));
-  host.replaceChildren(...locationLinks(exact), label);
+  const semantic = document.createElement('button'); semantic.type = 'button'; semantic.id = 'capture-semantic-save';
+  semantic.textContent = 'Save as semantic / classify this copy';
+  semantic.hidden = !/^https:\/\/www\.bilibili\.com\/video\/(?:av[1-9]\d*|BV[0-9A-Za-z]{10})(?:[/?#]|$)/u.test(url);
+  semantic.onclick = () => { document.dispatchEvent(new CustomEvent('known:semantic-save', { detail: { url } })); };
+  host.replaceChildren(...locationLinks(exact), label, semantic);
   // One writable native match: the popup can edit it in place (popup-edit-existing.ts).
   document.dispatchEvent(new CustomEvent('known:existence-shown', { detail: { url, exact } }));
 }

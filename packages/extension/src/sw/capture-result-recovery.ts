@@ -1,3 +1,5 @@
+import { classificationDestinationPolicy } from './classification-destination.js';
+import { withDestinationPolicyBoundary } from '../classification-destination-boundary.js';
 import { readCaptureControl } from '../capture/control.js';
 import type { CaptureTask } from '../capture/contracts.js';
 import type { CaptureStore } from '../capture/store.js';
@@ -24,6 +26,7 @@ export async function inspectCaptureDecision(task: CaptureTask, ledger: CaptureS
 }
 export function applyCaptureSuggestion(task: CaptureTask, ledger: CaptureStore): Promise<CaptureTask> {
   return workCoordinator.run('classification', async () => {
+    await classificationDestinationPolicy.assertCloudSupported();
     let current = await ledger.get(task.scope, task.captureId);
     const authority = await currentCaptureScope();
     await assertCaptureScope(task.scope);
@@ -52,6 +55,7 @@ export function applyCaptureSuggestion(task: CaptureTask, ledger: CaptureStore):
       classification: 'running', reason: 'application_result_unknown', revision: current.revision + 1, updatedAt: Date.now() };
     await assertCaptureScope(authority); await ledger.update(pending, current.revision);
     const client = createClassificationProductClient({ serverOrigin: scope.serverOrigin, expectedAuthUserId: current.scope.accountId,
+      dispatch: send => withDestinationPolicyBoundary(async () => { await classificationDestinationPolicy.assertCloudSupported(); return send(); }),
       assertCurrent: () => assertCaptureScope(authority), assertMutation: async () => {
         const latest = await ledger.get(task.scope, task.captureId), control = await readCaptureControl(authority);
         const currentNative = (await chrome.bookmarks.get(current.nativeId!))[0];
@@ -62,6 +66,11 @@ export function applyCaptureSuggestion(task: CaptureTask, ledger: CaptureStore):
     try { result = await client.applyCapture(current.scope.collectionId, current.decisionId!, current.automatic.document.controlGeneration,
       current.automatic.applyCommandId, current.automatic.document.nodeEtag, pending.automatic!.applyUserInitiated);
     } catch (error) {
+      if (error instanceof Error && error.message === 'cloud_destination_policy_unsupported') {
+        const latest = await ledger.get(task.scope, task.captureId);
+        if (latest?.automatic) await ledger.update({ ...latest, revision: latest.revision + 1, updatedAt: Date.now(), classification: 'manual', reason: error.message,
+          automatic: { ...latest.automatic, applyState: 'rejected' } }, latest.revision);
+      }
       if (error instanceof Error && error.message === 'capture_dispatch_fenced') {
         const latest = await ledger.get(task.scope, task.captureId);
         if (latest?.automatic) await ledger.update({ ...latest, revision: latest.revision + 1, updatedAt: Date.now(),

@@ -10,9 +10,10 @@ import { location } from './fixtures/capture.js';
 
 const f = vi.hoisted(() => ({
   scope: { serverOrigin: 'https://known.test', accountId: 'account', authorityGeneration: 1, collectionId: 'library' },
-  mode: 'manual',
+  mode: 'manual', policyRevision: 1,
   existence: vi.fn(), local: vi.fn(), cloud: vi.fn(),
 }));
+vi.mock('../src/sw/classification-destination.js', () => ({ classificationDestinationPolicy: { snapshot: async () => ({ digest: `fixture-policy-${f.policyRevision}`, excluded: new Set(), constrained: false }), assertAllowed: async () => {}, assertCurrent: async (digest: string) => { if (digest !== `fixture-policy-${f.policyRevision}`) throw new Error('destination_policy_changed'); }, assertCloudSupported: async () => {} } }));
 vi.mock('../src/sw/capture-native.js', () => ({ currentCaptureScope: async () => ({ ...f.scope }), captureExistence: f.existence,
   assertCaptureScope: async (scope: unknown) => { if (JSON.stringify(scope) !== JSON.stringify(f.scope)) throw new Error('capture_scope_changed'); } }));
 vi.mock('../src/sw/bookmark-preferences.js', () => ({ readEffectiveBookmarkPreferences: async () => ({ captureMode: f.mode }) }));
@@ -62,7 +63,7 @@ beforeEach(async () => {
   await localStorage.set({ [MANUAL_CLASSIFICATION_AUTO]: true, [LOCAL_CLASSIFICATION_ENABLED]: true,
     [LOCAL_CLASSIFICATION_KEY]: { generation: 'provider-1', secret: 'fixture-secret' } });
   Object.assign(f.scope, { serverOrigin: 'https://known.test', accountId: 'account', authorityGeneration: 1, collectionId: 'library' });
-  f.mode = 'manual'; f.existence.mockReset().mockResolvedValue(existence());
+  f.mode = 'manual'; f.policyRevision = 1; f.existence.mockReset().mockResolvedValue(existence());
   f.local.mockReset().mockResolvedValue({ ok: true, result: result(), nativeFolder: { folderId: 'recipes', nativeId: '42', title: 'Recipes' } });
   f.cloud.mockReset().mockResolvedValue(result());
   vi.stubGlobal('__KNOWN_EXTENSION_CLASSIFICATION_LOCAL__', true);
@@ -230,4 +231,14 @@ test('a damaged retained intent never silently creates another implicit call', a
   expect(f.local).toHaveBeenCalledOnce();
   expect(await send(message(true, false))).toMatchObject({ ok: true });
   expect(f.local).toHaveBeenCalledTimes(2);
+});
+
+test('destination policy changes invalidate cached previews and reject a late provider reply', async () => {
+  await send(message()); await send(message()); expect(f.local).toHaveBeenCalledTimes(1);
+  f.policyRevision++; await send(message()); expect(f.local).toHaveBeenCalledTimes(2);
+  let resolve!: (reply: ClassificationPreviewReply) => void;
+  f.local.mockImplementationOnce(() => new Promise(r => { resolve = r; }));
+  const pending = send(message(true, false)); await vi.waitFor(() => expect(resolve).toBeTypeOf('function'));
+  f.policyRevision++; resolve({ ok: true, result: result(), nativeFolder: { folderId: 'recipes', nativeId: '42', title: 'Recipes' } });
+  await expect(pending).rejects.toThrow('destination_policy_changed');
 });

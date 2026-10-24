@@ -22,7 +22,7 @@ export interface PopupClassificationHost {
   readonly input: () => PageInput | null;
   readonly inScope: () => Promise<boolean>;
   /** `anyFolder` accepts any personal browser folder (local suggestions); otherwise only synced ones. */
-  readonly chooseFolder: (nativeId: string, anyFolder: boolean) => Promise<boolean>;
+  readonly chooseFolder: (nativeId: string, anyFolder: boolean, destinationPolicyDigest?: string) => Promise<boolean>;
   readonly folderPicked?: () => boolean;
   /** The title and URL fields: editing either invalidates the current suggestion. */
   readonly fields: readonly HTMLElement[];
@@ -73,12 +73,14 @@ export function bindPopupClassification(host: PopupClassificationHost) {
   let intent: Extract<ClassificationRequest, { kind: 'known.classification.preview' | 'known.classification.local-preview' }> | undefined;
   let enabled = false, local = false, initialized = false, busy = false, reuse = false, automaticAttempted = false, priceChanged = false;
   let nativeFolder: ClassificationNativeFolder | null = null;
+  let destinationPolicyDigest: string | undefined;
   let state: SuggestState = 'hidden';
   /** The applied suggestion, the folders turned down since, and whether the running request is a retry. */
   let applied: ClassificationNativeFolder | null = null, rejected: string[] = [], retrying = false, exhausted = false;
   let requireCandidate = false, retryReady = false;
   const retry = host.retry;
 
+  const choose = (id: string, any: boolean) => destinationPolicyDigest ? host.chooseFolder(id, any, destinationPolicyDigest) : host.chooseFolder(id, any);
   const selectedTags = () => tags.aiTags().slice(0, 3);
   const canAsk = () => enabled && !busy && !(managedBilling && !managedPrice);
   const ruled = () => host.ruleFolder?.() === true;
@@ -122,7 +124,7 @@ export function bindPopupClassification(host: PopupClassificationHost) {
   }
   const say = (text: string | Node | undefined, tone: '' | 'error' = '') => { note.set('classify', text, tone); };
   const resetInput = () => {
-    tags.setAiSuggestions([]); version++; intent = undefined; nativeFolder = null; reuse = false; busy = false;
+    tags.setAiSuggestions([]); version++; intent = undefined; nativeFolder = null; destinationPolicyDigest = undefined; reuse = false; busy = false;
     applied = null; rejected = []; retrying = false; exhausted = false; requireCandidate = false; retryReady = false;
     say(undefined); paintChip(enabled ? 'run' : 'hidden');
   };
@@ -158,13 +160,13 @@ export function bindPopupClassification(host: PopupClassificationHost) {
     const unavailable = () => say(t('popup_folderNoLongerAvailable', 'This folder is no longer available. Choose a folder manually.'));
     let ok: boolean;
     if (local) {
-      ok = await host.chooseFolder(selected.nativeId, true);
+      ok = await choose(selected.nativeId, true);
     } else {
       if (host.input()?.collectionId !== collectionId) return;
       const current = await chrome.runtime.sendMessage({ kind: 'known.classification.folder', collectionId, folderId: selected.folderId, userGesture: true })
         .catch(() => null) as PreviewReply | null;
       if (at !== version) return;
-      ok = current?.ok === true && current.nativeFolder?.folderId === selected.folderId && await host.chooseFolder(current.nativeFolder.nativeId, false);
+      ok = current?.ok === true && current.nativeFolder?.folderId === selected.folderId && await choose(current.nativeFolder.nativeId, false);
     }
     if (at !== version) return;
     if (ok) { applied = selected; say(undefined); paintChip('hidden'); host.onApplied?.(); } else {
@@ -298,6 +300,7 @@ export function bindPopupClassification(host: PopupClassificationHost) {
       exhausted = result.folder?.decision === 'later' && result.candidateCoverage.l1Included === 0;
       requireCandidate = result.folder?.decision === 'later' && result.candidateCoverage.l1Included > 0;
       retryReady = requireCandidate;
+      destinationPolicyDigest = reply.destinationPolicyDigest;
       nativeFolder = message.document.requested.folder ? reply.nativeFolder ?? null : null;
       const fillResult = 'automatic' in message;
       if (!message.document.requested.folder) { /* Tags only: the rule keeps the folder. */ }
@@ -318,7 +321,7 @@ export function bindPopupClassification(host: PopupClassificationHost) {
       // "Suggest another" means the applied pick was turned down: its answer replaces it without a second click.
       if (nativeFolder && (another || fillResult && !host.folderPicked?.())) {
         paintChip('apply');
-        const ok = await host.chooseFolder(nativeFolder.nativeId, local);
+        const ok = await choose(nativeFolder.nativeId, local);
         if (at !== version) return;
         if (ok) { applied = nativeFolder; paintChip('hidden'); host.onApplied?.(); } else {
           // As in applyFolder: a saved capture's uncertain correction keeps its chip to replay the same edit.
@@ -347,6 +350,7 @@ export function bindPopupClassification(host: PopupClassificationHost) {
     }
   }
   return {
+    destinationPolicy: () => applied && !host.folderPicked?.() ? destinationPolicyDigest : undefined,
     refresh, reset: resetInput, selectedTags,
     /** A rule started or stopped choosing the folder: the chip follows (it never cancels a request in flight). */
     ruleChanged(): void { if (!busy) paintChip(state === 'apply' && ruled() ? 'hidden' : state === 'hidden' && enabled && !applied ? 'run' : state); },

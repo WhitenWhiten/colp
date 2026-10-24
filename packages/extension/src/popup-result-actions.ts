@@ -1,3 +1,4 @@
+import { moveSuggestedBookmark } from './classification-destination-client.js';
 import { personalBookmarks } from './bookmark-subscriptions/guards.js';
 import type { CaptureTask, FeedbackKind } from './capture/contracts.js';
 import type { CaptureEditRequest } from './capture/editor.js';
@@ -42,6 +43,7 @@ export function createResultActions(deps: ResultActionDeps): Pick<ResultPanelOpt
 } {
   const { preview, note } = deps;
   let rating: { kind: FeedbackKind; eventId: string } | undefined, edit: { key: string; id: string } | undefined;
+  let pendingPolicy: string | undefined;
   let negativeSent = false, closeBlocked = false, removed = false, pendingParent: string | undefined;
   let deletion: PublicBatchStatus | undefined;
 
@@ -59,7 +61,7 @@ export function createResultActions(deps: ResultActionDeps): Pick<ResultPanelOpt
     const id = resultBookmarkId(task);
     const title = deps.resultFields.editedTitle(task);
     if (id && title) await personalBookmarks.update(id, { title });
-    if (id && pendingParent) await personalBookmarks.move(id, { parentId: pendingParent });
+    if (id && pendingParent) { if (pendingPolicy) await moveSuggestedBookmark(id, pendingParent, pendingPolicy, crypto.randomUUID()); else await personalBookmarks.move(id, { parentId: pendingParent }); }
     const edited = deps.resultFields.editedAnnotation();
     if (edited) {
       const saved = await saveAnnotation(edited.bookmark, edited.annotation, edited.base);
@@ -127,12 +129,12 @@ export function createResultActions(deps: ResultActionDeps): Pick<ResultPanelOpt
     },
     history() { if (!preview) openOptionsRoute('#history'); },
     close: deps.close,
-    async pick(parentNativeId) {
+    async pick(parentNativeId: string, aiDestinationPolicyDigest?: string) {
       const task = deps.current();
       const id = task ? resultBookmarkId(task) : null;
       if (!task || !id || preview) return false;
       note.set('feedback', undefined);
-      if (task.disposition === 'existing') { pendingParent = parentNativeId; return true; }
+      if (task.disposition === 'existing' && !task.contentIntent) { pendingParent = parentNativeId; pendingPolicy = aiDestinationPolicyDigest; return true; }
       const [node] = await chrome.bookmarks.get(id).catch(() => []);
       const original = node?.parentId;
       if (!original) return false;
@@ -144,7 +146,7 @@ export function createResultActions(deps: ResultActionDeps): Pick<ResultPanelOpt
         const key = JSON.stringify([task.captureId, parentNativeId, original, tags]);
         if (edit?.key !== key) edit = { key, id: crypto.randomUUID() };
         const message: CaptureEditRequest = { kind: 'known.capture.edit', captureId: task.captureId, commandId: edit.id,
-          parentNativeId, originalParentNativeId: original, tags, userGesture: true };
+          parentNativeId, originalParentNativeId: original, tags, ...(aiDestinationPolicyDigest ? { aiDestinationPolicyDigest } : {}), userGesture: true };
         const reply = await deps.request(message);
         if (!reply.ok) throw new Error(reply.error ?? 'capture_edit_unavailable');
         deps.resultFields.markCorrected();

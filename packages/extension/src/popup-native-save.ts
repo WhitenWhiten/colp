@@ -8,6 +8,7 @@ let command: { key: string; id: string } | undefined;
 function confirmedPopupNativeId(task: CaptureTask): string | undefined {
   if (task.disposition === 'cancelled' || task.save === 'failed') return undefined;
   if (task.disposition === 'existing') {
+    if (task.contentIntent && task.save === 'local-saved' && task.nativeId && task.nativeDateAdded) return task.nativeId;
     const nativeId = task.existence?.exact.length === 1 ? task.existence.exact[0]?.nativeId : undefined;
     return nativeId || undefined;
   }
@@ -21,16 +22,16 @@ function confirmedPopupNativeId(task: CaptureTask): string | undefined {
  * `folderChoice: 'explicit'` says the user picked the folder for this save, so no rule moves it.
  */
 export async function savePopupNativePage(page: NativeSavePage, parentNativeId?: string, collectionId?: string,
-  insertPosition?: BookmarkInsertPosition, annotation?: BookmarkAnnotationInput, folderChoice?: 'explicit' | 'default') {
+  insertPosition?: BookmarkInsertPosition, annotation?: BookmarkAnnotationInput, folderChoice?: 'explicit' | 'default', aiDestinationPolicyDigest?: string) {
   const checkbox = document.getElementById('capture-save-another') as HTMLInputElement | null;
   const copy = checkbox?.checked === true && checkbox.dataset.url === page.url;
-  const key = JSON.stringify([page.url, page.title, parentNativeId, copy, collectionId, insertPosition, annotation, folderChoice]);
+  const key = JSON.stringify([page.url, page.title, parentNativeId, copy, collectionId, insertPosition, annotation, folderChoice, aiDestinationPolicyDigest]);
   // Keep this id across a pre-call failure and an unknown result. A new id could create a second bookmark.
   if (command?.key !== key) command = { key, id: crypto.randomUUID() };
   let response = await chrome.runtime.sendMessage({ kind: 'known.capture.start', trigger: 'manual-popup', userGesture: true,
     commandId: command.id, url: page.url, title: page.title, ...(parentNativeId ? { parentNativeId } : {}),
     ...(collectionId ? { collectionId } : {}), ...(insertPosition ? { insertPosition } : {}), ...(annotation ? { annotation } : {}),
-    ...(folderChoice ? { folderChoice } : {}), saveAnother: copy, allowUnverifiedCloud: true }) as { ok: boolean; task?: CaptureTask; error?: string };
+    ...(folderChoice ? { folderChoice } : {}), ...(aiDestinationPolicyDigest ? { aiDestinationPolicyDigest } : {}), saveAnother: copy, allowUnverifiedCloud: true }) as { ok: boolean; task?: CaptureTask; error?: string };
   if (!response?.ok || !response.task) throw new Error(response?.error ?? 'capture_unavailable');
   const captureId = response.task.captureId;
   for (let count = 0; count < 40; count++) {

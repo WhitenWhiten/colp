@@ -25,7 +25,7 @@ export function createLiveSourcePlanner(db: SourceDatabase, layout: ReturnType<t
             reason = result.status; edges.push({ collectionId: id, status: result.status }); if (result.status === 'planned') plans.push(result.plan.id);
           } catch (e) {
             reason = e instanceof Error ? e.message : 'sourceNeedsReview';
-            if (['sourceAutomationPaused', 'sourcePolicyChanged'].includes(reason)) { alarm(30000); return; }
+            if (['sourceAutomationPaused', 'sourcePolicyChanged', 'sourceDependencyPending'].includes(reason)) { alarm(30000); return; }
             edges.push({ collectionId: id, status: reason });
           }
         }

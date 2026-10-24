@@ -4,10 +4,11 @@ import type { FlatList } from '../automation/rule-list-flatten.js';
 import type { SiteRuleEdge } from '../automation/site-rule.js';
 import type { BrowserRuleSnapshot, MountBinding, NativeBinding, SaveEffect, SavePlan, SavePolicy, SiteCollection, SiteItem, SourceFolderReservation, Representation } from './contracts.js';
 import type { SourceContext, LedgerEdge } from './ledger-types.js';
-import { get, put, sourceDigest, sourceKey, type SourceDatabase } from './source-db.js';
+import { get, put, rows, sourceDigest, sourceKey, type SourceDatabase } from './source-db.js';
 import { createSourceReservations, representationKey } from './reservations.js';
 import { effectDigest, persistSavePlan } from './planned-executor.js';
 import { cursorPage } from '../sync-state/idb.js';
+import { withDestinationPolicyBoundary } from '../classification-destination-boundary.js';
 
 export interface SourcePolicyRecord { connectionId: string; enabled: boolean; liveArchive: boolean; admittedAfterOrdinal?: number; policy: SavePolicy }
 export interface SourceMount extends MountBinding { state: 'active' | 'detached' | 'suppressed' }
@@ -18,6 +19,9 @@ export interface LayoutPorts {
   deviceId(): Promise<string>;
   lookup(id: string): Promise<LayoutNativeNode | null>;
   assertRoot(binding: NativeBinding<'folder'>): Promise<void>;
+  beforeExclusion?(): Promise<void>;
+  sourceCopies?(input: { connectionId: string; itemId: string; policy: SavePolicy; representation: import('./contracts.js').RepresentationKey }): Promise<
+    { status: 'create' | 'dependency' } | { status: 'reuse'; representation: Representation }>;
 }
 interface PlanFence { edge: LedgerEdge; item: SiteItem; collection: SiteCollection; ruleDigest: string; representation?: import('./contracts.js').RepresentationKey; entry: SiteRuleEdge['entry'] }
 const snapshot = (f: FlatList): BrowserRuleSnapshot => ({ storageVersion: 3, listRevision: f.revision, contentVersions: f.contentVersions });
@@ -53,11 +57,11 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
       dateAdded: node.dateAdded, proof: { kind: 'explicitAdoption', id: `rule:${ruleId}` } };
     await ports.assertRoot(root);
     const value: SourceMount = { id: identity({ connectionId, ruleId }), connectionId, rootRuleId: ruleId, root, revision: 1, aiDestination: 'excluded', state: 'active' };
-    return db.transaction(['mounts'], 'readwrite', async tx => {
+    return withDestinationPolicyBoundary(async () => { await ports.beforeExclusion?.(); return db.transaction(['mounts'], 'readwrite', async tx => {
       const existing = await get<SourceMount>(tx, 'mounts', key);
       if (existing) { if (existing.root.nativeId !== rootId || existing.root.dateAdded !== root.dateAdded) throw new Error('mountMigrationRequired'); return existing; }
       put(tx, 'mounts', key, value); return value;
-    });
+    }); });
   }
   async function assertFolder(folder: SourceFolderReservation) {
     if (folder.state === 'blocked') throw new Error('folderNeedsReview');
@@ -76,6 +80,16 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
   return {
     /** Explicit configuration adopts an existing local root without creating native objects. */
     bindRoot: mount,
+    async configureMount(connectionId: string, ruleId: string, aiDestination: 'excluded' | 'allowed') {
+      await withDestinationPolicyBoundary(async () => {
+        const old = await db.read<SourceMount>('mounts', keyForMount(connectionId, ruleId));
+        if (aiDestination === 'excluded' && old?.aiDestination !== 'excluded') await ports.beforeExclusion?.();
+        return db.transaction(['mounts'], 'readwrite', async tx => {
+        const key = keyForMount(connectionId, ruleId), m = await get<SourceMount>(tx, 'mounts', key);
+        if (!m || m.state !== 'active') throw new Error('bindingNeedsRebind');
+        if (m.aiDestination !== aiDestination) put(tx, 'mounts', key, { ...m, aiDestination, revision: m.revision + 1 });
+      }); });
+    },
     async configure(record: SourcePolicyRecord) {
       if (!Number.isSafeInteger(record.policy.revision) || record.policy.revision < 1 || record.policy.backgroundClassification !== 'disabled'
         || record.policy.sourceRemoval !== 'retainArchive' || !['sourceAndSemantic', 'singlePreferSemantic', 'singleKeepExisting'].includes(record.policy.copies)) throw new Error('invalidPolicy');
@@ -92,8 +106,7 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
         if (!row || row.ordinal <= settings.admittedAfterOrdinal) throw new Error('beforeSourceActivation');
       }
       if (input.entry !== 'siteImport' && !settings.liveArchive) throw new Error('liveArchiveDisabled');
-      // The remaining policies are enabled only after semantic bindings are installed in SA-07.
-      if (settings.policy.copies !== 'sourceAndSemantic') throw new Error('copyPolicyNeedsReview');
+      if (settings.policy.copies !== 'sourceAndSemantic' && !ports.sourceCopies) throw new Error('copyPolicyNeedsReview');
       const facts = await current(c.connectionId, input.itemId, input.collectionId);
       if (facts.edge?.state !== 'present' || !facts.item || !facts.collection || facts.collection.identity !== 'siteId') throw new Error('sourceFactsUnresolved');
       if (facts.collection.parentId !== null) throw new Error('sourceAncestryNeedsReview');
@@ -109,12 +122,32 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
       const existing = await db.read<Representation>('representations', representationKey(representation));
       if (existing) {
         const node = await ports.lookup(existing.native.nativeId);
-        if (existing.state === 'active' && (!node || node.dateAdded !== existing.native.dateAdded
+        if (settings.policy.copies === 'sourceAndSemantic' && existing.state === 'active') {
+          const folder = await db.read<SourceFolderReservation>('folderReservations', sourceKey(m.id, input.collectionId));
+          if (folder?.native && node?.parentId !== folder.native.nativeId) throw new Error('copyPolicyMigrationRequired');
+        }
+        if (existing.state === 'active' && (!node || node.dateAdded !== existing.native.dateAdded || node.url !== (existing.lastWritten?.url ?? facts.item.url)
           || existing.lastWritten && (node.title !== existing.lastWritten.title || node.parentId !== existing.lastWritten.parentId))) {
           await reservations.manualChange(representation, node && node.dateAdded === existing.native.dateAdded ? 'detached' : 'suppressed');
           return { status: 'suppressed', representation: await db.read<Representation>('representations', representationKey(representation)) } as const;
         }
         return { status: existing.state === 'active' ? 'represented' : 'suppressed', representation: existing } as const;
+      }
+      const copy = await ports.sourceCopies?.({ connectionId: c.connectionId, itemId: input.itemId, policy: settings.policy, representation });
+      if (copy?.status === 'dependency') throw new Error('sourceDependencyPending');
+      if (copy?.status === 'reuse') return { status: 'represented', representation: copy.representation } as const;
+      if (settings.policy.copies !== 'sourceAndSemantic') {
+        const memberships = await db.transaction(['memberships'], 'readonly', tx => rows<LedgerEdge>(tx, 'memberships', c.connectionId, input.itemId));
+        const eligible: string[] = [];
+        for (const membership of memberships) {
+          if (membership.state !== 'present') continue;
+          const candidate = await decideList(flat.items, { url: facts.item.url, title: facts.item.title, explicit: false }, ports.lookup, Date.now(),
+            { site: { ...edge, collectionId: membership.collectionId } });
+          if (candidate.decision?.outcome === 'placed') eligible.push(membership.collectionId);
+        }
+        const primary = settings.policy.primarySourceCollectionId ?? (eligible.length === 1 ? eligible[0] : undefined);
+        if (!primary || !eligible.includes(primary)) throw new Error('primarySourceCollectionRequired');
+        if (primary !== input.collectionId) return { status: 'policySkipped' } as const;
       }
       const id = identity({ trigger: input.trigger, representation, snapshot: snapshot(flat), policy: settings.policy.revision });
       const oldFolder = await db.read<SourceFolderReservation>('folderReservations', sourceKey(m.id, input.collectionId));
@@ -132,7 +165,8 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
         dependsOn: ['folder'], representation, item: facts.item, parent: { kind: 'sourceFolder', reservationId: folder.id }, folderReservationDigest: folder.payloadDigest };
       ensure.payloadDigest = effectDigest(ensure); bookmark.payloadDigest = effectDigest(bookmark);
       const { payloadDigest: _digest, ...payload } = bookmark;
-      await reservations.reserveItem(representation, payload, settings.policy.copies, bookmark.commandId);
+      const itemReservation = await reservations.reserveItem(representation, payload, settings.policy.copies, bookmark.commandId);
+      if (itemReservation.status !== 'reserved') throw new Error('sourceDependencyPending');
       const plan: SavePlan = { id, trigger: input.trigger, purpose: 'sourceArchive', connectionId: c.connectionId, installationGeneration: c.installationGeneration,
         collectorGeneration: c.installationGeneration, sourceSessionGeneration: c.sourceSessionGeneration, importApprovalId: null,
         browserRules: snapshot(flat), rule: { source: 'browser', entry: decision.item.ref.kind === 'setRule' ? { kind: 'setRule', setId: decision.item.ref.setId!, ruleId: decision.item.id } : { kind: 'rule', ruleId: decision.item.id }, definitionDigest: sourceDigest({ definition: decision.item.definition, site: decision.item.site }) },
@@ -167,7 +201,9 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
     /** Browser events retain historical associations. Deletions suppress; edits detach. */
     async nativeChanged(nativeIds: readonly string[], deleted: boolean) {
       const ids = new Set(nativeIds);
-      await db.transaction(['representations', 'folderReservations', 'mounts'], 'readwrite', async tx => {
+      await db.transaction(['representations', 'folderReservations', 'mounts', 'contentBindings'], 'readwrite', async tx => {
+        const bindings = await cursorPage<import('./content-bindings.js').ContentBindingRow>(tx.objectStore('contentBindings'), null, 100001);
+        for (const b of bindings) if (b.native && ids.has(b.native.nativeId)) put(tx, 'contentBindings', sourceKey('bilibili', b.content.itemId, b.id), { ...b, state: deleted ? 'suppressed' : 'detached' });
         for (const store of ['representations', 'folderReservations', 'mounts'] as const) {
           const rows = await cursorPage<Representation | SourceFolderReservation | SourceMount>(tx.objectStore(store), null, 100001);
           for (const row of rows) {

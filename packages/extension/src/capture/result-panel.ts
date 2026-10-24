@@ -9,6 +9,9 @@ import { automationSaveLine } from '../save-status.js';
 let reasons: Record<string, string>;
 localized(() => {
   reasons = {
+  cloud_destination_policy_unsupported: 'Saved. This server cannot enforce source folder exclusions. Choose a folder manually or use your configured local AI service.',
+  destination_policy_changed: 'Saved. Folder eligibility changed. Ask for a new suggestion.',
+  destination_policy_needs_rebind: 'Saved. Rebind the source root in Site adapters before asking for suggestions.',
   policy_unavailable: t('capture_savedAutomaticClassificationAwaiting', 'Saved. Folder suggestions are unavailable right now.'),
   authorization_required: t('capture_savedEnableClassificationAuthorization', 'Saved. Set a spending limit under AI suggestions to get folder suggestions.'),
   paused: t('capture_savedAutomaticClassificationPaused', 'Saved. Folder suggestions are paused on this browser.'),

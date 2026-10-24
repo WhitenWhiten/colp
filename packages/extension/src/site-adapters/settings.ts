@@ -3,7 +3,7 @@ interface ImportStatus { id: string; phase: string; edgeCount: number; pages: nu
   preview: { id: string; revision: number; digest: string; coverage: string; counts: { createFolders: number; createBookmarks: number; reuseBookmarks: number; review: number }; omissions?: { samples: readonly { id: string; reason: string }[]; unscannedRemainder: boolean } } | null }
 interface SiteStatus { inspectionStatus?: { status: string; retryAfterMs?: number }; candidateAccount?: string | null; error?: string; confirmations?: { pending: number };
   inspection?: { command: { deadlineAt: number; pageRequestId?: string; query?: { cursor: string | null } }; result?: { status: string; kind?: string; page?: { items: { id: string; title: string }[]; nextCursor: string | null } } };
-  archive?: { config: { root: { nativeId: string }; collectionIds: readonly string[]; live: boolean; state: string } | null; import: ImportStatus | null } }
+  archive?: { config: { root: { nativeId: string }; collectionIds: readonly string[]; live: boolean; state: string; copies?: string; primarySourceCollectionId?: string | null; aiDestination?: string } | null; import: ImportStatus | null } }
 const root = document.querySelector<HTMLSelectElement>('#archive-root')!, collections = document.querySelector<HTMLSelectElement>('#archive-collections')!;
 let lastImport: ImportStatus | null = null, lastCatalog: string | undefined, lastConfig: string | undefined;
 let activeRoot = '', nextCatalog: string | null = null;
@@ -18,6 +18,9 @@ function renderArchive(result: SiteStatus) {
     for (const c of catalog.result.page.items) catalogItems.set(c.id, c);
     nextCatalog = catalog.result.page.nextCursor; button('next-catalog').disabled = !nextCatalog;
 
+    const primary = document.querySelector<HTMLSelectElement>('#archive-primary')!, chosenPrimary = primary.value;
+    primary.replaceChildren(new Option('Ask when multiple collections apply', ''), ...Array.from(catalogItems.values()).map(c => new Option(c.title, c.id)));
+    primary.value = chosenPrimary;
     collections.replaceChildren(...Array.from(catalogItems.values()).map(c => { const o = document.createElement('option'); o.value = c.id; o.textContent = c.title;
       o.selected = collectionSelection.has(c.id); return o; }));
   }
@@ -29,6 +32,9 @@ function renderArchive(result: SiteStatus) {
     activeRoot = config?.root.nativeId ?? '';
     if (Array.from(root.options).some(o => o.value === activeRoot)) root.value = activeRoot;
     document.querySelector<HTMLInputElement>('#archive-live')!.checked = config?.live ?? false;
+    document.querySelector<HTMLSelectElement>('#archive-copies')!.value = config?.copies ?? 'sourceAndSemantic';
+    document.querySelector<HTMLSelectElement>('#archive-primary')!.value = config?.primarySourceCollectionId ?? '';
+    document.querySelector<HTMLInputElement>('#archive-ai')!.checked = config?.aiDestination === 'allowed';
   }
   button('start-import').disabled = config?.state !== 'active' || !!job && !['cancelled', 'completed'].includes(job.phase);
   button('freeze-import').disabled = !job || !['scanning', 'paused', 'preview', 'attention'].includes(job.phase);
@@ -92,7 +98,8 @@ document.querySelector('#retry-confirmation')!.addEventListener('click', () => {
 
 button('grant-archive').addEventListener('click', () => { void chrome.permissions.request({ permissions: ['bookmarks'] }).then(granted => { if (granted) return loadRoots(); }); });
 button('configure-archive').addEventListener('click', () => { void send({ kind: 'known.siteAdapters.archive.configure', rootNativeId: root.value,
-  collectionIds: Array.from(collectionSelection), live: document.querySelector<HTMLInputElement>('#archive-live')!.checked }); });
+  collectionIds: Array.from(collectionSelection), copies: document.querySelector<HTMLSelectElement>('#archive-copies')!.value,
+  primarySourceCollectionId: document.querySelector<HTMLSelectElement>('#archive-primary')!.value || null, aiDestination: document.querySelector<HTMLInputElement>('#archive-ai')!.checked ? 'allowed' : 'excluded', live: document.querySelector<HTMLInputElement>('#archive-live')!.checked }); });
 button('disable-archive').addEventListener('click', () => { void send({ kind: 'known.siteAdapters.archive.disable' }); });
 button('start-import').addEventListener('click', () => { void send({ kind: 'known.siteAdapters.import.start' }); });
 button('freeze-import').addEventListener('click', () => { if (lastImport) void send({ kind: 'known.siteAdapters.import.freeze', jobId: lastImport.id }); });
@@ -105,3 +112,20 @@ void loadRoots();
 button('next-catalog').addEventListener('click', () => { if (nextCatalog) void requestInspection({ kind: 'known.siteAdapters.inspect', operation: 'collections', cursor: nextCatalog }); });
 
 collections.addEventListener('change', () => { for (const o of Array.from(collections.options)) { if (o.selected) collectionSelection.add(o.value); else collectionSelection.delete(o.value); } });
+
+button('read-bindings').addEventListener('click', () => { void (async () => {
+  const result = await chrome.runtime.sendMessage({ kind: 'known.siteAdapters.content.list' }) as { ok?: boolean; connectionId?: string; truncated?: boolean;
+    bindings?: { id: string; itemId: string; title: string; state: string; connectionId: string | null; native: boolean }[] };
+  const container = document.querySelector('#content-bindings')!; container.replaceChildren();
+  for (const b of result.bindings ?? []) {
+    const row = document.createElement('p'); row.textContent = `${b.title} (${b.itemId}): ${b.state}. `;
+    if (b.native && b.state === 'active' && result.connectionId && b.connectionId !== result.connectionId) {
+      const adopt = document.createElement('button'); adopt.type = 'button'; adopt.textContent = 'Adopt this copy into the connected account';
+      adopt.onclick = () => { void chrome.runtime.sendMessage({ kind: 'known.siteAdapters.content.adoptAccount', itemId: b.itemId, bindingId: b.id, allowAccountChange: true }).then(r => {
+        status.textContent = JSON.stringify(r, null, 2); if ((r as { ok?: boolean }).ok) adopt.disabled = true;
+      }); }; row.append(adopt);
+    }
+    container.append(row);
+  }
+  if (result.truncated) container.append(document.createTextNode('Only the first saved associations are shown. Remaining records are retained.'));
+})(); });

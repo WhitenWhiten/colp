@@ -1,3 +1,6 @@
+import { prepareCaptureContent, acknowledgeCaptureContent, moveCaptureContent } from '../capture/content-binding.js';
+import { personalBookmarks } from '../bookmark-subscriptions/guards.js';
+import { classificationDestinationPolicy } from './classification-destination.js';
 import { createBookmarkCreatePlacementStore } from '../bookmark-create-placement.js';
 import { inspectCaptureDecision, applyCaptureSuggestion } from './capture-result-recovery.js';
 import { captureTarget } from './capture-target.js';
@@ -36,6 +39,7 @@ export const captureStore = createCaptureStore(indexedDB, () => {
 export const captureCoordinator = createCaptureCoordinator({ store: captureStore, now: Date.now,
   assertCurrent: assertCaptureScope, existence: captureExistence, create: createNativeCapture, receipt: recoverNativeCapture,
   acknowledge: async task => {
+    await acknowledgeCaptureContent(task);
     if (task.nativeIntentId && !task.planned) await createBookmarkCreatePlacementStore().acknowledge(task.nativeIntentId);
     // A rule's placement is receipted before anything is sent; a failure here must not undo the save.
     if (!task.planned) await recordPreSaveReceipt(task).catch(() => undefined);
@@ -48,6 +52,7 @@ export async function startCapture(input: {
   readonly saveAnother?: boolean; readonly allowUnverifiedCloud?: boolean; readonly annotation?: BookmarkAnnotationInput;
   readonly resumeNativeIds?: readonly string[];
   /** `explicit`: the user picked this folder for this save, and no rule overrides it. Remembered and default folders are not explicit. */
+  readonly aiDestinationPolicyDigest?: string;
   readonly folderChoice?: 'explicit' | 'default';
 }): Promise<CaptureTask> {
   if (!supportedCaptureUrl(input.url)) throw new Error('capture_url_unsupported');
@@ -78,20 +83,29 @@ export async function startCapture(input: {
   const tab = input.source === 'context-link' ? null : input.tabId !== undefined
     ? await chrome.tabs.get(input.tabId).catch(() => null) : (await chrome.tabs.query({ active: true, currentWindow: true }).catch(() => []))[0];
   const favIconUrl = tab?.url === input.url ? tab.favIconUrl : undefined;
+  if (input.aiDestinationPolicyDigest) await classificationDestinationPolicy.assertAllowed(targetNativeId, input.aiDestinationPolicyDigest);
+  const captureIntentId = crypto.randomUUID();
+  const content = await prepareCaptureContent({ captureIntentId, commandId: input.commandId, source: input.source, ...(tab?.id !== undefined ? { tabId: tab.id } : {}), url: input.url, title: input.title, parentId: targetNativeId, automatic });
+  const reused = content?.nativeId ? (await chrome.bookmarks.get(content.nativeId))[0] : undefined;
+  const explicitSemanticMove = reused && content && (content.mode === 'reclassify' && automation?.outcome === 'placed' || input.folderChoice === 'explicit' || input.aiDestinationPolicyDigest);
+  const existingLocation = reused ? await import('./capture-native.js').then(m => m.nativeCaptureLocation(reused.id, scope)) : null;
   const now = Date.now();
   await ensurePeriodicAlarm(chrome, CAPTURE_ALARM, 1);
-  const task = await captureCoordinator.start({ version: 1, captureId: crypto.randomUUID(), commandId: input.commandId,
+  const task = await captureCoordinator.start({ version: 1, captureId: content?.captureIntentId ?? captureIntentId, commandId: input.commandId,
     batchId: input.batchId ?? null, source: input.source, scope, tabId: input.tabId ?? null,
-    url: input.url, title: input.title, targetNativeId, insertPosition: input.insertPosition ?? preferences.bookmarkInsertPosition,
+    url: reused ? content!.url : input.url, title: reused ? content!.title : input.title, targetNativeId: reused?.parentId ?? targetNativeId,
+    ...(input.aiDestinationPolicyDigest ? { aiDestinationPolicyDigest: input.aiDestinationPolicyDigest } : {}),
+    ...(content ? { contentIntent: { ...content, ...(explicitSemanticMove ? { desiredParentId: targetNativeId } : {}) } } : {}),
+    ...(reused ? { nativeDateAdded: reused.dateAdded } : {}), insertPosition: input.insertPosition ?? preferences.bookmarkInsertPosition,
     ...(favIconUrl ? { favIconUrl } : {}), ...(annotation ? { annotation } : {}),
-    saveAnother: input.saveAnother ?? false, allowUnverifiedCloud: input.allowUnverifiedCloud ?? false,
+    saveAnother: content?.forceAnother || input.saveAnother || false, allowUnverifiedCloud: input.allowUnverifiedCloud ?? false,
     ...(input.resumeNativeIds ? { resumeNativeIds: [...input.resumeNativeIds] } : {}),
-    createdAt: now, updatedAt: now, revision: 0, deviceId: await captureDeviceId(), policyVersion: 'capture-folder.v1', automaticIntent: automatic,
+    createdAt: now, updatedAt: now, revision: 0, deviceId: await captureDeviceId(), policyVersion: 'capture-folder.v1', automaticIntent: reused && content?.mode !== 'reclassify' ? false : automatic,
     ...(!local ? { billingAuthorization: control.consent } : classify ? { local: { commandId: null, state: 'waiting' as const } } : {}),
     ...(automation ? { automation } : {}),
-    disposition: 'new', save: 'unsubmitted', classification: classify ? 'waiting' : 'none', sync: inRange ? 'pending' : 'local-only', existence: null,
-    nativeIntentId: null, nativeId: null, nodeId: null, executionId: null, decisionId: null,
-    localLocation: null, cloudLocation: null, appliedRevision: null, manualFence: 0, controlGeneration: control.generation,
+    disposition: reused ? 'existing' : 'new', save: reused ? 'local-saved' : 'unsubmitted', classification: classify && (!reused || content?.mode === 'reclassify') ? 'waiting' : 'none', sync: inRange ? 'pending' : 'local-only', existence: null,
+    nativeIntentId: null, nativeId: reused?.id ?? null, nodeId: null, executionId: null, decisionId: null,
+    localLocation: existingLocation, cloudLocation: null, appliedRevision: null, manualFence: 0, controlGeneration: control.generation,
     reason: null });
   // The pre-registered alarm recovers even a crash immediately after admission.
   void resumeCapture(task).catch(() => undefined);
@@ -100,7 +114,15 @@ export async function startCapture(input: {
 
 export function resumeCapture(task: CaptureTask): Promise<CaptureTask> {
   return workCoordinator.run('local-bookmark', () => captureCoordinator.resume(task.scope, task.captureId))
-    .then(saved => { if (!classificationTriggerReason({ kind: 'saved-capture', task: saved })) void classifySavedCapture(saved, captureStore).catch(() => undefined); return saved; });
+    .then(async saved => {
+      if (saved.contentIntent?.desiredParentId && saved.nativeId && saved.contentIntent.desiredParentId !== saved.targetNativeId) {
+        const target = saved.contentIntent.desiredParentId;
+        if (saved.aiDestinationPolicyDigest) await classificationDestinationPolicy.assertAllowed(target, saved.aiDestinationPolicyDigest);
+        await moveCaptureContent(saved, target, () => personalBookmarks.move(saved.nativeId!, { parentId: target }));
+        const next = { ...saved, targetNativeId: target, localLocation: await import('./capture-native.js').then(m => m.nativeCaptureLocation(saved.nativeId!, saved.scope)), revision: saved.revision + 1, updatedAt: Date.now() };
+        await captureStore.update(next, saved.revision); saved = next;
+      }
+      if (!classificationTriggerReason({ kind: 'saved-capture', task: saved })) void classifySavedCapture(saved, captureStore).then(async result => { await acknowledgeCaptureContent(result); return result; }).catch(() => undefined); return saved; });
 }
 
 export async function wakeCaptures(): Promise<void> {
@@ -112,7 +134,7 @@ export async function wakeCaptures(): Promise<void> {
     // Only an account rule's placement has a receipt to recover; a browser rule's is logged when it is acknowledged.
     for (const task of page) if (isAccountAutomation(task.automation) && task.automation.outcome === 'placed' && task.save === 'local-saved'
       && task.disposition === 'new' && now - (task.savedAt ?? task.createdAt) < RECEIPT_MAX_AGE_MS) placed.push(task);
-    for (const task of page) if (!task.planned && task.disposition === 'new' && (['unsubmitted', 'unknown'].includes(task.save)
+    for (const task of page) if (!task.planned && (task.disposition === 'new' || task.contentIntent?.mode === 'reclassify') && (['unsubmitted', 'unknown'].includes(task.save)
       || task.save === 'local-saved' && task.annotation && !task.annotationPersisted
       || (task.automaticIntent && ['waiting', 'running'].includes(task.classification)))) {
       await resumeCapture(task);

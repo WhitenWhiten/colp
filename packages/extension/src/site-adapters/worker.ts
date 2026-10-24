@@ -1,3 +1,5 @@
+import { validDestinationRequest, handleDestinationRequest } from './destination-runtime.js';
+import { installContentBindings, installContentResolver, validContentRequest, handleContentRequest } from './content-runtime.js';
 import { AUTOMATION_CHANGED_KEY } from '../automation/messages.js';
 import { createSourceArchiveRuntime } from './archive-runtime.js';
 import { createConfirmationQueue } from './confirmation-queue.js';
@@ -44,9 +46,9 @@ async function senderCurrent(sender: SiteSender): Promise<boolean> {
   const frame = await chrome.webNavigation.getFrame({ tabId: sender.tab.id, frameId: 0 });
   return !!frame && frame.documentId === sender.documentId && new URL(frame.url).origin === BILIBILI.origin && frame.documentLifecycle === 'active';
 }
-async function inspect(kind: 'collections' | 'items' | 'resolve', collectionId?: string, cursor: string | null = null) {
+async function inspect(kind: 'collections' | 'items' | 'resolve', collectionId?: string, cursor: string | null = null, tabId?: number) {
   await confirmations.wake();
-  const source = await readableSiteSource();
+  const source = await readableSiteSource(tabId);
   if (!source) return { status: 'paused', retryAfterMs: LIMITS.spacingMs };
   const s = await read(), lease = s.leases.find(l => l.id === source.context.leaseId);
   if (!lease) throw new Error('pageUnavailable');
@@ -98,16 +100,16 @@ function scheduleSourceWork(at: number) {
   chrome.alarms.create(SITE_RECOVERY_ALARM, { when: at });
   workTimer = setTimeout(() => { workAt = Infinity; workTimer = undefined; void wakeSourceWork().catch(() => undefined); }, Math.max(50, at - Date.now()));
 }
-async function currentSiteSource() {
-  const s = await read(), lease = s.leases.find(l => l.expiresAt > Date.now() && ports.has(l.id));
+async function currentSiteSource(tabId?: number) {
+  const s = await read(), lease = s.leases.find(l => l.expiresAt > Date.now() && ports.has(l.id) && (tabId === undefined || l.tabId === tabId));
   return lease ? { context: await sourceContext(lease), expiresAt: lease.expiresAt } : null;
 }
 const sendSiteCommand = (c: import('./ledger-types.js').SourceContext, command: HostCommand) => {
   const port = ports.get(c.leaseId); if (!port) throw new Error('pageUnavailable'); port.postMessage(command);
 };
 let renewingLease: string | undefined;
-async function readableSiteSource() {
-  const source = await currentSiteSource(); if (!source) return null;
+async function readableSiteSource(tabId?: number) {
+  const source = await currentSiteSource(tabId); if (!source) return null;
   if (source.expiresAt - Date.now() < LIMITS.commandMs + 1000 && ((await reads.current()).active?.deadlineAt ?? 0) <= Date.now()) {
     if (renewingLease !== source.context.leaseId) { renewingLease = source.context.leaseId; sendSiteCommand(source.context, { operation: 'renewLease', leaseId: source.context.leaseId }); }
     scheduleSourceWork(Date.now() + LIMITS.spacingMs); return null;
@@ -165,6 +167,32 @@ const inspectSchema = object({ kind: literal('known.siteAdapters.inspect'), oper
 const retrySchema = object({ kind: literal('known.siteAdapters.retryConfirmation') });
 const confirmSchema = object({ kind: literal('known.siteAdapters.confirm'), accountId: str(128) });
 export function installSiteAdapters() {
+  installContentBindings();
+  installContentResolver(async (url, tabId) => {
+    if (tabId === undefined) return null;
+    const source = await currentSiteSource(tabId);
+    if (!source) return null;
+    const state = await read(), lease = state.leases.find(l => l.id === source.context.leaseId);
+    const { resolveBvUrl } = await import('./bilibili/identity.js');
+    if (!lease || !resolveBvUrl(url) || resolveBvUrl(url) !== resolveBvUrl(lease.url)) return null;
+    const deadline = Date.now() + LIMITS.commandMs;
+    let requested = await inspect('resolve', undefined, null, tabId);
+    while (requested.status === 'paused' && Date.now() + (requested.retryAfterMs ?? LIMITS.spacingMs) < deadline) {
+      await new Promise(resolve => setTimeout(resolve, Math.max(LIMITS.spacingMs, requested.retryAfterMs ?? LIMITS.spacingMs)));
+      const current = await currentSiteSource(tabId);
+      if (!current || current.context.documentId !== source.context.documentId || current.context.routeEpoch !== source.context.routeEpoch || current.context.sourceSessionGeneration !== source.context.sourceSessionGeneration) return null;
+      requested = await inspect('resolve', undefined, null, tabId);
+    }
+    if (requested.status !== 'reading') return null;
+    const outstanding = (await chrome.storage.local.get(INSPECTION))[INSPECTION] as Inspection;
+    while (Date.now() < outstanding.command.deadlineAt) {
+      const current = (await chrome.storage.local.get(INSPECTION))[INSPECTION] as Inspection;
+      if (current.command !== undefined && JSON.stringify(current.command) !== JSON.stringify(outstanding.command)) return null;
+      if (current.result) { const result = current.result as { status: string; item?: { id: string } }; return result.status === 'resolved' ? result.item?.id ?? null : null; }
+      await new Promise(resolve => setTimeout(resolve, 250));
+    }
+    return null;
+  });
   installPlannedSaveRuntime();
   installSourceLayout();
   installSourceRecoveryScheduler(scheduleSourceWork);
@@ -198,6 +226,11 @@ export function installSiteAdapters() {
         }
         return reply;
       })().then(respond, () => respond({ status: 'unavailable', reason: 'disabled' })); return true;
+    }
+    if (validContentRequest(raw) || validDestinationRequest(raw)) {
+      const path = sender.url && new URL(sender.url).pathname;
+      if (sender.id !== chrome.runtime.id || !sender.url?.startsWith(`chrome-extension://${chrome.runtime.id}/`) || !['/popup.html', '/site-adapters.html'].includes(path || '')) return false;
+      void (validDestinationRequest(raw) ? handleDestinationRequest(raw) : handleContentRequest(raw)).then(respond, e => respond({ ok: false, error: e instanceof Error ? e.message : 'unavailable' })); return true;
     }
     if (!management(sender) || !(statusSchema(raw) || enableSchema(raw) || confirmSchema(raw) || inspectSchema(raw) || retrySchema(raw) || archives.valid(raw))) return false;
     void (async () => {
