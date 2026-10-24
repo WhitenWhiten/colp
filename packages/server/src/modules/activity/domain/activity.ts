@@ -13,9 +13,9 @@ export interface ActivityPage { items: ActivityItem[]; nextCursor: string | null
 export interface ActivitySummary { unreadCount: number; latest: ActivityItem | null; revision: string }
 export type ActivityReadRequest = { ids: string[] } | { through: string; throughRevision?: string };
 export interface ActivityReadResult { readCount: number; unreadCount: number }
-export interface OpenAgentCandidate { id: string; occurredAt: Date; readAt: Date | null }
-/** The first event fixes the window; later arrivals never extend its 24-hour boundary. */
+export interface OpenAgentCandidate { id: string; openedAt: Date; readAt: Date | null }
+/** The first inbox delivery fixes the window; later arrivals never extend its 24-hour boundary. */
 export function selectOpenAgentItem<T extends OpenAgentCandidate>(candidates: readonly T[], now: Date): T | undefined {
-  return candidates.find(item => item.readAt === null && item.occurredAt.getTime() > now.getTime() - 86_400_000
-    && item.occurredAt.getTime() <= now.getTime());
+  return candidates.find(item => item.readAt === null && item.openedAt.getTime() > now.getTime() - 86_400_000
+    && item.openedAt.getTime() <= now.getTime());
 }

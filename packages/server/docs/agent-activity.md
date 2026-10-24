@@ -20,7 +20,9 @@ Unknown or foreign read IDs have no effect. A repeated command id replays its or
 even if a newer run outcome has since reopened the item. Reusing it with another payload returns 409;
 an expired receipt returns 410 without applying the read again.
 
-Unread agent additions aggregate by owner, verified agent client, and collection for at most 24 hours.
+Unread agent additions aggregate by owner, verified agent client, and collection for at most 24 hours
+from the first inbox delivery. Later deliveries never extend this window. Source occurrence times remain
+unchanged, so delayed or out-of-order outbox events can aggregate after a worker outage.
 Samples, folder names, agent names, and collection names are read from current server records.
 Run completion, partial success, failure, review, and approval attention update one activity item per run.
 Cancelled runs and resolved approval requests are removed from the inbox; restarting a run clears its obsolete outcome

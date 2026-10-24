@@ -70,11 +70,11 @@ export function createActivityAgentRoute(db: Kysely<DatabaseSchema>): OutboxRout
             .where('source_event_id', '=', context.envelope.event_id).executeTakeFirst();
           if (!duplicate) {
             const now = (await sql<{ now: Date }>`SELECT clock_timestamp() AS now`.execute(tx)).rows[0]!.now;
-            const candidates = (await sql<{ id: string; occurred_at: Date; read_at: Date | null }>`SELECT id,occurred_at,read_at
+            const candidates = (await sql<{ id: string; created_at: Date; read_at: Date | null }>`SELECT id,created_at,read_at
               FROM activity_items WHERE account_id=${owner.id} AND kind='agent_bookmarks_added'
                 AND agent_client_id IS NOT DISTINCT FROM ${payload.agentClientId} AND collection_id=${payload.collectionId}
-                AND read_at IS NULL AND occurred_at>clock_timestamp()-interval '24 hours' ORDER BY updated_at DESC,id DESC FOR UPDATE`.execute(tx)).rows;
-            const open = selectOpenAgentItem(candidates.map(row => ({ id: row.id, occurredAt: row.occurred_at, readAt: row.read_at })), now);
+                AND read_at IS NULL AND created_at>clock_timestamp()-interval '24 hours' ORDER BY updated_at DESC,id DESC FOR UPDATE`.execute(tx)).rows;
+            const open = selectOpenAgentItem(candidates.map(row => ({ id: row.id, openedAt: row.created_at, readAt: row.read_at })), now);
             const activityId = open?.id ?? randomUUID();
             if (!open) await sql`INSERT INTO activity_items(id,account_id,kind,source_key,agent_client_id,collection_id,occurred_at)
               VALUES(${activityId},${owner.id},'agent_bookmarks_added',${`agent:${payload.agentClientId ?? 'unknown'}:${payload.collectionId}:${activityId}`},

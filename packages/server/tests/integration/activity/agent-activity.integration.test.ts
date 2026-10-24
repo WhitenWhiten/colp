@@ -31,16 +31,18 @@ describeWithPostgres('durable owner agent activity', () => {
       node: { kind: 'bookmark', title: `Paper ${id}`, url: `https://example.test/${id}`, description: null, tags: [], visibility: 'inherit' },
     }));
   }
-  async function context(id: string): Promise<OutboxHandlerContext> {
+  async function context(id: string, occurredAt?: Date): Promise<OutboxHandlerContext> {
     const row = await f.db.selectFrom('outbox_events').selectAll().where('handler_name', '=', 'activity_agent')
       .where(sql<string>`payload_json->>'nodeId'`, '=', id).executeTakeFirstOrThrow();
-    await f.db.updateTable('outbox_events').set({ state: 'leased', lease_generation: 1n,
+    const payload = occurredAt ? { ...row.payload_json, occurredAt: occurredAt.toISOString() } : row.payload_json;
+    await f.db.updateTable('outbox_events').set({ state: 'leased', lease_generation: 1n, payload_json: payload,
+      ...(occurredAt ? { occurred_at: occurredAt } : {}),
       locked_until: sql<Date>`clock_timestamp()+interval '60 seconds'` }).where('outbox_id', '=', row.outbox_id).execute();
     return { signal: new AbortController().signal, idempotencyKey: row.domain_event_id,
       attempt: { outboxId: row.outbox_id, leaseGeneration: '1' }, envelope: { event_id: row.domain_event_id,
         event_type: row.event_type, event_version: 1, aggregate_identity: { aggregate_type: 'collection', aggregate_id: 'collection', aggregate_scope: 'collection' },
-        aggregate_revision: null, commit_ordinal: String(row.commit_ordinal), occurred_at: row.occurred_at.toISOString(),
-        payload: row.payload_json as OutboxHandlerContext['envelope']['payload'] } };
+        aggregate_revision: null, commit_ordinal: String(row.commit_ordinal), occurred_at: (occurredAt ?? row.occurred_at).toISOString(),
+        payload: payload as OutboxHandlerContext['envelope']['payload'] } };
   }
   const get = (suffix = '', cookie?: string) => app.inject({ url: `/api/v1/me/activity${suffix}`, headers: { cookie: cookie ?? f.owner.cookie } });
   const read = (payload: unknown, extra: Record<string, string> = {}) => app.inject({ method: 'POST', url: '/api/v1/me/activity/read', payload,
@@ -98,7 +100,7 @@ describeWithPostgres('durable owner agent activity', () => {
     await expect(route.handle(delivery)).rejects.toThrow('lease lost'); expect(await f.db.selectFrom('activity_items').selectAll().execute()).toHaveLength(0);
     await route.handle(await context('one')); const item = (await store.list(f.owner.accountId, {})).items[0]!;
     await store.markRead(f.owner.accountId, { ids: [item.id] }, randomUUID()); await create('two'); await route.handle(await context('two'));
-    await sql`UPDATE activity_items SET occurred_at=clock_timestamp()-interval '24 hours' WHERE read_at IS NULL`.execute(f.db);
+    await sql`UPDATE activity_items SET created_at=clock_timestamp()-interval '24 hours' WHERE read_at IS NULL`.execute(f.db);
     await create('three'); await route.handle(await context('three')); expect(await f.db.selectFrom('activity_items').selectAll().execute()).toHaveLength(3);
     await create('inactive'); const inactive = await context('inactive');
     await f.db.updateTable('accounts').set({ status: 'disabled' }).where('id', '=', f.owner.accountId).execute();
@@ -116,6 +118,23 @@ describeWithPostgres('durable owner agent activity', () => {
     }
     const latest = (await store.summary(f.owner.accountId)).latest!;
     expect((await read({ through: latest.id, throughRevision: latest.revision })).json()).toEqual({ readCount: 2, unreadCount: 0 });
+  });
+  test('delayed and out-of-order events share a fixed delivery window without rewriting source time', async () => {
+    await setup(); const route = createActivityAgentRoute(f.db);
+    const firstTime = new Date(Date.now() - 25 * 3_600_000), olderTime = new Date(firstTime.getTime() - 3_600_000);
+    await create('delayed-first'); await route.handle(await context('delayed-first', firstTime));
+    const opened = await f.db.selectFrom('activity_items').select(['id', 'created_at']).executeTakeFirstOrThrow();
+    await create('delayed-earlier'); const earlier = await context('delayed-earlier', olderTime);
+    await route.handle(earlier); await route.handle(earlier);
+    const page = await store.list(f.owner.accountId, {});
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0]).toMatchObject({ id: opened.id, count: 2, occurredAt: firstTime.toISOString() });
+    expect(page.items[0]!.items.map(item => item.occurredAt)).toEqual([firstTime.toISOString(), olderTime.toISOString()]);
+    expect((await f.db.selectFrom('activity_items').select('created_at').where('id', '=', opened.id).executeTakeFirstOrThrow()).created_at)
+      .toEqual(opened.created_at);
+    await sql`UPDATE activity_items SET created_at=clock_timestamp()-interval '24 hours' WHERE id=${opened.id}`.execute(f.db);
+    await create('delayed-next-window'); await route.handle(await context('delayed-next-window', firstTime));
+    expect((await store.list(f.owner.accountId, {})).items).toHaveLength(2);
   });
   test('browser session, Origin, CSRF and command id admission', async () => {
     await setup(); expect((await app.inject({ url: '/api/v1/me/activity/summary' })).statusCode).toBe(401);
