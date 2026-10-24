@@ -1,3 +1,4 @@
+import { isItemRetryEvent } from './pull-item-retry-plan.js';
 import { remoteDeleteDeferral, remoteDeleteDeferralMatches } from './remote-delete-pending-facts.js';
 import { requestValue } from './sync-state/idb.js';
 import { STORES } from './sync-state/schema.js';
@@ -16,6 +17,8 @@ export function pullDeferral(event: UnknownRecord): PullDeferral | undefined {
 }
 export async function validatedPullDeferral(tx: IDBTransaction, key: string, event: UnknownRecord,
   generation: number): Promise<boolean> {
+  // D3: a set-aside item a person asked to try again is staged on its completed page and applied like a deferred event.
+  if (isItemRetryEvent(event, generation)) return true;
   const binding = pullDeferral(event); if (!binding) return false;
   if (binding.kind === 'remote_delete') {
     const decision = await requestValue<RemoteDeleteDecisionRecord | undefined>(tx.objectStore(STORES.remoteDeleteDecisions).get([key, binding.id]));

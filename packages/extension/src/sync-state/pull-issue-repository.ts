@@ -3,6 +3,7 @@ import { boundedString, clone, safeInteger } from './codec.js';
 import { cursorPage, requestValue, requireActiveScope, runTransaction, transactionDone } from './idb.js';
 import { validateMapping } from './mapping-repository.js';
 import { putPullTerminalFacts } from './pull-workset.js';
+import { createPullItemRetryRepository } from './pull-item-retry-repository.js';
 import type { SyncStoreRuntime } from './runtime.js';
 import { INDEXES, STORES } from './schema.js';
 import { scopeKey, validateScope } from './scope-key.js';
@@ -243,7 +244,7 @@ export function createPullIssueRepository(ctx: SyncStoreRuntime) {
   }
 
   return { probeMappingRecord, setAsidePullEvent, recordApplyFailure, listPullIssues, recordLocalIssue, listLocalIssues,
-    listOpenIngressIssues };
+    listOpenIngressIssues, ...createPullItemRetryRepository(ctx) };
 }
 
 /** Automatic recovery retains unresolved evidence; only proved resolution or explicit repair closes it. */
