@@ -37,7 +37,7 @@ async function client() {
   const owner = await currentSyncScope(), config = await loadConfig(), credential = await store.loadCredential(), authority = await store.fence.read();
   if (!credential || config.serverOrigin !== owner.serverOrigin) throw new Error('not_connected');
   const assertCurrent = async () => { await store.assertWritable(authority.generation); if (!sameOwner(owner, await currentSyncScope())) throw new Error('sourceCloudOwnerChanged'); };
-  return { owner, api: createSourceCloudClient({ origin: owner.serverOrigin, fetch: credentialGatedFetch(), assertCurrent, authorize: async action => {
+  return { owner, api: createSourceCloudClient({ identity: { site: definition.siteKey, identityVersion: definition.identityVersion }, origin: owner.serverOrigin, fetch: credentialGatedFetch(), assertCurrent, authorize: async action => {
     if (action && ['configure', 'preview', 'commit', 'renew'].includes(action)) {
       const a = await db.read<SourceAuthority>('authorities', definition.adapterId);
       if (!a?.enabled || sourceDigest(a) !== sourceDigest(initialSource)) throw new Error('sourceAuthorizationChanged');
@@ -130,8 +130,8 @@ async function handleCloudManagement(raw: unknown) {
       return { configured: true }; });
     }
     if (r.kind.endsWith('.review')) {
-      const s = await snapshot(), server = await api.call<{ connections: { sourceAccount: string; epoch: number; lease: { replicaId: string; expiresAt: number } | null }[] }>('status', {});
-      const c = server.connections.find(c => c.sourceAccount === s.scope.sourceAccount), expectedEpoch = c?.epoch ?? 0;
+      const s = await snapshot(), server = await api.call<{ connections: { site?: string; identityVersion?: number; sourceAccount: string; epoch: number; lease: { replicaId: string; expiresAt: number } | null }[] }>('status', {});
+      const c = server.connections.find(c => c.sourceAccount === s.scope.sourceAccount && (c.site ?? legacySite.siteKey) === s.scope.site && (c.identityVersion ?? legacySite.identityVersion) === s.scope.identityVersion), expectedEpoch = c?.epoch ?? 0;
       const review = { snapshot: s, expectedEpoch, digest: sourceDigest({ scope: s.scope, replicaId: owner.replicaId, expectedEpoch }) };
       await db.transaction(['meta'], 'readwrite', async tx => put(tx, 'meta', 'sourceCloudReview', { ...review, expiresAt: Date.now() + 600000 }));
       return { digest: review.digest, sourceAccount: s.scope.sourceAccount, roots: s.nativeRoots, scope: s.scope, currentAuthority: c?.lease ?? null, expectedEpoch };

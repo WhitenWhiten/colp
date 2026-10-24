@@ -6,7 +6,7 @@ import { lockActiveSyncReplicasForCollection } from '../database/lock-order.js';
 import { assertLibraryDestination, createCanonicalMutationApplication } from '../../modules/collections/index.js';
 import { createPostgresCanonicalMutationPorts } from '../collections/canonical-mutation-postgres-ports.js';
 import { createPostgresNodeWritePort, createPostgresCollectionWritePort } from '../collections/repositories.js';
-import { SOURCE_ARCHIVE_PROFILE, SourceArchiveError, object, text, integer, digest, sourceHash, parseSourceScope, parseSourceEdges,
+import { SOURCE_ARCHIVE_PROFILE, SourceArchiveError, object, text, integer, digest, sourceHash, parseSourceScope, parseSourceEdges, sourceInput, sourceConnectionKey,
   type SourceArchiveActor, type SourceArchiveApplication, type SourceScope, type SourceEdge, type SourceLease, type SourceFinalEffect, type SourceFinalReceipt, type SourceCanonicalMutation } from '../../modules/source-archives/index.js';
 interface Connection { epoch: number; scope: SourceScope; lease: SourceLease | null }
 interface Plan { sourceAccount: string; scope: SourceScope; epoch: number; digest: string; edges: SourceEdge[]; createdAt: number; receipt?: SourceFinalReceipt; cancelled?: boolean }
@@ -44,7 +44,7 @@ export function createPostgresSourceArchives(db: Kysely<DatabaseSchema>, testHoo
       const now = async () => Number((await sql<{ at: string }>`SELECT extract(epoch FROM clock_timestamp()) * 1000 AS at`.execute(tx)).rows[0]!.at);
       const start = await now();
       const run = async (): Promise<unknown> => {
-        if (action === 'status') { object(body.input, []); return { profile: SOURCE_ARCHIVE_PROFILE, connections: Object.entries(state.connections).map(([sourceAccount, c]) => ({ sourceAccount, epoch: c.epoch, scope: c.scope, lease: c.lease ? { replicaId: c.lease.replicaId, expiresAt: c.lease.expiresAt } : null })) }; }
+        if (action === 'status') { object(body.input, []); return { profile: SOURCE_ARCHIVE_PROFILE, connections: Object.values(state.connections).map(c => ({ sourceAccount: c.scope.sourceAccount, site: c.scope.site, identityVersion: c.scope.identityVersion, epoch: c.epoch, scope: c.scope, lease: c.lease ? { replicaId: c.lease.replicaId, expiresAt: c.lease.expiresAt } : null })) }; }
         if (action === 'configure') {
           const i = object(body.input, ['scope', 'replicaId', 'expectedEpoch', 'approvalDigest']);
           const scope = parseSourceScope(i.scope), replicaId = text(i.replicaId), expected = integer(i.expectedEpoch, 0);
@@ -52,15 +52,15 @@ export function createPostgresSourceArchives(db: Kysely<DatabaseSchema>, testHoo
           await assertReplica(tx, actor, replicaId, scope.collectionId);
           await lockScope(tx, actor, scope);
           await assertReplica(tx, actor, replicaId, scope.collectionId);
-          const old = own(state.connections, scope.sourceAccount);
+          const old = own(state.connections, sourceConnectionKey(scope));
           if ((old?.epoch ?? 0) !== expected) reject('source_epoch_conflict');
           if (old?.lease && old.lease.expiresAt > start && old.lease.replicaId !== replicaId) reject('source_authority_busy');
           if (!old && Object.keys(state.connections).length >= 128) reject('source_capacity', 507);
           const lease = { epoch: expected + 1, token: randomUUID(), replicaId, expiresAt: start + SOURCE_ARCHIVE_PROFILE.leaseMs };
-          state.connections[scope.sourceAccount] = { scope, epoch: lease.epoch, lease }; return { lease, scopeDigest: sourceHash(scope) };
+          state.connections[sourceConnectionKey(scope)] = { scope, epoch: lease.epoch, lease }; return { lease, scopeDigest: sourceHash(scope) };
         }
         if (action === 'revoke') {
-          const i = object(body.input, ['sourceAccount', 'expectedEpoch']); const c = own(state.connections, text(i.sourceAccount));
+          const { input: i, source } = sourceInput(body.input, ['sourceAccount', 'expectedEpoch']); const c = own(state.connections, sourceConnectionKey(source));
           if (!c || c.epoch !== integer(i.expectedEpoch, 0)) reject('source_epoch_conflict');
           c.epoch++; c.lease = null; return { epoch: c.epoch, revoked: true };
         }
@@ -78,10 +78,10 @@ export function createPostgresSourceArchives(db: Kysely<DatabaseSchema>, testHoo
           if (action === 'cancel' && !p.receipt) p.cancelled = true;
           return { state: p.receipt ? 'committed' : p.cancelled ? 'cancelled' : 'prepared', receipt: p.receipt ?? null };
         }
-        const i = object(body.input, action === 'preview' ? ['sourceAccount', 'lease', 'planId', 'edges', 'scopeDigest']
+        const { input: i, source } = sourceInput(body.input, action === 'preview' ? ['sourceAccount', 'lease', 'planId', 'edges', 'scopeDigest']
           : action === 'commit' ? ['sourceAccount', 'lease', 'planId', 'digest'] : action === 'renew' ? ['sourceAccount', 'lease'] : []);
         if (!['preview', 'commit', 'renew'].includes(action)) reject('source_action_unsupported', 422);
-        const sourceAccount = text(i.sourceAccount), c = own(state.connections, sourceAccount);
+        const sourceAccount = source.sourceAccount, connectionKey = sourceConnectionKey(source), c = own(state.connections, connectionKey);
         if (!c) reject('source_connection_missing', 404);
         const l = object(i.lease, ['replicaId', 'epoch', 'token', 'expiresAt']);
         if (!c.lease || c.epoch !== l.epoch || c.lease.token !== l.token || c.lease.replicaId !== l.replicaId || c.lease.expiresAt <= start) reject('source_lease_revoked');
@@ -100,7 +100,7 @@ export function createPostgresSourceArchives(db: Kysely<DatabaseSchema>, testHoo
           state.plans[planId] = { sourceAccount, scope: c.scope, epoch: c.epoch, digest: hash, edges, createdAt: start };
           return { planId, digest: hash, edges, expiresAt: start + 600_000 };
         }
-        if (!previous || previous.sourceAccount !== sourceAccount || previous.digest !== digest(i.digest)) reject('source_command_reused');
+        if (!previous || sourceConnectionKey(previous.scope) !== connectionKey || previous.sourceAccount !== sourceAccount || previous.digest !== digest(i.digest)) reject('source_command_reused');
         if (previous.receipt) return previous.receipt;
         if (previous.cancelled) reject('source_plan_cancelled');
         if (previous.epoch !== c.epoch || sourceHash(previous.scope) !== sourceHash(c.scope) || previous.createdAt + 600_000 <= start) reject('source_plan_stale');
@@ -131,9 +131,9 @@ export function createPostgresSourceArchives(db: Kysely<DatabaseSchema>, testHoo
         const effects: SourceFinalEffect[] = [];
         for (const e of previous.edges) {
           const root = c.scope.roots.find(r => r.ruleId === e.ruleId && r.collectionIds.includes(e.collectionId))!;
-          const folderKey = key(sourceAccount, c.scope.collectionId, root.nodeId, e.collectionId);
+          const folderKey = key(connectionKey, c.scope.collectionId, root.nodeId, e.collectionId);
           let folder = own(state.folders, folderKey);
-          const copyKey = c.scope.policy.copies === 'sourceAndSemantic' ? key(sourceAccount, e.itemId, c.scope.collectionId, root.nodeId, e.collectionId) : key(sourceAccount, e.itemId, 'single');
+          const copyKey = c.scope.policy.copies === 'sourceAndSemantic' ? key(connectionKey, e.itemId, c.scope.collectionId, root.nodeId, e.collectionId) : key(connectionKey, e.itemId, 'single');
           const old = own(state.copies, copyKey);
           if (folder) await verify(folder);
           if (old) { if (!folder) reject('source_representation_needs_review'); await verify(old); effects.push({ itemId: e.itemId, collectionId: e.collectionId, ruleId: e.ruleId, nodeId: old.nodeId, finalParentId: old.parentId, resourceRevision: old.revision, operationId: null, disposition: 'reused' }); continue; }

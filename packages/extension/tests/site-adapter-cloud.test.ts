@@ -1,3 +1,4 @@
+import { sourceConnectionKey, sourceInput } from '../../server/src/modules/source-archives/index.js';
 import { cloudEdgeUnseen, cloudProgress } from '../src/site-adapters/cloud-progress.js';
 import { test, expect } from 'vitest';
 import { sourceDigest } from '../src/site-adapters/source-db.js';
@@ -41,4 +42,22 @@ test('a later lower-ID membership is not lost behind a completed batch cursor', 
   expect(cloudEdgeUnseen(progress, 'video:av:20/B', 20)).toBe(false);
   expect(cloudEdgeUnseen(progress, 'video:av:20/B', 22)).toBe(true);
   expect(cloudProgress(progress, { 'video:av:20/B': 19 })).toEqual(progress);
+});
+
+test('cloud namespaces preserve legacy receipts but separate equal account IDs and identity revisions', () => {
+  const legacy = { site: 'bilibili', identityVersion: 1, sourceAccount: '42' };
+  expect(sourceConnectionKey(legacy)).toBe('42');
+  expect(new Set([sourceConnectionKey(legacy), sourceConnectionKey({ ...legacy, site: 'uninstalled-source' }), sourceConnectionKey({ ...legacy, identityVersion: 2 })]).size).toBe(3);
+  expect(sourceInput({ sourceAccount: '42', expectedEpoch: 0 }, ['sourceAccount', 'expectedEpoch']).source).toEqual(legacy);
+  expect(sourceInput({ ...legacy, expectedEpoch: 0 }, ['sourceAccount', 'expectedEpoch']).source).toEqual(legacy);
+  expect(() => sourceInput({ ...legacy, site: 'uninstalled-source', expectedEpoch: 0 }, ['sourceAccount', 'expectedEpoch'])).toThrow('unsupported_source_scope');
+  expect(() => sourceInput({ sourceAccount: '42', site: 'bilibili', expectedEpoch: 0 }, ['sourceAccount', 'expectedEpoch'])).toThrow('invalid_source_document');
+});
+
+test('a registered local identity cannot spend cloud authority without the matching server profile', async () => {
+  const calls: string[] = [];
+  const client = createSourceCloudClient({ identity: { site: 'bilibili', identityVersion: 2 }, origin: 'https://server.test',
+    assertCurrent: async () => {}, headers: async () => ({}), fetch: (async (_url, init) => { calls.push(init?.method ?? 'GET'); return Response.json(SOURCE_ARCHIVE_PROFILE); }) as typeof fetch });
+  await expect(client.call('renew', { sourceAccount: '42' })).rejects.toThrow('sourceCloudUnsupported');
+  expect(calls).toEqual(['GET']);
 });
