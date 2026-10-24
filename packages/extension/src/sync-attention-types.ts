@@ -83,6 +83,11 @@ export interface PublicSyncAttention {
   readonly retryAutomatic?: boolean;
   /** The engine paused after repeated errors and resumes by itself at `retryAt`: a cooldown, not a stop. */
   readonly coolingDown?: boolean;
+  /**
+   * The engine stopped and looks again by itself at `retryAt` (5 minutes, 15 minutes, an hour, then every six hours);
+   * Retry looks now. `stopped`: retrying cannot change the result. `stalled`: it waited on the same thing for a long time.
+   */
+  readonly stopKind?: 'stopped' | 'stalled';
   /** How many times the circuit breaker has tripped without progress (diagnostics). */
   readonly breakerTrips?: number;
   /** Bookmark access was removed after sync was set up: nothing can read or change a bookmark until it is allowed again. */

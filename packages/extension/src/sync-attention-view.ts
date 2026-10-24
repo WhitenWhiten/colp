@@ -18,13 +18,14 @@ import { formatMoment, localized, t, tn } from './i18n.js';
  *     explain "Sync on this device has stopped" and offer a real exit instead
  *     of leaving the user with the bare `Needs attention` label.
  *
- * `syncAttentionTerminalCode` is the single terminal predicate: it reuses
- * `holdsUnprovenIdentity` (the engine's own gate) so the UI and the scheduler
- * cannot drift apart. Words come from the problem catalog
+ * `syncAttentionTerminalCode` is the terminal predicate and lives with the
+ * other readings of "has sync stopped" in `sync-stop-state.ts`, so the card,
+ * the chip, the copied details and the engine cannot drift apart. Words come
+ * from the problem catalog
  * (`sync-problem-catalog.ts`), so a code is described the same way on every
  * surface and a code nobody wrote words for still reads as a sentence.
  */
-import { holdsUnprovenIdentity, needsReplicaRebuild } from './sync-failure-class.js';
+import { syncAttentionTerminalCode } from './sync-stop-state.js';
 import { syncIssueBulk, syncIssueRows, type SyncIssueBulk, type SyncIssueRow } from './sync-issue-rows.js';
 import { describeSyncProblem, problemOffersRetry } from './sync-problem-catalog.js';
 import type {
@@ -125,21 +126,7 @@ export interface SyncAttentionView {
   };
 }
 
-/**
- * The engine's terminal gate is `recoveryFrozen && (holdsUnprovenIdentity ||
- * lastError === 'payload_too_large')`; `freezeScopeRecovery` records the same
- * code as `scope.metadata.recoveryCode`. Checking both fields means a freeze
- * stays visible even if only one of the two rows survived.
- */
-export function syncAttentionTerminalCode(lastError: string | undefined,
-  recoveryCode: string | undefined): SyncAttentionTerminalCode | undefined {
-  for (const code of [recoveryCode, lastError]) {
-    if (code === 'payload_too_large' || code === 'replica_rebuild_pending') return code;
-    if (needsReplicaRebuild(code)) return code as SyncAttentionTerminalCode;
-    if (holdsUnprovenIdentity(code)) return code as SyncAttentionTerminalCode;
-  }
-  return undefined;
-}
+export { syncAttentionTerminalCode };
 
 export function isTerminalSyncAttention(input: SyncAttentionInput): boolean {
   return syncAttentionTerminalCode(input.lastError, input.recoveryCode) !== undefined;

@@ -3,9 +3,7 @@ import { scanBoundary } from '../bookmark-boundary.js';
 import { createChromeBookmarkTreeAdapter } from '../chrome-bookmark-tree.js';
 import { projectSyncProgress } from '../sync-progress.js';
 import { readOpenSyncIssues } from '../sync-issues.js';
-import { syncAttentionTerminalCode } from '../sync-attention-ui.js';
-import { circuitIsStopped } from '../sync-circuit-breaker.js';
-import { refreshesReplicaIntegrity } from '../sync-failure-class.js';
+import { syncStopState } from '../sync-stop-state.js';
 import type { SyncScope } from '../sync-state-store.js';
 import type { SyncProgressResponse } from '../types.js';
 import { hasBookmarkPermission, syncState } from './runtime.js';
@@ -53,14 +51,15 @@ export async function handleSyncProgressRequest(): Promise<SyncProgressResponse>
   const unsettled = engine?.recoveryFrozen === true || captures.length > 0
     || acknowledgements.some(row => row.state === 'pending')
     || Boolean(engine?.lastPublishedCursor && engine.lastPublishedCursor !== engine.lastAckedCursor);
-  const terminalCode = syncAttentionTerminalCode(engine?.lastError,
-    typeof recorded?.metadata?.recoveryCode === 'string' ? recorded.metadata.recoveryCode : undefined);
+  // The same reading of "has sync stopped" as the Status card, the report and the copied details.
+  const stop = syncStopState({ ...(engine?.lastError ? { lastError: engine.lastError } : {}),
+    ...(typeof recorded?.metadata?.recoveryCode === 'string' ? { recoveryCode: recorded.metadata.recoveryCode } : {}),
+    ...(engine?.phase ? { phase: engine.phase } : {}), ...(engine?.circuitBreaker ? { breaker: engine.circuitBreaker } : {}) });
   return { ok: true, progress: projectSyncProgress({
     issueCount: issues.total,
-    ...(engine?.phase === 'error' || terminalCode ? { retryAutomatic: false } : {}),
+    ...(engine?.phase === 'error' || stop?.kind === 'terminal' ? { retryAutomatic: false } : {}),
     // A breaker that tripped on something that ends by itself is a pause, and says when it ends.
-    ...(terminalCode === undefined && circuitIsStopped(engine) && !refreshesReplicaIntegrity(engine?.lastError)
-      ? { coolingDown: true } : {}),
+    ...(stop?.kind === 'cooling' ? { coolingDown: true } : {}),
     firstRun, ...(run ? { runPhase: run.phase } : {}), roots: tree.roots, classifications: scan.classifications,
     // Provisional identities exist before a create has a server receipt.
     mappedNativeIds: new Set(mappings.filter((row) => !/^(pending-|local-|mount:)/u.test(row.colpId)

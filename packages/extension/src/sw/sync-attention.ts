@@ -9,12 +9,10 @@ import { readOpenSyncIssues, type OpenSyncIssues } from '../sync-issues.js';
  * projections from historical receipts; it never wakes the engine or touches native data. */
 import { hasConflictBarrier, hasRejectedBarrier, queueStatusProjection, stalledUploadHead } from '../engine-public-stability.js';
 import type { NativeWaitStore } from '../native-wait.js';
-import { syncAttentionTerminalCode } from '../sync-attention-ui.js';
-import { circuitIsStopped } from '../sync-circuit-breaker.js';
-import { refreshesReplicaIntegrity } from '../sync-failure-class.js';
+import { syncStopState } from '../sync-stop-state.js';
 import type { SyncWatchdog } from './sync-watchdog.js';
 import type { UnreadableQueueRow } from '../sync-state/queue-lenient.js';
-import type { SyncAttentionResponse } from '../types.js';
+import type { SyncAttentionResponse, SyncAttentionTerminalCode } from '../types.js';
 import type { createSyncStateStore, QueueOperation, SyncScope } from '../sync-state-store.js';
 import type { WakeFailure } from './wake-failure.js';
 import { readVisibleWakeFailures, unreadableQueueDiagnostics, wakeFailureDiagnostics } from './engine-issues.js';
@@ -80,12 +78,15 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
     const recoveryCode = typeof recorded?.metadata?.recoveryCode === 'string'
       ? recorded.metadata.recoveryCode : undefined;
     const lastError = engine?.lastError;
-    const terminalCode = syncAttentionTerminalCode(lastError, recoveryCode);
+    // The one reading of "has sync stopped" (sync-stop-state.ts): the card, the chip, the report and the engine share it.
+    const stop = syncStopState({ lastError, recoveryCode, ...(engine?.phase ? { phase: engine.phase } : {}),
+      ...(engine?.circuitBreaker ? { breaker: engine.circuitBreaker } : {}) });
+    const terminalCode = stop?.kind === 'terminal' ? stop.code as SyncAttentionTerminalCode : undefined;
     // Set up, then access removed: the engine returns before it does anything, so no error is ever recorded.
     const setUp = recorded?.firstRun === 'completed' || recorded?.firstRun === 'running';
     const permissionRequired = setUp && deps.bookmarkPermission !== undefined && !await deps.bookmarkPermission();
     // A breaker that tripped on something that ends by itself resumes at `notBefore`: a pause, not a stop.
-    const coolingDown = terminalCode === undefined && circuitIsStopped(engine) && !refreshesReplicaIntegrity(lastError);
+    const coolingDown = stop?.kind === 'cooling';
     const healthDelivery = await deps.healthDelivery?.(scope).catch(() => undefined);
     const open = deps.openIssues ?? await readOpenSyncIssues(deps.store, scope);
     const capability = await readReplicaRepairCapability(deps.store, scope, open);
@@ -124,6 +125,8 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
       retryAutomatic: engine?.phase !== 'error' && terminalCode === undefined,
       ...(engine?.notBefore ? { retryAt: engine.notBefore } : {}),
       ...(coolingDown ? { coolingDown: true } : {}),
+      // Stopped or stalled: the engine looks again by itself at `retryAt`, and Retry looks now.
+      ...(stop?.kind === 'stopped' || stop?.kind === 'stalled' ? { stopKind: stop.kind } : {}),
       ...(engine?.circuitBreaker?.trips ? { breakerTrips: engine.circuitBreaker.trips } : {}),
       ...(permissionRequired ? { permissionRequired: true } : {}),
       ...(healthDelivery ? { healthDelivery } : {}),
