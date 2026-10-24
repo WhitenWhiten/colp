@@ -308,6 +308,27 @@ export function recoveryFailureCopy(input: SyncAttentionInput, itemCopy = ''): s
   return [describeSyncProblem(code, problemContext(input)).sentence, itemCopy].filter(Boolean).join(' ');
 }
 
+/** What the status says after Retry ran: whether sync still reports a problem, and which. */
+export interface SyncRetryReading { readonly problem: boolean; readonly code?: string }
+
+export function syncRetryReading(attention: PublicSyncAttention | undefined): SyncRetryReading | undefined {
+  if (!attention) return undefined;
+  const code = attention.lastError ?? attention.terminalCode;
+  return { problem: attention.terminal || attention.retryAutomatic === false || attention.permissionRequired === true
+    || Boolean(attention.lastError), ...(code ? { code } : {}) };
+}
+
+/**
+ * Retry used to answer "requested" before anything ran. It now answers after the
+ * pass: still going, worked, or still reporting a problem (and which).
+ */
+export function retryOutcomeCopy(settled: boolean, after: SyncRetryReading | undefined): string {
+  if (!settled) return t('sync_retryStillRunning', 'Retry is still running. This card updates when it finishes.');
+  if (!after) return t('sync_retryUnreadable', 'Retried, but the status could not be read afterwards.');
+  if (!after.problem) return t('sync_retryWorked', 'Retried. Sync is running again.');
+  return t('sync_retryStillFailing', 'Retried, but sync still reports a problem ($1). Copy details to investigate.', after.code ?? '?');
+}
+
 /** Facts from `known.sync.attention.get` plus the backend conflict href from `known.remoteDelete.policy.get`. */
 export function syncAttentionInput(attention: PublicSyncAttention | undefined,
   policy: RemoteDeleteResponse | undefined): SyncAttentionInput {

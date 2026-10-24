@@ -4,10 +4,11 @@ import { el } from './library-dom.js';
 import { bindReplicaRebuildButton } from './replica-rebuild-ui.js';
 import {
   SYNC_ATTENTION_CENTER_LABEL, SYNC_ATTENTION_COPIED_COPY, SYNC_ATTENTION_COPY_DIAGNOSTICS_LABEL, SYNC_ATTENTION_COPY_FAILED_COPY,
-  SYNC_ATTENTION_FOLDERS_LABEL, describeSyncAttention, syncAttentionInput, withNativeWaitFallback, type SyncAttentionView,
+  SYNC_ATTENTION_FOLDERS_LABEL, describeSyncAttention, retryOutcomeCopy, syncAttentionInput, syncRetryReading,
+  withNativeWaitFallback, type SyncAttentionView,
 } from './sync-attention-view.js';
 import type { SyncIssueRow } from './sync-issue-rows.js';
-import type { NativeWaitResponse, PublicSyncAttention, RemoteDeleteResponse, SyncAttentionResponse } from './types.js';
+import type { NativeWaitResponse, PublicSyncAttention, RemoteDeleteResponse, SyncAttentionResponse, SyncRetryResponse } from './types.js';
 
 /**
  * The binder for the Status card (options) and its popup twin. Everything it
@@ -20,6 +21,8 @@ export * from './sync-attention-view.js';
 export const SYNC_ATTENTION_OPTIONS_HOST = 'sync-attention-settings';
 
 const REFRESH_MS = 8_000;
+/** Retry answers after its pass (up to 20 s in the worker), so its reply is waited for longer than a read. */
+const RETRY_REPLY_MS = 24_000;
 
 interface AttentionNodes {
   readonly host: HTMLElement;
@@ -82,12 +85,19 @@ function bindSyncAttention(hostId: string, syncPaneOnly: boolean): void {
   for (const button of [nodes.retry, nodes.terminalRetry]) {
     button?.addEventListener('click', () => {
       button.disabled = true;
-      void send<{ readonly ok: boolean }>({ kind: 'known.sync.engine.retry' }).then(result => {
-        showFeedback(nodes.feedback, result?.ok
-          ? t('sync_recoveryRetryRequested', 'Sync retry requested.')
-          : t('sync_recoveryRetryFailed', 'Could not retry sync. Copy details to investigate.'));
-      }).finally(() => { button.disabled = false; });
+      showFeedback(nodes.feedback, t('sync_retryRunning', 'Retrying sync…'));
+      void retrySync(nodes).finally(() => { button.disabled = false; });
     });
+  }
+  /** Retry answers after its pass; the status is read again, so the card says whether anything changed. */
+  async function retrySync(target: AttentionNodes): Promise<void> {
+    const result = await send<SyncRetryResponse>({ kind: 'known.sync.engine.retry' }, RETRY_REPLY_MS);
+    if (!result?.ok) {
+      showFeedback(target.feedback, t('sync_recoveryRetryFailed', 'Could not retry sync. Copy details to investigate.')
+        + (result?.ok === false ? ` (${result.error})` : ''));
+      return;
+    }
+    showFeedback(target.feedback, retryOutcomeCopy(result.settled, syncRetryReading(await refresh())));
   }
   if (nodes.syncCenter) nodes.syncCenter.textContent = SYNC_ATTENTION_CENTER_LABEL;
   if (nodes.recoverySyncCenter) nodes.recoverySyncCenter.textContent = SYNC_ATTENTION_CENTER_LABEL;
@@ -98,11 +108,12 @@ function bindSyncAttention(hostId: string, syncPaneOnly: boolean): void {
   }
 
   let painted = false;
-  const refresh = async (): Promise<void> => {
+  /** Reads, paints, and returns what was read (`undefined`: it could not be read). */
+  const refresh = async (): Promise<PublicSyncAttention | undefined> => {
     const [read, policy] = await Promise.all([readAttention(), readRemoteDeletePolicy()]);
     const { attention } = read;
     // A read that fails is not an empty card: keep what the last good reading showed, and say it may be out of date.
-    if (attention === undefined && read.error !== 'not_connected') { paintUnreadable(nodes, read.error ?? 'status_unreachable', painted); return; }
+    if (attention === undefined && read.error !== 'not_connected') { paintUnreadable(nodes, read.error ?? 'status_unreachable', painted); return undefined; }
     paintUnreadable(nodes, undefined, painted);
     painted = true;
     const facts = syncAttentionInput(attention, policy);
@@ -121,6 +132,7 @@ function bindSyncAttention(hostId: string, syncPaneOnly: boolean): void {
       repair.append(button, feedback); nodes.host.append(repair); bindReplicaRebuildButton(repair.id);
     }
     repair.hidden = attention?.rebuildAvailable !== true || attention.recoveryFrozen === true;
+    return attention;
   };
   void refresh();
   setInterval(() => {
@@ -250,10 +262,10 @@ async function readRemoteDeletePolicy(): Promise<RemoteDeleteResponse | undefine
 }
 
 /** Bounded like `remote-delete-ui.ts`: a sleeping worker never leaves the panel blank forever. */
-async function send<T>(message: { readonly kind: string }): Promise<T | undefined> {
+async function send<T>(message: { readonly kind: string }, waitMilliseconds = 8_000): Promise<T | undefined> {
   try {
     const pending = chrome.runtime.sendMessage(message) as Promise<T>;
-    const timeout = new Promise<undefined>((resolve) => { setTimeout(() => resolve(undefined), 8_000); });
+    const timeout = new Promise<undefined>((resolve) => { setTimeout(() => resolve(undefined), waitMilliseconds); });
     return await Promise.race([pending, timeout]);
   } catch { return undefined; }
 }

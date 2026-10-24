@@ -393,6 +393,9 @@ export type ExtensionResponse = { readonly ok: true; readonly state: PublicAuthS
   | { readonly ok: false; readonly state: PublicAuthState; readonly error: string };
 export type SyncEngineRequest = { readonly kind: 'known.sync.engine.status' };
 export type SyncRetryRequest = { readonly kind: 'known.sync.engine.retry' };
+/** `settled`: the pass Retry started has finished; false means it is still running after the wait. */
+export type SyncRetryResponse = { readonly ok: true; readonly settled: boolean }
+  | { readonly ok: false; readonly error: string };
 export type ConnectivityRequest = { readonly kind: 'known.connectivity.online' };
 export type SyncEngineResponse = { readonly ok: true; readonly engine: PublicSyncEngineState }
   | { readonly ok: false; readonly error: 'not_connected' | 'state_unavailable' };

@@ -50,6 +50,7 @@ import { installWorkerMetadataWake } from './sw/metadata-sync-wake.js';
 import { bindLibraryOnStartup } from './sw/library.js';
 import { handleSyncEngineRequest, scheduleSyncEngineWake } from './sw/engine.js';
 import { readHealthDeliveryFailure } from './sw/health-delivery-status.js';
+import { settleManualRetry } from './sw/manual-retry.js';
 import { syncWatchdog } from './sw/sync-watchdog-runtime.js';
 import { REPLICA_HEALTH_ALARM, REPLICA_HEALTH_PERIOD_MINUTES, reportReplicaDisconnected, reportReplicaHealth } from './sw/replica-health.js';
 import { handleSyncStateEvidence } from './sw/evidence.js';
@@ -343,8 +344,11 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     return true;
   }
   if (validSyncRetryRequest(message)) {
-    void scheduleSyncEngineWake('manual').catch((error) => logBackgroundFailure('message.sync-engine-wake', error));
-    respond({ ok: true }); return false;
+    // Answer after the pass has run (bounded), so the page can say whether Retry did anything.
+    const wake = scheduleSyncEngineWake('manual');
+    void wake.catch((error) => logBackgroundFailure('message.sync-engine-wake', error));
+    void settleManualRetry(wake, safeError).then(respond);
+    return true;
   }
   if (validSyncEngineRequest(message)) {
     void handleSyncEngineRequest().then(respond); return true;
