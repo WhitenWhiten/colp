@@ -1,4 +1,4 @@
-import { SYNC_FAILURE_TABLE, type SyncFailureEntry } from './sync-failure-class.js';
+import { SYNC_FAILURE_TABLE, normalizeSyncFailureCode, type SyncFailureEntry } from './sync-failure-class.js';
 
 /** The table's own entry: its class is what the code is *about* (an item), not the blast radius it has without a subject. */
 const entryOf = (code: string): SyncFailureEntry | undefined => (SYNC_FAILURE_TABLE as Readonly<Record<string, SyncFailureEntry>>)[code];
@@ -35,12 +35,11 @@ export type SyncProblemLane = 'upload' | 'download' | 'device';
 
 const OFFLINE = new Set(['network_unavailable', 'push_network_failed', 'pull_transport_unavailable', 'indexeddb_unavailable']);
 const SERVER_BUSY = new Set(['server_unavailable', 'rate_limited', 'service_unavailable', 'internal_error', 'push_batch_timeout',
-  'push_batch_response_unknown', 'request_failed', 'pull_failed', 'manifest_unavailable', 'push_dispatch_failed',
-  'push_server_unavailable']);
+  'push_batch_response_unknown', 'request_failed', 'pull_failed', 'push_dispatch_failed', 'push_server_unavailable']);
 const PERMISSION = new Set(['permission_required', 'permission_revoked']);
-const SIGN_IN = new Set(['credential_revoked', 'authentication_required', 'insufficient_scope', 'session_invalid',
-  'origin_not_allowed', 'server_configuration_failed']);
-const RETIRED = new Set(['replica_retired', 'resource_not_found']);
+const SIGN_IN = new Set(['credential_revoked', 'authentication_required', 'insufficient_scope']);
+/** `resource_not_found` is not here: it is what the server says of a Session that expired or was replaced, and a new one ends it. */
+const RETIRED = new Set(['replica_retired']);
 /** Told by the watchdog, not by the engine: no table entry exists, and nothing short of looking into it helps. */
 const STALLED = new Set(['sync_stuck', 'sync_not_completing']);
 /** Synthesised by the extension itself, so no table entry exists, but only a Reset ends it. */
@@ -61,11 +60,24 @@ function stopFamily(code: string): SyncProblemFamily {
   return STOP_AREAS.find(([, pattern]) => pattern.test(code))?.[0] ?? 'stop_local';
 }
 
+/**
+ * Refusals a Reset cannot end: the same answer comes back for a new copy, or the limit is the server's. Neither the
+ * card nor the Sync center offers a Reset for them, and the Reset itself refuses (`replica-repair-capability.ts`).
+ */
+const RESET_CANNOT_HELP = new Set(['snapshot_too_large', 'server_version_mismatch', 'origin_not_allowed', 'invalid_query',
+  'idempotency_key_reused', 'manifest_unavailable']);
+
+export function problemResetCannotHelp(code: string | undefined): boolean {
+  return code !== undefined && RESET_CANNOT_HELP.has(normalizeSyncFailureCode(code));
+}
+
 /** The family of one code. Total: every string has one. */
 export function syncProblemFamily(full: string | undefined): SyncProblemFamily {
   if (!full) return 'unknown';
   // `name:detail` shapes (a node id after the name) are the family of `name`, unless the table lists the whole.
-  const code = entryOf(full) || !full.includes(':') ? full : full.split(':', 1)[0]!;
+  // A Snapshot-wrapped server code (`snapshot_503_service_unavailable`) has the family of the code inside.
+  const named = entryOf(full) || !full.includes(':') ? full : full.split(':', 1)[0]!;
+  const code = normalizeSyncFailureCode(named);
   if (RETIRED.has(code)) return 'retired';
   if (STALLED.has(code)) return 'stalled';
   if (REBUILD.has(code)) return 'rebuild';

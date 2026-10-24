@@ -196,7 +196,9 @@ export function ReplicaHealth({ replica, onChanged, children }: {
       : 'Sync is paused on this browser. Nothing syncs until it’s resumed there.')
   } else if (health?.state === 'degraded') {
     // A code on a degraded report is a pause the browser ends by itself, or a stall its watchdog noticed; neither is a stop.
-    if (health.code) notes.push(`Sync on this browser ${problemFamily(health.code) === 'stalled' ? 'looks stuck' : 'hit repeated errors and is waiting to try again'}: ${stopReason(health.code)} ${stopNext(health.code, offered)}`)
+    // A clock that is off is neither: sync works, and the person is told what to set.
+    if (health.code === 'clock_skew') notes.push(`Sync on this browser keeps working, but ${stopReason(health.code)} ${stopNext(health.code, offered)}`)
+    else if (health.code) notes.push(`Sync on this browser ${problemFamily(health.code) === 'stalled' ? 'looks stuck' : 'hit repeated errors and is waiting to try again'}: ${stopReason(health.code)} ${stopNext(health.code, offered)}`)
     if (count > 0 || !health.code) notes.push(`${plural(count, 'item')} on this browser couldn’t sync. Review the items and available recovery actions below. ${offered.includes('rebuild') ? 'Reset sync can repair this browser’s copy if retrying does not help.' : ''}`)
   }
   if (notSyncing(replica) && health?.state !== 'stopped') notes.push(activityNote(replica))

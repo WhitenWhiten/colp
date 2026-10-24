@@ -48,6 +48,8 @@ export function rebuildFailureCopy(code: string): string {
       return t('sync_rebuildNotCancellable', 'The reset has already started and can only be finished. Press Reset sync on this device to finish it.');
     case 'rebuild_not_required': case 'stale_ref':
       return t('sync_rebuildNoLongerAvailable', 'Sync state changed. Refresh Status to review the available actions ($1).', code);
+    case 'rebuild_cannot_help':
+      return t('sync_rebuildCannotHelp', 'A reset would not help here: a new copy meets the same refusal. Nothing was reset. The card says what does.');
     default:
       return t('sync_resetIsntFinishedYet', "Reset isn't finished yet. Try again.");
   }

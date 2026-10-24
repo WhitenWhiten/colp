@@ -21,11 +21,11 @@ const list = (words: string): ReadonlySet<string> => new Set(words.split(/\s+/u)
 
 const OFFLINE = list('network_unavailable push_network_failed pull_transport_unavailable indexeddb_unavailable')
 const SERVER_BUSY = list(`server_unavailable rate_limited service_unavailable internal_error push_batch_timeout
-  push_batch_response_unknown request_failed pull_failed manifest_unavailable push_dispatch_failed push_server_unavailable`)
+  push_batch_response_unknown request_failed pull_failed push_dispatch_failed push_server_unavailable`)
 const PERMISSION = list('permission_required permission_revoked')
-const SIGN_IN = list(`credential_revoked authentication_required insufficient_scope session_invalid origin_not_allowed
-  server_configuration_failed`)
-const RETIRED = list('replica_retired resource_not_found')
+const SIGN_IN = list('credential_revoked authentication_required insufficient_scope')
+/** `resource_not_found` is not here: it is what the server says of a Session that expired or was replaced, and a new one ends it. */
+const RETIRED = list('replica_retired')
 /** Told by the extension's watchdog, not by its engine: nothing short of looking into it helps. */
 const STALLED = list('sync_stuck sync_not_completing')
 const WAITING = list(`position_context_stale revision_conflict concurrent_local_mutation push_batch_prefix_pending ack_pending
@@ -36,17 +36,19 @@ const WAITING = list(`position_context_stale revision_conflict concurrent_local_
   push_batch_recovery_barrier queue_recovery_frozen quota_exceeded range_dependency_pending remote_delete_command_pending
   remote_delete_decision_stale remote_delete_generation_fenced remote_delete_policy_stale remote_delete_revision_stale
   session_handoff_pending stale_fence stale_ref sync_paused transaction_aborted push_attempt_missing queue_not_drained
-  scope_not_writable sync_step_failed storage_blocked storage_unavailable indexeddb_failure`)
+  scope_not_writable sync_step_failed storage_blocked storage_unavailable indexeddb_failure clock_skew bookmark_api_error
+  bookmark_write_quota native_read_failed server_configuration_failed`)
 const AUTHORITY = list(`snapshot_expired sync_cursor_expired need_authority recovery_required recovery_capability_premature
   recovery_capability_invalid recovery_authority_invalid effect_page_transport_unavailable stale_replica
   push_authentication_rejected push_denial_escalated push_scope_mismatch push_authority_expired push_authority_denied
   push_authority_response_invalid push_authentication_refresh_required push_authentication_exhausted push_denial_unrecognized
   push_session_unavailable push_session_refresh_failed lease_authority_invalid recovery_authority_not_activated
-  scope_mismatch session_authority_invalid`)
-const CONFIRM = list('remote_delete_confirmation_required native_result_unknown')
+  scope_mismatch session_authority_invalid resource_not_found session_invalid`)
+const CONFIRM = list('remote_delete_confirmation_required native_result_unknown snapshot_native_projection_ambiguous')
 const DECIDE = list(`recovery_identity_unproven deletion_identity_unproven create_placement_parent_deleted
   create_placement_unproven delete_subtree_changed managed_not_writable push_request_refused push_attempt_bind_failed
-  push_media_type_invalid subscription_upload_excluded bootstrap_upload_excluded bootstrap_boundary_unavailable queue_row_unreadable`)
+  push_media_type_invalid subscription_upload_excluded bootstrap_upload_excluded bootstrap_boundary_unavailable queue_row_unreadable
+  pull_apply_move_cycle`)
 const REBUILD = list(`pull_apply_target_missing pull_apply_evidence_missing anchor_mapping_missing create_ambiguous
   create_evidence_missing snapshot_content_target_missing snapshot_placement_local_identity_unproven
   snapshot_placement_target_missing mapping_identity_conflict mapping_identity_collision legacy_resolution_sequence_collision
@@ -72,7 +74,8 @@ const STOP_LOCAL = list(`archive_not_found canonical_json_invalid conflict_resol
   future_schema identity_conflict journal_kind_invalid journal_scope_invalid lease_result_missing lifecycle_invalid
   lifecycle_transition_invalid limit_exceeded live_work_invalid mapping_scope_invalid object_invalid request_invalid
   retry_invalid scope_not_found scope_retired server_origin_invalid storage_record_rejected unknown_or_missing_field unsafe_integer
-  upgrade_failed`)
+  upgrade_failed origin_not_allowed invalid_query idempotency_key_reused manifest_unavailable server_version_mismatch
+  session_replica_unknown`)
 
 /** The area a stop code belongs to, read off its first word (the same rule the extension uses). */
 const STOP_AREAS: readonly (readonly [ProblemFamily, RegExp])[] = [
@@ -84,9 +87,20 @@ const STOP_AREAS: readonly (readonly [ProblemFamily, RegExp])[] = [
 /** The shapes the extension synthesises for a Snapshot request the server answered with an error. */
 const SYNTHESISED_SNAPSHOT = /^snapshot_(?:\d{3}_|http_\d{3}$)/u
 
+/**
+ * Server codes the extension's Snapshot client wraps as `snapshot_<status>_<code>` keep the words of the code inside;
+ * an unnamed denial arrives as `snapshot_http_<status>`. The same rule as `normalizeSyncFailureCode` in the extension.
+ */
+const SNAPSHOT_WRAPPED = /^snapshot_[1-5][0-9]{2}_(sync_cursor_expired|snapshot_expired|stale_replica|replica_retired|resource_not_found|authentication_required|insufficient_scope|origin_not_allowed|invalid_query|service_unavailable|internal_error)$/u
+const SNAPSHOT_UNNAMED: Readonly<Record<string, string>> = { snapshot_http_401: 'authentication_required',
+  snapshot_http_403: 'insufficient_scope', snapshot_http_404: 'resource_not_found', snapshot_http_410: 'stale_replica',
+  snapshot_http_408: 'server_unavailable' }
+const unwrapped = (code: string): string => SNAPSHOT_WRAPPED.exec(code)?.[1] ?? SNAPSHOT_UNNAMED[code] ?? code
+
 /** The family of one reported code. Total: every string has one. */
-export function problemFamily(code: string | null | undefined): ProblemFamily {
-  if (!code) return 'unknown'
+export function problemFamily(reported: string | null | undefined): ProblemFamily {
+  if (!reported) return 'unknown'
+  const code = unwrapped(reported)
   if (RETIRED.has(code)) return 'retired'
   if (STALLED.has(code)) return 'stalled'
   if (REBUILD.has(code)) return 'rebuild'
@@ -191,27 +205,72 @@ const CODE_REASON: Readonly<Record<string, string>> = {
   operation_schema_invalid: 'a bookmark in it can’t be stored.',
   operation_byte_budget_exceeded: 'a bookmark in it can’t be stored.',
   replica_retired: 'this browser was stopped, so it no longer syncs.',
-  resource_not_found: 'the server doesn’t recognize this browser’s sync copy.',
+  // The server's own answers (stream 1): what each code means now.
+  resource_not_found: 'the server no longer knows its sync session: it expired or was replaced.',
   origin_not_allowed: 'the server doesn’t accept connections from its extension.',
   insufficient_scope: 'its sign-in isn’t allowed to sync bookmarks.',
-  session_invalid: 'the server didn’t accept its sync session. That happens when the computer’s clock is far off or the extension is out of date.',
+  authentication_required: 'the server stopped accepting its sign-in.',
+  credential_revoked: 'the server stopped accepting its sign-in.',
+  session_invalid: 'it couldn’t start a session with the server.',
+  service_unavailable: 'the server had a problem and couldn’t answer.',
+  internal_error: 'the server had a problem and couldn’t answer.',
+  rate_limited: 'the server asked it to slow down.',
+  invalid_query: 'the server refused a request from its extension because it doesn’t match what the server expects.',
+  idempotency_key_reused: 'the server refused a request from its extension because it doesn’t match what the server expects.',
+  manifest_unavailable: 'the server address it uses doesn’t look like a Know-N sync server: it refused to describe itself.',
+  server_version_mismatch: 'this version of Know-N and the server don’t match, so it paused.',
+  session_replica_unknown: 'the server doesn’t recognize its sync identity, or can’t find your library.',
+  server_configuration_failed: 'its extension’s access to the server’s site was turned off, so it can’t reach the server.',
+  snapshot_too_large: 'this library is too large for the server to send to a new device.',
+  clock_skew: 'its clock is more than two minutes off the server’s.',
   bookmark_api_error: 'the browser refused to apply a change from your library to a bookmark.',
-  snapshot_native_projection_ambiguous: 'it can’t tell which bookmark in that browser matches one from your library.',
+  bookmark_write_quota: 'the browser limits how fast bookmarks can be changed, so it’s pausing for a moment.',
+  native_read_failed: 'the browser couldn’t read its bookmarks just now.',
+  pull_apply_move_cycle: 'the library asks to move a folder into one of its own subfolders, which the browser doesn’t allow.',
+  snapshot_native_projection_ambiguous: 'an identical bookmark is already in the same folder and nothing shows that sync created it, so it was left alone.',
 }
 
 /** The reason a browser gave for stopping, in plain words. A code with no words of its own reads as its family, code in brackets. */
 export function stopReason(code: string | null | undefined): string {
   if (!code) return 'it didn’t say why.'
-  const own = CODE_REASON[code]
+  const own = CODE_REASON[unwrapped(code)]
   if (own) return own
   return `${FAMILY_REASON[problemFamily(code)].slice(0, -1)} (${code}).`
 }
 
 type Offered = readonly string[]
 
+/**
+ * What to do next for the codes where the family's closing sentence would send a person the wrong way: a refusal a
+ * Reset cannot end, a sign-in that renews itself, a site access to allow, a clock to set.
+ */
+const CODE_NEXT: Readonly<Record<string, (offered: Offered) => string>> = {
+  snapshot_too_large: (offered) => `Ask whoever runs your Know-N server to raise its snapshot size limit (SYNC_SNAPSHOT_MAX_BYTES).${
+    offered.includes('retry') ? ' Retry below checks again.' : ''} Resetting will not help.`,
+  server_version_mismatch: (offered) => `Update the extension on that browser, or ask whoever runs your Know-N server to check its version.${
+    offered.includes('retry') ? ' Retry below checks again.' : ''}`,
+  invalid_query: (offered) => CODE_NEXT.server_version_mismatch!(offered),
+  idempotency_key_reused: (offered) => CODE_NEXT.server_version_mismatch!(offered),
+  origin_not_allowed: (offered) => `Update the extension on that browser, or ask whoever runs your Know-N server to check its allowed origins.${
+    offered.includes('retry') ? ' Retry below checks again.' : ''}`,
+  manifest_unavailable: () => 'Open the extension on that browser and check the server address under Account.',
+  session_invalid: () => 'It tries again by itself. If it keeps happening, update the extension on that browser, or sign out and in again there.',
+  authentication_required: () => 'It signs in again by itself. If it keeps failing, open the extension on that browser and sign in again.',
+  credential_revoked: (offered) => CODE_NEXT.authentication_required!(offered),
+  insufficient_scope: (offered) => CODE_NEXT.authentication_required!(offered),
+  server_configuration_failed: () => 'Open the extension on that browser and allow access to the site (Chrome: Extensions, Details, Site access). Sync continues by itself.',
+  session_replica_unknown: (offered) => offered.includes('rebuild')
+    ? 'Reset sync below to register that browser again. It keeps its bookmarks; changes it hasn’t synced yet are archived and not retried.'
+    : 'Open the extension on that browser and sign out and in again to register it.',
+  clock_skew: () => 'Set the clock on that computer to automatic time so sign-in and expiry checks stay reliable.',
+}
+
 /** What to do next, after the reason: a sign-in, a permission, a reset, or just the buttons below. */
-export function stopNext(code: string | null | undefined, offered: Offered): string {
+export function stopNext(reported: string | null | undefined, offered: Offered): string {
   const retry = offered.includes('retry')
+  const code = reported ? unwrapped(reported) : reported
+  const own = code ? CODE_NEXT[code] : undefined
+  if (own) return own(offered)
   switch (problemFamily(code)) {
     case 'sign_in': return 'Open the extension on that browser and sign in again.'
     case 'permission': return 'Open the extension on that browser and allow bookmark access.'
@@ -245,6 +304,7 @@ const RESULT_REASONS: Readonly<Record<string, string>> = {
   issue_gone: 'the item had already cleared',
   command_interrupted: 'the browser stopped before it finished',
   rebuild_not_required: 'its sync no longer needed a reset',
+  rebuild_cannot_help: 'a reset would not help: a new copy meets the same refusal. Nothing was reset',
   upload_outcome_unsettled: UNSETTLED_UPLOAD,
   native_outcome_unsettled: 'a bookmark change in that browser is waiting for your answer there. Answer it in the extension, then reset',
   offline: 'that browser is offline, and a reset needs a connection because a change may already have reached the server',
@@ -323,9 +383,13 @@ export function issueSummary(issue: IssueSummaryInput): string {
     case 'queue_head_unreadable': return 'A change that may already have reached the server can’t be read on that browser, so later uploads are waiting. Resetting sync on that browser clears it'
     case 'push_attempt_operation_changed': return 'A change that may already have reached the server couldn’t be sent again, so later uploads are waiting. Resetting sync on that browser clears it'
     case 'sync_step_failed': return 'Part of syncing keeps failing on that browser and will be tried again'
+    // One bookmark the browser would not take in: the rest of the library keeps syncing.
+    case 'pull_apply_move_cycle': return 'The library asks to move this folder into one of its own subfolders, which the browser does not allow. It was left where it is. Move one of the two folders on any device to untangle them'
+    case 'snapshot_native_projection_ambiguous': return 'An identical bookmark is already in the same folder on that browser and nothing shows that sync created it, so sync left it alone. Delete the extra copy there and Retry, and sync adds it'
+    case 'snapshot_content_target_missing': return 'Deleted on that browser while your library still has it. Sync left it alone: restore it there, or Retry to add it back'
   }
   // `apply_failed:<code>` travels as `apply_failed_<code>`: the browser refused a call while applying a change.
-  if (issue.code.startsWith('apply_failed')) return 'The browser refused to apply this change from your library, so it was set aside'
+  if (issue.code.startsWith('apply_failed')) return 'The browser refused to apply this change from your library, so it was set aside. Everything else keeps syncing'
   // A held upload that offers Retry never reached the server: the browser could not get it ready.
   if (issue.direction === 'push') return issue.actions.includes('retry')
     ? 'That browser couldn’t get it ready to upload'

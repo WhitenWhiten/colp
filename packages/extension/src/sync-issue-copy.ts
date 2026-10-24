@@ -12,6 +12,8 @@ import type { SyncIssueDiagnostic } from './types.js';
  */
 export type IssueSummaryInput = Pick<SyncIssueDiagnostic, 'code' | 'direction'> & {
   readonly actions?: readonly string[];
+  /** What this browser can do about the item right now (the buttons on its row). */
+  readonly localActions?: readonly string[];
   /** `sync_step_failed` only: the step of the sync pass that keeps failing, and the code it failed with. */
   readonly stage?: string;
   readonly rootCause?: string;
@@ -68,6 +70,13 @@ const ITEM: Readonly<Record<string, () => string>> = {
   push_attempt_operation_changed: () => t('syncIssue_attemptChanged', 'A change that may already have reached the server could not be sent again, so later uploads are waiting. Resetting sync on this device clears it'),
   // Rule E: a step of the sync pass that keeps failing (the row names the step and the cause when it knows them).
   sync_step_failed: () => t('syncIssue_stepFailedPlain', 'Part of syncing keeps failing and will be tried again'),
+  // One bookmark the browser would not take in (B-03, B-04, W2C-11): the rest of the library keeps syncing.
+  pull_apply_move_cycle: () => t('syncIssue_moveCycle',
+    'The library asks to move this folder into one of its own subfolders, which the browser does not allow. It was left where it is. Move one of the two folders on any device to untangle them'),
+  snapshot_native_projection_ambiguous: () => t('syncIssue_projectionAmbiguous',
+    'An identical bookmark is already in the same folder and nothing shows that sync created it, so sync left it alone. Delete the extra copy and press Retry sync, and sync adds it'),
+  snapshot_content_target_missing: () => t('syncIssue_contentTargetMissing',
+    'Deleted on this device while your library still has it. Sync left it alone: restore it, or press Retry sync to add it back'),
 };
 
 /** Codes the item vocabulary names; the Sync center's list is kept in step with this one by a test. */
@@ -118,7 +127,9 @@ export function issueSummaryCopy(issue: IssueSummaryInput): string {
   const specific = ITEM[issue.code];
   if (specific) return specific();
   if (issue.code.startsWith('apply_failed:')) {
-    return t('syncIssue_applyFailed', "The browser refused to apply this change from your library, so it was set aside. Dismiss keeps this browser's version.");
+    return issue.localActions?.includes('retry')
+      ? t('syncIssue_applyFailedRetry', "The browser refused to apply this change from your library, so it was set aside. Everything else keeps syncing. Try again applies it; Dismiss keeps this browser's version.")
+      : t('syncIssue_applyFailed', "The browser refused to apply this change from your library, so it was set aside. Dismiss keeps this browser's version.");
   }
   if (CODE_WHAT[issue.code]) return describeSyncProblem(issue.code).what;
   // A held upload that offers a retry never reached the server: this browser could not get it ready.

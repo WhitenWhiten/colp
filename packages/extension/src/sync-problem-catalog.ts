@@ -1,8 +1,9 @@
 import { CODE_NEXT, CODE_WHAT, CODE_WHOLE, FAMILY_WHAT, nextClause, scheduleClause, stalledLead, type SyncProblemNext } from './sync-problem-copy.js';
-import { problemOffersRetry, problemRetriesByItself, syncProblemFamily, syncProblemLane,
+import { problemOffersRetry, problemResetCannotHelp, problemRetriesByItself, syncProblemFamily, syncProblemLane,
   type SyncProblemFamily, type SyncProblemLane } from './sync-problem-families.js';
+import { normalizeSyncFailureCode } from './sync-failure-class.js';
 
-export { problemOffersRetry, syncProblemFamily, syncProblemLane, type SyncProblemFamily, type SyncProblemLane };
+export { problemOffersRetry, problemResetCannotHelp, syncProblemFamily, syncProblemLane, type SyncProblemFamily, type SyncProblemLane };
 
 /**
  * The problem catalog: any sync code, as a sentence a person can act on.
@@ -35,8 +36,12 @@ export function shownProblemCode(code: string): string {
   return code.length > 64 ? `${code.slice(0, 63)}…` : code;
 }
 
-/** The table-less shapes that carry a stable head: `name:detail` is `name`. */
-function lookupKey(code: string): string {
+/**
+ * The table-less shapes that carry a stable head: `name:detail` is `name`. A server code the Snapshot client wrapped
+ * (`snapshot_503_service_unavailable`) is the code inside; the card still shows the spelling it was reported with.
+ */
+function lookupKey(reported: string): string {
+  const code = normalizeSyncFailureCode(reported);
   const head = code.split(':', 1)[0]!;
   return CODE_WHAT[code] || CODE_WHOLE[code] || CODE_NEXT[code] ? code : head;
 }

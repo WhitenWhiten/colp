@@ -89,7 +89,8 @@ export function projectReplicaHealth(input: {
   if (input.mode === 'paused') return { state: 'paused', issues: { total, items: [] }, actions: [] };
   const issues = { total, items: input.issues.slice(0, MAX_ITEMS) };
   const canRebuild = input.attention.rebuildAvailable === true
-    || input.serverRebuild && input.attention.rebuildUnavailableReason !== 'rebuild_not_required';
+    || input.serverRebuild && input.attention.rebuildUnavailableReason !== 'rebuild_not_required'
+      && input.attention.rebuildUnavailableReason !== 'rebuild_cannot_help';
   if (input.mode === 'target-unavailable') return { state: 'stopped', code: 'target_unavailable', issues, actions: [] };
   // Access removed after setup: nothing can run and Retry cannot help; only a person can allow it again.
   if (input.attention.permissionRequired) return { state: 'stopped', code: 'permission_required', issues, actions: [] };

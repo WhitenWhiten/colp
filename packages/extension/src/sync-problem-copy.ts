@@ -71,12 +71,30 @@ export const CODE_WHAT: Readonly<Record<string, () => string>> = {
   sync_issue_ceiling: () => t('syncProblem_ceiling', 'Sync on this device has stopped: it set aside too many items to keep syncing safely.'),
   replica_rebuild_pending: () => t('syncProblem_rebuildPending', "The sync reset isn't finished. Your bookmarks are safe."),
   replica_retired: () => t('syncProblem_replicaRetired', 'This browser was stopped from the Sync center, so it no longer syncs.'),
-  resource_not_found: () => t('syncProblem_resourceNotFound', "The server doesn't recognize this browser's sync copy."),
+  // The server's own answers (stream 1): what the code now means, not what it meant before the transport rules.
+  resource_not_found: () => t('syncProblem_sessionGone', 'The server does not know this sync session any more: it expired or was replaced.'),
   origin_not_allowed: () => t('syncProblem_originNotAllowed', "The server doesn't accept connections from this extension."),
   insufficient_scope: () => t('syncProblem_insufficientScope', "Your sign-in isn't allowed to sync bookmarks."),
-  session_invalid: () => t('syncProblem_sessionInvalid', "The server didn't accept this browser's sync session. This happens when the computer's clock is far off or the extension is out of date."),
+  authentication_required: signInRefused,
+  credential_revoked: signInRefused,
+  session_invalid: () => t('syncProblem_sessionNotStarted', 'Sync could not start a session with the server.'),
+  service_unavailable: serverProblem,
+  internal_error: serverProblem,
+  rate_limited: () => t('syncProblem_rateLimited', 'The server asked sync to slow down.'),
+  invalid_query: requestRefused,
+  idempotency_key_reused: requestRefused,
+  manifest_unavailable: () => t('syncProblem_manifestUnavailable', 'This address does not look like a Know-N sync server: it refused to describe itself.'),
+  server_version_mismatch: () => t('syncProblem_versionMismatch', 'This version of Know-N and the server do not match, so sync paused.'),
+  session_replica_unknown: () => t('syncProblem_replicaUnknown', "The server does not recognize this browser's sync identity, or cannot find your library."),
+  server_configuration_failed: () => t('syncProblem_siteAccessOff', "Know-N can no longer reach the server: this extension's access to the site was turned off."),
+  snapshot_too_large: () => t('syncProblem_snapshotTooLarge', 'This library is too large for the server to send to a new device.'),
+  clock_skew: () => t('syncProblem_clockOff', "This computer's clock is more than two minutes off the server's."),
   bookmark_api_error: () => t('syncProblem_bookmarkApiError', 'The browser refused to apply a change from your library to a bookmark.'),
-  snapshot_native_projection_ambiguous: () => t('syncProblem_nativeProjectionAmbiguous', "Sync can't tell which bookmark on this device matches one from your library."),
+  bookmark_write_quota: () => t('syncProblem_writeQuota', 'The browser limits how fast bookmarks can be changed, so sync is pausing for a moment.'),
+  native_read_failed: () => t('syncProblem_nativeReadFailed', 'The browser could not read your bookmarks just now.'),
+  pull_apply_move_cycle: () => t('syncProblem_moveCycle', 'The library asks to move a folder into one of its own subfolders, which the browser does not allow.'),
+  snapshot_native_projection_ambiguous: () => t('syncProblem_projectionAmbiguous',
+    'An identical bookmark is already in the same folder and nothing shows that sync created it, so sync left it alone.'),
   operation_byte_budget_exceeded: () => t('syncProblem_byteBudget', 'A bookmark change is too large to upload.'),
   sync_failed: () => t('syncProblem_syncFailed', 'Sync failed for a reason it did not record.'),
   sync_stuck: () => t('syncProblem_stuck', 'The oldest change waiting to upload has not moved for a while.'),
@@ -110,6 +128,18 @@ export const CODE_WHAT: Readonly<Record<string, () => string>> = {
 
 function storageUnavailable(): string {
   return t('syncProblem_storageUnavailable', 'Your browser could not read or save sync data just now.');
+}
+
+function signInRefused(): string {
+  return t('syncProblem_signInRefused', "The server stopped accepting this browser's sign-in.");
+}
+
+function serverProblem(): string {
+  return t('syncProblem_serverProblem', 'The server had a problem and could not answer.');
+}
+
+function requestRefused(): string {
+  return t('syncProblem_requestRefused', 'The server refused a request from this extension because it does not match what the server expects.');
 }
 
 function unsettledAnswer(): string {
@@ -148,7 +178,42 @@ export const CODE_NEXT: Readonly<Record<string, (context: SyncProblemNext) => st
   push_result_processing_failed: unsettledNext,
   queue_head_unreadable: clearedByReset,
   sync_step_failed: () => t('syncProblem_nextStepRetried', 'It is tried again on the next pass.'),
+  // The wire (stream 1): a refusal that a Reset cannot end says what does, and never points at a Reset.
+  snapshot_too_large: () => t('syncProblem_nextRaiseSnapshotLimit',
+    'Ask whoever runs your Know-N server to raise its snapshot size limit (SYNC_SNAPSHOT_MAX_BYTES), then press Retry sync. Resetting will not help. Your bookmarks are safe.'),
+  server_version_mismatch: updateOrCheckVersion,
+  invalid_query: updateOrCheckVersion,
+  idempotency_key_reused: updateOrCheckVersion,
+  origin_not_allowed: () => t('syncProblem_nextAllowedOrigins',
+    'Update the extension, or ask whoever runs your Know-N server to check its allowed origins. Your bookmarks are safe.'),
+  manifest_unavailable: () => t('syncProblem_nextCheckAddress', 'Check the server address under Account, then press Retry sync.'),
+  session_invalid: () => t('syncProblem_nextSessionRetry',
+    'It will try again by itself. If it keeps happening, update the extension, or sign out and in again.'),
+  authentication_required: signInAgain,
+  credential_revoked: signInAgain,
+  insufficient_scope: signInAgain,
+  server_configuration_failed: () => t('syncProblem_nextAllowSite',
+    'Allow access to the site (Chrome: Extensions, Details, Site access) and sync continues by itself. Nothing is lost.'),
+  session_replica_unknown: (context) => context.resetOffered
+    ? t('syncProblem_nextRegisterAgain', 'Reset sync on this device to register this browser again. If that does not help, sign out and in again. Your bookmarks here are kept.')
+    : resetBlockedCopy(context.resetUnavailableReason)
+      ?? t('syncProblem_nextSignOutIn', 'Sign out and in again to register this browser. Your bookmarks here are kept.'),
+  pull_apply_move_cycle: () => t('syncProblem_nextMoveCycle',
+    'The folder was left where it is. Move one of the two folders on any device to untangle them.'),
+  snapshot_native_projection_ambiguous: () => t('syncProblem_nextDeleteExtraCopy',
+    'Delete the extra copy and press Retry sync, and sync will add the bookmark.'),
+  clock_skew: () => t('syncProblem_nextClockAuto',
+    'Sync keeps working. Set the clock to automatic time so sign-in and expiry checks stay reliable.'),
 };
+
+function updateOrCheckVersion(): string {
+  return t('syncProblem_nextCheckVersion', 'Update the extension, or ask whoever runs your Know-N server to check its version. Retry sync checks again. Your bookmarks are safe.');
+}
+
+/** The sign-in is renewed by the next wake; only a credential that is really gone needs the person (the sign-in state says so). */
+function signInAgain(): string {
+  return t('syncProblem_nextSignInAgain', 'Sync signs in again by itself. If it keeps failing, sign in again from Account.');
+}
 
 /** A state only a Reset clears: the button when the card has one, the reason when a needed Reset cannot run now. */
 function clearedByReset(context: SyncProblemNext): string {

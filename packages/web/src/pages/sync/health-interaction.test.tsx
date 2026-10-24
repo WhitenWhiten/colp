@@ -136,6 +136,14 @@ test('a pause the browser ends by itself is told as a pause, not as a stop (C-06
   expect(text()).not.toContain('0 items')
 })
 
+test('a clock that is off is told as a warning that sync still works, not as errors or a stop (K4)', () => {
+  mountTree(<ReplicaHealth replica={replica({ ...health, issueCount: 0, code: 'clock_skew', actions: ['retry'] })} onChanged={() => {}} />)
+  expect(text()).toContain('Sync on this browser keeps working, but its clock is more than two minutes off the server’s. Set the clock on that computer to automatic time so sign-in and expiry checks stay reliable.')
+  expect(text()).not.toContain('hit repeated errors')
+  expect(text()).not.toContain('has stopped')
+  expect(text()).not.toContain('0 items')
+})
+
 test('a stall the extension watchdog noticed is told as a stall, with a Retry to try (S6)', () => {
   mountTree(<ReplicaHealth replica={replica({ ...health, issueCount: 0, code: 'sync_stuck', actions: ['retry'] })} onChanged={() => {}} />)
   expect(text()).toContain('Sync on this browser looks stuck: the oldest change waiting to upload hasn’t moved for a while. Retry below tries now.')

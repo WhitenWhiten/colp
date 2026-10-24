@@ -26,7 +26,8 @@ const reported = (code: string) => code.replace(/:/gu, '_')
 
 const FAMILIES_BY_KIND: Readonly<Record<string, readonly ProblemFamily[]>> = {
   'transient/retry': ['offline', 'server_busy', 'waiting', 'permission'],
-  'authority/refresh': ['authority'],
+  // A sign-in the server stopped accepting is told as a sign-in; the browser still renews it by itself.
+  'authority/refresh': ['authority', 'sign_in'],
   'item/confirm': ['confirm'],
   'item/decide': ['decide'],
   'item/rebuild': ['rebuild'],
@@ -34,7 +35,7 @@ const FAMILIES_BY_KIND: Readonly<Record<string, readonly ProblemFamily[]>> = {
   'item/stop': ['codec'],
   'replica/rebuild': ['rebuild'],
   'replica/refresh': ['integrity_pull', 'integrity_snapshot'],
-  'replica/stop': ['stop_upload', 'stop_download', 'stop_first_sync', 'stop_feature', 'stop_local'],
+  'replica/stop': ['stop_upload', 'stop_download', 'stop_first_sync', 'stop_feature', 'stop_local', 'retired'],
 }
 
 describe('every code the extension can report reads as a sentence (C-12, C-19)', () => {
@@ -75,15 +76,14 @@ describe('every code the extension can report reads as a sentence (C-12, C-19)',
     expect(stopReason('brand_new_code')).toBe('it reported a problem that has no description yet (brand_new_code).')
     expect(problemFamily('brand_new_code')).toBe('unknown')
     expect(stopReason(null)).toBe('it didn’t say why.')
-    expect(stopReason('snapshot_404_resource_not_found')).toContain('(snapshot_404_resource_not_found)')
+    expect(stopReason('snapshot_404_some_other_code')).toContain('(snapshot_404_some_other_code)')
     expect(problemFamily('snapshot_http_502')).toBe('integrity_snapshot')
   })
 
   it('names what the server and the sign-in did, which no table entry covers', () => {
     expect(stopReason('replica_retired')).toBe('this browser was stopped, so it no longer syncs.')
-    expect(stopReason('resource_not_found')).toBe('the server doesn’t recognize this browser’s sync copy.')
-    expect(stopReason('session_invalid')).toContain('clock is far off')
-    expect(stopReason('credential_revoked')).toBe('its sign-in no longer works for sync (credential_revoked).')
+    expect(stopReason('resource_not_found')).toBe('the server no longer knows its sync session: it expired or was replaced.')
+    expect(stopReason('credential_revoked')).toBe('the server stopped accepting its sign-in.')
     expect(stopReason('sync_stopped')).toBe('it stopped and didn’t record why.')
   })
 
@@ -97,7 +97,7 @@ describe('every code the extension can report reads as a sentence (C-12, C-19)',
   it('points a rebuild, a sign-in or a permission at the exit that ends it', () => {
     expect(stopNext('mapping_identity_conflict', ['retry', 'rebuild'])).toContain('Reset sync below to continue')
     expect(stopNext('mapping_identity_conflict', [])).toBe('Open the extension on that browser to reset its sync.')
-    expect(stopNext('credential_revoked', [])).toBe('Open the extension on that browser and sign in again.')
+    expect(stopNext('credential_revoked', [])).toBe('It signs in again by itself. If it keeps failing, open the extension on that browser and sign in again.')
     expect(stopNext('permission_required', ['retry'])).toBe('Open the extension on that browser and allow bookmark access.')
     expect(stopNext('network_unavailable', ['retry'])).toBe('It tries again by itself; Retry below tries now.')
     expect(stopNext('create_placement_unproven', [])).toBe('Open the extension on that browser to fix it.')
@@ -162,6 +162,64 @@ describe('the codes the push lane and browser storage added (stream 2)', () => {
   })
 })
 
+describe('the codes the wire added (stream 1)', () => {
+  it('puts each in the family its class and exit give it', () => {
+    for (const code of ['authentication_required', 'credential_revoked', 'insufficient_scope']) expect(problemFamily(code), code).toBe('sign_in')
+    for (const code of ['resource_not_found', 'session_invalid']) expect(problemFamily(code), code).toBe('authority')
+    for (const code of ['clock_skew', 'bookmark_api_error', 'bookmark_write_quota', 'native_read_failed', 'server_configuration_failed']) {
+      expect(problemFamily(code), code).toBe('waiting')
+    }
+    for (const code of ['service_unavailable', 'internal_error', 'rate_limited']) expect(problemFamily(code), code).toBe('server_busy')
+    for (const code of ['origin_not_allowed', 'invalid_query', 'idempotency_key_reused', 'manifest_unavailable', 'server_version_mismatch',
+      'session_replica_unknown']) expect(problemFamily(code), code).toBe('stop_local')
+    expect(problemFamily('replica_retired')).toBe('retired')
+    expect(problemFamily('snapshot_too_large')).toBe('stop_download')
+    expect(problemFamily('pull_apply_move_cycle')).toBe('decide')
+    expect(problemFamily('snapshot_native_projection_ambiguous')).toBe('confirm')
+  })
+
+  it('a server code the Snapshot client wrapped reads as the code inside, and keeps its spelling when it has no words', () => {
+    expect(problemFamily('snapshot_503_service_unavailable')).toBe('server_busy')
+    expect(stopReason('snapshot_503_service_unavailable')).toBe('the server had a problem and couldn’t answer.')
+    expect(problemFamily('snapshot_http_401')).toBe('sign_in')
+    expect(stopReason('snapshot_http_404')).toBe('the server no longer knows its sync session: it expired or was replaced.')
+    expect(stopReason('snapshot_500_unlisted')).toContain('(snapshot_500_unlisted)')
+  })
+
+  it('says what each means now, and what ends it', () => {
+    expect(stopReason('snapshot_too_large')).toBe('this library is too large for the server to send to a new device.')
+    expect(stopNext('snapshot_too_large', ['retry'])).toBe('Ask whoever runs your Know-N server to raise its snapshot size limit (SYNC_SNAPSHOT_MAX_BYTES). Retry below checks again. Resetting will not help.')
+    expect(stopNext('snapshot_too_large', [])).not.toContain('Retry')
+    expect(stopReason('session_invalid')).toBe('it couldn’t start a session with the server.')
+    expect(stopReason('session_invalid')).not.toContain('clock')
+    expect(stopReason('clock_skew')).toBe('its clock is more than two minutes off the server’s.')
+    expect(stopNext('clock_skew', [])).toBe('Set the clock on that computer to automatic time so sign-in and expiry checks stay reliable.')
+    expect(stopReason('server_version_mismatch')).toContain('don’t match')
+    expect(stopNext('server_version_mismatch', ['retry'])).toBe('Update the extension on that browser, or ask whoever runs your Know-N server to check its version. Retry below checks again.')
+    expect(stopNext('origin_not_allowed', [])).toContain('allowed origins')
+    expect(stopNext('manifest_unavailable', ['retry'])).toContain('server address')
+    expect(stopNext('server_configuration_failed', [])).toContain('Site access')
+    expect(stopReason('bookmark_write_quota')).toContain('limits how fast bookmarks can be changed')
+    expect(stopReason('native_read_failed')).toContain('couldn’t read its bookmarks')
+  })
+
+  it('points a browser the server does not know at Reset when it is offered, and a refusal a Reset cannot end at no Reset at all', () => {
+    expect(stopNext('session_replica_unknown', ['retry', 'rebuild'])).toContain('Reset sync below to register that browser again')
+    expect(stopNext('session_replica_unknown', ['retry'])).toBe('Open the extension on that browser and sign out and in again to register it.')
+    for (const code of ['snapshot_too_large', 'server_version_mismatch', 'origin_not_allowed', 'invalid_query', 'idempotency_key_reused', 'manifest_unavailable']) {
+      expect(stopNext(code, ['retry', 'rebuild']), code).not.toMatch(/Reset sync below/u)
+    }
+    expect(resultReason('rebuild_cannot_help')).toContain('a reset would not help')
+  })
+
+  it('reads a folder the library wants inside itself, an identical bookmark and a deleted target as items', () => {
+    const item = (code: string) => issueSummary({ code, direction: 'pull', actions: [] })
+    expect(item('pull_apply_move_cycle')).toContain('one of its own subfolders')
+    expect(item('snapshot_native_projection_ambiguous')).toContain('Delete the extra copy there and Retry')
+    expect(item('snapshot_content_target_missing')).toContain('Deleted on that browser while your library still has it')
+  })
+})
+
 describe('the item vocabulary is the extension’s (C-12)', () => {
   it('has a sentence of its own for every code the extension names, never the generic fallback', () => {
     const source = extensionSource('sync-issue-copy.ts')
@@ -176,7 +234,7 @@ describe('the item vocabulary is the extension’s (C-12)', () => {
 
   it('reads a refused browser call as one, and a secret-looking field as a field', () => {
     expect(issueSummary({ code: 'apply_failed_bookmark_api_error', direction: 'pull', actions: [] }))
-      .toBe('The browser refused to apply this change from your library, so it was set aside')
+      .toBe('The browser refused to apply this change from your library, so it was set aside. Everything else keeps syncing')
     expect(issueSummary({ code: 'secret_field_forbidden', direction: 'push', actions: [] })).toContain('password or key')
   })
 })

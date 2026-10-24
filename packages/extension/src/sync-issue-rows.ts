@@ -55,7 +55,8 @@ export function syncIssueRows(issues: readonly SyncIssueDiagnostic[] | undefined
     const seen = seenCopy(issue);
     return { key: issue.issueId ?? `${issue.direction}:${issue.code}:${index}`, ...(issue.issueId ? { issueId: issue.issueId } : {}),
       title: issueTitleCopy(issue), summary: issueSummaryCopy({ code: issue.code, direction: issue.direction,
-        ...(issue.actions ? { actions: issue.actions } : {}), ...(issue.stage ? { stage: issue.stage } : {}),
+        ...(issue.actions ? { actions: issue.actions } : {}), ...(issue.localActions ? { localActions: issue.localActions } : {}),
+        ...(issue.stage ? { stage: issue.stage } : {}),
         ...(issue.rootCause ? { rootCause: issue.rootCause } : {}) }),
       direction: issue.direction, directionLabel: issueDirectionCopy(issue.direction), code: issue.code,
       ...(seen ? { seen } : {}), automatic: issue.recovery === 'automatic', actions: issue.localActions ?? [] };
