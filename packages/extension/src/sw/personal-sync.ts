@@ -12,6 +12,7 @@ import { captureStore } from './capture.js';
 import { browserHistoryStore, BROWSER_HISTORY_RETENTION_MS } from '../capture/browser-history-store.js';
 import { currentCaptureScope } from './capture-native.js';
 import { recoverBookmarkEventsAfterEngineSettles } from './bookmarks.js';
+import type { SyncScope } from '../sync-state-store.js';
 
 const connections = () => createRememberedConnectionStore(chrome.storage.local);
 export async function personalSyncIdentity() {
@@ -51,6 +52,9 @@ export async function suspendPersonalSyncForLogout() {
     before = [last.createdAt, last.captureId];
   }
 }
+/** Told before this browser leaves its library, while its replica still exists (best effort; set once at startup). */
+let beforeDisconnect: ((scope: SyncScope) => Promise<void>) | undefined;
+export function onBeforePersonalSyncDisconnect(hook: (scope: SyncScope) => Promise<void>): void { beforeDisconnect = hook; }
 let lifecycle: ReturnType<typeof createPersonalSyncLifecycle> | undefined;
 export function personalSyncLifecycle() {
   return lifecycle ??= createPersonalSyncLifecycle({ policy: browserPersonalSyncPolicy(), identity: personalSyncIdentity,
@@ -79,7 +83,10 @@ export function personalSyncLifecycle() {
         const scope = await currentSyncScope({ allowStopped: true }).catch(() => null);
         await store.assertWritable(generation);
         if (scope && (scope.accountId !== identity.accountId || scope.collectionId !== identity.collectionId)) throw new Error('account_switch');
-        if (scope && await syncState.getScope(scope)) await syncState.retireScope(scope, { retiredAt: Date.now(), reason: 'user_personal_sync_disconnect' });
+        if (scope && await syncState.getScope(scope)) {
+          await beforeDisconnect?.(scope);
+          await syncState.retireScope(scope, { retiredAt: Date.now(), reason: 'user_personal_sync_disconnect' });
+        }
       });
       await workCoordinator.run('auth', async () => {
         await store.assertWritable(generation);

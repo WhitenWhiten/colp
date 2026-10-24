@@ -5,11 +5,12 @@ import { configuredPersonalSyncPolicy } from '../personal-sync-fetch.js';
 import type { SyncScope } from '../sync-state-store.js';
 import { runSyncEngine } from './engine.js';
 import type { AuthorityContext } from '../authority-fence.js';
-import { REPLICA_HEALTH_ATTENTION_HEARTBEAT_MS, sendReplicaHealthReport,
-  type ReplicaCommandRunner } from './replica-health-report.js';
+import { REPLICA_HEALTH_ATTENTION_HEARTBEAT_MS, sendReplicaDisconnectReport, sendReplicaHealthReport,
+  type ReplicaCommandRunner, type ReplicaHealthReporterDeps } from './replica-health-report.js';
 import { extensionOrigin, hasBookmarkPermission, store, syncState, workCoordinator } from './runtime.js';
 import { replicaRebuilder } from './scope-rebuild.js';
 import { createRuntimeAuth, currentSyncScope, loadConfig, restoredSyncScope } from './scope.js';
+import { syncWatchdog } from './sync-watchdog-runtime.js';
 
 /** The heartbeat that still reports when no engine pass runs, e.g. after a terminal stop. */
 export const REPLICA_HEALTH_ALARM = 'known-sync-health';
@@ -44,19 +45,35 @@ async function send(force: boolean) {
   };
   const policy = configuredPersonalSyncPolicy();
   const report = (forced: boolean) => sendReplicaHealthReport({
-    scope, store: syncState,
+    ...reporterDeps(scope),
     mode: async () => policy ? (await policy.read(scope)).mode : undefined,
-    rebuildPending: () => replicaRebuilder().hasPending(), bookmarkPermission: hasBookmarkPermission,
+    assertCommandCurrent: assertCurrent, commands: commandRunner(scope, assertCurrent), force: forced,
+  });
+  // Commands ran: report again so the Sync center sees their results and the state they left.
+  if (await report(force) === 'ran') await report(true);
+}
+
+function reporterDeps(scope: SyncScope): Omit<ReplicaHealthReporterDeps, 'mode'> {
+  return {
+    scope, store: syncState,
+    rebuildPending: () => replicaRebuilder().hasPending(), bookmarkPermission: hasBookmarkPermission, watchdog: syncWatchdog,
     // A credential refresh at most; never a Sync Session, which renews lease and cursors.
     credential: async () => createRuntimeAuth(await loadConfig()).ensureFreshCredential(),
     replicaProof: scope => store.loadReplicaReportProof(scope),
     fetch: (input, init) => fetch(input, init),
     storage: chrome.storage.local, origin: extensionOrigin(),
     extensionVersion: chrome.runtime.getManifest().version, now: Date.now,
-    assertCommandCurrent: assertCurrent, commands: commandRunner(scope, assertCurrent), force: forced,
-  });
-  // Commands ran: report again so the Sync center sees their results and the state they left.
-  if (await report(force) === 'ran') await report(true);
+  };
+}
+
+/**
+ * Best effort and bounded: tell the Sync center this browser is leaving, while its replica still exists.
+ * The disconnect never waits long for a server that does not answer.
+ */
+export async function reportReplicaDisconnected(scope: SyncScope): Promise<void> {
+  try {
+    await sendReplicaDisconnectReport({ ...reporterDeps(scope), mode: async () => 'disconnected', requestTimeoutMilliseconds: 4_000 });
+  } catch { /* A report that cannot be sent never blocks the user's own choice. */ }
 }
 
 /**

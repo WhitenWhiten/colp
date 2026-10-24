@@ -62,8 +62,16 @@ export interface SyncAttentionInput {
   readonly retryAutomatic?: boolean;
   /** Paused after repeated errors and resumes by itself: a pause, not a stop. */
   readonly coolingDown?: boolean;
+  /** Times the circuit breaker has tripped without progress. */
+  readonly breakerTrips?: number;
   /** Bookmark access was removed after sync was set up. */
   readonly permissionRequired?: boolean;
+  /** This browser could not tell the server how it is doing, since this moment. */
+  readonly healthDelivery?: { readonly code: string; readonly since: number };
+  /** A stall nothing else explains (`sync-watchdog.ts`). */
+  readonly watchdog?: PublicSyncAttention['watchdog'];
+  /** When a pass last ended cleanly. */
+  readonly lastSyncedAt?: number;
   readonly nativeWaitPending?: boolean;
   readonly remoteDeletePendingCount?: number;
   readonly phase?: string;
@@ -91,6 +99,8 @@ export interface SyncAttentionView {
     readonly retry: boolean; readonly syncCenter: SyncAttentionLink;
     /** Where bookmark access is allowed again, when that is the problem. */
     readonly folders: SyncAttentionLink };
+  /** Facts worth a line of their own beside the card: the server may be looking at old news, and so on. */
+  readonly notes: { readonly show: boolean; readonly lines: readonly string[] };
   /** Every item that could not sync, one row each (a window of the first rows plus how many more). */
   readonly issues: { readonly show: boolean; readonly rows: readonly SyncIssueRow[]; readonly more: number };
   readonly pause: { readonly show: boolean; readonly nativeWait: boolean;
@@ -180,6 +190,14 @@ export function terminalFreezeReport(input: SyncAttentionInput, syncCenterHref?:
   `rebuildUnavailableReason: ${input.rebuildUnavailableReason ?? '(none)'}`,
   `automaticRetry: ${input.retryAutomatic ?? '(unknown)'}`,
   `retryAt: ${input.retryAt ?? '(not scheduled)'}`,
+  `recoveryFrozen: ${input.recoveryFrozen ?? '(unknown)'}`,
+  `coolingDown: ${input.coolingDown === true}`,
+  `breakerTrips: ${input.breakerTrips ?? 0}`,
+  `bookmarkPermission: ${input.permissionRequired ? 'missing' : '(not reported missing)'}`,
+  `lastSynced: ${input.lastSyncedAt ? new Date(input.lastSyncedAt).toISOString() : '(not recorded)'}`,
+  `watchdog: ${input.watchdog ? `${input.watchdog.kind} since ${new Date(input.watchdog.since).toISOString()}` : '(quiet)'}`,
+  `healthReports: ${input.healthDelivery
+    ? `failing since ${new Date(input.healthDelivery.since).toISOString()} (${input.healthDelivery.code})` : '(not failing)'}`,
   `terminalCode: ${code ?? '(not recorded)'}`,
   ...(syncCenterHref ? [`syncCenter: ${syncCenterHref}`] : [])].join('\n');
 }
@@ -200,21 +218,28 @@ export function describeSyncAttention(input: SyncAttentionInput): SyncAttentionV
   const href = syncCenterHref(input.conflictHref);
   const conflict = (input.conflictPending === true || input.queueProjection === 'conflict') && href !== undefined;
   const permission = input.permissionRequired === true;
-  const recovery = permission || code === undefined && (input.recoveryFrozen === true || Boolean(input.lastError) || (input.issueCount ?? 0) > 0);
+  const stalled = input.watchdog !== undefined && code === undefined;
+  const recovery = permission || stalled || code === undefined && (input.recoveryFrozen === true || Boolean(input.lastError) || (input.issueCount ?? 0) > 0);
   const automatic = input.issues?.filter(issue => issue.recovery === 'automatic').length ?? 0;
   const decisions = Math.max(0, (input.issueCount ?? 0) - automatic);
   const issueCopy = [decisions ? tn('sync_itemsNeedAttention', decisions, '$1 item needs attention.', '$1 items need attention.') : '',
     automatic ? tn('sync_itemsRecoveringAutomatically', automatic, '$1 item is waiting for automatic recovery.', '$1 items are waiting for automatic recovery.') : ''].filter(Boolean).join(' ');
   const { rows, more } = syncIssueRows(input.issues);
   const problem = recoveryProblem(input);
+  // Something is off: when it last worked is the first thing a person wants to know.
+  const off = recovery || code !== undefined || rows.length > 0;
+  const notes = [...(off && input.lastSyncedAt ? [t('sync_lastSynced', 'Last synced $1.', formatMoment(input.lastSyncedAt))] : []),
+    ...(input.healthDelivery ? [healthDeliveryCopy(input.healthDelivery)] : [])];
   return {
     recovery: { show: recovery,
       copy: permission ? [describeSyncProblem('permission_required').sentence, issueCopy].filter(Boolean).join(' ')
-        : (input.issueCount ?? 0) > 0 && !input.lastError ? issueCopy : recoveryFailureCopy(input, issueCopy),
+        : stalled && !input.lastError ? [watchdogCopy(input.watchdog!), issueCopy].filter(Boolean).join(' ')
+          : (input.issueCount ?? 0) > 0 && !input.lastError ? issueCopy : recoveryFailureCopy(input, issueCopy),
       report: terminalFreezeReport(input, href), retry: !permission && (problem === undefined || problem.offersRetry),
       syncCenter: { show: recovery && href !== undefined && (input.issueCount ?? 0) > 0, ...(href ? { href } : {}),
         label: SYNC_ATTENTION_CENTER_LABEL },
       folders: { show: permission, href: SYNC_FOLDERS_HREF, label: SYNC_ATTENTION_FOLDERS_LABEL } },
+    notes: { show: notes.length > 0, lines: notes },
     issues: { show: rows.length > 0, rows, more },
     pause: { show: nativeWait || remoteDeletePending, nativeWait, remoteDeletePending,
       copy: inboundPauseCopy(input) },
@@ -233,6 +258,22 @@ export function describeSyncAttention(input: SyncAttentionInput): SyncAttentionV
       copyDiagnosticsLabel: SYNC_ATTENTION_COPY_DIAGNOSTICS_LABEL,
     },
   };
+}
+
+/** The watchdog's sentence, in the catalog's voice: what happened since when, what happens next, and the code. */
+function watchdogCopy(watchdog: NonNullable<PublicSyncAttention['watchdog']>): string {
+  const code = watchdog.kind === 'stuck' ? 'sync_stuck' : 'sync_not_completing';
+  const since = formatMoment(watchdog.since);
+  const what = watchdog.kind === 'no_pass' ? t('sync_watchdogNoPass', 'Sync has not finished a pass since $1, and nothing says why.', since)
+    : watchdog.title ? t('sync_watchdogStuckAt', 'Sync is stuck at “$1”: this upload has not moved since $2.', watchdog.title, since)
+      : t('sync_watchdogStuck', 'Sync is stuck: the oldest change waiting to upload has not moved since $1.', since);
+  return [what, describeSyncProblem(code).next, `(${code})`].join(' ');
+}
+
+/** The server's Sync center shows what this browser last managed to say, so a report that cannot be sent is news. */
+function healthDeliveryCopy(delivery: { readonly code: string; readonly since: number }): string {
+  return t('sync_healthNotSent', 'This browser couldn’t send its status to the server since $1 ($2). The Sync center on the web may show old information.',
+    formatMoment(delivery.since), delivery.code);
 }
 
 function recoveryProblem(input: SyncAttentionInput) {
@@ -276,7 +317,11 @@ export function syncAttentionInput(attention: PublicSyncAttention | undefined,
     waitCount: attention?.waitCount ?? 0,
     retryAt: attention?.retryAt, retryAutomatic: attention?.retryAutomatic,
     ...(attention?.coolingDown ? { coolingDown: true } : {}),
+    ...(attention?.breakerTrips ? { breakerTrips: attention.breakerTrips } : {}),
+    ...(attention?.watchdog ? { watchdog: attention.watchdog } : {}),
+    ...(attention?.lastSyncedAt ? { lastSyncedAt: attention.lastSyncedAt } : {}),
     ...(attention?.permissionRequired ? { permissionRequired: true } : {}),
+    ...(attention?.healthDelivery ? { healthDelivery: attention.healthDelivery } : {}),
     nativeWaitPending: attention?.nativeWaitPending === true,
     remoteDeletePendingCount: ok?.pendingCount ?? 0,
     ...(attention?.phase ? { phase: attention.phase } : {}),

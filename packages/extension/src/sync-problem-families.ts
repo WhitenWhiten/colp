@@ -25,6 +25,8 @@ export type SyncProblemFamily =
   | 'rebuild' | 'decide' | 'confirm' | 'codec'
   /** An internal check failed; retrying gives the same result. */
   | 'stop_upload' | 'stop_download' | 'stop_first_sync' | 'stop_feature' | 'stop_local'
+  /** The watchdog's: a stall nothing classified (`sync-watchdog.ts`). */
+  | 'stalled'
   /** A code nobody registered. */
   | 'unknown';
 
@@ -39,6 +41,8 @@ const PERMISSION = new Set(['permission_required', 'permission_revoked']);
 const SIGN_IN = new Set(['credential_revoked', 'authentication_required', 'insufficient_scope', 'session_invalid',
   'origin_not_allowed', 'server_configuration_failed']);
 const RETIRED = new Set(['replica_retired', 'resource_not_found']);
+/** Told by the watchdog, not by the engine: no table entry exists, and nothing short of looking into it helps. */
+const STALLED = new Set(['sync_stuck', 'sync_not_completing']);
 /** Synthesised by the extension itself, so no table entry exists, but only a Reset ends it. */
 const REBUILD = new Set(['replica_rebuild_pending']);
 
@@ -63,6 +67,7 @@ export function syncProblemFamily(full: string | undefined): SyncProblemFamily {
   // `name:detail` shapes (a node id after the name) are the family of `name`, unless the table lists the whole.
   const code = entryOf(full) || !full.includes(':') ? full : full.split(':', 1)[0]!;
   if (RETIRED.has(code)) return 'retired';
+  if (STALLED.has(code)) return 'stalled';
   if (REBUILD.has(code)) return 'rebuild';
   if (SIGN_IN.has(code)) return 'sign_in';
   const policy = entryOf(code);

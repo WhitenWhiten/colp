@@ -36,6 +36,7 @@ interface AttentionNodes {
   readonly recoverySyncCenter: HTMLAnchorElement | null;
   readonly recoveryFolders: HTMLAnchorElement | null;
   readonly unreadable: HTMLElement | null;
+  readonly notes: HTMLElement | null;
   readonly issues: HTMLElement | null;
   readonly issuesMore: HTMLElement | null;
   readonly terminalCopy: HTMLElement | null;
@@ -68,6 +69,7 @@ function bindSyncAttention(hostId: string, syncPaneOnly: boolean): void {
     recoverySyncCenter: document.getElementById(`${hostId}-recovery-sync-center`) as HTMLAnchorElement | null,
     recoveryFolders: document.getElementById(`${hostId}-recovery-folders`) as HTMLAnchorElement | null,
     unreadable: document.getElementById(`${hostId}-unreadable`),
+    notes: document.getElementById(`${hostId}-notes`),
     issues: document.getElementById(`${hostId}-issues`),
     issuesMore: document.getElementById(`${hostId}-issues-more`),
     terminalCopy: document.getElementById(`${hostId}-terminal-copy`),
@@ -135,13 +137,14 @@ function paintSyncAttention(nodes: AttentionNodes, view: SyncAttentionView): voi
   // The card is only as tall as what it can show: a line this page has no node for does not hold it open.
   nodes.host.hidden = !((view.pause.show && nodes.pause) || (view.rejected.show && nodes.rejected)
     || (view.conflict.show && nodes.conflict) || (view.terminal.show && nodes.terminal)
-    || (view.recovery.show && nodes.recovery) || (view.issues.show && nodes.issues));
+    || (view.recovery.show && nodes.recovery) || (view.issues.show && nodes.issues) || (view.notes.show && nodes.notes));
   if (nodes.recovery) nodes.recovery.hidden = !view.recovery.show;
   setLine(nodes.recoveryCopy, view.recovery.show, view.recovery.copy);
   if (nodes.retry) nodes.retry.hidden = !view.recovery.retry;
   paintLink(nodes.recoverySyncCenter, view.recovery.syncCenter);
   paintLink(nodes.recoveryFolders, view.recovery.folders);
   paintIssues(nodes, view);
+  paintNotes(nodes, view);
   setLine(nodes.pause, view.pause.show, view.pause.copy);
   setLine(nodes.rejected, view.rejected.show, view.rejected.copy);
   if (nodes.conflict) nodes.conflict.hidden = !view.conflict.show;
@@ -177,6 +180,13 @@ function paintLink(node: HTMLAnchorElement | null, link: { readonly show: boolea
   if (!node) return;
   node.hidden = !link.show;
   if (link.show && link.href) node.href = link.href; else node.removeAttribute('href');
+}
+
+/** Lines beside the card that are not about one item: what the server may not know, and so on. */
+function paintNotes(nodes: AttentionNodes, view: SyncAttentionView): void {
+  if (!nodes.notes) return;
+  nodes.notes.hidden = !view.notes.show;
+  nodes.notes.replaceChildren(...view.notes.lines.map(line => el('p', line, 'set-row-hint')));
 }
 
 /** One row per item that could not sync: its name, why, and what can be done about it. */

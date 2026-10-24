@@ -30,6 +30,7 @@ import { refreshesReplicaIntegrity } from '../sync-failure-class.js';
 import { problemOffersRetry } from '../sync-problem-catalog.js';
 import type { PublicSyncAttention } from '../types.js';
 import { handleSyncAttentionRequest, readStalledUpload, type SyncAttentionStore } from './sync-attention.js';
+import type { SyncWatchdog } from './sync-watchdog.js';
 
 export const REPLICA_HEALTH_PATH = '/colp/v0.1/sync/replica-health';
 export const REPLICA_HEALTH_RECORD_KEY = 'known.sync.health.v1';
@@ -97,6 +98,11 @@ export function projectReplicaHealth(input: {
     return { state: 'degraded', code: code ?? 'sync_failed', issues,
       actions: ['retry', ...(canRebuild && total > 0 ? ['rebuild' as const] : [])] };
   }
+  // A stall nothing else names (`sync-watchdog.ts`): the Sync center is told it is stuck, with a Retry to try.
+  if (input.attention.watchdog && !input.attention.terminal && input.attention.retryAutomatic !== false) {
+    return { state: 'degraded', code: input.attention.watchdog.kind === 'stuck' ? 'sync_stuck' : 'sync_not_completing', issues,
+      actions: ['retry', ...(canRebuild && total > 0 ? ['rebuild' as const] : [])] };
+  }
   if (input.attention.retryAutomatic === false || input.attention.terminal
       || input.attention.recoveryFrozen && refreshesReplicaIntegrity(input.attention.lastError ?? input.attention.recoveryCode)) {
     const code = [input.attention.terminalCode, input.attention.lastError].find((value) => value && CODE.test(value));
@@ -118,8 +124,9 @@ interface SentRecord {
   readonly sentAt?: number;
   readonly revision?: number;
   readonly unsupportedUntil?: number;
-  /** The last unsent report and when it may be tried again. */
-  readonly failed?: { readonly digest: string; readonly retryAt: number; readonly at?: number };
+  /** The last unsent report and when it may be tried again; `code` says why and `since` when it first failed. */
+  readonly failed?: { readonly digest: string; readonly retryAt: number; readonly at?: number;
+    readonly code?: string; readonly since?: number };
   /** When the current state began, kept even while a send keeps failing. */
   readonly observed?: { readonly state: ReplicaHealthState; readonly code?: string; readonly since: number };
   /** Every command seen, newest last; a result is sent until a report carrying it is accepted. */
@@ -145,6 +152,8 @@ export interface ReplicaHealthReporterDeps {
   readonly rebuildPending?: () => Promise<boolean>;
   /** Whether the browser still lets this extension read and change bookmarks. */
   readonly bookmarkPermission?: () => Promise<boolean>;
+  /** Notices a stall nothing else explains. */
+  readonly watchdog?: SyncWatchdog;
   readonly credential: () => Promise<{ readonly accessToken: string; readonly serverOrigin: string; readonly subject?: string }>;
   readonly fetch: typeof fetch;
   readonly storage: Pick<StorageArea, 'get' | 'set'>;
@@ -206,29 +215,30 @@ export async function sendReplicaHealthReport(deps: ReplicaHealthReporterDeps): 
     ...(projection.code ? { code: projection.code } : {}), since: new Date(observed.since).toISOString(),
     issues: projection.issues, actions: projection.actions, ...(results.length > 0 ? { commandResults: results } : {}),
     ...(deps.extensionVersion ? { extensionVersion: deps.extensionVersion } : {}) };
-  const failed = async (): Promise<'failed'> => {
+  const failed = async (code: string): Promise<'failed'> => {
     await deps.storage.set({ [REPLICA_HEALTH_RECORD_KEY]: { ...record, observed, revision,
-      failed: { digest, retryAt: now + FAILED_RETRY_MS, at: now } } });
+      failed: { digest, retryAt: now + FAILED_RETRY_MS, at: now, code, since: record.failed?.since ?? now } } });
     return 'failed';
   };
   let sent: Response;
-  try { sent = await post(deps, body); } catch { return failed(); }
+  try { sent = await post(deps, body); } catch (error) { return failed(deliveryErrorCode(error)); }
   // The route's own 404 (unknown replica) is plain JSON; a server without the
   // route answers with the publication Problem.
   if (sent.status === 404 && !/^application\/json/iu.test(sent.headers.get('Content-Type') ?? '')) {
     await deps.storage.set({ [REPLICA_HEALTH_RECORD_KEY]: { ...record, observed, unsupportedUntil: now + UNSUPPORTED_RETRY_MS } });
     return 'unsupported';
   }
-  if (sent.status !== 200) return failed();
+  if (sent.status !== 200) return failed(`health_http_${sent.status}`);
   let document;
   try { document = await readHealthReceipt(sent, body, { timeoutMilliseconds: deps.requestTimeoutMilliseconds ?? 10_000 }); }
-  catch { return failed(); }
+  catch { return failed('health_receipt_invalid'); }
   // An accepted report carried these results; the server keeps them whatever its revision.
   const sentIds = new Set(results.map((result) => result.commandId));
   let commands = (record.commands ?? []).map((entry) => sentIds.has(entry.commandId) ? { ...entry, reported: true as const } : entry);
   const save = (list: readonly CommandRecord[]) => deps.storage.set({ [REPLICA_HEALTH_RECORD_KEY]: {
     replicaId: deps.scope.replicaId,
-    ...(document.accepted ? { digest, sentAt: now } : { failed: { digest, retryAt: now + FAILED_RETRY_MS, at: now } }),
+    ...(document.accepted ? { digest, sentAt: now } : { failed: { digest, retryAt: now + FAILED_RETRY_MS, at: now,
+      code: 'health_not_accepted', since: record.failed?.since ?? now } }),
     revision: Math.max(revision, document.revision), observed, commands: kept(list) } satisfies SentRecord });
   await save(commands);
   const delivered = deliveredCommands(document);
@@ -264,6 +274,36 @@ export async function sendReplicaHealthReport(deps: ReplicaHealthReporterDeps): 
   return ran ? 'ran' : 'sent';
 }
 
+/** Why a send did not get an answer, as a code the Status card can show. */
+function deliveryErrorCode(error: unknown): string {
+  const message = error instanceof Error ? error.message : '';
+  if (CODE.test(message)) return message;
+  return error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError') ? 'health_timeout' : 'health_unreachable';
+}
+
+export const REPLICA_DISCONNECTED_CODE = 'sync_disconnected';
+
+/**
+ * A deliberate disconnect says so once, before this browser leaves its library:
+ * without it the Sync center keeps showing the last state the browser had until
+ * the lease lapses. It goes out as a final delivery, which the journal keeps
+ * retrying under the same account and profile after the replica is gone.
+ */
+export async function sendReplicaDisconnectReport(deps: ReplicaHealthReporterDeps): Promise<'sent' | 'unchanged'> {
+  const delivery = await createHealthDelivery({ scope: deps.scope, storage: deps.storage, now: deps.now,
+    post: (body, scope) => post({ ...deps, scope }, body), receiptTimeoutMilliseconds: deps.requestTimeoutMilliseconds, archive: deps.store.exportArchive });
+  const stored = (await delivery.storage.get(REPLICA_HEALTH_RECORD_KEY))[REPLICA_HEALTH_RECORD_KEY] as SentRecord | undefined;
+  const record: SentRecord = stored?.replicaId === deps.scope.replicaId ? stored : { replicaId: deps.scope.replicaId };
+  if (record.observed?.code === REPLICA_DISCONNECTED_CODE) return 'unchanged';
+  const now = deps.now();
+  const revision = Math.max(now, (Number.isSafeInteger(record.revision) ? record.revision! : 0) + 1);
+  await delivery.storage.set({ [REPLICA_HEALTH_RECORD_KEY]: { ...record, revision,
+    observed: { state: 'paused', code: REPLICA_DISCONNECTED_CODE, since: now } } satisfies SentRecord });
+  await delivery.stageFinal({ replicaId: deps.scope.replicaId, revision, state: 'paused', code: REPLICA_DISCONNECTED_CODE,
+    since: new Date(now).toISOString(), issues: { total: 0, items: [] }, actions: [], commandResults: unreported(record.commands) });
+  return 'sent';
+}
+
 async function post(deps: ReplicaHealthReporterDeps, body: Record<string, unknown>): Promise<Response> {
   const credential = await deps.credential();
   if (credential.subject !== deps.scope.accountId || credential.serverOrigin.replace(/\/$/u, '') !== deps.scope.serverOrigin.replace(/\/$/u, '')) {
@@ -287,7 +327,8 @@ async function readProjection(deps: ReplicaHealthReporterDeps): Promise<ReplicaH
   const open = await readOpenSyncIssues(deps.store, deps.scope);
   const response = await handleSyncAttentionRequest({ scope: async () => deps.scope, store: deps.store, openIssues: open,
     ...(deps.rebuildPending ? { rebuildPending: deps.rebuildPending } : {}),
-    ...(deps.bookmarkPermission ? { bookmarkPermission: deps.bookmarkPermission } : {}) });
+    ...(deps.bookmarkPermission ? { bookmarkPermission: deps.bookmarkPermission } : {}),
+    ...(deps.watchdog ? { watchdog: deps.watchdog } : {}) });
   if (response.ok !== true) throw new Error('scope_unavailable');
   const issues = await withResolvedTitles(snapshotSyncIssues(open), deps.scope, deps.store.getMappingByColpId?.bind(deps.store));
   const stalled = await readStalledUpload(deps.store, deps.scope);

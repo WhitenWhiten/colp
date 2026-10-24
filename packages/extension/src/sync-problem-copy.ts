@@ -43,6 +43,7 @@ export const FAMILY_WHAT: Readonly<Record<SyncProblemFamily, () => string>> = {
   stop_first_sync: () => t('syncProblem_stopFirstSync', 'Sync on this device stopped because the setup of your first sync, an import or your folder choice failed an internal check.'),
   stop_feature: () => t('syncProblem_stopFeature', 'Sync on this device stopped because a bookmark management step failed an internal check.'),
   stop_local: () => t('syncProblem_stopLocal', 'Sync on this device stopped because the sync data stored in this browser failed an internal check.'),
+  stalled: () => t('syncProblem_stalled', 'Sync has stopped making progress and has not said why.'),
   unknown: () => t('syncProblem_unknown', 'Sync ran into a problem it has no description for.'),
 };
 
@@ -73,6 +74,8 @@ export const CODE_WHAT: Readonly<Record<string, () => string>> = {
   snapshot_native_projection_ambiguous: () => t('syncProblem_nativeProjectionAmbiguous', "Sync can't tell which bookmark on this device matches one from your library."),
   operation_byte_budget_exceeded: () => t('syncProblem_byteBudget', 'A bookmark change is too large to upload.'),
   sync_failed: () => t('syncProblem_syncFailed', 'Sync failed for a reason it did not record.'),
+  sync_stuck: () => t('syncProblem_stuck', 'The oldest change waiting to upload has not moved for a while.'),
+  sync_not_completing: () => t('syncProblem_notCompleting', 'Sync has not finished a pass in over an hour, and nothing says why.'),
 };
 
 /** Codes whose whole sentence was written for them, next step included. */
@@ -113,6 +116,7 @@ export function nextClause(family: SyncProblemFamily, context: SyncProblemNext):
     case 'sign_in': return t('syncProblem_nextSignIn', 'Sign in again from Account and sync resumes.');
     case 'retired': case 'rebuild': case 'decide': return resetClause(context);
     case 'confirm': return t('syncProblem_nextConfirm', 'Answer it under Waiting for you or Deletions below.');
+    case 'stalled': return t('syncProblem_nextStalled', 'Retry sync tries again now. If it stays this way, copy details to investigate; your bookmarks are not affected.');
     case 'integrity_pull': case 'integrity_snapshot':
       return `${t('syncProblem_nextCheckAgain', 'Retry sync checks with the server again.')} ${keepsStoppingClause(context)}`;
     default:

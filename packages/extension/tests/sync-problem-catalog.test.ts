@@ -30,7 +30,7 @@ const SYNTHESISED = ['snapshot_404_resource_not_found', 'snapshot_http_502', 'sn
   'type_error', 'quota_exceeded_error', 'replica_retired', 'resource_not_found', 'origin_not_allowed', 'insufficient_scope',
   'authentication_required', 'credential_revoked', 'session_invalid', 'service_unavailable', 'internal_error',
   'bookmark_api_error', 'snapshot_native_projection_ambiguous:colp-7:keep extra local siblings', 'replica_rebuild_pending',
-  'some_code_nobody_has_seen_yet'];
+  'sync_stuck', 'sync_not_completing', 'health_http_503', 'some_code_nobody_has_seen_yet'];
 
 describe('every code resolves to a readable sentence (C-19, plan item 11)', () => {
   test('the table is walked at test time, not listed here', () => {
@@ -77,7 +77,7 @@ describe('every code resolves to a readable sentence (C-19, plan item 11)', () =
       native_result_unknown: 'confirm', record_too_large: 'codec', queue_state_invalid: 'stop_upload',
       pull_cursor_missing: 'stop_download', import_plan_invalid: 'stop_first_sync', batch_plan_invalid: 'stop_feature',
       engine_state_invalid: 'stop_local', replica_rebuild_pending: 'rebuild', replica_retired: 'retired',
-      credential_revoked: 'sign_in',
+      credential_revoked: 'sign_in', sync_stuck: 'stalled', sync_not_completing: 'stalled',
     };
     for (const [code, family] of Object.entries(expected)) assert.equal(syncProblemFamily(code), family, code);
   });

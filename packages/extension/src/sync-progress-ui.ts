@@ -64,6 +64,7 @@ function stallNote(progress: PublicSyncProgress, status: SyncStatus | undefined)
     case 'review-conflicts': return t('syncProgress_attention', 'Sync needs your attention. Open Status to see what is waiting.');
     case 'permission-required': return t('syncProgress_permission', 'Sync needs permission to read and change your bookmarks. Allow it in the Folders tab.');
     case 'stuck': return t('syncProgress_stuck', 'Sync is stuck. Open Status to see where.');
+    case 'stalled': return t('syncProgress_stalled', 'Sync hasn’t completed a pass in a while. Open Status to see more.');
     default: break;
   }
   if (progress.stage === 'syncing' && !progress.liveWork && !progress.firstSync
@@ -95,7 +96,7 @@ export function describeSyncProgress(progress: PublicSyncProgress | null | undef
   const cooling = coolingDown(progress);
   const blocked = (progress.issueCount ?? 0) > 0 || progress.retryAutomatic === false
     || status?.kind === 'action-required' || status?.kind === 'review-conflicts'
-    || status?.kind === 'permission-required' || status?.kind === 'stuck';
+    || status?.kind === 'permission-required' || status?.kind === 'stuck' || status?.kind === 'stalled';
   // A pause that ends by itself is not "Action required": nobody has to do anything.
   const blockedTitle = cooling ? t('syncProgress_coolingTitle', 'Sync will retry') : t('sync_actionRequired', 'Action required');
   const pausedTitle = progress.firstSync

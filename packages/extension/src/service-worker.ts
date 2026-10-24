@@ -35,7 +35,7 @@ import { handleServerDisconnect, validServerDisconnectRequest } from './sw/serve
 import { browserPersonalSyncPolicy } from './personal-sync-policy.js';
 import { configurePersonalSyncTransport } from './personal-sync-fetch.js';
 import { validPersonalSyncCommand, trustedLifecyclePage } from './personal-sync-commands.js';
-import { personalSyncLifecycle } from './sw/personal-sync.js';
+import { onBeforePersonalSyncDisconnect, personalSyncLifecycle } from './sw/personal-sync.js';
 import { validDeviceHistoryClear } from './device-history-clear.js';
 import { browserHistoryStore } from './capture/browser-history-store.js';
 import { validMetadataReassociationCommand } from './metadata-reassociation-commands.js';
@@ -49,7 +49,9 @@ import { FOLDERS_FIRST_ALARM, installNativeFoldersFirst, installNativeFoldersFir
 import { installWorkerMetadataWake } from './sw/metadata-sync-wake.js';
 import { bindLibraryOnStartup } from './sw/library.js';
 import { handleSyncEngineRequest, scheduleSyncEngineWake } from './sw/engine.js';
-import { REPLICA_HEALTH_ALARM, REPLICA_HEALTH_PERIOD_MINUTES, reportReplicaHealth } from './sw/replica-health.js';
+import { readHealthDeliveryFailure } from './sw/health-delivery-status.js';
+import { syncWatchdog } from './sw/sync-watchdog-runtime.js';
+import { REPLICA_HEALTH_ALARM, REPLICA_HEALTH_PERIOD_MINUTES, reportReplicaDisconnected, reportReplicaHealth } from './sw/replica-health.js';
 import { handleSyncStateEvidence } from './sw/evidence.js';
 import { clearFaviconForCurrentScope, drainFaviconSidecarsForCurrentScope, readFaviconPolicyForCurrentScope, resolveFaviconSaveContext, resolveLocalSaveContext } from './sw/favicon.js';
 import { handleFirstRunRequest, handleScopeCommand } from './sw/first-run.js';
@@ -191,7 +193,11 @@ const nativeWaitDeps: NativeWaitDeps = {
 
 /** S7 / B2 (SR-09·SR-11·SR-13): the read-only attention read shared by popup and options. */
 const syncAttentionDeps: SyncAttentionDeps = { scope: currentSyncScope, store: syncState,
-  rebuildPending: () => replicaRebuilder().hasPending(), bookmarkPermission: hasBookmarkPermission };
+  rebuildPending: () => replicaRebuilder().hasPending(), bookmarkPermission: hasBookmarkPermission,
+  healthDelivery: scope => readHealthDeliveryFailure(chrome.storage.local, scope, Date.now()), watchdog: syncWatchdog };
+
+// A deliberate disconnect tells the Sync center before this browser leaves its library (C-17d).
+onBeforePersonalSyncDisconnect(reportReplicaDisconnected);
 
 /** SR-10 / A-08: the read-only ingress-diagnostic read behind the options list. */
 const ingressDiagnosticsDeps: IngressDiagnosticsDeps = { scope: currentSyncScope, store: syncState };

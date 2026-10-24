@@ -474,6 +474,12 @@ export interface PublicSyncAttention {
   readonly breakerTrips?: number;
   /** Bookmark access was removed after sync was set up: nothing can read or change a bookmark until it is allowed again. */
   readonly permissionRequired?: boolean;
+  /** This browser could not tell the server how it is doing for several minutes, so the Sync center may show old news. */
+  readonly healthDelivery?: { readonly code: string; readonly since: number };
+  /** A stall nothing else explains: the oldest upload has not moved, or no pass has ended for a long time (`sync-watchdog.ts`). */
+  readonly watchdog?: { readonly kind: 'stuck' | 'no_pass'; readonly since: number; readonly title?: string };
+  /** When a pass last ended cleanly (epoch milliseconds). */
+  readonly lastSyncedAt?: number;
   readonly phase?: PublicSyncEngineState['phase'];
   readonly recoveryFrozen: boolean;
   readonly queueProjection: PublicSyncEngineState['queueProjection'];

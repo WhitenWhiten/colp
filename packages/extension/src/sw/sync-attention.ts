@@ -10,6 +10,7 @@ import type { NativeWaitStore } from '../native-wait.js';
 import { syncAttentionTerminalCode } from '../sync-attention-ui.js';
 import { circuitIsStopped } from '../sync-circuit-breaker.js';
 import { refreshesReplicaIntegrity } from '../sync-failure-class.js';
+import type { SyncWatchdog } from './sync-watchdog.js';
 import type { SyncAttentionResponse } from '../types.js';
 import type { createSyncStateStore, QueueOperation, SyncScope } from '../sync-state-store.js';
 
@@ -23,6 +24,10 @@ export interface SyncAttentionDeps {
   readonly rebuildPending?: () => Promise<boolean>;
   /** Whether the browser still lets this extension read and change bookmarks. Absent: not checked. */
   readonly bookmarkPermission?: () => Promise<boolean>;
+  /** Why this browser's reports to the server keep failing, if they have for a while. Absent: not checked. */
+  readonly healthDelivery?: (scope: SyncScope) => Promise<{ readonly code: string; readonly since: number } | undefined>;
+  /** Notices a stall nothing else explains, and knows when a pass last ended cleanly. Absent: not checked. */
+  readonly watchdog?: SyncWatchdog;
 }
 
 /** Open issues whose own sentence says the browser checks them automatically: they need nobody. */
@@ -54,10 +59,15 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
     const permissionRequired = setUp && deps.bookmarkPermission !== undefined && !await deps.bookmarkPermission();
     // A breaker that tripped on something that ends by itself resumes at `notBefore`: a pause, not a stop.
     const coolingDown = terminalCode === undefined && circuitIsStopped(engine) && !refreshesReplicaIntegrity(lastError);
+    const healthDelivery = await deps.healthDelivery?.(scope).catch(() => undefined);
     const open = deps.openIssues ?? await readOpenSyncIssues(deps.store, scope);
     const capability = await readReplicaRepairCapability(deps.store, scope, open);
     const waits = open.waits;
     const { stalled, ...queue } = await queueFacts(deps.store, scope, open);
+    // Only a stall that nothing else names is the watchdog's to tell.
+    const watch = await deps.watchdog?.sample({ scope, engine, explained: permissionRequired || terminalCode !== undefined
+      || coolingDown || lastError !== undefined || queue.conflictPending || queue.rejectedPending
+      || recorded?.firstRun === 'running' || ['offline', 'error', 'recovery', 'retired'].includes(engine?.phase ?? '') });
     // A move or delete names its target by id; the mapping still knows what it was called.
     const named = await withResolvedTitles(snapshotSyncIssues(open), scope, deps.store.getMappingByColpId?.bind(deps.store));
     const issues = named.map(issue => {
@@ -79,6 +89,9 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
       ...(coolingDown ? { coolingDown: true } : {}),
       ...(engine?.circuitBreaker?.trips ? { breakerTrips: engine.circuitBreaker.trips } : {}),
       ...(permissionRequired ? { permissionRequired: true } : {}),
+      ...(healthDelivery ? { healthDelivery } : {}),
+      ...(watch?.verdict ? { watchdog: watch.verdict } : {}),
+      ...(watch?.lastSyncedAt ? { lastSyncedAt: watch.lastSyncedAt } : {}),
       ...queue,
       issueCount: open.total + (stalled ? 1 : 0), issues, rebuildAvailable: capability.rebuildAvailable,
       ...(capability.reason ? { rebuildUnavailableReason: capability.reason } : {}),
