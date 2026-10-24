@@ -83,3 +83,22 @@ test('without bookmark access the dialog asks for it instead of offering folders
   await vi.waitFor(() => expect(dialog.querySelector<HTMLButtonElement>('#local-import-grant')?.hidden).toBe(false));
   expect(dialog.querySelector('#local-import-target')).toBeNull();
 });
+
+test('reopening before the previous close event arrives retains the new dialog', () => {
+  vi.stubGlobal('chrome', { runtime: { sendMessage: vi.fn(async () => ({ ok: true, status: null })) }, permissions: { contains: async () => false } });
+  const view = bindLocalImportView(mount()); dispose.push(view.dispose);
+  view.open();
+  const previous = document.querySelector<HTMLDialogElement>('#local-import-dialog')!;
+  // Native close() removes `open` synchronously but queues the close event.
+  previous.removeAttribute('open');
+  view.open();
+  const reopened = document.querySelector<HTMLDialogElement>('#local-import-dialog[open]');
+  expect(reopened).not.toBeNull();
+  expect(reopened).not.toBe(previous);
+  expect(previous.isConnected).toBe(false);
+  previous.dispatchEvent(new Event('close'));
+  // The old close event must not clear the new dialog's ownership.
+  view.open();
+  expect(document.querySelectorAll('#local-import-dialog')).toHaveLength(1);
+  expect(document.querySelector('#local-import-dialog')).toBe(reopened);
+});

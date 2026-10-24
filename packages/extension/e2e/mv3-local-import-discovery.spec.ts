@@ -2,7 +2,7 @@ import { test, expect, chromium } from '@playwright/test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { EXTENSION_ID } from './extension-auth.js';
+import { EXTENSION_ID, openExtensionOptions } from './extension-auth.js';
 
 test('a guest discovers local import directly and from cloud setup, including reopening the same deep link', async () => {
   const profile = await mkdtemp(resolve(tmpdir(), 'known-import-discovery-'));
@@ -10,8 +10,8 @@ test('a guest discovers local import directly and from cloud setup, including re
   const context = await chromium.launchPersistentContext(profile, { headless: false, channel: 'chromium',
     args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`] });
   try {
-    await (context.serviceWorkers()[0] ? Promise.resolve() : context.waitForEvent('serviceworker'));
-    const page = context.pages()[0] ?? await context.newPage();
+    // Settle the install-time welcome redirect before exercising hash navigation.
+    const { page } = await openExtensionOptions(context);
     await page.goto(`chrome-extension://${EXTENSION_ID}/options.html#bookmarks`);
     await expect(page.locator('#side-name')).toHaveText('Not signed in');
     await page.locator('#manager-import').click();
@@ -19,9 +19,12 @@ test('a guest discovers local import directly and from cloud setup, including re
     await expect(page.getByRole('button', { name: 'Choose file…', exact: true })).toBeVisible();
     await expect(page).toHaveURL(/#bookmarks$/);
     await page.locator('#local-import-close').click();
-    await page.goto(`chrome-extension://${EXTENSION_ID}/options.html#bookmarks?section=import`);
-    await expect(page.locator('#local-import-dialog')).toBeVisible();
-    await page.locator('#local-import-close').click();
+    for (let visit = 0; visit < 2; visit++) {
+      await page.goto(`chrome-extension://${EXTENSION_ID}/options.html#bookmarks?section=import`);
+      await expect(page.locator('#local-import-dialog')).toBeVisible();
+      await expect(page).toHaveURL(/#bookmarks\?section=import$/u);
+      await page.locator('#local-import-close').click();
+    }
     await page.locator('#manager-import').click();
     await expect(page.locator('#local-import-dialog')).toBeVisible();
     await page.locator('#local-import-close').click();

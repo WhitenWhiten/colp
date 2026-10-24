@@ -47,7 +47,7 @@ async function readFolders(): Promise<{ allowed: boolean; choices: ReturnType<ty
  * reopens in this dialog with its Resume and Stop actions.
  */
 export function bindLocalImportView(reminder: HTMLElement) {
-  let disposed = false, reminderTimer: ReturnType<typeof setTimeout> | undefined, openDialog: { focus(): void; refresh(): Promise<void> } | undefined;
+  let disposed = false, reminderTimer: ReturnType<typeof setTimeout> | undefined, openDialog: { dialog: HTMLDialogElement; focus(): void; refresh(): Promise<void> } | undefined;
 
   async function refreshReminder(): Promise<void> {
     clearTimeout(reminderTimer);
@@ -66,7 +66,9 @@ export function bindLocalImportView(reminder: HTMLElement) {
   }
 
   function open(): void {
-    if (openDialog) { openDialog.focus(); return; }
+    if (openDialog?.dialog.open) { openDialog.focus(); return; }
+    // close() clears `open` before its queued close event releases ownership.
+    openDialog?.dialog.remove();
     const { dialog, body, actions } = createDialog(t('common_importBookmarks', 'Import bookmarks'), 'mgr-transfer');
     dialog.id = 'local-import-dialog';
     let preview: LocalImportPreview | undefined, current: LocalImportStatus | null = null, commandId: string | undefined, fileName = '';
@@ -237,9 +239,13 @@ export function bindLocalImportView(reminder: HTMLElement) {
     reload.addEventListener('click', () => location.reload());
     cancel.addEventListener('click', () => dialog.close());
     title.addEventListener('input', controls);
-    dialog.addEventListener('close', () => { closed = true; clearTimeout(timer); dialog.remove(); openDialog = undefined; void refreshReminder(); });
+    dialog.addEventListener('close', () => {
+      closed = true; clearTimeout(timer); dialog.remove();
+      if (openDialog?.dialog === dialog) openDialog = undefined;
+      void refreshReminder();
+    });
     document.body.append(dialog); dialog.showModal();
-    openDialog = { focus: () => (choose.isConnected && !drop.hidden ? choose : cancel).focus(), refresh };
+    openDialog = { dialog, focus: () => (choose.isConnected && !drop.hidden ? choose : cancel).focus(), refresh };
     controls(); choose.focus();
     void loadFolders().then(refresh).catch(() => undefined);
   }

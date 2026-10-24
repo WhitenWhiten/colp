@@ -1,4 +1,4 @@
-import { chromium, expect, test, type BrowserContext, type Page } from '@playwright/test';
+import { expect, test as base, type BrowserContext, type Page } from '@playwright/test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -7,27 +7,47 @@ import { openExtensionOptions } from './extension-auth.js';
 
 const extensionPath = resolve(import.meta.dirname, '../dist/production');
 
-test('production MV3 bookmark manager performs real create, rename, move and keyboard delete', async () => {
-  const profile = await mkdtemp(resolve(tmpdir(), 'known-bookmark-manager-'));
-  const context = await launch(profile);
-  try {
-    const { page } = await openExtensionOptions(context);
-    await page.locator('#nav-bookmarks').click();
-    await expect(page.getByRole('heading', { name: 'Bookmarks', exact: true })).toBeVisible();
-    if (!await page.evaluate(() => chrome.permissions.contains({ permissions: ['bookmarks'] }))) {
-      await grantOptionalBookmarks(page, 'Allow bookmark access', 'Known bookmark manager');
+const test = base.extend<{ managerPage: Page }>({
+  // Install/onboarding can wait 30s and the native permission driver may retry.
+  // Give setup its own budget; manager actions still use the normal test timeout.
+  managerPage: [async ({ playwright }, use) => {
+    const profile = await mkdtemp(resolve(tmpdir(), 'known-bookmark-manager-'));
+    let context: BrowserContext | undefined;
+    try {
+      context = await playwright.chromium.launchPersistentContext(profile, {
+        headless: false, channel: 'chromium', viewport: { width: 1100, height: 760 },
+        args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`,
+          '--host-resolver-rules=MAP known.example 127.0.0.1,MAP identity.known.example 127.0.0.1', '--no-proxy-server'],
+      });
+      const { page } = await openExtensionOptions(context);
+      await page.locator('#nav-bookmarks').click();
+      await expect(page.getByRole('heading', { name: 'Bookmarks', exact: true })).toBeVisible();
+      if (!await page.evaluate(() => chrome.permissions.contains({ permissions: ['bookmarks'] }))) {
+        await grantOptionalBookmarks(page, 'Allow bookmark access', 'Known bookmark manager');
+      }
+      // Chromium installs the optional API binding only in the next document.
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await page.locator('#nav-bookmarks').click();
+      await expect(page.locator('#manager-body')).toBeVisible();
+      page.setDefaultTimeout(10_000);
+      await use(page);
+    } finally {
+      await context?.close();
+      await rm(profile, { recursive: true, force: true });
     }
-    // Chromium installs the optional API binding only in the next document.
-    await page.reload({ waitUntil: 'domcontentloaded' });
-    await page.locator('#nav-bookmarks').click();
-    await expect(page.locator('#manager-body')).toBeVisible();
+  }, { timeout: 90_000 }],
+});
 
+test('production MV3 bookmark manager performs real create, rename, move and keyboard delete', async ({ managerPage: page }) => {
+  const destination = await test.step('Create a folder', async () => {
     await page.getByRole('button', { name: 'New folder' }).click();
     await page.getByLabel('New folder name').fill('Manager destination');
     await page.getByRole('button', { name: 'Create folder' }).click();
     await expect(page.locator('#manager-feedback')).toHaveText('Folder created.');
-    const destination = await bookmarkByTitle(page, 'Manager destination');
+    return bookmarkByTitle(page, 'Manager destination');
+  });
 
+  const source = await test.step('Create a bookmark while native events arrive', async () => {
     // The toolbar and the open composer both say Add bookmark; the toolbar has
     // its own id, and the composer's submit is scoped to the composer row.
     await page.locator('#manager-new-bookmark').click();
@@ -48,7 +68,10 @@ test('production MV3 bookmark manager performs real create, rename, move and key
     const source = await bookmarkByTitle(page, 'Manager source');
     await expect(row(page, source.id).getByRole('link', { name: 'Manager source' }))
       .toHaveAttribute('href', 'https://example.com/manager-source');
+    return source;
+  });
 
+  await test.step('Rename the bookmark', async () => {
     // Rename is part of the Edit bookmark dialog: a labelled Title field, then Save.
     await row(page, source.id).getByRole('button', { name: 'Edit bookmark Manager source' }).click();
     const editor = page.getByRole('dialog', { name: 'Edit bookmark' });
@@ -56,14 +79,18 @@ test('production MV3 bookmark manager performs real create, rename, move and key
     await editor.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(page.locator('#manager-feedback')).toHaveText('Bookmark saved.');
     expect((await chromeBookmark(page, source.id)).title).toBe('Manager renamed');
+  });
 
+  await test.step('Move the bookmark', async () => {
     await row(page, source.id).getByRole('button', { name: 'More actions Manager renamed' }).click();
     await page.locator('.mgr-menu-item', { hasText: 'Move' }).click();
     await expect(page.getByRole('dialog', { name: 'Move to' })).toBeVisible();
     await page.getByRole('dialog').getByRole('option', { name: 'Manager destination' }).click();
     await expect(page.locator('#manager-feedback')).toHaveText('Moved.');
     expect((await chromeBookmark(page, source.id)).parentId).toBe(destination.id);
+  });
 
+  await test.step('Rename and delete using the keyboard', async () => {
     await page.locator('#manager-tree').getByRole('button', { name: 'Manager destination' }).click();
     const moved = row(page, source.id);
     await expect(moved.getByRole('link', { name: 'Manager renamed' })).toBeVisible();
@@ -80,10 +107,7 @@ test('production MV3 bookmark manager performs real create, rename, move and key
     await expect.poll(async () => page.evaluate(async (id) => {
       try { await chrome.bookmarks.get(id); return 'present'; } catch { return 'deleted'; }
     }, source.id)).toBe('deleted');
-  } finally {
-    await context.close();
-    await rm(profile, { recursive: true, force: true });
-  }
+  });
 });
 
 function row(page: Page, id: string) {
@@ -101,18 +125,4 @@ async function bookmarkByTitle(page: Page, title: string): Promise<chrome.bookma
 
 async function chromeBookmark(page: Page, id: string): Promise<chrome.bookmarks.BookmarkTreeNode> {
   return page.evaluate(async (value) => (await chrome.bookmarks.get(value))[0]!, id);
-}
-
-function launch(profile: string): Promise<BrowserContext> {
-  return chromium.launchPersistentContext(profile, {
-    headless: false,
-    channel: 'chromium',
-    viewport: { width: 1100, height: 760 },
-    args: [
-      `--disable-extensions-except=${extensionPath}`,
-      `--load-extension=${extensionPath}`,
-      '--host-resolver-rules=MAP known.example 127.0.0.1,MAP identity.known.example 127.0.0.1',
-      '--no-proxy-server',
-    ],
-  });
 }
