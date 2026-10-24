@@ -1,3 +1,4 @@
+import { slimArchive } from './archive-retention.js';
 import {
   SyncStateError, type AckIntentRecord, type BookmarkEventRecord, type DurableSyncEngineState,
   type ImportNodeRecord, type ImportPlanRecord, type IntentRecord, type LegacyState, type LeaseRecord,
@@ -319,7 +320,7 @@ export function createScopeRepository(ctx: SyncStoreRuntime) {
     boundedString(retirement.reason, 'reason'); const db = await writableDatabase();
     await runTransaction(db, [...SCOPE_ROW_STORES, STORES.archives, STORES.diagnostics],
       'readwrite', async (tx) => {
-      const current = await requireActiveScope(tx, key); const archive = await collectExport(tx, key);
+      const current = await requireActiveScope(tx, key); const archive = slimArchive(await collectExport(tx, key));
       tx.objectStore(STORES.archives).add({ ...archive, scopeKey: key, environment: current.environment,
         serverId: current.serverId, accountId: current.accountId, browserProfileId: current.browserProfileId,
         replicaId: current.replicaId, generation: current.generation, lifecycle: 'retired', ...retirement });
@@ -342,7 +343,7 @@ export function createScopeRepository(ctx: SyncStoreRuntime) {
     const retiredAt = Date.now();
     for (const key of keys) {
       const current = await requestValue(scopes.get(key)) as ScopeRecord;
-      const archive = await collectExport(tx, key);
+      const archive = slimArchive(await collectExport(tx, key));
       tx.objectStore(STORES.archives).add({ ...archive, scopeKey: key, environment: current.environment,
         serverId: current.serverId, accountId: current.accountId, browserProfileId: current.browserProfileId,
         replicaId: current.replicaId, generation: current.generation, lifecycle: 'retired', retiredAt,
