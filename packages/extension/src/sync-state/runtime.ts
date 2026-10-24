@@ -9,6 +9,8 @@ import {
 import { SyncStateError, type StoreOptions } from './types.js';
 import { pageV15Backfill } from './v15-backfill.js';
 
+const BLOCKED_WAIT_MS = 10_000;
+
 export interface SyncStoreRuntime {
   readonly maxRecordBytes: number;
   readonly factory: IDBFactory;
@@ -47,15 +49,27 @@ export function createSyncStoreRuntime(options: StoreOptions = {}): SyncStoreRun
 
   async function openConnection(): Promise<IDBDatabase> {
     const request = factory.open(DATABASE_NAME, DATABASE_VERSION);
-    let injectedUpgradeFailure = false; let upgrading = false;
-    request.onblocked = (event) => options.onBlocked?.(event);
+    let injectedUpgradeFailure = false; let upgrading = false; let abandoned = false;
+    // W2A-10: an upgrade that another connection holds back would leave every caller waiting forever. After a
+    // bounded wait the callers get `storage_blocked`; the request itself stays queued, and a connection it
+    // eventually opens is closed again, because nobody is waiting for it any more.
+    let timer: ReturnType<typeof setTimeout> | undefined; let giveUp!: (error: Error) => void;
+    const blocked = new Promise<never>((_, reject) => { giveUp = reject; });
+    request.onblocked = (event) => {
+      options.onBlocked?.(event);
+      timer ??= setTimeout(() => { abandoned = true; giveUp(new SyncStateError('storage_blocked')); },
+        options.blockedWaitMilliseconds ?? BLOCKED_WAIT_MS);
+    };
+    request.addEventListener('success', () => { if (timer) clearTimeout(timer); if (abandoned) request.result.close(); });
     request.onupgradeneeded = (event) => {
       upgrading = true;
       if (options.injectUpgradeFailure) { injectedUpgradeFailure = true; request.transaction?.abort(); return; }
       upgrade(request.result, request.transaction!, event.oldVersion, maxRecordBytes);
     };
-    try { connection = await requestValue(request); }
+    try { connection = await Promise.race([requestValue(request), blocked]); }
     catch (error) {
+      if (timer) clearTimeout(timer);
+      if (abandoned) throw error;
       // W2A-01: an open that fails while the version change was running is an upgrade that did not finish
       // (a full disk, a browser error), not a transaction that merely aborted.
       if (injectedUpgradeFailure || upgrading) { upgradeFailed = true; throw new SyncStateError('upgrade_failed'); }

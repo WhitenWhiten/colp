@@ -415,6 +415,8 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   stale_ref: entry('transient', 'retry'),
   // W2A-05: the browser's storage cannot be used right now (backing store failed, connection closed, site data
   // blocked) and a try later may work; a record the store refuses (not cloneable, bad key) never will.
+  // W2A-10: an upgrade of the database is held back by another connection that does not close; it passes when that one does.
+  storage_blocked: entry('transient', 'retry'),
   storage_record_rejected: entry('replica', 'stop'),
   storage_unavailable: entry('transient', 'retry'),
   sync_paused: entry('transient', 'retry'),
