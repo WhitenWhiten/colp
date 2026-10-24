@@ -9935,9 +9935,17 @@
     "message": "某个书签的值同步无法存储，例如标题或地址过长。",
     "description": "A bookmark has a value sync can't store, such as a very long title or address."
   },
+  "syncProblem_concurrentEdit": {
+    "message": "来自书签库的一项更改正在应用时，此设备上有书签被编辑了。",
+    "description": "A bookmark was edited on this device while a change from your library was being applied."
+  },
   "syncProblem_confirm": {
     "message": "来自书签库的一项更改正在等你回答。",
     "description": "A change from your library is waiting for your answer."
+  },
+  "syncProblem_connectionDropped": {
+    "message": "服务器在响应过程中连接中断了。",
+    "description": "The connection to the server dropped while it was answering."
   },
   "syncProblem_createAmbiguous": {
     "message": "同步无法分辨此设备上几个相同的书签中，哪一个是它刚创建的。",
@@ -9958,6 +9966,14 @@
   "syncProblem_deleteSubtreeChanged": {
     "message": "此设备上删除了一个文件夹，但它先在另一台设备上新增了书签，因此同步暂缓了这次删除。",
     "description": "A folder was deleted on this device, but it gained bookmarks on another device first, so sync held the deletion."
+  },
+  "syncProblem_effectRefused": {
+    "message": "服务器拒绝了对书签库中某项更改的部分请求。",
+    "description": "The server refused a request for part of a change from your library."
+  },
+  "syncProblem_effectSignIn": {
+    "message": "同步在下载更改时，服务器未能识别此登录。",
+    "description": "The server did not recognize this sign-in while sync was downloading a change."
   },
   "syncProblem_futureSchema": {
     "message": "此设备上的同步数据由更新版本的扩展保存，因此当前版本无法读取。",
@@ -10250,6 +10266,10 @@
   "syncProblem_serverBusy": {
     "message": "服务器没有正常答复，或要求同步放慢速度。",
     "description": "The server didn't answer properly, or asked sync to slow down."
+  },
+  "syncProblem_serverNoAnswer": {
+    "message": "服务器暂时无法响应。",
+    "description": "The server could not answer just now."
   },
   "syncProblem_serverNotAnswering": {
     "message": "服务器目前没有答复上传请求。",
