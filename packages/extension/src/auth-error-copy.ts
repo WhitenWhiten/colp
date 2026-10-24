@@ -32,6 +32,9 @@ export function authErrorCopy(code: string | undefined, context: 'attempt' | 'st
     return t('auth_accessRevokedSignAgain', 'Your access was revoked. Sign in again.');
   }
   if (code === 'server_unavailable') return t('auth_serverUnavailableTryAgain', 'The server could not answer just now. Try again in a moment.');
+  if (code === 'server_version_mismatch') {
+    return t('auth_serverVersionMismatch', 'This version of Know-N and the server do not match. Update the extension, or ask whoever runs the server to check its version.');
+  }
   if (code === 'binding_mismatch') {
     return t('auth_browserSignedOutBecause', 'This browser was signed out because the sign-in configuration changed. Sign in again.');
   }

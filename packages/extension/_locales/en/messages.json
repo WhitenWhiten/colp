@@ -101,6 +101,9 @@
   "auth_serverUnavailableTryAgain": {
     "message": "The server could not answer just now. Try again in a moment."
   },
+  "auth_serverVersionMismatch": {
+    "message": "This version of Know-N and the server do not match. Update the extension, or ask whoever runs the server to check its version."
+  },
   "auth_sessionExpiredSignAgain": {
     "message": "Your session expired. Sign in again."
   },

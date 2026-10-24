@@ -127,6 +127,10 @@
     "message": "服务器暂时无法响应，请稍后再试。",
     "description": "The server could not answer just now. Try again in a moment."
   },
+  "auth_serverVersionMismatch": {
+    "message": "此版本的 Know-N 与服务器不匹配。请更新扩展，或请服务器管理员检查其版本。",
+    "description": "This version of Know-N and the server do not match. Update the extension, or ask whoever runs the server to check its version."
+  },
   "auth_sessionExpiredSignAgain": {
     "message": "你的登录已过期，请重新登录。",
     "description": "Your session expired. Sign in again."
