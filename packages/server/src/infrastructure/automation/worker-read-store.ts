@@ -37,7 +37,7 @@ export function createWorkerReadStore(db: Kysely<DatabaseSchema>, serverUuid: st
       const targets = (await sql<{ id: string }>`SELECT id FROM automation_targets WHERE owner_id=${actor.accountId} AND profile_id=${profile.id} AND paired AND NOT revoked ORDER BY id LIMIT 501`.execute(tx)).rows;
       const targetId = query.targetId ?? (targets.length === 1 ? targets[0]!.id : undefined);
       if (!targetId) throw new AutomationError('invalid_request', 'Choose one targetId when a profile has multiple targets.');
-      await worker.authorize(tx, actor, targetId);
+      await worker.authorizeRequest(tx, actor, targetId);
       await requireWorkRunning(tx, actor.accountId);
       await expireOwnerLeases(tx, actor.accountId);
       await resumeDailyBudgetJobs(tx, actor, targetId);
@@ -67,7 +67,7 @@ export function createWorkerReadStore(db: Kysely<DatabaseSchema>, serverUuid: st
       const visible = [];
       for (const job of rows.slice(0, limit)) {
         try {
-          const locked = await lockWorkJob(tx, actor, job.id, worker.authorize);
+          const locked = await lockWorkJob(tx, actor, job.id, worker.authorizeRequest);
           const checked = await checkWorkInputs(tx, actor, locked, serverUuid);
           if (!checked.error) visible.push(workerJobView(job));
         } catch (error) {
@@ -81,13 +81,13 @@ export function createWorkerReadStore(db: Kysely<DatabaseSchema>, serverUuid: st
     }),
     get: (actor, id, handle) => db.transaction().execute(async (tx) => {
       await tx.selectFrom('accounts').select('id').where('id', '=', actor.accountId).forUpdate().executeTakeFirstOrThrow();
-      const job = await lockWorkJob(tx, actor, id, worker.authorize, true);
+      const job = await lockWorkJob(tx, actor, id, worker.authorizeRequest, true);
       if (job.delivery_handle !== handle) throw new AutomationError('resource_not_found', 'Job handle is unavailable.');
       return workerJobView(await row(tx, id));
     }),
     inputs: async (actor, id, query) => {
       const result = await db.transaction().execute(async (tx) => {
-        const job = await lockWorkJob(tx, actor, id, worker.authorize);
+        const job = await lockWorkJob(tx, actor, id, worker.authorizeRequest);
         if (query.deliveryHandle !== job.delivery_handle) throw new AutomationError('resource_not_found', 'Job handle is unavailable.');
         const checked = await checkWorkInputs(tx, actor, job, serverUuid);
         if (checked.error) return { error: checked.error };

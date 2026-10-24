@@ -29,7 +29,7 @@ interface SubscriptionRow {
 export function createSubscriptionStore(db: Kysely<DatabaseSchema>, targets: TargetWorkerService, verifier?: SubscriptionVerifier): AutomationEventsService {
   async function authority(tx: DatabaseTransaction, actor: WorkPrincipal, targetId: string) {
     await tx.selectFrom('accounts').select('id').where('id', '=', actor.accountId).forUpdate().executeTakeFirstOrThrow();
-    await targets.authorize(tx, actor, targetId);
+    await targets.authorizeRequest(tx, actor, targetId);
     const profile = await targets.profile(tx, actor);
     const target = (await sql<TargetRow>`SELECT * FROM automation_targets WHERE id=${targetId} AND owner_id=${actor.accountId} FOR UPDATE`.execute(tx)).rows[0]!;
     if ((target.configuration_json.wakeMode ?? 'events') !== 'events')

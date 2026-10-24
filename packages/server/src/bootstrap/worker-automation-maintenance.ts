@@ -13,7 +13,7 @@ import type { AppConfig } from './config.js';
 export function composeWorkerAutomationMaintenance(config: AppConfig, db: Kysely<DatabaseSchema>, metrics: Metrics) {
   const delivery = config.mcpEventsEnabled && config.automationWebhookMasterKey
     ? createDeliveryWorker(db, createTargetWorkerService(db,
-      createAutomationBindingVerifier(config, createMcpSecurityEpochReader(config, createPostgresMcpOauthRevocationStore({ db }))), async () => {}).authorize,
+      createAutomationBindingVerifier(config, createMcpSecurityEpochReader(config, createPostgresMcpOauthRevocationStore({ db }))), async () => {}, { cursorKey: config.productEditorCursor.current.key }).authorize,
     createWebhookVerifier(config.automationWebhookMasterKey, { ...(config.automationWebhookPreviousMasterKey ? { previousMasterKey: config.automationWebhookPreviousMasterKey } : {}) }))
     : undefined;
   const approvals = createWorkerApprovalApplier(config, db, metrics);

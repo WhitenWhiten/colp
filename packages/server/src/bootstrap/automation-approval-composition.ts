@@ -18,7 +18,7 @@ import { createPhase4bMcpWriteComposition } from './mcp-write-composition.js';
 export function createWorkerApprovalApplier(config: AppConfig, db: Kysely<DatabaseSchema>, metrics: Metrics): ApprovedProposalApplier | undefined {
   if (!config.automationWorkEnabled || !config.mcp || !config.mcpWrite) return undefined;
   const target = createTargetWorkerService(db, createAutomationBindingVerifier(config,
-    createMcpSecurityEpochReader(config, createPostgresMcpOauthRevocationStore({ db }))), async () => {});
+    createMcpSecurityEpochReader(config, createPostgresMcpOauthRevocationStore({ db }))), async () => {}, { cursorKey: config.productEditorCursor.current.key });
   let results: ReturnType<typeof createResultSubmissionPort> | undefined;
   const composition = createPhase4bMcpWriteComposition({
     db, serverUuid: config.mcp.serverUuid, approvalBaseUri: config.mcpWrite.approvalBaseUri,

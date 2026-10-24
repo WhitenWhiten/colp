@@ -17,7 +17,7 @@ process.once('message', async (message: { databaseUrl: string; config: AppConfig
   const runtime = createDatabaseRuntime(message.databaseUrl,{ maxConnections: 6 });
   const db = runtime.db;
   const { verifier } = automationWorkerVerifier(db,message.jwk,message.origin,true);
-  const worker = createTargetWorkerService(db,createAutomationBindingVerifier(message.config,async () => MCP_OAUTH_DEFAULT_SECURITY_EPOCH),async () => {});
+  const worker = createTargetWorkerService(db,createAutomationBindingVerifier(message.config,async () => MCP_OAUTH_DEFAULT_SECURITY_EPOCH),async () => {},{ cursorKey: 'worker-test-cursor-at-least-32-bytes' });
   const crashWindow = async (phase: 'before' | 'after') => {
     if (message.crash !== phase) return;
     process.send!({ type: 'crash-window',phase });

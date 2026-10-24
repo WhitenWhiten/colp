@@ -23,16 +23,16 @@ export function createAutomationWorkerService(db: Kysely<DatabaseSchema>,serverU
       const complete = (tx: DatabaseTransaction,value: unknown) => createPostgresProductCommandReceiptPort(tx).complete(binding,fingerprint,{ status: 200,
         body: new TextEncoder().encode(JSON.stringify(value)),mediaType: 'application/json',contractVersion: AUTOMATION_CONTRACT_VERSION,stableHeaders: { 'cache-control': 'private, no-store' } });
       const initial = await db.transaction().execute(async tx => {
-        const job = await lockWorkJob(tx,actor,id,worker.authorize,operation !== 'claim');
+        const job = await lockWorkJob(tx,actor,id,worker.authorizeRequest,operation !== 'claim');
         const claim = await createPostgresProductCommandReceiptPort(tx).claim(binding,fingerprint);
         if (claim.kind === 'replay') {
           if (command.operation === 'claim') throw new AutomationError('automation_claim_conflict','The one-time lease response cannot be reissued. Read the job and reconcile; the claim token is never stored in receipts.');
-          if (command.operation === 'heartbeat') await createJobLeaseStore(tx,worker.authorize,serverDailyCap,serverUuid).verify(actor,id,command.input);
+          if (command.operation === 'heartbeat') await createJobLeaseStore(tx,worker.authorizeRequest,serverDailyCap,serverUuid).verify(actor,id,command.input);
           return { value: decode(claim,command) };
         }
         if (claim.kind !== 'claimed' && !(operation === 'submit' && claim.kind === 'in_progress')) return { error: commandError(claim) };
         if (command.operation === 'submit') return { submit: true };
-        const leases = createJobLeaseStore(tx,worker.authorize,serverDailyCap,serverUuid);
+        const leases = createJobLeaseStore(tx,worker.authorizeRequest,serverDailyCap,serverUuid);
         if (command.operation === 'claim') {
           const result = await leases.claim(actor,id,command.input);
           if (result.kind === 'budget') await advanceRunTasks(tx,actor,serverUuid,job.run_id);
@@ -56,7 +56,7 @@ export function createAutomationWorkerService(db: Kysely<DatabaseSchema>,serverU
       // Only submit is resumable: its durable proposal and stable plan/command IDs prevent duplicate effects.
       const value = await submitResult(results,actor,id,input);
       return db.transaction().execute(async tx => {
-        await lockWorkJob(tx,actor,id,worker.authorize,true);
+        await lockWorkJob(tx,actor,id,worker.authorizeRequest,true);
         const claim = await createPostgresProductCommandReceiptPort(tx).claim(binding,fingerprint);
         if (claim.kind === 'replay') return decode(claim,command);
         if (claim.kind !== 'in_progress' && claim.kind !== 'claimed') throw commandError(claim);

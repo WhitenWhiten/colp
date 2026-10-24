@@ -2,11 +2,12 @@ import { principalObservation } from './principal-observation.js';
 import type { AutomationProfileAccess } from '../../modules/mcp/index.js';
 import { randomUUID,timingSafeEqual } from 'node:crypto';
 import { sql,type Kysely } from 'kysely';
-import type { Target } from '@know-n/colp/automation';
-import { AutomationError,parseContract,type WorkPrincipal } from '../../modules/automation/index.js';
+import type { Target,TargetPage } from '@know-n/colp/automation';
+import { AutomationError,createAutomationPagination,parseContract,type WorkPrincipal } from '../../modules/automation/index.js';
 import { canonicalCommandFingerprint,type ProductCommandClaim } from '../../modules/commands/index.js';
 import type { DatabaseSchema } from '../database/runtime.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
+import { databaseNow } from '../database/time.js';
 import type { TargetAuthority } from './work-authority.js';
 import { createPostgresProductCommandReceiptPort } from '../database/product-command-receipt.js';
 import { claimTokenHash } from './lease-store.js';
@@ -19,18 +20,24 @@ import { AUTOMATION_CONTRACT_VERSION } from '@know-n/colp/automation';
  * unrevoked, not online; revocation, epochs and profile binding are still checked.
  */
 export interface BindingCheckOptions { allowExpiredObservation?: boolean }
+/** Only the request entry points may create bindings or refresh their stored evidence. */
+interface ProfileCheckOptions extends BindingCheckOptions { liveRequest?: boolean }
 export type CurrentBindingVerifier = (tx: DatabaseTransaction,actor: WorkPrincipal,options?: BindingCheckOptions) => Promise<{ dedicated: boolean }>;
 export type PairingCommandOutcome = { kind: 'succeeded'; target: Target } | Exclude<ProductCommandClaim,{ kind: 'claimed' }>;
 export interface TargetWorkerService {
   access(actor: WorkPrincipal): Promise<AutomationProfileAccess | null>;
   profile(tx: DatabaseTransaction,actor: WorkPrincipal): Promise<ProfileRow>;
+  /** Verify existing authority only; safe for delivery and stored proposals. */
   authorize: TargetAuthority;
+  /** A verified live worker request may first bind or repair under consent. */
+  authorizeRequest: TargetAuthority;
   pair(actor: WorkPrincipal,body: unknown,commandId?: string): Promise<PairingCommandOutcome>;
-  mine(actor: WorkPrincipal): Promise<Target[]>;
+  mine(actor: WorkPrincipal,query?: { cursor?: string; limit?: string }): Promise<TargetPage>;
 }
-export interface TargetWorkerOptions { eventsEnabled?: boolean }
+export interface TargetWorkerOptions { cursorKey: string; eventsEnabled?: boolean }
 export function createTargetWorkerService(db: Kysely<DatabaseSchema>,verifyBinding: CurrentBindingVerifier,
-  admitPairing: (actor: WorkPrincipal) => Promise<void>,options: TargetWorkerOptions = {}): TargetWorkerService {
+  admitPairing: (actor: WorkPrincipal) => Promise<void>,options: TargetWorkerOptions): TargetWorkerService {
+  const pages = createAutomationPagination(options.cursorKey);
   /** The profile this credential is bound to, whatever the Owner's current opt-ins. */
   const boundProfile = async (tx: DatabaseTransaction,actor: WorkPrincipal): Promise<ProfileRow | undefined> =>
     (await sql<ProfileRow>`SELECT p.* FROM automation_connection_profiles p JOIN accounts a ON a.id=p.owner_id
@@ -105,11 +112,11 @@ export function createTargetWorkerService(db: Kysely<DatabaseSchema>,verifyBindi
       WHERE p.owner_id=${actor.accountId} AND a.subject_id=${actor.subjectId} AND a.status='active' AND a.deleted_at IS NULL
       AND p.configuration_json->>'authorizedClientId'=${actor.clientId} AND p.configuration_json->>'credentialBindingId'=${actor.credentialBindingId}
       AND p.configuration_json->>'automationEnabled'='true' AND p.configuration_json->'catalogs' ? 'automationWorker'`.execute(tx)).rows[0];
-  const profile = async (tx: DatabaseTransaction,actor: WorkPrincipal,options: BindingCheckOptions = {}): Promise<ProfileRow> => {
+  const profile = async (tx: DatabaseTransaction,actor: WorkPrincipal,options: ProfileCheckOptions = {}): Promise<ProfileRow> => {
     if (!actor.scopes.includes('automation:work')) throw unavailable();
     let row = await enabledProfile(tx,actor);
-    // Pinned (stored-observation) checks only verify; a live request may bind or repair under the Owner's consent.
-    if (!options.allowExpiredObservation) {
+    // Evidence provenance and expiry are separate: even unexpired stored observations only verify.
+    if (options.liveRequest) {
       if (!row) { await bindByConsent(tx,actor); row = await enabledProfile(tx,actor); }
       if (row) await repairInboxes(tx,actor,row.id,row.unpaired);
     }
@@ -117,14 +124,14 @@ export function createTargetWorkerService(db: Kysely<DatabaseSchema>,verifyBindi
     await verifyBinding(tx,actor,options);
     // Refresh token-free observations only after the current credential passed all
     // checks. Background health/delivery must not keep using the pairing token.
-    if (actor.credentialDigest && actor.expiresAt) {
+    if (options.liveRequest && actor.credentialDigest && actor.expiresAt) {
       await sql`UPDATE automation_connection_profiles SET observation_json=${JSON.stringify(principalObservation(actor))}::jsonb
         WHERE id=${row.id} AND (observation_json IS NULL OR observation_json->>'credentialDigest' IS DISTINCT FROM ${actor.credentialDigest})
         AND (observation_json IS NULL OR (observation_json->>'issuedAtSeconds')::bigint <= ${actor.issuedAtSeconds ?? 0})`.execute(tx);
     }
     return row;
   };
-  const authorize = async (tx: DatabaseTransaction,actor: WorkPrincipal,targetId: string,privacy?: 'standard' | 'restricted',options: BindingCheckOptions = {}): Promise<void> => {
+  const authorize = async (tx: DatabaseTransaction,actor: WorkPrincipal,targetId: string,privacy?: 'standard' | 'restricted',options: ProfileCheckOptions = {}): Promise<void> => {
     const current = await profile(tx,actor,options);
     const target = (await sql<TargetRow>`SELECT * FROM automation_targets WHERE id=${targetId} AND owner_id=${actor.accountId}
       AND profile_id=${current.id} AND paired AND NOT revoked`.execute(tx)).rows[0];
@@ -183,7 +190,8 @@ export function createTargetWorkerService(db: Kysely<DatabaseSchema>,verifyBindi
     catch (error) { if (!(error instanceof AutomationError)) throw error; return null; }
     return { id: row.id,revision: row.revision,automationEnabled: true,catalogs: ['standard','automationWorker'],pairedTargets: [] };
   };
-  return { profile,authorize,
+  return { profile: (tx,actor) => profile(tx,actor,{ liveRequest: true }),authorize,
+    authorizeRequest: (tx,actor,targetId,privacy) => authorize(tx,actor,targetId,privacy,{ liveRequest: true }),
     access: actor => db.transaction().execute(async tx => {
       let row = await boundProfile(tx,actor);
       if (!row) { await bindByConsent(tx,actor); row = await boundProfile(tx,actor); }
@@ -203,14 +211,21 @@ export function createTargetWorkerService(db: Kysely<DatabaseSchema>,verifyBindi
       return { ...access,pairedTargets: targets.map(({ id,generation }) => ({ id,generation })) };
     }),
     /** Own paired inboxes only, through the same binding (and consent) checks as any work call. */
-    async mine(actor) {
+    async mine(actor,query = {}) {
       return db.transaction().execute(async tx => {
-        const current = await profile(tx,actor),store = createTargetStore(tx,actor.accountId,verifyBinding,options.eventsEnabled);
-        const rows = (await sql<{ id: string }>`SELECT id FROM automation_targets WHERE owner_id=${actor.accountId} AND profile_id=${current.id} AND paired AND NOT revoked
-          ORDER BY created_at,id LIMIT 100`.execute(tx)).rows;
+        await tx.selectFrom('accounts').select('id').where('id','=',actor.accountId).forUpdate().executeTakeFirst();
+        const current = await profile(tx,actor,{ liveRequest: true }),store = createTargetStore(tx,actor.accountId,verifyBinding,options.eventsEnabled);
+        const now = await databaseNow(tx),identity = JSON.stringify([actor.accountId,actor.clientId,actor.credentialBindingId]);
+        const scope = JSON.stringify(['targets.mine',current.id]),{ limit,after } = pages.read(query,identity,scope,now);
+        const cursor = after ? sql`AND (created_at,id)>(${after.createdAt}::timestamptz,${after.id})` : sql``;
+        const rows = (await sql<{ id: string; sort_created_at: string }>`SELECT id,to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS sort_created_at
+          FROM automation_targets WHERE owner_id=${actor.accountId} AND profile_id=${current.id} AND paired AND NOT revoked ${cursor}
+          ORDER BY created_at,id LIMIT ${limit+1}`.execute(tx)).rows;
         const targets: Target[] = [];
-        for (const row of rows) { const target = await store.targets.load(row.id); if (target) targets.push(target); }
-        return targets;
+        for (const row of rows.slice(0,limit)) { const target = await store.targets.load(row.id); if (target) targets.push(target); }
+        const last = rows[limit-1];
+        return { items: targets,nextCursor: rows.length>limit && last
+          ? pages.next(identity,scope,limit,{ id: last.id,createdAt: last.sort_created_at },now) : null };
       });
     },
     async pair(actor,body,commandId = randomUUID()) {
@@ -225,7 +240,7 @@ export function createTargetWorkerService(db: Kysely<DatabaseSchema>,verifyBindi
         // A failure below rolls this claim back with everything else in the transaction.
         const claim = await receipts.claim(command,fingerprint);
         if (claim.kind !== 'claimed') {
-          await profile(tx,actor);
+          await profile(tx,actor,{ liveRequest: true });
           if (claim.kind === 'replay') {
             const target = JSON.parse(new TextDecoder().decode(claim.result.body)) as Target;
             await authorize(tx,actor,target.id);
@@ -233,7 +248,7 @@ export function createTargetWorkerService(db: Kysely<DatabaseSchema>,verifyBindi
           return claim;
         }
         await adoptCredential(tx,actor,input);
-        const current = await profile(tx,actor);
+        const current = await profile(tx,actor,{ liveRequest: true });
         const grant = (await sql<{ code_hash: string; target_id: string }>`SELECT g.code_hash,g.target_id FROM automation_pairings g
           JOIN automation_targets t ON t.id=g.target_id AND t.owner_id=g.owner_id
           WHERE g.id=${input.pairingId} AND g.owner_id=${actor.accountId} AND t.profile_id=${current.id}

@@ -6,11 +6,12 @@ import { readRepositoryFile } from './repository-files.js';
 /** Real machine credentials, Owner configuration, canonical intake and durable work. */
 export async function automationPollingFixture(prefix: string, options: {
   wakeMode?: 'events' | 'poll';
+  machineMode?: boolean;
   configure?: (definition:RuleDefinition,policy:ExecutionPolicyInput)=>void;
   three?: boolean; trusted?: boolean; policyEnabled?: boolean; maxCalls?: number; dailyLimit?: number;
   pair?: (fixture: Awaited<ReturnType<typeof automationWorkerFixture>>, grant: PairingGrant) => Promise<void>;
 } = {}) {
-  const f = await automationWorkerFixture(prefix,100,true,true);
+  const f = await automationWorkerFixture(prefix,100,options.machineMode ?? true,true);
   try {
     const check = <T extends { statusCode: number; body: string; json(): unknown }>(response: T, status = 201): T => {
       if (response.statusCode !== status) throw new Error(`Polling fixture ${response.statusCode}: ${response.body}`);

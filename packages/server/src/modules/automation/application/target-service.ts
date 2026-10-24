@@ -1,4 +1,4 @@
-import type { ConnectionProfile, ConnectionProfileInput, Executor, ExecutorInput, Target, TargetInput, PairingGrant } from '@know-n/colp/automation';
+import type { ConnectionProfile, ConnectionProfileInput, Executor, ExecutorInput, Target, TargetInput, TargetPage, PairingGrant } from '@know-n/colp/automation';
 import { AutomationError } from '../domain/errors.js';
 import { parseContract, requireEtag } from './rule-service.js';
 import type { PageAfter } from './ports.js';
@@ -39,5 +39,5 @@ export async function saveExecutor(store: TargetStore,body: unknown,id?: string,
 export interface WorkerPairingPort {
   pair(actor: import('./claim-job.js').WorkPrincipal,body: unknown,commandId?: string): Promise<{ kind: 'succeeded'; target: Target } | Exclude<import('../../commands/index.js').ProductCommandClaim,{ kind: 'claimed' }>>;
   /** The paired inboxes this credential works for; how a worker bound by consent learns its target IDs. */
-  mine(actor: import('./claim-job.js').WorkPrincipal): Promise<Target[]>;
+  mine(actor: import('./claim-job.js').WorkPrincipal,query?: { cursor?: string; limit?: string }): Promise<TargetPage>;
 }

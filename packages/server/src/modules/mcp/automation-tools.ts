@@ -21,7 +21,7 @@ export function createAutomationToolPort(options: { access: AutomationCatalogPor
           else if (outcome.kind === 'replay') value=JSON.parse(new TextDecoder().decode(outcome.result.body));
           else throw new AutomationError('automation_command_conflict','Pairing command is unavailable or conflicted.');
         } else if (name === 'automation.targets.mine') {
-          value={ items: await options.pairing.mine(actor),nextCursor: null };
+          value=await options.pairing.mine(actor,query(args));
         } else if (name.startsWith('automation.jobs.')) {
           if (!options.worker) throw new AutomationError('automation_unsupported_capability','Worker orchestration is unavailable.');
           const id = String(args.jobId),operation = name.slice('automation.jobs.'.length);

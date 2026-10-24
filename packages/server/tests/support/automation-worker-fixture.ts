@@ -66,7 +66,7 @@ export async function automationWorkerFixture(prefix: string,maxPairRequests = 1
   const worker = createTargetWorkerService(f.db,createAutomationBindingVerifier(config,async () => MCP_OAUTH_DEFAULT_SECURITY_EPOCH),async a => {
     const result = await limiter.consume({ policy: 'request',facts: JSON.stringify(['automation-pair',a.accountId,a.clientId,a.credentialBindingId]) });
     if (result.kind !== 'allowed') throw new AutomationError(result.kind === 'denied' ? 'rate_limited' : 'feature_temporarily_unavailable','Pairing admission denied.',[],null,result.kind === 'denied' ? result.decision.retryAfterSeconds : 30);
-  });
+  },{ cursorKey: 'worker-test-cursor-at-least-32-bytes' });
   const uow = createAutomationUnitOfWork(f.db,'server',{ runtimeEnabled: true,workerEnabled: enableJobs,verifyTargetBinding: createAutomationBindingVerifier(config,async () => MCP_OAUTH_DEFAULT_SECURITY_EPOCH) });
   let results: ReturnType<typeof createResultSubmissionPort> | undefined;
   const composition = enableJobs ? createPhase4bMcpWriteComposition({ db: f.db,serverUuid: '11111111-1111-4111-8111-111111111111',approvalBaseUri: origin+'/approvals',requestStateKey: 'aw31-request-state-key-at-least-32-bytes',

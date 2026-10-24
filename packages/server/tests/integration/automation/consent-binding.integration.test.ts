@@ -2,6 +2,10 @@ import { afterEach,expect,test } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { automationWorkerFixture } from '../../support/automation-worker-fixture.js';
+import { automationPollingFixture } from '../../support/automation-polling-fixture.js';
+import { createDeliveryWorker } from '../../../src/infrastructure/automation/delivery-worker.js';
+import { createSubscriptionStore } from '../../../src/infrastructure/automation/subscription-store.js';
+import { createWebhookCipher } from '../../../src/infrastructure/automation/webhook-signer.js';
 import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
 import type { WorkPrincipal } from '../../../src/modules/automation/index.js';
 
@@ -60,7 +64,7 @@ describeWithPostgres('Consent-granted worker binding: the consent page is the pe
     const access = await f.worker.access(actor);
     expect(access?.catalogs).toEqual(['standard','automationWorker']);expect(access?.pairedTargets).toHaveLength(1);
     // The worker learns its inbox from the server, so the Owner never relays a target ID.
-    expect((await f.worker.mine(actor)).map(item => ({ id: item.id,name: item.configuration.name,wakeReadiness: item.wakeReadiness }))).toEqual([{ id: targets[0].id,name: 'ChatGPT',wakeReadiness: 'active' }]);
+    expect((await f.worker.mine(actor)).items.map(item => ({ id: item.id,name: item.configuration.name,wakeReadiness: item.wakeReadiness }))).toEqual([{ id: targets[0].id,name: 'ChatGPT',wakeReadiness: 'active' }]);
     expect(await f.worker.access(await principal(f,await f.mint({ clientId: CHATGPT,scopes: ['mcp:read:own'] })))).toBeNull();
   });
 
@@ -84,6 +88,36 @@ describeWithPostgres('Consent-granted worker binding: the consent page is the pe
     expect((await asWorker(f,f.token)).statusCode).toBe(404);
     expect((await owner(f,'/targets')).json().items).toEqual([]);
     expect((await owner(f,'/connection-profiles')).json().items).toEqual([]);
+  });
+
+  test('background delivery verifies its paired inbox without pairing other inboxes from stored evidence',async () => {
+    const secret = 'whsec_'+Buffer.alloc(32,9).toString('base64'),cipher = createWebhookCipher(Buffer.alloc(32,8));
+    const connected = await automationPollingFixture('consent_delivery',{ machineMode: false,wakeMode: 'events',pair: async (base,grant) => {
+      await consent(base,base.actor.clientId,'OAuth worker',['automation:work']);
+      expect((await base.pair(grant)).statusCode).toBe(200);
+      await createSubscriptionStore(base.db,base.worker,{ ...cipher,verify: async () => {} }).subscribe(base.actor,{
+        name: 'colp.automation.triggered',arguments: { targetId: grant.targetId },delivery: { mode: 'webhook',url: 'https://receiver.example',secret } });
+    } });
+    f = connected;
+    const added = await f.ownerPost('/targets',{ ...connected.target.configuration,name: 'Waiting for live contact' });
+    expect(added.statusCode,added.body).toBe(201);
+    const before = (await owner(f,`/targets/${added.json().id}`)).json();
+    expect(before.wakeReadiness).toBe('waitingForPairing');
+    let sent = 0;
+    const delivery = createDeliveryWorker(f.db,f.worker.authorize,{ ...cipher,send: async () => { sent++;return { status: 204,retryAfter: null }; } });
+    expect(await delivery.tick()).toBe(true);
+    expect(sent).toBe(1);
+    expect((await sql<{ state: string }>`SELECT state FROM automation_event_deliveries`.execute(f.db)).rows.map(row => row.state)).toEqual(['accepted']);
+    // Neither the sending nor completion check may grant authority to the new inbox.
+    expect((await owner(f,`/targets/${added.json().id}`)).json()).toEqual(before);
+    const profileId = connected.target.configuration.connectionProfileId;
+    const stored = (await sql<{ observation_json: WorkPrincipal }>`SELECT observation_json FROM automation_connection_profiles WHERE id=${profileId}`.execute(f.db)).rows[0]!.observation_json;
+    await expect(f.db.transaction().execute(tx => f.worker.authorize(tx,stored,added.json().id))).rejects.toMatchObject({ code: 'resource_not_found' });
+    await expect(f.db.transaction().execute(tx => f.worker.authorize(tx,stored,added.json().id,undefined,{ allowExpiredObservation: true }))).rejects.toMatchObject({ code: 'resource_not_found' });
+    // The HTTP request path still repairs the inbox when the actual worker returns.
+    const live = await f.app.inject({ url: `/api/v1/automation-work/jobs?targetId=${added.json().id}`,headers: { authorization: 'Bearer '+f.token } });
+    expect(live.statusCode,live.body).toBe(200);
+    expect((await owner(f,`/targets/${added.json().id}`)).json().wakeReadiness).toBe('waitingForSubscription');
   });
 
   test('the Owner’s own registration (guided setup) is adopted on first contact, and an opt-in change re-pairs without a code',async () => {

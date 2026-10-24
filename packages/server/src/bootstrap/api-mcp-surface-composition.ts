@@ -286,7 +286,7 @@ export async function composeApiMcpSurface(input: {
   };
   const automationTargetWorker = config.automationWorkEnabled && mcpReadOAuthDependencies.oauthVerifier && mcpRateLimiter
     ? createTargetWorkerService(database.db,createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,mcpOauthRevocationStore)),
-      automationAdmission('pair','Pairing admission is unavailable.'),{ eventsEnabled: config.mcpEventsEnabled === true }) : undefined;
+      automationAdmission('pair','Pairing admission is unavailable.'),{ cursorKey: config.productEditorCursor.current.key,eventsEnabled: config.mcpEventsEnabled === true }) : undefined;
   let automationResults: ReturnType<typeof createResultSubmissionPort> | undefined;
   let automationWorker: ReturnType<typeof createAutomationWorkerService> | undefined;
   const grantMcp = composeCredentialGrantMcp({
