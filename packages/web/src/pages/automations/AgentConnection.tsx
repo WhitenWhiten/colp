@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { agentsApi } from '../../api/agentsClient'
+import { agentsApi, type AgentSummary } from '../../api/agentsClient'
 import type { AutomationAgentSetupResult, AutomationBindingSetInput, AutomationPairingGrant, AutomationRule, AutomationRuleDefinition, AutomationTarget } from '../../api/automationTypes'
 import { CommandBlock } from '../../components/CommandBlock'
 import { copyTextToClipboard } from '../../lib/clipboard'
@@ -24,7 +24,11 @@ type Props = {
   onSelectionChanged: () => void
 }
 
-/** Only the current connection step is expanded. Credentials never enter storage or URLs. */
+/**
+ * Only the current connection step is expanded. Credentials never enter storage or URLs.
+ * An agent that allowed rule work when it signed in pairs by itself on its next call, so
+ * it gets no code; a key-based worker still redeems the one-use code.
+ */
 export function AgentConnection({ definition, bindings, current, configurationKey, initialSetup, configurationReady, disabled, canPrepare, onBusy, onPrepared, onVerified, onSelectionChanged }: Props) {
   const { api, agents = agentsApi } = useAutomationDeps()
   const workers = useAutomationWorkers(true, api)
@@ -47,6 +51,12 @@ export function AgentConnection({ definition, bindings, current, configurationKe
     ...fresh.map(agent => ({ key: `agent:${agent.id}`, name: agent.name, targetId: undefined, agent }))]
   const chosen = choices.find(item => item.key === choice)
     ?? choices.find(item => item.targetId === definition.route.targetIds?.[0]) ?? choices[0]
+  const known: readonly AgentSummary[] = directory.state.status === 'ready' ? directory.state.data.agents : []
+  const clientOf = (item: AutomationTarget | undefined) => item ? workers.data.profiles.find(profile => profile.id === item.configuration.connectionProfileId)?.configuration.authorizedClientId : undefined
+  const chosenAgent = chosen?.agent ?? known.find(agent => agent.id === clientOf(target ?? targets.find(item => item.id === chosen?.targetId)))
+  // The consent that allowed rule work is the Owner's permit; that agent binds itself on first contact.
+  const selfPairing = chosenAgent?.kind === 'oauth_client' && chosenAgent.scopes.includes('automation:work')
+  const needsPermission = chosenAgent?.kind === 'oauth_client' && !selfPairing
 
   useEffect(() => {
     if (prepared || target || !current || (choice && choice !== `target:${current.definition.route.targetIds?.[0]}`)) return
@@ -120,15 +130,27 @@ export function AgentConnection({ definition, bindings, current, configurationKe
     } finally { if (mounted.current) setBusy(false) }
   }
 
-  const request = target ? [
+  const wake = target?.wakeMode === 'events'
+    ? 'If your host supports MCP Events, subscribe and verify its callback so you can receive future tasks. Otherwise explain that background execution is unavailable; do not claim it is enabled.'
+    : 'Run the selected test using the automation.jobs tools. Future tasks require a recurring invocation in your host; if unavailable, explain that background execution is unavailable.'
+  // No identifiers for a self-pairing agent: it finds its own inbox. A key-based worker gets the code and target.
+  const request = !target ? '' : selfPairing ? [
+    `Check my COLP automations at ${window.location.origin} over your COLP MCP connection.`,
+    'Call automation.targets.mine to find your inbox, then automation.jobs.list to pick up waiting tasks.',
+    wake,
+    'Read only the allowed job inputs, submit typed results, and preserve the approval requirement.',
+  ].join(' ') : [
     `Connect to my COLP server at ${window.location.origin} using your authenticated MCP connection with automation:work permission.`,
     ...(grant?.code ? [`Call automation.targets.pair with pairingId=${grant.pairingId}, code=${grant.code}, commandId=${commandId}.`] : []),
     `Use only target ${target.id}. Reconcile work with automation.jobs.list.`,
-    target.wakeMode === 'events'
-      ? 'If your host supports MCP Events, subscribe and verify its callback so you can receive future tasks. Otherwise explain that background execution is unavailable; do not claim it is enabled.'
-      : 'Run the selected test using the automation.jobs tools. Future tasks require a recurring invocation in your host; if unavailable, explain that background execution is unavailable.',
+    wake,
     'Read only the allowed job inputs, submit typed results, and preserve the approval requirement.',
-  ].join(' ') : ''
+  ].join(' ')
+  const waiting = target?.wakeReadiness === 'waitingForPairing'
+  const waitingCopy = !target ? '' : !waiting ? readinessReason(target.wakeReason)
+    : selfPairing ? `Waiting for ${chosenAgent.name} to connect. It pairs by itself the next time it talks to this server. Open a chat with it and ask it to check your COLP automations.`
+    : 'Paste the connection request into your AI to continue here.'
+  const newRequestNeeded = !selfPairing && ['waitingForPairing', 'blocked'].includes(target?.wakeReadiness ?? '') && !grant?.code
   const preparedCurrent = prepared && prepared.key === JSON.stringify(definition) && configurationReady
   const active = target?.wakeReadiness === 'active'
   const fieldNames = { url: 'links', title: 'titles', description: 'descriptions', note: 'notes', tags: 'tags', metadata: 'metadata', readableText: 'page text', folderDefinitions: 'folder definitions' }
@@ -145,18 +167,21 @@ export function AgentConnection({ definition, bindings, current, configurationKe
     </div>
     {(directory.state.status === 'error' || workers.data.status === 'error') && <p role="alert">Could not load AI connections. <button type="button" className="btn btn-ghost btn-sm" onClick={() => { directory.reload(); workers.reload() }}>Try again</button></p>}
     <p className="field-hint">Shares {sharedFields} for this rule. Changes require your approval. Provider charges may apply.</p>
-    {(!preparedCurrent || !target) && chosen && <button type="button" className="btn btn-secondary" disabled={disabled || busy || !canPrepare || !bindings} onClick={() => void prepare()}>
+    {needsPermission && !target && <p className="field-hint" role="status" data-testid="automation-agent-permission">
+      {chosenAgent.name} signed in without permission to do rule work. Reconnect it and allow “Do rule work” on the sign-in page; it then pairs by itself, with no code.
+    </p>}
+    {(!preparedCurrent || !target) && chosen && <button type="button" className="btn btn-secondary" disabled={disabled || busy || !canPrepare || !bindings || needsPermission} onClick={() => void prepare()}>
       {busy ? 'Connecting…' : 'Connect and test'}
     </button>}
     {target && preparedCurrent && <>
       {!active && <div role="status">
-        <p>{target.wakeReadiness === 'waitingForPairing' ? 'Paste the connection request into your AI to continue here.' : readinessReason(target.wakeReason)}</p>
-        {['waitingForPairing', 'blocked'].includes(target.wakeReadiness) && !grant?.code
+        <p>{waitingCopy}</p>
+        {newRequestNeeded
           ? <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void newRequest()}>Make a new connection request</button>
           : <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void copyTextToClipboard(request).then(() => setNotice('Copied. Paste it into your AI.')).catch(() => setNotice('Open the connection request below and copy it manually.'))}>Copy connection request</button>}
-        {grant?.code && <p className="field-hint">One use. Expires {formatDateTime(grant.expiresAt)}.</p>}
-        {(grant?.code || target.wakeReadiness === 'waitingForSubscription') && <details className="automation-disclosure"><summary>View connection request</summary><CommandBlock label="connection request" command={request} /></details>}
-        <p className="field-hint">A connected chat may need a new sign-in for task permission. It must support background execution to keep running future tasks.</p>
+        {grant?.code && !selfPairing && <p className="field-hint">One use. Expires {formatDateTime(grant.expiresAt)}.</p>}
+        {(selfPairing || grant?.code || target.wakeReadiness === 'waitingForSubscription') && <details className="automation-disclosure"><summary>View connection request</summary><CommandBlock label="connection request" command={request} /></details>}
+        <p className="field-hint">{selfPairing ? 'It must support background execution to keep running future tasks.' : 'A connected chat may need a new sign-in for task permission. It must support background execution to keep running future tasks.'}</p>
       </div>}
       {active && <p role="status">Paired. Run a test to check that this AI can execute tasks.</p>}
       {active && <><button type="button" className="btn btn-secondary btn-sm" onClick={() => void copyTextToClipboard(request).then(() => setNotice('Copied. Paste it into your AI after starting the test.')).catch(() => setNotice('Open the connection request and copy it manually.'))}>Copy task request</button>

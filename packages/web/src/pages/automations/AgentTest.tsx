@@ -66,7 +66,7 @@ export function AgentTest({ rule, connected, onVerified }: { rule: AutomationRul
         }
         if (latest.status === 'cancelled') { setNotice('Test cancelled.'); return }
         if (Date.now() - started > 30_000 && tasks.every(job => ['ready', 'pending'].includes(job.status)))
-          setNotice('The AI has not picked up this test. Paste the connection request into it; pairing alone does not start background execution.')
+          setNotice('The AI has not picked up this test. Ask it to check your COLP automations, or paste the task request into it; pairing alone does not start background execution.')
       } catch (error) {
         if (!controller.signal.aborted) setNotice(errorMessage(error, 'Could not check the test. Retrying.'))
       }

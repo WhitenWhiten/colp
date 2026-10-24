@@ -21,6 +21,7 @@ import {
   hasCatalog,
   originHint,
   pairingRefusal,
+  pairsBySignIn,
   READINESS,
   readinessReason,
   withCatalog,
@@ -224,12 +225,15 @@ function WorkerCard({
   grant,
   origin,
   workers,
+  selfPairing,
 }: {
   target: AutomationTarget
   profileName: string | null
   grant: IssuedGrant | null
   origin: string
   workers: AutomationWorkers
+  /** Its agent allowed rule work at sign-in, so it pairs on its own next call. */
+  selfPairing: boolean
 }) {
   const confirm = useConfirm()
   const { success, error: toastError } = useToast()
@@ -309,7 +313,9 @@ function WorkerCard({
       </header>
 
       <p className="agents-worker-reason" data-testid="worker-reason">
-        {unpaired && grant?.grant.code ? 'Waiting for the worker to use the code below.' : readinessReason(target.wakeReason)}
+        {unpaired && grant?.grant.code ? 'Waiting for the worker to use the code below.'
+          : unpaired && selfPairing ? `Waiting for ${profileName ?? 'its agent'} to connect. It pairs by itself the next time it talks to this server.`
+          : readinessReason(target.wakeReason)}
       </p>
       <dl className="agents-worker-facts">
         <div><dt>Learns about work</dt><dd>{wakeLine(target)}</dd></div>
@@ -427,6 +433,7 @@ function NewWorker({ workers, profiles, agents, originLocal, onCreated, onShowSt
 
   const agentName = runsAs.name
   const turnsOn = !runsAs.profile || !canDoRuleWork(runsAs.profile)
+  const selfPairs = pairsBySignIn(agents.find((item) => item.id === runsAs.agentId))
   const minutes = Number(pollMinutes)
   const minutesValid = Number.isInteger(minutes) && minutes >= 1 && minutes <= 1440
   const chosen = [
@@ -474,8 +481,9 @@ function NewWorker({ workers, profiles, agents, originLocal, onCreated, onShowSt
         connectionProfileId: profile.id,
         wakeMode,
         ...(wakeMode === 'poll' ? { pollIntervalMinutes: minutes } : {}),
-      })
+      }, { pair: !selfPairs })
       if (pairingError) toastError(`Added “${workerName}”, but it isn’t paired yet. ${pairingRefusal(pairingError)}`)
+      else if (selfPairs) success(`Added “${workerName}”. It pairs by itself the next time ${agentName} talks to this server.`)
       else success(`Added “${workerName}”. Copy its pairing settings now.`)
       onCreated()
     } catch (failure) {
@@ -526,9 +534,11 @@ function NewWorker({ workers, profiles, agents, originLocal, onCreated, onShowSt
       </div>
       <p className="agents-note" data-testid="worker-agent-note">
         {candidates.length === 1 && <>Runs as <strong>{agentName}</strong>. </>}
-        {turnsOn
-          ? <>Adding it also lets {candidates.length === 1 ? 'this agent' : <strong>{agentName}</strong>} do rule work.</>
-          : 'You get its one-use pairing code straight away.'}
+        {selfPairs
+          ? <>It pairs by itself the next time {candidates.length === 1 ? 'this agent' : <strong>{agentName}</strong>} talks to this server; there is no code to copy.</>
+          : turnsOn
+            ? <>Adding it also lets {candidates.length === 1 ? 'this agent' : <strong>{agentName}</strong>} do rule work.</>
+            : 'You get its one-use pairing code straight away.'}
       </p>
 
       <details
@@ -614,7 +624,7 @@ function NewWorker({ workers, profiles, agents, originLocal, onCreated, onShowSt
       </details>
 
       {error && <p className="field-error" role="alert">{error}</p>}
-      <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? 'Adding…' : 'Add and pair'}</button>
+      <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? 'Adding…' : selfPairs ? 'Add' : 'Add and pair'}</button>
     </form>
   )
 }
@@ -639,6 +649,7 @@ export function AutomationWorkersSection({
   const [adding, setAdding] = useState(false)
   const { data } = workers
   const profileName = (id: string) => data.profiles.find((profile) => profile.id === id)?.configuration.name ?? null
+  const agentOf = (profileId: string) => agents.find((agent) => agent.id === data.profiles.find((profile) => profile.id === profileId)?.configuration.authorizedClientId)
   const agentIds = new Set(agents.map((agent) => agent.id))
   const orphans = data.profiles.filter((profile) => !agentIds.has(profile.configuration.authorizedClientId))
   const active = data.targets.filter((target) => target.wakeReadiness !== 'disabled')
@@ -658,7 +669,8 @@ export function AutomationWorkersSection({
         )}
       </div>
       <p className="agents-note">
-        Agents that do the work your rules ask for, such as summaries or tags. Each worker pairs once with a one-use code.
+        Agents that do the work your rules ask for, such as summaries or tags. An agent that allowed “Do rule work” when it
+        signed in becomes a worker on its own; a script on an API key pairs once with a one-use code.
         Your bookmarks are still filed when no worker is running; their tasks wait.
       </p>
 
@@ -711,6 +723,7 @@ export function AutomationWorkersSection({
                 grant={workers.grant?.targetId === target.id ? workers.grant : null}
                 origin={origin}
                 workers={workers}
+                selfPairing={pairsBySignIn(agentOf(target.configuration.connectionProfileId))}
               />
             </li>
           ))}

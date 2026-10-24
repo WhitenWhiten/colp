@@ -12,6 +12,16 @@ server-owned model. No Web or extension client is required.
 
 ## Connect
 
+An agent that signs in over OAuth needs none of the steps below. Allow **Do rule work**
+on its consent page (the `automation:work` scope) and it becomes a worker the first time it
+talks to this server: the server registers it with one standard inbox, or adopts the
+registration the rule editor made for it, and pairs it with no code. The agent finds its
+inbox with `automation.targets.mine`, lists work with `automation.jobs.list` and, where the
+server has MCP Events, subscribes to `colp.automation.triggered` for that target. Turning
+“Do rule work” off on the Agents page stops it; turning it back on re-pairs it on its next
+call. The steps that follow are for a script on an API key, whose token scopes are the
+script's choice rather than the Owner's.
+
 1. Enable the server automation runtime and worker features. As Owner, give the
    worker a dedicated credential with `automation:work`; an API key issued on Agents
    works. Add ordinary collection read scopes only when separately needed;

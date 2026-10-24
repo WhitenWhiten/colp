@@ -131,6 +131,10 @@ export function ConnectGuide({
                 the cloud, such as claude.ai or ChatGPT connectors, reach this server over the internet and need its
                 public HTTPS address.
               </p>
+              <p className="agents-note">
+                To let this agent run your automation rules, allow <strong>Do rule work</strong> on that consent page. It then
+                becomes a worker on its own the first time it talks to this server; there is no pairing code.
+              </p>
               <details className="agents-example">
                 <summary>Client asks for a client ID?</summary>
                 <p className="agents-note">
@@ -150,6 +154,10 @@ export function ConnectGuide({
         {client === 'worker' && automationOrigin && (
           <ol className="agents-steps">
             <Step title="Give it its own key">
+              <p className="agents-note">
+                These steps are for a script. An agent that signed in over OAuth and allowed “Do rule work” needs none of them: it
+                pairs by itself on its next call.
+              </p>
               <p className="agents-note">
                 Issue an API key for the worker alone (the API key tab); it then shows under Connected agents. The worker trades
                 it for a token with the <code>automation:work</code> permission. It needs no permission to change your library:

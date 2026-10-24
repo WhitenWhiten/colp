@@ -8,6 +8,7 @@ import type {
   AutomationTarget,
   AutomationTargetInput,
 } from '../../api/automationTypes'
+import type { AgentSummary } from '../../api/agentsClient'
 import { ProductApiError } from '../../api/errors'
 import type { StatusTone } from '../../components/StatusBadge'
 
@@ -99,8 +100,10 @@ export function useAutomationWorkers(enabled: boolean, api: AutomationApi = auto
      * the next thing on screen. The worker exists even when pairing is
      * refused; that refusal comes back instead of being thrown.
      */
-    async addWorker(input: AutomationTargetInput): Promise<{ target: AutomationTarget; pairingError: unknown }> {
+    async addWorker(input: AutomationTargetInput, options: { pair?: boolean } = {}): Promise<{ target: AutomationTarget; pairingError: unknown }> {
       const target = await api.createTarget(input)
+      // An agent that allowed rule work at sign-in pairs by itself on its next call: no code to show.
+      if (options.pair === false) { reload(); return { target, pairingError: null } }
       try {
         const issued = await api.issuePairing(target.id, target.revision)
         if (mounted.current) setGrant({ targetId: target.id, grant: issued, commandId: crypto.randomUUID() })
@@ -182,6 +185,11 @@ export function originHint(origin: string): OriginHint {
   } catch {
     return 'local'
   }
+}
+
+/** An OAuth sign-in that allowed rule work is the Owner's permit: that agent pairs by itself, with no code. */
+export function pairsBySignIn(agent: Pick<AgentSummary, 'kind' | 'scopes'> | undefined): boolean {
+  return agent?.kind === 'oauth_client' && agent.scopes.includes('automation:work')
 }
 
 /** May this agent's connection do rule work now, without changing its opt-ins? */
