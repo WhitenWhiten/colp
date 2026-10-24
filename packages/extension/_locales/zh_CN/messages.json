@@ -155,6 +155,10 @@
     "message": "登录窗口未完成登录，请重试。",
     "description": "The sign-in window did not complete. Try again."
   },
+  "auth_signedInSetupFailed": {
+    "message": "你已登录，但 Know-N 未能完成同步设置。请稍后再试。",
+    "description": "You are signed in, but Know-N could not finish setting up sync. Try again in a moment."
+  },
   "auth_signingOut": {
     "message": "正在退出登录…",
     "description": "Signing out…"
@@ -6735,6 +6739,10 @@
     "message": "高级同步策略",
     "description": "Advanced sync policy"
   },
+  "options_againToResumeSync": {
+    "message": "以恢复同步",
+    "description": "again to resume sync"
+  },
   "options_allowOptionalBookmarksPermission": {
     "message": "允许书签访问，即可在此浏览和整理书签。你可以随时在 常规 › 权限 中移除。",
     "description": "Allow bookmark access to browse and organize bookmarks here. You can remove it any time under General › Permissions."
@@ -7034,6 +7042,14 @@
   "options_signViewCredits": {
     "message": "登录后即可查看你的积分。",
     "description": "Sign in to view your credits."
+  },
+  "options_signedInNotReady": {
+    "message": "已登录，同步尚未就绪",
+    "description": "Signed in, sync is not ready"
+  },
+  "options_signedOutKept": {
+    "message": "同步已暂停。你的书签和尚未同步的更改都保留在此设备上。",
+    "description": "Sync is paused. Your bookmarks and any changes that have not synced yet are kept here."
   },
   "options_staySignedIn": {
     "message": "保持登录",

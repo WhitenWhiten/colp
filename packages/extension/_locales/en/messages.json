@@ -122,6 +122,9 @@
   "auth_signWindowDidNot": {
     "message": "The sign-in window did not complete. Try again."
   },
+  "auth_signedInSetupFailed": {
+    "message": "You are signed in, but Know-N could not finish setting up sync. Try again in a moment."
+  },
   "auth_signingOut": {
     "message": "Signing out…"
   },
@@ -5267,6 +5270,9 @@
   "options_advancedSyncPolicy": {
     "message": "Advanced sync policy"
   },
+  "options_againToResumeSync": {
+    "message": "again to resume sync"
+  },
   "options_allowOptionalBookmarksPermission": {
     "message": "Allow bookmark access to browse and organize bookmarks here. You can remove it any time under General › Permissions."
   },
@@ -5491,6 +5497,12 @@
   },
   "options_signViewCredits": {
     "message": "Sign in to view your credits."
+  },
+  "options_signedInNotReady": {
+    "message": "Signed in, sync is not ready"
+  },
+  "options_signedOutKept": {
+    "message": "Sync is paused. Your bookmarks and any changes that have not synced yet are kept here."
   },
   "options_staySignedIn": {
     "message": "Stay signed in"
