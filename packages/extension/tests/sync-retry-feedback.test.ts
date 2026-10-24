@@ -2,7 +2,8 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { afterEach, describe, test, vi } from 'vitest';
-import { settleManualRetry } from '../src/sw/manual-retry.js';
+import { requestExplicitSyncRetry, takeExplicitSyncRetry } from '../src/sw/explicit-retry.js';
+import { runManualRetry, settleManualRetry } from '../src/sw/manual-retry.js';
 import { bindSyncAttentionSettings } from '../src/sync-attention-ui.js';
 import { retryOutcomeCopy, syncRetryReading } from '../src/sync-attention-view.js';
 import type { PublicSyncAttention } from '../src/types.js';
@@ -33,6 +34,44 @@ describe('the worker answers after the pass', () => {
   test('a pass that throws is a failure with its code, not a success', async () => {
     const response = await settleManualRetry(Promise.reject(new Error('indexeddb_unavailable')), error => (error as Error).message);
     assert.deepEqual(response, { ok: false, error: 'indexeddb_unavailable' });
+  });
+});
+
+describe('the person\'s Retry is one path: the request, the pass, the answer', () => {
+  test('the pass is asked for after the request is recorded, and consumes it exactly once', async () => {
+    const order: string[] = [];
+    const response = await runManualRetry({
+      request: () => { order.push('request'); requestExplicitSyncRetry(); },
+      wake: async () => { order.push(`wake:${takeExplicitSyncRetry()}`); },
+      describeError: () => 'x',
+    });
+    assert.deepEqual(order, ['request', 'wake:true']);
+    assert.deepEqual(response, { ok: true, settled: true });
+    assert.equal(takeExplicitSyncRetry(), false, 'a later automatic manual wake is not the person\'s Retry');
+  });
+
+  test('a pass that fails is logged and answered with its code; the request was still recorded', async () => {
+    const logged: unknown[] = [];
+    const requested = vi.fn();
+    const response = await runManualRetry({ request: requested, wake: () => Promise.reject(new Error('indexeddb_unavailable')),
+      describeError: error => (error as Error).message, onError: error => logged.push(error) });
+    assert.deepEqual(response, { ok: false, error: 'indexeddb_unavailable' });
+    assert.equal(requested.mock.calls.length, 1);
+    assert.equal(logged.length, 1);
+  });
+
+  test('a wake that throws before it returns a promise is answered the same way', async () => {
+    const response = await runManualRetry({ request: () => undefined, wake: () => { throw new Error('scope_unavailable'); },
+      describeError: error => (error as Error).message });
+    assert.deepEqual(response, { ok: false, error: 'scope_unavailable' });
+  });
+
+  test('still running when the pass outlasts the wait', async () => {
+    vi.useFakeTimers();
+    const answer = runManualRetry({ request: () => undefined, wake: () => new Promise<void>(() => undefined), describeError: () => 'x',
+      waitMilliseconds: 1_000 });
+    await vi.advanceTimersByTimeAsync(1_000);
+    assert.deepEqual(await answer, { ok: true, settled: false });
   });
 });
 
