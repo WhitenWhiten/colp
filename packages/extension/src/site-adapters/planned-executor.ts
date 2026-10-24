@@ -63,7 +63,7 @@ export function createPlannedSaveExecutor(db: SourceDatabase, ports: PlannedExec
             if (c.value.id === effect.reservationId && c.value.mountId === plan.mount!.id) return resolve(c.value); c.continue(); };
         });
       });
-      if (!candidates || effect.folderReservationDigest !== candidates.payloadDigest || candidates.mountRevision !== plan.mount.revision) throw new Error('mountChanged');
+      if (!candidates || effect.folderReservationDigest !== candidates.payloadDigest) throw new Error('mountChanged');
       return { commandId: candidates.commandId, logicalDigest: candidates.payloadDigest, folder: candidates };
     }
     if (effect.kind === 'createBookmark') {

@@ -206,6 +206,8 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
       await checkMount(m, decision.folder.nativeId);
       const folder = await db.read<SourceFolderReservation>('folderReservations', sourceKey(m.id, fence.collection.id));
       if (!folder || folder.payloadDigest !== effect.folderReservationDigest) throw new Error('folderChanged');
+      // The immutable creation revision may predate an AI policy change. Root identity must still match.
+      if (folder.parent.kind !== 'native' || sourceDigest(folder.parent.binding) !== sourceDigest(m.root)) throw new Error('mountChanged');
       await assertFolder(folder);
     },
     /** Browser events retain historical associations. Deletions suppress; edits detach. */

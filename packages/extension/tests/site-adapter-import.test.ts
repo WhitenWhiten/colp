@@ -201,3 +201,20 @@ test('single-copy source planning requires an eligible primary and reuses the co
   expect((await f.layout.plan({ ...input, collectionId: '102' })).status).toBe('represented');
   expect(f.counts).toEqual({ folder: 1, bookmark: 1 }); await f.db.close();
 });
+
+test('AI eligibility changes preserve confirmed folder reuse while fencing old plans', async () => {
+  const f = await fixture(), { id } = await f.scan(), preview = await f.freeze(id);
+  await f.importer.approve({ jobId: id, previewId: preview.id, revision: preview.revision, digest: preview.digest });
+  await f.importer.wake();
+  await f.layout.configureMount(f.context().connectionId, 'rule', 'allowed');
+  const item = { ...video, id: 'video:av:3', url: 'https://www.bilibili.com/video/av3' };
+  const receipt = await f.ledger.acceptObservation(f.context(), 'after-ai-change', { type: 'membership.observed', item, memberships: { mode: 'delta', added: ['101'], removed: [] } });
+  if (receipt.status === 'rejected') throw new Error(receipt.reason);
+  const result = await f.layout.plan({ context: f.context(), itemId: item.id, collectionId: '101', entry: 'reconcile', trigger: { kind: 'observation', observationId: receipt.receiptId } });
+  if (result.status !== 'planned') throw new Error(result.status);
+  for (const e of result.plan.effects) expect((await f.executor.execute(result.plan.id, e.effectId)).status).toBe('confirmed');
+  expect(f.counts).toEqual({ folder: 2, bookmark: 3 });
+  await f.layout.configureMount(f.context().connectionId, 'rule', 'excluded');
+  await expect(f.layout.authorize(result.plan, result.plan.effects[0]!)).rejects.toThrow('mountChanged');
+  await f.db.close();
+});
