@@ -553,7 +553,9 @@ export function createDurableSyncEngine(options: EngineOptions) {
     const notBefore = retryAt === undefined
       ? (prior.notBefore > now() ? prior.notBefore : idle) : Math.max(now(), retryAt);
     const next = await transition('sleeping', { sessionId: session.sessionId, notBefore, networkBackoffCount: 0 });
-    try { await options.store.compactScope(options.scope, { now: now() }); }
+    try { const report = await options.store.compactScope(options.scope, { now: now() });
+      // W2A-12: a damaged saved row was stepped over; it stays, and everything around it is still reclaimed.
+      if (report?.damagedRows || report?.pruned?.damaged) await recordRecoveryDiagnostic(options.store, options.scope, 'idle_compaction', 'compaction_rows_damaged'); }
     catch { await recordRecoveryDiagnostic(options.store, options.scope, 'idle_compaction', 'compaction_failed'); }
     options.schedule?.(Math.max(1_000, next.notBefore - now())); return next; }
   async function offline(error: unknown) { const prior = await state();
