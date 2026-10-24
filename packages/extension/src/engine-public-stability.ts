@@ -1,6 +1,7 @@
 import { isOpenQueueIssue } from './sync-state/open-issue-facts.js';
 import { classifySyncFailure } from './sync-failure-class.js';
 import { needsMoveAuthorityRefresh } from './move-authority.js';
+import { isPlacementRefusal } from './placement-refusal.js';
 import type { QueueOperation } from './sync-state-store.js';
 export function cooldownIsPending(input: {
   readonly now: number | undefined;
@@ -66,7 +67,10 @@ export function stalledUploadHead(rows: readonly QueueOperation[]): { readonly r
   const head = [...rows].filter((row) => UNSETTLED_STATUSES.has(row.status)).sort((left, right) => left.sequence - right.sequence)[0];
   if (!head || head.retry.attempt < STALLED_UPLOAD_ATTEMPTS) return undefined;
   if (needsMoveAuthorityRefresh(head)) return { row: head, code: head.recovery!.code };
-  if (head.attempt === undefined) return undefined;
+  // A definitive placement refusal clears the attempt, so the refused head waits unsent: still the lane's problem.
+  if (head.attempt === undefined) {
+    return head.recovery && isPlacementRefusal(head.recovery.code) ? { row: head, code: head.recovery.code } : undefined;
+  }
   const code = head.status === 'deferred' ? 'push_deferred' : head.recovery?.code;
   if (!code) return undefined;
   const policy = classifySyncFailure(code);

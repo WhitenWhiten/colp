@@ -21,8 +21,9 @@ import type { SyncEndpoints } from './manifest-client.js';
 import { parseColpProblem, parseSyncPushResult } from './sync-push-wire.js';
 
 import { bindAuthoredMountReceipt } from './push-mount-role.js';
-import { rebaseTombstonedCreate, retainValidPlacementAnchors } from './tombstone-parent-rebase.js';
-import { rebaseStaleCreatePlacement, savedCreatePlacement } from './create-placement-rebase.js';
+import { retainValidPlacementAnchors } from './tombstone-parent-rebase.js';
+import { savedCreatePlacement } from './create-placement-rebase.js';
+import { rebaseRetriedCreate } from './create-anchor-rebase.js';
 import { pushRecoveryBarrierActive, releaseClaimForRecovery } from './push-recovery-barrier.js';
 import { liveCreateNativeId, plannedCreateNativeId } from './bookmark-event-codec.js';
 import { findProcessedMoveEvent } from './bookmark-event-pages.js';
@@ -508,13 +509,9 @@ export function createOutboundPushWorker(options: WorkerOptions) {
   }
 
   /** Recover legacy creates; authored save placement instead requires its original parent. */
-  async function rebaseCreatePlacement(queue: QueueOperation, fence: number):
-  Promise<QueueOperation | 'terminal' | 'unknown' | 'recovery'> {
-    const parent = await rebaseTombstonedCreate({ store: options.store, scope: options.scope, queue, ownerId, fence,
-      refreshPlacement: options.refreshPlacement, digestJson });
-    if (typeof parent === 'string' || parent.digest !== queue.digest || parent.idempotencyKey !== queue.idempotencyKey) return parent;
-    return rebaseStaleCreatePlacement({ store: options.store, scope: options.scope, queue: parent, ownerId, fence, digestJson,
-      readChildrenOrder: options.readChildrenOrder,
+  function rebaseCreatePlacement(queue: QueueOperation, fence: number) {
+    return rebaseRetriedCreate({ store: options.store, scope: options.scope, queue, ownerId, fence, digestJson,
+      refreshPlacement: options.refreshPlacement, readChildrenOrder: options.readChildrenOrder,
       defer: code => persistUnknown(queue, fence, code, null, true) });
   }
   async function authoredSourceParent(opId: string, destId: string) {
