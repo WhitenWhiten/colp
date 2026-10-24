@@ -114,6 +114,11 @@ test('pending deletion allows unrelated live sync; delayed web Rebuild recognize
     const held = await evidence(page, 'exportOutboundPushEvidence');
     expect(held.queue.some((row: any) => row.status === 'set_aside' && !row.attempt
       && row.payload.payload?.node?.url === 'https://example.test/resilience/related')).toBe(true);
+    await page.bringToFront();
+    const progress: any = await page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.sync.progress.get' }));
+    expect(progress.ok, JSON.stringify(progress)).toBe(true);
+    expect(progress.progress.issueCount).toBeGreaterThan(0);
+    await expect(page.locator('#sync-progress-title')).toHaveText('Action required', { timeout: 35000 });
     expect(await page.evaluate(id => chrome.bookmarks.get(id).then(nodes => nodes.length), bookmark.id)).toBe(1);
     await evidence(page, 'reportReplicaHealthEvidence');
     await refresh(web); await expect(web.locator('.replica-card').filter({ hasText: /items? on this browser/ })).toBeVisible();
@@ -138,13 +143,18 @@ test('pending deletion allows unrelated live sync; delayed web Rebuild recognize
     expect(retired.health.commands[0]).toMatchObject({ action: 'rebuild', state: 'done', resultCode: null });
     expect(await currentReplica(page)).toBe(replacement);
     await refresh(web); await expect(web.getByText(/Sync on this browser was reset/)).toBeVisible();
-    await page.reload(); await completeSetup(page);
+    await expect(page.locator('#first-run-start')).toBeVisible();
+    await completeSetup(page);
+    await expect.poll(async () => ((await stack.observations()).canonicalNodes as any[])
+      .some(node => node.url === 'https://example.test/resilience/related' && node.deleted_at === null),
+    { timeout: 45000 }).toBe(true);
     await pendingDelete(page, stack, String(independent.url));
     await webRebuild(web); await evidence(page, 'reportReplicaHealthEvidence');
     await expect.poll(async () => (await status(web)).replicas.find((r: any) => r.id === replacement).health.commands[0].state).toBe('done');
     const final = (await status(web)).replicas.find((r: any) => r.id === replacement);
     expect(final.health.code).toBe('replica_rebuilt');
     expect(await currentReplica(page)).not.toBe(replacement);
+    await expect(page.locator('#first-run-start')).toBeVisible();
     expect(await page.evaluate(id => chrome.bookmarks.get(id).then(nodes => nodes.length), independent.id)).toBe(1);
     await refresh(web); await expect(web.getByText(/Sync on this browser was reset/).last()).toBeVisible();
   } finally { stack.resilience?.releaseCommandResponse(); await context?.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }

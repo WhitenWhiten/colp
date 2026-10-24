@@ -22,6 +22,7 @@ import { bindImport } from './sync-import.js';
 import { bindFirstRunOnboarding } from './first-run-ui.js';
 import { FIRST_RUN_DRAFT } from './first-run-draft.js';
 import { signedInSyncStatus } from './sync-label.js';
+import { REPLICA_REBUILD_JOURNAL } from './replica-rebuild.js';
 import { bindOptionsSyncProgress } from './sync-progress-dom.js';
 import { bindRangeAdjustment } from './range-ui.js';
 import { showToast } from './toast.js';
@@ -114,7 +115,7 @@ let renderTurn = 0;
 const personalSync = bindPersonalSyncControls(element('personal-sync-settings'));
 const refreshEngineStatus = bindSyncChipRefresh(hubChrome, { connected: () => connected,
   read: async () => { const status = await signedInSyncStatus(); accountView.setSyncStatus(status.label); return status; },
-  keys: [FIRST_RUN_DRAFT, COLLECTION_BINDING], keyPrefixes: [PERSONAL_SYNC_PREFIX] });
+  keys: [FIRST_RUN_DRAFT, COLLECTION_BINDING, REPLICA_REBUILD_JOURNAL], keyPrefixes: [PERSONAL_SYNC_PREFIX] });
 const syncProgress = bindOptionsSyncProgress({ connected: () => connected });
 const NOTICE_PANES = new Set<HubPane>(['saving', 'ai', 'subscriptions']);
 const folders = bindFolders({ isConnected: () => connected, firstRun: () => firstRun });
@@ -139,8 +140,13 @@ async function refreshLibrary(): Promise<void> {
 chrome.storage.onChanged.addListener((changes, area) => {
   const resumed = Object.entries(changes).some(([key, change]) => key.startsWith(PERSONAL_SYNC_PREFIX)
     && parsePersonalSyncPolicy(change.newValue).mode === 'enabled');
-  if (area === 'local' && (COLLECTION_BINDING in changes || LIBRARY_STATE in changes || resumed)) {
-    void refreshLibrary().then(() => { if (connected) void folders.load(); });
+  const rebuilt = REPLICA_REBUILD_JOURNAL in changes && changes[REPLICA_REBUILD_JOURNAL].newValue === undefined;
+  if (area === 'local' && (COLLECTION_BINDING in changes || LIBRARY_STATE in changes || resumed || rebuilt)) {
+    void refreshLibrary().then(() => {
+      if (!connected) return;
+      if (rebuilt) firstRun.onSignedIn(true, document.body.dataset.library === 'ready');
+      void folders.load();
+    });
   }
 });
 

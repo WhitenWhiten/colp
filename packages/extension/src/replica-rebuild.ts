@@ -50,9 +50,11 @@ export function createReplicaRebuilder(deps: ReplicaRebuildDeps) {
     const credential = await deps.credentials.loadCredential();
     const authority = await deps.credentials.fence.read();
     if (authority.revoked || authority.generation !== value.authorityGeneration
-        || !credential?.subject || credential.subject !== value.scope.accountId || credential.serverOrigin !== value.scope.serverOrigin) {
+        || credential && (credential.subject !== value.scope.accountId || credential.serverOrigin !== value.scope.serverOrigin)) {
       await deps.journal.remove(REPLICA_REBUILD_JOURNAL); return undefined;
     }
+    // The journal is durable; the credential is cleared on browser restart.
+    // Its temporary absence does not revoke the owner's confirmed reset.
     return value;
   }
   async function inspect(serverRetiredScope?: SyncScope): Promise<{ scope: SyncScope; preview: ReplicaRebuildPreview }> {
@@ -77,6 +79,7 @@ export function createReplicaRebuilder(deps: ReplicaRebuildDeps) {
   }
   async function resume(): Promise<boolean> {
     const plan = await pending(); if (!plan) return false;
+    if (!await deps.credentials.loadCredential()) throw new Error('not_connected');
     const current = await deps.currentScope();
     const expected = current.replicaId === plan.nextBinding.replicaId
       ? { ...plan.scope, replicaId: plan.nextBinding.replicaId, generation: Number(plan.nextBinding.generation) } : plan.scope;

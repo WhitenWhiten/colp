@@ -46,6 +46,9 @@ function stallNote(progress: PublicSyncProgress, status: SyncStatus | undefined)
   if (progress.retryAutomatic === false) {
     return t('syncProgress_stopped', 'Sync on this device has stopped. Open Status to review the problem.');
   }
+  if ((progress.issueCount ?? 0) > 0) {
+    return t('syncProgress_attention', 'Sync needs your attention. Open Status to see what is waiting.');
+  }
   switch (status?.kind) {
     case 'paused': return t('syncProgress_paused', 'Nothing syncs until you resume. Changes you make meanwhile sync after that.');
     case 'waiting-network': return t('syncProgress_waitingNetwork', 'Waiting for the network. Sync continues when you’re back online.');
@@ -68,7 +71,8 @@ export function describeSyncProgress(progress: PublicSyncProgress | null | undef
   const { bookmarks, folders } = progress;
   const total = bookmarks.total + folders.total; const synced = bookmarks.synced + folders.synced;
   const paused = status?.kind === 'paused' && progress.stage !== 'done';
-  const blocked = progress.retryAutomatic === false || status?.kind === 'action-required' || status?.kind === 'review-conflicts';
+  const blocked = (progress.issueCount ?? 0) > 0 || progress.retryAutomatic === false
+    || status?.kind === 'action-required' || status?.kind === 'review-conflicts';
   const blockedTitle = t('sync_actionRequired', 'Action required');
   const pausedTitle = progress.firstSync
     ? t('syncProgress_firstPausedTitle', 'First sync paused') : t('syncProgress_pausedTitle', 'Sync paused');

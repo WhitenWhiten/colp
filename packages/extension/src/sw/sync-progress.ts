@@ -2,14 +2,15 @@ import { personalTreeApi } from '../bookmark-subscriptions/personal-boundary.js'
 import { scanBoundary } from '../bookmark-boundary.js';
 import { createChromeBookmarkTreeAdapter } from '../chrome-bookmark-tree.js';
 import { projectSyncProgress } from '../sync-progress.js';
+import { readOpenSyncIssues } from '../sync-issues.js';
 import { syncAttentionTerminalCode } from '../sync-attention-ui.js';
 import type { SyncScope } from '../sync-state-store.js';
 import type { SyncProgressResponse } from '../types.js';
 import { hasBookmarkPermission, syncState } from './runtime.js';
 import { currentSyncScope } from './scope.js';
 
-/** Queue rows that still have to reach the server, held ones included. `rejected` is settled history. */
-const LIVE_STATUSES = ['pending', 'claimed', 'deferred', 'unknown', 'gap', 'blocked', 'set_aside'] as const;
+/** Rows the lane can still drain. Isolated or rejected changes are reported as issues. */
+const LIVE_STATUSES = ['pending', 'claimed', 'deferred', 'unknown', 'gap', 'blocked'] as const;
 
 /**
  * `known.sync.progress.get`: read-only, parameterless, like the attention
@@ -42,12 +43,14 @@ export async function handleSyncProgressRequest(): Promise<SyncProgressResponse>
   for (const status of LIVE_STATUSES) {
     if ((await syncState.listQueue(scope, status, 0, 1)).length > 0) { liveWork = true; break; }
   }
-  const [engine, captures, acknowledgements] = await Promise.all([syncState.getEngineState(scope),
-    syncState.listBookmarkEventsByStatus(scope, 'pending', 0, 1), syncState.listAckIntents(scope)]);
+  const [engine, captures, acknowledgements, issues] = await Promise.all([syncState.getEngineState(scope),
+    syncState.listBookmarkEventsByStatus(scope, 'pending', 0, 1), syncState.listAckIntents(scope),
+    readOpenSyncIssues(syncState, scope, { mappings })]);
   const unsettled = engine?.recoveryFrozen === true || captures.length > 0
     || acknowledgements.some(row => row.state === 'pending')
     || Boolean(engine?.lastPublishedCursor && engine.lastPublishedCursor !== engine.lastAckedCursor);
   return { ok: true, progress: projectSyncProgress({
+    issueCount: issues.total,
     ...(engine?.phase === 'error' || syncAttentionTerminalCode(engine?.lastError,
       typeof recorded?.metadata?.recoveryCode === 'string' ? recorded.metadata.recoveryCode : undefined)
       ? { retryAutomatic: false } : {}),

@@ -422,6 +422,8 @@ export type SyncAttentionGetRequest = { readonly kind: 'known.sync.attention.get
 /** How much of the synced boundary is on the server (`known.sync.progress.get`, read-only). */
 export type SyncProgressRequest = { readonly kind: 'known.sync.progress.get' };
 export interface PublicSyncProgress {
+  /** Open item problems prevent completion even while independent changes keep syncing. */
+  readonly issueCount?: number;
   /** False when the engine has stopped; progress must not promise another automatic retry. */
   readonly retryAutomatic?: boolean;
   /** preparing: comparing this browser with the collection; syncing: items left; done: everything has a server node. */

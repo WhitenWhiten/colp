@@ -22,6 +22,7 @@ All notable changes to the Know-N browser extension are documented here. The for
 
 ### Fixed
 
+- Open sync issues now keep the popup status and progress card at Action required, including when the engine is sleeping and independent changes can still sync. Completing a remote reset reopens folder setup on an already open settings page. An interrupted reset retains its recovery journal across browser-session credential loss and restores the credential before resuming.
 - Pin and unpin sorting is retried when sync takes ownership of native bookmark order after placement has started. The saved pin flag is retained while placement waits for sync to release the order.
 - Import bookmarks reopens correctly when a deep link or toolbar click arrives before the previous dialog's queued close event. A late close event cannot clear the newly opened dialog.
 - Missing, deleted, moved, or orphaned sorting neighbours no longer hold later saves in their folder. Server-confirmed Reset sync can archive uncertain uploads and corrupt diagnostic records after the server retires the old replica; local bookmarks and library data remain intact. Interrupted resets resume from the durable journal, including identity rotation before registration, and the health heartbeat retries registration when connectivity returns.

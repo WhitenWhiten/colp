@@ -65,6 +65,29 @@ test('signed in without sync set up reads "Sync is off", not "Waiting for networ
   } finally { vi.unstubAllGlobals(); }
 });
 
+test.each([
+  { attention: { issueCount: 2, retryAutomatic: true }, expected: 'action-required' },
+  { attention: { issueCount: 0, terminal: true }, expected: 'action-required' },
+  { attention: { issueCount: 0, retryAutomatic: false }, expected: 'action-required' },
+  { attention: { issueCount: 0, nativeWaitPending: true }, expected: 'action-required' },
+  { attention: { issueCount: 2, conflictPending: true }, expected: 'review-conflicts' },
+  { attention: { issueCount: 0, retryAutomatic: true }, expected: 'synced' },
+] as const)('a sleeping engine projects $attention as $expected', async ({ attention, expected }) => {
+  vi.stubGlobal('chrome', {
+    storage: { local: { get: async () => ({}) } },
+    runtime: { sendMessage: async ({ kind }: { kind: string }) => {
+      if (kind === 'known.firstRun.status') return { ok: true, firstRun: 'completed' };
+      if (kind === 'known.sync.engine.status') return { ok: true, engine: { phase: 'sleeping', hasPendingWork: false } };
+      if (kind === 'known.sync.attention.get') return { ok: true, attention };
+      return { ok: false };
+    } },
+  });
+  try {
+    const { signedInSyncStatus } = await import('../src/sync-label.js');
+    expect(await signedInSyncStatus()).toEqual(projectSyncStatus(expected));
+  } finally { vi.unstubAllGlobals(); }
+});
+
 test('a long-open options page re-reads the sync phrase instead of keeping its first reading', async () => {
   vi.useFakeTimers();
   const storageListeners: Array<(changes: Record<string, unknown>, area: string) => void> = [];

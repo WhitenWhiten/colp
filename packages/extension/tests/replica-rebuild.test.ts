@@ -90,6 +90,24 @@ test('a changed account discards its stale rebuild journal without blocking the 
   assert.equal(f.registrations, 0);
 });
 
+test('a browser restart without its session credential preserves the reset until the same account returns', async () => {
+  const f = await setup();
+  try {
+    f.setOffline(true); await f.rebuilder.handle(f.request);
+    const credential = (await f.credentials.loadCredential())!;
+    const binding = await f.credentials.loadBinding();
+    await f.journal.remove('known.auth.credential.v1');
+    const restarted = createReplicaRebuilder(f.deps);
+    assert.equal(await restarted.hasPending(), true);
+    await assert.rejects(restarted.resume(), /not_connected/);
+    assert.ok((await f.journal.get(REPLICA_REBUILD_JOURNAL))[REPLICA_REBUILD_JOURNAL]);
+    await f.credentials.saveCredential(credential); f.setOffline(false);
+    assert.equal(await restarted.resume(), true);
+    assert.deepEqual(await f.credentials.loadBinding(), binding);
+    assert.equal(f.registrations, 1);
+  } finally { f.store.close(); }
+});
+
 test('a saved Session without its IDB scope cannot prematurely complete the rebuild journal', async () => {
   const f = await setup();
   const deps = { ...f.deps, async ensureScope() {

@@ -38,7 +38,8 @@ vi.mock('../src/sw/runtime.js', () => ({
     listMappings: async () => [
       ...f.extraMappings, { nativeId: 'bar', colpId: 'colp-bar' }, { nativeId: 'a', colpId: 'colp-a' }, { nativeId: 'private', colpId: 'colp-private' },
     ],
-    listQueue: async (_scope: unknown, status: string) => (f.queue.includes(status) ? [{ status }] : []),
+    listQueue: async (_scope: unknown, status: string) => (f.queue.includes(status) ? [{ status, sequence: 1,
+      opId: `op-${status}`, payload: { type: 'update_node_content', targetId: 'colp-b' }, recovery: { code: 'resource_not_found' } }] : []),
     getEngineState: async () => ({ recoveryFrozen: f.frozen, lastError: f.lastError,
       lastPublishedCursor: 'cursor', lastAckedCursor: f.aligned ? 'cursor' : 'previous' }),
     listBookmarkEventsByStatus: async () => f.captures ? [{ status: 'pending' }] : [],
@@ -64,6 +65,22 @@ beforeEach(() => {
 });
 
 describe('handleSyncProgressRequest', () => {
+  test.each(['rejected', 'set_aside'])('isolated %s work needs attention without claiming an active upload', async status => {
+    f.firstRun = 'completed'; f.queue = [status];
+    const response = await handleSyncProgressRequest();
+    assert.ok(response.ok && response.progress);
+    assert.equal(response.progress.issueCount, 1);
+    assert.equal(response.progress.liveWork, false);
+    assert.equal(response.progress.retryAutomatic, undefined, 'the engine still syncs independent items');
+    const { describeSyncProgress } = await import('../src/sync-progress-ui.js');
+    const view = describeSyncProgress(response.progress);
+    assert.equal(view.title, 'Action required');
+    assert.deepEqual(view.guidance, []);
+    assert.doesNotMatch(view.note!, /checks again on its own/);
+    f.extraMappings = [{ nativeId: 'b', colpId: 'colp-b' }];
+    const mapped = await handleSyncProgressRequest();
+    assert.equal(mapped.ok && mapped.progress?.stage, 'syncing', 'mapped content failures still prevent completion');
+  });
   test('the progress response itself carries the terminal stop even without the separate status request', async () => {
     f.frozen = true; f.lastError = 'recovery_identity_unproven'; f.firstRun = 'completed'; f.queue = [];
     const response = await handleSyncProgressRequest();

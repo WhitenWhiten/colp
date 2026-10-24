@@ -29,7 +29,10 @@ async function send(force: boolean) {
   // before registration. No scope exists for reporting yet; the independent
   // heartbeat must also resume that journal, not wait for an engine wake.
   if (await replicaRebuilder().hasPending()) {
-    try { await workCoordinator.run('engine', () => replicaRebuilder().resume()); }
+    try {
+      if (!await store.loadCredential()) await createRuntimeAuth(await loadConfig()).ensureFreshCredential();
+      await workCoordinator.run('engine', () => replicaRebuilder().resume());
+    }
     catch { return; }
   }
   let scope: Awaited<ReturnType<typeof restoredSyncScope>>;
