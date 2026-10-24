@@ -21,6 +21,26 @@ async function fixture() {
   return { ...f, api, capture };
 }
 
+for (const anchor of ['pending', 'optimistic', 'tombstone', 'moved', 'confirmed']) test(`recapture validates its ${anchor} sorting anchor`, async () => {
+  const f = await fixture();
+  try {
+    f.api.seed({ id: 'native-anchor', parentId: 'native-parent', index: 0, title: 'Anchor', url: 'https://example.test/anchor' });
+    await f.api.move('native-create', { parentId: 'native-parent', index: 2 });
+    assert.deepEqual((await f.api.getChildren('native-parent')).map(node => node.id), ['native-anchor', 'native-create']);
+    const colpId = anchor === 'pending' ? 'pending-other-create' : 'other-node';
+    await f.store.putMapping(scope, { nativeId: 'native-anchor', colpId, rootNativeId: 'native-parent',
+      parentNativeId: 'native-parent', parentColpId: anchor === 'moved' ? 'other-parent' : 'root-push', nodeKind: 'bookmark',
+      projection: { revision: anchor === 'pending' || anchor === 'optimistic' ? 'local-other-create' : 'r1',
+        digest: 'sha256:anchor', content: { title: 'Anchor', url: 'https://example.test/anchor' } } });
+    if (anchor === 'tombstone') await f.store.putRemoteObservation(scope, { colpId, kind: 'tombstone',
+      remoteRevision: 'deleted-r2', cursor: 'cursor-deleted', sourceDigest: 'sha256:deleted', observedAt: 20,
+      payload: { deleted: true } });
+    const captured = await f.capture((await f.store.getQueueByOpId(scope, f.queued.opId))!);
+    assert.equal((captured.operations[0]?.payload as any).afterId, anchor === 'confirmed' ? 'other-node' : undefined);
+    assert.equal((captured.operations[0]?.payload as any).parentId, 'root-push');
+  } finally { f.store.close(); }
+});
+
 test('rebinding IDs must not rewrite unrelated bookmark content', async () => {
   const f = await fixture();
   try {

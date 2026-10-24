@@ -63,14 +63,16 @@ describe('T-02 F003 poison inbox events', () => {
 
     // The poison dependency must not wedge the inbox: an independent capture in
     // another mapped folder reaches the outbound queue in the same flush that
-    // quarantines the two dependents.
+    // quarantines the child. The root sibling can omit the refused sorting anchor.
     f.api.put(bookmark('independent', 'folder-parent', 0, 'Independent', 'https://example.test/independent'));
     assert.equal((await f.queue.created('independent', f.api.node('independent'))).outcome, 'staged');
     await f.queue.flush();
     const rows = await f.store.listQueue(scope);
     assert.deepEqual(rows.map((row) => [row.sequence, row.status, row.payload.type]),
-      [[1, 'rejected', 'create_node'], [2, 'pending', 'create_node']]);
-    assert.equal((rows[1]!.payload.payload as { node?: { title?: string } }).node?.title, 'Independent');
+      [[1, 'rejected', 'create_node'], [2, 'pending', 'create_node'], [3, 'pending', 'create_node']]);
+    assert.equal((rows[1]!.payload.payload as { node?: { title?: string } }).node?.title, 'Later');
+    assert.equal((rows[2]!.payload.payload as { node?: { title?: string } }).node?.title, 'Independent');
+    assert.equal((rows[1]!.payload.payload as { afterId?: string }).afterId, undefined);
 
     // The poison events are preserved, never deleted, and quarantined with
     // evidence that names the refused dependency.
@@ -78,6 +80,7 @@ describe('T-02 F003 poison inbox events', () => {
     const child = events.find((event) => event.nativeId === 'child')!;
     const sibling = events.find((event) => event.nativeId === 'root-later')!;
     assert.equal(child.status, 'pending');
+    assert.equal(sibling.status, 'processed');
     assert.notEqual(child.details.mapping, undefined, 'the quarantined event keeps its durable data');
     assert.equal(events.find((event) => event.nativeId === 'independent')?.status, 'processed');
     const quarantined = (await markers(f.store)).find((park) => park.eventId === child.eventId)!;
@@ -89,9 +92,7 @@ describe('T-02 F003 poison inbox events', () => {
     assert.equal(quarantined.dependencyNativeId, 'folder-new');
     assert.equal(quarantined.dependencyOpId, parentRow.opId);
     assert.ok(typeof quarantined.dependencyStamp === 'string' && quarantined.dependencyStamp.length > 0);
-    const anchored = (await markers(f.store)).find((park) => park.eventId === sibling.eventId)!;
-    assert.equal(anchored.state, 'parked');
-    assert.equal(anchored.code, 'dependency_rejected');
+    assert.notEqual((await markers(f.store)).find((park) => park.eventId === sibling.eventId)?.state, 'parked');
     // The engine/ops channel also carries the attention signal.
     const diagnostics = await f.store.exportDiagnostics();
     assert.ok(diagnostics.records.some((row) => (row as { kind?: string }).kind === 'bookmark_event_park'

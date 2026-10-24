@@ -4,6 +4,7 @@ import { identityFromPendingCreate } from './bookmark-create-receipt-identity.js
 import { resolveSubtreePredecessors } from './bookmark-subtree-predecessors.js';
 import { materializeNativeMutation } from './bookmark-native-mutation.js';
 import { projectPendingBookmarkEvent } from './bookmark-event-projection.js';
+import type { BookmarkEventParkMarker } from './sync-state/types.js';
 import type { BookmarkEventRecord, JsonObject, MappingInput, MountBindingRecord, QueueOperation,
   SyncScope } from './sync-state-store.js';
 
@@ -38,12 +39,14 @@ export interface EventIdentity { readonly nativeId: string; readonly colpId: str
   readonly parentNativeId?: string }
 type LocalIdentity = EventIdentity;
 type Resolution = { readonly identity: LocalIdentity } | { readonly blocked: EventDependency };
+type ParkMarkers = ReadonlyMap<string, BookmarkEventParkMarker>;
 
 export function createBookmarkEventHealer(input: {
   readonly scope: SyncScope; readonly store: HealStore;
   readonly listPendingEvents: () => Promise<readonly BookmarkEventRecord[]>;
 }) {
-  async function prepare(event: BookmarkEventRecord, details: JsonObject): Promise<PrepareOutcome> {
+  async function prepare(event: BookmarkEventRecord, details: JsonObject,
+    markers: ParkMarkers): Promise<PrepareOutcome> {
     if (details.nativeMutation === true) {
       const identity = await seedIdentity(event.nativeId);
       if (!identity) return blockedOutcome({ nativeId: event.nativeId });
@@ -58,11 +61,15 @@ export function createBookmarkEventHealer(input: {
       const parentNativeId = String(context.parentNativeId ?? '');
       const parent = await trusted(parentNativeId, event.ordinal);
       if ('blocked' in parent) return blockedOutcome(parent.blocked);
-      const relative = await trustedRelative(context, event.ordinal);
+      const relative = await trustedRelative(context, event.ordinal, markers);
       if ('blocked' in relative) return blockedOutcome(relative.blocked);
       const original = details.mapping as unknown as MappingInput;
+      const payload = { ...asObject(template.payload, 'payload') };
+      if (typeof context.afterNativeId === 'string' || typeof context.beforeNativeId === 'string') {
+        delete payload.afterId; delete payload.beforeId;
+      }
       return { kind: 'ready', operation: { ...template, baseRevision: null, dependencies: [], payload: {
-        ...asObject(template.payload, 'payload'), parentId: parent.identity.colpId, ...relative.wire } },
+        ...payload, parentId: parent.identity.colpId, ...relative.wire } },
       mapping: original, deleteNativeIds };
     }
     const identity = await trusted(event.nativeId, event.ordinal);
@@ -91,7 +98,7 @@ export function createBookmarkEventHealer(input: {
       if ('blocked' in source) return blockedOutcome(source.blocked);
       const target = await trusted(String(context.targetParentNativeId ?? ''), event.ordinal);
       if ('blocked' in target) return blockedOutcome(target.blocked);
-      const relative = await trustedRelative(context, event.ordinal);
+      const relative = await trustedRelative(context, event.ordinal, markers);
       if ('blocked' in relative) return blockedOutcome(relative.blocked);
       if (!source.identity.childrenRevision) {
         return { kind: 'blocked', reason: 'children_fence_missing',
@@ -170,23 +177,36 @@ export function createBookmarkEventHealer(input: {
     return queued ? { nativeId, opId: queued.opId } : { nativeId, eventId: token };
   }
 
-  async function trustedRelative(context: JsonObject, beforeOrdinal: number): Promise<
+  async function trustedRelative(context: JsonObject, beforeOrdinal: number, markers: ParkMarkers): Promise<
     { readonly wire: JsonObject } | { readonly blocked: EventDependency }> {
     for (const key of ['afterNativeId', 'beforeNativeId'] as const) {
       if (typeof context[key] !== 'string') continue;
       const anchor = await trusted(context[key], beforeOrdinal);
       // A neighbour held as an item will not settle soon: place by the other
       // neighbour, or by the folder alone, rather than wait for it.
-      if ('blocked' in anchor && await anchorHeld(anchor.blocked)) continue;
+      if ('blocked' in anchor && await anchorHeld(anchor.blocked, markers)) continue;
       if ('blocked' in anchor) return { blocked: anchor.blocked };
       return { wire: { [key === 'afterNativeId' ? 'afterId' : 'beforeId']: anchor.identity.colpId } };
     }
     return { wire: {} };
   }
 
-  async function anchorHeld(dependency: EventDependency): Promise<boolean> {
+  async function anchorHeld(dependency: EventDependency, markers: ParkMarkers): Promise<boolean> {
+    if (dependency.eventId && markers.get(dependency.eventId)?.state === 'parked') return true;
     if (!dependency.opId) return false;
-    return (await input.store.getQueueByOpId(input.scope, dependency.opId))?.status === 'set_aside';
+    const row = await input.store.getQueueByOpId(input.scope, dependency.opId);
+    return row?.status === 'set_aside' || row?.status === 'rejected' || row?.recovery?.resultStatus === 'rejected';
+  }
+
+  /** Old quarantines may have an unchanged stamp but only need to omit a failed neighbour. */
+  async function canOmitRelativeDependency(event: BookmarkEventRecord, dependency: EventDependency,
+    markers: ParkMarkers): Promise<boolean> {
+    const context = event.details.context as JsonObject | undefined;
+    if (!context || dependency.nativeId === event.nativeId
+        || [context.parentNativeId, context.sourceParentNativeId, context.targetParentNativeId]
+          .includes(dependency.nativeId)) return false;
+    return [context.afterNativeId, context.beforeNativeId].includes(dependency.nativeId)
+      && await anchorHeld(dependency, markers);
   }
 
   /**
@@ -272,5 +292,5 @@ export function createBookmarkEventHealer(input: {
     return identity.content ? digestJson(identity.content) : 'sha256:projection-unknown';
   }
 
-  return Object.freeze({ prepare, identityFor, dependencyStamp, blockerIsRejected });
+  return Object.freeze({ prepare, identityFor, dependencyStamp, blockerIsRejected, canOmitRelativeDependency });
 }

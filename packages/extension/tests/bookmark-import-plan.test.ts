@@ -27,6 +27,39 @@ async function setup() {
 }
 
 describe('P3-35 durable bookmark import plans', () => {
+  for (const legacy of [false, true]) test(`a consumed rejection stays visible instead of completing an import (legacy=${legacy})`, async () => {
+    const { store, coordinator } = await setup();
+    try {
+      const conversion = previewNetscapeBookmarkImport(html('<DT><A HREF="https://example.test/one">One</A>'));
+      const plan = await coordinator.commit({ conversion, choices: conversion.tree.map(node => ({
+        sourceNodeId: node.sourceNodeId, action: 'import', target: {
+          nativeId: 'native-root', colpId: 'server-root', revision: 'children-r1' },
+      })) });
+      const queued = (await store.listQueue(scope))[0]!;
+      await store.completeQueueWithReceipt(scope, queued.sequence, { opId: queued.opId,
+        operationDigest: queued.digest, kind: 'terminal', receiptId: 'rejected-import', resultDigest: 'sha256:rejected',
+        result: { results: [{ opId: queued.opId, sequence: queued.sequence, status: 'rejected', code: 'resource_not_found' }] } });
+      if (legacy) {
+        const node = (await store.listImportNodes(scope, plan.planId))[0]!;
+        const db = await store.open(); const tx = db.transaction('import_nodes', 'readwrite');
+        tx.objectStore('import_nodes').put({ ...node, status: 'terminal', recovery: undefined });
+        await new Promise<void>((resolve, reject) => { tx.oncomplete = () => resolve(); tx.onabort = () => reject(tx.error); });
+        await store.setImportPlanState(scope, plan.planId, 'complete', 101); store.close();
+      } else {
+        const immediate = await coordinator.status(plan.planId);
+        assert.equal(immediate.state, 'attention'); assert.equal(immediate.progress.terminal, 0);
+        assert.equal(immediate.nodes[0]?.recovery, 'push_rejected');
+      }
+      const view = await coordinator.advance(plan.planId);
+      assert.equal(view.state, 'attention'); assert.equal(view.progress.terminal, 0);
+      assert.equal(view.progress.recoverable, 1); assert.equal(view.nodes[0]?.recovery, 'push_rejected');
+      const retried = await coordinator.retry(plan.planId);
+      assert.equal(retried.state, 'attention'); assert.equal(retried.nodes[0]?.recovery, 'push_rejected');
+      assert.equal((await store.getQueueByOpId(scope, queued.opId))?.status, 'terminal');
+      assert.equal((await store.listQueue(scope)).length, 1, 'a consumed sequence must not be replayed');
+    } finally { store.close(); }
+  });
+
   test('missing import plans and nodes cannot be changed into recoverable work', async () => {
     const { store } = await setup();
     try {

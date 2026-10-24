@@ -122,7 +122,8 @@ export function createBookmarkImportCoordinator(options: CoordinatorOptions) {
     for (const node of nodes) {
       if (node.authoritativeTarget || !node.opId) continue;
       const queued = await options.store.getQueueByOpId(options.scope, node.opId);
-      if (queued?.status === 'rejected') { await options.store.setImportNodeRecovery(options.scope, planId, node.opId, 'push_rejected');
+      if (queued?.status === 'rejected' || queued?.recovery?.resultStatus === 'rejected') {
+        await options.store.setImportNodeRecovery(options.scope, planId, node.opId, 'push_rejected');
         await options.store.setImportPlanState(options.scope, planId, 'attention', now()); continue; }
       if (queued?.status !== 'terminal') continue;
       const receipt = await options.store.getQueueReceipt(options.scope, queued.sequence);

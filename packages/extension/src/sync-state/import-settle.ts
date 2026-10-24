@@ -15,8 +15,8 @@ export async function settleImportNode(tx: IDBTransaction, key: string, opId: st
   const authoritativeTarget = operationResult && typeof operationResult.targetId === 'string'
     && typeof operationResult.revision === 'string'
     ? { colpId: operationResult.targetId, revision: operationResult.revision } : undefined;
-  if (operationResult?.status === 'conflicted' || operationResult?.status === 'conflict') {
-    store.put({ ...node, status: 'recoverable', recovery: 'conflict' });
+  if (operationResult?.status === 'rejected' || operationResult?.status === 'conflicted' || operationResult?.status === 'conflict') {
+    store.put({ ...node, status: 'recoverable', recovery: operationResult.status === 'rejected' ? 'push_rejected' : 'conflict' });
     const plans = tx.objectStore(STORES.importPlans); const plan = await requestValue(plans.get([key, node.planId])) as
       ImportPlanRecord | undefined; if (plan) plans.put({ ...plan, state: 'attention', updatedAt: Date.now() }); return;
   }

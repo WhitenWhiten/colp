@@ -7,6 +7,7 @@ import { lookupBookmark } from './bookmark-api-error.js';
 import { kns09Paused } from './kns-09-release.js';
 import { backupLocalDelete, restoreLocalDelete } from './bookmark-local-delete.js';
 import { assertDeleteSubtree } from './bookmark-batch-delete-boundary.js';
+import { withReceiptOutcome } from './sync-state/open-issue-facts.js';
 import { batchTargetIndex, batchUndoPosition, matchesBatchInput, matchesBatchOutput } from './bookmark-batch-position.js';
 import {
   type BatchItemRecord, type BatchKind, type BatchPlanRecord,
@@ -301,6 +302,9 @@ async function undoDelete(store: Store, scope: SyncScope, item: BatchItemRecord,
   if (deleted.state === 'uncommitted') throw new Error('delete_not_committed');
   if (deleted.state === 'missing') throw new Error('delete_row_not_found');
   const receipt = await store.getQueueReceipt(scope, deleted.row.sequence);
+  if (withReceiptOutcome(deleted.row, receipt ?? undefined).recovery?.resultStatus === 'rejected') {
+    throw new Error('delete_rejected');
+  }
   const results = receipt?.result && Array.isArray(receipt.result.results) ? receipt.result.results : [];
   const pushed = results[0] && typeof results[0] === 'object' && !Array.isArray(results[0])
     ? results[0] as { revision?: unknown } : undefined;

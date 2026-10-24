@@ -174,16 +174,18 @@ describe('N-3 placement order domain', () => {
     await queue.flush();
     let rows = await store.listQueue(scope);
     assert.deepEqual(rows.map((row) => [row.sequence, row.status, row.payload.type]),
-      [[1, 'rejected', 'create_node'], [2, 'pending', 'move_node'], [3, 'pending', 'create_node']]);
-    assert.equal(rows[1]!.payload.targetId, 'mapped-colp');
-    assert.equal((body(rows[2]!).node as { title?: string }).title, 'Independent');
+      [[1, 'rejected', 'create_node'], [2, 'pending', 'create_node'], [3, 'pending', 'move_node'], [4, 'pending', 'create_node']]);
+    assert.equal((body(rows[1]!).node as { title?: string }).title, 'Later');
+    assert.equal(body(rows[1]!).afterId, undefined);
+    assert.equal(rows[2]!.payload.targetId, 'mapped-colp');
+    assert.equal((body(rows[3]!).node as { title?: string }).title, 'Independent');
     for (const row of rows.slice(1)) assertAuthoritative(row);
     const child = (await store.listBookmarkEvents(scope)).find((event) => event.nativeId === 'child')!;
     const later = (await store.listBookmarkEvents(scope)).find((event) => event.nativeId === 'root-later')!;
     assert.equal(child.status, 'pending');
-    assert.equal(later.status, 'pending');
+    assert.equal(later.status, 'processed');
     assert.equal((await parked(store, child.eventId))?.code, 'dependency_rejected');
-    assert.equal((await parked(store, later.eventId))?.code, 'dependency_rejected');
+    assert.notEqual((await parked(store, later.eventId))?.state, 'parked');
     assert.equal(JSON.stringify(rows).includes('pending-'), false);
 
     await mapping(store, 'folder-later', 'later-colp', 'root-selected', 'later-r1', { title: 'Later folder' }, 'root-selected');
@@ -192,10 +194,10 @@ describe('N-3 placement order domain', () => {
     assert.equal((await queue.created('independent-2', api.node('independent-2'))).outcome, 'staged');
     await queue.flush();
     rows = await store.listQueue(scope);
-    assert.equal((body(rows[3]!).node as { title?: string }).title, 'Independent 2');
-    assert.equal(rows[3]!.sequence, 4);
+    assert.equal((body(rows[4]!).node as { title?: string }).title, 'Independent 2');
+    assert.equal(rows[4]!.sequence, 5);
     assert.equal((await store.listBookmarkEvents(scope)).find((event) => event.nativeId === 'child')?.status, 'pending');
-    assertAuthoritative(rows[3]!);
+    assertAuthoritative(rows[4]!);
   });
 
   test('a quarantined poison draft does not pin its parent or an unrelated parent', async () => {

@@ -5,7 +5,7 @@ import { beforeEach, describe, test } from 'vitest';
 import { confirmBatch, resumeBatchPlans, undoBatch } from '../src/bookmark-batch-executor.js';
 import { previewBatch, toCommitItems } from '../src/bookmark-batch-plan.js';
 import { digestJson, validateOperation } from '../src/bookmark-event-codec.js';
-import { createSyncStateStore, type SyncScope } from '../src/sync-state-store.js';
+import { createSyncStateStore, type JsonObject, type SyncScope } from '../src/sync-state-store.js';
 import { createMemoryBookmarks, parkRemoteDeleteNative } from './bookmark-batch-memory.js';
 
 const scope: SyncScope = Object.freeze({
@@ -18,6 +18,31 @@ let indexedDB: IDBFactory;
 beforeEach(() => { indexedDB = new IDBFactory(); });
 
 describe('bookmark batch execute / undo', () => {
+  for (const legacy of [false, true]) test(`a consumed delete rejection cannot produce a restore (legacy=${legacy})`, async () => {
+    const { store, api } = await setup();
+    try {
+      const preview = await previewBatch({ store, scope, api, kind: 'delete', nativeIds: ['bm-1'] });
+      const deleted = await confirmBatch({ store, scope, api, commandId: 'cmd-delete-rejected', kind: 'delete',
+        nativeIds: ['bm-1'], previewDigest: preview.digest, secondConfirm: true });
+      const item = deleted.items[0]!;
+      const queued = await seedTerminalDelete(store, item.colpId!, item.mappingRevision ?? 'rev-1', {
+        results: [{ opId: `del-${item.colpId}`, sequence: 1, status: 'rejected', code: 'resource_not_found' }],
+      });
+      if (legacy) {
+        const row = (await store.listQueue(scope))[0]!;
+        const tx = (await store.open()).transaction('outbound_queue', 'readwrite');
+        tx.objectStore('outbound_queue').put({ ...row, recovery: undefined });
+        await new Promise<void>((resolve, reject) => { tx.oncomplete = () => resolve(); tx.onabort = () => reject(tx.error); });
+        store.close();
+      }
+      const undone = await undoBatch({ store, scope, api, planId: deleted.planId, commandId: 'cmd-delete-rejected' });
+      assert.equal(undone.undone, 0); assert.equal(undone.failed, 1);
+      assert.equal(undone.items[0]?.error, 'delete_rejected');
+      assert.equal((await store.listQueue(scope)).some(row => row.payload.type === 'restore_node'), false);
+      assert.equal((await store.getQueueByOpId(scope, queued.opId))?.status, 'terminal');
+    } finally { store.close(); }
+  });
+
   test('persists the plan before the first Chrome mutation and is idempotent on commandId', async () => {
     const { store, api } = await setup();
     const preview = await previewBatch({
@@ -461,7 +486,8 @@ async function seedRestore(store: ReturnType<typeof createSyncStateStore>, opId:
   }, { validateOperation, digestOperation: digestJson });
 }
 
-async function seedTerminalDelete(store: ReturnType<typeof createSyncStateStore>, targetId: string, revision: string) {
+async function seedTerminalDelete(store: ReturnType<typeof createSyncStateStore>, targetId: string, revision: string,
+  result?: JsonObject) {
   const queued = await store.allocateSequenceAndEnqueue(scope, {
     opId: `del-${targetId}`, batchId: `del-${targetId}`, idempotencyKey: `del-${targetId}`,
     digest: 'sha256:pending', endpointIdentity: 'syncPush', mediaType: 'application/json',
@@ -474,6 +500,7 @@ async function seedTerminalDelete(store: ReturnType<typeof createSyncStateStore>
   }, { validateOperation, digestOperation: digestJson });
   await store.completeQueueWithReceipt(scope, queued.sequence, {
     opId: queued.opId, operationDigest: queued.digest, kind: 'terminal', receiptId: `receipt-${queued.opId}`,
-    resultDigest: 'sha256:deleted',
+    resultDigest: 'sha256:deleted', ...(result ? { result } : {}),
   });
+  return queued;
 }

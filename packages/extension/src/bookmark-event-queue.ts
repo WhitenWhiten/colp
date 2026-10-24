@@ -360,7 +360,8 @@ export function createBookmarkEventQueue(options: QueueOptions) {
             ? await healer.dependencyStamp(dependency, blockerParkState(markers, dependency)).catch(() => undefined)
             : undefined;
           // Isolated until its recorded dependency evidence actually moves.
-          if (!isAutomaticIngressWaitCode(marker.code) && (stamp === undefined || stamp === marker.dependencyStamp)) {
+          const omitAnchor = dependency && await healer.canOmitRelativeDependency(event, dependency, markers);
+          if (!omitAnchor && !isAutomaticIngressWaitCode(marker.code) && (stamp === undefined || stamp === marker.dependencyStamp)) {
             if (placementPinsDomain(marker.state, marker.code)) pin(event);
             continue;
           }
@@ -369,7 +370,7 @@ export function createBookmarkEventQueue(options: QueueOptions) {
         }
         const details = await resolveEventIdentityTokens(options.store, options.scope, event.details, resolved);
         let prepared: PrepareOutcome;
-        try { prepared = await healer.prepare(event, details); }
+        try { prepared = await healer.prepare(event, details, markers); }
         catch (error) {
           const poisoned = await parkPoison(event, markers, error);
           if (!poisoned) { firstFailure ??= error; pin(event); }

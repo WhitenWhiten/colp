@@ -5,6 +5,7 @@ import { bookmarkKind, bookmarkRepresentability, nodeCreate, nodeContent, valida
 import { resolveIngressBoundary, isManagedBookmarkNode } from './bookmark-event-ingress.js';
 import { nativeIsLocallyExcluded } from './remote-delete-exclusion.js';
 import { DELETE_SUBTREE_CHANGED } from './push-delete-rebase.js';
+import { authoritativeColpId } from './bookmark-node-identity.js';
 import type { JsonObject, QueueOperation, BookmarkEventRecord, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
 export interface QueueRecapture {
@@ -83,7 +84,12 @@ export function createQueueRecapture(input: { store: ReturnType<typeof createSyn
     let afterId: string | undefined;
     for (const sibling of siblings.slice(0, index).reverse()) {
       const anchor = await store.getMappingByNativeId(scope, sibling.id);
-      if (anchor && !anchor.colpId.startsWith('local-')) { afterId = anchor.colpId; break; }
+      if (!anchor || !authoritativeColpId(anchor.colpId) || anchor.projection.revision.startsWith('local-')) continue;
+      if (anchor.parentColpId !== undefined ? anchor.parentColpId !== parent.colpId
+        : anchor.parentNativeId !== node.parentId) continue;
+      if ((await store.getRemoteObservation(scope, anchor.colpId))?.kind === 'tombstone'
+          || await nativeIsLocallyExcluded(store, scope, sibling.id)) continue;
+      afterId = anchor.colpId; break;
     }
     const placement = { ...(afterId ? { afterId } : {}) };
     const occurredAt = new Date((input.now ?? Date.now)()).toISOString();
