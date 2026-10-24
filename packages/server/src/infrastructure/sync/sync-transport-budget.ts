@@ -42,6 +42,14 @@ export function resolvePullResponseBudget(
   return Math.min(configuredBudget, sessionBudget);
 }
 
+/**
+ * The session's cap on one Pull page: its body plus every effect page the client downloads for it (B-15). A session
+ * without a bound budget is a legacy one and gets the legacy 2 MiB.
+ */
+export function resolveEffectAggregateBudget(binding: unknown): number {
+  return transportBudgetFromBindingJson(binding).effectAggregateBytes;
+}
+
 /** Per-page transport budget; independent of the whole-tree aggregate cap. */
 export function snapshotPageByteBudget(binding: unknown): number {
   return transportBudgetFromBindingJson(binding).snapshotPageBytes;
