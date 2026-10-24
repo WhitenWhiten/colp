@@ -6,6 +6,8 @@ import { fixture, success } from './outbound-push-batch-harness.js';
 import { installOutboundPushIndexedDb, scope } from './outbound-push-worker-harness.js';
 installOutboundPushIndexedDb();
 
+// Seeding and settling 520 IndexedDB rows can exceed 20s with V8 coverage on CI.
+// The injected clock tests the drain budget; wall time only limits the test runner.
 test('a fast backlog uses the drain budget past 100 operations and still has a hard ceiling', async () => {
   const f = await fixture(520); const sizes: number[] = [];
   const worker = createOutboundPushWorker({ ...f.options, fetch: async (_url, init) => {
@@ -21,7 +23,7 @@ test('a fast backlog uses the drain budget past 100 operations and still has a h
     assert.equal((await f.store.listQueue(scope, 'terminal', 0, 1000)).length, 520);
     assert.equal(await hasFreshPushQueueHead(f.store, scope, f.clock.now), false);
   } finally { f.store.close(); }
-}, 20_000);
+}, 60_000);
 
 test('a fresh suffix does not schedule immediate wakes past an exact-retry head', async () => {
   const f = await fixture(2, 1);
