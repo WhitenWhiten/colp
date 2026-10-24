@@ -1,3 +1,4 @@
+import { releaseUnsubmittedReservations } from './reservations.js';
 import { createLane } from '../automation/lane.js';
 import { cursorPage } from '../sync-state/idb.js';
 import type { AdapterMessage, BrowserRuleSnapshot, HostCommand, ImportApproval, ImportPreview, SavePlan, SourceFolderReservation } from './contracts.js';
@@ -57,7 +58,8 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
   }
   async function cancelPlans(job: ImportJob) {
     const prepared = job.planIds.length || !job.previewId ? job.planIds : (await db.transaction(['importPages'], 'readonly', tx => rows<{ planId: string | null }>(tx, 'importPages', 'frozenEdge', job.previewId))).flatMap(r => r.planId ? [r.planId] : []);
-    await db.transaction(['savePlans', 'folderConsumers', 'importApprovals'], 'readwrite', async tx => {
+    await db.transaction(['savePlans', 'folderConsumers', 'importApprovals', 'itemReservations', 'representations', 'folderReservations', 'outbox'], 'readwrite', async tx => {
+      const cancelled: SavePlan[] = [];
       if (job.approvalId) {
         const approval = await get<ImportApproval>(tx, 'importApprovals', job.approvalId);
         if (approval) put(tx, 'importApprovals', approval.id, { ...approval, state: 'cancelled' });
@@ -65,11 +67,13 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
       for (const id of prepared) {
         const row = await get<StoredSavePlan>(tx, 'savePlans', id); if (!row) continue;
         put(tx, 'savePlans', id, { ...row, state: 'cancelled' });
+        cancelled.push(row.plan);
         for (const effect of row.plan.effects) if (effect.kind === 'ensureSourceFolder') {
           const k = sourceKey(effect.reservationId, id, effect.effectId), consumer = await get<object>(tx, 'folderConsumers', k);
           if (consumer) put(tx, 'folderConsumers', k, { ...consumer, active: false });
         }
       }
+      await releaseUnsubmittedReservations(tx, cancelled);
     });
   }
   async function stopScan(job: ImportJob) {

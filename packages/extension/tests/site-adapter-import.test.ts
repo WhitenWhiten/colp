@@ -218,3 +218,40 @@ test('AI eligibility changes preserve confirmed folder reuse while fencing old p
   await expect(f.layout.authorize(result.plan, result.plan.effects[0]!)).rejects.toThrow('mountChanged');
   await f.db.close();
 });
+
+test('cancelled unapproved previews release single-copy reservations for semantic saves', async () => {
+  const f = await fixture('singlePreferSemantic'), { id } = await f.scan(), preview = await f.freeze(id);
+  expect(preview.counts.createBookmarks).toBe(2);
+  await f.importer.cancel(id);
+  const bindings = createContentBindings(f.db, async () => {});
+  const binding = await bindings.prepare({ itemId: video.id, commandId: 'semantic-after-cancel', captureIntentId: 'capture-after-cancel', title: video.title, url: video.url, parentId: 'root', automatic: true });
+  expect(binding).toMatchObject({ mode: 'create', state: 'pending' });
+  expect(f.counts).toEqual({ folder: 0, bookmark: 0 });
+  await f.db.close();
+});
+
+test('cancelling one draft retains another plan sharing its native command', async () => {
+  const f = await fixture(), { id } = await f.scan(); await f.freeze(id);
+  const observation = await f.ledger.acceptObservation(f.context(), 'shared-live', { type: 'membership.observed', item: video, memberships: { mode: 'delta', added: ['101'], removed: [] } });
+  if (observation.status === 'rejected') throw new Error(observation.reason);
+  const live = await f.layout.plan({ context: f.context(), itemId: video.id, collectionId: '101', entry: 'reconcile', trigger: { kind: 'observation', observationId: observation.receiptId } });
+  if (live.status !== 'planned') throw new Error(live.status);
+  await f.importer.cancel(id);
+  for (const effect of live.plan.effects) expect((await f.executor.execute(live.plan.id, effect.effectId)).status).toBe('confirmed');
+  expect(f.counts).toEqual({ folder: 1, bookmark: 1 }); await f.db.close();
+});
+
+test('cancelling unknown submitted work retains its command and folder reservation', async () => {
+  const f = await fixture(), { id } = await f.scan(), preview = await f.freeze(id);
+  f.execution.execute = async () => ({ status: 'unknown', reason: 'nativeOutcomeUnknown' });
+  await f.importer.approve({ jobId: id, previewId: preview.id, revision: preview.revision, digest: preview.digest });
+  await f.importer.wake();
+  const retained = await f.db.transaction(['outbox', 'folderReservations'], 'readonly', async tx => new Promise<unknown>((resolve, reject) => {
+    const r = tx.objectStore('outbox').getAll(); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error);
+  }));
+  await f.importer.cancel(id);
+  const after = await f.db.transaction(['outbox'], 'readonly', async tx => new Promise<unknown>((resolve, reject) => {
+    const r = tx.objectStore('outbox').getAll(); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error);
+  }));
+  expect(after).toEqual(retained); expect(after).toHaveLength(1); await f.db.close();
+});

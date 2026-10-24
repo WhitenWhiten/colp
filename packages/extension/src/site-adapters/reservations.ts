@@ -83,3 +83,32 @@ export function createSourceReservations(db: SourceDatabase, random = () => cryp
     },
   };
 }
+
+/** Call inside the cancellation transaction. Only never-submitted, unconsumed work is reclaimable. */
+export async function releaseUnsubmittedReservations(tx: IDBTransaction, plans: readonly import('./contracts.js').SavePlan[]) {
+  const items = plans.flatMap(p => p.effects.filter(e => e.kind === 'createBookmark'));
+  const commands = new Set(items.map(e => e.commandId));
+  const used = new Set<string>();
+  await new Promise<void>((resolve, reject) => {
+    const request = tx.objectStore('savePlans').openCursor();
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const cursor = request.result; if (!cursor) { resolve(); return; }
+      const row = cursor.value as import('./planned-types.js').StoredSavePlan;
+      if (row.state !== 'cancelled') for (const effect of row.plan.effects) if (commands.has(effect.commandId)) used.add(effect.commandId);
+      cursor.continue();
+    };
+  });
+  for (const effect of items) {
+    const key = representationKey(effect.representation), reservation = await get<ItemReservation>(tx, 'itemReservations', key);
+    if (reservation?.state === 'reserved' && reservation.commandId === effect.commandId && !used.has(effect.commandId)
+      && !await get(tx, 'outbox', effect.commandId) && !await get(tx, 'representations', key)) tx.objectStore('itemReservations').delete(key);
+  }
+  for (const plan of plans) for (const effect of plan.effects) if (effect.kind === 'ensureSourceFolder' && plan.mount) {
+    const folders = await rows<SourceFolderReservation>(tx, 'folderReservations', plan.mount.id);
+    const folder = folders.find(f => f.id === effect.reservationId);
+    if (!folder || folder.state !== 'reserved' || folder.native || await get(tx, 'outbox', folder.commandId)) continue;
+    const consumers = await rows<{ active: boolean }>(tx, 'folderConsumers', folder.id);
+    if (!consumers.some(c => c.active)) tx.objectStore('folderReservations').delete(sourceKey(folder.mountId, folder.collectionId));
+  }
+}
