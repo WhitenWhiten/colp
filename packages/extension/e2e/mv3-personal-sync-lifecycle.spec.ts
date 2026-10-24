@@ -180,7 +180,7 @@ test('Pause survives browser restart, reconciles edits on both sides, and discon
   } finally { await context?.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
 });
 
-test('metadata opt-out preserves an immutable unknown retry and refuses reset before its outcome settles', async () => {
+test('metadata opt-out preserves an immutable unknown retry and requires a server fence for reset', async () => {
   test.setTimeout(120000);
   const stack = await startRealStack(), profile = await mkdtemp(resolve(tmpdir(), 'known-metadata-queue-'));
   let context: BrowserContext | undefined;
@@ -240,10 +240,10 @@ test('metadata opt-out preserves an immutable unknown retry and refuses reset be
     await showOptionsPane(page, 'sync-center');
     await expect(page.locator('#sync-attention-settings-terminal-copy')).toContainText('not allowed to sync', { timeout: 12000 });
     expect(await page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.sync.attention.get' })))
-      .toMatchObject({ ok: true, attention: { rebuildAvailable: false, rebuildUnavailableReason: 'upload_outcome_unsettled' } });
-    await expect(page.getByRole('button', { name: 'Reset sync on this device', exact: true })).toHaveCount(0);
+      .toMatchObject({ ok: true, attention: { rebuildAvailable: true, rebuildMode: 'server_fenced' } });
+    await expect(page.getByRole('button', { name: 'Reset sync on this device', exact: true })).toBeVisible();
     expect(await page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.scope.rebuild.preview' })))
-      .toEqual({ ok: false, code: 'upload_outcome_unsettled' });
+      .toMatchObject({ ok: true, preview: { mode: 'server_fenced', replicaId: scope.replicaId } });
     await evidence(page, 'wakeOutboundPushEvidence');
     const retained = await evidence(page, 'exportOutboundPushEvidence') as { queue: QueueOperation[] };
     expect(retained.queue[0]!.attempt).toEqual(before.queue[0]!.attempt);

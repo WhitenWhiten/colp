@@ -281,8 +281,11 @@ function effectPageBytes(event: SyncPullEvent | SyncPullEventV02): number {
   const effect = (event as { readonly effect?: { readonly kind?: string;
     readonly effectRef?: { readonly pageCount?: number; readonly memberCount?: number } } }).effect;
   const ref = effect?.kind === 'subtree_deleted' ? effect.effectRef : undefined;
-  if (!ref || !Number.isSafeInteger(ref.memberCount) || !Number.isSafeInteger(ref.pageCount)) return 0;
-  return ref.memberCount! * EFFECT_MEMBER_BYTES + ref.pageCount! * EFFECT_PAGE_ENVELOPE_BYTES;
+  if (!ref) return 0;
+  const { memberCount, pageCount } = ref;
+  if (typeof memberCount !== 'number' || typeof pageCount !== 'number'
+      || !Number.isSafeInteger(memberCount) || !Number.isSafeInteger(pageCount)) return 0;
+  return memberCount * EFFECT_MEMBER_BYTES + pageCount * EFFECT_PAGE_ENVELOPE_BYTES;
 }
 
 /**

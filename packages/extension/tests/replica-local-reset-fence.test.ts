@@ -285,3 +285,24 @@ describe('identity hints for the advanced first run (RB-07)', () => {
       [{ nativeId: 'n-kept', colpId: 'c-kept' }, { nativeId: 'n-1', colpId: 'c-1' }]);
   });
 });
+
+test('unreadable diagnostics and a failed preview export still reset through a fence without losing the queue', async () => {
+  const f = await setup(); let fenced = 0;
+  try {
+    const store = { ...f.store,
+      getEngineState: async () => { throw new Error('corruption_detected'); },
+      exportScope: async () => { throw new Error('corruption_detected'); },
+    } as typeof f.store;
+    const rebuilder = rebuilderWith(f, { store, fence: async () => { fenced++; return 'fenced'; } });
+    const preview = await rebuilder.handle({ kind: 'known.scope.rebuild.preview' });
+    assert.ok(preview.ok && 'preview' in preview);
+    assert.equal(preview.preview.mode, 'server_fenced');
+    assert.equal(preview.preview.revision, 0);
+    assert.equal(preview.preview.queuedOperations, 0, 'unreadable preview counts do not replace the raw archive');
+    assert.deepEqual(await confirm(rebuilder), { ok: true, result: 'setup_required' });
+    assert.equal(fenced, 1);
+    const archive = await f.store.exportArchive(f.scope);
+    assert.ok((archive.queue as { opId: string }[]).some(row => row.opId === 'queued'));
+    assert.equal(f.registrations, 1);
+  } finally { f.store.close(); }
+});
