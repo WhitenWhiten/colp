@@ -1,0 +1,17 @@
+{
+  "source": "/Users/whiten/bilibili-fav-extension",
+  "version": "0.1.0",
+  "gitCommit": null,
+  "reason": "Checkout has no .git directory; fingerprints identify inspected bytes.",
+  "fingerprintDate": "2026-10-24",
+  "observationDate": "2026-10-23",
+  "sha256": {
+    "src/lib/api.js": "9c58df293b55c575ed9c03495d0f41bcdb0a1a28c3807b9b81cc05ea3e0fd4e6",
+    "src/lib/media.js": "c70277d54afc95648aeef1ece4ac0fdc04557a65af14c9d9664e3ae27aa59664",
+    "src/content/favorite-probe.js": "74839d8fcbeb61ab7b8f9773303cca536fdd58cbd5f5937614beb7c60b5044b7",
+    "src/content/api-bridge.js": "e048f149b2fd1aac90fd85c837d2ff4f39074274fa7030964efed94b1b6e2026",
+    "tests/api.test.mjs": "29af0fdc2f18a7df8d331e2e939cd86c100116b0241d4acb58741a3485508dc1",
+    "tests/sync-engine.test.mjs": "6e7503db2c825f2b5a4643d473606b3c9173fad23d0319fa709903a92a336d2e",
+    "tests/manifest.test.mjs": "8787d10caf4f35dfc096d4ce9d7dc34134d2ba0b632238b929ce7841510a8f3e"
+  }
+}
