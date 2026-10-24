@@ -11,6 +11,7 @@ import {
   type SyncTransportBudget,
 } from './colp-transport-budget-browser.js';
 import { measureClientClockSkew, serverNow, localTimeOf } from './session-clock.js';
+import { authorityCodeForStatus, classifyHttpStatus } from './sync-transport-failure.js';
 
 const SESSION_RESPONSE_MAX_BYTES = 128 * 1_024;
 const REPLICA_LEASE_RENEWAL_MARGIN_MS = 60_000;
@@ -88,8 +89,11 @@ export async function createSyncSession(input: { readonly endpoints: SyncEndpoin
     if (response.status === 401) throw new SessionRequestError('credential_revoked');
     const problem = await readBoundedJson(response, SESSION_RESPONSE_MAX_BYTES, 'session_problem_invalid', { signal: input.signal })
       .catch(() => undefined);
-    const code = record(problem) && typeof problem.code === 'string' && /^[a-z][a-z0-9_]{0,63}$/u.test(problem.code)
-      ? problem.code : 'session_failed';
+    // A gateway hiccup is transient whatever its body (or lack of one) says; an unreadable body on a denial keeps the status' meaning.
+    const kind = classifyHttpStatus(response.status);
+    const code = kind === 'transient' ? 'server_unavailable'
+      : record(problem) && typeof problem.code === 'string' && /^[a-z][a-z0-9_]{0,63}$/u.test(problem.code)
+        ? problem.code : authorityCodeForStatus(response.status) ?? 'session_failed';
     const retryAfterMilliseconds = code === 'rate_limited' ? sessionRetryAfter(response, problem) : undefined;
     throw new SessionRequestError(code, retryAfterMilliseconds);
   }

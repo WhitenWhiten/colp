@@ -49,6 +49,10 @@ const SETS_ASIDE = { freezesPull: true, setsAsidePull: true } as const;
 
 export const SYNC_FAILURE_TABLE = Object.freeze({
   server_unavailable: entry('transient', 'retry'),
+  // Server Problem codes met on Session, Pull, Ack and Snapshot responses (B-08, A-F12). They used to fall into the
+  // unknown bucket, so an outage looked like a fault and a retired browser looked like a glitch.
+  service_unavailable: entry('transient', 'retry'),
+  internal_error: entry('transient', 'retry'),
   network_unavailable: entry('transient', 'retry', { pullsOnWake: true }),
   position_context_stale: entry('transient', 'retry', { pullsOnWake: true }),
   revision_conflict: entry('transient', 'retry', { pullsOnWake: true }),
@@ -64,6 +68,14 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   recovery_authority_invalid: entry('authority', 'refresh', FREEZES),
   effect_page_transport_unavailable: entry('authority', 'refresh', FREEZES),
   stale_replica: entry('authority', 'refresh'),
+  // The credential or the Session is no longer accepted: renew it (a refresh re-checks the credential with the
+  // server). Counted by the breaker under its own code, so a revoked credential cannot loop forever.
+  authentication_required: entry('authority', 'refresh'),
+  credential_revoked: entry('authority', 'refresh'),
+  insufficient_scope: entry('authority', 'refresh'),
+  // What the server answers for a Session that is expired, superseded or foreign (it hides the difference): a fresh
+  // Session is the exit.
+  resource_not_found: entry('authority', 'refresh'),
   // W2B-P0-1: the Session the server just minted is unusable (wrong protocol/collection, or expired in
   // server time). A fresh Session is the exit, so the breaker counts it as authority, not as an unknown fault.
   session_invalid: entry('authority', 'refresh'),
@@ -138,6 +150,14 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   pull_issue_ceiling: entry('replica', 'rebuild', FREEZES),
   sync_issue_ceiling: entry('replica', 'rebuild'),
   snapshot_projection_incomplete: entry('replica', 'stop'),
+  // B-08: definitive server refusals no retry or refresh changes. The owner retired this browser in the Sync center
+  // (a Reset registers a new replica), or the server's configuration/this build cannot be made to agree.
+  replica_retired: entry('replica', 'stop'),
+  origin_not_allowed: entry('replica', 'stop'),
+  invalid_query: entry('replica', 'stop'),
+  idempotency_key_reused: entry('replica', 'stop'),
+  // The manifest answered with a definitive 4xx; a 5xx or timeout is `server_unavailable` instead.
+  manifest_unavailable: entry('replica', 'stop'),
   // A queued operation contradicts current consent; rebuilding archives it before setup.
   metadata_sync_disabled: entry('replica', 'rebuild'),
   // Other local sync boundaries are explicitly registered: contention retries;
@@ -402,10 +422,18 @@ export class SyncFailureError extends Error {
   constructor(readonly code: SyncFailureCode, readonly subject?: SyncFailureSubject) { super(code); this.name = 'SyncFailureError'; }
 }
 
+/**
+ * Server Problem codes the Snapshot client wraps as `snapshot_<status>_<code>` keep the policy of the code inside;
+ * the wrapper only says which endpoint refused. An unnamed denial arrives as `snapshot_http_<status>`.
+ */
+const SNAPSHOT_WRAPPED = /^snapshot_[1-5][0-9]{2}_(sync_cursor_expired|snapshot_expired|stale_replica|replica_retired|resource_not_found|authentication_required|insufficient_scope|origin_not_allowed|invalid_query|service_unavailable|internal_error)$/u;
+const SNAPSHOT_UNNAMED: Readonly<Record<string, string>> = { snapshot_http_401: 'authentication_required',
+  snapshot_http_403: 'insufficient_scope', snapshot_http_404: 'resource_not_found', snapshot_http_410: 'stale_replica',
+  snapshot_http_408: 'server_unavailable' };
+
 /** Unknown external codes are bounded by the engine's durable circuit breaker. */
 export function normalizeSyncFailureCode(code: string): string {
-  const expiry = /^snapshot_[1-5][0-9]{2}_(sync_cursor_expired|snapshot_expired)$/u.exec(code);
-  return expiry?.[1] ?? code;
+  return SNAPSHOT_WRAPPED.exec(code)?.[1] ?? SNAPSHOT_UNNAMED[code] ?? code;
 }
 
 export function classifySyncFailure(code: string | undefined, subject?: SyncFailureSubject): SyncFailureEntry | undefined {
@@ -441,6 +469,16 @@ export function freezesPullApply(code: string): boolean {
 /** A Session proves server authority, never an unknown browser identity: only a person's decision ends it. */
 export function holdsUnprovenIdentity(code: string | undefined): boolean {
   return classifySyncFailure(code)?.exit === 'decide';
+}
+
+/**
+ * A fresh Session (and the credential check behind it) ends this failure, so the next wake must renew authority
+ * instead of reusing the one that was just refused. The circuit breaker still counts it under its own code, so
+ * a refusal that renewal cannot cure ends in a cooldown rather than a loop.
+ */
+export function refreshesAuthority(code: string | undefined): boolean {
+  const policy = classifySyncFailure(code);
+  return policy?.class === 'authority' && policy.exit === 'refresh';
 }
 
 /** Local projection damage cannot be cured by minting another active Session. */

@@ -1,6 +1,9 @@
 import { readBoundedJson } from './json-response.js';
+import { authorityCodeForStatus, classifyHttpStatus, statusFailure } from './sync-transport-failure.js';
 
 const MAX_BACKOFF_MS = 5 * 60_000;
+/** Placeholders callers pass when the response named no code; a status that implies an authority denial replaces them. */
+const GENERIC_FAILURE = new Set(['pull_failed', 'ack_failed', 'snapshot_failed', 'session_failed']);
 
 export function pullApplyAckState(publishedCursor: string | undefined, nextCursor: string, parked: boolean):
   'ack' | 'parked' | 'not_durable' {
@@ -9,7 +12,7 @@ export function pullApplyAckState(publishedCursor: string | undefined, nextCurso
 }
 
 export async function snapshotFailure(response: Response, timeoutMilliseconds?: number) {
-  if (response.status >= 500) return 'server_unavailable';
+  if (classifyHttpStatus(response.status) === 'transient') return 'server_unavailable';
   const type = response.headers.get('Content-Type') ?? '';
   if (!/^application\/problem\+json(?:\s*;|$)/iu.test(type)) return `snapshot_http_${response.status}`;
   return `snapshot_${response.status}_${await responseProblemCode(response, 'invalid_problem', timeoutMilliseconds)}`;
@@ -52,15 +55,10 @@ export function retryAfterMilliseconds(error: unknown) { const value = error && 
     ? Number(value) : undefined; }
 
 export function httpFailure(response: Response, fallback: string, now: number) {
-  const error = new Error(response.status === 429 ? 'rate_limited' : response.status >= 500 ? 'server_unavailable' : fallback) as Error
-    & { retryAfterMilliseconds?: number };
-  if (response.status === 429) {
-    const value = response.headers.get('Retry-After'); let delay = 0;
-    if (value && /^\d+$/u.test(value)) delay = Number(value) * 1_000;
-    else if (value) { const date = Date.parse(value); if (Number.isFinite(date)) delay = Math.max(0, date - now); }
-    error.retryAfterMilliseconds = Math.min(MAX_BACKOFF_MS, Math.max(1_000, delay));
-  }
-  return error;
+  // Rule A: the status decides transient / rate limited / authority; a body that named a code keeps it.
+  const authority = classifyHttpStatus(response.status) === 'authority' && GENERIC_FAILURE.has(fallback)
+    ? authorityCodeForStatus(response.status) : undefined;
+  return statusFailure(response, { other: fallback, ...(authority ? { authority } : { authority: fallback }) }, now);
 }
 
 export function recoveryCapability(cursor: string | undefined) { return cursor?.startsWith('src1.') === true; }

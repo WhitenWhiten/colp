@@ -146,15 +146,16 @@ describe('Pull page transport and staging', () => {
   });
 
   test('rejects non-success, invalid and over-budget Pull responses without durable effects', async () => {
-    for (const response of [
-      new Response(null, { status: 503 }),
-      Response.json({}),
-      Response.json({ ...emptyPage('cursor-old'), padding: 'x'.repeat(256) }),
-    ]) {
+    for (const [response, expected] of [
+      // A gateway hiccup is transient (Rule A): it is never reported as a verdict on the page.
+      [new Response(null, { status: 503 }), /^Error: server_unavailable$/],
+      [Response.json({}), /pull_failed|pull_page_invalid/],
+      [Response.json({ ...emptyPage('cursor-old'), padding: 'x'.repeat(256) }), /pull_failed|pull_page_invalid/],
+    ] as const) {
       const fixture = await setup({ fetch: async () => response,
         transportBudget: { pullResponseBytes: 128, snapshotPageBytes: 128,
           effectPageBytes: 128, effectAggregateBytes: 512 } });
-      await assert.rejects(() => fixture.applier.pull('cursor-old'), /pull_failed|pull_page_invalid/);
+      await assert.rejects(() => fixture.applier.pull('cursor-old'), expected);
       assert.equal((await fixture.store.exportScope(scope)).pullPages.length, 0);
       fixture.store.close();
     }

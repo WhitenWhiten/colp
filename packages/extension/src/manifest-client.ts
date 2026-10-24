@@ -1,5 +1,6 @@
 import type { BuildConfig } from './types.js';
 import { readBoundedJson } from './json-response.js';
+import { statusFailure } from './sync-transport-failure.js';
 
 const REQUIRED = ['syncSessions', 'syncSnapshot', 'syncPush', 'syncPull', 'syncAck', 'syncConflict'] as const;
 const RETIRE_NAMESPACE = 'https://known.example/extensions/sync-retire';
@@ -15,7 +16,9 @@ export async function fetchSyncEndpoints(config: BuildConfig, fetcher: typeof fe
   const response = await fetcher(config.manifestUrl, { redirect: 'error', cache: 'no-store', signal: controller.signal,
     headers: { Accept: 'application/vnd.collection-protocol.manifest+json;version=0.2',
       'Collection-Protocol-Version': '0.2' } }).finally(() => clearTimeout(timeout));
-  if (!response.ok) throw new Error('manifest_unavailable');
+  // Rule A: a gateway hiccup (5xx, 408) is `server_unavailable`, not a verdict on the server; the manifest is public,
+  // so a definitive 4xx just means this origin offers no manifest there.
+  if (!response.ok) throw statusFailure(response, { authority: 'manifest_unavailable', other: 'manifest_unavailable' }, Date.now());
   return discoverSyncEndpoints(await readBoundedJson(response, MANIFEST_RESPONSE_MAX_BYTES, 'manifest_invalid'), config);
 }
 

@@ -3,6 +3,7 @@ import { syncSnapshotV02 } from '../generated/pull-effect-validators.js';
 import { colpCredentialHeaders } from '../auth-client.js';
 import { assertCredentialHostPermission, SERVER_HOST_PERMISSION_ERROR } from '../server-origin-permission.js';
 import { readBoundedJson } from '../json-response.js';
+import { authorityCodeForStatus, classifyHttpStatus } from '../sync-transport-failure.js';
 import { sessionTransportBudget } from '../colp-transport-budget-browser.js';
 import type { SyncScope } from '../sync-state-store.js';
 import type { StoredCredential, StoredSession } from '../types.js';
@@ -168,12 +169,16 @@ function remoteFact(node: SnapshotNode, childrenRevisions: ReadonlyMap<string, s
 async function snapshotProblemCode(response: Response): Promise<string> {
   if (response.status === 401) return 'authentication_required';
   if (response.status === 429) return 'rate_limited';
+  // Rule A: a gateway hiccup is transient whatever its body says.
+  if (classifyHttpStatus(response.status) === 'transient') return 'server_unavailable';
+  // No named code: the status still says whether the Session must be renewed.
+  const unnamed = authorityCodeForStatus(response.status) ?? 'snapshot_failed';
   try {
     const problem = await readBoundedJson(response.clone(), 128 * 1024, 'snapshot_problem_invalid');
     const code = problem && typeof problem === 'object' && !Array.isArray(problem)
       ? (problem as { readonly code?: unknown }).code : undefined;
-    return typeof code === 'string' && /^[a-z][a-z0-9_]{0,63}$/u.test(code) ? code : 'snapshot_failed';
-  } catch { return 'snapshot_failed'; }
+    return typeof code === 'string' && /^[a-z][a-z0-9_]{0,63}$/u.test(code) ? code : unnamed;
+  } catch { return unnamed; }
 }
 
 function jsonContentType(response: Response): boolean {

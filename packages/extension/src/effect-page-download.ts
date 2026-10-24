@@ -1,6 +1,7 @@
 import { SyncFailureError } from './sync-failure-class.js';
 import { canonicalAuthoritativeEffectPageDigest, expandAuthoritativeEffectPageUrl } from '@know-n/colp/sync/canonical';
 import { readBoundedJson } from './json-response.js';
+import { statusFailure } from './sync-transport-failure.js';
 import { authoritativeEffectPage } from './generated/pull-effect-validators.js';
 import type { EffectPageDownloadRecord, JsonValue, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
@@ -79,7 +80,11 @@ async function downloadOne(
         await input.store.putEffectDownload(input.scope, { ...record, retryNotBefore: input.now() + retryAfterMilliseconds });
         throw new EffectPageRateLimitedError(retryAfterMilliseconds);
       }
-      if (!response.ok) throw new SyncFailureError('effect_page_failed');
+      // Rule A: only a complete, parseable page that fails its checks is an integrity verdict. A 5xx or 408 is
+      // transient; the server hides every authority failure as 404 (and 401/403/410 mean the same), so those renew
+      // the Session through the authority freeze instead of freezing the replica on an integrity code.
+      if (!response.ok) throw statusFailure(response, { authority: 'effect_page_transport_unavailable',
+        other: 'effect_page_failed' }, input.now());
       rawPage = await readBoundedJson(response, record.remainingBytes, 'effect_page_invalid',
         { signal: controller.signal, timeoutMilliseconds });
     } finally { clearTimeout(timeout); }
