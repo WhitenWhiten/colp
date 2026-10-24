@@ -5,6 +5,7 @@ export interface SiteDefinition {
   label: string; origin: string; matches: readonly string[];
   capabilities: AdapterManifest['capabilities'];
   negativeReadback: boolean;
+  readPolicy?: Partial<import('./read-policy.js').SiteReadPolicy>;
   community?: { connectOrigins: readonly string[] };
   importResume: 'stableCursor' | 'restartAndDeduplicate';
   scripts: { adapter: string; probe?: string };

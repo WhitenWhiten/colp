@@ -1,3 +1,4 @@
+import { readLimits } from './read-policy.js';
 import { createLane } from '../automation/lane.js';
 import { requestValue } from '../sync-state/idb.js';
 import type { AdapterMessage, HostCommand, MembershipHint } from './contracts.js';
@@ -5,7 +6,6 @@ import type { SourceContext } from './ledger-types.js';
 import { requireSourceAuthority, type createSourceLedger } from './ledger.js';
 import { get, put, sourceDigest, sourceKey } from './source-db.js';
 import type { createReadScheduler } from './read-scheduler.js';
-import { LIMITS } from './limits.js';
 import { installationKey } from './installation.js';
 type Ledger = ReturnType<typeof createSourceLedger>;
 type Command = Extract<HostCommand, { operation: 'readMemberships' | 'resolveItem' }>;
@@ -23,7 +23,7 @@ interface Ports {
 const rowKey = (id: string) => sourceKey('hint', id);
 /** MAIN hints can spend only a bounded, paced read. Fresh positives remain observed state. */
 export function createConfirmationQueue(ledger: Ledger, scheduler: ReturnType<typeof createReadScheduler>, ports: Ports, now = Date.now) {
-  const db = ledger.db, lane = createLane();
+  const db = ledger.db, lane = createLane(), LIMITS = readLimits(ledger.definition);
   const PENDING = installationKey('confirmationQueue:v1', ledger.definition), PAUSE = installationKey('confirmationPause:v1', ledger.definition), LAST = installationKey('confirmationLast:v1', ledger.definition);
   const commandId = (r: ConfirmationRow) => r.active?.command.operation === 'resolveItem' ? r.active.command.resolutionId : r.active?.command.readRequestId;
   const same = (a: ConfirmationRow | undefined, b: ConfirmationRow) => a?.state === b.state && a.attempts === b.attempts && commandId(a) === commandId(b);

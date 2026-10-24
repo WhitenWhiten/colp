@@ -34,7 +34,7 @@ export async function executePlannedSave(planId: string, effectId: string) {
   return plannedSaveExecutor.execute(planId, effectId);
 }
 /** Bounded startup/alarm recovery. Unknown commands retain their identities and remain visible. */
-export async function wakePlannedSaves() {
+async function recoverPlannedSaves() {
   const cursor = await siteLedger.db.read<{ planId: string; exclusive: boolean; offset: number }>('meta', 'planRecoveryCursor');
   const page = await siteLedger.db.transaction(['savePlans'], 'readonly', tx => cursorPage<StoredSavePlan>(tx.objectStore('savePlans'),
     cursor ? IDBKeyRange.lowerBound(cursor.planId, cursor.exclusive) : null, 20));
@@ -63,4 +63,14 @@ export async function wakePlannedSaves() {
     if (next) tx.objectStore('meta').put(next, 'planRecoveryCursor'); else tx.objectStore('meta').delete('planRecoveryCursor');
   });
   if (next) scheduleRecovery(Date.now() + 100);
+}
+
+let recovering: Promise<void> | undefined, recoveryRequested = false;
+/** All installations share the executor/outbox: coalesce wakes instead of racing its durable cursor. */
+export function wakePlannedSaves(): Promise<void> {
+  if (recovering) { recoveryRequested = true; return recovering; }
+  return recovering = recoverPlannedSaves().finally(() => {
+    recovering = undefined;
+    if (recoveryRequested) { recoveryRequested = false; scheduleRecovery(Date.now() + 100); }
+  });
 }

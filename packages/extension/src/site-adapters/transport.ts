@@ -1,3 +1,4 @@
+import { allowsSiteMessage, matchesSiteUrl } from './registry-validation.js';
 import type { AdapterMessage, BootstrapReply, BootstrapRequest } from './contracts.js';
 import { legacySite, type SiteDefinition } from './registry.js';
 import { LIMITS } from './limits.js';
@@ -13,8 +14,8 @@ export const initialTransportState = (): TransportState => ({ version: 1, enable
   accountId: null, candidateAccount: null, sourceUnresolved: true, leases: [], routes: {} });
 export function validSiteSender(sender: SiteSender, extensionId: string, definition: SiteDefinition = legacySite): sender is SiteSender & { documentId: string; tab: { id: number }; url: string } {
   if (sender.id !== extensionId || sender.frameId !== 0 || !sender.documentId || !Number.isInteger(sender.tab?.id)
-      || sender.tab?.incognito || sender.documentLifecycle !== 'active' || sender.origin !== definition.origin) return false;
-  try { const u = new URL(sender.url!); return u.origin === definition.origin && !u.username && !u.password; } catch { return false; }
+      || sender.tab?.incognito || sender.documentLifecycle !== 'active') return false;
+  try { const u = new URL(sender.url!); return sender.origin === u.origin && matchesSiteUrl(definition, sender.url!); } catch { return false; }
 }
 export interface TransportDeps {
   extensionId: string; now(): number; random(): string;
@@ -79,7 +80,7 @@ export function createSiteTransport(deps: TransportDeps, definition: SiteDefinit
       if (!s.enabled || s.sourceUnresolved || !lease || lease.expiresAt <= deps.now() || lease.generation !== s.generation
           || lease.sourceGeneration !== s.sourceGeneration || lease.accountId !== s.accountId || lease.documentId !== sender.documentId
           || lease.tabId !== sender.tab.id || lease.url !== currentUrl) return null;
-      if (!definition.validateMessage(m)) return null;
+      if (!allowsSiteMessage(definition, m) || !definition.validateMessage(m)) return null;
       return structuredClone(lease);
     }),
   };

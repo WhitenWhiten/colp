@@ -10,8 +10,9 @@ export function createPageContext(input: {
   routeEvent: string; controls: boolean;
 }): AdapterContext {
   const own = (cleanup: () => void) => {
+    let disposed = false;
     if (input.signal.aborted) { cleanup(); return cleanup; }
-    const dispose = () => { input.signal.removeEventListener('abort', dispose); cleanup(); };
+    const dispose = () => { if (disposed) return; disposed = true; input.signal.removeEventListener('abort', dispose); cleanup(); };
     input.signal.addEventListener('abort', dispose, { once: true }); return dispose;
   };
   const controls = new Map<string, () => void>();
@@ -29,6 +30,7 @@ export function createPageContext(input: {
         observer.observe(root, options); return own(() => observer.disconnect());
       },
       waitFor(read, options) {
+        if (!Number.isFinite(options.timeoutMs) || options.timeoutMs <= 0) return Promise.reject(new SiteReadError({ code: 'invalidData' }));
         return new Promise((resolve, reject) => {
           const signal = AbortSignal.any([input.signal, options.signal]);
           let timer: ReturnType<typeof setTimeout> | undefined;

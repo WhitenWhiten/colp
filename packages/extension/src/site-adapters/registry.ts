@@ -1,8 +1,9 @@
+import { validateSiteDefinitions } from './registry-validation.js';
 import { bilibiliDefinition } from './bilibili/definition.js';
 import type { SiteDefinition } from './registry-types.js';
 export type { SiteDefinition } from './registry-types.js';
 /** The only host composition point for bundled site implementations. */
-export const bundledSites: readonly SiteDefinition[] = [bilibiliDefinition];
+export const bundledSites: readonly SiteDefinition[] = validateSiteDefinitions([bilibiliDefinition]);
 /** Only legacy records/messages without an installation identifier use this default. */
 export const legacySite = bilibiliDefinition;
 export function siteDefinition(adapterId: string): SiteDefinition {

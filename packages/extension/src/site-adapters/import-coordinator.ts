@@ -1,3 +1,4 @@
+import { readLimits } from './read-policy.js';
 import { legacySite } from './registry.js';
 import { installationKey } from './installation.js';
 import { authorityForConnection, readConnectionAuthority } from './ledger.js';
@@ -13,7 +14,7 @@ import type { createSourceLayout } from './layout.js';
 import type { createReadScheduler } from './read-scheduler.js';
 import { planDigest } from './planned-executor.js';
 import type { StoredSavePlan, SourceOutbox } from './planned-types.js';
-import { LIMITS } from './limits.js';
+import { LIMITS as DEFAULT_LIMITS } from './limits.js';
 type Ledger = ReturnType<typeof createSourceLedger>;
 type Layout = ReturnType<typeof createSourceLayout>;
 interface Edge { kind: 'collectedEdge'; collectionId: string; itemId: string }
@@ -37,11 +38,11 @@ interface Ports {
   alarm(at: number): void;
 }
 const key = (id: string) => `importJob:${id}`;
-const EDGE_LIMIT = LIMITS.importItems, PAGE_LIMIT = 2000;
+const EDGE_LIMIT = DEFAULT_LIMITS.importItems, PAGE_LIMIT = 2000;
 const emptyCounts = () => ({ createFolders: 0, createBookmarks: 0, reuseBookmarks: 0, review: 0 });
 /** Scan facts, freeze exact scope, then approve: none of the first two phases grants native writes. */
 export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: ReturnType<typeof createReadScheduler>, ports: Ports) {
-  const db = ledger.db, lane = createLane(), ACTIVE = installationKey('activeImport:v1', ledger.definition);
+  const db = ledger.db, lane = createLane(), LIMITS = readLimits(ledger.definition), ACTIVE = installationKey('activeImport:v1', ledger.definition);
   const load = async (id?: string) => { const active = id ?? await db.read<string>('meta', ACTIVE); const job = active ? await db.read<ImportJob>('meta', key(active)) : undefined;
     if (job && (job.installationId ?? legacySite.adapterId) !== ledger.definition.adapterId) throw new Error('sourceAuthorizationChanged');
     return job; };
@@ -175,6 +176,7 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
         preview: p ? { id: p.id, revision: p.revision, digest: p.digest, coverage: p.coverage, counts: p.counts, omissions: p.omissions, reviewSamples: p.reviewSamples } : null };
     },
     start: (selected: readonly string[]) => lane(async () => {
+      if (!ledger.definition.capabilities.includes('enumerateCollections') || !ledger.definition.capabilities.includes('enumerateItems')) throw new Error('unsupported');
       const existing = await load(); if (existing && !['cancelled', 'completed'].includes(existing.phase)) throw new Error('importAlreadyActive');
       if (!selected.length || selected.length > 64 || new Set(selected).size !== selected.length) throw new Error('invalidScope');
       const source = await ports.source(); if (!source) throw new Error('pageUnavailable');

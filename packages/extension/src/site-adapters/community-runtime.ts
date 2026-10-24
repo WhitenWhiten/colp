@@ -1,3 +1,4 @@
+import { matchesSiteUrl } from './registry-validation.js';
 import { inspectCommunityPackage, COMMUNITY_RISK, type PackagePreview } from './community-package.js';
 import { communityWrapper } from './community-wrapper.js';
 import { communityStore, communityScriptId, communityWorldId, communityScopeDigest, fenceCommunity, type CommunityInstallation, type CommunityArchiveScope } from './community-state.js';
@@ -45,7 +46,7 @@ export function createCommunityRuntime(ports: Ports) {
     for (const tab of await chrome.tabs.query({ url: [...r.approved.package.manifest.matches] }).catch(() => [])) {
       if (tab.id === undefined || tab.incognito) continue;
       const frame = await chrome.webNavigation.getFrame({ tabId: tab.id, frameId: 0 }).catch(() => null);
-      if (frame?.documentLifecycle === 'active' && new URL(frame.url).origin === definitionFor(r).origin && chrome.userScripts?.execute) await bounded(chrome.userScripts.execute({
+      if (frame?.documentLifecycle === 'active' && matchesSiteUrl(definitionFor(r), frame.url) && chrome.userScripts?.execute) await bounded(chrome.userScripts.execute({
         target: { tabId: tab.id, documentIds: [frame.documentId] }, world: 'USER_SCRIPT', worldId: communityWorldId(r), js: [{ code: 'globalThis.__colpCommunity?.stop();' }], injectImmediately: true,
       }), 2000).catch(() => undefined);
     }
@@ -57,7 +58,7 @@ export function createCommunityRuntime(ports: Ports) {
     for (const tab of await chrome.tabs.query({ url: [...r.approved.package.manifest.matches] })) {
       if (tab.id === undefined || tab.incognito || tabId !== undefined && tab.id !== tabId) continue;
       const frame = await chrome.webNavigation.getFrame({ tabId: tab.id, frameId: 0 }).catch(() => null);
-      if (!frame || frame.documentLifecycle !== 'active' || new URL(frame.url).origin !== definitionFor(r).origin) continue;
+      if (!frame || frame.documentLifecycle !== 'active' || !matchesSiteUrl(definitionFor(r), frame.url)) continue;
       if (typeof chrome.userScripts.execute !== 'function') { await communityStore.mutate(rows => { const row = rows.find(x => x.id === r.id); if (row) row.error = 'reloadRequired'; }); continue; }
       await bounded(chrome.userScripts.execute({ target: { tabId: tab.id, documentIds: [frame.documentId] }, world: 'USER_SCRIPT', worldId: communityWorldId(r),
         js: [{ code: scriptCode(r) }], injectImmediately: true })).catch(() => communityStore.mutate(rows => {
@@ -202,7 +203,7 @@ export function createCommunityRuntime(ports: Ports) {
     const definition = definitionFor(installation); await communityApiAvailable(definition);
     if (!validSiteSender(sender, chrome.runtime.id, definition)) return { status: 'rejected', reason: 'sender' };
     const frame = await chrome.webNavigation.getFrame({ tabId: sender.tab.id, frameId: 0 });
-    if (!frame || frame.documentId !== sender.documentId || frame.documentLifecycle !== 'active' || new URL(frame.url).origin !== definition.origin) return { status: 'rejected', reason: 'sender' };
+    if (!frame || frame.documentId !== sender.documentId || frame.documentLifecycle !== 'active' || !matchesSiteUrl(definition, frame.url)) return { status: 'rejected', reason: 'sender' };
     const input = raw as { installationId: string; generation: number; credential: string; leaseId: string; capability: string; requestId: string; hint: MembershipHint };
     const accepted = await communityStore.mutate(rows => {
       const r = rows.find(r => r.id === input.installationId);
@@ -233,7 +234,7 @@ export function createCommunityRuntime(ports: Ports) {
   async function navigated(tabId: number) {
     if (!(await communityStore.read()).some(r => r.enabled || r.leases.length)) return;
     const frame = await chrome.webNavigation.getFrame({ tabId, frameId: 0 }).catch(() => null);
-    const here = (r: CommunityInstallation) => frame?.documentLifecycle === 'active' && new URL(frame.url).origin === definitionFor(r).origin;
+    const here = (r: CommunityInstallation) => frame?.documentLifecycle === 'active' && matchesSiteUrl(definitionFor(r), frame.url);
     await communityStore.mutate(rows => { for (const r of rows) {
       r.leases = r.leases.filter(l => l.tabId !== tabId && l.expiresAt > Date.now());
       if (here(r) && r.enabled) r.routes[String(tabId)] = (r.routes[String(tabId)] ?? 0) + 1;
