@@ -81,7 +81,7 @@ describeWithPostgres('durable owner agent activity', () => {
     expect((await get('/summary')).headers['known-activity-account-id']).toBe(f.owner.accountId);
     const foreign = await f.issue('activity_foreign');
     expect((await get('/summary', foreign.cookie)).headers['known-activity-account-id']).toBe(foreign.accountId); expect((await get('', foreign.cookie)).json()).toEqual({ items: [], nextCursor: null, unreadCount: 0 });
-    expect(await store.markRead(foreign.accountId, { through: newest.id, throughRevision: newest.revision })).toEqual({ readCount: 0, unreadCount: 0 });
+    expect(await store.markRead(foreign.accountId, { through: newest.id, throughRevision: newest.revision }, randomUUID())).toEqual({ readCount: 0, unreadCount: 0 });
     expect((await read({ through: 'unknown', throughRevision: '1' })).json()).toEqual({ readCount: 0, unreadCount: 1 });
     expect((await read({ through: newest.id, throughRevision: newest.revision })).json()).toEqual({ readCount: 1, unreadCount: 0 });
     await create('three', null); await route.handle(await context('three')); expect((await get('/summary')).json().latest.agent).toBeNull();
@@ -97,7 +97,7 @@ describeWithPostgres('durable owner agent activity', () => {
     await f.db.updateTable('outbox_events').set({ lease_generation: 2n }).where('outbox_id', '=', delivery.attempt!.outboxId).execute();
     await expect(route.handle(delivery)).rejects.toThrow('lease lost'); expect(await f.db.selectFrom('activity_items').selectAll().execute()).toHaveLength(0);
     await route.handle(await context('one')); const item = (await store.list(f.owner.accountId, {})).items[0]!;
-    await store.markRead(f.owner.accountId, { ids: [item.id] }); await create('two'); await route.handle(await context('two'));
+    await store.markRead(f.owner.accountId, { ids: [item.id] }, randomUUID()); await create('two'); await route.handle(await context('two'));
     await sql`UPDATE activity_items SET occurred_at=clock_timestamp()-interval '24 hours' WHERE read_at IS NULL`.execute(f.db);
     await create('three'); await route.handle(await context('three')); expect(await f.db.selectFrom('activity_items').selectAll().execute()).toHaveLength(3);
     await create('inactive'); const inactive = await context('inactive');

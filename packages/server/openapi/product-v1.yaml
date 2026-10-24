@@ -473,7 +473,7 @@ paths:
         - Activity
       operationId: markMyActivityRead
       summary: Mark activity items read
-      description: Browser session only. Private per-account agent activity; returns 404 when the feature is disabled.
+      description: Browser session only. Known-Command-Id durably replays the original read result; changed payloads return 409 and expired results return 410. Returns 404 when the feature is disabled.
       security:
         - cookieAuth: []
       x-known-feature-gate: agent_activity
@@ -497,6 +497,14 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/MutationConflict"
+        "410":
+          description: The original command result expired; the read is never reapplied.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductError"
         "429":
           $ref: "#/components/responses/RateLimited"
         "500":

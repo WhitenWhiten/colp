@@ -57,7 +57,7 @@ describeWithPostgres('run activity triggers and output read bridge', () => {
     expect((await store().summary(f.owner.accountId)).latest?.revision).toBe(reread.revision);
     await sql`UPDATE automation_runs SET state='review' WHERE id=${job.runId}`.execute(f.db);
     expect((await store().summary(f.owner.accountId)).latest).toMatchObject({ id: activity.id, kind: 'run_attention', state: 'unread', run: { attention: 'review' } });
-    await store().markRead(f.owner.accountId, { ids: [activity.id] });
+    await store().markRead(f.owner.accountId, { ids: [activity.id] }, randomUUID());
     await sql`UPDATE automation_jobs SET state='awaitingApproval' WHERE id=${job.id}`.execute(f.db);
     expect((await store().summary(f.owner.accountId)).latest).toMatchObject({ id: activity.id, state: 'unread', run: { attention: 'awaitingApproval' } });
     await sql`UPDATE automation_runs SET state='partial' WHERE id=${job.runId}`.execute(f.db);

@@ -147,7 +147,7 @@ function layerOf(path) {
 }
 
 const moduleEdges = {
-  activity: new Set(['automation']),
+  activity: new Set(['automation', 'commands']),
   automation: new Set(['commands', 'identity']),
   // Known-Command-Id idempotency: the identity avatar upload path consumes the
   // commands facade receipt port (same pattern as notifications/reading-progress).

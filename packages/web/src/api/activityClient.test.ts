@@ -50,6 +50,17 @@ describe('activity client', () => {
     expect(ids[2]).not.toBe(ids[1])
   })
 
+  it('retains the command while the original request is in progress', async () => {
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(json(409, { error: { code: 'command_in_progress', message: 'Still running' } }))
+      .mockResolvedValueOnce(json(200, { readCount: 1, unreadCount: 0 }))
+    const api = createActivityApi(fetcher)
+    await expect(api.markActivityRead({ ids: ['a'] })).rejects.toMatchObject({ code: 'command_in_progress' })
+    await api.markActivityRead({ ids: ['a'] })
+    expect(new Headers(fetcher.mock.calls[0]![1]?.headers).get('Known-Command-Id'))
+      .toBe(new Headers(fetcher.mock.calls[1]![1]?.headers).get('Known-Command-Id'))
+  })
+
   it('keeps a missing endpoint identifiable as feature unavailable', async () => {
     const fetcher = vi.fn<typeof fetch>(async () => json(404, { error: { code: 'resource_not_found', message: 'Not found' } }))
     try { await createActivityApi(fetcher).getActivitySummary() } catch (error) {

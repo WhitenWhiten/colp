@@ -1,8 +1,9 @@
 import { sql, type Kysely } from 'kysely';
 import type { DatabaseSchema } from '../database/index.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
-import type { ActivityPorts, ActivityReadRequest } from '../../modules/activity/index.js';
+import { executeActivityReadCommand, type ActivityPorts, type ActivityReadRequest } from '../../modules/activity/index.js';
 import { AutomationError, createAutomationPagination } from '../../modules/automation/index.js';
+import { createPostgresProductCommandReceiptPort } from '../database/product-command-receipt.js';
 import { activityViews, type ActivityRow } from './item-views.js';
 
 async function unreadCount(tx: DatabaseTransaction, accountId: string): Promise<number> {
@@ -33,16 +34,18 @@ export function createActivityStore(db: Kysely<DatabaseSchema>, cursorKey: strin
         return { unreadCount: await unreadCount(tx, accountId), latest: (await activityViews(tx, accountId, rows))[0] ?? null, revision };
       });
     },
-    async markRead(accountId, request: ActivityReadRequest) {
+    async markRead(accountId, request: ActivityReadRequest, commandId) {
       return db.transaction().execute(async tx => {
         // Shared with the consumer, so each aggregate is either read before or after an arriving member.
         await tx.selectFrom('accounts').select('id').where('id', '=', accountId).forUpdate().executeTakeFirst();
-        const target = 'ids' in request
-          ? sql`id IN (${sql.join(request.ids.map(id => sql`${id}`))})`
-          : sql`(updated_at,id)<=(SELECT updated_at,id FROM activity_items WHERE id=${request.through} AND account_id=${accountId} ${request.throughRevision === undefined ? sql`` : sql`AND revision::text=${request.throughRevision}`})`;
-        const changed = await sql`UPDATE activity_items SET read_at=clock_timestamp(),revision=revision+1
-          WHERE account_id=${accountId} AND read_at IS NULL AND ${target} RETURNING id`.execute(tx);
-        return { readCount: changed.rows.length, unreadCount: await unreadCount(tx, accountId) };
+        return executeActivityReadCommand({ receipts: createPostgresProductCommandReceiptPort(tx), accountId, commandId, request, apply: async () => {
+          const target = 'ids' in request
+            ? sql`id IN (${sql.join(request.ids.map(id => sql`${id}`))})`
+            : sql`(updated_at,id)<=(SELECT updated_at,id FROM activity_items WHERE id=${request.through} AND account_id=${accountId} ${request.throughRevision === undefined ? sql`` : sql`AND revision::text=${request.throughRevision}`})`;
+          const changed = await sql`UPDATE activity_items SET read_at=clock_timestamp(),revision=revision+1
+            WHERE account_id=${accountId} AND read_at IS NULL AND ${target} RETURNING id`.execute(tx);
+          return { readCount: changed.rows.length, unreadCount: await unreadCount(tx, accountId) };
+        } });
       });
     },
   };

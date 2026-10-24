@@ -73,7 +73,7 @@ export function createActivityApi(fetchImpl?: typeof fetch): ActivityApi {
         clearCommandId(intent)
         return body as unknown as ActivityReadResult
       } catch (error) {
-        if (error instanceof ProductApiError && error.status > 0 && error.status < 500 && ![408, 429].includes(error.status)) clearCommandId(intent)
+        if (error instanceof ProductApiError && error.status > 0 && error.status < 500 && ![408, 429].includes(error.status) && error.code !== 'command_in_progress') clearCommandId(intent)
         throw error
       }
     },

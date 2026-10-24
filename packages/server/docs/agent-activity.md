@@ -16,7 +16,9 @@ The extension checks it against its connected account and clears activity on aut
 
 All routes require a browser session and return `Cache-Control: private, no-store`.
 The read command also requires Origin, CSRF, and Known-Command-Id headers.
-Unknown or foreign read IDs have no effect; repeated reads are harmless.
+Unknown or foreign read IDs have no effect. A repeated command id replays its original result,
+even if a newer run outcome has since reopened the item. Reusing it with another payload returns 409;
+an expired receipt returns 410 without applying the read again.
 
 Unread agent additions aggregate by owner, verified agent client, and collection for at most 24 hours.
 Samples, folder names, agent names, and collection names are read from current server records.

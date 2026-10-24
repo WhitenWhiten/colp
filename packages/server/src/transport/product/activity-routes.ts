@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import type { ActivityPorts, ActivityReadRequest } from '../../modules/activity/index.js';
+import { ActivityCommandError, type ActivityPorts, type ActivityReadRequest } from '../../modules/activity/index.js';
 import type { IdentityUnitOfWork } from '../../modules/identity/index.js';
 import { AutomationError } from '../../modules/automation/index.js';
 import { requireBrowserSessionActor } from '../session-auth.js';
@@ -37,13 +37,19 @@ export function registerActivityRoutes(app: FastifyInstance, deps: ActivityRoute
         try {
           let result;
           if (method === 'POST') {
-            await requireMutationActor(request, deps); readKnownCommandId(request);
-            result = await deps.activity.markRead(actor.account.id, parseRead(request.body));
+            await requireMutationActor(request, deps);
+            const commandId = readKnownCommandId(request);
+            result = await deps.activity.markRead(actor.account.id, parseRead(request.body), commandId);
           } else result = suffix === '/summary' ? await deps.activity.summary(actor.account.id)
             : await deps.activity.list(actor.account.id, request.query as Record<string, string>);
           if (suffix === '/summary') reply.header('Known-Activity-Account-Id', actor.account.id);
           return reply.header('cache-control', 'private, no-store').send(result);
         } catch (error) {
+          if (error instanceof ActivityCommandError) throw new ProductHttpError({ statusCode: productErrorStatus(error.code),
+            code: error.code, message: error.message, retryAfterSeconds: error.retryAfterSeconds,
+            recovery: error.code === 'command_in_progress' ? 'same_request' : 'user_action',
+            sameRequestRetrySafe: error.code === 'command_in_progress',
+            headers: error.retryAfterSeconds === null ? {} : { 'retry-after': String(error.retryAfterSeconds) } });
           if (error instanceof AutomationError) throw new ProductHttpError({ statusCode: productErrorStatus(error.code), code: error.code, message: error.message });
           throw error;
         }

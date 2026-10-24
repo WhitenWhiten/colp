@@ -60,7 +60,7 @@ export interface paths {
         put?: never;
         /**
          * Mark activity items read
-         * @description Browser session only. Private per-account agent activity; returns 404 when the feature is disabled.
+         * @description Browser session only. Known-Command-Id durably replays the original read result; changed payloads return 409 and expired results return 410. Returns 404 when the feature is disabled.
          */
         post: operations["markMyActivityRead"];
         delete?: never;
@@ -5477,6 +5477,16 @@ export interface operations {
             401: components["responses"]["AuthenticationRequired"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["MutationConflict"];
+            /** @description The original command result expired; the read is never reapplied. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductError"];
+                };
+            };
             429: components["responses"]["RateLimited"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["ServiceUnavailable"];
