@@ -59,6 +59,9 @@ describe('what the view says', () => {
       'Tried again. 1 item is back in the upload queue. 2 items could not be tried again (operation_schema_invalid). They stay as they were.');
     assert.equal(issueActionOutcomeCopy('retry', ok({ failed: 1, code: 'recovery_identity_unproven' }), 1),
       '1 item could not be tried again (recovery_identity_unproven). It stays as it was.');
+    // Sync is not running (a reset or a recovery, or the folders are not ready): nothing is wrong with the items.
+    assert.equal(issueActionOutcomeCopy('retry', ok({ failed: 3, code: 'scope_not_writable' }), 3),
+      'Sync is not ready to try again yet. Try again in a moment; the items stay as they were.');
     assert.equal(issueActionOutcomeCopy('dismiss', ok({ skipped: 1 }), 1), 'Nothing changed: the item is gone or no longer offers this.');
     assert.match(issueActionOutcomeCopy('dismiss', ok({ done: 250 }), 400), /More items are left\. Press again for the rest\.$/u);
     assert.equal(issueActionOutcomeCopy('retry', { ok: false, error: 'not_connected' }, 1), 'Could not do that (not_connected). The items stay as they were.');

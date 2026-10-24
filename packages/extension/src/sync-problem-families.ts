@@ -36,7 +36,7 @@ export type SyncProblemLane = 'upload' | 'download' | 'device';
 const OFFLINE = new Set(['network_unavailable', 'push_network_failed', 'pull_transport_unavailable', 'indexeddb_unavailable']);
 const SERVER_BUSY = new Set(['server_unavailable', 'rate_limited', 'service_unavailable', 'internal_error', 'push_batch_timeout',
   'push_batch_response_unknown', 'request_failed', 'pull_failed', 'manifest_unavailable', 'push_dispatch_failed',
-  'push_response_unrecognized']);
+  'push_server_unavailable']);
 const PERMISSION = new Set(['permission_required', 'permission_revoked']);
 const SIGN_IN = new Set(['credential_revoked', 'authentication_required', 'insufficient_scope', 'session_invalid',
   'origin_not_allowed', 'server_configuration_failed']);

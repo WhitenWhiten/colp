@@ -21,7 +21,7 @@ const list = (words: string): ReadonlySet<string> => new Set(words.split(/\s+/u)
 
 const OFFLINE = list('network_unavailable push_network_failed pull_transport_unavailable indexeddb_unavailable')
 const SERVER_BUSY = list(`server_unavailable rate_limited service_unavailable internal_error push_batch_timeout
-  push_batch_response_unknown request_failed pull_failed manifest_unavailable push_dispatch_failed push_response_unrecognized`)
+  push_batch_response_unknown request_failed pull_failed manifest_unavailable push_dispatch_failed push_server_unavailable`)
 const PERMISSION = list('permission_required permission_revoked')
 const SIGN_IN = list(`credential_revoked authentication_required insufficient_scope session_invalid origin_not_allowed
   server_configuration_failed`)
@@ -35,7 +35,8 @@ const WAITING = list(`position_context_stale revision_conflict concurrent_local_
   native_result_cas projection_apply_barrier projection_generation_fenced pull_page_pending push_batch_placement_changed
   push_batch_recovery_barrier queue_recovery_frozen quota_exceeded range_dependency_pending remote_delete_command_pending
   remote_delete_decision_stale remote_delete_generation_fenced remote_delete_policy_stale remote_delete_revision_stale
-  session_handoff_pending stale_fence stale_ref sync_paused transaction_aborted`)
+  session_handoff_pending stale_fence stale_ref sync_paused transaction_aborted push_attempt_missing queue_not_drained
+  scope_not_writable sync_step_failed storage_blocked storage_unavailable indexeddb_failure`)
 const AUTHORITY = list(`snapshot_expired sync_cursor_expired need_authority recovery_required recovery_capability_premature
   recovery_capability_invalid recovery_authority_invalid effect_page_transport_unavailable stale_replica
   push_authentication_rejected push_denial_escalated push_scope_mismatch push_authority_expired push_authority_denied
@@ -44,7 +45,8 @@ const AUTHORITY = list(`snapshot_expired sync_cursor_expired need_authority reco
   scope_mismatch session_authority_invalid`)
 const CONFIRM = list('remote_delete_confirmation_required native_result_unknown')
 const DECIDE = list(`recovery_identity_unproven deletion_identity_unproven create_placement_parent_deleted
-  create_placement_unproven delete_subtree_changed managed_not_writable`)
+  create_placement_unproven delete_subtree_changed managed_not_writable push_request_refused push_attempt_bind_failed
+  push_media_type_invalid subscription_upload_excluded bootstrap_upload_excluded bootstrap_boundary_unavailable queue_row_unreadable`)
 const REBUILD = list(`pull_apply_target_missing pull_apply_evidence_missing anchor_mapping_missing create_ambiguous
   create_evidence_missing snapshot_content_target_missing snapshot_placement_local_identity_unproven
   snapshot_placement_target_missing mapping_identity_conflict mapping_identity_collision legacy_resolution_sequence_collision
@@ -69,7 +71,8 @@ const STOP_LOCAL = list(`archive_not_found canonical_json_invalid conflict_resol
   delete_journal_invalid diagnostic_read_only digest_mismatch engine_state_invalid engine_state_missing environment_invalid
   future_schema identity_conflict journal_kind_invalid journal_scope_invalid lease_result_missing lifecycle_invalid
   lifecycle_transition_invalid limit_exceeded live_work_invalid mapping_scope_invalid object_invalid request_invalid
-  retry_invalid scope_not_found scope_retired server_origin_invalid unknown_or_missing_field unsafe_integer upgrade_failed`)
+  retry_invalid scope_not_found scope_retired server_origin_invalid storage_record_rejected unknown_or_missing_field unsafe_integer
+  upgrade_failed`)
 
 /** The area a stop code belongs to, read off its first word (the same rule the extension uses). */
 const STOP_AREAS: readonly (readonly [ProblemFamily, RegExp])[] = [
@@ -141,6 +144,27 @@ const CODE_REASON: Readonly<Record<string, string>> = {
   replica_rebuild_pending: 'its copy of your library is being rebuilt.',
   pull_issue_ceiling: 'it set aside too many items to keep syncing safely.',
   sync_issue_ceiling: 'it has too many unresolved items to keep syncing safely.',
+  storage_blocked: 'another window is still using its sync data, so the update of that data can’t finish.',
+  storage_unavailable: 'its browser couldn’t read or save its sync data just now.',
+  indexeddb_failure: 'its browser couldn’t read or save its sync data just now.',
+  indexeddb_unavailable: 'its browser couldn’t open the storage its sync data lives in.',
+  quota_exceeded: 'its browser has no room left to save its sync data.',
+  storage_record_rejected: 'it couldn’t save one of its records, and trying again gives the same answer.',
+  future_schema: 'its sync data was saved by a newer version of the extension, so this version can’t read it.',
+  diagnostic_read_only: 'its sync data is damaged and can’t be changed.',
+  upgrade_failed: 'it couldn’t update its sync data.',
+  push_attempt_operation_changed: 'a change that may already have reached the server couldn’t be sent again, so later uploads are waiting.',
+  push_response_invalid: 'the server’s answer about a change couldn’t be understood, so later uploads are waiting.',
+  push_response_unrecognized: 'the server’s answer about a change couldn’t be understood, so later uploads are waiting.',
+  push_problem_invalid: 'the server’s answer about a change couldn’t be understood, so later uploads are waiting.',
+  push_problem_status_mismatch: 'the server’s answer about a change couldn’t be understood, so later uploads are waiting.',
+  push_result_processing_failed: 'the server’s answer about a change couldn’t be understood, so later uploads are waiting.',
+  queue_head_unreadable: 'a change that may already have reached the server can’t be read on that browser, so later uploads are waiting.',
+  push_server_unavailable: 'the server isn’t answering its uploads.',
+  push_dispatch_failed: 'it couldn’t start an upload.',
+  queue_not_drained: 'it’s waiting for pending uploads to finish.',
+  scope_not_writable: 'it isn’t ready to do that yet.',
+  sync_step_failed: 'part of syncing keeps failing there.',
   snapshot_invalid: 'the server’s Snapshot failed integrity checks. Retry after the source is repaired, or rebuild this browser’s copy.',
   snapshot_graph_incomplete: 'the server’s Snapshot has an incomplete library graph.',
   snapshot_chain_invalid: 'the server’s Snapshot pages do not form a valid chain.',
@@ -195,6 +219,10 @@ export function stopNext(code: string | null | undefined, offered: Offered): str
       return retry ? 'It tries again by itself; Retry below tries now.' : 'It tries again by itself.'
     case 'stalled': return retry ? 'Retry below tries now. If it stays this way, open the extension on that browser and copy its details.'
       : 'Open the extension on that browser and copy its details.'
+    // A browser that stopped for one of these looks again by itself: after 5 minutes, 15 minutes, an hour, then every six hours.
+    case 'stop_upload': case 'stop_download': case 'stop_first_sync': case 'stop_feature': case 'stop_local':
+      return `${retry ? 'It checks again by itself every so often; Retry below checks now.' : 'It checks again by itself every so often.'}${
+        offered.includes('rebuild') ? ' If it keeps stopping, Reset sync below clears it. That browser keeps its bookmarks; changes it hasn’t synced yet are archived and not retried.' : ''}`
     case 'rebuild': return offered.includes('rebuild')
       ? 'Reset sync below to continue. That browser keeps its bookmarks; changes it hasn’t synced yet are archived and not retried.'
       : 'Open the extension on that browser to reset its sync.'
@@ -219,6 +247,14 @@ const RESULT_REASONS: Readonly<Record<string, string>> = {
   rebuild_not_required: 'its sync no longer needed a reset',
   upload_outcome_unsettled: UNSETTLED_UPLOAD,
   native_outcome_unsettled: 'a bookmark change in that browser is waiting for your answer there. Answer it in the extension, then reset',
+  offline: 'that browser is offline, and a reset needs a connection because a change may already have reached the server',
+  fence_unauthorized: 'that browser’s sign-in no longer works, so the server could not be told. Sign in again there, then reset',
+  fence_session_unavailable: 'that browser could not get permission from the server to reset. Nothing was changed; try again',
+  fence_refused: 'the server refused the reset. Nothing was changed on that browser',
+  rate_limited: 'the server asked that browser to wait. Nothing was changed; try again in a minute',
+  server_unavailable: 'the server did not answer that browser. Nothing was changed; try again later',
+  scope_not_writable: 'sync was not running on that browser. Try again in a moment',
+  permission_required: 'that browser no longer lets the extension change bookmarks. Allow it there first',
   rebuild_failed: 'the reset didn’t finish and the browser didn’t say why. Its bookmarks are untouched; try again, or open the extension on that browser',
   command_failed: 'the browser hit an unexpected error while carrying it out',
   command_context_missing: 'the browser wasn’t ready to run it. Try again in a minute',
@@ -232,6 +268,14 @@ export function resultReason(code: string): string {
 }
 
 type IssueSummaryInput = Pick<SyncReplicaIssue, 'code' | 'direction' | 'actions'> & Partial<SyncReplicaIssue>
+
+/** What a row calls the item when the browser sent no title; items that are not about one bookmark say what they are about. */
+export function issueTitle(issue: Pick<SyncReplicaIssue, 'code'> & Partial<Pick<SyncReplicaIssue, 'title' | 'nodeId'>>): string {
+  if (issue.title) return issue.title
+  if (issue.code === 'sync_step_failed') return 'Part of syncing'
+  if (!issue.nodeId && (issue.code === 'queue_row_unreadable' || issue.code === 'queue_head_unreadable')) return 'A saved change'
+  return issue.nodeId ? 'A bookmark in your library' : 'A bookmark on that browser'
+}
 
 /** One sentence for one item a browser set aside, in the same vocabulary as the extension's own list. */
 export function issueSummary(issue: IssueSummaryInput): string {
@@ -261,8 +305,24 @@ export function issueSummary(issue: IssueSummaryInput): string {
     case 'push_deferred': return 'The server keeps deferring this change; later uploads from that browser wait behind it'
     case 'sequence_gap': return 'The server is waiting for an earlier change first; later uploads from that browser wait behind it'
     case 'push_response_unrecognized': case 'push_result_processing_failed': case 'push_problem_status_mismatch':
-    case 'push_batch_response_invalid': case 'push_stalled':
+    case 'push_batch_response_invalid': case 'push_stalled': case 'push_response_invalid': case 'push_problem_invalid':
       return 'The server’s answer to this change couldn’t be settled; later uploads from that browser wait behind it'
+    // The server is not answering, so the change at the head of the line waits and everything behind it with it.
+    case 'push_server_unavailable': case 'service_unavailable': case 'internal_error':
+      return 'The server isn’t answering this change; later uploads from that browser wait behind it. Retry sends it again'
+    // Held or refused before anything was sent: an item, while everything else keeps syncing.
+    case 'push_request_refused': return 'A firewall or network filter keeps refusing this change, so it was set aside. Everything else keeps syncing'
+    case 'metadata_sync_disabled': return 'It includes tags or a description, which you chose not to sync, so it was not uploaded'
+    case 'subscription_upload_excluded': return 'Not uploaded: the bookmark is in a subscribed folder'
+    case 'bootstrap_boundary_unavailable': return 'It couldn’t be checked against the first sync because its folder couldn’t be read'
+    case 'bootstrap_upload_excluded': return 'Not part of the first sync, so it was left out'
+    case 'push_attempt_bind_failed': return 'That browser couldn’t prepare it for upload'
+    case 'push_media_type_invalid': return 'It is in a format sync cannot send'
+    // A saved change that browser cannot read: unsent ones are set aside, a possibly sent one holds the line.
+    case 'queue_row_unreadable': return 'One saved change could not be read, so it was set aside. The bookmark is unchanged; Retry saves it again'
+    case 'queue_head_unreadable': return 'A change that may already have reached the server can’t be read on that browser, so later uploads are waiting. Resetting sync on that browser clears it'
+    case 'push_attempt_operation_changed': return 'A change that may already have reached the server couldn’t be sent again, so later uploads are waiting. Resetting sync on that browser clears it'
+    case 'sync_step_failed': return 'Part of syncing keeps failing on that browser and will be tried again'
   }
   // `apply_failed:<code>` travels as `apply_failed_<code>`: the browser refused a call while applying a change.
   if (issue.code.startsWith('apply_failed')) return 'The browser refused to apply this change from your library, so it was set aside'

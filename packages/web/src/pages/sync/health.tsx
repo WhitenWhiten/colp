@@ -13,7 +13,7 @@ import { Modal } from '../../components/Modal'
 import type { StatusTone } from '../../components/StatusBadge'
 import { formatRelative } from '../../lib/formatDate'
 import { plural } from '../../lib/plural'
-import { isRealInstant, issueLimitNote, issueSummary, problemFamily, resultReason, stopNext, stopReason } from './problems'
+import { isRealInstant, issueLimitNote, issueSummary, issueTitle, problemFamily, resultReason, stopNext, stopReason } from './problems'
 import { REPLICA_STATE_TONE, STATUS_LABELS } from './types'
 
 /**
@@ -286,7 +286,7 @@ function ReplicaIssueList({ view, replica, busy, onRetry }: {
       const retry = issue.actions.includes('retry') && !(latest && open(latest))
       return <li key={issue.issueId}>
         <div className="replica-issue-body">
-          <strong>{issue.title ?? (issue.nodeId ? 'A bookmark in your library' : 'A bookmark on that browser')}</strong>
+          <strong>{issueTitle(issue)}</strong>
           <span>{issueSummary(issue)}{issue.count > 1 ? ` (${issue.count} times)` : ''}</span>
           <div className="replica-issue-meta">
             <span>{issueMeta(issue)}</span>

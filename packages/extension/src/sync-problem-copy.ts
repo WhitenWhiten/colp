@@ -18,8 +18,13 @@ export interface SyncProblemNext {
   readonly resetOffered?: boolean;
   /** This surface has no Reset button, but the Status tab does. */
   readonly resetInStatus?: boolean;
-  /** Why Reset is not on the card, when one was needed (`rebuildUnavailableReason`). */
+  /** Why Reset is not on the card, when one was needed (`rebuildBlockedReason`: `offline`, `native_outcome_unsettled`). */
   readonly resetUnavailableReason?: string;
+  /**
+   * The engine stopped (retrying cannot change the result) or kept waiting on the same thing, and looks again
+   * by itself at `retryAt`. The sentence says when, and that Retry looks now.
+   */
+  readonly stopKind?: 'stopped' | 'stalled';
   readonly now: number;
 }
 
@@ -76,7 +81,45 @@ export const CODE_WHAT: Readonly<Record<string, () => string>> = {
   sync_failed: () => t('syncProblem_syncFailed', 'Sync failed for a reason it did not record.'),
   sync_stuck: () => t('syncProblem_stuck', 'The oldest change waiting to upload has not moved for a while.'),
   sync_not_completing: () => t('syncProblem_notCompleting', 'Sync has not finished a pass in over an hour, and nothing says why.'),
+  // Browser storage (W2A-01, W2A-05, W2A-10): what failed, in the words of the person's own computer.
+  storage_blocked: () => t('syncProblem_storageBlocked', 'Sync data is being updated, but another Know-N window is still using it.'),
+  storage_unavailable: storageUnavailable,
+  indexeddb_failure: storageUnavailable,
+  indexeddb_unavailable: storageUnavailable,
+  quota_exceeded: () => t('syncProblem_quotaExceeded', 'Your browser has no room left to save sync data.'),
+  storage_record_rejected: () => t('syncProblem_storageRecordRejected', 'Sync could not save one of its records, and trying again gives the same answer.'),
+  future_schema: () => t('syncProblem_futureSchema', 'Sync data on this device was saved by a newer version of the extension, so this version cannot read it.'),
+  diagnostic_read_only: () => t('syncProblem_dataDamaged', 'Sync data on this device is damaged and cannot be changed.'),
+  upgrade_failed: () => t('syncProblem_upgradeFailed', 'Sync could not update its data on this device.'),
+  // The push lane (A-F2, A-F4, A-F12): a change the server may already own, and what waits behind it.
+  push_attempt_operation_changed: () => t('syncProblem_attemptChanged',
+    'A change that may already have reached the server could not be sent again, so later uploads are waiting.'),
+  push_response_invalid: unsettledAnswer,
+  push_response_unrecognized: unsettledAnswer,
+  push_problem_invalid: unsettledAnswer,
+  push_problem_status_mismatch: unsettledAnswer,
+  push_result_processing_failed: unsettledAnswer,
+  queue_head_unreadable: () => t('syncProblem_headUnreadable',
+    'A change that may already have reached the server cannot be read on this device, so later uploads are waiting.'),
+  push_server_unavailable: () => t('syncProblem_serverNotAnswering', 'The server is not answering the upload right now.'),
+  push_dispatch_failed: () => t('syncProblem_uploadNotStarted', 'Sync could not start an upload.'),
+  queue_not_drained: () => t('syncProblem_waitingUploads', 'Sync is waiting for pending uploads to finish.'),
+  scope_not_writable: () => t('syncProblem_notReady', 'Sync is not ready to do that yet.'),
+  sync_step_failed: () => t('syncProblem_stepFailed', 'Part of syncing keeps failing.'),
 };
+
+function storageUnavailable(): string {
+  return t('syncProblem_storageUnavailable', 'Your browser could not read or save sync data just now.');
+}
+
+function unsettledAnswer(): string {
+  return t('syncProblem_unsettledAnswer', "The server's answer about a change could not be understood, so uploads behind it are waiting.");
+}
+
+/** The lead of a wait that never ended: the code's own sentence follows it. */
+export function stalledLead(): string {
+  return t('syncProblem_stalledLead', 'Sync has been stuck on the same step for a long time.');
+}
 
 /** Codes whose whole sentence was written for them, next step included. */
 export const CODE_WHOLE: Readonly<Record<string, () => string>> = {
@@ -91,7 +134,36 @@ export const CODE_NEXT: Readonly<Record<string, (context: SyncProblemNext) => st
   replica_rebuild_pending: (context) => context.resetOffered
     ? t('syncProblem_nextFinishReset', 'Press Reset sync on this device to finish it.')
     : t('syncProblem_nextFinishResetElsewhere', 'Finish it from the Sync center on the web.'),
+  storage_blocked: () => t('syncProblem_nextCloseWindows', 'Close other Know-N windows and sync carries on by itself.'),
+  quota_exceeded: () => t('syncProblem_nextFreeSpace', 'Free up some disk space and sync carries on by itself.'),
+  storage_record_rejected: clearedByReset,
+  future_schema: () => t('syncProblem_nextUpdateExtension', 'Update the extension, or reset the sync data on this device.'),
+  diagnostic_read_only: () => t('syncProblem_nextResetData', 'Reset the sync data on this device.'),
+  upgrade_failed: () => t('syncProblem_nextFreeSpaceOrReset', 'Free some disk space and try again, or reset the sync data on this device.'),
+  push_attempt_operation_changed: clearedByReset,
+  push_response_invalid: unsettledNext,
+  push_response_unrecognized: unsettledNext,
+  push_problem_invalid: unsettledNext,
+  push_problem_status_mismatch: unsettledNext,
+  push_result_processing_failed: unsettledNext,
+  queue_head_unreadable: clearedByReset,
+  sync_step_failed: () => t('syncProblem_nextStepRetried', 'It is tried again on the next pass.'),
 };
+
+/** A state only a Reset clears: the button when the card has one, the reason when a needed Reset cannot run now. */
+function clearedByReset(context: SyncProblemNext): string {
+  if (context.resetOffered) {
+    return t('syncProblem_nextClearedByReset', 'Reset sync on this device to clear it. Your bookmarks stay; changes that have not synced yet are set aside and not retried.');
+  }
+  return resetBlockedCopy(context.resetUnavailableReason) ?? t('syncProblem_nextDetailsOnly', 'Copy details to investigate. Your bookmarks are not affected.');
+}
+
+/** An answer the server gave that this browser cannot settle: Retry sends the same bytes again, a Reset clears it. */
+function unsettledNext(context: SyncProblemNext): string {
+  // A stop that is probed already said that Retry sync checks now; the same Retry sends the change again.
+  return context.stopKind ? keepsStoppingClause(context)
+    : `${t('syncProblem_nextResendsSame', 'Retry sync sends it again.')} ${keepsStoppingClause(context)}`;
+}
 
 function ceilingClause(context: SyncProblemNext): string {
   return context.resetOffered
@@ -99,10 +171,20 @@ function ceilingClause(context: SyncProblemNext): string {
     : t('syncProblem_nextCeilingNoReset', 'Try again or dismiss some of the items below, or all of one kind, and sync continues by itself.');
 }
 
+/** When a stopped or stalled engine looks again by itself, and that Retry looks now (the stop probes of A-F5). */
+export function scheduleClause(context: SyncProblemNext): string {
+  const waits = context.retryAt !== undefined && context.retryAt > context.now;
+  return waits ? t('syncProblem_nextChecksAt', 'Sync checks again by itself at $1, and Retry sync checks now.', formatMoment(context.retryAt!, 'time'))
+    : t('syncProblem_nextChecksSoon', 'Sync checks again by itself soon, and Retry sync checks now.');
+}
+
 /** The clause after the sentence: what happens by itself, or what to press. */
 export function nextClause(family: SyncProblemFamily, context: SyncProblemNext): string {
   const waits = context.retryAt !== undefined && context.retryAt > context.now;
   const time = waits ? formatMoment(context.retryAt!, 'time') : '';
+  // The schedule itself is said by `scheduleClause`; what follows is only what else there is to do.
+  if (context.stopKind === 'stalled') return t('syncProblem_nextStalledDetails', 'If it stays this way, copy details to investigate; your bookmarks are not affected.');
+  if (context.stopKind === 'stopped' && family !== 'retired' && family !== 'rebuild' && family !== 'decide') return keepsStoppingClause(context);
   switch (family) {
     case 'offline': case 'server_busy': case 'waiting': case 'authority': case 'unknown':
       if (context.retryAutomatic === false) {
@@ -138,7 +220,19 @@ function resetClause(context: SyncProblemNext): string {
   if (context.resetOffered) {
     return t('syncProblem_nextReset', 'Reset sync on this device to continue. Your bookmarks stay; changes that have not synced yet are set aside and not retried.');
   }
-  return context.resetUnavailableReason === 'upload_outcome_unsettled' || context.resetUnavailableReason === 'native_outcome_unsettled'
-    ? t('syncProblem_nextResetBlocked', 'Reset is not available on this device yet: a change sent to the server has no confirmed result. Reset it from the Sync center on the web.')
-    : t('syncProblem_nextResetElsewhere', 'Reset it from the Sync center on the web.');
+  return resetBlockedCopy(context.resetUnavailableReason) ?? t('syncProblem_nextResetElsewhere', 'Reset it from the Sync center on the web.');
+}
+
+/**
+ * Why a Reset that is needed cannot run now (`rebuildBlockedReason` of the attention read). The Sync center's Reset
+ * needs a connection too, so neither reason points there. `undefined`: no reason this build knows.
+ */
+export function resetBlockedCopy(reason: string | undefined): string | undefined {
+  if (reason === 'offline') {
+    return t('syncProblem_resetNeedsConnection', 'Resetting needs a connection, because a change may already have reached the server. Connect and try again.');
+  }
+  if (reason === 'native_outcome_unsettled') {
+    return t('syncProblem_resetNativeUnsettled', 'A bookmark change made in this browser has no confirmed result yet, so Reset is not available. Decide it under Waiting for you first.');
+  }
+  return undefined;
 }

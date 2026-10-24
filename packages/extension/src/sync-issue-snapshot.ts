@@ -47,12 +47,14 @@ export function queueIssueCode(row: QueueIssueRow): string {
  * A change held for a decision about its own placement or identity, or for a local failure
  * the classifier has no entry for, goes through the same checks again from a fresh capture.
  * A change waiting on another one is released by that one, and a record that cannot be
- * stored or a rebuild-class problem is not cured by capturing it again.
+ * stored or a rebuild-class problem is not cured by capturing it again. The one exception is
+ * a tags or description change held because that metadata is not allowed to sync (A-F6): it
+ * never left this browser, and capturing it again follows the setting as it is now.
  */
 export function queueIssueRetryable(row: QueueIssueRow, code: string): boolean {
   const policy = classifySyncFailure(code);
   return row.status === 'blocked' && code === 'sequence_blocked' && row.attempt !== undefined || row.status === 'set_aside' && OPAQUE.test(row.opId)
-    && (policy?.exit === 'decide' || policy === undefined && !DEPENDENT_HOLDS.has(code));
+    && (policy?.exit === 'decide' || code === 'metadata_sync_disabled' || policy === undefined && !DEPENDENT_HOLDS.has(code));
 }
 
 /** The shared display id of an upload issue and of a pull issue: the same on the card, in the report and in an action. */

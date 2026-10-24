@@ -12,6 +12,9 @@ import type { SyncIssueDiagnostic } from './types.js';
  */
 export type IssueSummaryInput = Pick<SyncIssueDiagnostic, 'code' | 'direction'> & {
   readonly actions?: readonly string[];
+  /** `sync_step_failed` only: the step of the sync pass that keeps failing, and the code it failed with. */
+  readonly stage?: string;
+  readonly rootCause?: string;
 };
 
 const ITEM: Readonly<Record<string, () => string>> = {
@@ -45,10 +48,65 @@ const ITEM: Readonly<Record<string, () => string>> = {
   push_problem_status_mismatch: () => t('syncIssue_pushUnsettled', "The server's answer to this change couldn't be settled; later uploads from this browser wait behind it"),
   push_batch_response_invalid: () => t('syncIssue_pushUnsettled', "The server's answer to this change couldn't be settled; later uploads from this browser wait behind it"),
   push_stalled: () => t('syncIssue_pushUnsettled', "The server's answer to this change couldn't be settled; later uploads from this browser wait behind it"),
+  push_response_invalid: () => t('syncIssue_pushUnsettled', "The server's answer to this change couldn't be settled; later uploads from this browser wait behind it"),
+  push_problem_invalid: () => t('syncIssue_pushUnsettled', "The server's answer to this change couldn't be settled; later uploads from this browser wait behind it"),
+  // The server is not answering, so the change at the head of the line waits and everything behind it with it.
+  push_server_unavailable: () => t('syncIssue_serverNotAnswering', "The server isn't answering this change; later uploads from this browser wait behind it. Retry sync sends it again"),
+  service_unavailable: () => t('syncIssue_serverNotAnswering', "The server isn't answering this change; later uploads from this browser wait behind it. Retry sync sends it again"),
+  internal_error: () => t('syncIssue_serverNotAnswering', "The server isn't answering this change; later uploads from this browser wait behind it. Retry sync sends it again"),
+  // Held or refused before anything was sent: the change is an item, everything else keeps syncing (A-F2, A-F6, A-F7).
+  push_request_refused: () => t('syncIssue_requestRefused', 'A firewall or network filter keeps refusing this change, so it was set aside. Everything else keeps syncing'),
+  metadata_sync_disabled: () => t('syncIssue_metadataNotSynced', 'It includes tags or a description, which you chose not to sync, so it was not uploaded'),
+  subscription_upload_excluded: () => t('syncIssue_subscriptionExcluded', 'Not uploaded: the bookmark is in a subscribed folder'),
+  bootstrap_boundary_unavailable: () => t('syncIssue_boundaryUnavailable', "It couldn't be checked against the first sync because its folder couldn't be read"),
+  bootstrap_upload_excluded: () => t('syncIssue_bootstrapExcluded', 'Not part of the first sync, so it was left out'),
+  push_attempt_bind_failed: () => t('syncIssue_bindFailed', "This browser couldn't prepare it for upload"),
+  push_media_type_invalid: () => t('syncIssue_mediaTypeInvalid', 'It is in a format sync cannot send'),
+  // A saved change this browser cannot read (Rule C): unsent ones are set aside, a possibly sent one holds the line.
+  queue_row_unreadable: () => t('syncIssue_rowUnreadable', 'One saved change could not be read, so it was set aside. The bookmark is unchanged; Try again saves it again'),
+  queue_head_unreadable: () => t('syncIssue_headUnreadable', 'A change that may already have reached the server cannot be read on this device, so later uploads are waiting. Resetting sync on this device clears it'),
+  push_attempt_operation_changed: () => t('syncIssue_attemptChanged', 'A change that may already have reached the server could not be sent again, so later uploads are waiting. Resetting sync on this device clears it'),
+  // Rule E: a step of the sync pass that keeps failing (the row names the step and the cause when it knows them).
+  sync_step_failed: () => t('syncIssue_stepFailedPlain', 'Part of syncing keeps failing and will be tried again'),
 };
 
 /** Codes the item vocabulary names; the Sync center's list is kept in step with this one by a test. */
 export const ISSUE_SUMMARY_CODES: readonly string[] = Object.freeze(Object.keys(ITEM));
+
+/** The steps of one sync pass that can be recorded as failing, in words (`wake-failure.ts`). */
+const STAGE: Readonly<Record<string, () => string>> = {
+  scope_restore: () => t('syncStage_scopeRestore', 'restoring this browser’s sync setup'),
+  scope_registration: () => t('syncStage_scopeRegistration', 'registering this browser with the server again'),
+  history_prune: () => t('syncStage_historyPrune', 'clearing old sync history'),
+  advanced_plan: () => t('syncStage_advancedPlan', 'the advanced first sync'),
+  state_read: () => t('syncStage_stateRead', 'reading sync data'),
+  identity_freeze_recovery: () => t('syncStage_identityRecovery', 'recovering from a paused identity check'),
+  local_save_recovery: () => t('syncStage_saveRecovery', 'recovering a bookmark that was being saved'),
+  recovery_state: () => t('syncStage_recoveryState', 'checking where recovery stands'),
+  missing_removals: () => t('syncStage_missingRemovals', 'looking for bookmarks removed here'),
+  work_facts: () => t('syncStage_workFacts', 'counting pending work'),
+  metadata_pass: () => t('syncStage_metadataPass', 'checking tags and descriptions'),
+  bootstrap_run: () => t('syncStage_bootstrapRun', 'the first sync'),
+  push_drain: () => t('syncStage_pushDrain', 'uploading changes'),
+  engine_wake: () => t('syncStage_syncPass', 'the sync pass'),
+  wake: () => t('syncStage_syncPass', 'the sync pass'),
+};
+
+/**
+ * A step that keeps failing, in the order a person needs it: which part, why, and that it is tried again.
+ * A reset that cannot finish is the one with an exit of its own (Cancel pending reset), so it reads as itself.
+ */
+function stepFailedCopy(issue: IssueSummaryInput): string {
+  const cause = issue.rootCause?.trim() ? issue.rootCause : undefined;
+  if (issue.stage === 'rebuild_resume') {
+    return cause ? t('syncIssue_resetNotFinishing', 'The reset could not finish ($1). It is tried again on the next pass', cause)
+      : t('syncIssue_resetNotFinishingPlain', 'The reset could not finish. It is tried again on the next pass');
+  }
+  const stage = issue.stage ? STAGE[issue.stage]?.() : undefined;
+  if (stage && cause) return t('syncIssue_stepFailed', 'Part of syncing keeps failing ($1) and will be tried again. Cause: $2', stage, cause);
+  if (cause) return t('syncIssue_stepFailedCause', 'Part of syncing keeps failing and will be tried again. Cause: $1', cause);
+  return stage ? t('syncIssue_stepFailedStage', 'Part of syncing keeps failing ($1) and will be tried again', stage) : ITEM.sync_step_failed!();
+}
 
 /** `apply_failed:<code>` is the pull side-lining of a rejected browser call: its sentence names the underlying cause. */
 export function issueCauseCode(code: string): string {
@@ -56,6 +114,7 @@ export function issueCauseCode(code: string): string {
 }
 
 export function issueSummaryCopy(issue: IssueSummaryInput): string {
+  if (issue.code === 'sync_step_failed') return stepFailedCopy(issue);
   const specific = ITEM[issue.code];
   if (specific) return specific();
   if (issue.code.startsWith('apply_failed:')) {
@@ -77,10 +136,14 @@ export function issueDirectionCopy(direction: SyncIssueDiagnostic['direction']):
     : direction === 'pull' ? t('syncIssue_download', 'Download') : t('syncIssue_onDevice', 'On this device');
 }
 
-/** What a row calls the bookmark when no title survived. */
-export function issueTitleCopy(issue: Pick<SyncIssueDiagnostic, 'title' | 'nodeId'>): string {
-  return issue.title?.trim() || (issue.nodeId
-    ? t('syncIssue_libraryBookmark', 'A bookmark in your library') : t('syncIssue_deviceBookmark', 'A bookmark on this device'));
+/** What a row calls the bookmark when no title survived. Items that are not about one bookmark say what they are about. */
+export function issueTitleCopy(issue: Pick<SyncIssueDiagnostic, 'title' | 'nodeId'> & { readonly code?: string }): string {
+  if (issue.title?.trim()) return issue.title.trim();
+  if (issue.code === 'sync_step_failed') return t('syncIssue_stepTitle', 'Part of syncing');
+  if (!issue.nodeId && (issue.code === 'queue_row_unreadable' || issue.code === 'queue_head_unreadable')) {
+    return t('syncIssue_savedChangeTitle', 'A saved change');
+  }
+  return issue.nodeId ? t('syncIssue_libraryBookmark', 'A bookmark in your library') : t('syncIssue_deviceBookmark', 'A bookmark on this device');
 }
 
 /** A merge upload the server or this browser refused: the sentence first, the code after it. */

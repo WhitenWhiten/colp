@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { SYNC_ISSUE_LIMIT, SYNC_ISSUE_WARNING, isRealInstant, issueLimitNote, issueSummary, problemFamily, resultReason, stopNext, stopReason, type ProblemFamily } from './problems'
+import { SYNC_ISSUE_LIMIT, SYNC_ISSUE_WARNING, isRealInstant, issueLimitNote, issueSummary, issueTitle, problemFamily, resultReason, stopNext, stopReason, type ProblemFamily } from './problems'
 
 /**
  * C-12 / C-19: the words a browser's stop gets on this page are checked against the extension's own failure
@@ -101,7 +101,64 @@ describe('every code the extension can report reads as a sentence (C-12, C-19)',
     expect(stopNext('permission_required', ['retry'])).toBe('Open the extension on that browser and allow bookmark access.')
     expect(stopNext('network_unavailable', ['retry'])).toBe('It tries again by itself; Retry below tries now.')
     expect(stopNext('create_placement_unproven', [])).toBe('Open the extension on that browser to fix it.')
-    expect(stopNext('queue_state_invalid', ['retry'])).toBe('Try the options below, or open the extension on that browser.')
+    expect(stopNext('queue_state_invalid', ['retry'])).toBe('It checks again by itself every so often; Retry below checks now.')
+  })
+
+  it('says a stopped browser looks again by itself, and when only a Reset ends it, where that button is', () => {
+    expect(stopNext('queue_state_invalid', [])).toBe('It checks again by itself every so often.')
+    expect(stopNext('storage_record_rejected', ['retry', 'rebuild'])).toContain('Retry below checks now')
+    expect(stopNext('storage_record_rejected', ['retry', 'rebuild'])).toContain('Reset sync below clears it')
+    // A Pull-time integrity stop waits for a person's Retry: it does not promise a recheck.
+    expect(stopNext('pull_page_invalid', ['retry'])).toBe('Try the options below, or open the extension on that browser.')
+  })
+})
+
+describe('the codes the push lane and browser storage added (stream 2)', () => {
+  it('puts each in the family its class and exit give it, so the words match what ends it', () => {
+    for (const code of ['push_server_unavailable']) expect(problemFamily(code), code).toBe('server_busy')
+    for (const code of ['storage_blocked', 'storage_unavailable', 'indexeddb_failure', 'queue_not_drained', 'scope_not_writable',
+      'sync_step_failed', 'push_attempt_missing']) expect(problemFamily(code), code).toBe('waiting')
+    for (const code of ['push_request_refused', 'queue_row_unreadable', 'subscription_upload_excluded', 'push_attempt_bind_failed',
+      'push_media_type_invalid', 'bootstrap_upload_excluded', 'bootstrap_boundary_unavailable']) expect(problemFamily(code), code).toBe('decide')
+    for (const code of ['push_response_unrecognized', 'push_response_invalid', 'queue_head_unreadable', 'push_attempt_operation_changed']) {
+      expect(problemFamily(code), code).toBe('stop_upload')
+    }
+    expect(problemFamily('storage_record_rejected')).toBe('stop_local')
+  })
+
+  it('words a stop of browser storage, an unreadable answer and a change that cannot be read', () => {
+    expect(stopReason('future_schema')).toContain('newer version of the extension')
+    expect(stopReason('diagnostic_read_only')).toContain('damaged')
+    expect(stopReason('storage_record_rejected')).toContain('trying again gives the same answer')
+    expect(stopReason('quota_exceeded')).toContain('no room left')
+    expect(stopReason('push_response_invalid')).toContain('answer about a change couldn’t be understood')
+    expect(stopReason('queue_head_unreadable')).toContain('can’t be read on that browser')
+    expect(stopReason('push_attempt_operation_changed')).toContain('couldn’t be sent again')
+  })
+
+  it('reads a held request, a withdrawn consent and an unreadable change as items, never as the generic fallback', () => {
+    const item = (code: string, direction: 'push' | 'local' = 'push') => issueSummary({ code, direction, actions: [] })
+    expect(item('push_request_refused')).toContain('firewall or network filter')
+    expect(item('metadata_sync_disabled')).toContain('tags or a description, which you chose not to sync')
+    expect(item('queue_row_unreadable')).toContain('Retry saves it again')
+    expect(item('queue_head_unreadable')).toContain('Resetting sync on that browser clears it')
+    expect(item('push_server_unavailable')).toContain('isn’t answering this change')
+    expect(item('subscription_upload_excluded')).toContain('subscribed folder')
+    expect(item('sync_step_failed', 'local')).toContain('keeps failing')
+  })
+
+  it('titles an item that is not about one bookmark by what it is about', () => {
+    expect(issueTitle({ code: 'sync_step_failed' })).toBe('Part of syncing')
+    expect(issueTitle({ code: 'queue_head_unreadable' })).toBe('A saved change')
+    expect(issueTitle({ code: 'queue_row_unreadable', nodeId: 'node-1' })).toBe('A bookmark in your library')
+    expect(issueTitle({ code: 'push_request_refused', title: 'Reading list' })).toBe('Reading list')
+    expect(issueTitle({ code: 'push_request_refused' })).toBe('A bookmark on that browser')
+  })
+
+  it('says why a request to a browser could not run: offline, a refused reset, a browser that was not running', () => {
+    expect(resultReason('offline')).toContain('needs a connection')
+    expect(resultReason('fence_refused')).toContain('Nothing was changed')
+    expect(resultReason('scope_not_writable')).toContain('not running')
   })
 })
 

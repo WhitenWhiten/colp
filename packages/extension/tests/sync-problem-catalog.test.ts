@@ -4,6 +4,8 @@ import { afterEach, describe, test } from 'vitest';
 import { SYNC_FAILURE_TABLE, classifySyncFailure } from '../src/sync-failure-class.js';
 import { describeSyncProblem, problemOffersRetry, syncProblemFamily, type SyncProblemFamily } from '../src/sync-problem-catalog.js';
 import { describeSyncAttention, terminalFreezeReasonCopy } from '../src/sync-attention-view.js';
+import { issueSummaryCopy } from '../src/sync-issue-copy.js';
+import { syncIssueRows } from '../src/sync-issue-rows.js';
 import { projectReplicaHealth } from '../src/sw/replica-health-report.js';
 import type { PublicSyncAttention } from '../src/types.js';
 
@@ -102,11 +104,20 @@ describe('the Reset sentence never promises a button that is not there (C-13)', 
     // A real freeze code that the (stale) SyncAttentionTerminalCode union leaves out; the view casts it the same way.
     const withButton = terminalFreezeReasonCopy('mapping_identity_conflict' as never, { rebuildAvailable: true });
     assert.match(withButton, /Reset sync on this device to continue/u);
-    const blocked = terminalFreezeReasonCopy('mapping_identity_conflict' as never, { rebuildAvailable: false,
-      rebuildUnavailableReason: 'upload_outcome_unsettled' });
-    assert.doesNotMatch(blocked, /Reset sync on this device to continue/u);
-    assert.match(blocked, /no confirmed result/u);
-    assert.match(blocked, /Sync center on the web/u);
+    const noReason = terminalFreezeReasonCopy('mapping_identity_conflict' as never, { rebuildAvailable: false });
+    assert.doesNotMatch(noReason, /Reset sync on this device to continue/u);
+    assert.match(noReason, /Sync center on the web/u);
+    // K3: a Reset that is needed but cannot run now says why, and neither reason sends the person to the web
+    // (the Sync center's Reset needs a connection too, and an unsettled bookmark change blocks it there as well).
+    const offline = terminalFreezeReasonCopy('mapping_identity_conflict' as never, { rebuildAvailable: false,
+      rebuildUnavailableReason: 'offline' });
+    assert.match(offline, /Resetting needs a connection, because a change may already have reached the server\. Connect and try again\./u);
+    assert.doesNotMatch(offline, /Sync center on the web/u);
+    const unsettled = terminalFreezeReasonCopy('mapping_identity_conflict' as never, { rebuildAvailable: false,
+      rebuildUnavailableReason: 'native_outcome_unsettled' });
+    assert.match(unsettled, /no confirmed result yet/u);
+    assert.match(unsettled, /under Waiting for you/u);
+    assert.doesNotMatch(unsettled, /Sync center on the web/u);
   });
 
   test('rebuild-exit codes no longer claim that bookmarks are missing, except the one where one is', () => {
@@ -159,5 +170,102 @@ describe('one Retry rule for the card and the Sync center (C-14)', () => {
     for (const code of ['mapping_identity_conflict', 'payload_too_large', 'replica_rebuild_pending', 'replica_retired']) {
       assert.equal(problemOffersRetry(code), false, code);
     }
+  });
+});
+
+describe('the codes the push lane and browser storage added (stream 2, phase 2a)', () => {
+  const at = 1_000_000;
+  const say = (code: string, context: Record<string, unknown> = {}) => describeSyncProblem(code, { now: at, ...context }).sentence;
+
+  test('browser storage reads as itself: what failed, what to do, never "an internal check"', () => {
+    assert.match(say('storage_blocked'), /another Know-N window is still using it\. Close other Know-N windows/u);
+    assert.match(say('storage_unavailable'), /could not read or save sync data just now/u);
+    assert.equal(describeSyncProblem('indexeddb_failure').what, describeSyncProblem('storage_unavailable').what);
+    assert.match(say('quota_exceeded'), /no room left to save sync data\. Free up some disk space/u);
+    assert.match(say('future_schema'), /newer version of the extension.*Update the extension, or reset the sync data/u);
+    assert.match(say('diagnostic_read_only'), /damaged and cannot be changed\. Reset the sync data on this device/u);
+    assert.match(say('upgrade_failed'), /could not update its data.*Free some disk space/u);
+    for (const code of ['storage_blocked', 'storage_unavailable', 'quota_exceeded', 'storage_record_rejected', 'future_schema', 'diagnostic_read_only', 'upgrade_failed']) {
+      assert.doesNotMatch(say(code), /internal check/u, code);
+    }
+  });
+
+  test('a record the store refuses is cleared by a Reset: the button when the card has it, the reason when it cannot run', () => {
+    assert.match(say('storage_record_rejected', { resetOffered: true }), /Reset sync on this device to clear it/u);
+    assert.match(say('storage_record_rejected'), /Copy details to investigate/u);
+    assert.match(say('storage_record_rejected', { resetUnavailableReason: 'offline' }), /Resetting needs a connection/u);
+  });
+
+  test('a change the server may own that cannot be settled says what waits behind it and what ends it', () => {
+    for (const code of ['push_response_invalid', 'push_problem_invalid', 'push_problem_status_mismatch', 'push_result_processing_failed']) {
+      assert.match(say(code), /answer about a change could not be understood, so uploads behind it are waiting/u, code);
+      assert.match(say(code, { resetOffered: true }), /Retry sync sends it again/u, code);
+    }
+    assert.match(say('queue_head_unreadable', { resetOffered: true }), /cannot be read on this device, so later uploads are waiting\. Reset sync on this device to clear it/u);
+    assert.match(say('push_attempt_operation_changed', { resetOffered: true }), /could not be sent again, so later uploads are waiting\. Reset sync/u);
+    assert.match(say('push_server_unavailable'), /server is not answering the upload/u);
+  });
+
+  test('a stop that is probed says when it looks again, and that Retry looks now; the old "tries once more" is gone', () => {
+    const stopped = say('queue_state_invalid', { stopKind: 'stopped', retryAt: at + 300_000, retryAutomatic: false, resetOffered: true });
+    assert.match(stopped, /internal check\. Sync checks again by itself at .+, and Retry sync checks now\. If it keeps stopping, copy details and reset sync/u);
+    assert.doesNotMatch(stopped, /tries once more/u);
+    // The deadline passed (the probe is due or running): "soon", never a time in the past.
+    assert.match(say('queue_state_invalid', { stopKind: 'stopped', retryAt: at - 1, retryAutomatic: false }), /Sync checks again by itself soon, and Retry sync checks now/u);
+    // A code with a next step of its own keeps it after the schedule.
+    assert.match(say('future_schema', { stopKind: 'stopped', retryAt: at + 300_000, retryAutomatic: false }), /Retry sync checks now\. Update the extension/u);
+    assert.match(say('push_response_invalid', { stopKind: 'stopped', retryAt: at + 300_000, retryAutomatic: false }), /Retry sync checks now\. If it keeps stopping/u);
+  });
+
+  test('every stop in the table is worded with its schedule when the engine probes it', () => {
+    for (const [code, entry] of Object.entries(SYNC_FAILURE_TABLE)) {
+      if (entry.exit !== 'stop') continue;
+      const sentence = say(code, { stopKind: 'stopped', retryAt: at + 300_000, retryAutomatic: false });
+      assert.match(sentence, /Sync checks again by itself at .+, and Retry sync checks now\./u, code);
+      assert.doesNotMatch(sentence, /Retry sync tries once more/u, code);
+      assert.ok(sentence.endsWith(`(${code})`), code);
+    }
+  });
+
+  test('a wait that never ended says so first, then when it looks again, then what to do', () => {
+    const stalled = say('session_handoff_pending', { stopKind: 'stalled', retryAt: at + 900_000, retryAutomatic: false });
+    assert.match(stalled, /^Sync has been stuck on the same step for a long time\. Sync is waiting for something on this device to finish\. Sync checks again by itself at .+, and Retry sync checks now\. If it stays this way, copy details to investigate/u);
+    assert.ok(stalled.endsWith('(session_handoff_pending)'));
+  });
+
+  test('the card for a stopped engine uses the schedule, offers Retry, and never calls it a cooldown', () => {
+    const view = describeSyncAttention({ phase: 'error', lastError: 'queue_state_invalid', retryAutomatic: false, stopKind: 'stopped',
+      retryAt: Date.now() + 300_000, recoveryFrozen: false, issueCount: 0 });
+    assert.equal(view.recovery.show, true);
+    assert.equal(view.recovery.retry, true);
+    assert.match(view.recovery.copy, /Sync checks again by itself at .+, and Retry sync checks now\./u);
+    assert.doesNotMatch(view.recovery.copy, /paused after repeated errors/u);
+  });
+
+  test('items held before anything was sent read as items: a refused request, withdrawn consent, an unreadable change', () => {
+    const rows = syncIssueRows([
+      { direction: 'push', code: 'push_request_refused', issueId: 'a', localActions: ['retry'] },
+      { direction: 'push', code: 'metadata_sync_disabled', issueId: 'b', localActions: ['retry'] },
+      { direction: 'push', code: 'queue_row_unreadable', issueId: 'c', localActions: ['retry'] },
+      { direction: 'push', code: 'queue_head_unreadable' },
+      { direction: 'local', code: 'sync_step_failed', stage: 'history_prune', rootCause: 'quota_exceeded', count: 3 },
+    ]).rows;
+    assert.deepEqual(rows.map(row => row.summary), [
+      'A firewall or network filter keeps refusing this change, so it was set aside. Everything else keeps syncing',
+      'It includes tags or a description, which you chose not to sync, so it was not uploaded',
+      'One saved change could not be read, so it was set aside. The bookmark is unchanged; Try again saves it again',
+      'A change that may already have reached the server cannot be read on this device, so later uploads are waiting. Resetting sync on this device clears it',
+      'Part of syncing keeps failing (clearing old sync history) and will be tried again. Cause: quota_exceeded']);
+    assert.deepEqual(rows.map(row => row.title), ['A bookmark on this device', 'A bookmark on this device', 'A saved change', 'A saved change', 'Part of syncing']);
+    assert.deepEqual(rows.map(row => row.actions), [['retry'], ['retry'], ['retry'], [], []]);
+  });
+
+  test('a step that keeps failing names the part and the cause when it knows them, and a reset that cannot finish says so', () => {
+    const step = (extra: Record<string, unknown>) => issueSummaryCopy({ code: 'sync_step_failed', direction: 'local', ...extra });
+    assert.equal(step({}), 'Part of syncing keeps failing and will be tried again');
+    assert.equal(step({ rootCause: 'quota_exceeded' }), 'Part of syncing keeps failing and will be tried again. Cause: quota_exceeded');
+    assert.equal(step({ stage: 'wake' }), 'Part of syncing keeps failing (the sync pass) and will be tried again');
+    assert.equal(step({ stage: 'rebuild_resume', rootCause: 'scope_mismatch' }), 'The reset could not finish (scope_mismatch). It is tried again on the next pass');
+    assert.equal(step({ stage: 'no_such_stage', rootCause: 'x' }), 'Part of syncing keeps failing and will be tried again. Cause: x');
   });
 });

@@ -1,4 +1,4 @@
-import { CODE_NEXT, CODE_WHAT, CODE_WHOLE, FAMILY_WHAT, nextClause, type SyncProblemNext } from './sync-problem-copy.js';
+import { CODE_NEXT, CODE_WHAT, CODE_WHOLE, FAMILY_WHAT, nextClause, scheduleClause, stalledLead, type SyncProblemNext } from './sync-problem-copy.js';
 import { problemOffersRetry, problemRetriesByItself, syncProblemFamily, syncProblemLane,
   type SyncProblemFamily, type SyncProblemLane } from './sync-problem-families.js';
 
@@ -46,8 +46,11 @@ export function describeSyncProblem(code: string | undefined, context: SyncProbl
   const next = { ...context, now: context.now ?? Date.now() };
   const key = code === undefined ? '' : lookupKey(code);
   const whole = CODE_WHOLE[key]?.();
-  const what = whole ?? (CODE_WHAT[key] ?? FAMILY_WHAT[family])();
-  const clause = whole !== undefined ? '' : (CODE_NEXT[key] ?? ((c: SyncProblemNext) => nextClause(family, c)))(next);
+  // A wait that never ended says so first; the code's own sentence follows.
+  const what = whole ?? [next.stopKind === 'stalled' ? stalledLead() : '', (CODE_WHAT[key] ?? FAMILY_WHAT[family])()].filter(Boolean).join(' ');
+  // A stopped or stalled engine says when it looks again by itself, then what else there is to do.
+  const clause = whole !== undefined ? '' : [next.stopKind ? scheduleClause(next) : '',
+    (CODE_NEXT[key] ?? ((c: SyncProblemNext) => nextClause(family, c)))(next)].filter(Boolean).join(' ');
   // A calm self-healing retry does not need its code on the card; everything else does.
   const quiet = problemRetriesByItself(family) && family !== 'unknown' && context.retryAutomatic !== false;
   const sentence = [what, clause, code && !quiet ? `(${shownProblemCode(code)})` : ''].filter(Boolean).join(' ');

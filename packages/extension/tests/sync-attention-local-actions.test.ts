@@ -45,6 +45,19 @@ describe('the actions an item is given', () => {
     } finally { f.store.close(); }
   });
 
+  for (const code of ['push_request_refused', 'metadata_sync_disabled', 'queue_row_unreadable', 'push_attempt_bind_failed']) {
+    test(`a change held as ${code} is an item that can be tried again, here and in the Sync center (stream 2)`, async () => {
+      const f = await setupMove();
+      try {
+        await f.store.setAsideQueue(scope, [1], code);
+        const [issue] = (await attention(f.store)).issues!;
+        assert.equal(issue!.code, code);
+        assert.deepEqual(issue!.localActions, ['retry']);
+        assert.deepEqual(issue!.actions, ['retry']);
+      } finally { f.store.close(); }
+    });
+  }
+
   test('a held create is tried again once the bookmark is fixed, and is never offered Dismiss', async () => {
     const f = await setup();
     try {

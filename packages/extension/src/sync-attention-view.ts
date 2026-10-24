@@ -65,6 +65,8 @@ export interface SyncAttentionInput {
   readonly retryAutomatic?: boolean;
   /** Paused after repeated errors and resumes by itself: a pause, not a stop. */
   readonly coolingDown?: boolean;
+  /** Stopped or stalled: the engine looks again by itself at `retryAt`, and Retry looks now. */
+  readonly stopKind?: 'stopped' | 'stalled';
   /** Times the circuit breaker has tripped without progress. */
   readonly breakerTrips?: number;
   /** Bookmark access was removed after sync was set up. */
@@ -185,6 +187,7 @@ export function terminalFreezeReport(input: SyncAttentionInput, syncCenterHref?:
   `retryAt: ${input.retryAt ?? '(not scheduled)'}`,
   `recoveryFrozen: ${input.recoveryFrozen ?? '(unknown)'}`,
   `coolingDown: ${input.coolingDown === true}`,
+  `stopKind: ${input.stopKind ?? '(none)'}`,
   `breakerTrips: ${input.breakerTrips ?? 0}`,
   `bookmarkPermission: ${input.permissionRequired ? 'missing' : '(not reported missing)'}`,
   `lastSynced: ${input.lastSyncedAt ? new Date(input.lastSyncedAt).toISOString() : '(not recorded)'}`,
@@ -288,6 +291,7 @@ function problemContext(input: SyncAttentionInput) {
     ...(input.rebuildUnavailableReason ? { resetUnavailableReason: input.rebuildUnavailableReason } : {}),
     ...(input.retryAt !== undefined ? { retryAt: input.retryAt } : {}),
     ...(input.coolingDown ? { coolingDown: true } : {}),
+    ...(input.stopKind ? { stopKind: input.stopKind } : {}),
     ...(input.retryAutomatic !== undefined ? { retryAutomatic: input.retryAutomatic } : {}) };
 }
 
@@ -346,8 +350,10 @@ export function issueActionOutcomeCopy(action: SyncIssueLocalAction, response: S
     ? tn('syncIssue_actionRetried', response.done, 'Tried again. $1 item is back in the upload queue.', 'Tried again. $1 items are back in the upload queue.')
     : tn('syncIssue_actionDismissed', response.done, 'Dismissed $1 item. This browser keeps its version.', 'Dismissed $1 items. This browser keeps its versions.');
   const failed = response.failed === 0 ? ''
-    : tn('syncIssue_actionFailed', response.failed, '$1 item could not be tried again ($2). It stays as it was.',
-      '$1 items could not be tried again ($2). They stay as they were.', response.code ?? 'retry_failed');
+    // Sync is not running (a reset or a recovery is in progress, or the folders are not ready): nothing is wrong with the items.
+    : response.code === 'scope_not_writable' ? t('syncIssue_actionNotReady', 'Sync is not ready to try again yet. Try again in a moment; the items stay as they were.')
+      : tn('syncIssue_actionFailed', response.failed, '$1 item could not be tried again ($2). It stays as it was.',
+        '$1 items could not be tried again ($2). They stay as they were.', response.code ?? 'retry_failed');
   return [done, failed, more.trim()].filter(Boolean).join(' ');
 }
 
@@ -363,6 +369,7 @@ export function syncAttentionInput(attention: PublicSyncAttention | undefined,
     waitCount: attention?.waitCount ?? 0,
     retryAt: attention?.retryAt, retryAutomatic: attention?.retryAutomatic,
     ...(attention?.coolingDown ? { coolingDown: true } : {}),
+    ...(attention?.stopKind ? { stopKind: attention.stopKind } : {}),
     ...(attention?.breakerTrips ? { breakerTrips: attention.breakerTrips } : {}),
     ...(attention?.watchdog ? { watchdog: attention.watchdog } : {}),
     ...(attention?.lastSyncedAt ? { lastSyncedAt: attention.lastSyncedAt } : {}),
