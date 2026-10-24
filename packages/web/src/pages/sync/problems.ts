@@ -15,7 +15,7 @@ import type { SyncReplicaIssue } from '../../api'
 export type ProblemFamily =
   | 'offline' | 'server_busy' | 'waiting' | 'permission' | 'authority' | 'sign_in' | 'retired'
   | 'integrity_pull' | 'integrity_snapshot' | 'item_mapping' | 'rebuild' | 'decide' | 'confirm' | 'codec'
-  | 'stop_upload' | 'stop_download' | 'stop_first_sync' | 'stop_feature' | 'stop_local' | 'unknown'
+  | 'stop_upload' | 'stop_download' | 'stop_first_sync' | 'stop_feature' | 'stop_local' | 'stalled' | 'unknown'
 
 const list = (words: string): ReadonlySet<string> => new Set(words.split(/\s+/u).filter(Boolean))
 
@@ -26,6 +26,8 @@ const PERMISSION = list('permission_required permission_revoked')
 const SIGN_IN = list(`credential_revoked authentication_required insufficient_scope session_invalid origin_not_allowed
   server_configuration_failed`)
 const RETIRED = list('replica_retired resource_not_found')
+/** Told by the extension's watchdog, not by its engine: nothing short of looking into it helps. */
+const STALLED = list('sync_stuck sync_not_completing')
 const WAITING = list(`position_context_stale revision_conflict concurrent_local_mutation push_batch_prefix_pending ack_pending
   action_unavailable advanced_plan_changed advanced_plan_completed advanced_plan_in_progress authority_rebase_not_required
   batch_in_progress bootstrap_confirmation_stale command_in_flight commit_outcome_unknown engine_revision_stale
@@ -83,6 +85,7 @@ const SYNTHESISED_SNAPSHOT = /^snapshot_(?:\d{3}_|http_\d{3}$)/u
 export function problemFamily(code: string | null | undefined): ProblemFamily {
   if (!code) return 'unknown'
   if (RETIRED.has(code)) return 'retired'
+  if (STALLED.has(code)) return 'stalled'
   if (REBUILD.has(code)) return 'rebuild'
   if (SIGN_IN.has(code)) return 'sign_in'
   if (PERMISSION.has(code)) return 'permission'
@@ -121,6 +124,7 @@ const FAMILY_REASON: Readonly<Record<ProblemFamily, string>> = {
   stop_first_sync: 'the setup of its first sync, an import or the folder choice failed an internal check.',
   stop_feature: 'a bookmark management step failed an internal check.',
   stop_local: 'the sync data stored in that browser failed an internal check.',
+  stalled: 'it has stopped making progress and hasn’t said why.',
   unknown: 'it reported a problem that has no description yet.',
 }
 
@@ -143,6 +147,8 @@ const CODE_REASON: Readonly<Record<string, string>> = {
   replica_rebuilt: 'its sync was reset.',
   sync_diagnostics_unavailable: 'it can’t read its local sync status. It will retry reporting automatically.',
   sync_stopped: 'it stopped and didn’t record why.',
+  sync_stuck: 'the oldest change waiting to upload hasn’t moved for a while.',
+  sync_not_completing: 'it hasn’t finished a pass in over an hour, and nothing says why.',
   sync_failed: 'sync failed and the browser didn’t record why.',
   metadata_sync_disabled: 'a queued change contains browser metadata you haven’t allowed to sync. Reset sync on that browser to set aside queued changes and review the merge again.',
   pull_apply_target_missing: 'a bookmark that a change from your library refers to is no longer in that browser, so its copy of your library needs a rebuild.',
@@ -187,6 +193,8 @@ export function stopNext(code: string | null | undefined, offered: Offered): str
     case 'permission': return 'Open the extension on that browser and allow bookmark access.'
     case 'offline': case 'server_busy': case 'waiting': case 'authority':
       return retry ? 'It tries again by itself; Retry below tries now.' : 'It tries again by itself.'
+    case 'stalled': return retry ? 'Retry below tries now. If it stays this way, open the extension on that browser and copy its details.'
+      : 'Open the extension on that browser and copy its details.'
     case 'rebuild': return offered.includes('rebuild')
       ? 'Reset sync below to continue. That browser keeps its bookmarks; changes it hasn’t synced yet are archived and not retried.'
       : 'Open the extension on that browser to reset its sync.'

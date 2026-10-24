@@ -87,6 +87,13 @@ describe('every code the extension can report reads as a sentence (C-12, C-19)',
     expect(stopReason('sync_stopped')).toBe('it stopped and didn’t record why.')
   })
 
+  it('words the codes the extension watchdog reports, which no table entry covers', () => {
+    expect(problemFamily('sync_stuck')).toBe('stalled')
+    expect(problemFamily('sync_not_completing')).toBe('stalled')
+    expect(stopReason('sync_stuck')).toBe('the oldest change waiting to upload hasn’t moved for a while.')
+    expect(stopNext('sync_stuck', ['retry'])).toContain('Retry below tries now')
+  })
+
   it('points a rebuild, a sign-in or a permission at the exit that ends it', () => {
     expect(stopNext('mapping_identity_conflict', ['retry', 'rebuild'])).toContain('Reset sync below to continue')
     expect(stopNext('mapping_identity_conflict', [])).toBe('Open the extension on that browser to reset its sync.')

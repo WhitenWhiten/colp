@@ -13,7 +13,7 @@ import { Modal } from '../../components/Modal'
 import type { StatusTone } from '../../components/StatusBadge'
 import { formatRelative } from '../../lib/formatDate'
 import { plural } from '../../lib/plural'
-import { isRealInstant, issueSummary, resultReason, stopNext, stopReason } from './problems'
+import { isRealInstant, issueSummary, problemFamily, resultReason, stopNext, stopReason } from './problems'
 import { REPLICA_STATE_TONE, STATUS_LABELS } from './types'
 
 /**
@@ -81,8 +81,12 @@ function triedAgain(command: SyncReplicaCommandView, browser: string, report: Re
 /** What came of the latest command, in plain words. `report` is the browser's latest, to say whether the request helped. */
 export function commandNote(command: SyncReplicaCommandView, browser: string, report?: Reported): string {
   const label = ACTION_LABELS[command.action] ?? 'The request'
+  // A browser that has been quiet for hours will not check in within five minutes: say so instead of promising it.
+  const quiet = report !== undefined && Date.now() - Date.parse(report.reportedAt) > REPORT_STALE_MINUTES * 60_000
   switch (command.state) {
-    case 'pending': return `${label} sent. It runs when ${browser} next checks in, usually within five minutes while it’s open.`
+    case 'pending': return quiet
+      ? `${label} sent. ${browser} hasn’t checked in since ${formatRelative(report.reportedAt)}, so it runs once that browser is open and online again.`
+      : `${label} sent. It runs when ${browser} next checks in, usually within five minutes while it’s open.`
     case 'delivered': return `${label} sent. Waiting for ${browser} to report back.`
     case 'done': if (command.resultCode === 'exact_retry_requested' || command.resultCode === 'recapture_completed' || command.resultCode === 'retry_completed') return triedAgain(command, browser, report)
       if (command.resultCode === 'retry_scheduled') return `Retry was scheduled on ${browser}. Check its sync status for the result.`
@@ -187,10 +191,12 @@ export function ReplicaHealth({ replica, onChanged, children }: {
   } else if (health?.state === 'stopped') {
     notes.push(`Sync on this browser has stopped: ${stopReason(health.code)} ${stopNext(health.code, offered)}`)
   } else if (health?.state === 'paused') {
-    notes.push('Sync is paused on this browser. Nothing syncs until it’s resumed there.')
+    notes.push(health.code === 'sync_disconnected'
+      ? 'Sync is turned off on this browser. It keeps its bookmarks; nothing syncs until it’s connected again there.'
+      : 'Sync is paused on this browser. Nothing syncs until it’s resumed there.')
   } else if (health?.state === 'degraded') {
-    // A code on a degraded report is a pause the browser ends by itself, not a stop.
-    if (health.code) notes.push(`Sync on this browser hit repeated errors and is waiting to try again: ${stopReason(health.code)} ${stopNext(health.code, offered)}`)
+    // A code on a degraded report is a pause the browser ends by itself, or a stall its watchdog noticed; neither is a stop.
+    if (health.code) notes.push(`Sync on this browser ${problemFamily(health.code) === 'stalled' ? 'looks stuck' : 'hit repeated errors and is waiting to try again'}: ${stopReason(health.code)} ${stopNext(health.code, offered)}`)
     if (count > 0 || !health.code) notes.push(`${plural(count, 'item')} on this browser couldn’t sync. Review the items and available recovery actions below. ${offered.includes('rebuild') ? 'Reset sync can repair this browser’s copy if retrying does not help.' : ''}`)
   }
   if (notSyncing(replica) && health?.state !== 'stopped') notes.push(activityNote(replica))

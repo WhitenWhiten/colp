@@ -136,6 +136,20 @@ test('a pause the browser ends by itself is told as a pause, not as a stop (C-06
   expect(text()).not.toContain('0 items')
 })
 
+test('a stall the extension watchdog noticed is told as a stall, with a Retry to try (S6)', () => {
+  mountTree(<ReplicaHealth replica={replica({ ...health, issueCount: 0, code: 'sync_stuck', actions: ['retry'] })} onChanged={() => {}} />)
+  expect(text()).toContain('Sync on this browser looks stuck: the oldest change waiting to upload hasn’t moved for a while. Retry below tries now.')
+  expect(text()).not.toContain('repeated errors')
+  mountTree(<ReplicaHealth replica={replica({ ...health, issueCount: 0, code: 'sync_not_completing', actions: [] })} onChanged={() => {}} />)
+  expect(text()).toContain('hasn’t finished a pass in over an hour')
+})
+
+test('a browser that was deliberately disconnected says so, instead of keeping its last state (C-17d)', () => {
+  mountTree(<ReplicaHealth replica={replica({ ...health, state: 'paused', code: 'sync_disconnected', issueCount: 0 })} onChanged={() => {}} />)
+  expect(text()).toContain('Sync is turned off on this browser. It keeps its bookmarks; nothing syncs until it’s connected again there.')
+  expect(text()).toContain('Paused since')
+})
+
 test('a reset the browser could not do says why and what to try, and a stop names the way out (C-12)', () => {
   const failed = { commandId: 'reset', replicaId: 'r', action: 'rebuild' as const, issueId: null, state: 'failed' as const,
     resultCode: 'upload_outcome_unsettled', createdAt: now, completedAt: now, expiresAt: now }

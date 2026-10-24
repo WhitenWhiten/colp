@@ -61,6 +61,15 @@ test('a request that failed says why in plain words, with the code only when it 
   expect(commandNote({ action: 'retry', state: 'failed', resultCode: null, issueId: null } as never, 'Chrome')).toBe('Retry didn’t work.')
 })
 
+test('a request waiting on a browser that has been quiet for hours does not promise five minutes (C-17d)', () => {
+  const pending = { action: 'retry', state: 'pending', resultCode: null, issueId: null } as never
+  const recent = { state: 'syncing' as const, reportedAt: new Date(Date.now() - 10 * 60_000).toISOString() }
+  expect(commandNote(pending, 'Chrome', recent)).toBe('Retry sent. It runs when Chrome next checks in, usually within five minutes while it’s open.')
+  const quiet = { state: 'syncing' as const, reportedAt: new Date(Date.now() - 3 * 24 * 60 * 60_000).toISOString() }
+  expect(commandNote(pending, 'Chrome', quiet)).toMatch(/^Retry sent\. Chrome hasn’t checked in since .+, so it runs once that browser is open and online again\.$/u)
+  expect(commandNote(pending, 'Chrome')).toContain('usually within five minutes')
+})
+
 test('a subtree delete held because the folder changed elsewhere says Retry deletes it anyway', () => {
   const base = { issueId: 'i', direction: 'push' as const, count: 1, firstSeenAt: 'now', lastSeenAt: 'now', actions: ['retry' as const] }
   expect(issueSummary({ ...base, code: 'delete_subtree_changed' })).toContain('Retry deletes it anyway')
