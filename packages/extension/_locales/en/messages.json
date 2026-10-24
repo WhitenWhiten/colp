@@ -7406,11 +7406,29 @@
   "syncIssue_actionNothing": {
     "message": "Nothing changed: the item is gone or no longer offers this."
   },
+  "syncIssue_actionRetriedRemote_one": {
+    "message": "Trying again. $1 item from your library goes back to the next sync pass."
+  },
+  "syncIssue_actionRetriedRemote_other": {
+    "message": "Trying again. $1 items from your library go back to the next sync pass."
+  },
   "syncIssue_actionRetried_one": {
     "message": "Tried again. $1 item is back in the upload queue."
   },
   "syncIssue_actionRetried_other": {
     "message": "Tried again. $1 items are back in the upload queue."
+  },
+  "syncIssue_actionSettled_one": {
+    "message": "Nothing left to do for $1 item. It has been settled since."
+  },
+  "syncIssue_actionSettled_other": {
+    "message": "Nothing left to do for $1 items. They have been settled since."
+  },
+  "syncIssue_actionUnavailable_one": {
+    "message": "Sync cannot try $1 item again from here. If it stays, dismiss it to keep this browser’s version, or reset sync on this device."
+  },
+  "syncIssue_actionUnavailable_other": {
+    "message": "Sync cannot try $1 items again from here. If they stay, dismiss them to keep this browser’s versions, or reset sync on this device."
   },
   "syncIssue_actionWorking": {
     "message": "Working…"
