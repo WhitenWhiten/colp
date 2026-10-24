@@ -19,6 +19,8 @@ import {
   type RecoveryOverlayNode,
 } from './recovery-overlay.js';
 import { executeNativeCreate } from './native-create-executor.js';
+import { containAmbiguousProjection, containProjectionFailure } from './projection-containment.js';
+import { recordedProjectionCreate } from './projection-create-receipt.js';
 import { rejectedChromeBookmarkUrl } from './pull-projection.js';
 import { scopeKey } from './sync-state/scope-key.js';
 import { pendingLocalDeletionIds, retainedDeletionMappings } from './recovery-local-deletes.js';
@@ -78,16 +80,6 @@ async function tripProjectionApplyBarrier(): Promise<void> {
   throw new SyncFailureError('projection_apply_barrier');
 }
 
-export class ProjectionAmbiguousError extends Error {
-  readonly code = 'snapshot_native_projection_ambiguous';
-  constructor(readonly colpId?: string) {
-    super(colpId
-      ? `snapshot_native_projection_ambiguous:${colpId}: keep extra local siblings or persist this intent's observedNativeId`
-      : 'snapshot_native_projection_ambiguous');
-    this.name = 'ProjectionAmbiguousError';
-  }
-}
-
 type RecoveryStore = RecoveryContentStore & Pick<ReturnType<typeof createSyncStateStore>,
   'getScope' | 'listMappings' | 'listQueue' | 'listQueueByTarget' | 'listBookmarkEventsByNative'
   | 'listProjectionIntents' | 'replaceProjectionIntents'
@@ -95,7 +87,8 @@ type RecoveryStore = RecoveryContentStore & Pick<ReturnType<typeof createSyncSta
   | 'getApplyIntent' | 'createApplyIntent' | 'findApplyIntent' | 'listApplyIntents'
   | 'persistApplyIntentFacts' | 'listLocalSyncExclusions' | 'getPullEvent'
   | 'recordLocalIssue' | 'listPullIssues' | 'listLocalIssues' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'
-  | 'putLocalSyncExclusion' | 'markPullBrowserCallStarted' | 'recordPullApiEvidence' | 'getMappingByNativeId'>;
+  | 'putLocalSyncExclusion' | 'markPullBrowserCallStarted' | 'recordPullApiEvidence' | 'getMappingByNativeId'
+  | 'recordApplyFailure'>;
 
 export async function recoverSnapshotProjection(input: {
   readonly scope: SyncScope;
@@ -266,6 +259,14 @@ export async function executeProjectionIntents(input: {
         await input.store.settleProjectionIntent(input.scope, intent.intentId, { state: 'pending' });
         continue;
       }
+      // B-04 / W2C-11: a refusal about this one node is counted, an unresolved parent waits, a vanished target is
+      // named; none of them stops the other nodes. Anything else keeps its durable retryable state below.
+      if (await containProjectionFailure({ store: input.store, scope: input.scope, intent,
+        nativeId: issueNativeId(intent, snapshotMappings, mappings), now: Date.now() }, error)) {
+        const prior = liveMappings.find(row => row.colpId === intent.colpId);
+        if (prior) mappings.set(intent.colpId, prior);
+        continue;
+      }
       // Never swallow a native update/move/delete failure. Persist a durable
       // retryable state so a subsequent worker can resume from this intent
       // without guessing whether Chrome applied the side effect.
@@ -273,8 +274,9 @@ export async function executeProjectionIntents(input: {
       throw error;
     }
     if (observed === 'ambiguous') {
-      await input.store.settleProjectionIntent(input.scope, intent.intentId, { state: 'ambiguous' });
-      throw new ProjectionAmbiguousError(intent.colpId);
+      await containAmbiguousProjection({ store: input.store, scope: input.scope, intent,
+        nativeId: issueNativeId(intent, snapshotMappings, mappings), now: Date.now() });
+      continue;
     }
     try {
       if (intent.kind === 'delete' && intent.nativeId) {
@@ -298,6 +300,13 @@ export async function executeProjectionIntents(input: {
     for (const mapping of mappings.values()) await persistProjectionMapping(input.store, input.scope, mapping);
   }
   return [...mappings.values()];
+}
+
+/** The browser id an issue about this intent is shown for: the node's own, or its `recovery:` placeholder. */
+function issueNativeId(intent: ProjectionIntentRecord, snapshotMappings: ReadonlyMap<string, MappingInput>,
+  mappings: ReadonlyMap<string, MappingInput>): string {
+  return (snapshotMappings.get(intent.colpId) ?? mappings.get(intent.colpId))?.nativeId
+    ?? intent.nativeId ?? `recovery:${intent.colpId}`;
 }
 
 function prepareCreateIntent(
@@ -434,6 +443,9 @@ async function perform(
       ?? (intent.parentColpId ? mappings.get(intent.parentColpId)?.nativeId : undefined);
     if (!parentNativeId || virtualNativeId(parentNativeId)) throw new SyncFailureError('snapshot_parent_mapping_missing');
     const children = await api.getChildren(parentNativeId);
+    // B-04: the receipt of a create that already happened answers before the equal-content check can call it unknown.
+    const recorded = await recordedProjectionCreate(ctx.store, ctx.scope, intent.intentId, children, occupancy, intent.colpId);
+    if (recorded) return recorded;
     const resolution = resolveCreateIdentity({ intent, children, occupancy });
     if (resolution.action === 'ambiguous') return 'ambiguous';
     if (resolution.action === 'reuse') {
@@ -466,6 +478,8 @@ async function perform(
         ...(index === undefined ? {} : { index }),
       }),
     });
+    // A refused call (a lost permission) is not an unknown result: it stops the projection, it does not name this node.
+    if (outcome.result === 'failed') throw new Error(outcome.code);
     if (outcome.result !== 'applied_with_evidence') return 'ambiguous';
     return outcome.nativeId;
   }

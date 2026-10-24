@@ -155,7 +155,7 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   snapshot_projection_incomplete: entry('replica', 'stop'),
   // B-04: a bookmark with the same title and address already sits where this one would be created and nothing proves
   // this extension did not create it. Shown for that one bookmark; the rest of the library keeps projecting.
-  snapshot_native_projection_ambiguous: entry('item', 'decide'),
+  snapshot_native_projection_ambiguous: entry('item', 'confirm'),
   // B-08: definitive server refusals no retry or refresh changes. The owner retired this browser in the Sync center
   // (a Reset registers a new replica), or the server's configuration/this build cannot be made to agree.
   replica_retired: entry('replica', 'stop'),

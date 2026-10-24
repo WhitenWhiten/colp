@@ -8,7 +8,7 @@ import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, test } from 'vitest';
 import type { PullBookmarkApi } from '../src/pull-applier.js';
 import {
-  configureProjectionApplyBarrier, executeProjectionIntents, ProjectionAmbiguousError,
+  configureProjectionApplyBarrier, executeProjectionIntents,
   projectVirtualSnapshotChildren, projectionApplyBarrierStatus, releaseProjectionApplyBarrier,
 } from '../src/recovery-projection-executor.js';
 import { createProjectionSuppression, type ProjectionIntentRecord } from '../src/recovery-overlay.js';
@@ -102,13 +102,18 @@ test('FR-F3-APPLY-CRASH: Chrome create without observedNativeId does not claim u
   assert.equal(await store.getMappingByColpId(scope, 'remote-a'), null);
   assert.equal(chrome.creates, 1);
   chrome.crashAfterCreate = 0;
-  await assert.rejects(() => projectVirtualSnapshotChildren({
+  // B-04: the unprovable create is shown for that one bookmark; the other sibling is still projected.
+  await projectVirtualSnapshotChildren({
     scope, store, api: chrome.api, bound: [parent, sibling('remote-a'), sibling('remote-b')],
-  }), (error: unknown) => error instanceof ProjectionAmbiguousError
-    && error.code === 'snapshot_native_projection_ambiguous');
-  assert.equal((await store.listProjectionIntents(scope)).some((intent) => intent.state === 'ambiguous'), true);
-  assert.equal(await store.getMappingByColpId(scope, 'remote-a'), null);
-  assert.equal(chrome.creates, 1);
+  });
+  const intents = await store.listProjectionIntents(scope);
+  assert.equal(intents.find((intent) => intent.colpId === 'remote-a')?.state, 'ambiguous');
+  assert.equal(intents.find((intent) => intent.colpId === 'remote-b')?.state, 'terminal');
+  assert.match((await store.getMappingByColpId(scope, 'remote-a'))?.nativeId ?? 'recovery:none', /^recovery:/u,
+    'the equal-content bookmark is never claimed');
+  assert.ok(!(await store.getMappingByColpId(scope, 'remote-b'))?.nativeId.startsWith('recovery:'));
+  assert.equal(chrome.creates, 2, 'one create for the sibling that is provable; none for the ambiguous one');
+  assert.deepEqual((await store.listLocalIssues(scope)).map((row) => row.code), ['snapshot_native_projection_ambiguous']);
 });
 
 test('FR-F3-APPLY-CRASH: observedNativeId persist without mapping is reused and then mapped', async () => {
@@ -154,14 +159,15 @@ test('occupied observedNativeId stays non-terminal and does not overwrite the ow
   await store.replaceProjectionIntents(scope, [
     createIntent('remote-b', 1, { state: 'executing', observedNativeId: 'owned' }),
   ]);
-  await assert.rejects(() => executeProjectionIntents({
+  // B-04: the claim of another node on that bookmark is shown for remote-b; nothing is thrown, nothing is overwritten.
+  await executeProjectionIntents({
     scope, store, api: chrome.api, selectedRootNativeId: '1',
     seedMappings: [parent, { ...sibling('remote-a'), nativeId: 'owned' }, sibling('remote-b')],
-  }), (error: unknown) => error instanceof ProjectionAmbiguousError
-    && error.code === 'snapshot_native_projection_ambiguous');
+  });
   assert.equal((await store.listProjectionIntents(scope))[0]?.state, 'ambiguous');
   assert.equal((await store.getMappingByNativeId(scope, 'owned'))?.colpId, 'remote-a');
-  assert.equal(await store.getMappingByColpId(scope, 'remote-b'), null);
+  assert.match((await store.getMappingByColpId(scope, 'remote-b'))?.nativeId ?? 'recovery:none', /^recovery:/u);
+  assert.deepEqual((await store.listLocalIssues(scope)).map((row) => row.code), ['snapshot_native_projection_ambiguous']);
 });
 
 async function ready() {
