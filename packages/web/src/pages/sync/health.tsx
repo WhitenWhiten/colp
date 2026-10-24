@@ -13,7 +13,7 @@ import { Modal } from '../../components/Modal'
 import type { StatusTone } from '../../components/StatusBadge'
 import { formatRelative } from '../../lib/formatDate'
 import { plural } from '../../lib/plural'
-import { isRealInstant, issueSummary, problemFamily, resultReason, stopNext, stopReason } from './problems'
+import { isRealInstant, issueLimitNote, issueSummary, problemFamily, resultReason, stopNext, stopReason } from './problems'
 import { REPLICA_STATE_TONE, STATUS_LABELS } from './types'
 
 /**
@@ -270,13 +270,15 @@ export function ReplicaHealth({ replica, onChanged, children }: {
 function ReplicaIssueList({ view, replica, busy, onRetry }: {
   view: SyncReplicaIssuesView; replica: SyncReplicaView; busy: string | null; onRetry(issueId: string): void
 }) {
-  if (view.items.length === 0) return <p>{view.total > 0
+  const limitNote = issueLimitNote(view.total)
+  if (view.items.length === 0) return <><p>{view.total > 0
     ? `This browser reports ${plural(view.total, 'issue')}, but their details were omitted from its bounded report. Open the extension to inspect them.`
-    : 'This browser has nothing set aside any more.'}</p>
+    : 'This browser has nothing set aside any more.'}</p>{limitNote && <p>{limitNote}</p>}</>
   const more = view.total - view.items.length
   const stale = Boolean(replica.health?.reportedAt && view.reportedAt !== replica.health.reportedAt)
   return <>
     {stale && <p className="replica-diagnostics-stale">This item list predates the latest browser report. Refresh before acting.</p>}
+    {limitNote && <p>{limitNote}</p>}
     <ul className="replica-issues" aria-label="Items this browser couldn’t sync">
     {view.items.map((issue) => {
       const latest = latestCommand(replica, issue.issueId)

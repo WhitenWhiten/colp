@@ -273,3 +273,13 @@ export function issueSummary(issue: IssueSummaryInput): string {
   if (issue.direction === 'pull') return 'Couldn’t be applied in the browser'
   return 'Couldn’t be prepared for sync'
 }
+
+/** A browser stops syncing above this many open items, and its Status tab warns from the lower number. */
+export const SYNC_ISSUE_WARNING = 150
+export const SYNC_ISSUE_LIMIT = 200
+
+/** The line before (or at) the limit: how many items are open, and where they can be cleared in bulk. */
+export function issueLimitNote(total: number): string | undefined {
+  if (total < SYNC_ISSUE_WARNING) return undefined
+  return `This browser has ${total} open items. It stops syncing above ${SYNC_ISSUE_LIMIT}. In the extension, open Sync, then Status, and use Try again or Dismiss to clear some.`
+}

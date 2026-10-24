@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { isRealInstant, issueSummary, problemFamily, resultReason, stopNext, stopReason, type ProblemFamily } from './problems'
+import { SYNC_ISSUE_LIMIT, SYNC_ISSUE_WARNING, isRealInstant, issueLimitNote, issueSummary, problemFamily, resultReason, stopNext, stopReason, type ProblemFamily } from './problems'
 
 /**
  * C-12 / C-19: the words a browser's stop gets on this page are checked against the extension's own failure
@@ -145,5 +145,19 @@ describe('times a browser could not know', () => {
     expect(isRealInstant('not a date')).toBe(false)
     expect(isRealInstant(null)).toBe(false)
     expect(isRealInstant('2026-10-24T10:00:00.000Z')).toBe(true)
+  })
+})
+
+describe('how close a browser is to the open-items limit (A-F8 / B-12)', () => {
+  it('says nothing below the warning and names the limit and where to clear items from it', () => {
+    expect(issueLimitNote(SYNC_ISSUE_WARNING - 1)).toBeUndefined()
+    expect(issueLimitNote(SYNC_ISSUE_WARNING)).toBe('This browser has 150 open items. It stops syncing above 200. In the extension, open Sync, then Status, and use Try again or Dismiss to clear some.')
+    expect(issueLimitNote(231)).toContain('231 open items')
+  })
+
+  it('uses the same numbers as the extension, read from its source', () => {
+    const source = extensionSource('sync-issue-ceiling.ts')
+    expect(source).toContain(`OPEN_SYNC_ISSUE_CEILING = ${SYNC_ISSUE_LIMIT}`)
+    expect(source).toContain(`OPEN_SYNC_ISSUE_WARNING = ${SYNC_ISSUE_WARNING}`)
   })
 })

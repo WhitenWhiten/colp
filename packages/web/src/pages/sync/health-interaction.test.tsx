@@ -160,3 +160,18 @@ test('a reset the browser could not do says why and what to try, and a stop name
   expect(text()).toContain('Try Retry first')
   expect(text()).not.toContain('it reported')
 })
+
+test('a browser close to the open-items limit is told so beside its list, with the way to clear some (A-F8 / B-12)', async () => {
+  mocks.list.mockResolvedValue({ ...report(), total: 163 })
+  mountTree(<ReplicaHealth replica={replica({ ...health, issueCount: 163 })} onChanged={() => {}} />)
+  click('Show 163 items'); await waitForDom(() => document.body.textContent?.includes('local_merge_difference') === true)
+  expect(text()).toContain('This browser has 163 open items. It stops syncing above 200.')
+  expect(text()).toContain('use Try again or Dismiss to clear some')
+})
+
+test('a short list carries no limit note', async () => {
+  mocks.list.mockResolvedValue(report())
+  mountTree(<ReplicaHealth replica={replica(health)} onChanged={() => {}} />)
+  click('Show 1 item'); await waitForDom(() => document.body.textContent?.includes('local_merge_difference') === true)
+  expect(text()).not.toContain('open items')
+})
