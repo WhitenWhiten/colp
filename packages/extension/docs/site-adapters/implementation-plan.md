@@ -1,6 +1,6 @@
 # Site adapter implementation and acceptance plan
 
-Status: execution in progress; task results and blockers are tracked in [execution evidence](execution-evidence.md). Reviewed October 23, 2026 against COLP commit `364a124471da2bc1633e22b8936656e0ba28e865` and the uncommitted Bilibili evidence backfill. No production adapter runtime exists at this baseline.
+Status: SA-00–SA-10 are complete for the qualified profiles recorded in [execution evidence](execution-evidence.md). The subsequent public-foundation review and remediation are documented in [runtime foundation](runtime-foundation.md) and its focused validation evidence. Bilibili is the only implemented adapter.
 
 Use this document to choose and finish the next implementation task. [README](README.md) owns architecture and invariants; [contracts.ts](contracts.ts) and [examples.ts](examples.ts) are draft protocol shapes; [Bilibili evidence](bilibili-feasibility.md) records observations, not integration acceptance. Change those documents together if implementation changes a contract. None of these documents grants permission to mutate a real site's account or a user's bookmark tree during testing.
 

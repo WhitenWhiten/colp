@@ -2,6 +2,8 @@
 
 Status: bundled/local, separately installed packages, and negotiated COLP Server source archives. See [execution evidence](execution-evidence.md): SA-00–SA-10 provide bundled positive observation, explicitly configured local archives, frozen-preview imports, semantic content bindings, all local copy policies, [release/recovery acceptance](release-acceptance.md), and the separately enabled [advanced package installer](community-packages.md). SA-10 adds [reviewed cloud import batches and separate device authority](cloud-contract-proposal.md). COLP Server has no backend classification service; this capability is explicitly unavailable. Cloud v1 accepts sourceAndSemantic copies; single-copy semantic coordination remains local and rejects in the cloud profile. Initial research: October 18, 2026. Integration review: October 22, 2026, against repository baseline `7a58017aeeb8fbaf3ee6defd00a594974f0950e4`. Independent Bilibili feasibility evidence and Chrome policy were reviewed on October 23, 2026; see [verification scope and remaining gates](bilibili-feasibility.md).
 
+The implemented common runtime, identity migration and extension points are described in [Reusable site adapter foundation](runtime-foundation.md). Bilibili remains the only implemented site.
+
 Use website adapters running in the page, a source relationship ledger persisted by the host extension, existing automation evaluation, and a shared save planner. Adapters extract items, collections, and membership changes. The host decides whether to save, how many copies to keep, where they belong, and whether to invoke JEV. Bilibili is the first validation target.
 
 The first phase uses a bundled Bilibili adapter, browser rules, and JEV classification through the local provider. Source archives are written to a local folder explicitly bound by the user. Community scripts use a separate user-script execution environment. Reviewed cloud batches and cross-device source leases use the separate COLP Server v1 contract. Automatic cloud classification and conversion to ordinary account rules remain unavailable. Synchronizing ordinary bookmarks and synchronizing source facts and management authority are separate capabilities.
@@ -448,7 +450,7 @@ Produce sanitized fixtures for adding to B, adding to B/C together, moving membe
 
 ## Module responsibilities
 
-These are proposed module boundaries, not existing implementations:
+The implementation now uses the shared modules described in [runtime foundation](runtime-foundation.md). The following responsibility map remains the architectural grouping; the actual files are linked in that document:
 
 | Module | Responsibility | Existing integration |
 | --- | --- | --- |

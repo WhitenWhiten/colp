@@ -1,0 +1,170 @@
+{
+  "version": 1,
+  "date": "2026-10-24",
+  "reviewBaseline": "aeca5e6e",
+  "codeCommit": "21772b5d6e2578555f125289d48caed8e3388cb4",
+  "commits": [
+    {
+      "commit": "41f79422a464dfe92daaf40b423d23d5faebfbc9",
+      "subject": "fix(extension): preserve source folder reuse across AI policy changes"
+    },
+    {
+      "commit": "e50af734643f0798c1cdc7240554815fa306da9f",
+      "subject": "fix(extension): release unsubmitted source reservations on cancellation"
+    },
+    {
+      "commit": "baa8ec3274a079bf25eb45f398d6665c0e26e893",
+      "subject": "fix(extension): scope cursor cycle detection to each import traversal"
+    },
+    {
+      "commit": "74d504755d5910b08b6e721e51753f3a8b4154fb",
+      "subject": "refactor(extension): run bundled adapters through a registered SDK host"
+    },
+    {
+      "commit": "44ecb2c81b2a6f8a83c8838b286b8563e095f618",
+      "subject": "refactor(extension): isolate adapter installations and version source identities"
+    },
+    {
+      "commit": "23580b937693f5e981d51680c3a1fc9400c519c6",
+      "subject": "fix(source-archives): namespace cloud authority and register site identities"
+    },
+    {
+      "commit": "285994eb8264c6912116ac4cc1ed06d1c50d51cb",
+      "subject": "fix(extension): enforce adapter deadlines capabilities and scoped registrations"
+    },
+    {
+      "commit": "cfab088a2919f1e925b9f1ce1a5be5eab338c306",
+      "subject": "fix(extension): retain plan ownership across interrupted import preparation"
+    },
+    {
+      "commit": "1f04f87671fd87183e6441575ee054c72def486c",
+      "subject": "fix(extension): scope adapter reads before applying pagination budgets"
+    },
+    {
+      "commit": "50df72203485f8e55e980450eb66c798e201cd1d",
+      "subject": "fix(extension): defer source database access and retry blocked upgrades"
+    },
+    {
+      "commit": "21772b5d6e2578555f125289d48caed8e3388cb4",
+      "subject": "fix(extension): localize shared adapter capture controls"
+    }
+  ],
+  "scope": {
+    "implementedAdapters": [
+      "bilibili"
+    ],
+    "secondAdapterAdded": false,
+    "realSiteMutations": false,
+    "realProviderRequests": false,
+    "server": "disposable COLP Server/PostgreSQL 16.4 and two fixture browser profiles",
+    "browser": "Chromium 149 / Linux arm64 / mandatory xvfb",
+    "databaseSchema": 3,
+    "portableSourceVersion": 2,
+    "legacyPortableSourceVersionAccepted": 1
+  },
+  "checks": [
+    {
+      "cwd": "packages/extension",
+      "command": "node scripts/with-orbstack.mjs run node_modules/.bin/vitest run tests/site-adapter-*.test.ts tests/classification-destination-policy.test.ts tests/capture-planned.test.ts tests/local-backup.test.ts tests/local-backup-export.test.ts",
+      "result": "passed",
+      "files": 20,
+      "tests": 184
+    },
+    {
+      "cwd": "packages/extension",
+      "command": "node scripts/with-orbstack.mjs run node --max-old-space-size=1536 node_modules/typescript/bin/tsc --noEmit --strict --skipLibCheck --noUncheckedIndexedAccess --target ES2023 --module NodeNext --moduleResolution NodeNext --lib ES2023,DOM,DOM.AsyncIterable src/chrome.d.ts src/bookmark-subscriptions/chrome-external.d.ts src/service-worker.ts src/site-adapters/settings.ts src/site-adapters/content.ts src/popup.ts tests/site-adapter-import.test.ts tests/site-adapter-isolation.test.ts tests/site-adapter-sdk.test.ts tests/site-adapter-runtime-boundaries.test.ts tests/site-adapter-cloud.test.ts tests/site-adapter-recovery.test.ts e2e/mv3-site-adapter-cloud.spec.ts e2e/mv3-site-adapter-lifecycle.spec.ts e2e/mv3-site-adapter-import.spec.ts e2e/mv3-site-adapter-semantic.spec.ts e2e/mv3-site-adapter-recovery.spec.ts e2e/mv3-site-adapter-community.spec.ts e2e/mv3-site-adapter-planned.spec.ts ../server/src/infrastructure/source-archives/postgres.ts docs/site-adapters/examples.ts",
+      "result": "passed",
+      "scope": "strict selected production entry graphs, touched tests and seven site-adapter E2E specs; not a full-project typecheck"
+    },
+    {
+      "cwd": ".",
+      "command": "node packages/extension/scripts/with-orbstack.mjs e2e e2e/mv3-site-adapter-lifecycle.spec.ts e2e/mv3-site-adapter-import.spec.ts e2e/mv3-site-adapter-semantic.spec.ts e2e/mv3-site-adapter-recovery.spec.ts e2e/mv3-site-adapter-community.spec.ts",
+      "result": "passed",
+      "tests": 5,
+      "phase": "installation and identity isolation"
+    },
+    {
+      "cwd": ".",
+      "command": "COLP_ADAPTER_POSTGRES=1 node packages/extension/scripts/with-orbstack.mjs e2e e2e/mv3-site-adapter-cloud.spec.ts e2e/mv3-site-adapter-lifecycle.spec.ts",
+      "result": "passed",
+      "tests": 2,
+      "phase": "cloud identity namespace and latest installation authority fences"
+    },
+    {
+      "cwd": ".",
+      "command": "node packages/extension/scripts/with-orbstack.mjs e2e e2e/mv3-site-adapter-lifecycle.spec.ts e2e/mv3-site-adapter-planned.spec.ts",
+      "result": "passed",
+      "tests": 2,
+      "phase": "SDK deadlines and native recovery"
+    },
+    {
+      "cwd": ".",
+      "command": "node packages/extension/scripts/with-orbstack.mjs e2e e2e/mv3-site-adapter-lifecycle.spec.ts",
+      "result": "passed",
+      "tests": 1,
+      "phase": "registration drift and shared recovery wake coalescing"
+    },
+    {
+      "cwd": "packages/extension",
+      "command": "node scripts/with-orbstack.mjs e2e e2e/mv3-site-adapter-import.spec.ts e2e/mv3-site-adapter-planned.spec.ts",
+      "result": "passed",
+      "tests": 2,
+      "phase": "final interrupted-preparation ownership, scoped queries and lazy database access",
+      "durationDisplay": "2.4 minutes import; 11.1 seconds planned-native recovery; 2.5 minutes combined"
+    },
+    {
+      "cwd": "packages/extension",
+      "command": "node scripts/with-orbstack.mjs run node_modules/.bin/eslint src/site-adapters tests/site-adapter-*.test.ts e2e/mv3-site-adapter-lifecycle.spec.ts",
+      "result": "passed"
+    },
+    {
+      "cwd": "packages/extension",
+      "command": "node scripts/with-orbstack.mjs run node scripts/check-source-file-sizes.mjs",
+      "result": "passed",
+      "files": 811
+    },
+    {
+      "cwd": "packages/extension",
+      "command": "node scripts/with-orbstack.mjs run node scripts/i18n-catalog.mjs",
+      "result": "passed",
+      "correction": "Added the missing zh_CN SDK control translation in 21772b5d; final catalog check passed."
+    },
+    {
+      "cwd": "packages/extension",
+      "command": "node scripts/with-orbstack.mjs run npm run build:development",
+      "result": "passed"
+    },
+    {
+      "cwd": "packages/extension",
+      "command": "node scripts/with-orbstack.mjs run npm run build",
+      "result": "passed"
+    },
+    {
+      "cwd": "packages/extension",
+      "command": "node scripts/with-orbstack.mjs run node scripts/verify-release-artifact.mjs dist/production",
+      "result": "passed",
+      "files": 41,
+      "sourceMaps": false,
+      "secretScan": "passed"
+    },
+    {
+      "cwd": ".",
+      "command": "node packages/extension/scripts/with-orbstack.mjs run bash -c 'cd /workspace/packages/server && node_modules/.bin/eslint src/modules/source-archives/index.ts src/modules/source-archives/site-registry.ts src/modules/source-archives/sites/bilibili.ts src/infrastructure/source-archives/postgres.ts && node scripts/check-import-boundaries.mjs'",
+      "result": "passed"
+    }
+  ],
+  "initialValidationFailure": {
+    "test": "tests/local-backup-export.test.ts",
+    "failure": "indexedDB referenced during module initialization before fixture setup",
+    "resolutionCommit": "50df72203485f8e55e980450eb66c798e201cd1d",
+    "finalResult": "22/22 passed in the clean 184-test run"
+  },
+  "cleanup": "All task-owned xvfb/test/PostgreSQL containers and temporary browser profiles removed; no test service remains. Prepared caches retained.",
+  "remainingChecks": [],
+  "productionHashes": {
+    "service-worker.js": "26855e495e80fc0ffdf7ccdfaa2892435ec5b89399e051591fcfa023a55e0852",
+    "site-adapter.js": "c84d87e9a75c909781e928f83b9c0b26d12b676033b58537b655b8d43d119bd6",
+    "site-probe.js": "d5e9a5da43bdcbf566eb8e0d584ffa7b63a43566de59fb8eb0ebf28895fce2ae",
+    "manifest.json": "19538cba39711a837fa5b0bf0abc5e0b5b8d23479ca09ded651f1d4e353a603f"
+  }
+}

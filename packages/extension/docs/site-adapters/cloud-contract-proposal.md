@@ -1,5 +1,7 @@
 # COLP Server source archive contract v1
 
+The current implementation uses a registered site identity codec and namespace-aware source authority. See [runtime foundation](runtime-foundation.md#cloud-identity-contract) for the backward-compatible locator fields and capability negotiation. Only Bilibili v1 is currently registered.
+
 The user clarified on 2026-10-24 that COLP Server is the only backend for this work and backend classification does not exist. This supersedes the old design's separate Know-N backend dependency. No generated JEV file is changed. This document now records the implementation contract rather than a request for another backend owner's approval. Acceptance evidence is tracked separately in [execution evidence](execution-evidence.md).
 
 ## Negotiation and supported scope
