@@ -6,6 +6,7 @@ import {
   requireNonEmpty,
 } from './config-parse-helpers.js';
 import { resolveLimiterRedisUrl } from './config-redis-roles.js';
+import { withAutomationOauthScopes } from './config-mcp.js';
 import {
   BETTER_AUTH_OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
   resolveBetterAuthCookieName,
@@ -368,7 +369,7 @@ function parseBetterAuthOauthIssuer(env: NodeJS.ProcessEnv): BetterAuthOauthIssu
   );
   return Object.freeze({
     resource,
-    scopes: Object.freeze(scopes),
+    scopes: withAutomationOauthScopes(scopes, env),
     accessTokenExpiresInSeconds: BETTER_AUTH_OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
     dcrMaxAnonymousClients,
     dcrUnusedClientRetentionSeconds,

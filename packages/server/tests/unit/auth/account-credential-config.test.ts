@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { generateKeyPairSync } from 'node:crypto';
 import { test } from 'vitest';
 import { loadConfig } from '../../support/test-config.js';
-import { parseMcpScopes } from '../../../src/bootstrap/config-mcp.js';
+import { parseMcpScopes, withAutomationOauthScopes } from '../../../src/bootstrap/config-mcp.js';
 import { productionEnv } from '../../support/http-security-config-env.js';
 
 function testEs256Jwk(kid = 'acct-cred-test-kid'): string {
@@ -71,6 +71,17 @@ test('MCP_OAUTH_SCOPES accepts 32 unique scopes including product read/write', (
   ];
   assert.equal(parseMcpScopes(scopes.join(',')).length, 32);
   assert.throws(() => parseMcpScopes([...scopes, 'too:many'].join(',')), /at most 32 scopes/u);
+});
+
+test('the automation scopes follow the automation flags and never duplicate operator entries', () => {
+  const operator = ['mcp:read:own', 'automation:work'];
+  assert.deepEqual([...withAutomationOauthScopes(operator, {})], operator);
+  assert.deepEqual([...withAutomationOauthScopes(operator, { KNOWN_FEATURE_AUTOMATION_RULES: 'true' })],
+    ['mcp:read:own', 'automation:work', 'automation:read', 'automation:manage']);
+  assert.deepEqual([...withAutomationOauthScopes(['mcp:read:own'], { KNOWN_FEATURE_AUTOMATION_RULES: 'true', KNOWN_FEATURE_AUTOMATION_WORK: 'true' })],
+    ['mcp:read:own', 'automation:read', 'automation:manage', 'automation:work']);
+  const full = Array.from({ length: 32 }, (_, index) => `scope:${index}`);
+  assert.throws(() => withAutomationOauthScopes(full, { KNOWN_FEATURE_AUTOMATION_WORK: 'true' }), /at most 32 scopes/u);
 });
 
 test('enabling the feature requires the cursor HMAC key and a configured ES256 JWK', () => {

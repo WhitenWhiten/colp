@@ -201,6 +201,28 @@ export function parseMcpScopes(raw: string | undefined): readonly string[] {
   return Object.freeze(scopes);
 }
 
+/**
+ * The automation scopes follow the automation feature flags. Hosted clients learn
+ * what to request from the advertised scope list, so an Owner can approve rule
+ * work at sign-in without an operator editing MCP_OAUTH_SCOPES first.
+ */
+export function automationOauthScopes(env: NodeJS.ProcessEnv): readonly string[] {
+  const on = (name: string) => (env[name] ?? 'false').trim().toLowerCase() === 'true';
+  return Object.freeze([
+    ...(on('KNOWN_FEATURE_AUTOMATION_RULES') ? ['automation:read', 'automation:manage'] : []),
+    ...(on('KNOWN_FEATURE_AUTOMATION_WORK') ? ['automation:work'] : []),
+  ]);
+}
+
+/** Operator scopes first, then the automation scopes the flags imply; the 32-scope bound covers both. */
+export function withAutomationOauthScopes(scopes: readonly string[], env: NodeJS.ProcessEnv): readonly string[] {
+  const merged = [...scopes, ...automationOauthScopes(env).filter((scope) => !scopes.includes(scope))];
+  if (merged.length > 32) {
+    throw new Error('MCP_OAUTH_SCOPES together with the automation scopes must contain at most 32 scopes');
+  }
+  return Object.freeze(merged);
+}
+
 export function parseMcpAllowedOrigins(raw: string | undefined): readonly string[] {
   const origins = (raw ?? '').split(',').map((item) => item.trim()).filter(Boolean);
   if (origins.length === 0) {
@@ -264,7 +286,7 @@ export function loadMcpReadFeatureConfig(
   const oauthAudience = requireNonEmpty(env, 'MCP_OAUTH_AUDIENCE');
   const asMetadataUrl = requireNonEmpty(env, 'MCP_OAUTH_AUTHORIZATION_SERVER_METADATA_URL');
   const jwksUri = env.MCP_OAUTH_JWKS_URI?.trim() || null;
-  const scopes = parseMcpScopes(env.MCP_OAUTH_SCOPES?.trim());
+  const scopes = withAutomationOauthScopes(parseMcpScopes(env.MCP_OAUTH_SCOPES?.trim()), env);
   if (options.reportsMcpEnabled && !scopes.includes('reports:read')) {
     throw new Error('KNOWN_FEATURE_REPORTS_MCP requires reports:read in MCP_OAUTH_SCOPES');
   }
