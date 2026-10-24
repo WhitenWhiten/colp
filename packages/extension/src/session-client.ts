@@ -10,6 +10,9 @@ import {
   SYNC_TRANSPORT_BUDGET_HEADER,
   type SyncTransportBudget,
 } from './colp-transport-budget-browser.js';
+import { measureClientClockSkew, serverNow, localTimeOf } from './session-clock.js';
+import { authorityCodeForStatus, classifyHttpStatus } from './sync-transport-failure.js';
+import { SERVER_VERSION_MISMATCH, classifySyncFailure } from './sync-failure-class.js';
 
 const SESSION_RESPONSE_MAX_BYTES = 128 * 1_024;
 const REPLICA_LEASE_RENEWAL_MARGIN_MS = 60_000;
@@ -21,6 +24,8 @@ const LEASE_KEYS = new Set(['leaseId', 'generation', 'state', 'lastSeenAt', 'exp
 const COLLECTION_KEYS = new Set(['collectionId', 'snapshotRequired', 'serverCursor', 'serverRevision']);
 const CONVERSION_KEYS = new Set(['alias', 'separator', 'unknownExtensions']);
 const MAX_RETRY_AFTER_SECONDS = 3_600;
+/** The Session route answered "not found": the server does not know this replica id for this account or Collection. */
+export const SESSION_REPLICA_UNKNOWN = 'session_replica_unknown';
 
 export class SessionRequestError extends Error {
   readonly code: string;
@@ -82,12 +87,19 @@ export async function createSyncSession(input: { readonly endpoints: SyncEndpoin
     await assertCredentialHostPermission(input.endpoints.syncSessions, sessionInit);
     response = await (input.fetch ?? fetch)(input.endpoints.syncSessions, sessionInit);
   } finally { clearTimeout(timer); }
+  const receivedAt = Date.now();
   if (response.status !== 201 || !/^application\/json(?:\s*;|$)/i.test(response.headers.get('content-type') ?? '')) {
     if (response.status === 401) throw new SessionRequestError('credential_revoked');
     const problem = await readBoundedJson(response, SESSION_RESPONSE_MAX_BYTES, 'session_problem_invalid', { signal: input.signal })
       .catch(() => undefined);
-    const code = record(problem) && typeof problem.code === 'string' && /^[a-z][a-z0-9_]{0,63}$/u.test(problem.code)
-      ? problem.code : 'session_failed';
+    // A gateway hiccup is transient whatever its body (or lack of one) says; an unreadable body on a denial keeps the status' meaning.
+    const kind = classifyHttpStatus(response.status);
+    const named = kind === 'transient' ? 'server_unavailable'
+      : record(problem) && typeof problem.code === 'string' && /^[a-z][a-z0-9_]{0,63}$/u.test(problem.code)
+        ? problem.code : authorityCodeForStatus(response.status) ?? 'session_failed';
+    // No Session exists yet, so "not found" here cannot mean an expired one: the server does not know this replica id
+    // for this account (or this Collection). Renewing authority cannot cure it (W2B-P1-3).
+    const code = response.status === 404 && named === 'resource_not_found' ? SESSION_REPLICA_UNKNOWN : named;
     const retryAfterMilliseconds = code === 'rate_limited' ? sessionRetryAfter(response, problem) : undefined;
     throw new SessionRequestError(code, retryAfterMilliseconds);
   }
@@ -102,11 +114,13 @@ export async function createSyncSession(input: { readonly endpoints: SyncEndpoin
     throw new Error('session_invalid');
   }
   return parseSyncSessionResult(value, input.request, await credentialAuthorityDigest(input.credential.accessToken),
-    transportBudget);
+    transportBudget, receivedAt);
 }
 
 export function parseSyncSessionResult(value: unknown, requestInput: unknown,
-  authorityDigest: string, transportBudget?: SyncTransportBudget): StoredSession {
+  authorityDigest: string, transportBudget?: SyncTransportBudget, receivedAt: number = Date.now()): StoredSession {
+  // W2C-12: strict same-version validation stays, but an unknown field says "newer server", not "broken Session".
+  if (record(value) && hasUnknownSessionField(value)) throw new Error(SERVER_VERSION_MISMATCH);
   const request = record(requestInput) ? requestInput : {};
   const requestCollection = record(request.collection) ? request.collection : {};
   const replica = record(request.replica) ? request.replica : {};
@@ -140,8 +154,11 @@ export function parseSyncSessionResult(value: unknown, requestInput: unknown,
     throw new Error('session_invalid');
   }
   if (!/^[a-f0-9]{64}$/u.test(authorityDigest)) throw new Error('session_invalid');
+  // W2B-P0-1: `expiresAt` and the lease are server time. Keep the offset so every expiry decision can use it.
+  const clientClockSkewMilliseconds = measureClientClockSkew({ clientTime: request.clientTime,
+    serverTime: string(value.serverTime), receivedAt });
   return Object.freeze({ sessionId: value.sessionId, credentialAuthorityDigest: authorityDigest,
-    expiresAt: value.expiresAt, scope: 'collection',
+    expiresAt: value.expiresAt, clientClockSkewMilliseconds, scope: 'collection',
     acceptedProtocolVersion: '0.2', maxBatchOperations: Number(value.maxBatchOperations), snapshotRequired: value.collection.snapshotRequired,
     conversionPolicy: { separator: value.conversionPolicy.separator as
       'native' | 'omit' | 'preserve_remote' | 'reject' },
@@ -167,16 +184,18 @@ export async function sessionMatchesCredentialAuthority(session: StoredSession,
     && session.credentialAuthorityDigest === await credentialAuthorityDigest(credential.accessToken);
 }
 
+/** `now` is this computer's clock; the Session and its lease expire in server time (W2B-P0-1). */
 export function syncSessionNeedsRenewal(session: StoredSession, now = Date.now()): boolean {
-  return Date.parse(session.expiresAt) <= now + REPLICA_LEASE_RENEWAL_MARGIN_MS
+  const server = serverNow(session, now);
+  return Date.parse(session.expiresAt) <= server + REPLICA_LEASE_RENEWAL_MARGIN_MS
     || (session.replicaLease as { readonly state: unknown }).state !== 'active'
-    || Date.parse(session.replicaLease.expiresAt) <= now + REPLICA_LEASE_RENEWAL_MARGIN_MS;
+    || Date.parse(session.replicaLease.expiresAt) <= server + REPLICA_LEASE_RENEWAL_MARGIN_MS;
 }
 
 export async function retryStaleReplicaSession(session: StoredSession, error: unknown,
   renew: () => Promise<StoredSession>, now = Date.now()): Promise<StoredSession> {
   if (!(error instanceof Error) || error.message !== 'stale_replica'
-      || Date.parse(session.expiresAt) <= now) throw error;
+      || Date.parse(session.expiresAt) <= serverNow(session, now)) throw error;
   return renew();
 }
 
@@ -184,10 +203,20 @@ export function retainSessionAfterTransientRenewalFailure(session: StoredSession
   now = Date.now()): boolean {
   const retryUntil = error instanceof SessionRequestError && error.code === 'rate_limited'
     && error.retryAfterMilliseconds !== undefined ? now + error.retryAfterMilliseconds : now;
-  return Date.parse(session.expiresAt) > retryUntil && Date.parse(session.replicaLease.expiresAt) > retryUntil
-    && (error instanceof TypeError && error.message === 'Failed to fetch'
-      || error instanceof Error && error.name === 'AbortError'
-      || error instanceof SessionRequestError && error.code === 'rate_limited');
+  return localTimeOf(session, session.expiresAt) > retryUntil && localTimeOf(session, session.replicaLease.expiresAt) > retryUntil
+    && transientRenewalFailure(error);
+}
+
+/**
+ * The server or the network could not be asked, which says nothing about the Session in hand (W2B-P2-5): a 5xx, a
+ * gateway timeout, a cut-off body, a deadline, a rate limit or a missing host permission. The failure table already
+ * names these `transient`; a renewal that fails for one of them must not discard authority that is still valid.
+ */
+function transientRenewalFailure(error: unknown): boolean {
+  if (error instanceof TypeError && error.message === 'Failed to fetch') return true;
+  if (error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError')) return true;
+  const code = error instanceof SessionRequestError ? error.code : error instanceof Error ? error.message : undefined;
+  return classifySyncFailure(code)?.class === 'transient';
 }
 function mergeAbortSignals(left: AbortSignal, right: AbortSignal): AbortSignal {
   if (typeof AbortSignal.any === 'function') return AbortSignal.any([left, right]);
@@ -212,6 +241,12 @@ function positiveSeconds(value: unknown): number | undefined {
     ? Number(parsed) : undefined;
 }
 function record(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
+function hasUnknownSessionField(value: Record<string, unknown>): boolean {
+  const unknown = (object: unknown, expected: ReadonlySet<string>) =>
+    record(object) && Object.keys(object).some((key) => !expected.has(key));
+  return unknown(value, SESSION_KEYS) || unknown(value.collection, COLLECTION_KEYS)
+    || unknown(value.replicaLease, LEASE_KEYS) || unknown(value.conversionPolicy, CONVERSION_KEYS);
+}
 function exactKeys(value: Record<string, unknown>, expected: ReadonlySet<string>) {
   const keys = Object.keys(value); return keys.length === expected.size && keys.every((key) => expected.has(key));
 }

@@ -19,6 +19,7 @@ import { scopeKey, validateScope } from './scope-key.js';
 import { adoptBlockedPagesAtChainHead } from './recovery-repository.js';
 import { validateMapping, validateMappingRecord } from './mapping-repository.js';
 import { planPullMappingWrites } from './pull-mapping-writes.js';
+import { takeConcurrentMutationRetry } from './pull-page-soft-retry.js';
 
 import { settleResolvedConflictQueue } from './queue-hold.js';
 import { settleConflictPullIssue } from './pull-issue-repository.js';
@@ -381,6 +382,7 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
   async function completePullPage(input: SyncScope, pageId: string, detachedEventId?: string): Promise<void> {
     assertWritable(); const key = scopeKey(validateScope(input)); const db = await writableDatabase();
     let blocked: 'concurrent_local_mutation' | 'mapping_identity_conflict' | PullCursorWriteClass | undefined;
+    let retryCompletion = false;
     await runTransaction(db, [STORES.scopes, STORES.cursors, STORES.pullPages, STORES.pullEvents, STORES.intents,
       STORES.mappings, STORES.queue, STORES.receipts, STORES.remoteObservations, STORES.localSyncExclusions,
       STORES.scopeCommandPlans, STORES.mounts, STORES.diagnostics, STORES.remoteDeleteDecisions], 'readwrite', async (tx) => {
@@ -438,6 +440,9 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
       const planned = blocked ? { blocked: true as const, writes: [] }
         : await planPullMappingWrites(mappings, key, pageEvents, preservedMappings, tx.objectStore(STORES.mounts));
       if (planned.blocked && !blocked) blocked = 'mapping_identity_conflict';
+      if (blocked === 'concurrent_local_mutation' && await takeConcurrentMutationRetry(tx, key, pageId, Date.now())) {
+        retryCompletion = true; return; // W2C-09: one more wake before the page is blocked
+      }
       if (blocked) { pages.put({ ...page, state: 'blocked', recoveryCode: blocked, blockedAt: Date.now() });
         scopes.put({ ...current, lifecycle: 'recovery_required', metadata: { ...(current.metadata ?? {}),
           recoveryCode: blocked } });
@@ -493,6 +498,7 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
         ...(current.privateRoots ? { privateRoots: current.privateRoots.map(id => rootRebindings.get(id) ?? id) } : {}),
         checkpoint: { cursor: String(page.nextCursor), serverRevision: String(page.collectionRevision) } });
     });
+    if (retryCompletion) throw new SyncStateError('concurrent_local_mutation');
     if (blocked) throw new SyncStateError('recovery_required');
   }
 

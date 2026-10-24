@@ -1,3 +1,5 @@
+import { ResponseStreamError } from './sync-transport-failure.js';
+
 export interface JsonResponseReadOptions {
   readonly timeoutMilliseconds?: number;
   readonly signal?: AbortSignal;
@@ -23,6 +25,9 @@ export async function readBoundedJson(response: Response, maxBytes: number, erro
     void reader.cancel().catch(() => undefined);
     if (options.signal?.aborted) throw options.signal.reason;
     if (error instanceof DOMException && error.name === 'AbortError') throw error;
+    // A body that stopped arriving is a transport fault. Only a body that arrived whole and is wrong
+    // (too large, not JSON, not UTF-8) is the caller's `errorCode` (Rule A).
+    if (error instanceof ResponseStreamError) throw error;
     throw new Error(errorCode);
   } finally {
     clearTimeout(timeout);
@@ -38,7 +43,7 @@ async function readBody(reader: ReadableStreamDefaultReader<Uint8Array>, respons
   const chunks: Uint8Array[] = [];
   let size = 0;
   while (true) {
-    const { done, value } = await reader.read();
+    const { done, value } = await reader.read().catch((cause: unknown) => { throw streamFailure(cause); });
     if (done) break;
     size += value.byteLength;
     if (size > maxBytes) throw new Error(errorCode);
@@ -49,4 +54,9 @@ async function readBody(reader: ReadableStreamDefaultReader<Uint8Array>, respons
   let offset = 0;
   for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
   return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) as unknown;
+}
+
+/** A read rejected by the stream itself (reset, aborted by the peer); a cancelled read is the caller's abort. */
+function streamFailure(cause: unknown): unknown {
+  return cause instanceof DOMException && cause.name === 'AbortError' ? cause : new ResponseStreamError(cause);
 }

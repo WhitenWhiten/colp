@@ -1,4 +1,4 @@
-import type { MappingInput } from './sync-state-store.js';
+import type { MappingInput, SyncScope } from './sync-state-store.js';
 import type { ProjectionIntentRecord } from './recovery-overlay.js';
 
 export function virtualNativeId(nativeId: string): boolean {
@@ -22,6 +22,16 @@ export function occupancyByNative(input: {
   return occupied;
 }
 
+/** The map of every claim at this moment: live mappings, the plan's own, projection intents. One read of each. */
+export async function projectionOccupancy(
+  store: { listMappings(scope: SyncScope): Promise<readonly MappingInput[]>;
+    listProjectionIntents(scope: SyncScope): Promise<readonly Pick<ProjectionIntentRecord, 'colpId' | 'observedNativeId'>[]> },
+  scope: SyncScope, seedMappings: Iterable<MappingInput>,
+): Promise<ReadonlyMap<string, string>> {
+  return occupancyByNative({ liveMappings: await store.listMappings(scope), seedMappings: [...seedMappings],
+    intents: await store.listProjectionIntents(scope) });
+}
+
 export type CreateIdentityResolution =
   | { readonly action: 'reuse'; readonly nativeId: string }
   | { readonly action: 'create' }
@@ -42,6 +52,19 @@ export function resolveCreateIdentity(input: {
     && unoccupiedOrSelf(input.occupancy, candidate.id, input.intent.colpId));
   if (matches.length > 0 && input.intent.state && input.intent.state !== 'pending') return { action: 'ambiguous' };
   return { action: 'create' };
+}
+
+/**
+ * B-16: whether `resolveCreateIdentity` can consult the claims at all. It does for an intent that already observed a
+ * browser id and for an equal-content child; with neither the answer is `create` whatever the map holds, so the library
+ * need not be read for it.
+ */
+export function createIdentityNeedsOccupancy(
+  intent: Pick<ProjectionIntentRecord, 'observedNativeId' | 'title' | 'url'>,
+  children: readonly { readonly title?: string; readonly url?: string }[],
+): boolean {
+  return Boolean(intent.observedNativeId && !virtualNativeId(intent.observedNativeId))
+    || children.some((child) => contentMatches(child, intent));
 }
 
 function contentMatches(

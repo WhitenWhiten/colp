@@ -965,7 +965,7 @@ export interface SyncSessionConfig {
     readonly path: string;
     readonly cursorKeyId: string;
     readonly cursorSecret: Buffer;
-    readonly cursorTtlMs: number; readonly maxBytes: number;
+    readonly cursorTtlMs: number; readonly maxBytes: number | undefined; // optional operator quota; unset = no aggregate cap
     readonly rateLimit: { readonly maxRequests: number; readonly windowMs: number };
   };
   readonly push: {

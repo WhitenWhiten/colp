@@ -227,7 +227,12 @@ export function loadSyncSessionConfig(env: NodeJS.ProcessEnv): SyncSessionConfig
       cursorKeyId: snapshotCursorKeyId,
       cursorSecret: snapshotCursorSecret,
       cursorTtlMs: parsePositiveInt(env.SYNC_SNAPSHOT_CURSOR_TTL_MS, 900_000, 'SYNC_SNAPSHOT_CURSOR_TTL_MS', { max: 3_600_000 }),
-      maxBytes: parsePositiveInt(env.SYNC_SNAPSHOT_MAX_BYTES, 2_097_152, 'SYNC_SNAPSHOT_MAX_BYTES', { max: 16_777_216 }),
+      // B-02: no aggregate ceiling unless the operator sets one explicitly. A
+      // default cap made every library above roughly 5,000 bookmarks impossible
+      // to onboard, recover or reset; per-page budgets already bound each response.
+      maxBytes: env.SYNC_SNAPSHOT_MAX_BYTES === undefined || env.SYNC_SNAPSHOT_MAX_BYTES.trim() === ''
+        ? undefined
+        : parsePositiveInt(env.SYNC_SNAPSHOT_MAX_BYTES, 0, 'SYNC_SNAPSHOT_MAX_BYTES', { max: 16_777_216 }),
       rateLimit: Object.freeze({
         maxRequests: parsePositiveInt(env.SYNC_SNAPSHOT_RATE_LIMIT_MAX, 120, 'SYNC_SNAPSHOT_RATE_LIMIT_MAX', { max: 10_000 }),
         windowMs: parsePositiveInt(env.SYNC_SNAPSHOT_RATE_LIMIT_WINDOW_MS, 60_000, 'SYNC_SNAPSHOT_RATE_LIMIT_WINDOW_MS', { max: 3_600_000 }),

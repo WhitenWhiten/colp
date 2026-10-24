@@ -8,8 +8,17 @@ import type { MappingInput, SyncScope, createSyncStateStore } from './sync-state
 type OpEvent = Extract<SyncPullEventV02, { kind: 'operation' }>;
 type Store = Pick<ReturnType<typeof createSyncStateStore>, 'listBookmarkEvents' | 'getQueueByOpId' | 'getMappingByColpId'>;
 
-/** Member IDs a subtree removal records; a larger folder keeps only its root, so deeper members fall back to repair. */
+/** Member IDs a subtree removal records; a larger folder records the members something hangs under instead of all. */
 export const LOCAL_DELETE_MEMBER_ID_BOUND = 2_000;
+
+/**
+ * B-14: what a removal records about the nodes under it. Every member while they fit the record. Past the bound, the
+ * folders (and anything with a member beneath it): a remote change to a node further down names that node's parent, and a
+ * recorded parent is the proof that the node went with the folder, so the leaves need not be listed.
+ */
+export function recordedDeleteMembers(memberIds: readonly string[], parentIds: readonly string[]): string[] {
+  return (memberIds.length <= LOCAL_DELETE_MEMBER_ID_BOUND ? memberIds : parentIds).slice(0, LOCAL_DELETE_MEMBER_ID_BOUND);
+}
 
 /**
  * A change from another device to a node this browser deleted. The user's
@@ -27,24 +36,32 @@ export async function supersededByLocalDelete(store: Store, scope: SyncScope, ev
   const needs = neededSubjects(event);
   if (needs.length === 0) return false;
   let deleted: LocallyDeleted | undefined;
-  for (const id of needs) {
+  for (const { id, parentId } of needs) {
     // A flushed removal already dropped the mapping; a pending one still names the browser node.
     const mapping = await store.getMappingByColpId(scope, id);
     deleted ??= await locallyDeleted(store, scope);
-    if (mapping ? !deleted.nativeIds.has(mapping.nativeId) : !deleted.colpIds.has(id)) return false;
+    // B-14: a node this browser does not hold is gone with its folder when the event puts it under a removed one, even
+    // if the removal could not list it (a folder past the bound, or a node a superseded create never mapped).
+    if (mapping ? !deleted.nativeIds.has(mapping.nativeId)
+      : !(deleted.colpIds.has(id) || (parentId !== undefined && deleted.colpIds.has(parentId)))) return false;
   }
   return true;
 }
 
 export interface LocallyDeleted { readonly colpIds: ReadonlySet<string>; readonly nativeIds: ReadonlySet<string> }
 
-function neededSubjects(event: OpEvent): string[] {
+/** A node the event needs gone from this browser, and the parent the event puts it under when it names one. */
+interface Subject { readonly id: string; readonly parentId?: string }
+
+function neededSubjects(event: OpEvent): Subject[] {
   const effect = event.effect;
-  if (effect.kind === 'node_content_updated') return [effect.node.id];
-  if (effect.kind === 'node_created') return [effect.placement.parentId];
-  if (effect.kind === 'node_moved') return [effect.node.id, effect.placement.parentId];
-  if (effect.kind === 'node_deleted') return [effect.tombstone.targetId];
-  if (effect.kind === 'subtree_deleted') return [effect.rootTombstone.targetId];
+  const named = (parentId: unknown) => typeof parentId === 'string' ? { parentId } : {};
+  if (effect.kind === 'node_content_updated') return [{ id: effect.node.id, ...named(effect.node.parentId) }];
+  if (effect.kind === 'node_created') return [{ id: effect.placement.parentId }];
+  if (effect.kind === 'node_moved') return [{ id: effect.node.id, ...named(effect.placement.parentId) },
+    { id: effect.placement.parentId }];
+  if (effect.kind === 'node_deleted') return [{ id: effect.tombstone.targetId, ...named(effect.parentRevision.parentId) }];
+  if (effect.kind === 'subtree_deleted') return [{ id: effect.rootTombstone.targetId, ...named(effect.parentRevision.parentId) }];
   return [];
 }
 

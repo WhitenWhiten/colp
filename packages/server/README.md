@@ -190,6 +190,19 @@ batches inside one repeatable-read transaction. The immutable node rows serve
 bounded pages; the former 10,000-node / 2 MiB aggregate ceiling no longer rejects
 large libraries or their writes. Negotiated per-page transport budgets still
 apply, and explicit materialization quotas remain available to application ports.
+The server applies no aggregate Snapshot byte quota by default. An operator who
+wants one sets `SYNC_SNAPSHOT_MAX_BYTES` (1 to 16,777,216 bytes of summed node JSON,
+roughly 430 bytes per bookmark); a library above it can then no longer be onboarded,
+recovered or reset on a new device, and the extension reports that the server's
+Snapshot size limit is the cause instead of offering a Reset that cannot help.
+A subtree deletion reaches replicas as a small Pull event whose member ids are served
+as effect pages, which the replica downloads within the session's negotiated effect
+budget (512 KiB by default, shared with the page body). A Pull page therefore ends
+before an event whose effect pages would not fit with the events already on it, so
+several large deletions arrive on separate pages. A single deletion that cannot fit the
+budget (only possible when `KNOW_N_MAX_DELETE_SUBTREE_NODES` is raised above roughly
+11,000 nodes) sends that replica to Snapshot recovery, whose state already carries the
+deletion, instead of leaving it unable to pull.
 Migration `202611020100_sync_snapshot_parent_revision_rows` adds page-local parent
 revision authority. Existing inline and paged Snapshots remain readable, and the
 complete parent header remains compatible with the preceding server binary.

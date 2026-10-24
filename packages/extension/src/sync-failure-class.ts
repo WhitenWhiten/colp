@@ -49,6 +49,10 @@ const SETS_ASIDE = { freezesPull: true, setsAsidePull: true } as const;
 
 export const SYNC_FAILURE_TABLE = Object.freeze({
   server_unavailable: entry('transient', 'retry'),
+  // Server Problem codes met on Session, Pull, Ack and Snapshot responses (B-08, A-F12). They used to fall into the
+  // unknown bucket, so an outage looked like a fault and a retired browser looked like a glitch.
+  service_unavailable: entry('transient', 'retry'),
+  internal_error: entry('transient', 'retry'),
   network_unavailable: entry('transient', 'retry', { pullsOnWake: true }),
   position_context_stale: entry('transient', 'retry', { pullsOnWake: true }),
   revision_conflict: entry('transient', 'retry', { pullsOnWake: true }),
@@ -64,6 +68,20 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   recovery_authority_invalid: entry('authority', 'refresh', FREEZES),
   effect_page_transport_unavailable: entry('authority', 'refresh', FREEZES),
   stale_replica: entry('authority', 'refresh'),
+  // The credential or the Session is no longer accepted: renew it (a refresh re-checks the credential with the
+  // server). Counted by the breaker under its own code, so a revoked credential cannot loop forever.
+  authentication_required: entry('authority', 'refresh'),
+  credential_revoked: entry('authority', 'refresh'),
+  insufficient_scope: entry('authority', 'refresh'),
+  // What the server answers for a Session that is expired, superseded or foreign (it hides the difference): a fresh
+  // Session is the exit.
+  resource_not_found: entry('authority', 'refresh'),
+  // W2B-P0-1: the Session the server just minted is unusable (wrong protocol/collection, or expired in
+  // server time). A fresh Session is the exit, so the breaker counts it as authority, not as an unknown fault.
+  session_invalid: entry('authority', 'refresh'),
+  // K4: this computer's clock is more than two minutes from the server's. Sessions and leases are judged in
+  // server time, so sync keeps working; the code only names the cause (skew in the Session / diagnostics).
+  clock_skew: entry('transient', 'retry', { pullsOnWake: true }),
   push_authentication_rejected: entry('authority', 'refresh'),
   push_denial_escalated: entry('authority', 'refresh'),
   push_scope_mismatch: entry('authority', 'refresh'),
@@ -111,6 +129,9 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   delete_subtree_changed: entry('item', 'decide'),
   remote_delete_confirmation_required: entry('item', 'confirm', FREEZES),
   pull_apply_target_missing: entry('item', 'rebuild', SETS_ASIDE),
+  // B-03: the server moved a folder into one of its own descendants on this browser (two devices nested the same
+  // folders in opposite directions). Chrome would refuse the move, so the node is set aside before the call.
+  pull_apply_move_cycle: entry('item', 'decide', SETS_ASIDE),
   pull_apply_evidence_missing: entry('item', 'rebuild', FREEZES),
   anchor_mapping_missing: entry('item', 'rebuild', { ...SETS_ASIDE, stagesAsItem: true }),
   create_ambiguous: entry('item', 'rebuild', FREEZES),
@@ -148,10 +169,32 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   mapping_identity_collision: entry('replica', 'rebuild', FREEZES),
   legacy_resolution_sequence_collision: entry('replica', 'rebuild', FREEZES),
   payload_too_large: entry('replica', 'rebuild'),
+  // B-02: the server refused to build a Snapshot of this whole library (an operator-set aggregate quota).
+  // Every new replica needs the same Snapshot, so a Reset cannot help; only a server-side change does.
+  snapshot_too_large: entry('replica', 'stop'),
   // B6: more open Pull issues than this browser may hold; divergence must never be unbounded.
   pull_issue_ceiling: entry('replica', 'rebuild', FREEZES),
   sync_issue_ceiling: entry('replica', 'rebuild'),
   snapshot_projection_incomplete: entry('replica', 'stop'),
+  // B-04: a bookmark with the same title and address already sits where this one would be created and nothing proves
+  // this extension did not create it. Shown for that one bookmark; the rest of the library keeps projecting.
+  snapshot_native_projection_ambiguous: entry('item', 'confirm'),
+  // B-08: definitive server refusals no retry or refresh changes. The owner retired this browser in the Sync center
+  // (a Reset registers a new replica), or the server's configuration/this build cannot be made to agree.
+  replica_retired: entry('replica', 'stop'),
+  origin_not_allowed: entry('replica', 'stop'),
+  invalid_query: entry('replica', 'stop'),
+  idempotency_key_reused: entry('replica', 'stop'),
+  // The manifest answered with a definitive 4xx; a 5xx or timeout is `server_unavailable` instead.
+  manifest_unavailable: entry('replica', 'stop'),
+  // W2C-12: the server answered with a field this build does not know (a newer server, or an older extension). The
+  // protocol demands strict same-version validation, so nothing is guessed: Sync stops, probes again later (a
+  // server rollback or an extension update ends it) and names the cause. Uploads are not read by this check.
+  server_version_mismatch: entry('replica', 'stop'),
+  // W2B-P1-3: the Session route does not know this browser's replica id (another account holds it, the server lost
+  // it, or the Collection is not this account's). A browser that never synced under the id takes a new one at once;
+  // one that did needs a Reset (or a new sign-in when the Collection is gone). Renewing authority cannot cure it.
+  session_replica_unknown: entry('replica', 'stop'),
   // A queued operation contradicts current consent; rebuilding archives it before setup.
   metadata_sync_disabled: entry('replica', 'rebuild'),
   // Other local sync boundaries are explicitly registered: contention retries;
@@ -280,6 +323,12 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   move_predecessor_pending: entry('transient', 'retry'),
   managed_not_writable: entry('item', 'decide', SETS_ASIDE),
   native_call_failed: entry('transient', 'retry'),
+  // B-03, W2C-13: Chrome refused a bookmark write the engine could not contain (a quota, or a multi-step change
+  // whose first steps may already have landed). Retried with backoff; the stalled-state bound applies.
+  bookmark_api_error: entry('transient', 'retry'),
+  bookmark_write_quota: entry('transient', 'retry'),
+  // B-10: a read of Chrome's bookmark tree failed while preparing a change; nothing was written.
+  native_read_failed: entry('transient', 'retry'),
   native_result_cas: entry('transient', 'retry'),
   native_result_confirmation_invalid: entry('replica', 'stop'),
   native_result_invalid: entry('replica', 'stop'),
@@ -300,6 +349,9 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   pause_baseline_invalid: entry('replica', 'stop'),
   permission_required: entry('transient', 'retry'),
   permission_revoked: entry('transient', 'retry'),
+  // W2B-P2-1: this extension no longer has access to the server's address (the person removed the site access, or set
+  // it to "on click"). No request leaves, so nothing is lost; access granted again ends it, and a permissions event wakes Sync.
+  server_configuration_failed: entry('transient', 'retry'),
   preformal_invalid: entry('replica', 'stop'),
   preview_boundary_invalid: entry('replica', 'stop'),
   preview_content_forbidden: entry('replica', 'stop'),
@@ -429,6 +481,8 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   upgrade_failed: entry('replica', 'stop'),
 } satisfies Record<string, SyncFailureEntry>);
 export type SyncFailureCode = keyof typeof SYNC_FAILURE_TABLE;
+/** The code for a response that fails strict validation only because it carries a field this build does not know. */
+export const SERVER_VERSION_MISMATCH = 'server_version_mismatch' satisfies SyncFailureCode;
 export interface SyncFailureSubject { readonly nodeId?: string; readonly nativeId?: string; readonly opId?: string; readonly eventId?: string }
 
 /** A typed emission site: adding a local policy failure requires registering its behavior. */
@@ -436,10 +490,18 @@ export class SyncFailureError extends Error {
   constructor(readonly code: SyncFailureCode, readonly subject?: SyncFailureSubject) { super(code); this.name = 'SyncFailureError'; }
 }
 
+/**
+ * Server Problem codes the Snapshot client wraps as `snapshot_<status>_<code>` keep the policy of the code inside;
+ * the wrapper only says which endpoint refused. An unnamed denial arrives as `snapshot_http_<status>`.
+ */
+const SNAPSHOT_WRAPPED = /^snapshot_[1-5][0-9]{2}_(sync_cursor_expired|snapshot_expired|stale_replica|replica_retired|resource_not_found|authentication_required|insufficient_scope|origin_not_allowed|invalid_query|service_unavailable|internal_error)$/u;
+const SNAPSHOT_UNNAMED: Readonly<Record<string, string>> = { snapshot_http_401: 'authentication_required',
+  snapshot_http_403: 'insufficient_scope', snapshot_http_404: 'resource_not_found', snapshot_http_410: 'stale_replica',
+  snapshot_http_408: 'server_unavailable' };
+
 /** Unknown external codes are bounded by the engine's durable circuit breaker. */
 export function normalizeSyncFailureCode(code: string): string {
-  const expiry = /^snapshot_[1-5][0-9]{2}_(sync_cursor_expired|snapshot_expired)$/u.exec(code);
-  return expiry?.[1] ?? code;
+  return SNAPSHOT_WRAPPED.exec(code)?.[1] ?? SNAPSHOT_UNNAMED[code] ?? code;
 }
 
 export function classifySyncFailure(code: string | undefined, subject?: SyncFailureSubject): SyncFailureEntry | undefined {
@@ -475,6 +537,16 @@ export function freezesPullApply(code: string): boolean {
 /** A Session proves server authority, never an unknown browser identity: only a person's decision ends it. */
 export function holdsUnprovenIdentity(code: string | undefined): boolean {
   return classifySyncFailure(code)?.exit === 'decide';
+}
+
+/**
+ * A fresh Session (and the credential check behind it) ends this failure, so the next wake must renew authority
+ * instead of reusing the one that was just refused. The circuit breaker still counts it under its own code, so
+ * a refusal that renewal cannot cure ends in a cooldown rather than a loop.
+ */
+export function refreshesAuthority(code: string | undefined): boolean {
+  const policy = classifySyncFailure(code);
+  return policy?.class === 'authority' && policy.exit === 'refresh';
 }
 
 /** Local projection damage cannot be cured by minting another active Session. */

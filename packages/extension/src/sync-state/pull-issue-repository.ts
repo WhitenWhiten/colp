@@ -3,6 +3,7 @@ import { boundedString, clone, safeInteger } from './codec.js';
 import { cursorPage, requestValue, requireActiveScope, runTransaction, transactionDone } from './idb.js';
 import { validateMapping } from './mapping-repository.js';
 import { putPullTerminalFacts } from './pull-workset.js';
+import { createPullItemRetryRepository } from './pull-item-retry-repository.js';
 import type { SyncStoreRuntime } from './runtime.js';
 import { INDEXES, STORES } from './schema.js';
 import { scopeKey, validateScope } from './scope-key.js';
@@ -47,6 +48,22 @@ export const pullIssueFactId = (key: string, nodeId: string): string => `${prefi
 const SET_ASIDE_STATES = new Set(['staged', 'intent_prepared']);
 const localPrefix = (key: string) => `local-issue:${key}:`;
 
+/** Rule B: a node whose change the browser refuses is set aside under `apply_failed:<code>` (the code names the refusal). */
+export const APPLY_FAILED_PREFIX = 'apply_failed:';
+/** Failures closer together than this are one wake; the engine's backoff between wakes is at least a second. */
+export const APPLY_FAILURE_WAKE_GAP_MS = 5_000;
+/** A count that has not moved for this long belongs to an earlier, unrelated trouble and starts again at one. */
+export const APPLY_FAILURE_STALE_MS = 60 * 60_000;
+const applyFailureId = (key: string, subject: string) => `apply-failure:${key}:${subject}`;
+
+/** The effect names exactly one node of this id and touches only that node in the browser. */
+function singleNodeEffect(effect: { kind?: string; node?: { id?: string }; tombstone?: { targetId?: string } } | undefined,
+  nodeId: string): boolean {
+  if (!effect) return false;
+  if (effect.kind === 'node_deleted') return effect.tombstone?.targetId === nodeId;
+  return ['node_created', 'node_moved', 'node_content_updated'].includes(String(effect.kind)) && effect.node?.id === nodeId;
+}
+
 /**
  * B7: an item a Pull page cannot store is set aside, not a reason to stop the
  * page. The event commits with nothing to write, so the page completes and the
@@ -68,8 +85,12 @@ export function createPullIssueRepository(ctx: SyncStoreRuntime) {
   async function setAsidePullEvent(input: SyncScope, eventId: string, issue: {
     readonly code: string; readonly nodeId: string; readonly title?: string;
     readonly conflictOpIds?: readonly string[];
-    /** A typed browser rejection of a single idempotent update, never an uncertain create or subtree mutation. */
-    readonly nativeRejection?: 'managed_not_writable';
+    /**
+     * A typed browser rejection of one call about this one node, never an uncertain create or a subtree mutation:
+     * `managed_not_writable` for a single update, `native_call_rejected` (code `apply_failed:*`) for the node's
+     * own create, move, delete or update after the engine counted the same refusal on several wakes.
+     */
+    readonly nativeRejection?: 'managed_not_writable' | 'native_call_rejected';
     readonly now: number;
   }): Promise<void> {
     ctx.assertWritable(); const key = scopeKey(validateScope(input));
@@ -84,7 +105,10 @@ export function createPullIssueRepository(ctx: SyncStoreRuntime) {
         const effect = (event?.payload as { effect?: { kind?: string; node?: { id?: string } } } | undefined)?.effect;
         const rejectedUpdate = issue.nativeRejection === 'managed_not_writable' && code === issue.nativeRejection
           && effect?.kind === 'node_content_updated' && effect.node?.id === nodeId;
-        if (!event || !(SET_ASIDE_STATES.has(String(event.state)) || rejectedUpdate && event.state === 'browser_call_started')
+        const rejectedCall = issue.nativeRejection === 'native_call_rejected' && code.startsWith(APPLY_FAILED_PREFIX)
+          && singleNodeEffect(effect, nodeId);
+        const startedRejection = rejectedUpdate || rejectedCall;
+        if (!event || !(SET_ASIDE_STATES.has(String(event.state)) || startedRejection && event.state === 'browser_call_started')
             || event.apiResultEvidence || event.nativeEventEvidence
             || ['pendingMappings', 'pendingObservations', 'pendingDeleteNativeIds'].some(field =>
               Array.isArray(event[field]) && (event[field] as unknown[]).length > 0)) {
@@ -94,19 +118,47 @@ export function createPullIssueRepository(ctx: SyncStoreRuntime) {
           const intents = tx.objectStore(STORES.intents);
           const intent = await requestValue(intents.get([key, event.intentId])) as UnknownRecord | undefined;
           if (intent && (intent.apiResultEvidence || intent.nativeEventEvidence
-            || (!rejectedUpdate && (intent.apiPhase === 'browser_call_started' || intent.replayState === 'started'))
+            || (!startedRejection && (intent.apiPhase === 'browser_call_started' || intent.replayState === 'started'))
+            || (rejectedCall && ['result_unknown', 'waiting_dependency'].includes(String(intent.nativeResult)))
             || intent.nativeResult === 'applied_with_evidence' || intent.replayState === 'awaiting_receipt')) {
             throw new SyncStateError('pull_event_state_invalid');
           }
           if (intent) intents.put({ ...intent, state: 'authority_committed', apiPhase: 'authority_committed',
-            apiResultEvidence: { setAside: code, ...(rejectedUpdate ? { nativeRejection: issue.nativeRejection } : {}) } });
+            apiResultEvidence: { setAside: code, ...(startedRejection ? { nativeRejection: issue.nativeRejection } : {}) } });
         }
         const committed = { ...event, state: 'authority_committed', pendingMappings: [], pendingObservations: [],
-          pendingDeleteNativeIds: [], apiResultEvidence: { setAside: code, nodeId, ...(rejectedUpdate ? { nativeRejection: issue.nativeRejection } : {}) } };
+          pendingDeleteNativeIds: [], apiResultEvidence: { setAside: code, nodeId, ...(startedRejection ? { nativeRejection: issue.nativeRejection } : {}) } };
         events.put(committed); putPullTerminalFacts(tx, key, committed);
+        tx.objectStore(STORES.diagnostics).delete(applyFailureId(key, `pull:${String(eventId)}`));
         await putPullIssueFact(tx, key, { code, nodeId, eventId, ...(title ? { title } : {}),
           ...(conflictOpIds?.length ? { conflictOpIds } : {}), now });
       });
+  }
+
+  /**
+   * Rule B: counts the browser's refusals of one subject (a Pull event, a projection intent), one per wake, so the
+   * engine can retry a few times and then set the subject aside instead of failing every wake forever. The row is
+   * evidence only: nothing reads it as authority, and a count that went quiet for an hour starts again.
+   */
+  async function recordApplyFailure(input: SyncScope, failure: {
+    readonly subject: string; readonly code: string; readonly detail?: string; readonly now: number;
+  }): Promise<{ readonly count: number }> {
+    ctx.assertWritable(); const key = scopeKey(validateScope(input));
+    const subject = boundedString(failure.subject, 'subject'); const code = boundedString(failure.code, 'code');
+    const now = safeInteger(failure.now, 'now'); const detail = failure.detail?.trim() ? failure.detail.trim().slice(0, 200) : undefined;
+    let count = 1;
+    await runTransaction(await ctx.writableDatabase(), [STORES.scopes, STORES.diagnostics], 'readwrite', async (tx) => {
+      await requireActiveScope(tx, key); const rows = tx.objectStore(STORES.diagnostics); const id = applyFailureId(key, subject);
+      const prior = await requestValue(rows.get(id)) as UnknownRecord | undefined;
+      const lastSeenAt = typeof prior?.lastSeenAt === 'number' ? prior.lastSeenAt : undefined;
+      const continuing = prior?.code === code && lastSeenAt !== undefined && Math.abs(now - lastSeenAt) <= APPLY_FAILURE_STALE_MS;
+      const sameWake = continuing && now >= lastSeenAt && now - lastSeenAt < APPLY_FAILURE_WAKE_GAP_MS;
+      count = !continuing ? 1 : sameWake ? Number(prior.count) : Number(prior.count) + 1;
+      rows.put({ id, scopeKey: key, kind: 'apply_failure', subject, code, count,
+        firstSeenAt: continuing ? Number(prior.firstSeenAt) : now, lastSeenAt: sameWake ? lastSeenAt : now,
+        ...(detail ? { detail } : {}) });
+    });
+    return { count };
   }
 
   async function listPullIssues(input: SyncScope): Promise<PullIssueRecord[]> {
@@ -193,7 +245,8 @@ export function createPullIssueRepository(ctx: SyncStoreRuntime) {
     await done; return mergeLocalIssues(issues);
   }
 
-  return { probeMappingRecord, setAsidePullEvent, listPullIssues, recordLocalIssue, listLocalIssues, listOpenIngressIssues };
+  return { probeMappingRecord, setAsidePullEvent, recordApplyFailure, listPullIssues, recordLocalIssue, listLocalIssues,
+    listOpenIngressIssues, ...createPullItemRetryRepository(ctx) };
 }
 
 /** Automatic recovery retains unresolved evidence; only proved resolution or explicit repair closes it. */

@@ -27,6 +27,7 @@ import { createChromePullBookmarkApi } from '../pull-bookmark-api.js';
 import { createPullApplier } from '../pull-applier.js';
 import { recoverVerifiedOrFreeze } from '../recovery-guard.js';
 import { sessionMatchesCredentialAuthority, syncSessionNeedsRenewal } from '../session-client.js';
+import { clientClockSkew, clockSkewIsSignificant, lastKnownClientClockSkew } from '../session-clock.js';
 import { pullApplyAllowed } from '../scope-reconcile.js';
 import type { MappingInput, QueueOperation, SyncScope } from '../sync-state-store.js';
 import type { BuildConfig, StoredCredential, StoredSession, SyncEngineResponse } from '../types.js';
@@ -550,11 +551,13 @@ export async function publicSyncEngineState(scope: SyncScope, credential: Stored
   const scopeKey = value?.scopeKey ?? recorded?.scopeKey ?? JSON.stringify([
     scope.environment, scope.serverId, scope.serverOrigin, scope.accountId,
     scope.browserProfileId, scope.collectionId, scope.replicaId, scope.generation]);
+  // The credential and Session expire in server time (W2B-P0-1): judge them with the clock skew the Session measured.
+  const clockSkew = session ? clientClockSkew(session) : lastKnownClientClockSkew();
   const credentialReady = credential.subject === scope.accountId
     && credential.serverOrigin === config.serverOrigin
     && credential.issuer === config.issuer && credential.audience === config.audience
     && credential.clientId === config.clientId && config.scopes.every((required) => credential.scope.includes(required))
-    && credential.expiresAt - Date.now() > config.refreshBeforeExpirySeconds * 1_000;
+    && credential.expiresAt - (Date.now() - clockSkew) > config.refreshBeforeExpirySeconds * 1_000;
   const sessionReady = session !== null && credentialReady && session.collection.collectionId === scope.collectionId
     && session.scope === 'collection' && session.acceptedProtocolVersion === '0.2'
     && !syncSessionNeedsRenewal(session) && await sessionMatchesCredentialAuthority(session, credential);
@@ -562,7 +565,9 @@ export async function publicSyncEngineState(scope: SyncScope, credential: Stored
       errorCode: value?.lastError, engineNotBefore: value?.notBefore ?? 0 }),
     engineWakeInFlight: workCoordinator.hasInFlight('engine'),
     authorityRefreshInFlight: workCoordinator.hasInFlight('auth') || workCoordinator.hasInFlight('session'),
-    credentialReady, sessionReady, hasPendingWork: hasPendingWork || nativeWaitPending, conflictPending, rejectedPending, queueProjection };
+    credentialReady, sessionReady, hasPendingWork: hasPendingWork || nativeWaitPending, conflictPending, rejectedPending, queueProjection,
+    // K4: this computer's clock minus the server's, only when it is far enough off to tell the person.
+    ...(clockSkewIsSignificant(clockSkew) ? { clockSkewMilliseconds: clockSkew } : {}) };
   const bookmarkIngressStatus = bookmarkListenerLifecycle.status();
   const bookmarkIngress = { ...bookmarkIngressStatus,
     listenerInstalled: bookmarkPermissionGranted && bookmarkIngressStatus.listenerInstalled };

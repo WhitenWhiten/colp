@@ -59,10 +59,14 @@ export async function setAsidePullItem(options: PullApplierOptions, eventId: str
     { resolvingRestoreOpId: event.operation.opId, excludeQueueOpIds: excluded });
   const open = new Map(issues.pull.map(issue => [issue.nodeId, issue]));
   const node = subject.node; const title = typeof node?.title === 'string' ? node.title : undefined;
-  const mappings = await options.store.listMappings(options.scope);
+  // B-16: the whole mapping list is read only by a dependency check that has something to compare against (an open
+  // delete, wait or issue). In a healthy library none does, so a Pull of N creates no longer lists N mappings N times.
+  let mappingRead: ReturnType<typeof options.store.listMappings> | undefined;
+  const mappings = () => mappingRead ??= options.store.listMappings(options.scope);
   const targets = [subject.nodeId, ...(subject.parentId ? [subject.parentId] : []), ...subject.anchors ?? []];
   if (!subject.deleted) {
-    const pendingDelete = issues.deletes.find(row => row.restoreOpId !== event.operation.opId && dependsOnIssue(targets, new Set([row.targetId]), issueAncestry(mappings)));
+    const deleteAncestry = issues.deletes.length > 0 ? issueAncestry(await mappings()) : undefined;
+    const pendingDelete = issues.deletes.find(row => row.restoreOpId !== event.operation.opId && dependsOnIssue(targets, new Set([row.targetId]), deleteAncestry!));
     if (pendingDelete) {
       await options.store.deferPullForRemoteDelete(options.scope, eventId, pendingDelete.decisionId);
       return true;
@@ -79,7 +83,7 @@ export async function setAsidePullItem(options: PullApplierOptions, eventId: str
       const effect = (deferred.payload as unknown as OpEvent)?.effect;
       if (binding?.kind === 'native_result' && binding.id === wait.intentId && effect && 'node' in effect) roots.add(effect.node.id);
     }
-    if (dependsOnIssue([...targets, ...subject.deleted ?? []], roots, issueAncestry(mappings, issues.queue))) {
+    if (dependsOnIssue([...targets, ...subject.deleted ?? []], roots, issueAncestry(await mappings(), issues.queue))) {
       await options.store.deferPullForNativeWait(options.scope, eventId, wait.intentId);
       return true;
     }
@@ -96,15 +100,13 @@ export async function setAsidePullItem(options: PullApplierOptions, eventId: str
     return true;
   }
   if (!subject.deleted) {
-    const mappings = await options.store.listMappings(options.scope);
-    const targets = [subject.nodeId, ...(subject.parentId ? [subject.parentId] : []), ...subject.anchors ?? []];
-    if (dependsOnIssue(targets, issues.roots, issueAncestry(mappings, issues.queue))) {
+    if (issues.roots.size > 0 && dependsOnIssue(targets, issues.roots, issueAncestry(await mappings(), issues.queue))) {
       const conflicts = issues.queue.filter(row => row.status === 'blocked' && row.recovery?.code === 'conflict_pending'
         && row.payload.targetId === subject.nodeId).map(row => row.opId);
       const remaining = conflicts.length ? await readOpenSyncIssues(options.store, options.scope,
         { excludeQueueOpIds: new Set([...excluded, ...conflicts]), resolvingRestoreOpId: event.operation.opId }) : issues;
       const conflictOnly = conflicts.length > 0
-        && !dependsOnIssue(targets, remaining.roots, issueAncestry(mappings, remaining.queue));
+        && !dependsOnIssue(targets, remaining.roots, issueAncestry(await mappings(), remaining.queue));
       // A target or ancestor has an unresolved issue; keep the native state and dependency evidence.
       await options.store.setAsidePullEvent(options.scope, eventId, { code: 'parent_set_aside', nodeId: subject.nodeId,
         now, ...(conflictOnly ? { conflictOpIds: conflicts } : {}), ...(title ? { title } : {}) });

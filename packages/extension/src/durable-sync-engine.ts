@@ -2,19 +2,19 @@ import { ackEnvelope, headers, digest, jsonContentType, problemContentType } fro
 import { recoverAtSyncIssueCeiling } from './sync-issue-ceiling-recovery.js';
 import { enforceSyncIssueCeiling, SYNC_ISSUE_CEILING_CODE } from './sync-issue-ceiling.js';
 import { guardSyncWake, type WakeReason } from './sync-circuit-breaker-engine.js';
-import { circuitIsStopped, unprobedStop } from './sync-circuit-breaker.js';
+import { circuitIsStopped, deadlineHolds, unprobedStop } from './sync-circuit-breaker.js';
 import { engineBackoffDelay } from './durable-sync-engine-backoff.js';
 import { createEngineStateAccess, readDurableCursor } from './durable-sync-engine-state.js';
-import { SyncFailureError, refreshesReplicaIntegrity, holdsInboundPull, holdsUnprovenIdentity, needsReplicaRebuild, persistentLocalSyncFailure, repullsOnExplicitRetry } from './sync-failure-class.js';
+import { SyncFailureError, refreshesAuthority, refreshesReplicaIntegrity, holdsInboundPull, holdsUnprovenIdentity, needsReplicaRebuild, persistentLocalSyncFailure, repullsOnExplicitRetry } from './sync-failure-class.js';
 import { recordRecoveryDiagnostic } from './recovery-diagnostic.js';
-import { readEngineSessionAuthority } from './sync-session-handoff.js';
+import { readEngineSessionAuthority, sessionExpiresWithin } from './sync-session-handoff.js';
 import type { SyncAckResult, SyncPullV02 } from '@know-n/colp/types';
 import { readBoundedJson } from './json-response.js';
 import { syncAckResult, syncPullV02 } from './generated/pull-effect-validators.js';
 import type { AckIntentRecord, DurableSyncEngineState, JsonObject, MappingInput } from './sync-state-store.js';
 import type { StoredSession } from './types.js';
 import type { EngineOptions, PlacementRefreshOutcome } from './durable-sync-engine-types.js';
-import { httpFailure, pullApplyAckState, retryAfterMilliseconds, stableError,
+import { httpFailure, pullApplyAckState, retryAfterMilliseconds, schemaRejection, stableError,
   recoveryCapability, recoveryCapabilityOf, responseProblemCode } from './durable-sync-engine-errors.js';
 import { leftoverVirtualChildrenNeedReproject } from './recovery-guard.js';
 import { resumeLocalProjection } from './local-projection-recovery.js';
@@ -141,7 +141,7 @@ export function createDurableSyncEngine(options: EngineOptions) {
           || outstanding !== null && (current.phase === 'sleeping' && current.lastError === undefined
             || current.phase === 'offline')
           || inboundPull);
-      if (current.notBefore > now() && !connectivityRestored && !resumeLocalWork && !interruptedCycle && !leftover) {
+      if (deadlineHolds(current, now()) && !connectivityRestored && !resumeLocalWork && !interruptedCycle && !leftover) {
         options.schedule?.(current.notBefore - now()); return current;
       }
       if (current.recoveryFrozen && !current.authorityRefreshRequired
@@ -173,7 +173,7 @@ export function createDurableSyncEngine(options: EngineOptions) {
           recoveryFrozen: !mayUnfreezeForCompletedBootstrapAck(await pendingNativeOrPullFacts(options.store, options.scope)),
           authorityRefreshRequired: false, notBefore: 0 });
         current = await state();
-      }
+      } else if (refreshesAuthority(current.lastError)) refreshedAuthority = await sessionAuthority(true);
       const pendingAck = await options.store.getPendingAckIntent(options.scope);
       if (pendingAck) {
         const authority = await sessionAuthority(); const sent = await sendAck(pendingAck, authority);
@@ -307,7 +307,7 @@ export function createDurableSyncEngine(options: EngineOptions) {
 
   async function pull(authority: Awaited<ReturnType<typeof sessionAuthority>>, persistOffline = true): Promise<'complete' | 'recovery' | 'offline'> {
     activeMappingReads?.invalidate();
-    if (Date.parse(authority.session.expiresAt) <= now() + 60_000) authority = await sessionAuthority();
+    if (sessionExpiresWithin(authority.session, now(), 60_000)) authority = await sessionAuthority();
     // hasMore pages continue in this wake; the page budget hands any tail to the next alarm.
     for (let pages = 0; pages < MAX_PULL_PAGES_PER_WAKE; pages += 1) {
       const held = await state(); const heldScope = await options.store.getScope(options.scope);
@@ -361,7 +361,7 @@ export function createDurableSyncEngine(options: EngineOptions) {
         throw httpFailure(response, consumedProblemCode ?? await responseProblemCode(response, 'pull_failed', requestTimeoutMilliseconds), now());
       }
       const document = await readBoundedJson(response, sessionTransportBudget(authority.session).pullResponseBytes, 'pull_invalid', responseReadOptions);
-      if (!syncPullV02(document)) throw new SyncFailureError('pull_invalid');
+      if (!syncPullV02(document)) throw schemaRejection(syncPullV02, 'pull_invalid');
       const page = document as SyncPullV02; await transition('applying', { sessionId: authority.session.sessionId });
       await options.pullApplier.stage(page, {
         reissued: response.headers.get('Known-Sync-Cursor-Reissued') === 'true',
@@ -518,8 +518,8 @@ export function createDurableSyncEngine(options: EngineOptions) {
       throw httpFailure(response, typeof code === 'string' ? code : 'ack_failed', now());
     }
     const document = await readBoundedJson(response, 128 * 1024, 'ack_invalid', responseReadOptions);
-    if (!syncAckResult(document)
-        || (document as SyncAckResult).ackedCursor !== intent.cursor
+    if (!syncAckResult(document)) throw schemaRejection(syncAckResult, 'ack_invalid');
+    if ((document as SyncAckResult).ackedCursor !== intent.cursor
         || (document as SyncAckResult).replicaId !== options.scope.replicaId) throw new SyncFailureError('ack_invalid');
     await options.store.completeAckIntent(options.scope, intent.intentId, document as unknown as JsonObject);
     await transition('sleeping', { sessionId: authority.session.sessionId, lastPublishedCursor: intent.cursor,
