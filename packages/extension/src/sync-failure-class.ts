@@ -125,6 +125,9 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   mapping_identity_collision: entry('replica', 'rebuild', FREEZES),
   legacy_resolution_sequence_collision: entry('replica', 'rebuild', FREEZES),
   payload_too_large: entry('replica', 'rebuild'),
+  // B-02: the server refused to build a Snapshot of this whole library (an operator-set aggregate quota).
+  // Every new replica needs the same Snapshot, so a Reset cannot help; only a server-side change does.
+  snapshot_too_large: entry('replica', 'stop'),
   // B6: more open Pull issues than this browser may hold; divergence must never be unbounded.
   pull_issue_ceiling: entry('replica', 'rebuild', FREEZES),
   sync_issue_ceiling: entry('replica', 'rebuild'),

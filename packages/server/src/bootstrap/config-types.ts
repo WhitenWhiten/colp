@@ -965,7 +965,13 @@ export interface SyncSessionConfig {
     readonly path: string;
     readonly cursorKeyId: string;
     readonly cursorSecret: Buffer;
-    readonly cursorTtlMs: number; readonly maxBytes: number;
+    readonly cursorTtlMs: number;
+    /**
+     * Optional operator quota on the summed JSON of one materialized Snapshot.
+     * Unset (the default) means no aggregate cap: every response is still
+     * bounded by its negotiated per-page budget.
+     */
+    readonly maxBytes: number | undefined;
     readonly rateLimit: { readonly maxRequests: number; readonly windowMs: number };
   };
   readonly push: {

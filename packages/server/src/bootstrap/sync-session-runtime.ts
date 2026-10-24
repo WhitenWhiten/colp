@@ -213,7 +213,8 @@ export function createSyncSessionRuntime(
         cursorTtlMs: config.snapshot.cursorTtlMs, recovery, pullCursorKeyring: pullCursorKeys,
         recoveryProofRetentionMs: config.pull.recoveryProofRetentionMs,
         attachmentExposure: overrides.attachmentExposure,
-        maxSnapshotBytes: config.snapshot.maxBytes,
+        // B-02: an aggregate Snapshot quota exists only when the operator set one.
+        ...(config.snapshot.maxBytes === undefined ? {} : { maxSnapshotBytes: config.snapshot.maxBytes }),
       }),
       allowedOrigins: config.allowedOrigins, rateLimit: config.snapshot.rateLimit,
       allowInsecureLoopback: config.allowInsecureLoopback,

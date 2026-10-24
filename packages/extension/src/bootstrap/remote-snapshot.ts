@@ -62,7 +62,13 @@ export async function loadCompleteRemoteSnapshot(input: {
       if (error instanceof Error && error.name === 'AbortError') throw error;
       throw new Error('offline');
     } finally { clearTimeout(timer); }
-    if (response.status !== 200 || !jsonContentType(response)) throw new Error(await snapshotProblemCode(response));
+    if (response.status !== 200 || !jsonContentType(response)) {
+      const code = await snapshotProblemCode(response);
+      // B-02: the server materializes the whole Snapshot on its first page, so a 413 there is its
+      // aggregate size limit, which no Reset or page size changes.
+      throw new Error(response.status === 413 && code === 'payload_too_large' && pageCursor === undefined
+        ? 'snapshot_too_large' : code);
+    }
     const document = await readWithTimeout(response, sessionTransportBudget(input.session).snapshotPageBytes,
       timeoutMs, input.signal);
     if(input.classificationProjection){classificationBytes+=new TextEncoder().encode(JSON.stringify(document)).length;
