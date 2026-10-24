@@ -21,10 +21,15 @@ export const get = async <T>(tx: IDBTransaction, store: SourceStore, key: IDBVal
   requestValue(tx.objectStore(store).get(key)) as Promise<T | undefined>;
 export const put = (tx: IDBTransaction, store: SourceStore, key: IDBValidKey, value: unknown) => tx.objectStore(store).put(value, key);
 /** Private extension-origin database. Unknown future schemas never trigger reset/downgrade. */
-export function createSourceDatabase(factory: IDBFactory = indexedDB, name = 'known-site-adapters') {
+export function createSourceDatabase(factory?: IDBFactory, name = 'known-site-adapters') {
   let connection: Promise<IDBDatabase> | undefined;
-  const open = () => connection ??= new Promise<IDBDatabase>((resolve, reject) => {
-    const r = factory.open(name, 3);
+  const open = () => {
+    if (!factory && !globalThis.indexedDB) return Promise.reject(new Error('sourceStoreUnavailable'));
+    return connection ??= new Promise<IDBDatabase>((resolve, reject) => {
+    const available = factory ?? globalThis.indexedDB;
+    if (!available) { reject(new Error('sourceStoreUnavailable')); return; }
+    let abandoned = false;
+    const r = available.open(name, 3);
     r.onupgradeneeded = () => {
       for (const store of SOURCE_STORES) if (!r.result.objectStoreNames.contains(store)) r.result.createObjectStore(store);
       const connections = r.transaction!.objectStore('connections');
@@ -45,10 +50,11 @@ export function createSourceDatabase(factory: IDBFactory = indexedDB, name = 'kn
       }
 
     };
-    r.onerror = () => { connection = undefined; reject(new Error(r.error?.name === 'VersionError' ? 'schemaIncompatible' : 'sourceStoreUnavailable')); };
-    r.onblocked = () => reject(new Error('schemaIncompatible'));
-    r.onsuccess = () => { r.result.onversionchange = () => { r.result.close(); connection = undefined; }; resolve(r.result); };
-  });
+    r.onerror = () => { if (abandoned) return; connection = undefined; reject(new Error(r.error?.name === 'VersionError' ? 'schemaIncompatible' : 'sourceStoreUnavailable')); };
+    r.onblocked = () => { abandoned = true; connection = undefined; reject(new Error('schemaIncompatible')); };
+    r.onsuccess = () => { if (abandoned) { r.result.close(); return; } r.result.onversionchange = () => { r.result.close(); connection = undefined; }; resolve(r.result); };
+    });
+  };
   return {
     open,
     async transaction<T>(stores: readonly SourceStore[], mode: IDBTransactionMode, work: (tx: IDBTransaction) => Promise<T>): Promise<T> {

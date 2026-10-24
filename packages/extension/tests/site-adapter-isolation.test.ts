@@ -78,3 +78,11 @@ test('a full page of another identity cannot hide this site from the association
   });
   expect((await listContentBindings(db, content)).map(b => b.id)).toEqual(['selected']); await db.close();
 });
+
+test('a blocked schema upgrade can retry after the old context closes without leaking its abandoned connection', async () => {
+  const factory = new IDBFactory();
+  const old = await new Promise<IDBDatabase>(resolve => { const r = factory.open('blocked', 2); r.onsuccess = () => resolve(r.result); });
+  const db = createSourceDatabase(factory, 'blocked');
+  await expect(db.open()).rejects.toThrow('schemaIncompatible'); old.close();
+  expect((await db.open()).version).toBe(3); await db.close();
+});
