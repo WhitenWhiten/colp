@@ -2,6 +2,7 @@ import { digestJson } from '../bookmark-event-codec.js';
 import { runReplicaRebuildCommand } from '../replica-rebuild.js';
 import { createQueueRecapture } from '../queue-recapture.js';
 import { configuredPersonalSyncPolicy } from '../personal-sync-fetch.js';
+import { lastKnownClientClockSkew } from '../session-clock.js';
 import type { SyncScope } from '../sync-state-store.js';
 import { runSyncEngine } from './engine.js';
 import { queueRetryKind, retryQueueIssue } from './issue-retry.js';
@@ -64,6 +65,7 @@ function reporterDeps(scope: SyncScope): Omit<ReplicaHealthReporterDeps, 'mode'>
   return {
     scope, store: syncState,
     rebuildPending: () => replicaRebuilder().hasPending(), bookmarkPermission: hasBookmarkPermission, watchdog: syncWatchdog,
+    clockSkew: lastKnownClientClockSkew,
     // A credential refresh at most; never a Sync Session, which renews lease and cursors.
     credential: async () => createRuntimeAuth(await loadConfig()).ensureFreshCredential(),
     replicaProof: scope => store.loadReplicaReportProof(scope),

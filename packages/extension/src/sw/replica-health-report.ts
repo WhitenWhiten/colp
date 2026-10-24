@@ -117,8 +117,11 @@ export function projectReplicaHealth(input: {
     if (canRebuild) actions.push('rebuild');
     return { state: 'stopped', code: code ?? 'sync_stopped', issues, actions };
   }
-  return { state: total > 0 ? 'degraded' : 'syncing', issues, actions: [...(input.attention.retryAvailable ? ['retry' as const] : []),
-    ...(canRebuild && total > 0 ? ['rebuild' as const] : [])] };
+  const actions = [...(input.attention.retryAvailable ? ['retry' as const] : []), ...(canRebuild && total > 0 ? ['rebuild' as const] : [])];
+  // K4: a clock far off the server's. Sync works (expiry is judged in server time), but the Sync center is told why this
+  // browser is flagged, so it can say what to set. Anything that stopped or paused sync was reported above.
+  if (input.attention.clockSkewMilliseconds !== undefined) return { state: 'degraded', code: 'clock_skew', issues, actions };
+  return { state: total > 0 ? 'degraded' : 'syncing', issues, actions };
 }
 
 interface SentRecord {
@@ -157,6 +160,8 @@ export interface ReplicaHealthReporterDeps {
   readonly bookmarkPermission?: () => Promise<boolean>;
   /** Notices a stall nothing else explains. */
   readonly watchdog?: SyncWatchdog;
+  /** This computer's clock minus the server's, as the last Session measured it. */
+  readonly clockSkew?: () => number;
   readonly credential: () => Promise<{ readonly accessToken: string; readonly serverOrigin: string; readonly subject?: string }>;
   readonly fetch: typeof fetch;
   readonly storage: Pick<StorageArea, 'get' | 'set'>;
@@ -331,7 +336,7 @@ async function readProjection(deps: ReplicaHealthReporterDeps): Promise<ReplicaH
   const response = await handleSyncAttentionRequest({ scope: async () => deps.scope, store: deps.store, openIssues: open,
     ...(deps.rebuildPending ? { rebuildPending: deps.rebuildPending } : {}),
     ...(deps.bookmarkPermission ? { bookmarkPermission: deps.bookmarkPermission } : {}),
-    ...(deps.watchdog ? { watchdog: deps.watchdog } : {}) });
+    ...(deps.watchdog ? { watchdog: deps.watchdog } : {}), ...(deps.clockSkew ? { clockSkew: deps.clockSkew } : {}) });
   if (response.ok !== true) throw new Error('scope_unavailable');
   const issues = await withResolvedTitles(snapshotSyncIssues(open), deps.scope, deps.store.getMappingByColpId?.bind(deps.store));
   const stalled = await readStalledUpload(deps.store, deps.scope);

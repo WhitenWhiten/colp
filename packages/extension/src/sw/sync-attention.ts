@@ -9,6 +9,8 @@ import { readOpenSyncIssues, type OpenSyncIssues } from '../sync-issues.js';
  * projections from historical receipts; it never wakes the engine or touches native data. */
 import { hasConflictBarrier, hasRejectedBarrier, queueStatusProjection, stalledUploadHead } from '../engine-public-stability.js';
 import type { NativeWaitStore } from '../native-wait.js';
+import { clockSkewIsSignificant } from '../session-clock.js';
+import { normalizeSyncFailureCode } from '../sync-failure-class.js';
 import { syncStopState } from '../sync-stop-state.js';
 import type { SyncWatchdog } from './sync-watchdog.js';
 import type { UnreadableQueueRow } from '../sync-state/queue-lenient.js';
@@ -32,6 +34,8 @@ export interface SyncAttentionDeps {
   readonly healthDelivery?: (scope: SyncScope) => Promise<{ readonly code: string; readonly since: number } | undefined>;
   /** Notices a stall nothing else explains, and knows when a pass last ended cleanly. Absent: not checked. */
   readonly watchdog?: SyncWatchdog;
+  /** This computer's clock minus the server's as the last Session measured it (`session-clock.ts`). Absent: not checked. */
+  readonly clockSkew?: () => number;
   /** Whether the pending reset can still be given up (nothing archived yet). */
   readonly rebuildCancelAvailable?: () => Promise<boolean>;
   /** The repeated failures of engine wake steps for this replica (default: the worker's own record). */
@@ -88,6 +92,7 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
     // A breaker that tripped on something that ends by itself resumes at `notBefore`: a pause, not a stop.
     const coolingDown = stop?.kind === 'cooling';
     const healthDelivery = await deps.healthDelivery?.(scope).catch(() => undefined);
+    const skew = deps.clockSkew?.();
     const open = deps.openIssues ?? await readOpenSyncIssues(deps.store, scope);
     const capability = await readReplicaRepairCapability(deps.store, scope, open);
     const waits = open.waits;
@@ -132,6 +137,9 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
       ...(healthDelivery ? { healthDelivery } : {}),
       ...(watch?.verdict ? { watchdog: watch.verdict } : {}),
       ...(watch?.lastSyncedAt ? { lastSyncedAt: watch.lastSyncedAt } : {}),
+      // K4: a clock far off the server's is a warning, never a stop; the card says what to set.
+      ...(skew !== undefined && clockSkewIsSignificant(skew) ? { clockSkewMilliseconds: Math.round(skew) } : {}),
+      ...(lastError && normalizeSyncFailureCode(lastError) === 'server_configuration_failed' ? { siteAccessOrigin: scope.serverOrigin } : {}),
       ...queue,
       issueCount: open.total + (stalled ? 1 : 0) + unreadable.length + failedSteps.length, issues, rebuildAvailable: capability.rebuildAvailable,
       rebuildMode: capability.rebuildMode,

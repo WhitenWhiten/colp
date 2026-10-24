@@ -2,6 +2,7 @@ import { t } from './i18n.js';
 import { createIcon } from './icons.js';
 import { button, el } from './library-dom.js';
 import { bindReplicaRebuildButton } from './replica-rebuild-ui.js';
+import { requestServerOriginPermission } from './server-origin-permission.js';
 import { bindStorageResetButton } from './sync-storage-reset-ui.js';
 import {
   SYNC_ATTENTION_CENTER_LABEL, SYNC_ATTENTION_COPIED_COPY, SYNC_ATTENTION_COPY_DIAGNOSTICS_LABEL, SYNC_ATTENTION_COPY_FAILED_COPY,
@@ -39,6 +40,8 @@ interface AttentionNodes {
   readonly rebuild: HTMLButtonElement | null;
   readonly rebuildCancel: HTMLButtonElement | null;
   readonly storageReset: HTMLButtonElement | null;
+  /** "Allow access" in the recovery alert: asks the browser to let this extension reach the server again. */
+  readonly siteAccess: HTMLButtonElement | null;
   readonly recovery: HTMLElement | null;
   readonly recoveryCopy: HTMLElement | null;
   readonly retry: HTMLButtonElement | null;
@@ -79,6 +82,7 @@ function bindSyncAttention(hostId: string, syncPaneOnly: boolean): void {
     rebuild: document.getElementById(`${hostId}-rebuild`) as HTMLButtonElement | null,
     rebuildCancel: document.getElementById(`${hostId}-rebuild-cancel`) as HTMLButtonElement | null,
     storageReset: document.getElementById(`${hostId}-storage-reset`) as HTMLButtonElement | null,
+    siteAccess: document.getElementById(`${hostId}-site-access`) as HTMLButtonElement | null,
     recovery: document.getElementById(`${hostId}-recovery`),
     recoveryCopy: document.getElementById(`${hostId}-recovery-copy`),
     retry: document.getElementById(`${hostId}-retry`) as HTMLButtonElement | null,
@@ -99,6 +103,7 @@ function bindSyncAttention(hostId: string, syncPaneOnly: boolean): void {
   };
   let report = '';
   nodes.recoveryDiagnostics?.addEventListener('click', () => { void copyDiagnostics(nodes, report); });
+  nodes.siteAccess?.addEventListener('click', () => allowSiteAccess(nodes, () => refresh()));
   for (const button of [nodes.retry, nodes.terminalRetry]) {
     button?.addEventListener('click', () => {
       button.disabled = true;
@@ -181,6 +186,10 @@ function paintSyncAttention(nodes: AttentionNodes, view: SyncAttentionView, act:
   if (nodes.retry) nodes.retry.hidden = !view.recovery.retry;
   paintLink(nodes.recoverySyncCenter, view.recovery.syncCenter);
   paintLink(nodes.recoveryFolders, view.recovery.folders);
+  if (nodes.siteAccess) {
+    nodes.siteAccess.hidden = !view.recovery.siteAccess.show;
+    nodes.siteAccess.dataset.origin = view.recovery.siteAccess.origin ?? '';
+  }
   paintIssues(nodes, view, act);
   paintNotes(nodes, view);
   setLine(nodes.pause, view.pause.show, view.pause.copy);
@@ -345,6 +354,23 @@ function showFeedback(node: HTMLElement | null, text: string): void {
   if (!node) return;
   node.hidden = false;
   node.textContent = text;
+}
+
+/**
+ * The browser's own prompt to let this extension reach the server again. It has to start in the click, so nothing is
+ * awaited before it. Granting wakes sync at once (the worker listens for exactly that grant), so nothing else is pressed.
+ */
+function allowSiteAccess(nodes: AttentionNodes, afterwards: () => Promise<unknown>): void {
+  const button = nodes.siteAccess; const origin = button?.dataset.origin;
+  if (!button || !origin) return;
+  let grant: Promise<boolean>;
+  try { grant = requestServerOriginPermission(origin); } catch { grant = Promise.resolve(false); }
+  button.disabled = true;
+  void grant.catch(() => false).then(granted => {
+    showFeedback(nodes.feedback, granted ? t('sync_siteAccessAllowed', 'Access allowed. Sync is trying again.')
+      : t('sync_siteAccessDenied', 'Access was not allowed, so sync still cannot reach the server.'));
+    return afterwards();
+  }).finally(() => { button.disabled = false; });
 }
 
 async function readAttention(): Promise<{ readonly attention?: PublicSyncAttention; readonly error?: string }> {

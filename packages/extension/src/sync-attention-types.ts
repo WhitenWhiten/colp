@@ -104,6 +104,13 @@ export interface PublicSyncAttention {
   readonly watchdog?: { readonly kind: 'stuck' | 'no_pass'; readonly since: number; readonly title?: string };
   /** When a pass last ended cleanly (epoch milliseconds). */
   readonly lastSyncedAt?: number;
+  /**
+   * K4: this computer's clock minus the server's, in milliseconds, present only when it is off by more than two
+   * minutes. Sync keeps working (every expiry is judged in server time); the person is told what to set.
+   */
+  readonly clockSkewMilliseconds?: number;
+  /** The server this extension can no longer reach because its site access was turned off (`server_configuration_failed`). */
+  readonly siteAccessOrigin?: string;
   readonly phase?: PublicSyncEngineState['phase'];
   readonly recoveryFrozen: boolean;
   readonly queueProjection: PublicSyncEngineState['queueProjection'];

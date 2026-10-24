@@ -87,6 +87,10 @@ export interface SyncAttentionInput {
   readonly watchdog?: PublicSyncAttention['watchdog'];
   /** When a pass last ended cleanly. */
   readonly lastSyncedAt?: number;
+  /** This computer's clock minus the server's, when it is off by more than two minutes (sync keeps working). */
+  readonly clockSkewMilliseconds?: number;
+  /** The server this extension can no longer reach because its site access was turned off. */
+  readonly siteAccessOrigin?: string;
   readonly nativeWaitPending?: boolean;
   readonly remoteDeletePendingCount?: number;
   readonly phase?: string;
@@ -113,7 +117,9 @@ export interface SyncAttentionView {
     /** "Retry sync" is worth offering for this state (the Sync center follows the same rule). */
     readonly retry: boolean; readonly syncCenter: SyncAttentionLink;
     /** Where bookmark access is allowed again, when that is the problem. */
-    readonly folders: SyncAttentionLink };
+    readonly folders: SyncAttentionLink;
+    /** The button that asks the browser to allow this extension to reach the server again (needs a click to run). */
+    readonly siteAccess: { readonly show: boolean; readonly origin?: string } };
   /** Facts worth a line of their own beside the card: the server may be looking at old news, and so on. */
   readonly notes: { readonly show: boolean; readonly lines: readonly string[] };
   /**
@@ -217,6 +223,7 @@ export function terminalFreezeReport(input: SyncAttentionInput, syncCenterHref?:
   `breakerTrips: ${input.breakerTrips ?? 0}`,
   `bookmarkPermission: ${input.permissionRequired ? 'missing' : '(not reported missing)'}`,
   `lastSynced: ${input.lastSyncedAt ? new Date(input.lastSyncedAt).toISOString() : '(not recorded)'}`,
+  `clockSkew: ${input.clockSkewMilliseconds !== undefined ? `${input.clockSkewMilliseconds} ms (this computer minus the server)` : '(within two minutes)'}`,
   `watchdog: ${input.watchdog ? `${input.watchdog.kind} since ${new Date(input.watchdog.since).toISOString()}` : '(quiet)'}`,
   `healthReports: ${input.healthDelivery
     ? `failing since ${new Date(input.healthDelivery.since).toISOString()} (${input.healthDelivery.code})` : '(not failing)'}`,
@@ -264,13 +271,15 @@ export function describeSyncAttention(input: SyncAttentionInput): SyncAttentionV
   const notes = [...(off && input.lastSyncedAt ? [t('sync_lastSynced', 'Last synced $1.', formatMoment(input.lastSyncedAt))] : []),
     ...(code === undefined && input.issueCeiling ? [ceilingWarningCopy(input.issueCeiling)] : []),
     ...(blockedNote ? [blockedNote] : []),
+    ...(input.clockSkewMilliseconds !== undefined ? [clockSkewCopy(input.clockSkewMilliseconds)] : []),
     ...(input.healthDelivery ? [healthDeliveryCopy(input.healthDelivery)] : [])];
   return {
     recovery: { show: recovery, copy: recoveryCopy,
       report: terminalFreezeReport(input, href), retry: !permission && (problem === undefined || problem.offersRetry),
       syncCenter: { show: recovery && href !== undefined && (input.issueCount ?? 0) > 0, ...(href ? { href } : {}),
         label: SYNC_ATTENTION_CENTER_LABEL },
-      folders: { show: permission, href: SYNC_FOLDERS_HREF, label: SYNC_ATTENTION_FOLDERS_LABEL } },
+      folders: { show: permission, href: SYNC_FOLDERS_HREF, label: SYNC_ATTENTION_FOLDERS_LABEL },
+      siteAccess: { show: recovery && input.siteAccessOrigin !== undefined, ...(input.siteAccessOrigin ? { origin: input.siteAccessOrigin } : {}) } },
     notes: { show: notes.length > 0, lines: notes },
     issues: { show: rows.length > 0, rows, more, bulk,
       hint: bulk.retry.length ? t('syncIssue_retryHint', 'Retry sync checks the server again. To release a held item, use Try again on it.') : '' },
@@ -320,6 +329,17 @@ function watchdogCopy(watchdog: NonNullable<PublicSyncAttention['watchdog']>): s
 function ceilingWarningCopy(ceiling: { readonly open: number; readonly limit: number }): string {
   return t('syncIssue_nearCeiling', 'Sync stops when $2 items are open, and $1 are open now. Try again or dismiss some of them before it does.',
     ceiling.open, ceiling.limit);
+}
+
+/**
+ * K4: this computer's clock is off by more than two minutes. Sync keeps working (every expiry is judged in the server's
+ * time), so this is a note and not a stop; the person is told which way and what to set.
+ */
+export function clockSkewCopy(skewMilliseconds: number): string {
+  const minutes = Math.max(2, Math.round(Math.abs(skewMilliseconds) / 60_000));
+  return skewMilliseconds > 0
+    ? t('sync_clockAhead', 'Your computer’s clock is $1 minutes ahead of the server’s. Sync keeps working, but set your clock to automatic time so sign-in and expiry checks stay reliable.', minutes)
+    : t('sync_clockBehind', 'Your computer’s clock is $1 minutes behind the server’s. Sync keeps working, but set your clock to automatic time so sign-in and expiry checks stay reliable.', minutes);
 }
 
 /** The server's Sync center shows what this browser last managed to say, so a report that cannot be sent is news. */
@@ -436,6 +456,8 @@ export function syncAttentionInput(attention: PublicSyncAttention | undefined,
     ...(attention?.breakerTrips ? { breakerTrips: attention.breakerTrips } : {}),
     ...(attention?.watchdog ? { watchdog: attention.watchdog } : {}),
     ...(attention?.lastSyncedAt ? { lastSyncedAt: attention.lastSyncedAt } : {}),
+    ...(attention?.clockSkewMilliseconds !== undefined ? { clockSkewMilliseconds: attention.clockSkewMilliseconds } : {}),
+    ...(attention?.siteAccessOrigin ? { siteAccessOrigin: attention.siteAccessOrigin } : {}),
     ...(attention?.permissionRequired ? { permissionRequired: true } : {}),
     ...(attention?.healthDelivery ? { healthDelivery: attention.healthDelivery } : {}),
     nativeWaitPending: attention?.nativeWaitPending === true,

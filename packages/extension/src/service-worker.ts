@@ -71,6 +71,7 @@ import { handleRemoteDeleteRequest } from './sw/remote-delete.js';
 import { handleImportRequest } from './sw/import.js';
 import { handleIngressDiagnosticsRequest, type IngressDiagnosticsDeps } from './sw/ingress-diagnostics.js';
 import { readIngressExamples } from './sw/ingress-examples.js';
+import { lastKnownClientClockSkew } from './session-clock.js';
 import { personalTreeApi } from './bookmark-subscriptions/personal-boundary.js';
 import { createChromeBookmarkTreeAdapter } from './chrome-bookmark-tree.js';
 import { handleSyncAttentionRequest, type SyncAttentionDeps } from './sw/sync-attention.js';
@@ -207,7 +208,8 @@ const nativeWaitDeps: NativeWaitDeps = {
 const syncAttentionDeps: SyncAttentionDeps = { scope: currentSyncScope, store: syncState, readableFailure: true,
   rebuildPending: () => replicaRebuilder().hasPending(), rebuildCancelAvailable: () => replicaRebuilder().canCancelPending(),
   bookmarkPermission: hasBookmarkPermission,
-  healthDelivery: scope => readHealthDeliveryFailure(chrome.storage.local, scope, Date.now()), watchdog: syncWatchdog };
+  healthDelivery: scope => readHealthDeliveryFailure(chrome.storage.local, scope, Date.now()), watchdog: syncWatchdog,
+  clockSkew: lastKnownClientClockSkew };
 
 // A deliberate disconnect tells the Sync center before this browser leaves its library (C-17d).
 onBeforePersonalSyncDisconnect(reportReplicaDisconnected);
