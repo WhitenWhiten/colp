@@ -98,6 +98,16 @@ describe('the Status card', () => {
     assert.equal(document.getElementById('sync-attention-settings-issues-hint')!.hidden, false);
   });
 
+  test('each button says which item it is for, and a refresh that changes nothing leaves the rows alone', async () => {
+    await mount([attention([item(1, ['retry'], { title: 'Recipes' }), item(2, ['dismiss'], { title: 'Docs' })])]);
+    const retry = document.querySelector<HTMLButtonElement>('[data-sync-issue="issue1"] button')!;
+    assert.equal(retry.getAttribute('aria-label'), 'Try again: Recipes');
+    assert.equal(document.querySelector('[data-sync-issue="issue2"] button')!.getAttribute('aria-label'), 'Dismiss: Docs');
+    const row = document.querySelector('[data-sync-issue="issue1"]');
+    await vi.advanceTimersByTimeAsync(8_500);
+    assert.equal(document.querySelector('[data-sync-issue="issue1"]'), row, 'the same row element: focus on its button is not lost');
+  });
+
   test('Dismiss on one row asks for that item, reads the card again, then says what happened', async () => {
     const { acted } = await mount([attention([item(1, ['dismiss']), item(2, ['dismiss'])]), attention([item(2, ['dismiss'])])],
       { ok: true, done: 1, skipped: 0, failed: 0 });

@@ -218,11 +218,18 @@ function paintNotes(nodes: AttentionNodes, view: SyncAttentionView): void {
   nodes.notes.replaceChildren(...view.notes.lines.map(line => el('p', line, 'set-row-hint')));
 }
 
+/** What the rows on screen were built from: a repaint that would change nothing leaves them alone, so keyboard focus on a button survives the refresh. */
+const rowsSignature = new WeakMap<HTMLElement, string>();
+
 /** One row per item that could not sync: its name, why, and what can be done about it. */
 function paintIssues(nodes: AttentionNodes, view: SyncAttentionView, act: IssueAct): void {
   if (!nodes.issues) return;
   nodes.issues.hidden = !view.issues.show;
-  nodes.issues.replaceChildren(...view.issues.rows.map(row => renderIssueRow(row, act)));
+  const signature = JSON.stringify(view.issues.rows.map(row => [row.key, row.title, row.summary, row.seen, row.actions, row.code]));
+  if (rowsSignature.get(nodes.issues) !== signature) {
+    rowsSignature.set(nodes.issues, signature);
+    nodes.issues.replaceChildren(...view.issues.rows.map(row => renderIssueRow(row, act)));
+  }
   if (nodes.issuesHint) {
     nodes.issuesHint.hidden = !view.issues.show || view.issues.hint === '';
     nodes.issuesHint.textContent = view.issues.hint;
@@ -298,6 +305,9 @@ function renderIssueRow(row: SyncIssueRow, act: IssueAct): HTMLElement {
     for (const action of row.actions) {
       const node = actionButton(action === 'retry' ? t('syncIssue_tryAgain', 'Try again') : t('common_dismiss', 'Dismiss'),
         action === 'retry' ? 'btn btn-secondary btn-sm' : 'btn btn-ghost btn-sm', action, () => act(action, [id]));
+      // Several rows say the same word: the name of the item tells a screen reader which one this button is for.
+      node.setAttribute('aria-label', action === 'retry' ? t('syncIssue_tryAgainFor', 'Try again: $1', row.title)
+        : t('syncIssue_dismissFor', 'Dismiss: $1', row.title));
       if (action === 'dismiss') node.title = t('syncIssue_dismissTitle', 'Closes this item and keeps this browser’s version. Nothing is deleted.');
       control.append(node);
     }
