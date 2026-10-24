@@ -6,6 +6,7 @@ import { addQueueIssueRoots, blockedPullIssue } from './open-issue-facts.js';
 import { extractOutstandingTarget } from '../recovery-overlay.js';
 import { rebaseableRecoveryMoves, recoverMoveAuthority } from '../move-authority.js';
 import { markQueuePullEchoApplied } from './pull-queue-echo.js';
+import { holdsNativeResultUnknown } from '../native-wait-open.js';
 import {
   SyncStateError, type AckIntentRecord, type DurableSyncEngineState, type IntentRecord, type MappingInput,
   type QueueOperation, type RecoveryHeader, type RecoveryNodeRecord, type RecoveryPageInput, type BookmarkEventRecord,
@@ -490,7 +491,7 @@ export function createRecoveryRepository(ctx: SyncStoreRuntime) {
             || acks.some(ack => ack.state === 'pending')
             || !durable || !cursorIsConfirmed(durable, engine.lastAckedCursor, acks)
             || pages.some(page => page.state !== 'page_complete')
-            || intents.some(intent => intent.nativeResult === 'result_unknown' || intent.waitReason === 'native_result_unknown')) {
+            || intents.some(holdsNativeResultUnknown)) {
           throw new SyncStateError('session_handoff_pending');
         }
       }

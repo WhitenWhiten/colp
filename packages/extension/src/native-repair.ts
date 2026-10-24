@@ -4,6 +4,7 @@
  */
 
 import { hasTerminalDeleteEvidence } from './native-delete-executor.js';
+import { holdsNativeResultUnknown } from './native-wait-open.js';
 import { pageV15Backfill } from './sync-state/v15-backfill.js';
 
 import { repairTombstonedNativeMappings } from './tombstone-mapping-repair.js';
@@ -108,8 +109,7 @@ export async function pendingNativeOrPullFacts(store: Pick<Store, 'listApplyInte
   ]);
   return {
     pendingIncompletePull: pages.length > 0 || events.length > 0,
-    nativeResultUnknown: intents.some((intent: IntentRecord) => intent.nativeWaitDecision?.action !== 'cancel'
-      && (intent.nativeResult === 'result_unknown' || intent.waitReason === 'native_result_unknown')),
+    nativeResultUnknown: intents.some((intent: IntentRecord) => holdsNativeResultUnknown(intent)),
   };
 }
 
