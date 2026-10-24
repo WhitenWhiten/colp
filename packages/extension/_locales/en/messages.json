@@ -98,6 +98,12 @@
   "auth_serverConfigurationFailed": {
     "message": "Check the server address and allow access before signing in."
   },
+  "auth_serverUnavailableTryAgain": {
+    "message": "The server could not answer just now. Try again in a moment."
+  },
+  "auth_sessionExpiredSignAgain": {
+    "message": "Your session expired. Sign in again."
+  },
   "auth_showPassword": {
     "message": "Show password"
   },

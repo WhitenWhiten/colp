@@ -26,9 +26,12 @@ export function authErrorCopy(code: string | undefined, context: 'attempt' | 'st
   }
   if (code === 'session_cookie_missing') return t('auth_signSucceededButSession', 'Sign-in succeeded but the session cookie was missing. Try again.');
   if (code === 'session_unavailable') return t('auth_couldNotRestoreSession', 'Could not restore the session. Please try again.');
+  // The server ended a sign-in that had run past its lifetime; nothing was taken away (W2B-P2-7).
+  if (code === 'session_expired') return t('auth_sessionExpiredSignAgain', 'Your session expired. Sign in again.');
   if (code === 'authentication_required' || code === 'credential_revoked' || code === 'invalid_grant') {
     return t('auth_accessRevokedSignAgain', 'Your access was revoked. Sign in again.');
   }
+  if (code === 'server_unavailable') return t('auth_serverUnavailableTryAgain', 'The server could not answer just now. Try again in a moment.');
   if (code === 'binding_mismatch') {
     return t('auth_browserSignedOutBecause', 'This browser was signed out because the sign-in configuration changed. Sign in again.');
   }
