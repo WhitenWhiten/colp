@@ -49,6 +49,7 @@ import { FOLDERS_FIRST_ALARM, installNativeFoldersFirst, installNativeFoldersFir
 import { installWorkerMetadataWake } from './sw/metadata-sync-wake.js';
 import { bindLibraryOnStartup } from './sw/library.js';
 import { handleSyncEngineRequest, scheduleSyncEngineWake } from './sw/engine.js';
+import { requestExplicitSyncRetry } from './sw/explicit-retry.js';
 import { REPLICA_HEALTH_ALARM, REPLICA_HEALTH_PERIOD_MINUTES, reportReplicaHealth } from './sw/replica-health.js';
 import { handleSyncStateEvidence } from './sw/evidence.js';
 import { clearFaviconForCurrentScope, drainFaviconSidecarsForCurrentScope, readFaviconPolicyForCurrentScope, resolveFaviconSaveContext, resolveLocalSaveContext } from './sw/favicon.js';
@@ -337,6 +338,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     return true;
   }
   if (validSyncRetryRequest(message)) {
+    requestExplicitSyncRetry();
     void scheduleSyncEngineWake('manual').catch((error) => logBackgroundFailure('message.sync-engine-wake', error));
     respond({ ok: true }); return false;
   }

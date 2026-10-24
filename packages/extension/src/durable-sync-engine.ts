@@ -1,9 +1,11 @@
 import { ackEnvelope, headers, digest, jsonContentType, problemContentType } from './sync-engine-wire.js';
 import { recoverAtSyncIssueCeiling } from './sync-issue-ceiling-recovery.js';
 import { enforceSyncIssueCeiling, SYNC_ISSUE_CEILING_CODE } from './sync-issue-ceiling.js';
-import { guardSyncWake } from './sync-circuit-breaker-engine.js';
-import { circuitIsStopped } from './sync-circuit-breaker.js';
-import { SyncFailureError, refreshesReplicaIntegrity, holdsInboundPull, holdsUnprovenIdentity, needsReplicaRebuild, persistentLocalSyncFailure } from './sync-failure-class.js';
+import { guardSyncWake, type WakeReason } from './sync-circuit-breaker-engine.js';
+import { circuitIsStopped, unprobedStop } from './sync-circuit-breaker.js';
+import { engineBackoffDelay } from './durable-sync-engine-backoff.js';
+import { createEngineStateAccess, readDurableCursor } from './durable-sync-engine-state.js';
+import { SyncFailureError, refreshesReplicaIntegrity, holdsInboundPull, holdsUnprovenIdentity, needsReplicaRebuild, persistentLocalSyncFailure, repullsOnExplicitRetry } from './sync-failure-class.js';
 import { recordRecoveryDiagnostic } from './recovery-diagnostic.js';
 import { readEngineSessionAuthority } from './sync-session-handoff.js';
 import type { SyncAckResult, SyncPullV02 } from '@know-n/colp/types';
@@ -24,7 +26,7 @@ import { mayUnfreezeForCompletedBootstrapAck, pendingNativeOrPullFacts, readComp
 import { recoverSnapshot } from './durable-sync-engine-recovery.js';
 import { freezeScopeRecovery } from './pull-recovery-freeze.js';
 import { pullAckWarnings } from './pull-item-set-aside.js';
-const DEFAULT_PULL_LIMIT = 100; const MAX_PULL_PAGES_PER_WAKE = 20; const MAX_NETWORK_BACKOFF_MS = 30_000;
+const DEFAULT_PULL_LIMIT = 100; const MAX_PULL_PAGES_PER_WAKE = 20;
 // SYNC-F003: clamp the advisory pull cadence to the backend max (86_400s).
 const MAX_RECOMMENDED_PULL_AFTER_SECONDS = 86_400;
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
@@ -34,6 +36,7 @@ export function createDurableSyncEngine(options: EngineOptions) {
   const fetcher = options.fetch ?? fetch; const now = options.now ?? Date.now; const random = options.random ?? Math.random;
   const requestTimeoutMilliseconds = options.requestTimeoutMilliseconds ?? DEFAULT_REQUEST_TIMEOUT_MS;
   const responseReadOptions = { timeoutMilliseconds: requestTimeoutMilliseconds };
+  const { state, transition } = createEngineStateAccess(options, now);
   const guardedWake = guardSyncWake(options, now, wakeOnce, transition);
   let wakeTail: Promise<void> = Promise.resolve();
   // SR-14: the Push peer refreshes placement before rebasing a retried
@@ -42,9 +45,10 @@ export function createDurableSyncEngine(options: EngineOptions) {
   // twice), capping the extra Pull traffic at one per wake.
   let placementRefreshAttempt: Promise<PlacementRefreshOutcome> | undefined;
   let activeMappingReads: MappingReadContext | undefined;
+  let explicitRetryWake = false;
 
-  function wake(reason: 'startup' | 'alarm' | 'online' | 'manual', context: {
-    readonly connectivityRestored?: boolean;
+  function wake(reason: WakeReason, context: {
+    readonly connectivityRestored?: boolean; readonly explicitRetry?: boolean;
   } = {}) {
     const confirmedOnline = reason === 'online' && context.connectivityRestored === true;
     const coalesceConnectivityWake = reason === 'startup' || confirmedOnline;
@@ -52,7 +56,9 @@ export function createDurableSyncEngine(options: EngineOptions) {
     let storeWakes = connectivityWakes.get(options.store);
     const existing = coalesceConnectivityWake ? storeWakes?.get(wakeKey) : undefined;
     if (existing) return existing;
-    const result = wakeTail.then(() => guardedWake(reason, confirmedOnline), () => guardedWake(reason, confirmedOnline));
+    const explicitRetry = context.explicitRetry === true;
+    const result = wakeTail.then(() => guardedWake(reason, confirmedOnline, explicitRetry),
+      () => guardedWake(reason, confirmedOnline, explicitRetry));
     wakeTail = result.then(() => undefined, () => undefined);
     if (coalesceConnectivityWake) {
       storeWakes ??= new Map(); connectivityWakes.set(options.store, storeWakes); storeWakes.set(wakeKey, result);
@@ -62,20 +68,22 @@ export function createDurableSyncEngine(options: EngineOptions) {
     return result;
   }
 
-  async function wakeOnce(reason: 'startup' | 'alarm' | 'online' | 'manual', confirmedOnline: boolean) {
-    placementRefreshAttempt = undefined;
+  async function wakeOnce(reason: WakeReason, confirmedOnline: boolean, explicitRetry: boolean) {
+    placementRefreshAttempt = undefined; explicitRetryWake = explicitRetry;
     activeMappingReads = createMappingReadContext(options.store, options.scope);
     try { return await wakeOnceBody(reason, confirmedOnline); }
-    finally { activeMappingReads = undefined; }
+    finally { activeMappingReads = undefined; explicitRetryWake = false; }
   }
 
-  async function wakeOnceBody(reason: 'startup' | 'alarm' | 'online' | 'manual', confirmedOnline: boolean) {
+  async function wakeOnceBody(reason: WakeReason, confirmedOnline: boolean) {
     const scope = await options.store.getScope(options.scope); if (!scope) return null;
     let current = await state();
     if (scope.lifecycle === 'retired') return transition('retired', { recoveryFrozen: true });
     if (await recoverAtSyncIssueCeiling(options, sessionAuthority, now)) return state();
     current = await state();
-    if (current.phase === 'error'  && !circuitIsStopped(current) && reason !== 'manual' && reason !== 'startup') return current;
+    // A stop is probed on its own schedule (breaker row) or, for a state written before probes existed, at once.
+    if (current.phase === 'error' && !circuitIsStopped(current) && !unprobedStop(current)
+        && reason !== 'manual' && reason !== 'startup' && reason !== 'probe') return current;
     if (current.recoveryFrozen && holdsUnprovenIdentity(current.lastError) && await options.recoverIdentityFreeze?.()) current = await state();
     // A server-capped payload_too_large is terminal: refreshing authority reproduces the same 413.
     const recoveryScope = await options.store.getScope(options.scope);
@@ -147,16 +155,21 @@ export function createDurableSyncEngine(options: EngineOptions) {
         const refreshedClassification = classifySessionAuthority(refreshedAuthority.session, {
           authorityRefreshRequired: true, bootstrapped: await hasBootstrapAck(),
         });
-        if (refreshesReplicaIntegrity(current.lastError) && refreshedClassification === 'active') throw new Error(current.lastError);
+        // A user's Retry on a Pull-time integrity stop re-requests from the durable cursor once: the
+        // cursor row is kept (never advanced past the page that failed), only the freeze is released.
+        const repull = explicitRetryWake && repullsOnExplicitRetry(current.lastError);
+        if (refreshesReplicaIntegrity(current.lastError) && refreshedClassification === 'active' && !repull) throw new Error(current.lastError);
         if (refreshedClassification !== 'active') return await recover(refreshedAuthority, refreshedClassification);
+        const durable = repull ? await readDurableCursor(options) : undefined;
+        const authorityCursor = durable?.cursor ?? refreshedAuthority.session.collection.serverCursor;
         await options.store.rebaseActiveSessionAuthority(options.scope, {
-          cursor: refreshedAuthority.session.collection.serverCursor,
-          serverRevision: refreshedAuthority.session.collection.serverRevision,
+          cursor: authorityCursor,
+          serverRevision: durable?.serverRevision ?? refreshedAuthority.session.collection.serverRevision,
           expectedEngineRevision: current.revision,
         });
         await transition('session', { sessionId: refreshedAuthority.session.sessionId,
-          lastPublishedCursor: refreshedAuthority.session.collection.serverCursor,
-          lastAckedCursor: refreshedAuthority.session.collection.serverCursor,
+          lastPublishedCursor: authorityCursor,
+          lastAckedCursor: authorityCursor,
           recoveryFrozen: !mayUnfreezeForCompletedBootstrapAck(await pendingNativeOrPullFacts(options.store, options.scope)),
           authorityRefreshRequired: false, notBefore: 0 });
         current = await state();
@@ -546,41 +559,10 @@ export function createDurableSyncEngine(options: EngineOptions) {
     if (code === SYNC_ISSUE_CEILING_CODE) { await enforceSyncIssueCeiling(options.store, options.scope, now()); return state(); }
     if (persistentLocalSyncFailure(code)) return transition('error', { lastError: code, notBefore: 0, clearConnectivityConfirmation: true });
     const backoffCount = (prior.networkBackoffCount ?? 0) + 1;
-    const retryAfter = retryAfterMilliseconds(error); const delay = retryAfter ?? Math.min(MAX_NETWORK_BACKOFF_MS,
-      Math.max(1_000, Math.floor(Math.min(MAX_NETWORK_BACKOFF_MS, 1_000 * 2 ** Math.min(8,
-        backoffCount)) * Math.max(0.1, Math.min(1, random()))))); const next = await transition(
+    const retryAfter = retryAfterMilliseconds(error); const delay = engineBackoffDelay(backoffCount, retryAfter, random); const next = await transition(
       prior.recoveryFrozen ? 'recovery' : retryAfter === undefined ? 'offline' : 'sleeping', {
       notBefore: now() + delay, lastError: stableError(error), networkBackoffCount: backoffCount,
       clearConnectivityConfirmation: true }); options.schedule?.(delay); return next; }
-  async function state() { return await options.store.getEngineState(options.scope) ?? {
-    scopeKey: (await options.store.getScope(options.scope))!.scopeKey, phase: 'idle', revision: 0, updatedAt: now(),
-    recoveryFrozen: false, authorityRefreshRequired: false, notBefore: 0 } satisfies DurableSyncEngineState; }
-  async function transition(phase: DurableSyncEngineState['phase'], patch: Partial<DurableSyncEngineState>
-    & { readonly expectedRevision?: number; readonly clearConnectivityConfirmation?: boolean } = {}) {
-    const prior = await state(); return options.store.transitionEngine(options.scope, { phase, updatedAt: now(),
-      recoveryFrozen: patch.recoveryFrozen ?? prior.recoveryFrozen, notBefore: patch.notBefore ?? prior.notBefore,
-      authorityRefreshRequired: patch.authorityRefreshRequired ?? prior.authorityRefreshRequired,
-      ...(('circuitBreaker' in patch ? patch.circuitBreaker : prior.circuitBreaker) === undefined ? {}
-        : { circuitBreaker: 'circuitBreaker' in patch ? patch.circuitBreaker : prior.circuitBreaker }),
-      ...(patch.recoveryFrozen === undefined && prior.localProjectionOwner !== undefined
-        ? { localProjectionOwner: prior.localProjectionOwner } : {}),
-      ...(!patch.clearConnectivityConfirmation && prior.connectivityConfirmationRevision !== undefined
-        ? { connectivityConfirmationRevision: prior.connectivityConfirmationRevision } : {}),
-      // Compare-and-swap every transition so a concurrent recovery/freeze write
-      // cannot be overwritten by this stale read-modify-write.
-      expectedRevision: patch.expectedRevision ?? prior.revision,
-      ...(patch.lastPushServerCursor ?? prior.lastPushServerCursor ? { lastPushServerCursor:
-        patch.lastPushServerCursor ?? prior.lastPushServerCursor } : {}),
-      ...(patch.lastPushOutcomeHint ?? prior.lastPushOutcomeHint ? { lastPushOutcomeHint:
-        patch.lastPushOutcomeHint ?? prior.lastPushOutcomeHint } : {}),
-      ...(patch.networkBackoffCount !== undefined || prior.networkBackoffCount !== undefined
-        ? { networkBackoffCount: patch.networkBackoffCount ?? prior.networkBackoffCount ?? 0 } : {}),
-      ...(patch.sessionId ?? prior.sessionId ? { sessionId: patch.sessionId ?? prior.sessionId } : {}),
-      ...(patch.lastPublishedCursor ?? prior.lastPublishedCursor ? { lastPublishedCursor:
-        patch.lastPublishedCursor ?? prior.lastPublishedCursor } : {}),
-      ...(patch.lastAckedCursor ?? prior.lastAckedCursor ? { lastAckedCursor: patch.lastAckedCursor
-        ?? prior.lastAckedCursor } : {}), ...(patch.lastError ? { lastError: patch.lastError } : {}) }); }
-
   async function confirmConnectivityResponse() {
     const current = await state();
     if (current.connectivityConfirmationRevision !== undefined) {

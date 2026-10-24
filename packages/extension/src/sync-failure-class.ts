@@ -460,3 +460,13 @@ export function refreshesReplicaIntegrity(code: string | undefined): boolean {
   const policy = classifySyncFailure(code);
   return policy?.class === 'replica' && policy.exit === 'refresh';
 }
+
+/**
+ * A Pull-time integrity stop keeps its Session `active`, so authority refresh never re-runs the
+ * pull and Retry used to be a no-op. A user's Retry re-requests from the durable cursor once.
+ * Snapshot-time stops (`snapshot_*`) keep the Session in `snapshotRequired`, so their refresh
+ * already re-runs the recovery.
+ */
+export function repullsOnExplicitRetry(code: string | undefined): boolean {
+  return code !== undefined && refreshesReplicaIntegrity(code) && !code.startsWith('snapshot_');
+}

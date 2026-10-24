@@ -4,6 +4,7 @@ import { createQueueRecapture } from '../queue-recapture.js';
 import { configuredPersonalSyncPolicy } from '../personal-sync-fetch.js';
 import type { SyncScope } from '../sync-state-store.js';
 import { runSyncEngine } from './engine.js';
+import { requestExplicitSyncRetry } from './explicit-retry.js';
 import type { AuthorityContext } from '../authority-fence.js';
 import { REPLICA_HEALTH_ATTENTION_HEARTBEAT_MS, sendReplicaHealthReport,
   type ReplicaCommandRunner } from './replica-health-report.js';
@@ -69,6 +70,7 @@ function commandRunner(scope: SyncScope, assertCurrent: () => Promise<void>): Re
   let execution: AuthorityContext | undefined;
   const retry = async () => {
     await assertCurrent(); if (!execution) throw new Error('command_context_missing');
+    requestExplicitSyncRetry();
     await runSyncEngine('manual', false, execution);
   };
   return {

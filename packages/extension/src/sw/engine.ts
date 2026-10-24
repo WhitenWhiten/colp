@@ -39,6 +39,7 @@ import { createSyncAlarmScheduler } from '../sync-alarm.js';
 import { hasFreshPushQueueHead } from '../push-work-budget.js';
 import { reportReplicaHealth } from './replica-health.js';
 import { metadataPassDue, recordMetadataPass } from './metadata-pass.js';
+import { takeExplicitSyncRetry } from './explicit-retry.js';
 
 let syncAlarmScheduler: ReturnType<typeof createSyncAlarmScheduler> | undefined;
 
@@ -131,6 +132,7 @@ export async function stopSyncEngine(): Promise<void> {
 
 export async function runSyncEngine(reason: 'startup' | 'alarm' | 'online' | 'manual', connectivityRestored = false,
   context: AuthorityContext) {
+  const explicitRetry = reason === 'manual' && takeExplicitSyncRetry();
   try { await store.assertWritable(context.generation); } catch { return; }
   try { await replicaRebuilder().resume(); } catch { return; }
   let scope: SyncScope; try { scope = await restoredSyncScope(); } catch { return; }
@@ -296,7 +298,7 @@ export async function runSyncEngine(reason: 'startup' | 'alarm' | 'online' | 'ma
   try {
     // The durable engine resumes owned local projection before network work.
     // Pull resolves endpoints before constructing/resuming the bound applier.
-    const result = await engine.wake(reason, { connectivityRestored });
+    const result = await engine.wake(reason, { connectivityRestored, explicitRetry });
     // The backlog age comes from the same live-status scan the facts use: a
     // `listQueue` default page returns the OLDEST 100 rows, so on a long-lived
     // scope it measured terminal history and reported ages that grew without
