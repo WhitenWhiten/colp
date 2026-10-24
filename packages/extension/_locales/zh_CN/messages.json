@@ -10346,5 +10346,9 @@
   "capture_sourceArchive": {
     "message": "来源归档",
     "description": "Source archive"
+  },
+  "site_adapter_saveAndClassify": {
+    "message": "保存并分类",
+    "description": "Save and classify"
   }
 }
