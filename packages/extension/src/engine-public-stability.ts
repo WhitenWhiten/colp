@@ -51,6 +51,14 @@ export function queueStatusProjection(rows: readonly { readonly status?: string;
 
 /** Tries a sent change may collect before the lane waiting behind it is reported. */
 export const STALLED_UPLOAD_ATTEMPTS = 8;
+/**
+ * A server that does answer, with a failure, is a wait and not the change's fault, so it is not
+ * reported at STALLED_UPLOAD_ATTEMPTS; but one that has failed this many tries in a row (about an
+ * hour and a half at the five-minute backoff cap) has stopped being a wait. Lost connectivity
+ * and rate limits stay unreported however long they last: the engine reports those itself.
+ */
+export const STALLED_SERVER_ATTEMPTS = 20;
+const SERVER_FAILURE_ANSWERS: ReadonlySet<string> = new Set(['push_server_unavailable', 'service_unavailable', 'internal_error']);
 /** The lane statuses a sent change can keep while the server has not settled it. */
 const UNSETTLED_STATUSES: ReadonlySet<string> = new Set(['claimed', 'deferred', 'gap', 'unknown']);
 
@@ -74,6 +82,8 @@ export function stalledUploadHead(rows: readonly QueueOperation[]): { readonly r
   const code = head.status === 'deferred' ? 'push_deferred' : head.recovery?.code;
   if (!code) return undefined;
   const policy = classifySyncFailure(code);
-  if (policy?.class === 'transient' || policy?.class === 'authority') return undefined;
+  if (policy?.class === 'authority') return undefined;
+  if (policy?.class === 'transient'
+      && !(SERVER_FAILURE_ANSWERS.has(code) && head.retry.attempt >= STALLED_SERVER_ATTEMPTS)) return undefined;
   return { row: head, code };
 }

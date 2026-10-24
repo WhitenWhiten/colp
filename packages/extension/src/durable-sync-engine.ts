@@ -220,6 +220,8 @@ export function createDurableSyncEngine(options: EngineOptions) {
       }
       await reprojectLeftover();
       const queue = await firstOutstanding();
+      // A person's Retry ends the waiting of the lane head too, or it would seem to do nothing.
+      if (explicitRetryWake && queue) await options.store.releaseQueueBackoff(options.scope, now());
       if ((queue?.payload.type === 'move_node' || queue?.payload.type === 'create_node')
           && !queue.attempt && queue.retry.attempt > 0) {
         // SR-14: this advisory Pull narrows the staleness a retried
