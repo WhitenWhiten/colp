@@ -17,8 +17,9 @@ import { localized, t, tn } from './i18n.js';
  *     the worker before they cross the message boundary);
  *   - `firstAt === lastAt === 0` means "written before the ledger existed", so it
  *     renders as the time-unknown copy instead of 1970-01-01;
- *   - an unknown code is shown as its raw code — never as "unsupported", because this
- *     module cannot know whether a newer build supports it.
+ *   - an unknown code is shown in a sentence that carries the raw code — never as
+ *     "unsupported", because this module cannot know whether a newer build supports it,
+ *     and never as the bare code (C-20), which tells a person nothing.
  *
  * The refresh strategy is a deliberate read-on-pane-entry: `bindIngressDiagnostics-
  * Settings` reads once when the Sync center pane becomes visible (and the page
@@ -95,7 +96,7 @@ localized(() => {
 
 export interface IngressDiagnosticRow {
   readonly code: string;
-  /** Readable copy for a known code, the raw code otherwise. */
+  /** Readable copy for a known code, a sentence carrying the raw code otherwise. */
   readonly label: string;
   readonly category: IngressDiagnosticCategory;
   /** Short qualifier, empty for a code this build does not know. */
@@ -120,9 +121,9 @@ export function ingressDiagnosticCategory(code: string): IngressDiagnosticCatego
   return CATEGORIES[code] ?? 'other';
 }
 
-/** Unknown codes fall back to the raw code; this build never calls them unsupported. */
+/** Unknown codes get a sentence with the code in it; this build never calls them unsupported. */
 export function ingressDiagnosticLabel(code: string): string {
-  return LABELS[code] ?? code;
+  return LABELS[code] ?? t('sync_ingressUnknownReason', 'Left out of sync for a reason this version doesn’t describe ($1)', code);
 }
 
 export function ingressDiagnosticTag(code: string): string {

@@ -85,9 +85,12 @@ describe('A-08 filtered-bookmark copy (pure)', () => {
     assert.match(ingressDiagnosticLabel('reorder_children_local_only'), /this device/u);
   });
 
-  test('an unknown code is shown as its raw code, never as "unsupported"', () => {
-    assert.equal(ingressDiagnosticLabel('some_future_code'), 'some_future_code');
-    assert.equal(ingressDiagnosticLabel('codec_v2_result'), 'codec_v2_result');
+  test('an unknown code is described in a sentence that carries it, never as "unsupported" and never bare (C-20)', () => {
+    assert.equal(ingressDiagnosticLabel('some_future_code'),
+      'Left out of sync for a reason this version doesn’t describe (some_future_code)');
+    assert.match(ingressDiagnosticLabel('codec_v2_result'), /\(codec_v2_result\)$/u);
+    assert.doesNotMatch(ingressDiagnosticLabel('some_future_code'), /unsupported|unrecognized/u);
+    assert.equal(ingressDiagnosticRows([diagnostic({ code: 'some_future_code' })])[0]!.code, 'some_future_code');
     assert.equal(ingressDiagnosticCategory('some_future_code'), 'other');
     assert.equal(ingressDiagnosticMeta(diagnostic({ code: 'some_future_code' })),
       `Count: 1 · Latest: 2026-07-27 13:45 UTC`);
