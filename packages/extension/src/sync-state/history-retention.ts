@@ -40,7 +40,10 @@ export async function pruneSyncHistory(tx: IDBTransaction, key: string, now: num
   const receipts = tx.objectStore(STORES.receipts), acks = tx.objectStore(STORES.ackIntents);
   const cursor = await requestValue(tx.objectStore(STORES.cursors).get(key)) as UnknownRecord | undefined;
   const evidence = cursor?.evidence as UnknownRecord | undefined;
-  const quiet = await historyHasNoLiveWork(tx, key);
+  // W2A-04: a change set aside for a person's decision is one item's problem. It pins the deletion journal
+  // (a stale create could resurrect a removed native) but not the reclamation of everything settled around it.
+  const strictQuiet = await historyHasNoLiveWork(tx, key, true);
+  const quiet = strictQuiet || await historyHasNoLiveWork(tx, key, false);
   const consumedThrough = Math.max(prior.consumedThroughSequence ?? 0, await highestConsumedSequence(receipts, key));
   next.consumedThroughSequence = consumedThrough;
   const latest = { ...watermark.latestCompleteAck };
@@ -110,7 +113,7 @@ export async function pruneSyncHistory(tx: IDBTransaction, key: string, now: num
   const terminal = await requestValue<QueueOperation[]>(queue.index(INDEXES.queueByStatusSequence)
     .getAll(statusRange(key, 'terminal'), 2));
   const terminalSettled = terminal.length === 0 || terminal.length === 1 && Boolean(await terminalReceipt(tx, key, terminal[0]!));
-  const journalSettled = quiet && terminalSettled
+  const journalSettled = strictQuiet && terminalSettled
     && !await requestValue(queue.index(INDEXES.queueByStatusSequence).count(statusRange(key, 'rejected')))
     && await cursorHasCompleteAck(acks, key, cursor?.cursor, latest);
   next.deletionAfter = await retentionBatch<DeletionJournalRecord>(tx.objectStore(STORES.deletionJournal),
@@ -153,7 +156,8 @@ function statusRange(key: string, status: string, after?: IDBValidKey | null): I
   return IDBKeyRange.bound(after ?? [key, status, 0], [key, status, Number.MAX_SAFE_INTEGER], Boolean(after));
 }
 
-async function historyHasNoLiveWork(tx: IDBTransaction, key: string): Promise<boolean> {
+/** `heldItemsPin`: whether a change set aside for a decision counts as live work. */
+async function historyHasNoLiveWork(tx: IDBTransaction, key: string, heldItemsPin: boolean): Promise<boolean> {
   const engine = await requestValue(tx.objectStore(STORES.engine).get(key)) as UnknownRecord | undefined;
   if (engine?.recoveryFrozen || engine?.authorityRefreshRequired
       || await requestValue(tx.objectStore(STORES.recovery).count(scopeRowsRange(key)))) return false;
@@ -165,7 +169,8 @@ async function historyHasNoLiveWork(tx: IDBTransaction, key: string): Promise<bo
   if (runs.length > 200 || runs.some(row => !row.previewOnly && row.phase !== 'completed' && row.phase !== 'draft')) return false;
   const scope = await requestValue(tx.objectStore(STORES.scopes).get(key)) as UnknownRecord;
   if (scope.firstRun === 'running') return false;
-  for (const status of ['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown', 'set_aside']) {
+  for (const status of heldItemsPin ? ['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown', 'set_aside']
+    : ['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown']) {
     if (await requestValue(tx.objectStore(STORES.queue).index(INDEXES.queueByStatusSequence).count(statusRange(key, status)))) return false;
   }
   if (await requestValue(tx.objectStore(STORES.bookmarkEvents).index(INDEXES.eventByStatusOrdinal)
