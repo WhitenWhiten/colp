@@ -8,6 +8,8 @@ import { installPlannedCaptureGuard, plannedNativeFault } from '../capture/plann
 import { currentCaptureScope } from '../sw/capture-native.js';
 import { captureDeviceId } from '../sw/capture-history.js';
 import { acknowledgePlannedNative, assertPlannedNative, executePlannedNative, recoverPlannedNative } from '../sw/planned-capture.js';
+let scheduleRecovery = (at: number) => chrome.alarms.create(SITE_RECOVERY_ALARM, { when: at });
+export function installSourceRecoveryScheduler(schedule: typeof scheduleRecovery) { scheduleRecovery = schedule; }
 let policyAuthorize: (plan: SavePlan, effect: SaveEffect) => Promise<void> = async () => { throw new Error('sourcePolicyUnavailable'); };
 /** Only host rule/import code may install this; no adapter/management RPC accepts a plan. */
 export function installSourcePlanAuthorization(authorize: typeof policyAuthorize) { policyAuthorize = authorize; }
@@ -28,30 +30,37 @@ export function installPlannedSaveRuntime() {
   });
 }
 export async function executePlannedSave(planId: string, effectId: string) {
-  chrome.alarms.create(SITE_RECOVERY_ALARM, { when: Date.now() + 30000 });
+  scheduleRecovery(Date.now() + 30000);
   return plannedSaveExecutor.execute(planId, effectId);
 }
 /** Bounded startup/alarm recovery. Unknown commands retain their identities and remain visible. */
 export async function wakePlannedSaves() {
   const cursor = await siteLedger.db.read<{ planId: string; exclusive: boolean; offset: number }>('meta', 'planRecoveryCursor');
   const page = await siteLedger.db.transaction(['savePlans'], 'readonly', tx => cursorPage<StoredSavePlan>(tx.objectStore('savePlans'),
-    cursor ? IDBKeyRange.lowerBound(cursor.planId, cursor.exclusive) : null, 2));
-  const row = page[0]; let next: typeof cursor;
-  if (row) {
+    cursor ? IDBKeyRange.lowerBound(cursor.planId, cursor.exclusive) : null, 20));
+  let next: typeof cursor, budget = 20, stopped = false;
+  for (const row of page) {
+    // Evidence fixtures are manually driven so a worker-cut test controls its exact boundary.
+    if (await siteLedger.db.read('meta', `evidence-plan:${row.plan.id}`)) { next = { planId: row.plan.id, exclusive: true, offset: 0 }; continue; }
     const byId = new Map(row.plan.effects.map(e => [e.effectId, e])), ordered: SaveEffect[] = [], visited = new Set<string>();
     const visit = (e: SaveEffect) => { if (visited.has(e.effectId)) return; visited.add(e.effectId); for (const id of e.dependsOn) { const parent = byId.get(id); if (parent) visit(parent); } ordered.push(e); };
     for (const e of row.plan.effects) visit(e);
     const offset = cursor?.planId === row.plan.id && !cursor.exclusive ? cursor.offset : 0;
-    for (const effect of ordered.slice(offset, offset + 20)) {
+    for (let index = offset; index < ordered.length; index++) {
+      const effect = ordered[index]!;
       const state = await siteLedger.db.read<{ state: string; commandId?: string }>('effects', sourceKey(row.plan.id, effect.effectId));
       const outbox = state?.commandId ? await siteLedger.db.read<import('./planned-types.js').SourceOutbox>('outbox', state.commandId) : undefined;
-      if ((state?.state !== 'confirmed' || outbox && !outbox.executorAcknowledged) && row.state !== 'draft') await plannedSaveExecutor.execute(row.plan.id, effect.effectId);
+      if ((state?.state !== 'confirmed' || outbox && !outbox.executorAcknowledged) && row.state !== 'draft') {
+        await plannedSaveExecutor.execute(row.plan.id, effect.effectId); budget--;
+      }
+      if (budget <= 0) { next = { planId: row.plan.id, exclusive: index + 1 === ordered.length, offset: index + 1 === ordered.length ? 0 : index + 1 }; stopped = true; break; }
     }
-    if (offset + 20 < ordered.length) next = { planId: row.plan.id, exclusive: false, offset: offset + 20 };
-    else if (page.length > 1) next = { planId: row.plan.id, exclusive: true, offset: 0 };
+    if (stopped) break;
+    next = { planId: row.plan.id, exclusive: true, offset: 0 };
   }
+  if (!stopped && page.length < 20) next = undefined;
   await siteLedger.db.transaction(['meta'], 'readwrite', async tx => {
     if (next) tx.objectStore('meta').put(next, 'planRecoveryCursor'); else tx.objectStore('meta').delete('planRecoveryCursor');
   });
-  if (next) chrome.alarms.create(SITE_RECOVERY_ALARM, { when: Date.now() + 30000 });
+  if (next) scheduleRecovery(Date.now() + 100);
 }

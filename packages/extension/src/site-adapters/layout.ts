@@ -1,3 +1,4 @@
+import { admitsSiteEdge } from '../automation/site-rule.js';
 import { decideList } from '../automation/rule-list-decide.js';
 import type { FlatList } from '../automation/rule-list-flatten.js';
 import type { SiteRuleEdge } from '../automation/site-rule.js';
@@ -8,7 +9,7 @@ import { createSourceReservations, representationKey } from './reservations.js';
 import { effectDigest, persistSavePlan } from './planned-executor.js';
 import { cursorPage } from '../sync-state/idb.js';
 
-export interface SourcePolicyRecord { connectionId: string; enabled: boolean; liveArchive: boolean; policy: SavePolicy }
+export interface SourcePolicyRecord { connectionId: string; enabled: boolean; liveArchive: boolean; admittedAfterOrdinal?: number; policy: SavePolicy }
 export interface SourceMount extends MountBinding { state: 'active' | 'detached' | 'suppressed' }
 export interface LayoutNativeNode { id: string; title: string; parentId?: string; url?: string; dateAdded?: number }
 export interface LayoutPorts {
@@ -18,7 +19,7 @@ export interface LayoutPorts {
   lookup(id: string): Promise<LayoutNativeNode | null>;
   assertRoot(binding: NativeBinding<'folder'>): Promise<void>;
 }
-interface PlanFence { edge: LedgerEdge; item: SiteItem; collection: SiteCollection; ruleDigest: string; entry: SiteRuleEdge['entry'] }
+interface PlanFence { edge: LedgerEdge; item: SiteItem; collection: SiteCollection; ruleDigest: string; representation?: import('./contracts.js').RepresentationKey; entry: SiteRuleEdge['entry'] }
 const snapshot = (f: FlatList): BrowserRuleSnapshot => ({ storageVersion: 3, listRevision: f.revision, contentVersions: f.contentVersions });
 const keyForMount = (connection: string, rule: string) => sourceKey(connection, rule);
 const identity = (value: unknown) => sourceDigest(value).slice(7);
@@ -73,6 +74,8 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
     return { flat, decision: result.decision };
   }
   return {
+    /** Explicit configuration adopts an existing local root without creating native objects. */
+    bindRoot: mount,
     async configure(record: SourcePolicyRecord) {
       if (!Number.isSafeInteger(record.policy.revision) || record.policy.revision < 1 || record.policy.backgroundClassification !== 'disabled'
         || record.policy.sourceRemoval !== 'retainArchive' || !['sourceAndSemantic', 'singlePreferSemantic', 'singleKeepExisting'].includes(record.policy.copies)) throw new Error('invalidPolicy');
@@ -84,6 +87,10 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
     },
     async plan(input: { context: SourceContext; itemId: string; collectionId: string; entry: SiteRuleEdge['entry']; trigger: SavePlan['trigger'] }) {
       const { context: c } = input, settings = await policy(c.connectionId);
+      if (input.trigger.kind === 'observation' && settings.admittedAfterOrdinal !== undefined) {
+        const row = await db.read<{ ordinal: number }>('observations', input.trigger.observationId);
+        if (!row || row.ordinal <= settings.admittedAfterOrdinal) throw new Error('beforeSourceActivation');
+      }
       if (input.entry !== 'siteImport' && !settings.liveArchive) throw new Error('liveArchiveDisabled');
       // The remaining policies are enabled only after semantic bindings are installed in SA-07.
       if (settings.policy.copies !== 'sourceAndSemantic') throw new Error('copyPolicyNeedsReview');
@@ -92,7 +99,10 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
       if (facts.collection.parentId !== null) throw new Error('sourceAncestryNeedsReview');
       const edge: SiteRuleEdge = { entry: input.entry, purpose: 'sourceArchive', connectionId: c.connectionId, collectionId: input.collectionId };
       const { flat, decision } = await evaluate(edge, facts.item);
-      if (!decision) return { status: 'noMatch', snapshot: snapshot(flat) } as const;
+      if (!decision) {
+        if (flat.pausedSites?.some(site => admitsSiteEdge(site, edge))) throw new Error('sourceAutomationPaused');
+        return { status: 'noMatch', snapshot: snapshot(flat) } as const;
+      }
       if (decision.outcome !== 'placed' || !decision.folder) throw new Error(decision.reason ?? 'bindingUnavailable');
       const m = await mount(c.connectionId, decision.item.id, decision.folder.nativeId);
       const representation = { connectionId: c.connectionId, itemId: input.itemId, purpose: 'sourceArchive' as const, sourceCollectionId: input.collectionId, mountId: m.id };
@@ -118,7 +128,7 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
       } : { mountId: m.id, collectionId: input.collectionId, mountRevision: m.revision, parent: { kind: 'native', binding: m.root }, title: facts.collection.title }, { planId: id, effectId: 'folder' });
       const ensure: SaveEffect = { kind: 'ensureSourceFolder', effectId: 'folder', commandId: identity({ id, effect: 'folder' }), payloadDigest: '',
         dependsOn: [], reservationId: folder.id, folderReservationDigest: folder.payloadDigest };
-      const bookmark: SaveEffect = { kind: 'createBookmark', effectId: 'bookmark', commandId: identity({ id, effect: 'bookmark' }), payloadDigest: '',
+      const bookmark: SaveEffect = { kind: 'createBookmark', effectId: 'bookmark', commandId: identity({ representation, effect: 'bookmark' }), payloadDigest: '',
         dependsOn: ['folder'], representation, item: facts.item, parent: { kind: 'sourceFolder', reservationId: folder.id }, folderReservationDigest: folder.payloadDigest };
       ensure.payloadDigest = effectDigest(ensure); bookmark.payloadDigest = effectDigest(bookmark);
       const { payloadDigest: _digest, ...payload } = bookmark;
@@ -127,7 +137,7 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
         collectorGeneration: c.installationGeneration, sourceSessionGeneration: c.sourceSessionGeneration, importApprovalId: null,
         browserRules: snapshot(flat), rule: { source: 'browser', entry: decision.item.ref.kind === 'setRule' ? { kind: 'setRule', setId: decision.item.ref.setId!, ruleId: decision.item.id } : { kind: 'rule', ruleId: decision.item.id }, definitionDigest: sourceDigest({ definition: decision.item.definition, site: decision.item.site }) },
         mount: { id: m.id, revision: m.revision }, policyRevision: settings.policy.revision, classificationPolicyDigest: 'disabled', classification: 'disabled', effects: [ensure, bookmark] };
-      const fence: PlanFence = { edge: facts.edge, item: facts.item, collection: facts.collection, entry: input.entry, ruleDigest: plan.rule!.source === 'browser' ? plan.rule!.definitionDigest : '' };
+      const fence: PlanFence = { edge: facts.edge, item: facts.item, collection: facts.collection, representation, entry: input.entry, ruleDigest: plan.rule!.source === 'browser' ? plan.rule!.definitionDigest : '' };
       await db.transaction(['meta'], 'readwrite', async tx => {
         const key = `plan-fence:${id}`, old = await get<PlanFence>(tx, 'meta', key);
         if (old && sourceDigest(old) !== sourceDigest(fence)) throw new Error('sourceFactsChanged');
@@ -141,6 +151,7 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
       if (settings.policy.revision !== plan.policyRevision || plan.classificationPolicyDigest !== 'disabled' || !plan.mount || plan.rule?.source !== 'browser') throw new Error('sourcePolicyChanged');
       const fence = await db.read<PlanFence>('meta', `plan-fence:${plan.id}`);
       if (!fence || fence.entry !== 'siteImport' && !settings.liveArchive) throw new Error('sourceAuthorizationChanged');
+      if (plan.trigger.kind === 'import' && fence.representation && await db.read('representations', representationKey(fence.representation))) throw new Error('previewStale');
       const now = await current(plan.connectionId, fence.item.id, fence.collection.id);
       if (sourceDigest(now) !== sourceDigest({ edge: fence.edge, item: fence.item, collection: fence.collection })) throw new Error('sourceFactsChanged');
       const { flat, decision } = await evaluate({ entry: fence.entry, purpose: 'sourceArchive', connectionId: plan.connectionId, collectionId: fence.collection.id }, fence.item);

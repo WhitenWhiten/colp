@@ -71,7 +71,7 @@ const commandSchema = union(
     query: union(object({ kind: literal('collections'), cursor: union(str(L.cursor), literal(null)) }),
       object({ kind: literal('items'), collectionId: id, cursor: union(str(L.cursor), literal(null)) })) }),
   object({ ...commandFields, operation: literal('readMemberships'), readSessionId: id, readRequestId: id, query }),
-  object({ operation: literal('cancelRead'), readSessionId: id }), object({ operation: literal('invalidateLease', 'shutdown'), leaseId: id }),
+  object({ operation: literal('cancelRead'), readSessionId: id }), object({ operation: literal('invalidateLease', 'shutdown', 'renewLease'), leaseId: id }),
 );
 export const validBootstrap = (v: unknown): v is BootstrapRequest => jsonBytes(v, 4096) && bootstrapSchema(v);
 export const validObservation = (v: unknown): v is SiteObservation => jsonBytes(v, L.observationBytes) && observationSchema(v);

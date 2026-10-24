@@ -70,7 +70,7 @@ export function createSiteTransport(deps: TransportDeps) {
           accountId: s.accountId!, expiresAt: deps.now() + LIMITS.leaseMs }; s.leases.push(lease);
       }
       await deps.write(s);
-      return { status: 'ready', leaseId: lease.id, capability: lease.capability, routeEpoch: lease.routeEpoch, expiresAt: lease.expiresAt };
+      return { status: 'ready', leaseId: lease.id, capability: lease.capability, routeEpoch: lease.routeEpoch, expiresAt: lease.expiresAt, readerEpoch: JSON.stringify([s.generation, s.sourceGeneration, lease.documentId, lease.routeEpoch]) };
     }),
     authorize: (raw: unknown, sender: SiteSender): Promise<Lease | null> => serial(async () => {
       if (!validAdapterMessage(raw) || !validSiteSender(sender, deps.extensionId) || !await deps.permitted()) return null;

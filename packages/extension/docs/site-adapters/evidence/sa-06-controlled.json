@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "fixture": true,
+  "realSite": false,
+  "browserVersion": "149.0.7827.0",
+  "observedAt": "2026-10-24T13:49:32.766Z",
+  "preapprovalImportWrites": 0,
+  "liveCopiesBeforeApproval": 1,
+  "restart": "new document and CDP worker termination; restartAndDeduplicate",
+  "collectedEdges": 4,
+  "omittedRecords": 1,
+  "sameDocumentLeaseContinuation": true,
+  "catalogPages": 3,
+  "selectedCollectionsAcrossPages": true,
+  "staleApprovalRejected": true,
+  "finalNativeFolders": 3,
+  "finalNativeBookmarks": 4,
+  "modelCalls": 0,
+  "runner": "prepared OrbStack Linux arm64; forced xvfb",
+  "playwrightVersion": "1.61.1",
+  "result": {
+    "startTime": "2026-10-24T13:47:13.357Z",
+    "duration": 139819.353,
+    "expected": 1,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "durationMs": 139573,
+  "plannedRegression": {
+    "startTime": "2026-10-24T13:50:07.218Z",
+    "duration": 10671.073,
+    "expected": 1,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "lifecycleRegression": {
+    "startTime": "2026-10-24T13:50:33.903Z",
+    "duration": 29405.063000000002,
+    "expected": 1,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "productionSha256": {
+    "site-adapter.js": "ea88e87e919fd51b3c0216eade668d15b78bba5d5c11e4c872a904fe5a8d8a59",
+    "site-probe.js": "adce621480b74a7224f7bab51e2adfd3650898b9cb19d91c38de02d12ee1f359",
+    "service-worker.js": "bbecf913dea0d0f1187ab052b7a115f753e7caab6e09979cdc1214ecc757e972"
+  }
+}

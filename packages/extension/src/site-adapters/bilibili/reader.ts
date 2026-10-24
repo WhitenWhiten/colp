@@ -58,7 +58,7 @@ export class BilibiliReader {
   }
   async readCollectionsPage(accountId: string, cursor: string | null, ctx: HttpContext): Promise<SourcePage<SiteCollection>> {
     const replay = cursor && this.replays.get(`catalog:${cursor}`); if (replay) return structuredClone(replay) as SourcePage<SiteCollection>;
-    const b = cursor ? this.cursor(cursor, null) : this.create(null);
+    const b = structuredClone(cursor ? this.cursor(cursor, null) : this.create(null));
     if (b.response) return b.response as SourcePage<SiteCollection>;
     if (!cursor) {
       const data = record(await this.read({ kind: 'collections', accountId }, ctx));
@@ -82,7 +82,7 @@ export class BilibiliReader {
   async readItemsPage(collectionId: string, cursor: string | null, ctx: HttpContext): Promise<SourcePage<CollectionItem>> {
     if (!decimal(collectionId)) fail('invalidData');
     const replay = cursor && this.replays.get(`${collectionId}:${cursor}`); if (replay) return structuredClone(replay) as SourcePage<CollectionItem>;
-    const b = cursor ? this.cursor(cursor, collectionId) : this.create(collectionId);
+    const b = structuredClone(cursor ? this.cursor(cursor, collectionId) : this.create(collectionId));
     if (b.response) return b.response as SourcePage<CollectionItem>;
     if (!b.rows.length || b.offset >= b.rows.length) {
       if (b.nextPage > L.idPages) fail('capacity');

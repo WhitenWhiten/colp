@@ -1,7 +1,9 @@
+import { AUTOMATION_CHANGED_KEY } from '../automation/messages.js';
+import { createSourceArchiveRuntime } from './archive-runtime.js';
 import { createConfirmationQueue } from './confirmation-queue.js';
 import { installSourceLayout } from './layout-runtime.js';
 import { installSiteAdapterEvidence } from './evidence.js';
-import { installPlannedSaveRuntime, wakePlannedSaves } from './planned-runtime.js';
+import { installPlannedSaveRuntime, wakePlannedSaves, installSourceRecoveryScheduler } from './planned-runtime.js';
 import { siteLedger, synchronizeSourceAuthority, sourceContext, SITE_RECOVERY_ALARM } from './source-runtime.js';
 import type { AdapterMessage, HostCommand } from './contracts.js';
 import { validMembershipResult, validBootstrap } from './schemas.js';
@@ -33,8 +35,10 @@ export const siteTransport = createSiteTransport({ extensionId: chrome.runtime.i
   } });
 const activation = createReadScheduler(chrome.storage.local, 'known.siteAdapters.activation.v1');
 const reads = createReadScheduler(chrome.storage.local, 'known.siteAdapters.readQueue.v1');
-const INSPECTION = 'known.siteAdapters.inspection.v1';
-interface Inspection { command: Exclude<HostCommand, { operation: 'cancelRead' | 'invalidateLease' | 'shutdown' }>; documentId: string; result?: unknown }
+const INSPECTION = 'known.siteAdapters.inspection.v1', CATALOG = 'known.siteAdapters.catalog.v1';
+interface CatalogCache { context: string; items: import('./contracts.js').SiteCollection[]; nextCursor: string | null; outstanding: string | null }
+const catalogContext = (c: import('./ledger-types.js').SourceContext) => JSON.stringify([c.connectionId, c.installationGeneration, c.sourceSessionGeneration, c.documentId, c.routeEpoch]);
+interface Inspection { command: Exclude<HostCommand, { operation: 'cancelRead' | 'invalidateLease' | 'shutdown' | 'renewLease' }>; documentId: string; result?: unknown }
 async function senderCurrent(sender: SiteSender): Promise<boolean> {
   if (!validSiteSender(sender, chrome.runtime.id) || !await chrome.permissions.contains(grants) || !(await read()).enabled) return false;
   const frame = await chrome.webNavigation.getFrame({ tabId: sender.tab.id, frameId: 0 });
@@ -42,21 +46,27 @@ async function senderCurrent(sender: SiteSender): Promise<boolean> {
 }
 async function inspect(kind: 'collections' | 'items' | 'resolve', collectionId?: string, cursor: string | null = null) {
   await confirmations.wake();
-  const s = await read(), lease = s.leases.find(l => l.expiresAt > Date.now() && ports.has(l.id));
+  const source = await readableSiteSource();
+  if (!source) return { status: 'paused', retryAfterMs: LIMITS.spacingMs };
+  const s = await read(), lease = s.leases.find(l => l.id === source.context.leaseId);
   if (!lease) throw new Error('pageUnavailable');
+  const context = source.context;
+  const previous = (await chrome.storage.local.get(CATALOG))[CATALOG] as CatalogCache | undefined;
+  if (kind === 'collections' && cursor && (previous?.context !== catalogContext(context) || previous.nextCursor !== cursor || previous.outstanding)) throw new Error('staleCursor');
   const id = crypto.randomUUID(), deadlineAt = Math.min(Date.now() + LIMITS.commandMs, lease.expiresAt - 1000);
   const acquired = await reads.acquire({ id, documentId: lease.documentId, deadlineAt });
   if (acquired.status !== 'ready') return acquired;
   const command: Inspection['command'] = kind === 'resolve' ? { operation: 'resolveItem', leaseId: lease.id, resolutionId: id, url: lease.url, deadlineAt }
     : { operation: 'readPage', leaseId: lease.id, readSessionId: id, pageRequestId: id, deadlineAt,
       query: kind === 'collections' ? { kind, cursor } : { kind, collectionId: collectionId!, cursor } };
-  await chrome.storage.local.set({ [INSPECTION]: { command, documentId: lease.documentId } });
+  await chrome.storage.local.set({ [INSPECTION]: { command, documentId: lease.documentId }, ...(kind === 'collections' ? { [CATALOG]:
+    { context: catalogContext(context), items: cursor ? previous!.items : [], nextCursor: cursor, outstanding: id } satisfies CatalogCache } : {}) });
   ports.get(lease.id)!.postMessage(command);
   return { status: 'reading' };
 }
-async function acceptInspection(message: AdapterMessage, documentId: string) {
+async function acceptInspection(message: AdapterMessage, context: import('./ledger-types.js').SourceContext) {
   const stored = (await chrome.storage.local.get(INSPECTION))[INSPECTION] as Inspection | undefined;
-  if (!stored || stored.documentId !== documentId || stored.command.leaseId !== message.leaseId || stored.command.deadlineAt <= Date.now()) return false;
+  if (!stored || stored.documentId !== context.documentId || stored.command.leaseId !== message.leaseId || stored.command.deadlineAt <= Date.now()) return false;
   const c = stored.command;
   const matches = c.operation === 'readPage' && message.operation === 'page.result' && c.pageRequestId === message.pageRequestId && c.readSessionId === message.readSessionId
     && (message.result.status === 'failed' || (message.result.kind === c.query.kind && (message.result.kind !== 'items' || (c.query.kind === 'items' && message.result.collectionId === c.query.collectionId))))
@@ -64,26 +74,63 @@ async function acceptInspection(message: AdapterMessage, documentId: string) {
     || c.operation === 'readMemberships' && message.operation === 'membership.result' && c.readRequestId === message.readRequestId
       && c.readSessionId === message.readSessionId && validMembershipResult(message.result, c.query);
   if (!matches || !('result' in message)) return false;
-  if (stored.result !== undefined && JSON.stringify(stored.result) !== JSON.stringify(message.result)) return false;
-  await chrome.storage.local.set({ [INSPECTION]: { ...stored, result: message.result } });
+  if (stored.result !== undefined) return JSON.stringify(stored.result) === JSON.stringify(message.result);
+  let catalog: CatalogCache | undefined;
+  if (c.operation === 'readPage' && c.query.kind === 'collections' && message.operation === 'page.result') {
+    const cache = (await chrome.storage.local.get(CATALOG))[CATALOG] as CatalogCache | undefined;
+    if (!cache || cache.context !== catalogContext(context) || cache.outstanding !== c.pageRequestId) return false;
+    if (message.result.status === 'ok' && message.result.kind === 'collections') {
+      const combined = [...cache.items, ...message.result.page.items];
+      if (combined.length > 2000 || new Set(combined.map(c => c.id)).size !== combined.length) return false;
+      catalog = { ...cache, items: combined, outstanding: null, nextCursor: message.result.page.nextCursor };
+    } else catalog = { ...cache, outstanding: null, nextCursor: null };
+  }
+  await chrome.storage.local.set({ [INSPECTION]: { ...stored, result: message.result }, ...(catalog ? { [CATALOG]: catalog } : {}) });
   const error = message.result.status === 'failed' ? message.result.error : null;
   await reads.finish(message.requestId, error?.retryAfterMs);
   return true;
 }
 const ports = new Map<string, chrome.runtime.Port>();
-let confirmationTimer: ReturnType<typeof setTimeout> | undefined;
-const confirmations = createConfirmationQueue(siteLedger, reads, {
-  source: async () => {
-    const s = await read(), lease = s.leases.find(l => l.expiresAt > Date.now() && ports.has(l.id));
-    return lease ? { context: await sourceContext(lease), expiresAt: lease.expiresAt } : null;
-  },
-  send: (c, command) => { const port = ports.get(c.leaseId); if (!port) throw new Error('pageUnavailable'); port.postMessage(command); },
-  alarm: at => {
-    chrome.alarms.create(SITE_RECOVERY_ALARM, { when: at });
-    clearTimeout(confirmationTimer);
-    confirmationTimer = setTimeout(() => { void confirmations.wake().catch(() => undefined); }, Math.max(50, at - Date.now()));
+let workTimer: ReturnType<typeof setTimeout> | undefined, workAt = Infinity;
+function scheduleSourceWork(at: number) {
+  if (workTimer && at >= workAt) return;
+  workAt = at; clearTimeout(workTimer);
+  chrome.alarms.create(SITE_RECOVERY_ALARM, { when: at });
+  workTimer = setTimeout(() => { workAt = Infinity; workTimer = undefined; void wakeSourceWork().catch(() => undefined); }, Math.max(50, at - Date.now()));
+}
+async function currentSiteSource() {
+  const s = await read(), lease = s.leases.find(l => l.expiresAt > Date.now() && ports.has(l.id));
+  return lease ? { context: await sourceContext(lease), expiresAt: lease.expiresAt } : null;
+}
+const sendSiteCommand = (c: import('./ledger-types.js').SourceContext, command: HostCommand) => {
+  const port = ports.get(c.leaseId); if (!port) throw new Error('pageUnavailable'); port.postMessage(command);
+};
+let renewingLease: string | undefined;
+async function readableSiteSource() {
+  const source = await currentSiteSource(); if (!source) return null;
+  if (source.expiresAt - Date.now() < LIMITS.commandMs + 1000 && ((await reads.current()).active?.deadlineAt ?? 0) <= Date.now()) {
+    if (renewingLease !== source.context.leaseId) { renewingLease = source.context.leaseId; sendSiteCommand(source.context, { operation: 'renewLease', leaseId: source.context.leaseId }); }
+    scheduleSourceWork(Date.now() + LIMITS.spacingMs); return null;
+  }
+  return source;
+}
+const confirmations = createConfirmationQueue(siteLedger, reads, { source: readableSiteSource, send: sendSiteCommand, alarm: scheduleSourceWork });
+const archives = createSourceArchiveRuntime(reads, { source: currentSiteSource, readSource: readableSiteSource, send: sendSiteCommand, alarm: scheduleSourceWork,
+  prioritizeLive: () => confirmations.wake(),
+  catalog: async () => {
+    const source = await currentSiteSource(), cache = (await chrome.storage.local.get(CATALOG))[CATALOG] as CatalogCache | undefined;
+    if (!source || !cache || cache.context !== catalogContext(source.context) || cache.outstanding) throw new Error('refreshCatalogRequired');
+    return cache.items;
   },
 });
+let working: Promise<void> | undefined, workWanted = false;
+function wakeSourceWork(): Promise<void> {
+  if (working) { workWanted = true; return working; }
+  return working = (async () => {
+    if ((await read()).enabled) { await confirmations.wake(); await archives.live.wake(); }
+    await archives.importer.wake(); await wakePlannedSaves();
+  })().finally(() => { working = undefined; if (workWanted) { workWanted = false; scheduleSourceWork(Date.now() + 50); } });
+}
 function disconnectAll() { for (const [id, p] of ports) { try { p.postMessage({ operation: 'shutdown', leaseId: id }); p.disconnect(); } catch { /* gone */ } } ports.clear(); }
 function management(sender: SiteSender) {
   if (sender.id !== chrome.runtime.id || !sender.url) return false;
@@ -120,6 +167,7 @@ const confirmSchema = object({ kind: literal('known.siteAdapters.confirm'), acco
 export function installSiteAdapters() {
   installPlannedSaveRuntime();
   installSourceLayout();
+  installSourceRecoveryScheduler(scheduleSourceWork);
   if (__KNOWN_EXTENSION_EVIDENCE__) installSiteAdapterEvidence();
   // Registered synchronously; initialization is awaited inside each handler.
   chrome.runtime.onMessage.addListener((raw, sender, respond) => {
@@ -151,7 +199,7 @@ export function installSiteAdapters() {
         return reply;
       })().then(respond, () => respond({ status: 'unavailable', reason: 'disabled' })); return true;
     }
-    if (!management(sender) || !(statusSchema(raw) || enableSchema(raw) || confirmSchema(raw) || inspectSchema(raw) || retrySchema(raw))) return false;
+    if (!management(sender) || !(statusSchema(raw) || enableSchema(raw) || confirmSchema(raw) || inspectSchema(raw) || retrySchema(raw) || archives.valid(raw))) return false;
     void (async () => {
       if (enableSchema(raw)) {
         if (d!.enabled && !await chrome.permissions.contains(grants)) throw new Error('permissionRequired');
@@ -165,14 +213,19 @@ export function installSiteAdapters() {
         await reconcile(); if (d!.enabled) await injectOpen();
       }
       if (confirmSchema(raw)) { await siteTransport.confirm(d!.accountId!); await synchronizeSourceAuthority(await read()); disconnectAll(); await injectOpen(); }
+      let archiveResult: unknown;
+      if (archives.valid(raw)) archiveResult = await archives.handle(raw);
       let inspectionStatus: unknown;
       if (retrySchema(raw)) await confirmations.retry();
       if (inspectSchema(raw)) {
         const q = raw as { operation: 'collections' | 'items' | 'resolve'; collectionId?: string; cursor?: string | null };
         inspectionStatus = await inspect(q.operation, q.collectionId, q.cursor);
       }
-      return { ...await siteTransport.status(), capabilities: { itemIdentity: 'avAndBv', observation: 'freshPositiveMembership', humanActionProof: 'unavailable',
-        negativeMembership: 'unavailable', shortLinks: 'unavailable', collectionChanges: 'explicitCatalogRead', nativeWrites: 'unavailable' },
+      const archiveState = await archives.status();
+      const siteStatus = await siteTransport.status();
+      const writes = siteStatus.enabled && siteStatus.connected && archiveState.config?.state === 'active' && await chrome.permissions.contains({ permissions: ['bookmarks'] });
+      return { ...siteStatus, mode: writes ? 'localArchive' : 'inspector', writes, archive: archiveState, ...(archiveResult ? { archiveResult } : {}), capabilities: { itemIdentity: 'avAndBv', observation: 'freshPositiveMembership', humanActionProof: 'unavailable',
+        negativeMembership: 'unavailable', shortLinks: 'unavailable', collectionChanges: 'explicitCatalogRead', nativeWrites: archiveState.config?.state === 'active' ? 'previewApprovalOrEnabledLivePolicy' : 'unavailable' },
       confirmations: await confirmations.status(), ...(inspectionStatus ? { inspectionStatus } : {}), inspection: (await chrome.storage.local.get(INSPECTION))[INSPECTION] ?? null };
     })().then(respond, e => respond({ error: e instanceof Error ? e.message : 'unavailable' })); return true;
   });
@@ -191,15 +244,19 @@ export function installSiteAdapters() {
         leaseId = lease.id;
         const old = ports.get(lease.id); ports.set(lease.id, port); if (old && old !== port) old.disconnect();
         if (raw.operation.endsWith('.result')) {
-          const inspected = await confirmations.accept(await sourceContext(lease), raw) || await acceptInspection(raw, lease.documentId);
+          const context = await sourceContext(lease);
+          const confirmed = await confirmations.accept(context, raw);
+          const imported = !confirmed ? await archives.importer.accept(context, raw) : null;
+          if (imported) { port.postMessage({ operation: 'reply', requestId: raw.requestId, reply: imported }); return; }
+          const inspected = confirmed || await acceptInspection(raw, context);
           port.postMessage({ operation: 'reply', requestId: raw.requestId, reply: inspected ? { status: 'readResult', value: 'inspected' } : { status: 'rejected', reason: 'staleContext' } }); return;
         }
         if (raw.operation === 'membership.hint') {
           const receipt = await confirmations.enqueue(await sourceContext(lease), raw.requestId, raw.hint);
           port.postMessage({ operation: 'reply', requestId: raw.requestId, reply: receipt });
-          void confirmations.wake().catch(() => undefined); return;
+          scheduleSourceWork(Date.now() + 50); return;
         }
-        if (raw.operation === 'connect') { void confirmations.wake().catch(() => undefined); }
+        if (raw.operation === 'connect') { scheduleSourceWork(Date.now() + 50); }
         if (raw.operation === 'emit') {
           chrome.alarms.create(SITE_RECOVERY_ALARM, { when: Date.now() + 30000 });
           const receipt = await siteLedger.acceptObservation(await sourceContext(lease), raw.requestId, raw.data);
@@ -230,17 +287,18 @@ export function installSiteAdapters() {
     navigationInstalled = true;
   };
   installNavigation();
+  chrome.storage.onChanged.addListener((changes, area) => { if (area === 'local' && changes[AUTOMATION_CHANGED_KEY]) scheduleSourceWork(Date.now() + 50); });
   chrome.permissions.onAdded.addListener(() => { installNavigation(); void reconcile().catch(() => undefined); });
   chrome.tabs.onRemoved.addListener(id => { void siteTransport.invalidate(id).then(() => siteLedger.revokeDocuments(id)).catch(() => undefined); });
   chrome.permissions.onRemoved.addListener(() => {
     void siteTransport.invalidate().then(async () => { await synchronizeSourceAuthority(await read()); disconnectAll(); await reconcile(); }).catch(() => undefined);
   });
-  chrome.alarms.onAlarm.addListener(alarm => { if (alarm.name === SITE_RECOVERY_ALARM) void synchronizeSourceAuthorityFromCurrent().then(async () => { await confirmations.wake(); await wakePlannedSaves(); }).catch(() => undefined); });
-  chrome.runtime.onStartup.addListener(() => { void reconcile().then(async () => { await confirmations.wake(); await wakePlannedSaves(); }).catch(() => undefined); });
+  chrome.alarms.onAlarm.addListener(alarm => { if (alarm.name === SITE_RECOVERY_ALARM) void synchronizeSourceAuthorityFromCurrent().then(async () => { await wakeSourceWork(); }).catch(() => undefined); });
+  chrome.runtime.onStartup.addListener(() => { void reconcile().then(async () => { await wakeSourceWork(); }).catch(() => undefined); });
   chrome.runtime.onInstalled.addListener(() => {
     void siteTransport.invalidate().then(async () => { disconnectAll(); await reconcile(); await injectOpen(); }).catch(() => undefined);
   });
-  void reconcile().then(async () => { await confirmations.wake(); await wakePlannedSaves(); }).catch(() => undefined);
+  void reconcile().then(async () => { await wakeSourceWork(); }).catch(() => undefined);
 }
 
 async function synchronizeSourceAuthorityFromCurrent() { await synchronizeSourceAuthority(await read()); }

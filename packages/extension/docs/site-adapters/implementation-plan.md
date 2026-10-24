@@ -17,7 +17,7 @@ Initial scope: bundled code on the tested `https://www.bilibili.com/*` origin, t
 
 ## Ordered work packages
 
-Current task statuses are tracked in the execution evidence. SA-00–SA-05 are complete, with SA-02 explicitly limited to positive observation, av/BV video identity, and bounded read-only enumeration. Negative readback and human-action proof remain unavailable. Acceptance numbers below refer to the numbered [README matrix](README.md#implementation-sequence-and-acceptance); they identify tests a task must contribute, not results already obtained. Proposed module directories are listed in the [module map](README.md#module-responsibilities).
+Current task statuses are tracked in the execution evidence. SA-00–SA-06 are complete, with SA-02 explicitly limited to positive observation, av/BV video identity, and bounded read-only enumeration. Negative readback and human-action proof remain unavailable. Acceptance numbers below refer to the numbered [README matrix](README.md#implementation-sequence-and-acceptance); they identify tests a task must contribute, not results already obtained. Proposed module directories are listed in the [module map](README.md#module-responsibilities).
 
 | Task / phase | Depends on | Implementation and existing touchpoints | Exit evidence |
 | --- | --- | --- | --- |

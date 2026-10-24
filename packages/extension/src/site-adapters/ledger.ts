@@ -21,7 +21,21 @@ async function ordinal(tx: IDBTransaction): Promise<number> {
   const current = await get<number>(tx, 'meta', 'ordinal') ?? 0; put(tx, 'meta', 'ordinal', current + 1); return current + 1;
 }
 async function capacity(tx: IDBTransaction, store: 'observations' | 'receipts', max: number) {
-  if (await requestValue(tx.objectStore(store).count()) >= max) throw new Error('capacity');
+  const count = store === 'observations' ? await pendingObservations(tx) : await requestValue(tx.objectStore(store).count());
+  if (count >= max) throw new Error('capacity');
+  if (store === 'observations') put(tx, 'meta', 'pendingObservations', count + 1);
+}
+async function pendingObservations(tx: IDBTransaction): Promise<number> {
+  const store = tx.objectStore('observations');
+  return await requestValue(store.count()) - await requestValue(store.index('state').count('settled'));
+}
+/** Settling work retains its receipt and complete facts; it frees only pending admission capacity. */
+export async function settleSourceObservation(db: SourceDatabase, id: string, result: { reason: string; planIds: readonly string[]; edges?: readonly { collectionId: string; status: string }[] }) {
+  await db.transaction(['observations', 'meta'], 'readwrite', async tx => {
+    const row = await get<ObservationRow>(tx, 'observations', id); if (!row || row.state === 'settled') return;
+    const count = await pendingObservations(tx);
+    put(tx, 'observations', id, { ...row, state: 'settled', planning: result }); put(tx, 'meta', 'pendingObservations', Math.max(0, count - 1));
+  });
 }
 const rejected = (e: unknown): LedgerAdmission => ({ status: 'rejected', reason: e instanceof Error
   && ['staleContext', 'conflict', 'capacity'].includes(e.message) ? e.message as 'staleContext' | 'conflict' | 'capacity' : 'invalid' });
@@ -103,12 +117,13 @@ export function createSourceLedger(db: SourceDatabase = createSourceDatabase(), 
       return db.transaction(['authorities', 'documentLeases', 'importRuns', 'readRequests'], 'readwrite', async tx => {
         await requireSourceAuthority(tx, request.context);
         const run = await get<SourceImportRun>(tx, 'importRuns', request.runId);
-        if (!run || run.phase !== 'scanning' || run.outstanding || request.deadlineAt <= now()) throw new Error('staleContext');
+        if (!run || run.context.connectionId !== request.context.connectionId || run.context.installationGeneration !== request.context.installationGeneration
+          || run.context.sourceSessionGeneration !== request.context.sourceSessionGeneration || run.phase !== 'scanning' || run.outstanding || request.deadlineAt <= now()) throw new Error('staleContext');
         const old = await get(tx, 'readRequests', request.id); if (old) throw new Error('conflict');
         put(tx, 'readRequests', request.id, { ...request, kind: 'page' }); put(tx, 'importRuns', run.id, { ...run, outstanding: request.id });
       });
     },
-    async acceptPage(context: SourceContext, requestId: string, result: PageResult): Promise<LedgerAdmission> {
+    async acceptPage(context: SourceContext, requestId: string, result: PageResult, commit?: (tx: IDBTransaction, receipt: SourceReceipt) => Promise<void>): Promise<LedgerAdmission> {
       if (!validPageResult(result)) return { status: 'rejected', reason: 'invalid' };
       const digest = sourceDigest(result), key = sourceKey('page', requestId);
       try { return await db.transaction([...facts, 'readRequests', 'importRuns', 'importPages'], 'readwrite', async tx => {
@@ -120,6 +135,7 @@ export function createSourceLedger(db: SourceDatabase = createSourceDatabase(), 
         if (run.phase !== 'scanning' || run.outstanding !== requestId || request.deadlineAt <= now()) throw new Error('staleContext');
         if (result.status === 'ok' && (request.query.kind !== result.kind || result.kind === 'items'
           && (request.query.kind !== 'items' || request.query.collectionId !== result.collectionId))) throw new Error('invalid');
+        await capacity(tx, 'receipts', 100000);
         const receipt: SourceReceipt = { id: random(), digest, ordinal: await ordinal(tx) };
         if (result.status === 'ok') {
           if (!validBilibiliMessage({ protocolVersion: 1, requestId, leaseId: context.leaseId, capability: 'host-validated', operation: 'page.result', readSessionId: run.id, pageRequestId: requestId, result })) throw new Error('invalid');
@@ -135,7 +151,8 @@ export function createSourceLedger(db: SourceDatabase = createSourceDatabase(), 
           put(tx, 'importRuns', run.id, { ...run, seenItems: [...seen], seenCursors: result.page.nextCursor ? [...run.seenCursors, cursorKey] : run.seenCursors, cursor: result.page.nextCursor, outstanding: null,
             coverage: run.coverage === 'partial' || result.page.coverage === 'partial' ? 'partial' : 'complete' });
         } else put(tx, 'importRuns', run.id, { ...run, phase: 'stopped', coverage: 'partial', outstanding: null });
-        put(tx, 'receipts', key, receipt); put(tx, 'importPages', requestId, { request, receipt, result }); options.beforeCommit?.(tx);
+        put(tx, 'receipts', key, receipt); put(tx, 'importPages', requestId, { request, receipt, result });
+        await commit?.(tx, receipt); options.beforeCommit?.(tx);
         return { status: 'accepted', receiptId: receipt.id };
       }); } catch (e) { return rejected(e); }
     },

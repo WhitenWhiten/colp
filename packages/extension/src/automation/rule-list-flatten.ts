@@ -49,6 +49,7 @@ export interface FlatList {
   readonly contentVersions: Readonly<Record<string, string>>;
   /** Switched-on rules passed over: a collection's site they name is gone, or its subscription is. */
   readonly needsAttention: readonly string[];
+  readonly pausedSites?: readonly BrowserSiteRuleExtension[];
 }
 
 function ruleItem(rule: LocalRule, set: LocalSet | null): FlatItem {
@@ -62,17 +63,18 @@ export function flattenList(list: RuleListRecord, subscriptions: SubscriptionLoo
   context: { readonly accountPaused?: boolean } = {}): FlatList {
   const stopped = context.accountPaused ? 'accountPaused' : list.enabled ? null : 'listOff';
   const items: FlatItem[] = [], skippedSources: FlatList['skippedSources'][number][] = [], contentVersions: Record<string, string> = {};
-  const needsAttention: string[] = [];
-  if (stopped) return { revision: list.revision, items, stopped, skippedSources, contentVersions, needsAttention };
+  const needsAttention: string[] = [], pausedSites: BrowserSiteRuleExtension[] = [];
+  if (stopped) return { revision: list.revision, items, stopped, skippedSources, contentVersions, needsAttention, ...(pausedSites.length ? { pausedSites } : {}) };
   const current = (id: string) => { const content = subscriptions(id); return content?.ready ? content.contentVersion : null; };
   const add = (rule: LocalRule, set: LocalSet | null) => {
-    if (!rule.enabled) return;
+    if (!rule.enabled) { if (rule.site) pausedSites.push(rule.site); return; }
     if (collectionStale(rule, current)) needsAttention.push(rule.id); else items.push(ruleItem(rule, set));
   };
   for (const entry of list.entries) {
     if (entry.kind === 'rule') { add(entry.rule, null); continue; }
     if (entry.kind === 'set') {
       if (entry.set.enabled) for (const rule of entry.set.rules) add(rule, entry.set);
+      else for (const rule of entry.set.rules) if (rule.site) pausedSites.push(rule.site);
       continue;
     }
     if (!entry.enabled) continue;
@@ -81,5 +83,5 @@ export function flattenList(list: RuleListRecord, subscriptions: SubscriptionLoo
     if (content.contentVersion) contentVersions[entry.subscriptionId] = content.contentVersion;
     items.push(...content.items);
   }
-  return { revision: list.revision, items, stopped, skippedSources, contentVersions, needsAttention };
+  return { revision: list.revision, items, stopped, skippedSources, contentVersions, needsAttention, ...(pausedSites.length ? { pausedSites } : {}) };
 }

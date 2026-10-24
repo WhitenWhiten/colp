@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { test, expect } from 'vitest';
-import { createSourceDatabase, sourceKey } from '../src/site-adapters/source-db.js';
+import { createSourceDatabase, sourceKey, SOURCE_STORES } from '../src/site-adapters/source-db.js';
 import { createSourceLedger } from '../src/site-adapters/ledger.js';
 import { createSourceReservations } from '../src/site-adapters/reservations.js';
 import type { LedgerEdge, SourceContext, SourceImportRun } from '../src/site-adapters/ledger-types.js';
@@ -101,10 +101,10 @@ test('single-copy intents serialize across purposes; manual delete suppresses re
 });
 test('future database versions stay intact and disabled instead of resetting source data', async () => {
   const factory = new IDBFactory();
-  const future = await new Promise<IDBDatabase>((resolve, reject) => { const r = factory.open('known-site-adapters', 2);
+  const future = await new Promise<IDBDatabase>((resolve, reject) => { const r = factory.open('known-site-adapters', 3);
     r.onupgradeneeded = () => { r.result.createObjectStore('future').put('keep', 'sentinel'); }; r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
   future.close(); await expect(createSourceDatabase(factory).open()).rejects.toThrow('schemaIncompatible');
-  const reopened = await new Promise<IDBDatabase>((resolve, reject) => { const r = factory.open('known-site-adapters', 2); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
+  const reopened = await new Promise<IDBDatabase>((resolve, reject) => { const r = factory.open('known-site-adapters', 3); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
   const value = await new Promise<unknown>(resolve => { const r = reopened.transaction('future').objectStore('future').get('sentinel'); r.onsuccess = () => resolve(r.result); });
   expect(value).toBe('keep'); reopened.close();
 });
@@ -125,4 +125,19 @@ test('capacity pauses admission without evicting unfinished observations', async
   });
   expect(await h.ledger.acceptObservation(h.context, 'overflow', observation)).toMatchObject({ status: 'rejected', reason: 'capacity' });
   expect(await h.db.read('meta', 'ordinal')).toBeUndefined(); expect(await h.db.read('observations', '0')).toMatchObject({ state: 'pending' });
+});
+test('source v1 upgrades to indexed pending work without changing facts or unknown native receipts', async () => {
+  const factory = new IDBFactory(), name = 'source-upgrade';
+  const old = await new Promise<IDBDatabase>((resolve, reject) => { const r = factory.open(name, 1);
+    r.onupgradeneeded = () => { for (const s of SOURCE_STORES) r.result.createObjectStore(s); }; r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
+  await new Promise<void>((resolve, reject) => { const tx = old.transaction(['observations', 'outbox'], 'readwrite');
+    tx.objectStore('observations').put({ id: 'pending', state: 'pending', ordinal: 7, observation }, 'pending');
+    tx.objectStore('outbox').put({ state: 'unknown', digest: 'retained' }, 'native-command'); tx.oncomplete = () => resolve(); tx.onabort = () => reject(tx.error); });
+  old.close(); const db = createSourceDatabase(factory, name), upgraded = await db.open(); expect(upgraded.version).toBe(2);
+  expect(await db.read('outbox', 'native-command')).toEqual({ state: 'unknown', digest: 'retained' });
+  expect(await db.read('observations', 'pending')).toMatchObject({ state: 'pending', ordinal: 7 });
+  const count = await db.transaction(['observations'], 'readonly', tx => new Promise<number>((resolve, reject) => {
+    const r = tx.objectStore('observations').index('stateOrdinal').count(IDBKeyRange.bound(['pending', 0], ['pending', Number.MAX_SAFE_INTEGER]));
+    r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error);
+  })); expect(count).toBe(1); await db.close();
 });

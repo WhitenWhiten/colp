@@ -1,16 +1,79 @@
 import { BILIBILI } from './bilibili/identity.js';
+interface ImportStatus { id: string; phase: string; edgeCount: number; pages: number; omissions: number; coverage: string; reason: string | null; nextEdge: number; nextPlan: number;
+  preview: { id: string; revision: number; digest: string; coverage: string; counts: { createFolders: number; createBookmarks: number; reuseBookmarks: number; review: number }; omissions?: { samples: readonly { id: string; reason: string }[]; unscannedRemainder: boolean } } | null }
+interface SiteStatus { inspectionStatus?: { status: string; retryAfterMs?: number }; candidateAccount?: string | null; error?: string; confirmations?: { pending: number };
+  inspection?: { command: { deadlineAt: number; pageRequestId?: string; query?: { cursor: string | null } }; result?: { status: string; kind?: string; page?: { items: { id: string; title: string }[]; nextCursor: string | null } } };
+  archive?: { config: { root: { nativeId: string }; collectionIds: readonly string[]; live: boolean; state: string } | null; import: ImportStatus | null } }
+const root = document.querySelector<HTMLSelectElement>('#archive-root')!, collections = document.querySelector<HTMLSelectElement>('#archive-collections')!;
+let lastImport: ImportStatus | null = null, lastCatalog: string | undefined, lastConfig: string | undefined;
+let activeRoot = '', nextCatalog: string | null = null;
+const collectionSelection = new Set<string>();
+const catalogItems = new Map<string, { id: string; title: string }>();
+const button = (id: string) => document.querySelector<HTMLButtonElement>(`#${id}`)!;
+function renderArchive(result: SiteStatus) {
+  const catalog = result.inspection;
+  if (catalog?.result?.status === 'ok' && catalog.result.kind === 'collections' && catalog.result.page && catalog.command.pageRequestId !== lastCatalog) {
+    lastCatalog = catalog.command.pageRequestId;
+    if (!catalog.command.query?.cursor) catalogItems.clear();
+    for (const c of catalog.result.page.items) catalogItems.set(c.id, c);
+    nextCatalog = catalog.result.page.nextCursor; button('next-catalog').disabled = !nextCatalog;
+
+    collections.replaceChildren(...Array.from(catalogItems.values()).map(c => { const o = document.createElement('option'); o.value = c.id; o.textContent = c.title;
+      o.selected = collectionSelection.has(c.id); return o; }));
+  }
+  if (!result.archive) return;
+  const { config, import: job } = result.archive; lastImport = job;
+  const signature = JSON.stringify(config);
+  if (signature !== lastConfig) { lastConfig = signature; collectionSelection.clear(); for (const id of config?.collectionIds ?? []) collectionSelection.add(id);
+    for (const o of Array.from(collections.options)) o.selected = collectionSelection.has(o.value);
+    activeRoot = config?.root.nativeId ?? '';
+    if (Array.from(root.options).some(o => o.value === activeRoot)) root.value = activeRoot;
+    document.querySelector<HTMLInputElement>('#archive-live')!.checked = config?.live ?? false;
+  }
+  button('start-import').disabled = config?.state !== 'active' || !!job && !['cancelled', 'completed'].includes(job.phase);
+  button('freeze-import').disabled = !job || !['scanning', 'paused', 'preview', 'attention'].includes(job.phase);
+  button('freeze-import').textContent = job?.phase === 'preview' || job?.phase === 'attention' ? 'Refresh preview' : 'Stop and build preview';
+  button('resume-import').disabled = job?.phase !== 'paused';
+  button('approve-import').disabled = job?.phase !== 'preview' || !job.preview;
+  button('cancel-import').disabled = !job || ['cancelled', 'completed'].includes(job.phase);
+  const summary = document.querySelector('#import-summary')!;
+  if (!job) summary.textContent = 'No import started.';
+  else if (job.phase === 'preview' && job.preview) { const c = job.preview.counts;
+    summary.textContent = `${job.coverage} preview: ${c.createFolders} new folders, ${c.createBookmarks} new bookmarks, ${c.reuseBookmarks} existing copies, ${c.review} requiring review. ${job.omissions} known omissions/read failures.${job.preview.omissions?.unscannedRemainder ? ' Unscanned remainder is unknown.' : ''} No import writes yet. ${job.preview.omissions?.samples.map(o => `${o.id}: ${o.reason}`).join('; ') ?? ''}`;
+  } else summary.textContent = `${job.phase}: ${job.edgeCount} collected memberships, ${job.pages} pages, ${job.omissions} omissions (${job.coverage}). ${job.nextPlan} item plans confirmed.${job.reason ? ` ${job.reason}` : ''}`;
+}
+async function loadRoots() {
+  if (!await chrome.permissions.contains({ permissions: ['bookmarks'] })) return;
+  const selected = root.value || activeRoot; const options: HTMLOptionElement[] = [];
+  const walk = (nodes: readonly chrome.bookmarks.BookmarkTreeNode[], path: string[]) => {
+    for (const node of nodes) { if (node.url) continue; const next = node.title ? [...path, node.title] : path;
+      if (node.parentId) { const o = document.createElement('option'); o.value = node.id; o.textContent = next.join(' / '); options.push(o); }
+      walk(node.children ?? [], next);
+    }
+  };
+  walk(await chrome.bookmarks.getTree(), []); root.replaceChildren(new Option('Choose a root', ''), ...options); root.value = selected;
+}
 const status = document.querySelector<HTMLPreElement>('#status')!;
 const confirm = document.querySelector<HTMLButtonElement>('#confirm')!;
 let candidate: string | null = null;
+let inspectionRetry: ReturnType<typeof setTimeout> | undefined;
 let refreshTimer: ReturnType<typeof setTimeout> | undefined;
 async function send(message: unknown) {
   clearTimeout(refreshTimer);
-  const result = await chrome.runtime.sendMessage(message) as { candidateAccount?: string | null; confirmations?: { pending: number }; inspection?: { command: { deadlineAt: number }; result?: unknown } };
+  const result = await chrome.runtime.sendMessage(message) as SiteStatus;
   candidate = result.candidateAccount ?? null; confirm.hidden = !candidate;
   document.querySelector('#connection')!.textContent = candidate ? `Detected account ${candidate}. Confirm the account you want to connect.` : '';
   status.textContent = JSON.stringify(result, null, 2);
-  if (result.confirmations?.pending || result.inspection && !result.inspection.result && result.inspection.command.deadlineAt > Date.now())
+  renderArchive(result);
+  if (result.archive?.import && ['scanning', 'preparing', 'approved'].includes(result.archive.import.phase) || result.confirmations?.pending || result.inspection && !result.inspection.result && result.inspection.command.deadlineAt > Date.now())
     refreshTimer = setTimeout(() => { void send({ kind: 'known.siteAdapters.status' }); }, 500);
+  return result;
+}
+async function requestInspection(message: unknown, until = Date.now() + 30000) {
+  clearTimeout(inspectionRetry);
+  const result = await send(message);
+  if (result.inspectionStatus?.status === 'paused' && Date.now() < until)
+    inspectionRetry = setTimeout(() => { void requestInspection(message, until); }, Math.max(500, result.inspectionStatus.retryAfterMs ?? 1500));
 }
 document.querySelector('#enable')!.addEventListener('click', () => {
   void chrome.permissions.request({ permissions: ['scripting', 'webNavigation'], origins: [...BILIBILI.matches] }).then(granted => {
@@ -22,7 +85,23 @@ document.querySelector('#refresh')!.addEventListener('click', () => { void send(
 confirm.addEventListener('click', () => { if (candidate) void send({ kind: 'known.siteAdapters.confirm', accountId: candidate }); });
 void send({ kind: 'known.siteAdapters.status' });
 
-document.querySelector('#read-catalog')!.addEventListener('click', () => { void send({ kind: 'known.siteAdapters.inspect', operation: 'collections' }); });
-document.querySelector('#read-item')!.addEventListener('click', () => { void send({ kind: 'known.siteAdapters.inspect', operation: 'resolve' }); });
+document.querySelector('#read-catalog')!.addEventListener('click', () => { void requestInspection({ kind: 'known.siteAdapters.inspect', operation: 'collections' }); });
+document.querySelector('#read-item')!.addEventListener('click', () => { void requestInspection({ kind: 'known.siteAdapters.inspect', operation: 'resolve' }); });
 
 document.querySelector('#retry-confirmation')!.addEventListener('click', () => { void send({ kind: 'known.siteAdapters.retryConfirmation' }); });
+
+button('grant-archive').addEventListener('click', () => { void chrome.permissions.request({ permissions: ['bookmarks'] }).then(granted => { if (granted) return loadRoots(); }); });
+button('configure-archive').addEventListener('click', () => { void send({ kind: 'known.siteAdapters.archive.configure', rootNativeId: root.value,
+  collectionIds: Array.from(collectionSelection), live: document.querySelector<HTMLInputElement>('#archive-live')!.checked }); });
+button('disable-archive').addEventListener('click', () => { void send({ kind: 'known.siteAdapters.archive.disable' }); });
+button('start-import').addEventListener('click', () => { void send({ kind: 'known.siteAdapters.import.start' }); });
+button('freeze-import').addEventListener('click', () => { if (lastImport) void send({ kind: 'known.siteAdapters.import.freeze', jobId: lastImport.id }); });
+button('resume-import').addEventListener('click', () => { if (lastImport) void send({ kind: 'known.siteAdapters.import.resume', jobId: lastImport.id }); });
+button('cancel-import').addEventListener('click', () => { if (lastImport) void send({ kind: 'known.siteAdapters.import.cancel', jobId: lastImport.id }); });
+button('approve-import').addEventListener('click', () => { const p = lastImport?.preview; if (p && lastImport) { button('approve-import').disabled = true;
+  void send({ kind: 'known.siteAdapters.import.approve', jobId: lastImport.id, previewId: p.id, revision: p.revision, digest: p.digest }); } });
+void loadRoots();
+
+button('next-catalog').addEventListener('click', () => { if (nextCatalog) void requestInspection({ kind: 'known.siteAdapters.inspect', operation: 'collections', cursor: nextCatalog }); });
+
+collections.addEventListener('change', () => { for (const o of Array.from(collections.options)) { if (o.selected) collectionSelection.add(o.value); else collectionSelection.delete(o.value); } });

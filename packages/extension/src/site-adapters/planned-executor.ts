@@ -42,7 +42,7 @@ export function createPlannedSaveExecutor(db: SourceDatabase, ports: PlannedExec
     if (plan.trigger.kind === 'import') {
       const approval = plan.importApprovalId && await db.read<ImportApproval>('importApprovals', plan.importApprovalId);
       const preview = approval && await db.read<ImportPreview>('importPreviews', approval.previewId);
-      if (!approval || !preview || approval.importRunId !== plan.trigger.importRunId || approval.previewId !== plan.trigger.previewId
+      if (!approval || approval.state === 'cancelled' || !preview || approval.importRunId !== plan.trigger.importRunId || approval.previewId !== plan.trigger.previewId
         || approval.previewDigest !== preview.digest || approval.previewRevision !== preview.revision || !preview.planIds.includes(plan.id)) throw new Error('importApprovalRequired');
     }
     for (const id of effect.dependsOn) {

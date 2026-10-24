@@ -19,8 +19,13 @@ export const put = (tx: IDBTransaction, store: SourceStore, key: IDBValidKey, va
 export function createSourceDatabase(factory: IDBFactory = indexedDB, name = 'known-site-adapters') {
   let connection: Promise<IDBDatabase> | undefined;
   const open = () => connection ??= new Promise<IDBDatabase>((resolve, reject) => {
-    const r = factory.open(name, 1);
-    r.onupgradeneeded = () => { for (const store of SOURCE_STORES) r.result.createObjectStore(store); };
+    const r = factory.open(name, 2);
+    r.onupgradeneeded = () => {
+      for (const store of SOURCE_STORES) if (!r.result.objectStoreNames.contains(store)) r.result.createObjectStore(store);
+      const observations = r.transaction!.objectStore('observations');
+      if (!observations.indexNames.contains('state')) observations.createIndex('state', 'state');
+      if (!observations.indexNames.contains('stateOrdinal')) observations.createIndex('stateOrdinal', ['state', 'ordinal']);
+    };
     r.onerror = () => { connection = undefined; reject(new Error(r.error?.name === 'VersionError' ? 'schemaIncompatible' : 'sourceStoreUnavailable')); };
     r.onblocked = () => reject(new Error('schemaIncompatible'));
     r.onsuccess = () => { r.result.onversionchange = () => { r.result.close(); connection = undefined; }; resolve(r.result); };

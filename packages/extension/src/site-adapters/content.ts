@@ -6,16 +6,19 @@ import { validHostCommand, validMembershipHint } from './schemas.js';
 import { LIMITS } from './limits.js';
 import type { AdapterMessage, BootstrapReply, HostCommand, ReadFailure, SourceIdentityClaim } from './contracts.js';
 const slot = '__knownSiteAdapterV1';
-const scope = globalThis as typeof globalThis & { [slot]?: { restart(): void } };
+const scope = globalThis as typeof globalThis & { [slot]?: { restart(): void; version?: number } };
 if (location.origin === BILIBILI.origin && window.top === window) {
+  if (scope[slot] && scope[slot].version !== 3) window.dispatchEvent(new Event('known-site-adapter-stop'));
   if (scope[slot]) scope[slot].restart();
   else {
     let controller: AbortController | null = null, port: chrome.runtime.Port | null = null, timer: ReturnType<typeof setTimeout> | undefined;
-    let epoch = 0, reader: BilibiliReader | null = null;
+    let failures = 0;
+    let epoch = 0, reader: BilibiliReader | null = null, readerEpoch: string | undefined;
     let removeHints = () => {};
-    const stop = () => { removeHints(); removeHints = () => {}; epoch++; controller?.abort(); controller = null; const oldPort = port; port = null; oldPort?.disconnect(); clearTimeout(timer); reader?.clear(); reader = null; };
-    const restart = () => { stop(); const current = epoch; controller = new AbortController(); const signal = controller.signal;
-      reader = new BilibiliReader(createPageHttp({ fetch, now: Date.now, sleep: abortableSleep }));
+    const reset = (preserve: boolean) => { removeHints(); removeHints = () => {}; epoch++; controller?.abort(); controller = null; const oldPort = port; port = null; oldPort?.disconnect(); clearTimeout(timer); if (!preserve) { reader?.clear(); reader = null; readerEpoch = undefined; } };
+    const stop = () => reset(false);
+    const begin = (preserve: boolean) => { reset(preserve); const current = epoch; controller = new AbortController(); const signal = controller.signal;
+      reader ??= new BilibiliReader(createPageHttp({ fetch, now: Date.now, sleep: abortableSleep }));
       const localReader = reader;
       void (async () => {
         const activationDeadline = Date.now() + LIMITS.activationMs;
@@ -25,7 +28,10 @@ if (location.origin === BILIBILI.origin && window.top === window) {
           activation = await chrome.runtime.sendMessage({ kind: 'known.siteAdapters.activation' }) as typeof activation;
         }
         if (epoch !== current) return;
-        if (activation.status !== 'ready' || !activation.activationId) { deactivate(); return; }
+        if (activation.status !== 'ready' || !activation.activationId) {
+          if (activation.status === 'paused' && activation.retryAfterMs) { reset(true); timer = setTimeout(() => begin(true), Math.max(LIMITS.spacingMs, activation.retryAfterMs)); return; }
+          deactivate(); return;
+        }
         let source: SourceIdentityClaim = { state: 'unknown' };
         try { source = await localReader.detectSource({ signal, deadlineAt: Math.min(activationDeadline, activation.deadlineAt ?? activationDeadline) }); }
         catch (e) { if (e instanceof SiteReadError && e.failure.code === 'signedOut') source = { state: 'signedOut' }; }
@@ -34,6 +40,8 @@ if (location.origin === BILIBILI.origin && window.top === window) {
           protocolVersion: 1, operation: 'hello', adapterId: BILIBILI.adapterId, runtime: 'bundled', activationId: activation.activationId, source } }) as BootstrapReply;
         if (epoch !== current) return;
         if (reply.status !== 'ready' || source.state !== 'signedIn') { deactivate(); return; }
+        if (!reply.readerEpoch || readerEpoch !== reply.readerEpoch) localReader.clear();
+        readerEpoch = reply.readerEpoch; failures = 0;
         const accountId = source.accountId;
         port = chrome.runtime.connect({ name: SITE_PORT }); const ownPort = port;
         const envelope = { protocolVersion: 1 as const, leaseId: reply.leaseId, capability: reply.capability };
@@ -51,10 +59,11 @@ if (location.origin === BILIBILI.origin && window.top === window) {
           if (raw && typeof raw === 'object' && (raw as { operation?: string }).operation === 'reply') pendingHints = Math.max(0, pendingHints - 1);
         });
         const replays = new Map<string, AdapterMessage>();
-        ownPort.onDisconnect.addListener(() => { if (port === ownPort) { stop(); timer = setTimeout(restart, LIMITS.spacingMs); } });
+        ownPort.onDisconnect.addListener(() => { if (port === ownPort) { reset(true); timer = setTimeout(() => begin(true), LIMITS.spacingMs); } });
         ownPort.onMessage.addListener(raw => {
           if (epoch !== current || !validHostCommand(raw)) return;
           if (raw.operation === 'shutdown') { if (raw.leaseId === reply.leaseId) deactivate(); return; }
+          if (raw.operation === 'renewLease') { if (raw.leaseId === reply.leaseId) begin(true); return; }
           if (raw.operation === 'invalidateLease') { if (raw.leaseId === reply.leaseId) restart(); return; }
           if (raw.operation === 'cancelRead') { restart(); return; }
           if (raw.leaseId !== reply.leaseId || raw.deadlineAt <= Date.now() || raw.deadlineAt > Date.now() + LIMITS.commandMs) return;
@@ -75,6 +84,7 @@ if (location.origin === BILIBILI.origin && window.top === window) {
               await localReader.verifyAccount(accountId, ctx);
             } catch (e) {
               const error: ReadFailure = e instanceof SiteReadError ? e.failure : { code: ctx.signal.aborted ? 'timeout' : 'invalidData' };
+              localReader.clear(); // An unverified/aborted command cannot leave a partially advanced cursor.
               result = { status: 'failed', error };
               if (error.code === 'signedOut') { restart(); return; }
             }
@@ -82,12 +92,17 @@ if (location.origin === BILIBILI.origin && window.top === window) {
             const message = { ...envelope, requestId: id, ...resultEnvelope(raw), result } as AdapterMessage;
             replays.set(id, message); if (replays.size > 2) replays.delete(replays.keys().next().value!);
             ownPort.postMessage(message);
-          })().catch(() => { if (epoch === current) stop(); }).finally(() => { busy = false; });
+          })().catch(() => { if (epoch === current) recover(); }).finally(() => { busy = false; });
         });
         ownPort.postMessage({ ...envelope, requestId: crypto.randomUUID(), operation: 'connect' });
-        timer = setTimeout(restart, Math.max(1000, reply.expiresAt - Date.now() - 1000));
-      })().catch(() => { if (epoch === current) stop(); });
+        timer = setTimeout(() => begin(true), Math.max(1000, reply.expiresAt - Date.now() - 1000));
+      })().catch(() => { if (epoch === current) recover(); });
     };
+    const recover = () => {
+      if (++failures > LIMITS.attempts) { deactivate(); return; }
+      reset(true); timer = setTimeout(() => begin(true), LIMITS.spacingMs * failures);
+    };
+    const restart = () => begin(false);
     const deactivate = () => {
       stop();
       window.removeEventListener('pagehide', stop); window.removeEventListener('pageshow', restart);
@@ -95,14 +110,14 @@ if (location.origin === BILIBILI.origin && window.top === window) {
       window.removeEventListener('known-site-adapter-stop', deactivate);
       delete scope[slot];
     };
-    scope[slot] = { restart };
+    scope[slot] = { restart, version: 3 };
     window.addEventListener('known-site-adapter-stop', deactivate);
     window.addEventListener('pagehide', stop); window.addEventListener('pageshow', restart);
     window.addEventListener('popstate', restart); window.addEventListener('hashchange', restart);
     restart();
   }
 }
-type ReadCommand = Exclude<HostCommand, { operation: 'cancelRead' | 'invalidateLease' | 'shutdown' }>;
+type ReadCommand = Exclude<HostCommand, { operation: 'cancelRead' | 'invalidateLease' | 'shutdown' | 'renewLease' }>;
 function commandId(c: ReadCommand) { return c.operation === 'resolveItem' ? c.resolutionId : c.operation === 'readPage' ? c.pageRequestId : c.readRequestId; }
 function resultEnvelope(c: ReadCommand) {
   if (c.operation === 'resolveItem') return { operation: 'item.result', resolutionId: c.resolutionId };

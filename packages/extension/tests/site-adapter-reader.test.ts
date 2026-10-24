@@ -73,6 +73,23 @@ test('duplicate-only API pages and omitted details cannot prove complete travers
   const first = await reader.readItemsPage('101', null, ctx); expect(first.coverage).toBe('partial'); expect(first.omissions?.[0]?.reason).toBe('missing');
   await expect(reader.readItemsPage('101', first.nextCursor, ctx)).rejects.toThrow('invalidData');
 });
+test('a failed continuation cannot advance the API page or consume its identities', async () => {
+  const pages: number[] = []; let seq = 0, failDetails = true;
+  const reader = new BilibiliReader(read(op => {
+    if (op.kind === 'ids') { pages.push(op.page); return op.page < 3 ? [{ id: op.page, type: 2 }] : []; }
+    if (op.kind === 'details') {
+      if (op.ids[0]?.id === '2' && failDetails) { failDetails = false; throw new Error('interrupted'); }
+      return op.ids.map(x => ({ ...x, title: 'Video', attr: 0 }));
+    }
+    return {};
+  }), () => String(++seq));
+  const first = await reader.readItemsPage('101', null, ctx);
+  await expect(reader.readItemsPage('101', first.nextCursor, ctx)).rejects.toThrow('interrupted');
+  const second = await reader.readItemsPage('101', first.nextCursor, ctx);
+  expect(second.items.map(x => x.item.id)).toEqual(['video:av:2']);
+  expect(pages).toEqual([1, 2, 2]);
+  expect((await reader.readItemsPage('101', second.nextCursor, ctx)).nextCursor).toBeNull();
+});
 test('fresh scoped readback returns positive or unknown, never inferred absence; account mismatch stops', async () => {
   const reader = new BilibiliReader(read(op => op.kind === 'account' ? fixtures.nav.data : fixtures.ids.data));
   const present = await reader.readMemberships({ itemId: 'video:av:1', collectionIds: ['101'] }, ctx);

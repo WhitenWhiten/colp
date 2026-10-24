@@ -134,7 +134,7 @@ export type BootstrapRequest = {
 );
 
 export type BootstrapReply =
-  | { status: 'ready'; leaseId: Id; capability: string; routeEpoch: number; expiresAt: number }
+  | { status: 'ready'; leaseId: Id; capability: string; routeEpoch: number; expiresAt: number; readerEpoch?: string }
   | { status: 'unavailable'; reason: 'version' | 'permissionRequired' | 'disabled' | 'sourceUnresolved' | 'reloadRequired' };
 
 export interface AdapterEnvelope {
@@ -220,6 +220,7 @@ export type HostCommand =
       query: MembershipReadQuery;
     }
   | { operation: 'cancelRead'; readSessionId: Id }
+  | { operation: 'renewLease'; leaseId: Id }
   | { operation: 'invalidateLease'; leaseId: Id }
   | { operation: 'shutdown'; leaseId: Id };
 
@@ -489,6 +490,9 @@ export interface ImportPreview {
   revision: number;
   digest: string;
   pageReceiptsDigest: string;
+  collectedSetDigest?: string;
+  plansDigest?: string;
+  omissions?: { count: number; samples: readonly { id: string; reason: string; collectionId?: string }[]; unscannedRemainder: boolean };
   ledgerOrdinal: number;
   browserRules: BrowserRuleSnapshot;
   policyRevision: number;
@@ -502,6 +506,7 @@ export interface ImportPreview {
 
 /** Created only by an extension-page commit, never by page acknowledgments. */
 export interface ImportApproval {
+  state?: 'active' | 'cancelled';
   id: Id;
   importRunId: Id;
   previewId: Id;
