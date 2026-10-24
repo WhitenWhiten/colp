@@ -2,6 +2,7 @@ import { SyncFailureError } from './sync-failure-class.js';
 import { canonicalAuthoritativeEffectPageDigest, expandAuthoritativeEffectPageUrl } from '@know-n/colp/sync/canonical';
 import { readBoundedJson } from './json-response.js';
 import { statusFailure } from './sync-transport-failure.js';
+import { schemaRejection } from './durable-sync-engine-errors.js';
 import { authoritativeEffectPage } from './generated/pull-effect-validators.js';
 import type { EffectPageDownloadRecord, JsonValue, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
@@ -88,7 +89,7 @@ async function downloadOne(
       rawPage = await readBoundedJson(response, record.remainingBytes, 'effect_page_invalid',
         { signal: controller.signal, timeoutMilliseconds });
     } finally { clearTimeout(timeout); }
-    if (!authoritativeEffectPage(rawPage)) throw new SyncFailureError('effect_page_invalid');
+    if (!authoritativeEffectPage(rawPage)) throw schemaRejection(authoritativeEffectPage, 'effect_page_invalid');
     const page = rawPage as {
       readonly effectId: string; readonly pageNumber: number; readonly pageCount: number;
       readonly previousPageDigest: string | null; readonly pageDigest: string;

@@ -1,9 +1,23 @@
 import { readBoundedJson } from './json-response.js';
 import { authorityCodeForStatus, classifyHttpStatus, statusFailure } from './sync-transport-failure.js';
+import { SERVER_VERSION_MISMATCH, SyncFailureError, type SyncFailureCode } from './sync-failure-class.js';
 
 const MAX_BACKOFF_MS = 5 * 60_000;
 /** Placeholders callers pass when the response named no code; a status that implies an authority denial replaces them. */
 const GENERIC_FAILURE = new Set(['pull_failed', 'ack_failed', 'snapshot_failed', 'session_failed']);
+
+/**
+ * W2C-12: a response the strict generated validator refused. When the first thing it objects to is a field it does not
+ * know, the server is newer than this build (strict same-version validation is the protocol's rule and stays), and
+ * that is a version mismatch to name, not a corrupt page. Anything else is the caller's integrity code, as before.
+ */
+export function schemaRejection(validator: { readonly errors?: readonly unknown[] | null },
+  integrity: SyncFailureCode): SyncFailureError {
+  const first = validator.errors?.[0];
+  const keyword = first !== null && typeof first === 'object' ? (first as { readonly keyword?: unknown }).keyword : undefined;
+  return new SyncFailureError(keyword === 'additionalProperties' || keyword === 'unevaluatedProperties'
+    ? SERVER_VERSION_MISMATCH : integrity);
+}
 
 export function pullApplyAckState(publishedCursor: string | undefined, nextCursor: string, parked: boolean):
   'ack' | 'parked' | 'not_durable' {

@@ -12,7 +12,7 @@ import { syncAckResult, syncPullV02 } from './generated/pull-effect-validators.j
 import type { AckIntentRecord, DurableSyncEngineState, JsonObject, MappingInput } from './sync-state-store.js';
 import type { StoredSession } from './types.js';
 import type { EngineOptions, PlacementRefreshOutcome } from './durable-sync-engine-types.js';
-import { httpFailure, pullApplyAckState, retryAfterMilliseconds, stableError,
+import { httpFailure, pullApplyAckState, retryAfterMilliseconds, schemaRejection, stableError,
   recoveryCapability, recoveryCapabilityOf, responseProblemCode } from './durable-sync-engine-errors.js';
 import { leftoverVirtualChildrenNeedReproject } from './recovery-guard.js';
 import { resumeLocalProjection } from './local-projection-recovery.js';
@@ -346,7 +346,7 @@ export function createDurableSyncEngine(options: EngineOptions) {
         throw httpFailure(response, consumedProblemCode ?? await responseProblemCode(response, 'pull_failed', requestTimeoutMilliseconds), now());
       }
       const document = await readBoundedJson(response, sessionTransportBudget(authority.session).pullResponseBytes, 'pull_invalid', responseReadOptions);
-      if (!syncPullV02(document)) throw new SyncFailureError('pull_invalid');
+      if (!syncPullV02(document)) throw schemaRejection(syncPullV02, 'pull_invalid');
       const page = document as SyncPullV02; await transition('applying', { sessionId: authority.session.sessionId });
       await options.pullApplier.stage(page, {
         reissued: response.headers.get('Known-Sync-Cursor-Reissued') === 'true',
@@ -503,8 +503,8 @@ export function createDurableSyncEngine(options: EngineOptions) {
       throw httpFailure(response, typeof code === 'string' ? code : 'ack_failed', now());
     }
     const document = await readBoundedJson(response, 128 * 1024, 'ack_invalid', responseReadOptions);
-    if (!syncAckResult(document)
-        || (document as SyncAckResult).ackedCursor !== intent.cursor
+    if (!syncAckResult(document)) throw schemaRejection(syncAckResult, 'ack_invalid');
+    if ((document as SyncAckResult).ackedCursor !== intent.cursor
         || (document as SyncAckResult).replicaId !== options.scope.replicaId) throw new SyncFailureError('ack_invalid');
     await options.store.completeAckIntent(options.scope, intent.intentId, document as unknown as JsonObject);
     await transition('sleeping', { sessionId: authority.session.sessionId, lastPublishedCursor: intent.cursor,

@@ -1,6 +1,7 @@
 import type { BuildConfig } from './types.js';
 import { readBoundedJson } from './json-response.js';
 import { statusFailure } from './sync-transport-failure.js';
+import { SERVER_VERSION_MISMATCH } from './sync-failure-class.js';
 
 const REQUIRED = ['syncSessions', 'syncSnapshot', 'syncPush', 'syncPull', 'syncAck', 'syncConflict'] as const;
 const RETIRE_NAMESPACE = 'https://known.example/extensions/sync-retire';
@@ -23,11 +24,17 @@ export async function fetchSyncEndpoints(config: BuildConfig, fetcher: typeof fe
 }
 
 export function discoverSyncEndpoints(input: unknown, config: BuildConfig): SyncEndpoints {
+  // W2C-12: a manifest that names other protocol versions only is a server this build cannot talk to yet (or any more).
+  if (record(input) && Array.isArray(input.protocolVersions) && input.protocolVersions.length > 0
+      && input.protocolVersions.every((version) => typeof version === 'string')
+      && !input.protocolVersions.includes('0.2')) throw new Error(SERVER_VERSION_MISMATCH);
   if (!record(input) || input.protocol !== 'https://know-n.com/colp/spec/0.2'
       || !Array.isArray(input.protocolVersions) || !input.protocolVersions.includes('0.2')
       || !Array.isArray(input.mounts) || input.mounts.length === 0) throw new Error('manifest_invalid');
   const topLevelKeys = new Set(['protocol', 'protocolVersions', 'serverId', 'serverUuid', 'title', 'mounts', 'syncEffectPages']);
-  if (Object.keys(input).some((key) => !topLevelKeys.has(key)) || typeof input.serverId !== 'string'
+  // W2C-12: a field this build does not know is a newer server, named as such; the validation stays strict.
+  if (Object.keys(input).some((key) => !topLevelKeys.has(key))) throw new Error(SERVER_VERSION_MISMATCH);
+  if (typeof input.serverId !== 'string'
       || new URL(input.serverId).origin !== config.serverOrigin || typeof input.serverUuid !== 'string'
       || typeof input.title !== 'string') throw new Error('manifest_schema_invalid');
   const candidates = input.mounts.filter(hasRequiredEndpoints);
@@ -43,7 +50,7 @@ export function discoverSyncEndpoints(input: unknown, config: BuildConfig): Sync
   }
   const allowedMountKeys = new Set(['id', 'baseUrl', 'profiles', 'endpoints', 'features', 'auth', 'limits', RETIRE_NAMESPACE,
     SERVER_NAMESPACE]);
-  if (Object.keys(mount).some((key) => !allowedMountKeys.has(key))) throw new Error('manifest_unknown_boundary');
+  if (Object.keys(mount).some((key) => !allowedMountKeys.has(key))) throw new Error(SERVER_VERSION_MISMATCH);
   const result = {} as Record<string, string>;
   for (const key of REQUIRED) {
     const raw = mount.endpoints[key];

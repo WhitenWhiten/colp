@@ -4,6 +4,7 @@ import { colpCredentialHeaders } from '../auth-client.js';
 import { assertCredentialHostPermission, SERVER_HOST_PERMISSION_ERROR } from '../server-origin-permission.js';
 import { readBoundedJson } from '../json-response.js';
 import { authorityCodeForStatus, classifyHttpStatus } from '../sync-transport-failure.js';
+import { schemaRejection } from '../durable-sync-engine-errors.js';
 import { sessionTransportBudget } from '../colp-transport-budget-browser.js';
 import type { SyncScope } from '../sync-state-store.js';
 import type { StoredCredential, StoredSession } from '../types.js';
@@ -74,7 +75,7 @@ export async function loadCompleteRemoteSnapshot(input: {
       timeoutMs, input.signal);
     if(input.classificationProjection){classificationBytes+=new TextEncoder().encode(JSON.stringify(document)).length;
       if(classificationBytes>4*1024*1024)throw new Error('local_projection_context_limit');}
-    if (!syncSnapshotV02(document)) throw new Error('snapshot_invalid');
+    if (!syncSnapshotV02(document)) throw schemaRejection(syncSnapshotV02, 'snapshot_invalid');
     const page = document as DurableSyncSnapshot;
     validatePage(page, input.scope, pageNumber, pages[0]);
     pages.push(page);

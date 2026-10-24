@@ -7,7 +7,7 @@ import { readBoundedJson } from './json-response.js';
 import { syncSnapshotV02 } from './generated/pull-effect-validators.js';
 import type { AckIntentRecord, JsonObject, MappingInput } from './sync-state-store.js';
 import type { DurableSyncSnapshot, EngineOptions } from './durable-sync-engine-types.js';
-import { snapshotFailure } from './durable-sync-engine-errors.js';
+import { schemaRejection, snapshotFailure } from './durable-sync-engine-errors.js';
 import { discardExpiredRecoveryStaging, freezeScopeRecovery, isCursorExpiryCode,
   shouldFreezePullApply } from './pull-recovery-freeze.js';
 import { assertCompleteSnapshotStaging } from './snapshot-staging-assert.js';
@@ -160,7 +160,7 @@ async function recoverSnapshotPages(
       }
       const document = await readBoundedJson(response, sessionTransportBudget(authority.session).snapshotPageBytes,
         'snapshot_invalid', { timeoutMilliseconds: options.requestTimeoutMilliseconds });
-      if (!syncSnapshotV02(document)) throw new SyncFailureError('snapshot_invalid');
+      if (!syncSnapshotV02(document)) throw schemaRejection(syncSnapshotV02, 'snapshot_invalid');
       const snapshot = document as DurableSyncSnapshot;
       if (recoveryAuthority && snapshot.page.hasMore && snapshot.recoveryCapability !== undefined) {
         throw new SyncFailureError('recovery_capability_premature');

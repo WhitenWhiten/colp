@@ -164,6 +164,10 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   idempotency_key_reused: entry('replica', 'stop'),
   // The manifest answered with a definitive 4xx; a 5xx or timeout is `server_unavailable` instead.
   manifest_unavailable: entry('replica', 'stop'),
+  // W2C-12: the server answered with a field this build does not know (a newer server, or an older extension). The
+  // protocol demands strict same-version validation, so nothing is guessed: Sync stops, probes again later (a
+  // server rollback or an extension update ends it) and names the cause. Uploads are not read by this check.
+  server_version_mismatch: entry('replica', 'stop'),
   // W2B-P1-3: the Session route does not know this browser's replica id (another account holds it, the server lost
   // it, or the Collection is not this account's). A browser that never synced under the id takes a new one at once;
   // one that did needs a Reset (or a new sign-in when the Collection is gone). Renewing authority cannot cure it.
@@ -434,6 +438,8 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   upgrade_failed: entry('replica', 'stop'),
 } satisfies Record<string, SyncFailureEntry>);
 export type SyncFailureCode = keyof typeof SYNC_FAILURE_TABLE;
+/** The code for a response that fails strict validation only because it carries a field this build does not know. */
+export const SERVER_VERSION_MISMATCH = 'server_version_mismatch' satisfies SyncFailureCode;
 export interface SyncFailureSubject { readonly nodeId?: string; readonly nativeId?: string; readonly opId?: string; readonly eventId?: string }
 
 /** A typed emission site: adding a local policy failure requires registering its behavior. */

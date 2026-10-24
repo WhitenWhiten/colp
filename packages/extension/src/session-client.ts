@@ -12,7 +12,7 @@ import {
 } from './colp-transport-budget-browser.js';
 import { measureClientClockSkew, serverNow, localTimeOf } from './session-clock.js';
 import { authorityCodeForStatus, classifyHttpStatus } from './sync-transport-failure.js';
-import { classifySyncFailure } from './sync-failure-class.js';
+import { SERVER_VERSION_MISMATCH, classifySyncFailure } from './sync-failure-class.js';
 
 const SESSION_RESPONSE_MAX_BYTES = 128 * 1_024;
 const REPLICA_LEASE_RENEWAL_MARGIN_MS = 60_000;
@@ -119,6 +119,8 @@ export async function createSyncSession(input: { readonly endpoints: SyncEndpoin
 
 export function parseSyncSessionResult(value: unknown, requestInput: unknown,
   authorityDigest: string, transportBudget?: SyncTransportBudget, receivedAt: number = Date.now()): StoredSession {
+  // W2C-12: strict same-version validation stays, but an unknown field says "newer server", not "broken Session".
+  if (record(value) && hasUnknownSessionField(value)) throw new Error(SERVER_VERSION_MISMATCH);
   const request = record(requestInput) ? requestInput : {};
   const requestCollection = record(request.collection) ? request.collection : {};
   const replica = record(request.replica) ? request.replica : {};
@@ -239,6 +241,12 @@ function positiveSeconds(value: unknown): number | undefined {
     ? Number(parsed) : undefined;
 }
 function record(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
+function hasUnknownSessionField(value: Record<string, unknown>): boolean {
+  const unknown = (object: unknown, expected: ReadonlySet<string>) =>
+    record(object) && Object.keys(object).some((key) => !expected.has(key));
+  return unknown(value, SESSION_KEYS) || unknown(value.collection, COLLECTION_KEYS)
+    || unknown(value.replicaLease, LEASE_KEYS) || unknown(value.conversionPolicy, CONVERSION_KEYS);
+}
 function exactKeys(value: Record<string, unknown>, expected: ReadonlySet<string>) {
   const keys = Object.keys(value); return keys.length === expected.size && keys.every((key) => expected.has(key));
 }
