@@ -1,14 +1,18 @@
 # Website favorites adapter design
 
-Status: proposal, not implemented. Initial research: October 18, 2026. Integration review: October 22, 2026, against repository baseline `7a58017aeeb8fbaf3ee6defd00a594974f0950e4`.
+Status: proposal, not implemented in COLP. Initial research: October 18, 2026. Integration review: October 22, 2026, against repository baseline `7a58017aeeb8fbaf3ee6defd00a594974f0950e4`. Independent Bilibili feasibility evidence and Chrome policy were reviewed on October 23, 2026; see [verification scope and remaining gates](bilibili-feasibility.md).
 
 Use website adapters running in the page, a source relationship ledger persisted by the host extension, existing automation evaluation, and a shared save planner. Adapters extract items, collections, and membership changes. The host decides whether to save, how many copies to keep, where they belong, and whether to invoke JEV. Bilibili is the first validation target.
 
 The first phase uses a bundled Bilibili adapter, browser rules, and JEV classification through the local provider. Source archives are written to a local folder explicitly bound by the user. Community scripts use a separate user-script execution environment. Account rules, cloud automatic classification, and cross-device source management follow when their server contracts are available. Synchronizing ordinary bookmarks and synchronizing source facts and management authority are separate capabilities.
 
-Here, archive means native bookmarks and source relationships, not downloaded videos, page snapshots, or offline content. The first distributable release comprises phases A–C below; phase A is a feasibility gate, not a promise that signed-in Bilibili flows already work. Ship the bundled adapter independently of the community-package runtime. Version one keeps native bookmarks when a source membership disappears and does not mirror source deletions or reorder existing bookmarks.
+Here, archive means native bookmarks and source relationships, not downloaded videos, page snapshots, or offline content. The first distributable release comprises phases A–C below. A standalone prototype has demonstrated signed-in Bilibili enumeration, native bookmark projection, and live additions; it does not complete every phase A gate or implement the COLP host. Ship the bundled adapter independently of the community-package runtime. Version one keeps native bookmarks when a source membership disappears and does not mirror source deletions or reorder existing bookmarks.
 
-Companion files: [draft contracts](contracts.ts), [typed examples](examples.ts), and [browser capabilities and implementation references](references.md). These interfaces are design artifacts, not current runtime code or a published API.
+Start implementation with the [ordered work packages and acceptance plan](implementation-plan.md). It defines dependencies, the activation sequence, bounded Bilibili reads, recovery actions, and focused validation commands. The first internal slice is smaller than the A–C release and does not waive its acceptance gates.
+
+The [MacBook / OrbStack environment](local-environment.md) is prepared and smoke-tested. Use its cached Linux runner for automated tests; the user explicitly permits ego-lite on macOS for this task's real-site acceptance.
+
+Companion files: [draft contracts](contracts.ts), [typed examples](examples.ts), [Bilibili feasibility evidence](bilibili-feasibility.md), and [browser capabilities and implementation references](references.md). These interfaces are design artifacts, not current runtime code or a published API. The examples' declared matches and capabilities are proposals, not proof that those capabilities work on the live site.
 
 ## Approach selection
 
@@ -102,6 +106,8 @@ flowchart TD
 
 The adapter has a page DOM context; the background service worker does not. DOM elements, MutationRecord objects, and Response objects remain within page execution. Cross-boundary messages contain bounded JSON facts, not the whole document, complete network traffic, cookies, Authorization headers, CSRF tokens, or model credentials.
 
+For the initial Bilibili path, `detectSource` performs a fixed bounded page-side account read before bootstrap; collection/item/membership reads follow host commands after bootstrap. The adapter-local page reader is distinct from the optional `NamedReader` host-recipe client. Do not require a lease-protected host recipe to obtain the source identity needed to issue that lease. See the [activation sequence](implementation-plan.md#activation-and-injection-sequence).
+
 A package declares its matching sites, entry point, and requested capabilities. Installation establishes host authorization. The first version bundles each entry into one file, avoiding runtime dependency resolution, npm installation, and remote module loading inside the extension.
 
 ### Official and community code
@@ -115,6 +121,30 @@ Chrome 121 supports bundled adapters. Named USER_SCRIPT worlds require Chrome 13
 Registration applies to future matching document loads. Bundled adapters can use scripting.executeScript to attach to an open document. Community adapters on Chrome 133–134 require a reload; Chrome 135+ can use userScripts.execute in the same named world. Never use scripting.executeScript as a fallback for community code. Late attachment cannot recover an earlier favorite response or recreate document_start interception. Show `reloadRequired` or `observationDegraded` explicitly.
 
 USER_SCRIPT isolates extension internals but is not a complete sandbox for arbitrary third-party behavior. A script can access the authorized site's DOM and may make page-permitted network requests, change the page, or occupy its thread. Explain this at installation. The SDK withholds bookmark and model powers without claiming to prevent every DOM write or data disclosure.
+
+### Package provenance and installation policy
+
+The proposed distribution policy separates provenance from execution privileges:
+
+| Package source | Installation experience | Execution and authority |
+| --- | --- | --- |
+| Official code bundled in the extension release | Normal per-site enable action and explicit archive/root settings | Bundled ISOLATED adapter; only audited bundled probes may enter MAIN |
+| Official or reviewed package installed separately from a catalog or GitHub release | Show maintainer, immutable source revision, package digest, sites, and requested capabilities | USER_SCRIPT with the same host checks as other separately installed scripts; an official repository does not permit remote code in privileged contexts |
+| User-authored or unreviewed third-party package | Advanced installation, disabled by default; inspect source, acknowledge concrete risks, and explicitly enable each site/capability | USER_SCRIPT only; begin with inspector/dry-run access until the user enables a scoped archive policy |
+
+Phases A–C ship bundled official adapters only. Phase D may add a curated catalog plus advanced third-party installation. This is a proposed product policy, not an already implemented installer or a claim that Chrome requires an official-repository allowlist. A catalog badge records who reviewed which bytes; it does not make arbitrary JavaScript safe or authenticate its site reports. Dry-run mode blocks host bookmark/model effects, but executing a script in that mode still lets it interact with the authorized page; it is not safe execution of unknown code.
+
+Download separately installed packages as inert bytes, validate the manifest and size limits, and persist the approved bytes before registration. The package contains a manifest and self-contained script bundle, not an npm install step or a background-service plugin. Never execute package install hooks, resolve remote modules, or run fetched code in extension pages. Register the stored script through userScripts only after user selection, the browser toggle, and site grants are satisfied. Do not use an automatically changing remote script as a hidden extension update channel.
+
+Resolve a repository release to immutable bytes and pin its digest and source revision. Verify signatures against a separately trusted publisher key when signed releases are supported; a hash supplied by the same untrusted download establishes no publisher identity. A mutable branch URL, GitHub hosting, or a valid signature alone is not a code-safety review. A third party cannot self-declare itself official in its manifest.
+
+Updates are separate package versions. Preserve the approved version, show source/code and capability changes, and require explicit review for unreviewed third-party updates and every grant expansion. Rotate installation credentials/generations on replacement; never silently inherit new domains, probes, recipes, account bindings, archive roots, or model consent. Keep a local disable/remove path and the previous package digest for compatible rollback.
+
+The third-party warning must explain that code can read and alter the authorized site's pages, may issue requests with the site's session, and may expose visible private content. Ask users to install only code/authors they trust and acknowledge responsibility for that choice. This acknowledgment neither makes the script safe nor removes COLP's obligation to enforce host authorization and Chrome Web Store policy. Restrictive USER_SCRIPT CSP is defense in depth; it is not a complete network/data-loss sandbox for code sharing the page DOM.
+
+The host grants a narrow data protocol, not its own extension permissions. Separately installed package code receives no bookmarks API, privileged storage access, provider credentials, native folder IDs, arbitrary background fetch, or direct model dispatch. A malicious installed adapter can still fabricate in-scope facts or attempt excessive requests. Validate and bound every message, queue, and write batch; authorize automation per source/account/collection and destination; keep import approval separate from live-archive permission. The private bootstrap token authenticates an installation, not truthfulness or a human gesture. Revocation must stop host effects even when page cleanup fails.
+
+Chrome documents userScripts as the mechanism for user-provided scripts that cannot ship in the extension package. The MV3 remote-code exception is specific to documented API use and does not exempt other code, user-data obligations, or store review. A user-selected script installer fits that documented use; approval of a particular COLP implementation remains a separate review outcome. [API and policy evidence](references.md#user-scripts)
 
 ### Permissions and release artifacts
 
@@ -181,7 +211,7 @@ Cross-origin content-script fetch remains subject to page same-origin/CORS const
 
 When background reading is needed, expose audited named operations with bounded parameters, such as readCollectionPage(collectionId, cursor). The host recipe fixes the endpoint, method, response type, projection, rate limits, and credential policy. Reject arbitrary URLs, headers, POST bodies, redirects, and unauthorized targets. A new community adapter without a host recipe can use DOM or page-permitted reads; it cannot borrow existing Know-N, AI-provider, or self-hosted-server access.
 
-Each recipe declares a timeout and maximum response bytes enforced while reading, not only after JSON parsing; validate its output schema before projection. Use a small per-connection queue, bounded retries with backoff/Retry-After, and stop on authentication loss, schema changes, or site challenges. Live user observations take priority over import reads. Fetch failures and schema mismatches do not imply an empty collection.
+Each recipe declares a timeout and maximum response bytes enforced while reading, not only after JSON parsing; validate its output schema before projection. Use a small per-connection queue, bounded retries with backoff/Retry-After, and stop on authentication loss, schema changes, or site challenges. Live user observations take priority over import reads. Durably accept live observations during an import and merge them through the same ledger/reservations; do not drop them on the assumption that a scan will revisit an already-read collection. Fetch failures and schema mismatches do not imply an empty collection.
 
 ## Source entities and event contracts
 
@@ -208,6 +238,8 @@ SiteObservation contains standard entities, membership deltas or complete member
 Keep adapter input separate from the host envelope. The adapter sends requestId; after validation the host attaches the real sender, connection, entry kind, installation and source-session generations, reception time, and observation order. Retain the interaction's item rather than re-reading it after page changes. A page-extracted site account is a claim to verify, not platform-signed authentication. If identities cannot be distinguished, pause automatic archiving and ask the user to confirm the source in an extension page. Visiting another person's public collection does not identify the logged-in account.
 
 Proposed initial limits: 256 KiB per observation; 512 KiB and at most 100 entities per collection or item page; IDs up to 128 characters, titles 4096, URLs 8192, 64 memberships per item, and collection depth 32. Semantic candidates retain the existing 10000-folder ceiling. These are implementation starting points to validate under load, not browser guarantees.
+
+Site API batch size is not SDK page size. Bilibili's roughly 1,000-ID responses stay inside the bounded page reader and are projected into replies of at most 100 entities within the byte limit. Lost local cursor buffers require restart-and-deduplicate; budgets, duplicate-only pages, and omitted details must not be reported as a complete empty result. The [reader plan](implementation-plan.md#bilibili-reader-implementation-decisions) specifies pacing, continuation, and failure handling.
 
 Measure wire size as UTF-8 JSON bytes and validate closed discriminated objects, finite numbers, unique IDs, disjoint delta sets, cursor length, and bounded nesting. Overflow is a typed error; never truncate a complete membership set and apply it as authoritative. For a missing stable collection ID, keep label-only data as preview evidence and require explicit one-time placement; do not create durable label-derived mappings.
 
@@ -241,9 +273,9 @@ Permit one outstanding page per traversal. A source-store transaction records th
 
 If reaching a requested DOM page changes the route/document, invalidate the old read command as usual; the durable run retains its last acknowledged cursor. After bootstrap on the new page, the host may issue a new pageRequestId for that cursor only after checking the same source and requested collection/page. The adapter checks whether it is already on that page before clicking again. Never accept the old lease's reply merely because navigation was expected. If position cannot be established or the user navigated elsewhere, pause or restart-and-deduplicate instead. This separates import progress from page lifetime without exempting import tabs from navigation validation.
 
-Define SourcePage.coverage as the adapter's coverage claim for the requested page; the host alone decides coverage for the entire run. Enumeration may need several sessions. A pointInTime claim requires a site-issued snapshot token with verified semantics shared by every page, not a locally invented timestamp. Initial Bilibili DOM imports use bestEffort.
+Define SourcePage.coverage as the adapter's coverage claim for the requested page; the host alone decides coverage for the entire run. Enumeration may need several sessions. A pointInTime claim requires a site-issued snapshot token with verified semantics shared by every page, not a locally invented timestamp. Initial Bilibili API and DOM imports use bestEffort; the prototype's paginated ID reads did not establish a platform snapshot.
 
-A stable API cursor can resume after source and cursor validation. DOM page numbers generally cannot restore a stable snapshot. Declare restartAndDeduplicate, enumerate again from the beginning, and reuse imported items by stable item/collection identity. An in-memory AsyncIterator is not a recovery mechanism.
+A stable API cursor can resume after source and cursor validation. DOM page numbers and offsets into a newly fetched API list generally cannot restore a stable snapshot. Declare restartAndDeduplicate, enumerate again from the beginning, and reuse imported items by stable item/collection identity. An unchanged collection count is not proof of unchanged members or order. An in-memory AsyncIterator is not a recovery mechanism.
 
 nextCursor: null ends a traversal. Mark it complete only after all pages are acknowledged, no pages failed, and identity and extraction scope remained stable. It can still be bestEffort rather than a platform-provided pointInTime snapshot. Failures, filtering, insufficient permissions, unstable pagination, or visible-only coverage remain partial. Complete traversal does not authorize deletion by default.
 
@@ -401,6 +433,8 @@ Track capabilities separately: live confirmation, item identity resolution, memb
 
 ## Bilibili validation points
 
+The October 23 standalone experiment demonstrated signed-in enumeration, 21 existing collections projected to 4,911 bookmarks, and three live additions in a new test collection (final tree: 22 collections and 4,914 bookmarks). The prototype's 30 unit tests also passed on review. This is site feasibility evidence, not COLP runtime or full phase A acceptance. See [the evidence record](bilibili-feasibility.md) for run chronology, source locations, limitations, and integration changes.
+
 Validate both video-page and list-page interactions, not just one toolbar favorite icon. The aggregate saved state may stay true while membership changes between B and C, so confirmation must identify individual collection changes.
 
 Bilibili Evolved's quick-favorite implementation identifies a video by aid and membership by numeric collection id, title, and fav_state. Its write request names added/removed collections, and it reports success only when the business response code is 0. This supports investigating stable identities and business confirmation, but does not establish the current native page's request path or authorize this extension to use the endpoint. [Implementation evidence](references.md#existing-implementations)
@@ -412,7 +446,7 @@ Probe the bundled adapter in this order:
 3. After submission, confirm final membership for the corresponding video and collections. If a network probe is needed, project only item identity, added/removed collection IDs, and business outcome; discard CSRF, cookies, and unrelated fields.
 4. Emit confirmed changes as delta. Do not send complete unless all collections are known to be loaded.
 5. End the interaction on cancellation, failure, account change, or navigation change. Unconfirmed input produces no save plan.
-6. First validate DOM traversal for A/B/C import. Add a named host read recipe only if an evaluated, usable endpoint exists. Report missing capability rather than falling back to broad, hidden collection.
+6. Prefer the evaluated page-side `resource/ids` plus batched `resource/infos` path for Bilibili import. Start with the observed 1.5 second pacing and bounded backoff/pause behavior; it is not a guaranteed safe rate. Expose a named bundled reader with endpoint/parameter/schema limits. DOM traversal remains an independently tested fallback where usable; background reads need separate origin/session validation. Report missing capability rather than broadening collection.
 7. Verify a fresh membership read for a requested video and collection, including confirmed absence and inaccessible/unknown state. Also verify popup item resolution before any favorite exists. Report these capabilities independently if only part of the site flow works.
 
 Produce sanitized fixtures for adding to B, adding to B/C together, moving membership from B to C, existing multiple memberships, cancellation, business failure, slow responses, and SPA navigation. Protocol and planner tests should use these shapes instead of an idealized successful click alone.
@@ -426,7 +460,7 @@ These are proposed module boundaries, not existing implementations:
 | src/site-adapters/runtime/ | Package registry, page lifecycle, user-script execution, and dedicated transport | Thin service-worker dispatch |
 | src/site-adapters/sources/ | Connections, content bindings, source relationships, import scanning, and scoped reconciliation | Separate source IndexedDB; no ownership of Sync storage |
 | src/site-adapters/planning/ | Per-edge admission, source layout, shared folder reservations, frozen previews, copy policy, and outbox | Ordered browser evaluator and capture/native execution |
-| src/site-adapters/adapters/bilibili/ | Site detection, confirmation, extraction, and DOM import | No direct chrome.bookmarks or provider credentials |
+| src/site-adapters/adapters/bilibili/ | Site detection, confirmation, extraction, and evaluated API import with explicit coverage; optional DOM fallback | No direct chrome.bookmarks or provider credentials |
 | src/classification-destination-policy.ts | Identity-based exclusion and application checks | Local taxonomy, preview cache, capture classification, and editor application |
 | Browser rule extensions in src/automation/ | Entry admission, layout, v3 migration, snapshots, preview, and pause | Existing first-match list and unchanged account-first ordering for ordinary entries |
 | Plan integration in src/capture/ | Valid tasks for sourceArchive and semantic purposes | Existing receipts, annotations, history, and manual-edit protection |
@@ -435,15 +469,17 @@ Plan execution is an internal host API. Web pages cannot submit approved automat
 
 ## Implementation sequence and acceptance
 
+Use [SA-00 through SA-10](implementation-plan.md#ordered-work-packages) for concrete implementation order and evidence ownership. Phases below describe delivery scope; their labels are not implementation status. Begin with the remaining [A1–A6 site gates](bilibili-feasibility.md#remaining-acceptance-gates), preserving the standalone evidence instead of repeating the large full-account import.
+
 | Phase | Deliverable | Acceptance |
 | --- | --- | --- |
-| A Browser and site probes | Controlled pages, bundled script, dedicated ingress, sanitized real-site observations | Video/list dialogs, identity resolution, fresh membership readback or declared unavailability, stable collection IDs, and SPA navigation |
+| A Browser and site probes | Controlled pages, bundled script, dedicated ingress, sanitized real-site observations; standalone core feasibility demonstrated October 23 | Video/list dialogs, identity resolution, fresh membership readback or declared unavailability, stable collection IDs, and SPA navigation; remaining gates in the evidence record |
 | B Local sources and mounting | Source ledger, v3 ordered-rule admission, shared folder reservations, and frozen import previews | A/B/C scan/approve/import, live B archive, repeated/concurrent import, conflict readback, unknown outcomes, and manual moves |
 | C JEV and copy policies | Content bindings, purpose separation, AI subtree exclusion, and explicit existing-copy classification | Both action orders follow policy or documented adoption; mount rules do not swallow semantic popup requests |
 | D Community packages | USER_SCRIPT isolation, capability tokens, installation, and revocation | Reject forged/stale ingress and MAIN impersonation; deny writes from surviving old scripts; verify cleanup and update re-registration |
 | E Account and cloud contracts | Profile negotiation, source admission, final-placement receipts, and cloud destination policy | Server-verified final effects, no duplicate admission across devices, explicit rejection by older clients |
 
-Real Bilibili selectors, collection-ID visibility, and confirmation signals still require validation in an authorized signed-in account. Public script selectors are not a guarantee of current site behavior. If only names are visible, mark identity weak and restrict automatic renaming and ongoing archiving instead of substituting names for stable IDs.
+The standalone experiment verified numeric collection IDs, API enumeration, and positive live membership confirmation in an authorized signed-in account. Native list-page flows, complete lifecycle handling, scoped absence/unknown readback, and popup-first identity resolution still need acceptance evidence. Public script selectors are not a guarantee of current site behavior. If a fallback exposes only names, mark identity weak and restrict automatic renaming and ongoing archiving instead of substituting names for stable IDs.
 
 Required acceptance matrix:
 
@@ -473,7 +509,7 @@ Required acceptance matrix:
 24. B-only admission never creates C; B/C rules may select different roots. Later matches are shadowed, blocked first matches stop, and single-copy mode reviews an unavailable primary instead of selecting another by arrival order.
 25. Scanning, page acknowledgments, and an unapproved preview produce zero import writes. Approval covers only the frozen set; partial coverage is visible, late pages cannot enlarge it, changes require a fresh preview, and cancellation retains confirmed writes.
 
-Use unit tests for fact merging, planning policies, and permission boundaries, plus focused Chromium integration tests for worlds, sender identity, revocation, DOM lifecycle, and worker recovery. All Playwright runs must use xvfb, and temporary services must stop afterward. Real Bilibili smoke validation uses an authorized account and a small set of reversible actions rather than bulk collection.
+Use unit tests for fact merging, planning policies, and permission boundaries, plus focused Chromium integration tests for worlds, sender identity, revocation, DOM lifecycle, and worker recovery. All Playwright runs must actually use xvfb, and temporary services must stop afterward. The current wrapper bypasses xvfb on macOS and in headed-watch mode; use the [prepared OrbStack runner](local-environment.md#commands-for-the-next-agent). Real Bilibili smoke validation may use ego-lite on macOS under the user's explicit task-specific authorization, with an authorized account and a small set of reversible actions rather than bulk collection.
 
 Document and typed-example validation is not browser, live-site, or cloud-provider acceptance. Complete phase A before freezing the first distributable SDK.
 

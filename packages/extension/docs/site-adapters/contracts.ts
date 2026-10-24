@@ -8,7 +8,8 @@ export type CaptureEntry = 'siteFavorite' | 'siteImport' | 'popup' | 'injectedCo
 export type Cleanup = () => void | Promise<void>;
 export type JsonValue = null | boolean | number | string | readonly JsonValue[] | { readonly [key: string]: JsonValue };
 export interface NamedReader {
-  /** Exact host recipe and bounded scalar parameters; no URL/headers/body. */
+  /** Host-recipe client after bootstrap; not the adapter-local page reader.
+   * Exact recipe and bounded scalar parameters; no URL/headers/body. */
   read(recipeId: string, params: Readonly<Record<string, string | number | boolean | null>>): Promise<JsonValue>;
 }
 
@@ -335,7 +336,8 @@ export interface MembershipReadRequest {
 }
 
 export interface SiteAdapter {
-  /** Called before bootstrap and after account/route invalidation. */
+  /** Called before bootstrap and after account/route invalidation.
+   * Any page-side account read must be fixed/bounded; no lease-bound host reader yet. */
   detectSource(context: { document: Document; signal: AbortSignal }): Promise<SourceIdentityClaim>;
   start(context: AdapterContext): Promise<void | Cleanup>;
   resolveItem?(context: AdapterContext, url: string): Promise<ItemResolutionResult>;

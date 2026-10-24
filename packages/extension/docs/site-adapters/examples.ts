@@ -12,7 +12,9 @@ export const manifest = {
   version: '0.1.0',
   siteKey: 'bilibili',
   identityVersion: 1,
-  matches: ['https://www.bilibili.com/*', 'https://space.bilibili.com/*'],
+  // Start with the observed page origin; additional origins need separate evidence.
+  matches: ['https://www.bilibili.com/*'],
+  // The audited MAIN probe is registered separately at document_start.
   execution: { mode: 'bundled', entry: 'bilibili.js', runAt: 'document_idle' },
   capabilities: ['observeFavorites', 'resolveItem', 'readMemberships', 'enumerateCollections', 'enumerateItems', 'mountCaptureControl'],
 } satisfies AdapterManifest;

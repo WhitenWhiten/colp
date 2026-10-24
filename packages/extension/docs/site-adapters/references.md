@@ -1,8 +1,10 @@
 # Browser capabilities and implementation references
 
-Initial research: October 18, 2026. Repository integration and the userScripts version boundaries were rechecked on October 22, 2026. Browser capabilities come from official API documentation and Chromium schemas. External projects provide visible interfaces and source-code references; their existence does not establish platform authorization or verified current compatibility.
+Initial research: October 18, 2026. Repository integration was rechecked on October 22, 2026. The userScripts/scripting API and MV3/API Use policy pages were read again on October 23, 2026. Browser capabilities come from official API documentation and Chromium schemas. External projects provide visible interfaces and source-code references; their existence does not establish platform authorization or verified current compatibility.
 
 The integration baseline is `7a58017aeeb8fbaf3ee6defd00a594974f0950e4`, superseding the initial review at `67ece2543094ae114b1d99abe793437e4d856d89`. The integration table in [README](README.md#integration-boundaries-in-the-current-code) describes code inspected at the newer baseline; proposed interfaces are not exported production APIs. Chrome is the supported runtime for this proposal. Other Chromium products and Firefox need separate capability/behavior tests. Links to moving branches are research pointers; implementation fixtures must record the inspected commit and browser/site version.
+
+The October 23 [execution-plan review](implementation-plan.md) additionally checked commit `364a124471da2bc1633e22b8936656e0ba28e865`: manifest/build permission assertions, capture contracts and URL coalescing, rule-store atomic migration, focused test paths, and the xvfb wrapper. This is a local code review; it adds no browser, live-site, or policy-verification result to the earlier evidence.
 
 ## Current repository integration
 
@@ -13,6 +15,9 @@ The integration baseline is `7a58017aeeb8fbaf3ee6defd00a594974f0950e4`, supersed
 | [Pre-save fact construction](../../src/automation/pre-save.ts), [browser dispatch](../../src/sw/automation-browser.ts) | Ordinary browser saves currently use pre-save facts. Site/import facts need an explicit host path; a source rule must not inherit a fabricated sync origin. |
 | [Capture entry](../../src/sw/capture.ts) | Rule-selected destinations already work without a default folder. Planned execution still needs to bypass repeated placement and popup-derived classification. |
 | [Manifest](../../manifest.base.json), [Chrome declarations](../../src/chrome.d.ts) | webNavigation is already optional and has limited declarations; add only missing scripting APIs and navigation/sender fields needed by adapters. |
+| [Capture contracts](../../src/capture/contracts.ts), [capture store](../../src/capture/store.ts) | Site capture entries and planned-effect identity are new work; preserve ordinary URL deduplication while separating approved effects and receipt retention. |
+| [Build assertions](../../scripts/build.mjs), [release verifier](../../scripts/verify-release-artifact.mjs), [manifest tests](../../tests/manifest-security.test.ts) | Update all exact permission contracts together. The release verifier rejects source maps, so validate a production build rather than passing it development output. |
+| [xvfb wrapper](../../scripts/with-xvfb.mjs), [Playwright config](../../playwright.config.ts) | The wrapper uses xvfb only on Linux with headed-watch mode off. A macOS wrapper invocation does not satisfy the repository's xvfb-only E2E instruction. |
 
 The ordered rule UI's subscription-based site collections and an adapter's website favorite collections are different concepts. Preserve existing subscription conditions and their version tracking; use the new source admission fields for favorite membership. Draft examples do not exercise the production parser, evaluator, browser worlds, or Bilibili session flows.
 
@@ -53,7 +58,11 @@ Sources: [userScripts API](https://developer.chrome.com/docs/extensions/referenc
 
 Do not infer Chrome support for userScriptWorldId from another browser's documentation. The [Chrome MessageSender reference](https://developer.chrome.com/docs/extensions/reference/api/runtime#type-MessageSender) does not expose that property; compare the [Chromium runtime schema](https://github.com/chromium/chromium/blob/main/extensions/common/api/runtime.json) when implementing. Distinct worldIds and private bootstrap credentials associate installations; this does not authenticate the reported site facts. Validate isolation and host-to-script commands over onUserScriptConnect ports in Chromium.
 
-MV3 policy allows external data but prohibits using a complex interpreter to turn downloaded configuration into executable remote logic. User Scripts API provides a documented route; other permission, user-data, and store requirements still apply. [MV3 policy](https://developer.chrome.com/docs/webstore/program-policies/mv3-requirements)
+MV3 policy allows external data but prohibits using a complex interpreter to turn downloaded configuration into executable remote logic. It explicitly lists User Scripts API as a remote-logic exception when used for its documented purpose. That exception applies only to code covered by the API; it does not authorize fetched scripts in extension pages/background workers, waive user-data requirements, or guarantee store approval. The userScripts reference describes user-provided scripts that cannot be shipped with the extension. A user-selected package installer should use that mechanism regardless of whether a package comes from an official GitHub repository or an unknown author. An allowlist is a product trust policy, not a substitute for the execution boundary. Sources: [MV3 policy](https://developer.chrome.com/docs/webstore/program-policies/mv3-requirements), [API Use policy](https://developer.chrome.com/docs/webstore/program-policies/api-use), and [userScripts purpose](https://developer.chrome.com/docs/extensions/reference/api/userScripts#concepts_and_usage).
+
+## Independent Bilibili verification
+
+The October 23 standalone prototype and its source/report were reviewed outside COLP at `/Users/whiten/bilibili-fav-extension`. The [evidence summary](bilibili-feasibility.md) records 21 existing collections/4,911 bookmarks, a final 22-collection/4,914-bookmark tree after three live additions, the `ids`/`infos` pacing change, and 30 passing unit tests rerun during review. Original screenshots and signed-in results are from the originating agent's run; this review did not repeat those site actions. These results establish core feasibility in the tested Chromium environment, not complete COLP, supported-version, or store acceptance.
 
 ## Messaging and storage
 
