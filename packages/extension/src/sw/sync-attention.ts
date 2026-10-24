@@ -10,6 +10,8 @@ import { syncAttentionTerminalCode } from '../sync-attention-ui.js';
 import type { UnreadableQueueRow } from '../sync-state/queue-lenient.js';
 import type { SyncAttentionResponse } from '../types.js';
 import type { createSyncStateStore, QueueOperation, SyncScope } from '../sync-state-store.js';
+import type { WakeFailure } from './wake-failure.js';
+import { readVisibleWakeFailures, unreadableQueueDiagnostics, wakeFailureDiagnostics } from './engine-issues.js';
 
 export type SyncAttentionStore = NativeWaitStore & Pick<ReturnType<typeof createSyncStateStore>,
   'getEngineState' | 'listQueue'> & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'listConsumedQueueIssues' | 'listBootstrapRuns' | 'listMappings' | 'listPullIssues' | 'listLocalIssues' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage' | 'listUnreadableQueue'>>;
@@ -19,6 +21,8 @@ export interface SyncAttentionDeps {
   readonly store: SyncAttentionStore;
   readonly openIssues?: OpenSyncIssues;
   readonly rebuildPending?: () => Promise<boolean>;
+  /** The repeated failures of engine wake steps for this replica (default: the worker's own record). */
+  readonly wakeFailures?: (replicaId: string) => Promise<readonly WakeFailure[]>;
 }
 
 /** Same status set `pendingDurableWorkFacts` live-scans (engine.ts), bounded to one page each. */
@@ -57,18 +61,20 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
     });
     if (stalled) issues.push({ direction: 'push', code: stalled.code } as typeof issues[number]);
     // Rule C / Rule E: a change that cannot be read keeps the push lane waiting (or is about to be held); say so.
-    for (const row of unreadable) issues.push({ direction: 'push',
-      code: row.kind === 'sent' ? 'queue_head_unreadable' : 'queue_row_unreadable',
-      ...(row.opId ? { opId: row.opId } : {}) } as typeof issues[number]);
+    issues.push(...unreadableQueueDiagnostics(unreadable) as typeof issues);
+    // Rule E: a step of the engine wake that keeps failing is a visible item, not a silent return.
+    const failedSteps = await (deps.wakeFailures ?? readVisibleWakeFailures)(scope.replicaId).catch((): WakeFailure[] => []);
+    issues.push(...wakeFailureDiagnostics(failedSteps) as typeof issues);
     return { ok: true, attention: {
       ...(engine?.phase ? { phase: engine.phase } : {}),
       recoveryFrozen: engine?.recoveryFrozen === true,
       retryAutomatic: engine?.phase !== 'error' && terminalCode === undefined,
       ...(engine?.notBefore ? { retryAt: engine.notBefore } : {}),
       ...queue,
-      issueCount: open.total + (stalled ? 1 : 0) + unreadable.length, issues, rebuildAvailable: capability.rebuildAvailable,
+      issueCount: open.total + (stalled ? 1 : 0) + unreadable.length + failedSteps.length, issues, rebuildAvailable: capability.rebuildAvailable,
       ...(capability.reason ? { rebuildUnavailableReason: capability.reason } : {}),
-      retryAvailable: Boolean(stalled) || open.queue.some(row => row.recovery?.code === 'sequence_blocked' && row.attempt !== undefined),
+      retryAvailable: Boolean(stalled) || failedSteps.length > 0
+        || open.queue.some(row => row.recovery?.code === 'sequence_blocked' && row.attempt !== undefined),
       nativeWaitPending: waits.length > 0,
       waitCount: waits.length,
       ...(lastError ? { lastError } : {}),

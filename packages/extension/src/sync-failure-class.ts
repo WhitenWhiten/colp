@@ -403,6 +403,8 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   stale_fence: entry('transient', 'retry'),
   stale_ref: entry('transient', 'retry'),
   sync_paused: entry('transient', 'retry'),
+  // Rule E: a step of the engine wake keeps failing; the next wake tries it again (the cause is `rootCause`).
+  sync_step_failed: entry('transient', 'retry'),
   target_mapping_missing: entry('item', 'refresh', SETS_ASIDE),
   transaction_aborted: entry('transient', 'retry'),
   unknown_or_missing_field: entry('replica', 'stop'),

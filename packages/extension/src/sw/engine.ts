@@ -40,6 +40,7 @@ import { hasFreshPushQueueHead } from '../push-work-budget.js';
 import { reportReplicaHealth } from './replica-health.js';
 import { metadataPassDue, recordMetadataPass } from './metadata-pass.js';
 import { takeExplicitSyncRetry } from './explicit-retry.js';
+import { createWakeSteps, isWakeWait, workerWakeFailureLog, type WakeFailureLog } from './wake-failure.js';
 
 let syncAlarmScheduler: ReturnType<typeof createSyncAlarmScheduler> | undefined;
 
@@ -130,36 +131,65 @@ export async function stopSyncEngine(): Promise<void> {
   await chrome.alarms.clear('known-sync-engine');
 }
 
+/**
+ * Rule E: one wake. A step that throws is recorded where Status and the health report read it
+ * (`wake-failure.ts`) instead of vanishing; whatever escapes the pass is recorded and rethrown.
+ */
 export async function runSyncEngine(reason: 'startup' | 'alarm' | 'online' | 'manual', connectivityRestored = false,
   context: AuthorityContext) {
+  const failures = workerWakeFailureLog();
+  try { await runSyncEnginePass(reason, connectivityRestored, context, failures); await failures.clear('wake'); }
+  catch (error) { await failures.record('wake', error); throw error; }
+}
+
+async function runSyncEnginePass(reason: 'startup' | 'alarm' | 'online' | 'manual', connectivityRestored: boolean,
+  context: AuthorityContext, failures: WakeFailureLog) {
   const explicitRetry = reason === 'manual' && takeExplicitSyncRetry();
   try { await store.assertWritable(context.generation); } catch { return; }
-  try { await replicaRebuilder().resume(); } catch { return; }
-  let scope: SyncScope; try { scope = await restoredSyncScope(); } catch { return; }
+  const { step, attempt, locate } = createWakeSteps(failures, syncState);
+  // A reset that cannot finish leaves the scope as it was; the wake goes on and Status names the failure.
+  const resumed = await step('rebuild_resume', () => replicaRebuilder().resume());
+  if (!resumed.ok && isWakeWait(resumed.code)) return;
+  const restored = await step('scope_restore', restoredSyncScope);
+  if (!restored.ok) return;
+  const scope = restored.value; await locate(scope);
   if (configuredPersonalSyncPolicy() && !await configuredPersonalSyncPolicy()!.allowed(scope)) return;
-  await syncState.prunePullHistory(scope).catch(() => undefined);
-  const advanced = await activeAdvancedPlan(syncState, scope);
-  if (advanced) await activateAdvancedPlan(syncState, scope, advanced);
-  const recorded = await syncState.getScope(scope);
-  const permissionGranted = await hasBookmarkPermission();
-  if (permissionGranted) bookmarkListenerLifecycle.install();
-  const hasMounts = await syncState.hasActiveMounts(scope);
-  const applyAllowed = pullApplyAllowed({
-    hasBookmarkPermission: permissionGranted, rootStatus: recorded?.rootStatus, hasActiveMounts: hasMounts,
+  await step('history_prune', () => syncState.prunePullHistory(scope));
+  const planned = await step('advanced_plan', async () => {
+    const plan = await activeAdvancedPlan(syncState, scope);
+    if (plan) await activateAdvancedPlan(syncState, scope, plan);
+    return plan;
   });
-  const frozenBeforeWake = (await syncState.getEngineState(scope))?.recoveryFrozen === true;
+  if (!planned.ok) return;
+  const advanced = planned.value;
+  const read = await step('state_read', async () => {
+    const recorded = await syncState.getScope(scope);
+    const permissionGranted = await hasBookmarkPermission();
+    if (permissionGranted) bookmarkListenerLifecycle.install();
+    const hasMounts = await syncState.hasActiveMounts(scope);
+    return { recorded, permissionGranted, applyAllowed: pullApplyAllowed({
+      hasBookmarkPermission: permissionGranted, rootStatus: recorded?.rootStatus, hasActiveMounts: hasMounts }),
+    frozenBeforeWake: (await syncState.getEngineState(scope))?.recoveryFrozen === true };
+  });
+  if (!read.ok) return;
+  const { recorded, permissionGranted, applyAllowed, frozenBeforeWake } = read.value;
   if (permissionGranted && frozenBeforeWake) {
-    await recoverMappedIdentityFreeze({ scope, store: syncState, api: chrome.bookmarks,
-      assertCurrent: async () => { await store.assertWritable(context.generation); } });
-    await recoverLocalSaveFreeze({ scope, store: syncState, storage: chrome.storage.local, api: chrome.bookmarks,
-      assertCurrent: async () => { await store.assertWritable(context.generation); } }).catch(() => undefined);
+    const assertCurrent = async () => { await store.assertWritable(context.generation); };
+    await step('identity_freeze_recovery', () => recoverMappedIdentityFreeze({ scope, store: syncState, api: chrome.bookmarks, assertCurrent }));
+    await step('local_save_recovery', () => recoverLocalSaveFreeze({ scope, store: syncState, storage: chrome.storage.local,
+      api: chrome.bookmarks, assertCurrent }));
   }
-  const needsRecoveryProgress = frozenBeforeWake || await snapshotRecoveryInFlight(scope);
+  const inFlight = frozenBeforeWake ? { ok: true as const, value: true } : await step('recovery_state', () => snapshotRecoveryInFlight(scope));
+  if (!inFlight.ok) return;
+  const needsRecoveryProgress = inFlight.value;
   if (permissionGranted && needsRecoveryProgress && !advanced) {
     await bookmarkListenerLifecycle.settled();
-    await (await currentBookmarkEventQueue(true))?.captureMissingRemovals();
+    await step('missing_removals', async () => (await currentBookmarkEventQueue(true))?.captureMissingRemovals());
   }
-  if (!applyAllowed && !needsRecoveryProgress && !(await pendingDurableWorkFacts(scope)).hasPendingWork) return;
+  if (!applyAllowed && !needsRecoveryProgress) {
+    const facts = await step('work_facts', () => pendingDurableWorkFacts(scope));
+    if (!facts.ok || !facts.value.hasPendingWork) return;
+  }
   let cycleAuthority: Awaited<ReturnType<typeof pushSessionAuthority>> | undefined;
   let discoveredEndpoints: Awaited<ReturnType<typeof fetchSyncEndpoints>> | undefined;
   const endpoints = async () => { discoveredEndpoints ??= await fetchSyncEndpoints(await loadConfig()); return discoveredEndpoints; };
@@ -255,7 +285,7 @@ export async function runSyncEngine(reason: 'startup' | 'alarm' | 'online' | 'ma
   if (bootstrapComplete) {
     if (!permissionGranted || advanced.state === 'attention') return;
     if (await kns09Paused('coordinator')) { await worker.drain(); return; }
-    let delay = 1_000;
+    let delay = 1_000; let failed = false;
     try {
       const refreshRemoteFacts = async () => {
         const authority = await sessions.get();
@@ -270,16 +300,19 @@ export async function runSyncEngine(reason: 'startup' | 'alarm' | 'online' | 'ma
       if (!await activeAdvancedPlan(syncState, scope)) await (await currentBookmarkEventQueue())?.recover();
     } catch (error) {
       if (error instanceof AuthorityFencedError) return;
-      const code = safeError(error); delay = 30_000;
+      const code = safeError(error); delay = 30_000; failed = true;
+      await failures.record('bootstrap_run', error, scope.replicaId);
       const run = (await syncState.listBootstrapRuns(scope)).find((row) => row.runId === advanced.planId);
       if (run) await syncState.putBootstrapRun(scope, { ...run, retryReason: code, updatedAt: Date.now() });
     }
+    if (!failed) await failures.clear('bootstrap_run');
     chrome.alarms.create('known-sync-engine', { when: Date.now() + delay });
     return;
   }
   if (!applyAllowed && !needsRecoveryProgress) {
     try {
       const drained = await worker.drain();
+      await failures.clear('push_drain');
       // A successful bounded drain may leave already-queued bootstrap work.
       // Continue through the coalesced lane; MV3 alarms have a 30-second floor.
       if (drained.outcome === 'terminal' && await hasFreshPushQueueHead(syncState, scope)) {
@@ -289,12 +322,13 @@ export async function runSyncEngine(reason: 'startup' | 'alarm' | 'online' | 'ma
     }
     catch (error) {
       if (error instanceof AuthorityFencedError) return;
+      await failures.record('push_drain', error, scope.replicaId);
       await markImportEngineRecovery(scope, safeError(error));
       chrome.alarms.create('known-sync-engine', { when: Date.now() + 30_000 });
     }
     return;
   }
-  placementRefreshEnabled = true;
+  placementRefreshEnabled = true; let wakeFailed = false;
   try {
     // The durable engine resumes owned local projection before network work.
     // Pull resolves endpoints before constructing/resuming the bound applier.
@@ -343,7 +377,7 @@ export async function runSyncEngine(reason: 'startup' | 'alarm' | 'online' | 'ma
       // A quiet alarm pass skips the whole-tree metadata reconcile; a lifted freeze may have dropped captures.
       const metadataCursor = engineState?.lastAckedCursor;
       const metadata = frozenBeforeWake || await metadataPassDue(scope, reason, metadataCursor)
-        ? await syncBrowserMetadata(scope, context, !result.lastError).catch(() => undefined) : undefined;
+        ? await attempt('metadata_pass', () => syncBrowserMetadata(scope, context, !result.lastError)) : undefined;
       if (metadata && metadataCursor && !result.lastError && metadata.staged === 0 && !metadata.needsSnapshot) {
         await recordMetadataPass(scope, metadataCursor);
       }
@@ -360,9 +394,13 @@ export async function runSyncEngine(reason: 'startup' | 'alarm' | 'online' | 'ma
     } }
   catch (error) {
     if (error instanceof AuthorityFencedError) return;
+    wakeFailed = true; await failures.record('engine_wake', error, scope.replicaId);
     await markImportEngineRecovery(scope, safeError(error));
     chrome.alarms.create('known-sync-engine', { when: Date.now() + 30_000 }); }
-  finally { if (__KNOWN_EXTENSION_EVIDENCE__) sw.outboundPushFaultEvidence = undefined; }
+  finally {
+    if (!wakeFailed) await failures.clear('engine_wake');
+    if (__KNOWN_EXTENSION_EVIDENCE__) sw.outboundPushFaultEvidence = undefined;
+  }
 }
 
 async function snapshotRecoveryInFlight(scope: SyncScope): Promise<boolean> {

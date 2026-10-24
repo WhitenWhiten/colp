@@ -50,6 +50,7 @@ import { installWorkerMetadataWake } from './sw/metadata-sync-wake.js';
 import { bindLibraryOnStartup } from './sw/library.js';
 import { handleSyncEngineRequest, scheduleSyncEngineWake } from './sw/engine.js';
 import { requestExplicitSyncRetry } from './sw/explicit-retry.js';
+import { guardWakeStep, workerWakeFailureLog } from './sw/wake-failure.js';
 import { REPLICA_HEALTH_ALARM, REPLICA_HEALTH_PERIOD_MINUTES, reportReplicaHealth } from './sw/replica-health.js';
 import { handleSyncStateEvidence } from './sw/evidence.js';
 import { clearFaviconForCurrentScope, drainFaviconSidecarsForCurrentScope, readFaviconPolicyForCurrentScope, resolveFaviconSaveContext, resolveLocalSaveContext } from './sw/favicon.js';
@@ -197,7 +198,8 @@ const syncAttentionDeps: SyncAttentionDeps = { scope: currentSyncScope, store: s
 /** SR-10 / A-08: the read-only ingress-diagnostic read behind the options list. */
 const ingressDiagnosticsDeps: IngressDiagnosticsDeps = { scope: currentSyncScope, store: syncState };
 
-void workCoordinator.run('engine', () => replicaRebuilder().resume())
+void workCoordinator.run('engine', () => guardWakeStep(workerWakeFailureLog(), 'rebuild_resume',
+  () => replicaRebuilder().resume()))
   .catch((error) => logBackgroundFailure('startup.replica-rebuild-resume', error))
   .then(() => recoverBookmarkEventsAfterEngineSettles('manual', { workerBoot: true }));
 

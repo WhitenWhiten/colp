@@ -28,6 +28,7 @@ import type { LocalIssueRecord, PullIssueRecord, QueueOperation, SyncScope } fro
 import { refreshesReplicaIntegrity, needsReplicaRebuild, persistentLocalSyncFailure } from '../sync-failure-class.js';
 import type { PublicSyncAttention } from '../types.js';
 import { handleSyncAttentionRequest, readStalledUpload, type SyncAttentionStore } from './sync-attention.js';
+import { readVisibleWakeFailures, replicaIssuesFromUnreadable, replicaIssuesFromWakeFailures } from './engine-issues.js';
 
 export const REPLICA_HEALTH_PATH = '/colp/v0.1/sync/replica-health';
 export const REPLICA_HEALTH_RECORD_KEY = 'known.sync.health.v1';
@@ -277,9 +278,14 @@ async function readProjection(deps: ReplicaHealthReporterDeps): Promise<ReplicaH
   const issues = snapshotSyncIssues(open);
   const stalled = await readStalledUpload(deps.store, deps.scope);
   if (stalled) issues.push(stalledUploadIssue(stalled.row, stalled.code, deps.now()));
+  // Engine-level items no row carries: unreadable saved uploads (Rule C) and failing wake steps (Rule E).
+  const unreadable = await deps.store.listUnreadableQueue?.(deps.scope).catch(() => []) ?? [];
+  const failedSteps = await readVisibleWakeFailures(deps.scope.replicaId);
+  issues.push(...replicaIssuesFromUnreadable(unreadable, deps.now()), ...replicaIssuesFromWakeFailures(failedSteps));
   const mode = await deps.mode();
   return projectReplicaHealth({ ...(mode ? { mode } : {}), attention: response.attention, issues,
-    total: open.total + (stalled ? 1 : 0), serverRebuild: deps.commands?.serverRebuild !== undefined });
+    total: open.total + (stalled ? 1 : 0) + unreadable.length + failedSteps.length,
+    serverRebuild: deps.commands?.serverRebuild !== undefined });
 }
 
 /** A sent change the server has kept unsettled; later uploads wait behind it, so the Sync center must see it. */

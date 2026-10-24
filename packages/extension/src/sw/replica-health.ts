@@ -11,6 +11,7 @@ import { REPLICA_HEALTH_ATTENTION_HEARTBEAT_MS, sendReplicaHealthReport,
 import { extensionOrigin, hasBookmarkPermission, store, syncState, workCoordinator } from './runtime.js';
 import { replicaRebuilder } from './scope-rebuild.js';
 import { createRuntimeAuth, currentSyncScope, loadConfig, restoredSyncScope } from './scope.js';
+import { guardWakeStep, isWakeWait, workerWakeFailureLog } from './wake-failure.js';
 
 /** The heartbeat that still reports when no engine pass runs, e.g. after a terminal stop. */
 export const REPLICA_HEALTH_ALARM = 'known-sync-health';
@@ -30,11 +31,13 @@ async function send(force: boolean) {
   // before registration. No scope exists for reporting yet; the independent
   // heartbeat must also resume that journal, not wait for an engine wake.
   if (await replicaRebuilder().hasPending()) {
-    try {
-      if (!await store.loadCredential()) await createRuntimeAuth(await loadConfig()).ensureFreshCredential();
-      await workCoordinator.run('engine', () => replicaRebuilder().resume());
-    }
+    try { if (!await store.loadCredential()) await createRuntimeAuth(await loadConfig()).ensureFreshCredential(); }
     catch { return; }
+    // A reset that cannot finish is recorded and reported; it must not silence the heartbeat (Rule E, W2A-02).
+    const resumed = await workCoordinator.run('engine', () => guardWakeStep(workerWakeFailureLog(), 'rebuild_resume',
+      () => replicaRebuilder().resume()));
+    // Waiting for a connection or a sign-in is tried again on the next heartbeat; a failure is reported below.
+    if (!resumed.ok && isWakeWait(resumed.code)) return;
   }
   let scope: Awaited<ReturnType<typeof restoredSyncScope>>;
   try { scope = await restoredSyncScope(); } catch { return; }

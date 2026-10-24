@@ -450,6 +450,8 @@ export interface SyncIssueDiagnostic {
   readonly count?: number; readonly firstSeenAt?: string | number; readonly lastSeenAt?: string | number;
   readonly dependencyOpId?: string; readonly dependencyEventId?: string; readonly dependencySequence?: number;
   readonly rootCause?: string; readonly attempts?: number; readonly recovery?: 'automatic' | 'decision';
+  /** Rule E: the engine step that failed (`sync_step_failed` only). */
+  readonly stage?: string;
 }
 export interface PublicSyncAttention {
   readonly issueCount?: number;
