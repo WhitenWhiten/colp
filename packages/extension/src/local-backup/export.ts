@@ -16,6 +16,8 @@ import { hasBookmarkPermission } from '../sw/runtime.js';
 import { bookmarkUrl } from '../generated/import-preview-validators.js';
 import { supportedBackupNodes } from './export-supported.js';
 import { backupHistory, backupNativeNodes, bookmarkHtml, MAX_BACKUP_BYTES, parseBackupAiConfig, parseLocalBackup, type BackupAiConfig, type BackupHistory } from './codec.js';
+import { exportPortableSources } from '../site-adapters/portable.js';
+import { siteLedger } from '../site-adapters/source-runtime.js';
 
 /** Optional connection settings must never leak URL credentials or prevent a data backup. */
 async function readBackupAiConfig(): Promise<BackupAiConfig | null> {
@@ -68,7 +70,9 @@ export async function exportLocalBackup(request: BackupExportRequest) {
     await assertCaptureOwner(scope);
     const supportedHistory = history.filter(item => bookmarkUrl(item.url));
     skippedHistory = history.length - supportedHistory.length;
+    const siteAdapters = await exportPortableSources(siteLedger.db, new Set(nodes.map(n => n.sourceId)));
     content = JSON.stringify(parseLocalBackup({ format: 'known-browser-backup', version: 1, exportedAt: Date.now(), nodes, history: supportedHistory,
+      ...(siteAdapters ? { siteAdapters } : {}),
       preferences: devicePreferencePatch(preferences), language, defaultFolderSourceId: nodes.some(node => node.sourceId === folder?.folderNativeId) ? folder!.folderNativeId : null, aiConfig }), null, 2);
   }
   if (new TextEncoder().encode(content).byteLength > MAX_BACKUP_BYTES) throw new Error('input_too_large');

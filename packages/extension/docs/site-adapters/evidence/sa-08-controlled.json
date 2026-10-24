@@ -1,0 +1,61 @@
+{
+  "fixture": true,
+  "realSite": false,
+  "observedAt": "2026-10-24T15:32:47.397546+00:00",
+  "baseCommit": "2f9c1f94",
+  "runner": "prepared OrbStack Linux arm64; Node 24.17.0; Playwright 1.61.1; forced xvfb",
+  "browserVersion": "149.0.7827.0",
+  "finalCoreStats": {
+    "startTime": "2026-10-24T15:25:35.492Z",
+    "duration": 298543.498,
+    "expected": 4,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "coreCommand": "node packages/extension/scripts/with-orbstack.mjs e2e e2e/mv3-site-adapter-recovery.spec.ts e2e/mv3-site-adapter-planned.spec.ts e2e/mv3-site-adapter-semantic.spec.ts e2e/mv3-site-adapter-import.spec.ts",
+  "earlierBackupRegression": "mv3-local-backup.spec.ts 1/1 in 23.1 seconds; combined recovery/planned/backup 3/3 in 48.9 seconds",
+  "cases": {
+    "disabledCrossProfileRestore": true,
+    "explicitAccountAndRootRebinding": true,
+    "adoptionNativeWrites": 0,
+    "futureSchemaReadOnlyExport": 99,
+    "unknownVisibleAndPreserved": true,
+    "unknownReplacementCreates": 0,
+    "sourceModelCalls": 0
+  },
+  "afterCoreChanges": "Diagnostic encoding now preserves undefined/date fields with explicit path metadata; final recovery/browser check recorded separately.",
+  "finalRecoveryStats": {
+    "startTime": "2026-10-24T15:33:18.183Z",
+    "duration": 15481.836,
+    "expected": 1,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "finalRecoveryCommand": "node packages/extension/scripts/with-orbstack.mjs e2e e2e/mv3-site-adapter-recovery.spec.ts",
+  "unitTests": {
+    "passed": 61,
+    "files": 7,
+    "command": "node packages/extension/scripts/with-orbstack.mjs run node_modules/.bin/vitest run tests/site-adapter-recovery.test.ts tests/classification-destination-policy.test.ts tests/local-backup.test.ts tests/local-import.test.ts tests/site-adapter-import.test.ts tests/site-adapter-content.test.ts tests/site-adapter-rules.test.ts"
+  },
+  "strictTypecheck": {
+    "passed": true,
+    "heapMiB": 1536,
+    "command": "node packages/extension/scripts/with-orbstack.mjs run node --max-old-space-size=1536 node_modules/typescript/bin/tsc --noEmit --strict --skipLibCheck --noUncheckedIndexedAccess --target ES2023 --module NodeNext --moduleResolution NodeNext --lib ES2023,DOM,DOM.AsyncIterable src/chrome.d.ts src/bookmark-subscriptions/chrome-external.d.ts src/service-worker.ts src/entry/popup.ts src/entry/options.ts src/site-adapters/settings.ts tests/site-adapter-recovery.test.ts tests/classification-destination-policy.test.ts e2e/mv3-site-adapter-recovery.spec.ts",
+    "projectWide": "Not completed: prepared VM memory limit previously recorded; not counted as passing."
+  },
+  "lint": "ESLint passed for every changed/new TypeScript file",
+  "releaseVerifier": {
+    "passed": true,
+    "files": 41,
+    "sourceMaps": false,
+    "secretScan": "passed"
+  },
+  "productionSha256": {
+    "site-adapter.js": "ea88e87e919fd51b3c0216eade668d15b78bba5d5c11e4c872a904fe5a8d8a59",
+    "site-probe.js": "adce621480b74a7224f7bab51e2adfd3650898b9cb19d91c38de02d12ee1f359",
+    "service-worker.js": "037c89a99ab6417b0ed750ac0747292ecf91a35964a28795fa7af970976855a3"
+  },
+  "cleanup": "All selected xvfb contexts/profiles/containers removed; no server started. Real-site aggregate cleanup recorded separately."
+}

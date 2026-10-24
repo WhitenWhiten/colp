@@ -77,6 +77,7 @@ export function createLocalImportStore(factory: IDBFactory = indexedDB) {
           ...(backup ? { source: 'backup', historyCount: backup.history.length, backup: {
             history: backup.history, preferences: backup.preferences, language: backup.language,
             defaultFolderSourceId: backup.defaultFolderSourceId, aiConfig: backup.aiConfig,
+            ...(backup.siteAdapters ? { siteAdapters: backup.siteAdapters } : {}),
           } } : {}) };
         tx.objectStore('plans').add(plan);
         for (const item of items) tx.objectStore('items').add(item);

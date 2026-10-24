@@ -11,6 +11,7 @@ import { object, literal, str } from './schema.js';
 import { captureStore } from '../sw/capture.js';
 import { currentCaptureScope, nativeCaptureLocation } from '../sw/capture-native.js';
 import { cursorPage } from '../sync-state/idb.js';
+import { assertSourceRebound, assertRestoredItemAvailable } from './portable.js';
 interface ManagedMove { nativeId: string; dateAdded: number; title: string; from: string; to: string; at: number; state: 'submitted' | 'confirmed' }
 export async function isManagedContentMove(id: string, to: string, from: string) {
   const move = await siteLedger.db.read<ManagedMove>('meta', `contentMove:${id}`);
@@ -75,6 +76,8 @@ export function installContentBindings() {
       if (!b || b.id !== task.contentIntent.bindingId || b.commandId !== task.commandId || b.supersededBy
         || ['detached', 'suppressed'].includes(b.state)) throw new Error('content_binding_changed');
       if (b.connectionId) {
+        await assertSourceRebound(siteLedger.db, b.connectionId);
+        await assertRestoredItemAvailable(siteLedger.db, b.connectionId, b.content.itemId);
         const a = await siteLedger.db.read<import('./ledger-types.js').SourceAuthority>('authorities', 'bundled.bilibili');
         const p = await siteLedger.db.read<import('./layout.js').SourcePolicyRecord>('meta', `policy:${b.connectionId}`);
         if (!a?.enabled || a.connectionId !== b.connectionId || !p?.enabled || p.policy.revision !== b.policyRevision

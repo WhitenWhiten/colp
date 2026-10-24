@@ -15,6 +15,10 @@ import { BILIBILI } from './bilibili/identity.js';
 import { initialTransportState, createSiteTransport, SITE_PORT, SITE_STATE_KEY, type SiteSender, type TransportState, validSiteSender } from './transport.js';
 import { object, literal, str } from './schema.js';
 import { validAdapterMessage } from './schemas.js';
+import { adapterBrowserSupport } from './browser-support.js';
+import { handleRepairRequest, validRepairRequest } from './repair-runtime.js';
+import { assertSourceRebound } from './portable.js';
+const browserSupport = () => adapterBrowserSupport(navigator.userAgent);
 const grants = { permissions: ['scripting', 'webNavigation'], origins: [...BILIBILI.matches] };
 let storageReady: Promise<void> | undefined;
 function trustedStorage(): Promise<void> {
@@ -29,7 +33,7 @@ const read = async () => { await trustedStorage(); const raw = (await chrome.sto
   if (raw && (raw as { version?: number }).version !== 1) throw new Error('schemaIncompatible');
   return (raw as TransportState | undefined) ?? initialTransportState(); };
 export const siteTransport = createSiteTransport({ extensionId: chrome.runtime.id, now: Date.now, random: () => crypto.randomUUID(), read,
-  write: s => chrome.storage.local.set({ [SITE_STATE_KEY]: s }), permitted: () => chrome.permissions.contains(grants),
+  write: s => chrome.storage.local.set({ [SITE_STATE_KEY]: s }), permitted: async () => browserSupport().supported && await chrome.permissions.contains(grants),
   current: async s => {
     if (s.tab?.id === undefined) return null;
     const frame = await chrome.webNavigation.getFrame({ tabId: s.tab.id, frameId: 0 }).catch(() => null);
@@ -42,7 +46,7 @@ interface CatalogCache { context: string; items: import('./contracts.js').SiteCo
 const catalogContext = (c: import('./ledger-types.js').SourceContext) => JSON.stringify([c.connectionId, c.installationGeneration, c.sourceSessionGeneration, c.documentId, c.routeEpoch]);
 interface Inspection { command: Exclude<HostCommand, { operation: 'cancelRead' | 'invalidateLease' | 'shutdown' | 'renewLease' }>; documentId: string; result?: unknown }
 async function senderCurrent(sender: SiteSender): Promise<boolean> {
-  if (!validSiteSender(sender, chrome.runtime.id) || !await chrome.permissions.contains(grants) || !(await read()).enabled) return false;
+  if (!browserSupport().supported || !validSiteSender(sender, chrome.runtime.id) || !await chrome.permissions.contains(grants) || !(await read()).enabled) return false;
   const frame = await chrome.webNavigation.getFrame({ tabId: sender.tab.id, frameId: 0 });
   return !!frame && frame.documentId === sender.documentId && new URL(frame.url).origin === BILIBILI.origin && frame.documentLifecycle === 'active';
 }
@@ -147,7 +151,7 @@ async function injectOpen() {
   }
 }
 async function reconcile() {
-  let s = await read(); const granted = await chrome.permissions.contains(grants);
+  let s = await read(); const granted = browserSupport().supported && await chrome.permissions.contains(grants);
   if (s.enabled && !granted) { await siteTransport.invalidate(); s = await read(); }
   await synchronizeSourceAuthority(s);
   if (!s.enabled || !granted) {
@@ -232,8 +236,12 @@ export function installSiteAdapters() {
       if (sender.id !== chrome.runtime.id || !sender.url?.startsWith(`chrome-extension://${chrome.runtime.id}/`) || !['/popup.html', '/site-adapters.html'].includes(path || '')) return false;
       void (validDestinationRequest(raw) ? handleDestinationRequest(raw) : handleContentRequest(raw)).then(respond, e => respond({ ok: false, error: e instanceof Error ? e.message : 'unavailable' })); return true;
     }
+    if (management(sender) && validRepairRequest(raw)) {
+      void handleRepairRequest(raw).then(respond, e => respond({ ok: false, error: e instanceof Error ? e.message : 'unavailable' })); return true;
+    }
     if (!management(sender) || !(statusSchema(raw) || enableSchema(raw) || confirmSchema(raw) || inspectSchema(raw) || retrySchema(raw) || archives.valid(raw))) return false;
     void (async () => {
+      if (!browserSupport().supported && !statusSchema(raw) && !(enableSchema(raw) && !d!.enabled)) throw new Error('browserUnsupported');
       if (enableSchema(raw)) {
         if (d!.enabled && !await chrome.permissions.contains(grants)) throw new Error('permissionRequired');
         await siteTransport.configure(d!.enabled!); await synchronizeSourceAuthority(await read()); disconnectAll();
@@ -256,8 +264,11 @@ export function installSiteAdapters() {
       }
       const archiveState = await archives.status();
       const siteStatus = await siteTransport.status();
-      const writes = siteStatus.enabled && siteStatus.connected && archiveState.config?.state === 'active' && await chrome.permissions.contains({ permissions: ['bookmarks'] });
-      return { ...siteStatus, mode: writes ? 'localArchive' : 'inspector', writes, archive: archiveState, ...(archiveResult ? { archiveResult } : {}), capabilities: { itemIdentity: 'avAndBv', observation: 'freshPositiveMembership', humanActionProof: 'unavailable',
+      let archiveHold: string | null = null;
+      if (archiveState.config) try { await assertSourceRebound(siteLedger.db, archiveState.config.connectionId); } catch (e) { archiveHold = e instanceof Error ? e.message : 'sourceNeedsReview'; }
+      const writes = !archiveHold && browserSupport().supported && siteStatus.enabled && siteStatus.connected && archiveState.config?.state === 'active' && await chrome.permissions.contains({ permissions: ['bookmarks'] });
+      return { ...siteStatus, browser: browserSupport(), grants: { site: await chrome.permissions.contains(grants), bookmarks: await chrome.permissions.contains({ permissions: ['bookmarks'] }) },
+        mode: writes ? 'localArchive' : 'inspector', writes, archiveHold, archive: archiveState, ...(archiveResult ? { archiveResult } : {}), capabilities: { itemIdentity: 'avAndBv', observation: 'freshPositiveMembership', humanActionProof: 'unavailable',
         negativeMembership: 'unavailable', shortLinks: 'unavailable', collectionChanges: 'explicitCatalogRead', nativeWrites: archiveState.config?.state === 'active' ? 'previewApprovalOrEnabledLivePolicy' : 'unavailable' },
       confirmations: await confirmations.status(), ...(inspectionStatus ? { inspectionStatus } : {}), inspection: (await chrome.storage.local.get(INSPECTION))[INSPECTION] ?? null };
     })().then(respond, e => respond({ error: e instanceof Error ? e.message : 'unavailable' })); return true;

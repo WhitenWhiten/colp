@@ -1,0 +1,58 @@
+{
+  "realSite": true,
+  "fixture": false,
+  "observedAt": "2026-10-24T15:27:53.031343+00:00",
+  "host": "macOS",
+  "browser": "ego-lite Chrome 154.0.0.0 (navigator.userAgent)",
+  "taskSpace": 5,
+  "runtime": "bundled MAIN hint probe and ISOLATED SDK v3; identity v1",
+  "permission": "User approved optional bookmarks; existing exact Bilibili site grant reused",
+  "nativeUiActions": [
+    "Created one empty temporary collection",
+    "Confirmed favorite into only that collection after configuring one local root and sourceAndSemantic live policy",
+    "Removed only that membership",
+    "Deleted empty temporary collection"
+  ],
+  "archive": {
+    "folders": 1,
+    "bookmarks": 1,
+    "canonicalAv": true,
+    "pending": 0,
+    "last": "observed",
+    "sourceCaptures": [
+      {
+        "purpose": "sourceArchive",
+        "classification": "none",
+        "save": "local-saved",
+        "automaticIntent": false
+      }
+    ]
+  },
+  "modelRequestMeasurement": "No independent network instrumentation on the real site. Saved source task had classification none, automaticIntent false; controlled suites separately measure zero provider requests for source archives.",
+  "removalRetainedArchive": true,
+  "cleanup": {
+    "temporaryCollectionDeleted": true,
+    "temporaryNativeTreeDeleted": true,
+    "prototypeEnabledStateRestored": true,
+    "originalCollections": 22,
+    "finalCollections": 22,
+    "archivePolicy": "disabled; historical receipts retained",
+    "services": "none started",
+    "browserSpace": "retained temporarily for subsequent SA-09 acceptance; finish at task cleanup"
+  },
+  "artifactScope": "Development build reloaded before smoke. Subsequent SA-08 changes affect restore review/diagnostic presentation and proven-deleted-root destination policy; final bytes are qualified separately by controlled xvfb regressions and release verifier. No final-production real-site replay is claimed.",
+  "finalDevelopmentDiagnosticCheck": {
+    "passed": true,
+    "schemaVersion": 2,
+    "lastAcceptedOrdinal": 7,
+    "pendingObservations": 0,
+    "historicalStates": [
+      "folderReservations blocked",
+      "mounts suppressed",
+      "representations suppressed"
+    ],
+    "browserMajor": 154,
+    "archivePolicy": "disabled",
+    "nativeWrites": false
+  }
+}

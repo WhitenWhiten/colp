@@ -8,6 +8,7 @@ import { ANNOTATION_LIMITS, normalizeAnnotationNote, type BookmarkAnnotation } f
 import { RETAINED_TAG_LIMITS, validateRetainedTags } from '../bookmark-tag-limits.js';
 import { classificationEndpointAllowed, type LocalClassificationPresetId } from '../classification-local-presets.js';
 import type { FolderTreeNode } from '../save-folder.js';
+import { parsePortableSources, type PortableSources } from '../site-adapters/portable.js';
 
 export const MAX_BACKUP_BYTES = 32 * 1024 * 1024;
 const MAX_RECORDS = 100_000;
@@ -34,6 +35,7 @@ export interface BackupAiConfig {
   readonly accountId?: string; readonly gatewayId?: string;
 }
 export interface BackupMetadata {
+  readonly siteAdapters?: PortableSources;
   readonly history: readonly BackupHistory[];
   readonly preferences: Partial<BookmarkPreferences>; readonly language: 'auto' | 'en' | 'zh_CN';
   readonly defaultFolderSourceId: string | null; readonly aiConfig: BackupAiConfig | null;
@@ -86,7 +88,7 @@ export function parseBackupAiConfig(value: unknown): BackupAiConfig | null {
     ...(raw.gatewayId === undefined ? {} : { gatewayId: text(raw.gatewayId, 64) }) };
 }
 export function parseLocalBackup(value: unknown): LocalBackup {
-  const raw = object(value, ['format', 'version', 'exportedAt', 'nodes', 'history', 'preferences', 'language', 'defaultFolderSourceId', 'aiConfig']);
+  const raw = object(value, ['format', 'version', 'exportedAt', 'nodes', 'history', 'preferences', 'language', 'defaultFolderSourceId', 'aiConfig', 'siteAdapters']);
   if (raw.format !== 'known-browser-backup' || raw.version !== 1) throw new Error('backup_version_unsupported');
   const ids = new Set<string>();
   const nodes: BackupNode[] = [];
@@ -134,7 +136,7 @@ export function parseLocalBackup(value: unknown): LocalBackup {
   if (defaultFolderSourceId !== null && !nodes.some(node => node.sourceId === defaultFolderSourceId && node.url === undefined)) throw new Error('backup_invalid');
   return { format: 'known-browser-backup', version: 1, exportedAt: timestamp(raw.exportedAt), nodes, history,
     preferences: devicePreferencePatch(normalized), language: choice(raw.language, ['auto', 'en', 'zh_CN']), defaultFolderSourceId,
-    aiConfig: parseBackupAiConfig(raw.aiConfig) };
+    aiConfig: parseBackupAiConfig(raw.aiConfig), ...(raw.siteAdapters === undefined ? {} : { siteAdapters: parsePortableSources(raw.siteAdapters) }) };
 }
 export function decodeLocalBackup(bytes: Uint8Array): LocalBackup {
   if (bytes.byteLength > MAX_BACKUP_BYTES) throw new Error('input_too_large');

@@ -4,7 +4,7 @@ import { sourceDigest } from './site-adapters/source-db.js';
 
 export interface DestinationPolicy { digest: string; excluded: ReadonlySet<string>; constrained: boolean }
 export interface DestinationPolicyPorts {
-  mounts(): Promise<readonly MountBinding[]>;
+  mounts(): Promise<readonly (MountBinding & { state?: 'active' | 'detached' | 'suppressed' })[]>;
   tree(): Promise<readonly FolderTreeNode[]>;
   deviceId(): Promise<string>;
 }
@@ -24,6 +24,8 @@ export function createClassificationDestinationPolicy(ports: DestinationPolicyPo
     const excluded = new Set<string>();
     for (const m of mounts) {
       if (m.aiDestination === 'allowed') continue;
+      // A proven deletion has no subtree to exclude. Reused IDs, foreign devices and unproven missing roots still fail closed.
+      if (m.state === 'suppressed' && m.root.deviceId === device && !nodes.has(m.root.nativeId)) continue;
       const n = nodes.get(m.root.nativeId);
       if (m.root.deviceId !== device || !m.root.dateAdded || n?.dateAdded !== m.root.dateAdded) throw new Error('destination_policy_needs_rebind');
       excluded.add(m.root.nativeId);

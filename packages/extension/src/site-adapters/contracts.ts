@@ -485,6 +485,7 @@ export interface FolderReservationConsumer {
 
 /** Frozen host preview; its digest covers scope, snapshots, counts and logical effects. */
 export interface ImportPreview {
+  reviewSamples?: readonly { itemId: string; collectionId: string; reason: string }[];
   id: Id;
   importRunId: Id;
   revision: number;

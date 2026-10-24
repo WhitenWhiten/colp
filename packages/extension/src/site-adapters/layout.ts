@@ -9,6 +9,7 @@ import { createSourceReservations, representationKey } from './reservations.js';
 import { effectDigest, persistSavePlan } from './planned-executor.js';
 import { cursorPage } from '../sync-state/idb.js';
 import { withDestinationPolicyBoundary } from '../classification-destination-boundary.js';
+import { assertSourceRebound, assertRestoredItemAvailable } from './portable.js';
 
 export interface SourcePolicyRecord { connectionId: string; enabled: boolean; liveArchive: boolean; admittedAfterOrdinal?: number; policy: SavePolicy }
 export interface SourceMount extends MountBinding { state: 'active' | 'detached' | 'suppressed' }
@@ -32,6 +33,7 @@ const identity = (value: unknown) => sourceDigest(value).slice(7);
 export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
   const reservations = createSourceReservations(db);
   async function policy(connectionId: string) {
+    await assertSourceRebound(db, connectionId);
     const value = await db.read<SourcePolicyRecord>('meta', `policy:${connectionId}`);
     if (!value?.enabled || await ports.paused()) throw new Error('sourceAutomationPaused');
     return value;
@@ -101,6 +103,7 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
     },
     async plan(input: { context: SourceContext; itemId: string; collectionId: string; entry: SiteRuleEdge['entry']; trigger: SavePlan['trigger'] }) {
       const { context: c } = input, settings = await policy(c.connectionId);
+      await assertRestoredItemAvailable(db, c.connectionId, input.itemId, input.collectionId);
       if (input.trigger.kind === 'observation' && settings.admittedAfterOrdinal !== undefined) {
         const row = await db.read<{ ordinal: number }>('observations', input.trigger.observationId);
         if (!row || row.ordinal <= settings.admittedAfterOrdinal) throw new Error('beforeSourceActivation');
@@ -185,6 +188,7 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
       if (settings.policy.revision !== plan.policyRevision || plan.classificationPolicyDigest !== 'disabled' || !plan.mount || plan.rule?.source !== 'browser') throw new Error('sourcePolicyChanged');
       const fence = await db.read<PlanFence>('meta', `plan-fence:${plan.id}`);
       if (!fence || fence.entry !== 'siteImport' && !settings.liveArchive) throw new Error('sourceAuthorizationChanged');
+      await assertRestoredItemAvailable(db, plan.connectionId, fence.item.id, fence.collection.id);
       if (plan.trigger.kind === 'import' && fence.representation && await db.read('representations', representationKey(fence.representation))) throw new Error('previewStale');
       const now = await current(plan.connectionId, fence.item.id, fence.collection.id);
       if (sourceDigest(now) !== sourceDigest({ edge: fence.edge, item: fence.item, collection: fence.collection })) throw new Error('sourceFactsChanged');

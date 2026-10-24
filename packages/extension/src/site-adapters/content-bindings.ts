@@ -4,6 +4,7 @@ import { representationKey, type ItemReservation } from './reservations.js';
 import { resolveAvUrl, itemId as normalizedItemId } from './bilibili/identity.js';
 import type { SourcePolicyRecord } from './layout.js';
 import type { SourceAuthority } from './ledger-types.js';
+import { assertSourceRebound, assertRestoredItemAvailable } from './portable.js';
 export interface ContentBindingRow extends CaptureContentBinding {
   intentPending?: boolean; requestDigest: string; sourceGeneration?: readonly [number, number]; supersededBy?: string; commandId: string; state: 'pending' | 'active' | 'detached' | 'suppressed';
   forceAnother?: boolean; mode: 'create' | 'reuse' | 'reclassify' | 'suggest'; policyRevision: number | null;
@@ -27,6 +28,8 @@ export function createContentBindings(db: SourceDatabase, assertNative: (native:
       const a = await db.read<SourceAuthority>('authorities', 'bundled.bilibili');
       const settings = a?.enabled && a.connectionId ? await db.read<SourcePolicyRecord>('meta', `policy:${a.connectionId}`) : undefined;
       const connectionId = settings?.enabled ? settings.connectionId : candidates[0]?.connectionId ?? null;
+      if (connectionId) await assertSourceRebound(db, connectionId);
+      if (connectionId) await assertRestoredItemAvailable(db, connectionId, input.itemId);
       const reps = connectionId ? await db.transaction(['representations'], 'readonly', tx => rows<Representation>(tx, 'representations', connectionId, input.itemId)) : [];
       for (const r of reps) { if (r.state !== 'active') throw new Error('content_binding_needs_review'); await assertNative(r.native, r.lastWritten ? { ...r.lastWritten, url: r.lastWritten.url ?? `https://www.bilibili.com/video/av${r.itemId.split(':').at(-1)}` } : undefined); }
       return db.transaction(['contentBindings', 'itemReservations', 'representations', 'meta', 'authorities'], 'readwrite', async tx => {

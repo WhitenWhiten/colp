@@ -8,6 +8,8 @@ import { restoreDeviceBookmarkPreferences } from '../sw/bookmark-preferences.js'
 import { FOLDER_DEFAULT_BINDING, DEVICE_FOLDER_SCOPE } from '../save-folder.js';
 import { setUiLanguage } from '../i18n.js';
 import { clearLocalClassificationContext, storedLocalClassification, LOCAL_CLASSIFICATION_DRAFT, LOCAL_CLASSIFICATION_ENABLED } from '../classification-local-session.js';
+import { restorePortableSources } from '../site-adapters/portable.js';
+import { siteLedger } from '../site-adapters/source-runtime.js';
 
 /** Retrying this phase only repeats local idempotent writes, never native creates or old commands. */
 export async function restoreBackupMetadata(plan: LocalImportPlan, items: readonly LocalImportItem[]) {
@@ -29,6 +31,7 @@ export async function restoreBackupMetadata(plan: LocalImportPlan, items: readon
     await restoreItemAnnotations(items);
     await assertCaptureOwner(owner);
     await backupHistoryStore.restore(owner, plan.commandId, data.history, nativeIds);
+    if (data.siteAdapters) await restorePortableSources(siteLedger.db, plan.commandId, data.siteAdapters, nativeIds);
     if (plan.restoreSettings) {
       await assertCaptureOwner(owner);
       await restoreDeviceBookmarkPreferences({ ...data.preferences, captureMode: 'manual' });

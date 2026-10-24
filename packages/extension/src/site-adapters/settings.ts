@@ -2,6 +2,7 @@ import { BILIBILI } from './bilibili/identity.js';
 interface ImportStatus { id: string; phase: string; edgeCount: number; pages: number; omissions: number; coverage: string; reason: string | null; nextEdge: number; nextPlan: number;
   preview: { id: string; revision: number; digest: string; coverage: string; counts: { createFolders: number; createBookmarks: number; reuseBookmarks: number; review: number }; omissions?: { samples: readonly { id: string; reason: string }[]; unscannedRemainder: boolean } } | null }
 interface SiteStatus { inspectionStatus?: { status: string; retryAfterMs?: number }; candidateAccount?: string | null; error?: string; confirmations?: { pending: number };
+  browser?: { minimum: number; major: number | null; supported: boolean }; grants?: { site: boolean; bookmarks: boolean };
   inspection?: { command: { deadlineAt: number; pageRequestId?: string; query?: { cursor: string | null } }; result?: { status: string; kind?: string; page?: { items: { id: string; title: string }[]; nextCursor: string | null } } };
   archive?: { config: { root: { nativeId: string }; collectionIds: readonly string[]; live: boolean; state: string; copies?: string; primarySourceCollectionId?: string | null; aiDestination?: string } | null; import: ImportStatus | null } }
 const root = document.querySelector<HTMLSelectElement>('#archive-root')!, collections = document.querySelector<HTMLSelectElement>('#archive-collections')!;
@@ -70,6 +71,9 @@ async function send(message: unknown) {
   candidate = result.candidateAccount ?? null; confirm.hidden = !candidate;
   document.querySelector('#connection')!.textContent = candidate ? `Detected account ${candidate}. Confirm the account you want to connect.` : '';
   status.textContent = JSON.stringify(result, null, 2);
+  document.querySelector('#capability-summary')!.textContent = result.error ? `Paused: ${result.error}. Recovery inspection and export remain available.`
+    : `Chrome ${result.browser?.major ?? 'unknown'}; adapters require ${result.browser?.minimum ?? 149}+. Site access: ${result.grants?.site ? 'granted' : 'missing'}. Bookmarks: ${result.grants?.bookmarks ? 'granted' : 'missing'}. Positive observation only; human-action proof, negative readback, short links and cloud archives are unavailable.`;
+  if (result.browser) button('enable').disabled = !result.browser.supported;
   renderArchive(result);
   if (result.archive?.import && ['scanning', 'preparing', 'approved'].includes(result.archive.import.phase) || result.confirmations?.pending || result.inspection && !result.inspection.result && result.inspection.command.deadlineAt > Date.now())
     refreshTimer = setTimeout(() => { void send({ kind: 'known.siteAdapters.status' }); }, 500);
@@ -129,3 +133,44 @@ button('read-bindings').addEventListener('click', () => { void (async () => {
   }
   if (result.truncated) container.append(document.createTextNode('Only the first saved associations are shown. Remaining records are retained.'));
 })(); });
+
+async function repair(kind: 'status' | 'recover' | 'export') {
+  const result = await chrome.runtime.sendMessage({ kind: `known.siteAdapters.repair.${kind}` }) as { ok?: boolean; error?: string; diagnostic?: unknown;
+    restored?: { id: string; connections: { ref: string; accountId: string; retainedBlocked: boolean; mounts: { ref: string; rootCandidate: string | null; reviewed: boolean }[] }[] }[] };
+  const summary = document.querySelector('#repair-summary')!, container = document.querySelector('#repair-records')!;
+  if (result.diagnostic) {
+    const url = URL.createObjectURL(new Blob([JSON.stringify(result.diagnostic, null, 2)], { type: 'application/json' }));
+    const link = document.createElement('a'); link.href = url; link.download = `colp-source-private-diagnostic-${Date.now()}.json`; link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000); summary.textContent = 'Private diagnostic exported. Existing work and database schema were preserved.'; return;
+  }
+  summary.textContent = JSON.stringify(result, null, 2); container.replaceChildren();
+  for (const restored of result.restored ?? []) for (const connection of restored.connections) {
+    if (connection.retainedBlocked || connection.mounts.length && connection.mounts.every(m => m.reviewed)) continue;
+    const row = document.createElement('p'), preview = document.createElement('button'); preview.type = 'button';
+    row.textContent = `Account ${connection.accountId}: unresolved restored copies can remain blocked while unrelated new work continues. `;
+    preview.textContent = 'Review keeping this restored scope blocked';
+    preview.onclick = () => { void (async () => {
+      const request = { restoreId: restored.id, connectionRef: connection.ref };
+      const response = await chrome.runtime.sendMessage({ kind: 'known.siteAdapters.repair.reviewBlocked', ...request }) as { preview?: { digest: string } };
+      summary.textContent = JSON.stringify(response, null, 2);
+      if (response.preview) { const approve = document.createElement('button'); approve.type = 'button'; approve.textContent = 'Keep these restored items and collections blocked';
+        approve.onclick = () => { approve.disabled = true; void chrome.runtime.sendMessage({ kind: 'known.siteAdapters.repair.retainBlocked', ...request, digest: response.preview!.digest }).then(r => { summary.textContent = JSON.stringify(r, null, 2); }); }; row.append(approve); }
+    })(); }; row.append(preview); container.append(row);
+  }
+  for (const restored of result.restored ?? []) for (const connection of restored.connections) for (const mount of connection.mounts) {
+    const row = document.createElement('p'); row.textContent = `Restored account ${connection.accountId}; root candidate ${mount.rootCandidate ?? 'unavailable'}. ${mount.reviewed ? 'Reviewed.' : 'Disabled until reviewed.'} `;
+    if (!mount.reviewed) { const preview = document.createElement('button'); preview.textContent = 'Preview account and root rebinding'; preview.type = 'button';
+      preview.onclick = () => { void (async () => {
+        const request = { restoreId: restored.id, connectionRef: connection.ref, mountRef: mount.ref };
+        const response = await chrome.runtime.sendMessage({ kind: 'known.siteAdapters.repair.preview', ...request }) as { preview?: { digest: string; review: string[] }; error?: string };
+        summary.textContent = JSON.stringify(response, null, 2);
+        if (response.preview && !response.preview.review.length) {
+          const approve = document.createElement('button'); approve.textContent = 'Adopt these proven copies (no native writes)'; approve.type = 'button';
+          approve.onclick = () => { approve.disabled = true; void chrome.runtime.sendMessage({ kind: 'known.siteAdapters.repair.approve', ...request, digest: response.preview!.digest }).then(r => { summary.textContent = JSON.stringify(r, null, 2); }); };
+          row.append(approve);
+        }
+      })(); }; row.append(preview); }
+    container.append(row);
+  }
+}
+for (const kind of ['status', 'recover', 'export'] as const) button(`repair-${kind}`).addEventListener('click', () => { void repair(kind).catch(e => { document.querySelector('#repair-summary')!.textContent = String(e); }); });

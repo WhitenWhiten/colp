@@ -1,10 +1,11 @@
 import { createSourceLedger } from './ledger.js';
 import type { Lease, TransportState } from './transport.js';
 import type { SourceAuthority, SourceContext } from './ledger-types.js';
+import { adapterBrowserSupport } from './browser-support.js';
 export const siteLedger = createSourceLedger();
 export const SITE_RECOVERY_ALARM = 'known-site-adapters-recovery';
 export async function synchronizeSourceAuthority(state: TransportState) {
-  return siteLedger.setAuthority({ enabled: state.enabled && !state.sourceUnresolved && !!state.accountId,
+  return siteLedger.setAuthority({ enabled: adapterBrowserSupport(navigator.userAgent).supported && state.enabled && !state.sourceUnresolved && !!state.accountId,
     installationGeneration: state.generation, sourceSessionGeneration: state.sourceGeneration,
     accountId: state.accountId, negativeReadback: false });
 }
