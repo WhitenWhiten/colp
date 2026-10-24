@@ -4,6 +4,7 @@ export interface SourceAuthority { enabled: boolean; installationGeneration: num
 export interface SourceConnection { id: string; siteKey: 'bilibili'; accountId: string; identityVersion: 1 }
 /** Constructed only by the host from a verified lease; never page input. */
 export interface SourceContext { connectionId: string; installationGeneration: number; sourceSessionGeneration: number;
+  communityOrigin?: import('./community-state.js').CommunityOrigin;
   documentId: string; tabId: number; routeEpoch: number; leaseId: string }
 export interface LedgerEdge { connectionId: string; itemId: string; collectionId: string; state: 'present' | 'absent' | 'unresolved';
   ordinal: number; liveOrdinal: number; evidence: 'live' | 'import' | 'read'; observationId: string; conflicts: readonly string[] }

@@ -1,0 +1,74 @@
+{
+  "fixture": true,
+  "realSite": false,
+  "baseCommit": "8a9d15fc",
+  "observedAt": "2026-10-24T16:29:05.633683+00:00",
+  "runner": "prepared OrbStack Linux arm64, forced xvfb, Playwright 1.61.1",
+  "browserVersion": "149.0.7827.0",
+  "coreStats": {
+    "startTime": "2026-10-24T16:23:57.424Z",
+    "duration": 64508.742,
+    "expected": 3,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "coreCommand": "node packages/extension/scripts/with-orbstack.mjs e2e e2e/mv3-site-adapter-community.spec.ts e2e/mv3-site-adapter-lifecycle.spec.ts e2e/mv3-site-adapter-planned.spec.ts",
+  "cases": {
+    "nativeSourceBookmarks": 1,
+    "outOfScopeBookmarks": 0,
+    "modelCalls": 0,
+    "inertInstall": true,
+    "exactAuthoredByteDigest": true,
+    "namedWorlds": true,
+    "mainCannotAccessWrapper": true,
+    "privateApisUnavailable": true,
+    "freshBundledReadRequired": true,
+    "separateArchiveScopeApproval": true,
+    "spaOldCallbackRejected": true,
+    "bfcache": true,
+    "oldWorldSurvivesCleanupButCannotDispatch": true,
+    "browserToggleRevocation": true,
+    "explicitRollback": true,
+    "actualExtensionVersionUpdate": "0.1.3",
+    "userScriptsTestDeveloperMode": false,
+    "unpackedUpdateDeveloperMode": true
+  },
+  "unsupportedBrowserRange": "Chromium 121\u2013148 and other engines; not claimed tested",
+  "realSiteCommunityCode": "not installed or executed",
+  "finalCommunityStats": {
+    "startTime": "2026-10-24T16:35:53.382Z",
+    "duration": 24503.487,
+    "expected": 1,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "finalCommunityCommand": "node packages/extension/scripts/with-orbstack.mjs e2e e2e/mv3-site-adapter-community.spec.ts",
+  "unitTests": {
+    "passed": 38,
+    "files": 5,
+    "command": "node packages/extension/scripts/with-orbstack.mjs run node_modules/.bin/vitest run tests/site-adapter-community.test.ts tests/site-adapter-confirmation.test.ts tests/site-adapter-rules.test.ts tests/site-adapter-planned.test.ts tests/manifest-security.test.ts"
+  },
+  "strictTypecheck": {
+    "passed": true,
+    "heapMiB": 1536,
+    "command": "node packages/extension/scripts/with-orbstack.mjs run node --max-old-space-size=1536 node_modules/typescript/bin/tsc --noEmit --strict --skipLibCheck --noUncheckedIndexedAccess --target ES2023 --module NodeNext --moduleResolution NodeNext --lib ES2023,DOM,DOM.AsyncIterable src/chrome.d.ts src/bookmark-subscriptions/chrome-external.d.ts src/service-worker.ts src/entry/popup.ts src/entry/options.ts src/site-adapters/settings.ts tests/site-adapter-community.test.ts tests/site-adapter-confirmation.test.ts tests/site-adapter-rules.test.ts e2e/mv3-site-adapter-community.spec.ts",
+    "projectWide": "Not completed under previously recorded prepared VM memory limit; not counted as passing."
+  },
+  "lint": "All changed/new TypeScript files passed ESLint",
+  "releaseVerifier": {
+    "passed": true,
+    "files": 41,
+    "sourceMaps": false,
+    "secretScan": "passed"
+  },
+  "productionSha256": {
+    "site-adapter.js": "ea88e87e919fd51b3c0216eade668d15b78bba5d5c11e4c872a904fe5a8d8a59",
+    "site-probe.js": "adce621480b74a7224f7bab51e2adfd3650898b9cb19d91c38de02d12ee1f359",
+    "service-worker.js": "af7f5605a8e0c7a87c0e442b8e9516a20d04b9fd91ab13e483bad250aa271cc2"
+  },
+  "hungPageRevocation": "Unit test proves disable persists outside the browser-operation lane; late attachment cannot revive it. Cleanup/injection waits are bounded.",
+  "authoredEncoding": "Exact UTF-8 round-trip required; BOM and invalid Unicode reject without changing hashed bytes.",
+  "cleanup": "All temporary profiles, copied artifacts and test containers removed. No server started. Ego task space 5 finished with keep: []; no agent pages kept."
+}

@@ -544,6 +544,7 @@ export type PlanTrigger =
 
 /** A plan for a source-linked intent; ordinary captures keep their own contract. */
 export interface SavePlan {
+  communityOrigin?: import('./community-state.js').CommunityOrigin;
   id: Id;
   trigger: PlanTrigger;
   purpose: CapturePurpose;

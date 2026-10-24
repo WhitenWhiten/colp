@@ -15,6 +15,7 @@ export interface ConfirmationRow {
   active?: { command: Command; context: SourceContext };
 }
 interface Ports {
+  authorizeOrigin?(context: SourceContext, collectionIds: readonly string[]): Promise<void>;
   source(): Promise<{ context: SourceContext; expiresAt: number } | null>;
   send(context: SourceContext, command: Command): void;
   alarm(at: number): void;
@@ -41,7 +42,7 @@ export function createConfirmationQueue(ledger: Ledger, scheduler: ReturnType<ty
   return {
     async enqueue(context: SourceContext, requestId: string, hint: MembershipHint) {
       const id = sourceDigest({ connection: context.connectionId, generation: context.installationGeneration, source: context.sourceSessionGeneration,
-        document: context.documentId, requestId }).slice(7), digest = sourceDigest(hint);
+        document: context.documentId, requestId, ...(context.communityOrigin ? { communityOrigin: context.communityOrigin } : {}) }).slice(7), digest = sourceDigest(hint);
       return db.transaction(['meta', 'authorities', 'documentLeases', 'readRequests'], 'readwrite', async tx => {
         await requireSourceAuthority(tx, context);
         const old = await get<ConfirmationRow>(tx, 'readRequests', rowKey(id));
@@ -61,6 +62,8 @@ export function createConfirmationQueue(ledger: Ledger, scheduler: ReturnType<ty
       if (await db.read('meta', PAUSE)) return;
       const ids = await db.read<string[]>('meta', PENDING) ?? [], id = ids[0]; if (!id) return;
       let row = await db.read<ConfirmationRow>('readRequests', rowKey(id)); if (!row) return;
+      if (row.origin.communityOrigin) try { if (!ports.authorizeOrigin) throw new Error('communityArchiveRevoked'); await ports.authorizeOrigin(row.origin, row.hint.added); }
+      catch { await fail(row, 'communityArchiveRevoked'); ports.alarm(now() + LIMITS.spacingMs); return; }
       if (row.active && row.active.command.deadlineAt > now()) { ports.alarm(row.active.command.deadlineAt + LIMITS.spacingMs); return; }
       if (row.attempts >= LIMITS.attempts) { await fail(row, 'pageUnavailable'); ports.alarm(now() + LIMITS.spacingMs); return; }
       const source = await ports.source(); if (!source) { ports.alarm(now() + 30000); return; }
@@ -91,6 +94,8 @@ export function createConfirmationQueue(ledger: Ledger, scheduler: ReturnType<ty
       const row = await db.read<ConfirmationRow>('readRequests', rowKey(id)), active = row?.active;
       if (!row || !active || message.requestId !== requestId || active.command.deadlineAt <= now() || active.context.documentId !== context.documentId
         || active.context.leaseId !== context.leaseId || (active.command.operation === 'readMemberships' ? active.command.readRequestId : active.command.resolutionId) !== requestId) return false;
+      if (row.origin.communityOrigin) try { if (!ports.authorizeOrigin) throw new Error('communityArchiveRevoked'); await ports.authorizeOrigin(row.origin, row.hint.added); }
+      catch { await fail(row, 'communityArchiveRevoked'); await scheduler.finish(requestId); return true; }
       const result = message.result;
       if (result.status === 'failed') {
         await fail(row, result.error.code, ['challenge', 'rateLimited', 'signedOut'].includes(result.error.code));
@@ -111,7 +116,7 @@ export function createConfirmationQueue(ledger: Ledger, scheduler: ReturnType<ty
         const r = message.result;
         if (r.status !== 'resolved' || r.item.id !== row.hint.itemId || !row.known?.length) await fail(row, 'identityUnresolved');
         else {
-          const receipt = await ledger.acceptObservation(context, `hint:${id}`, { type: 'membership.observed', item: r.item,
+          const receipt = await ledger.acceptObservation({ ...context, ...(row.origin.communityOrigin ? { communityOrigin: row.origin.communityOrigin } : {}) }, `hint:${id}`, { type: 'membership.observed', item: r.item,
             memberships: { mode: 'delta', added: row.known, removed: [] } }, async (tx, observationId) => {
             const current = await get<ConfirmationRow>(tx, 'readRequests', rowKey(id));
             if (current?.active?.command.operation !== 'resolveItem' || current.active.command.resolutionId !== requestId) throw new Error('staleContext');

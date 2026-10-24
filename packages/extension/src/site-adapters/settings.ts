@@ -1,4 +1,5 @@
 import { BILIBILI } from './bilibili/identity.js';
+import './community-settings.js';
 interface ImportStatus { id: string; phase: string; edgeCount: number; pages: number; omissions: number; coverage: string; reason: string | null; nextEdge: number; nextPlan: number;
   preview: { id: string; revision: number; digest: string; coverage: string; counts: { createFolders: number; createBookmarks: number; reuseBookmarks: number; review: number }; omissions?: { samples: readonly { id: string; reason: string }[]; unscannedRemainder: boolean } } | null }
 interface SiteStatus { inspectionStatus?: { status: string; retryAfterMs?: number }; candidateAccount?: string | null; error?: string; confirmations?: { pending: number };

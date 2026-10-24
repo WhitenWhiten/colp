@@ -25,6 +25,8 @@ declare namespace chrome {
       onMessage: { addListener(callback: (message: unknown) => void): void }; onDisconnect: { addListener(callback: () => void): void } }
     function connect(options: { name: string }): Port;
     const onConnect: { addListener(callback: (port: Port) => void): void };
+    const onUserScriptMessage: typeof onMessage;
+    const onUserScriptConnect: typeof onConnect;
   }
   namespace cookies {
     interface Cookie { name: string; value: string; domain?: string; path: string; secure: boolean; httpOnly: boolean }
@@ -151,6 +153,16 @@ declare namespace chrome {
       removeListener(callback: (details: CommitDetails) => void): void;
       hasListener(callback: (details: CommitDetails) => void): boolean;
     };
+  }
+  namespace userScripts {
+    interface Script { id: string; matches?: string[]; js?: { code: string }[]; world?: 'USER_SCRIPT'; worldId?: string; allFrames?: boolean; runAt?: 'document_start' | 'document_idle' }
+    function getScripts(filter?: { ids: string[] }): Promise<Script[]>;
+    function register(scripts: Script[]): Promise<void>;
+    function unregister(filter: { ids: string[] }): Promise<void>;
+    function configureWorld(properties: { worldId: string; messaging: boolean; csp?: string }): Promise<void>;
+    function resetWorldConfiguration(worldId: string): Promise<void>;
+    function getWorldConfigurations(): Promise<{ worldId?: string; messaging?: boolean; csp?: string }[]>;
+    function execute(options: { target: { tabId: number; documentIds: string[] }; world: 'USER_SCRIPT'; worldId: string; js: { code: string }[]; injectImmediately: boolean }): Promise<{ documentId?: string; error?: string; result?: unknown }[]>;
   }
   namespace commands {
     interface Command { readonly name?: string; readonly description?: string; readonly shortcut?: string }

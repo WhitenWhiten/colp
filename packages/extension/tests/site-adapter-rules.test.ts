@@ -86,13 +86,14 @@ describe('v3 source admission and upgrade fences', () => {
   });
 });
 
-async function fixture() {
+async function fixture(authorizeCommunity?: import('../src/site-adapters/layout.js').LayoutPorts['authorizeCommunity']) {
   const db = createSourceDatabase(new IDBFactory()), nodes = new Map<string, LayoutNativeNode>([
     ['30', { id: '30', title: 'Root B', dateAdded: 10 }], ['31', { id: '31', title: 'Root C', dateAdded: 11 }],
   ]);
   let record = list(rule('B', ['101']), rule('C', ['102'], '31')), paused = false;
   const context: SourceContext = { connectionId: 'connection', installationGeneration: 1, sourceSessionGeneration: 1, documentId: 'doc', tabId: 1, routeEpoch: 1, leaseId: 'lease' };
   const layout = createSourceLayout(db, { rules: async () => flattenList(record), paused: async () => paused, deviceId: async () => 'device',
+    authorizeCommunity,
     lookup: async id => nodes.get(id) ?? null, assertRoot: async b => { if (nodes.get(b.nativeId)?.dateAdded !== b.dateAdded) throw new Error('bindingUnavailable'); } });
   await layout.configure({ connectionId: 'connection', enabled: true, liveArchive: true, policy: { revision: 1, copies: 'sourceAndSemantic', backgroundClassification: 'disabled', sourceRemoval: 'retainArchive' } });
   async function facts(item = 'video:av:1', collection = '101', title = 'Same name') {
@@ -111,6 +112,16 @@ async function fixture() {
   return { db, layout, nodes, facts, context, plan, setRecord: (r: RuleListRecord) => { record = r; }, pause: () => { paused = true; } };
 }
 describe('deterministic layout and native ownership', () => {
+  it('pins community provenance in plans and rechecks its independent grant before native dispatch', async () => {
+    let permitted = true;
+    const f = await fixture(async (_origin, input) => { if (!permitted || input.rootNativeId !== '30' || input.collectionIds[0] !== '101') throw new Error('communityArchiveRevoked'); });
+    f.context.communityOrigin = { installationId: 'community', generation: 2, scopeDigest: 'scope', packageDigest: 'bytes' };
+    const plan = await f.plan(); expect(plan.communityOrigin).toEqual(f.context.communityOrigin);
+    await f.layout.authorize(plan, plan.effects[0]!); permitted = false;
+    await expect(f.layout.authorize(plan, plan.effects[0]!)).rejects.toThrow('communityArchiveRevoked');
+    await f.facts('video:av:2'); await expect(f.plan('video:av:2')).rejects.toThrow('communityArchiveRevoked');
+    expect(await f.db.read('outbox', plan.effects[0]!.commandId)).toBeUndefined(); await f.db.close();
+  });
   it('uses separate source identities and roots for B/C even with equal titles; imports remain drafts', async () => {
     const f = await fixture(), b = await f.plan(), c = await f.plan('video:av:1', '102');
     expect(b.mount?.id).not.toBe(c.mount?.id);

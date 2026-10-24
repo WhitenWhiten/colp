@@ -38,7 +38,7 @@
     "finalCollections": 22,
     "archivePolicy": "disabled; historical receipts retained",
     "services": "none started",
-    "browserSpace": "retained temporarily for subsequent SA-09 acceptance; finish at task cleanup"
+    "browserSpace": "Task space 5 finished with keep: [] during SA-09 preparation; no agent pages kept."
   },
   "artifactScope": "Development build reloaded before smoke. Subsequent SA-08 changes affect restore review/diagnostic presentation and proven-deleted-root destination policy; final bytes are qualified separately by controlled xvfb regressions and release verifier. No final-production real-site replay is claimed.",
   "finalDevelopmentDiagnosticCheck": {

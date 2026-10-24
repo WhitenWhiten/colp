@@ -18,7 +18,7 @@ const config = JSON.parse(await readFile(resolve(root, 'generated-config.json'),
 assert.deepEqual(manifest.permissions, ['cookies', 'storage', 'unlimitedStorage', 'alarms', 'activeTab', 'favicon', 'contextMenus'], 'release required permissions changed');
 // webNavigation: risk alerts while browsing are optional and requested with tabs
 // (doc 17 RW-17, risk-settings.ts BROWSE_PERMISSIONS).
-assert.deepEqual(manifest.optional_permissions, ['bookmarks', 'tabs', 'webNavigation', 'scripting'], 'release optional permissions changed');
+assert.deepEqual(manifest.optional_permissions, ['bookmarks', 'tabs', 'webNavigation', 'scripting', 'userScripts'], 'release optional permissions changed');
 assert.deepEqual(manifest.host_permissions, [...new Set([
   `${new URL(config.serverOrigin).origin}/*`, `${new URL(config.issuer).origin}/*`,
 ])], 'release host permissions changed');

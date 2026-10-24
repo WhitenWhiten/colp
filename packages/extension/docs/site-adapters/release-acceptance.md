@@ -37,7 +37,7 @@ Historical entries identify the task where each boundary was established; SA-08 
 | 13 | SA-01/SA-02 signed-out/offline reader tests; SA-07 provider failure retains both archive and saved semantic content. |
 | 14 | SA-05 global/list/rule/source fences; SA-07 late semantic move after source disable; SA-08 browser-range authority fence. |
 | 15 | SA-05 rejects exporting source layout to v1/account rules; SA-07 blocks unsupported cloud classification/application before dispatch. Positive server integration is SA-10 and is not claimed. |
-| 16 | Deferred to separately installed packages, SA-09. Community execution is unavailable in the bundled A–C release. |
+| 16 | SA-09 verifies named worlds, immediate execution, actual toggle revocation, extension version replacement, SPA and actual BFCache on Chromium 149. Chrome 121–148 is explicitly unsupported; no older-browser branch is claimed tested. See [community evidence](community-packages.md). |
 | 17 | SA-03 atomic item/folder reservation and contradictory reports; SA-06 acknowledged-page replay and live/import race; SA-07 simultaneous semantic/source intents. |
 | 18 | SA-05 identity/date/manual-ownership review; SA-08 cross-profile native import, disabled restore, matching account/root proof, stale preview and unresolved-copy blocks. Native-site removal retained its archive. |
 | 19 | SA-04 controlled automatic saving/tag mode with zero provider requests; SA-06 live/import zero model calls; SA-08 real saved task has classification `none` and automatic intent false. |

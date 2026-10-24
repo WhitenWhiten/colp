@@ -73,7 +73,7 @@ const manifest = JSON.parse(await readFile(resolve(root, 'manifest.base.json'), 
 // (bookmark manager rows) and carries no install-time warning.
 if (JSON.stringify(manifest.permissions) !== JSON.stringify(['cookies', 'storage', 'unlimitedStorage', 'alarms', 'activeTab', 'favicon', 'contextMenus'])
   // webNavigation is asked for only when risk alerts are switched on while browsing (doc 17 RW-17).
-  || JSON.stringify(manifest.optional_permissions) !== JSON.stringify(['bookmarks', 'tabs', 'webNavigation', 'scripting'])) {
+  || JSON.stringify(manifest.optional_permissions) !== JSON.stringify(['bookmarks', 'tabs', 'webNavigation', 'scripting', 'userScripts'])) {
   throw new Error('manifest permission contract invalid');
 }
 // Required host_permissions stay the pinned Know-N server and issuer, replaced

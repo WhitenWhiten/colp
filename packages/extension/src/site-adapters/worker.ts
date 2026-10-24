@@ -18,6 +18,8 @@ import { validAdapterMessage } from './schemas.js';
 import { adapterBrowserSupport } from './browser-support.js';
 import { handleRepairRequest, validRepairRequest } from './repair-runtime.js';
 import { assertSourceRebound } from './portable.js';
+import { createCommunityRuntime, validCommunityManagement } from './community-runtime.js';
+import { assertCommunityArchive } from './community-authority.js';
 const browserSupport = () => adapterBrowserSupport(navigator.userAgent);
 const grants = { permissions: ['scripting', 'webNavigation'], origins: [...BILIBILI.matches] };
 let storageReady: Promise<void> | undefined;
@@ -120,7 +122,10 @@ async function readableSiteSource(tabId?: number) {
   }
   return source;
 }
-const confirmations = createConfirmationQueue(siteLedger, reads, { source: readableSiteSource, send: sendSiteCommand, alarm: scheduleSourceWork });
+const confirmations = createConfirmationQueue(siteLedger, reads, { source: readableSiteSource, send: sendSiteCommand, alarm: scheduleSourceWork,
+  authorizeOrigin: async (context, collectionIds) => { if (context.communityOrigin) await assertCommunityArchive(context.communityOrigin, { connectionId: context.connectionId, collectionIds }); } });
+const community = createCommunityRuntime({ ready: trustedStorage, source: currentSiteSource, enqueue: (c, id, hint) => confirmations.enqueue(c, id, hint),
+  wake: () => scheduleSourceWork(Date.now() + 50) });
 const archives = createSourceArchiveRuntime(reads, { source: currentSiteSource, readSource: readableSiteSource, send: sendSiteCommand, alarm: scheduleSourceWork,
   prioritizeLive: () => confirmations.wake(),
   catalog: async () => {
@@ -171,6 +176,7 @@ const inspectSchema = object({ kind: literal('known.siteAdapters.inspect'), oper
 const retrySchema = object({ kind: literal('known.siteAdapters.retryConfirmation') });
 const confirmSchema = object({ kind: literal('known.siteAdapters.confirm'), accountId: str(128) });
 export function installSiteAdapters() {
+  community.install();
   installContentBindings();
   installContentResolver(async (url, tabId) => {
     if (tabId === undefined) return null;
@@ -238,6 +244,9 @@ export function installSiteAdapters() {
     }
     if (management(sender) && validRepairRequest(raw)) {
       void handleRepairRequest(raw).then(respond, e => respond({ ok: false, error: e instanceof Error ? e.message : 'unavailable' })); return true;
+    }
+    if (management(sender) && validCommunityManagement(raw)) {
+      void community.management(raw).then(respond, e => respond({ ok: false, error: e instanceof Error ? e.message : 'communityUnavailable' })); return true;
     }
     if (!management(sender) || !(statusSchema(raw) || enableSchema(raw) || confirmSchema(raw) || inspectSchema(raw) || retrySchema(raw) || archives.valid(raw))) return false;
     void (async () => {
@@ -313,6 +322,7 @@ export function installSiteAdapters() {
   });
   const navigated = (d: chrome.webNavigation.CommitDetails) => {
     if (d.frameId !== 0) return;
+    void community.navigated(d.tabId).catch(() => undefined);
     void siteTransport.invalidate(d.tabId).then(async () => {
       await siteLedger.revokeDocuments(d.tabId);
       for (const [id, p] of ports) if (p.sender?.tab?.id === d.tabId) {

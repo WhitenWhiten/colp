@@ -15,6 +15,7 @@ export interface SourcePolicyRecord { connectionId: string; enabled: boolean; li
 export interface SourceMount extends MountBinding { state: 'active' | 'detached' | 'suppressed' }
 export interface LayoutNativeNode { id: string; title: string; parentId?: string; url?: string; dateAdded?: number }
 export interface LayoutPorts {
+  authorizeCommunity?(origin: import('./community-state.js').CommunityOrigin, input: { connectionId: string; collectionIds: readonly string[]; rootNativeId: string }): Promise<void>;
   rules(): Promise<FlatList>;
   paused(): Promise<boolean>;
   deviceId(): Promise<string>;
@@ -121,6 +122,8 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
       }
       if (decision.outcome !== 'placed' || !decision.folder) throw new Error(decision.reason ?? 'bindingUnavailable');
       const m = await mount(c.connectionId, decision.item.id, decision.folder.nativeId);
+      if (c.communityOrigin) { if (!ports.authorizeCommunity) throw new Error('communityArchiveRevoked');
+        await ports.authorizeCommunity(c.communityOrigin, { connectionId: c.connectionId, collectionIds: [input.collectionId], rootNativeId: m.root.nativeId }); }
       const representation = { connectionId: c.connectionId, itemId: input.itemId, purpose: 'sourceArchive' as const, sourceCollectionId: input.collectionId, mountId: m.id };
       const existing = await db.read<Representation>('representations', representationKey(representation));
       if (existing) {
@@ -152,7 +155,7 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
         if (!primary || !eligible.includes(primary)) throw new Error('primarySourceCollectionRequired');
         if (primary !== input.collectionId) return { status: 'policySkipped' } as const;
       }
-      const id = identity({ trigger: input.trigger, representation, snapshot: snapshot(flat), policy: settings.policy.revision });
+      const id = identity({ trigger: input.trigger, representation, snapshot: snapshot(flat), policy: settings.policy.revision, ...(c.communityOrigin ? { communityOrigin: c.communityOrigin } : {}) });
       const oldFolder = await db.read<SourceFolderReservation>('folderReservations', sourceKey(m.id, input.collectionId));
       if (oldFolder) {
         await assertFolder(oldFolder);
@@ -171,6 +174,7 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
       const itemReservation = await reservations.reserveItem(representation, payload, settings.policy.copies, bookmark.commandId);
       if (itemReservation.status !== 'reserved') throw new Error('sourceDependencyPending');
       const plan: SavePlan = { id, trigger: input.trigger, purpose: 'sourceArchive', connectionId: c.connectionId, installationGeneration: c.installationGeneration,
+        ...(c.communityOrigin ? { communityOrigin: c.communityOrigin } : {}),
         collectorGeneration: c.installationGeneration, sourceSessionGeneration: c.sourceSessionGeneration, importApprovalId: null,
         browserRules: snapshot(flat), rule: { source: 'browser', entry: decision.item.ref.kind === 'setRule' ? { kind: 'setRule', setId: decision.item.ref.setId!, ruleId: decision.item.id } : { kind: 'rule', ruleId: decision.item.id }, definitionDigest: sourceDigest({ definition: decision.item.definition, site: decision.item.site }) },
         mount: { id: m.id, revision: m.revision }, policyRevision: settings.policy.revision, classificationPolicyDigest: 'disabled', classification: 'disabled', effects: [ensure, bookmark] };
@@ -197,6 +201,8 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
         || sourceDigest({ definition: decision.item.definition, site: decision.item.site }) !== fence.ruleDigest) throw new Error('rulesChanged');
       const m = await db.read<SourceMount>('mounts', keyForMount(plan.connectionId, decision.item.id));
       if (!m || m.id !== plan.mount.id || m.revision !== plan.mount.revision) throw new Error('mountChanged');
+      if (plan.communityOrigin) { if (!ports.authorizeCommunity) throw new Error('communityArchiveRevoked');
+        await ports.authorizeCommunity(plan.communityOrigin, { connectionId: plan.connectionId, collectionIds: [fence.collection.id], rootNativeId: m.root.nativeId }); }
       await checkMount(m, decision.folder.nativeId);
       const folder = await db.read<SourceFolderReservation>('folderReservations', sourceKey(m.id, fence.collection.id));
       if (!folder || folder.payloadDigest !== effect.folderReservationDigest) throw new Error('folderChanged');

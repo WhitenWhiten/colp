@@ -10,8 +10,10 @@ import { captureStore } from '../sw/capture.js';
 import { currentCaptureScope } from '../sw/capture-native.js';
 import { workCoordinator } from '../sw/runtime.js';
 import { unsettledCloudDestination } from '../classification-destination-boundary.js';
+import { assertCommunityArchive } from './community-authority.js';
 
 export const sourceLayout = createSourceLayout(siteLedger.db, {
+  authorizeCommunity: assertCommunityArchive,
   rules: currentFlat, paused: sourceAutomationsPaused, deviceId: captureDeviceId,
   lookup: nativeFolderLookup, assertRoot: assertPlannedNative,
   sourceCopies: input => contentBindings.sourceDecision(input),
