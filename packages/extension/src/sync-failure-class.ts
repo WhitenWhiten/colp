@@ -79,6 +79,26 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   push_session_refresh_failed: entry('authority', 'refresh'),
   push_network_failed: entry('transient', 'retry'),
   push_batch_prefix_pending: entry('transient', 'retry'),
+  // A hook or endpoint discovery that failed before the request left, or a server that cannot
+  // answer right now: neither is the change's fault, so neither holds it or reports it as stalled.
+  push_dispatch_failed: entry('transient', 'retry'),
+  push_server_unavailable: entry('transient', 'retry'),
+  push_attempt_missing: entry('transient', 'retry'),
+  // One change leaves the lane as an item: the network kept refusing its request (A-F2), or an
+  // upload policy / local check refused it again and again (A-F7). The rest of the lane goes on.
+  push_request_refused: entry('item', 'decide'),
+  push_attempt_bind_failed: entry('item', 'decide'),
+  push_media_type_invalid: entry('item', 'decide'),
+  subscription_upload_excluded: entry('item', 'decide'),
+  bootstrap_upload_excluded: entry('item', 'decide'),
+  bootstrap_boundary_unavailable: entry('item', 'decide'),
+  // The server's answer to a sent change cannot be read or settled: the same bytes get the same
+  // answer, so the head is reported as a stalled upload instead of being retried unseen.
+  push_response_invalid: entry('replica', 'stop'),
+  push_response_unrecognized: entry('replica', 'stop'),
+  push_problem_invalid: entry('replica', 'stop'),
+  push_problem_status_mismatch: entry('replica', 'stop'),
+  push_result_processing_failed: entry('replica', 'stop'),
 
   recovery_identity_unproven: entry('item', 'decide', FREEZES),
   deletion_identity_unproven: entry('item', 'decide', FREEZES),

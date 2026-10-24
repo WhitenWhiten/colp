@@ -2,7 +2,7 @@ import { MAX_SEQUENCE_BLOCKED_RETRIES } from './sync-state/open-issue-facts.js';
 import { startPushLeaseRenewal } from './push-lease-renewal.js';
 import { enforceSyncIssueCeiling } from './sync-issue-ceiling.js';
 import { SyncFailureError } from './sync-failure-class.js';
-import { holdRepeatedLocalFailure } from './push-local-failure.js';
+import { dropUnsentAttempt, holdRepeatedLocalFailure } from './push-local-failure.js';
 import type { RecaptureQueueRow } from './queue-recapture.js';
 import { rejectExcludedBootstrapUpload } from './bootstrap/upload-rejection.js';
 import { sendBootstrapCreateBatch } from './outbound-push-batch.js';
@@ -11,7 +11,7 @@ import { releaseSettledQueueHolds, settlePushResult } from './outbound-push-sett
 import { freezeScopeRecovery } from './pull-recovery-freeze.js';
 import { isDeleteOperation, rebaseStaleDelete, settleAlreadyDeleted } from './push-delete-rebase.js';
 import { stopDeniedMetadataAttempt } from './metadata-dispatch-recovery.js';
-import { reasonCode } from './push-error-code.js';
+import { isTransportError, reasonCode, unrecognizedStatusReason } from './push-error-code.js';
 import { recordKns09Stop } from './kns-09-release.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
@@ -28,10 +28,9 @@ import { pushRecoveryBarrierActive, releaseClaimForRecovery } from './push-recov
 import { liveCreateNativeId, plannedCreateNativeId } from './bookmark-event-codec.js';
 import { findProcessedMoveEvent } from './bookmark-event-pages.js';
 import { needsMoveAuthorityRefresh, snapshotMoveFences, type MoveAuthorityNode } from './move-authority.js';
-import { repairSequenceReuseRejected, findSequenceReuseEvidence, sequenceReuseRepairAction } from './sequence-reuse-repair.js';
-import {
-  assertUnchangedOperationBytes, classifyLocalSequenceReuse,
-} from './sequence-reuse-settlement.js';
+import { repairSequenceReuseRejected } from './sequence-reuse-repair.js';
+import { createSequenceReuseHandler } from './push-sequence-reuse-handler.js';
+import { assertUnchangedOperationBytes } from './sequence-reuse-settlement.js';
 import {
   AUTHORITY_STATUS, classifyPushProblem, createAuthorityRecovery, assertPushSession as assertSession, type PushProblemDisposition,
 } from './push-authority.js';
@@ -90,8 +89,10 @@ export function createOutboundPushWorker(options: WorkerOptions) {
   const leaseDuration = options.leaseDurationMilliseconds ?? DEFAULT_LEASE_MS;
   const requestTimeout = options.requestTimeoutMilliseconds ?? DEFAULT_TIMEOUT_MS;
   const workBudget = createPushWorkBudget(requestTimeout, options.initialBatchOperations);
+  /** Rows whose attempt this drain bound itself: only those are provably unsent before their first request. */
+  const boundHere = new Set<number>();
   const authorityRecovery = createAuthorityRecovery({ scope: options.scope, store: options.store,
-    sessions: options.sessions, persistUnknown: (queue, fence, reason, retryAfter) =>
+    sessions: options.sessions, ownerId, now, persistUnknown: (queue, fence, reason, retryAfter) =>
       persistUnknown(queue, fence, reason, retryAfter ?? null) });
 
   async function drain(onNetworkResponse?: () => void | Promise<void>): Promise<DrainOutcome> {
@@ -114,7 +115,7 @@ export function createOutboundPushWorker(options: WorkerOptions) {
     // A 'gap' head whose hole is entirely rejected history is realigned onto
     // the server's expectedSequence evidence before claiming, so surviving
     // local edits converge instead of stalling behind refused operations.
-    repair.attention = await repairSequenceReuse();
+    boundHere.clear(); repair.attention = await repairSequenceReuse();
     try {
       await options.store.realignQueueAfterGap(options.scope, ownerId, lease.fence, now(),
         (payload) => `sha256:${digestJson(payload)}`);
@@ -158,6 +159,7 @@ export function createOutboundPushWorker(options: WorkerOptions) {
           if (rebased !== 'terminal') return last; continue;
         } else {
           bound = await ensureAttempt(rebased as QueueOperation, authority.session, lease.fence);
+          if (!queue.attempt) boundHere.add(queue.sequence);
           await options.boundary?.('after_attempt_persist', bound);
         }
       }
@@ -204,10 +206,11 @@ export function createOutboundPushWorker(options: WorkerOptions) {
           const rebased = await rebasePlacement(row, lease.fence);
           if (typeof rebased === 'string') throw new SyncFailureError('push_batch_placement_changed');
           const prepared = await ensureAttempt(rebased, authority.session, lease.fence);
+          if (!row.attempt) boundHere.add(row.sequence);
           await options.boundary?.('after_attempt_persist', prepared); return prepared;
         },
         settle: (row, response) => sendClaim(row, authority, lease.fence, repair, undefined, response),
-        unknown: (row, code, retryAfter) => persistUnknown(row, lease.fence, code, retryAfter),
+        unknown: (row, code, retryAfter, transmitted) => persistRefusal(row, lease.fence, code, retryAfter, transmitted),
       });
       if (batch) {
         workBudget.observe(now() - started, batch.count, batch.outcome === 'unknown');
@@ -241,37 +244,8 @@ export function createOutboundPushWorker(options: WorkerOptions) {
     }
   }
 
-  /**
-   * `sequence_reuse`/`op_id_reused` means "this client's result is unknown", not
-   * "this did not execute". Route it by real identity facts: an illegal proof is
-   * a permanent operation failure, existing local authority converges the row to
-   * terminal, and the remaining rows stay replayable with growing backoff.
-   */
-  async function handleSequenceReuse(queue: QueueOperation, code: 'sequence_reuse' | 'op_id_reused',
-    authority: Awaited<ReturnType<PushSessionController['get']>>, fence: number, retryAfter: string | null) {
-    const recorded = await options.store.getScope(options.scope);
-    const evidence = await findSequenceReuseEvidence(options.store, options.scope, queue);
-    const classification = classifyLocalSequenceReuse({ code, scope: options.scope, queue,
-      session: authority.session, replicaLifecycle: recorded?.lifecycle ?? 'active',
-      hasLocalEvidence: evidence !== null, credentialSubject: authority.credential.subject });
-    if (classification === 'illegal') {
-      await options.store.settleClaimedPush(options.scope, queue.sequence, ownerId, fence,
-        { outcome: 'rejected', recovery: { code } });
-      return 'rejected' as const;
-    }
-    // Neither reconcile nor unknown may replay the identical bytes without a
-    // strictly increasing backoff. If the immediate convergence below cannot
-    // run, the durable unknown row is rescanned by the next drain's repair pass.
-    const outcome = await persistUnknown(queue, fence, code, retryAfter);
-    if (classification === 'reconcile' && evidence) {
-      try {
-        await options.store.repairSequenceReuseRow(options.scope, queue.sequence,
-          sequenceReuseRepairAction(queue, evidence));
-        return 'terminal' as const;
-      } catch { /* the parked row keeps its evidence and is rescanned next drain */ }
-    }
-    return outcome;
-  }
+  const handleSequenceReuse = createSequenceReuseHandler({ store: options.store, scope: options.scope, ownerId,
+    persistUnknown: (queue, fence, reason, retryAfter) => persistUnknown(queue, fence, reason, retryAfter) });
 
   async function sendClaim(queue: QueueOperation, initialAuthority: Awaited<ReturnType<PushSessionController['get']>>,
     fence: number, repair: { attention: number },
@@ -290,7 +264,7 @@ export function createOutboundPushWorker(options: WorkerOptions) {
         controller.abort(); reject(new DOMException('Push request timed out', 'AbortError'));
       }, requestTimeout); });
       const withinDeadline = <T>(operation: Promise<T>) => Promise.race([operation, timedOut]);
-      let response: Response;
+      let response: Response; let transmitted = false;
       try {
         if (!acceptedResponse) await options.beforeDispatch?.(queue);
         const send = async () => {
@@ -300,13 +274,12 @@ export function createOutboundPushWorker(options: WorkerOptions) {
               ...colpCredentialHeaders(authority.credential.accessToken),
               'Content-Type': attempt.mediaType, 'Idempotency-Key': attempt.idempotencyKey,
               ...(options.origin ? { Origin: options.origin } : {}) }, body };
+          transmitted = true;
           try { return await withinDeadline(fetcher(endpoint, request)); }
           catch (error) {
             // Only fetch/timeout owns network failures; local hooks and endpoint
             // discovery cannot be classified as network errors by this fallback.
-            const transport = error instanceof TypeError || error instanceof DOMException
-              && ['AbortError', 'NetworkError', 'TimeoutError'].includes(error.name);
-            throw new Error(reasonCode(error, transport ? 'push_network_failed' : 'push_dispatch_failed'), { cause: error });
+            throw new Error(reasonCode(error, isTransportError(error) ? 'push_network_failed' : 'push_dispatch_failed'), { cause: error });
           }
         };
         response = acceptedResponse ?? await (options.dispatch ? options.dispatch(queue,send) : send());
@@ -315,7 +288,7 @@ export function createOutboundPushWorker(options: WorkerOptions) {
         if (reasonCode(error, '') === 'bootstrap_upload_excluded') return rejectExcluded(queue, fence, error);
         if (await stopDeniedMetadataAttempt({ error, store: options.store, scope: options.scope,
           queue, ownerId, fence, now })) return 'recovery';
-        return persistUnknown(queue, fence, reasonCode(error, 'push_dispatch_failed'));
+        return persistRefusal(queue, fence, reasonCode(error, 'push_dispatch_failed'), null, transmitted);
       }
       try {
         await onNetworkResponse?.();
@@ -348,13 +321,17 @@ export function createOutboundPushWorker(options: WorkerOptions) {
         }
         }
         if (response.status === 200 && jsonContentType(response)) {
+        let bodyRead = false;
         try {
-          const parsed = parseSyncPushResult(await withinDeadline(
-            readBoundedJson(response, RESPONSE_MAX_BYTES, 'push_response_invalid')), queue);
+          const document = await withinDeadline(readBoundedJson(response, RESPONSE_MAX_BYTES, 'push_response_invalid'));
+          bodyRead = true;
+          const parsed = parseSyncPushResult(document, queue);
           return await settlePushResult({ ...options, ownerId, fence, now, random, digestJson, retryDelay,
             authoritativeCreate, bindSpecialRoleMount }, queue, parsed);
         } catch (error) {
-          const code = reasonCode(error, 'push_result_processing_failed');
+          // A body that stopped arriving is the network's failure, not an unreadable answer.
+          const code = !bodyRead && isTransportError(error) ? 'push_network_failed'
+            : reasonCode(error, 'push_result_processing_failed');
           if (code === 'mapping_identity_collision') {
             recordKns09Stop('mappingIdentityCollision', options.scope);
             await freezeScopeRecovery(options.store, options.scope, 'mapping_identity_collision');
@@ -438,7 +415,7 @@ export function createOutboundPushWorker(options: WorkerOptions) {
           return authorityRecovery.handleUnexplained(queue, fence, 'push_authority_response_invalid',
             response.headers.get('Retry-After'), repair);
         }
-        return persistUnknown(queue, fence, 'push_response_unrecognized', response.headers.get('Retry-After'));
+        return persistUnknown(queue, fence, unrecognizedStatusReason(response.status), response.headers.get('Retry-After'));
       } finally { clearTimeout(timeout); }
     }
     return persistUnknown(queue, fence, 'push_authentication_exhausted');
@@ -448,6 +425,18 @@ export function createOutboundPushWorker(options: WorkerOptions) {
   async function persistLocalFailure(queue: QueueOperation, fence: number, reason: string): Promise<'unknown' | 'terminal'> {
     if (await holdRepeatedLocalFailure({ store: options.store, scope: options.scope, ownerId }, queue, fence, reason)) return 'terminal';
     return persistUnknown(queue, fence, reason);
+  }
+
+  /**
+   * A refusal before the request left (A-F7): an attempt this drain bound itself and never sent
+   * owns no server sequence, so the failure counts like any never-sent one (see dropUnsentAttempt).
+   * An attempt from an earlier drain may have been received and stays bound.
+   */
+  async function persistRefusal(queue: QueueOperation, fence: number, reason: string, retryAfter: string | null,
+    transmitted: boolean): Promise<'unknown' | 'terminal'> {
+    const unsent = transmitted || !boundHere.has(queue.sequence) ? undefined
+      : await dropUnsentAttempt({ store: options.store, scope: options.scope, ownerId }, queue, fence, reason);
+    return unsent ? persistLocalFailure(unsent, fence, reason) : persistUnknown(queue, fence, reason, retryAfter);
   }
 
   async function persistUnknown(queue: QueueOperation, fence: number, reason: string, retryAfter: string | null = null,
