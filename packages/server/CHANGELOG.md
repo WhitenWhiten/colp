@@ -4,6 +4,38 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+
+## [0.1.0-rc.9] - 2026-10-23
+
+### Added
+
+- A private Activity inbox records agent bookmark additions and automation run outcomes, with a shared unread count across the web app and extension. Reads are fenced by the observed item revision and replay their original command result. Approval transitions reopen notifications, resolved attention clears, and delayed events aggregate from their first inbox delivery.
+
+### Fixed
+
+- Sync recovery preserves snapshot replay boundaries, durable batch receipts, pending local changes and replica session authority. Concurrent semantic moves rebase against locked state, and abandoned replicas no longer block tombstone retention indefinitely.
+- Snapshot materialization, ledger archive cleanup, automation owner maintenance and pending MCP plan admission use bounded work. Extension sync avoids repeated whole-library reads and retains recovery evidence during history cleanup.
+- Authentication and deployment hardening covers canonical route rate limits, foreign Sync credentials, extension account restoration, OAuth registration, master-secret validation, browser headers and database restore validation. Dependency security updates are included.
+- Web annotation drafts survive server revisions, retained saves settle before later saves, and request deadlines cover response body consumption.
+- Activity browser assertions and OpenAPI response headers now match the read contract. The large extension push-backlog test allows for CI coverage instrumentation overhead while retaining its operation and time-budget assertions.
+
+### Upgrade notes
+
+From 0.1.0-rc.8, back up the database, update the checkout and deployment files
+from this tag, set `COLP_IMAGE_TAG=0.1.0-rc.9`, and recreate the server.
+The image includes the web app. Update the extension separately to pick up its
+Activity and Sync fixes. Startup applies these new migrations:
+
+- `202611010600_incremental_ledger_archives`
+- `202611010700_automation_owner_maintenance`
+- `202611010800_mcp_pending_plan_admission`
+- `202611020100_sync_snapshot_parent_revision_rows`
+- `202611020200_agent_activity`
+- `202611020300_activity_approval_transitions`
+- `202611020400_activity_resolved_attention`
+- `202611020500_activity_aggregation_clock`
+
+
 ## [0.1.0-rc.8] - 2026-10-21
 
 ### Added
