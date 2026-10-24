@@ -19,7 +19,8 @@ const WIRE_CODES = ['snapshot_too_large', 'session_invalid', 'clock_skew', 'serv
   'authentication_required', 'credential_revoked', 'insufficient_scope', 'resource_not_found', 'replica_retired', 'origin_not_allowed',
   'invalid_query', 'idempotency_key_reused', 'manifest_unavailable', 'server_version_mismatch', 'session_replica_unknown',
   'server_configuration_failed', 'bookmark_api_error', 'bookmark_write_quota', 'native_read_failed', 'pull_apply_move_cycle',
-  'snapshot_native_projection_ambiguous'] as const;
+  'snapshot_native_projection_ambiguous', 'server_unavailable', 'network_unavailable', 'effect_page_transport_unavailable',
+  'effect_page_failed', 'concurrent_local_mutation'] as const;
 const NO_RESET = ['snapshot_too_large', 'server_version_mismatch', 'origin_not_allowed', 'invalid_query', 'idempotency_key_reused',
   'manifest_unavailable'] as const;
 
@@ -78,6 +79,23 @@ describe('every code the wire added has a sentence of its own, never its family\
     assert.equal(quota.what, 'The browser limits how fast bookmarks can be changed, so sync is pausing for a moment.');
     assert.match(quota.next, /^It will retry automatically\. Next attempt: /u);
     assert.equal(describeSyncProblem('native_read_failed', { now: 1_000_000 }).what, 'The browser could not read your bookmarks just now.');
+  });
+
+  test('the transport codes say what happened to the answer, and the ones that mend themselves carry no code', () => {
+    const words = (code: string) => describeSyncProblem(code, { now: 1_000_000, retryAutomatic: true });
+    assert.equal(words('server_unavailable').sentence, 'The server could not answer just now. It will retry automatically.');
+    assert.equal(words('network_unavailable').sentence, 'The connection to the server dropped while it was answering. It will retry automatically.');
+    assert.equal(words('effect_page_transport_unavailable').sentence,
+      'The server did not recognize this sign-in while sync was downloading a change. It will retry automatically.');
+    assert.equal(words('concurrent_local_mutation').sentence,
+      'A bookmark was edited on this device while a change from your library was being applied. It will retry automatically.');
+    // A refusal is not a failed safety check; it freezes the pull, so it keeps its code for support.
+    const refused = words('effect_page_failed');
+    assert.equal(refused.what, 'The server refused a request for part of a change from your library.');
+    assert.doesNotMatch(refused.sentence, /safety check/u);
+    assert.match(refused.sentence, /\(effect_page_failed\)$/u);
+    // The same request answered with a body that is whole and wrong is a failed check.
+    assert.match(words('effect_page_invalid').what, /failed a safety check/u);
   });
 
   test('a folder the library wants inside itself and an identical bookmark are told by name, with the way out', () => {

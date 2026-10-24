@@ -130,8 +130,8 @@ test('the card says how long the browser has been in its state (C-10)', () => {
 })
 
 test('a pause the browser ends by itself is told as a pause, not as a stop (C-06)', () => {
-  mountTree(<ReplicaHealth replica={replica({ ...health, issueCount: 0, code: 'network_unavailable', actions: ['retry'] })} onChanged={() => {}} />)
-  expect(text()).toContain('hit repeated errors and is waiting to try again: it couldn’t reach the server several times in a row (network_unavailable). It tries again by itself; Retry below tries now.')
+  mountTree(<ReplicaHealth replica={replica({ ...health, issueCount: 0, code: 'push_network_failed', actions: ['retry'] })} onChanged={() => {}} />)
+  expect(text()).toContain('hit repeated errors and is waiting to try again: it couldn’t reach the server several times in a row (push_network_failed). It tries again by itself; Retry below tries now.')
   expect(text()).not.toContain('has stopped')
   expect(text()).not.toContain('0 items')
 })

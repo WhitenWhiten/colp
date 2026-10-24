@@ -69,7 +69,7 @@ describe('every code the extension can report reads as a sentence (C-12, C-19)',
     expect(stopReason('ack_invalid')).toBe('its record of changes from your library failed an internal check (ack_invalid).')
     expect(stopReason('pull_event_conflict')).toBe('changes it downloaded from your library failed a safety check, so it stopped taking them in (pull_event_conflict).')
     expect(stopReason('snapshot_node_duplicate')).toContain('(snapshot_node_duplicate)')
-    expect(stopReason('network_unavailable')).toBe('it couldn’t reach the server several times in a row (network_unavailable).')
+    expect(stopReason('push_network_failed')).toBe('it couldn’t reach the server several times in a row (push_network_failed).')
   })
 
   it('a code nobody has seen yet still reads as a sentence with the code in brackets', () => {
@@ -201,6 +201,19 @@ describe('the codes the wire added (stream 1)', () => {
     expect(stopNext('server_configuration_failed', [])).toContain('Site access')
     expect(stopReason('bookmark_write_quota')).toContain('limits how fast bookmarks can be changed')
     expect(stopReason('native_read_failed')).toContain('couldn’t read its bookmarks')
+  })
+
+  it('says what happened to the answer for the transport codes, in the same words as the extension', () => {
+    expect(stopReason('server_unavailable')).toBe('the server couldn’t answer just now.')
+    expect(stopReason('network_unavailable')).toBe('the connection to the server dropped while it was answering.')
+    expect(stopReason('effect_page_transport_unavailable')).toBe('the server didn’t recognize its sign-in while it was downloading a change.')
+    expect(stopReason('effect_page_failed')).toBe('the server refused a request for part of a change from your library.')
+    expect(stopReason('effect_page_failed')).not.toContain('safety check')
+    expect(stopReason('concurrent_local_mutation')).toContain('edited in that browser')
+    // None of them reads as “(code)” any more: they have words of their own.
+    for (const code of ['server_unavailable', 'network_unavailable', 'effect_page_transport_unavailable', 'effect_page_failed', 'concurrent_local_mutation']) {
+      expect(stopReason(code), code).not.toContain(`(${code})`)
+    }
   })
 
   it('points a browser the server does not know at Reset when it is offered, and a refusal a Reset cannot end at no Reset at all', () => {

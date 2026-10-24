@@ -81,6 +81,13 @@ export const CODE_WHAT: Readonly<Record<string, () => string>> = {
   service_unavailable: serverProblem,
   internal_error: serverProblem,
   rate_limited: () => t('syncProblem_rateLimited', 'The server asked sync to slow down.'),
+  // The transport rules (stream 1) widened these: any 5xx on any endpoint, an answer cut off half way, a change page the
+  // server did not recognize the sign-in for or refused, and a bookmark edited while a change was being applied.
+  server_unavailable: () => t('syncProblem_serverNoAnswer', 'The server could not answer just now.'),
+  network_unavailable: () => t('syncProblem_connectionDropped', 'The connection to the server dropped while it was answering.'),
+  effect_page_transport_unavailable: () => t('syncProblem_effectSignIn', 'The server did not recognize this sign-in while sync was downloading a change.'),
+  effect_page_failed: () => t('syncProblem_effectRefused', 'The server refused a request for part of a change from your library.'),
+  concurrent_local_mutation: () => t('syncProblem_concurrentEdit', 'A bookmark was edited on this device while a change from your library was being applied.'),
   invalid_query: requestRefused,
   idempotency_key_reused: requestRefused,
   manifest_unavailable: () => t('syncProblem_manifestUnavailable', 'This address does not look like a Know-N sync server: it refused to describe itself.'),

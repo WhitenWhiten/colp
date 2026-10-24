@@ -64,7 +64,7 @@ describe('item rows (C-03)', () => {
   });
 
   test('a recorded engine error and the items are both told', () => {
-    const view = describeSyncAttention({ issueCount: 1, issues: [issue({ title: 'Docs' })], lastError: 'network_unavailable', retryAutomatic: true });
+    const view = describeSyncAttention({ issueCount: 1, issues: [issue({ title: 'Docs' })], lastError: 'push_network_failed', retryAutomatic: true });
     assert.match(view.recovery.copy, /can't reach the server/u);
     assert.match(view.recovery.copy, /1 item needs attention\./u);
   });
