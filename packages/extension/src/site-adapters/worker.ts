@@ -1,3 +1,4 @@
+import { siteLedger, synchronizeSourceAuthority, sourceContext, SITE_RECOVERY_ALARM } from './source-runtime.js';
 import type { AdapterMessage, HostCommand } from './contracts.js';
 import { validMembershipResult, validBootstrap } from './schemas.js';
 import { createReadScheduler } from './read-scheduler.js';
@@ -79,7 +80,9 @@ async function injectOpen() {
   }
 }
 async function reconcile() {
-  const s = await read(), granted = await chrome.permissions.contains(grants);
+  let s = await read(); const granted = await chrome.permissions.contains(grants);
+  if (s.enabled && !granted) { await siteTransport.invalidate(); s = await read(); }
+  await synchronizeSourceAuthority(s);
   if (!s.enabled || !granted) {
     await chrome.scripting?.unregisterContentScripts({ ids: ['known-site-probe', 'known-site-adapter'] }).catch(() => undefined); return;
   }
@@ -116,21 +119,30 @@ export function installSiteAdapters() {
         if (!slot || slot.id !== d.request.activationId || slot.documentId !== sender.documentId || slot.deadlineAt <= Date.now() || !await senderCurrent(sender))
           return { status: 'unavailable', reason: 'disabled' };
         await activation.finish(slot.id);
-        return siteTransport.bootstrap(d.request, sender);
+        const reply = await siteTransport.bootstrap(d.request, sender);
+        await synchronizeSourceAuthority(await read());
+        if (reply.status === 'ready') {
+          const s = await read(), lease = s.leases.find(l => l.id === reply.leaseId);
+          if (!lease) return { status: 'unavailable', reason: 'disabled' };
+          await siteLedger.bindLease(await sourceContext(lease), lease.expiresAt);
+        }
+        return reply;
       })().then(respond, () => respond({ status: 'unavailable', reason: 'disabled' })); return true;
     }
     if (!management(sender) || !(statusSchema(raw) || enableSchema(raw) || confirmSchema(raw) || inspectSchema(raw))) return false;
     void (async () => {
       if (enableSchema(raw)) {
         if (d!.enabled && !await chrome.permissions.contains(grants)) throw new Error('permissionRequired');
-        await siteTransport.configure(d!.enabled!); disconnectAll();
+        await siteTransport.configure(d!.enabled!); await synchronizeSourceAuthority(await read()); disconnectAll();
         if (!d!.enabled && await chrome.permissions.contains(grants)) for (const tab of await chrome.tabs.query({ url: [...BILIBILI.matches] })) {
           if (tab.id !== undefined && !tab.incognito) await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'MAIN',
             func: () => { window.dispatchEvent(new Event('known-site-probe-stop')); } }).catch(() => undefined);
+          if (tab.id !== undefined && !tab.incognito) await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'ISOLATED',
+            func: () => { window.dispatchEvent(new Event('known-site-adapter-stop')); } }).catch(() => undefined);
         }
         await reconcile(); if (d!.enabled) await injectOpen();
       }
-      if (confirmSchema(raw)) { await siteTransport.confirm(d!.accountId!); disconnectAll(); await injectOpen(); }
+      if (confirmSchema(raw)) { await siteTransport.confirm(d!.accountId!); await synchronizeSourceAuthority(await read()); disconnectAll(); await injectOpen(); }
       if (inspectSchema(raw)) {
         const q = raw as { operation: 'collections' | 'items' | 'resolve'; collectionId?: string; cursor?: string | null };
         await inspect(q.operation, q.collectionId, q.cursor);
@@ -141,7 +153,7 @@ export function installSiteAdapters() {
   chrome.runtime.onConnect.addListener(port => {
     if (port.name !== SITE_PORT || !port.sender) return;
     let leaseId: string | null = null, closed = false, busy = false;
-    const close = () => { closed = true; if (leaseId && ports.get(leaseId) === port) { ports.delete(leaseId); void siteTransport.retire(leaseId).catch(() => undefined); } };
+    const close = () => { closed = true; if (leaseId && ports.get(leaseId) === port) { ports.delete(leaseId); void siteTransport.retire(leaseId).catch(() => undefined); void siteLedger.revokeLease(leaseId).catch(() => undefined); } };
     port.onDisconnect.addListener(close);
     port.onMessage.addListener(raw => {
       if (closed || busy || !validAdapterMessage(raw)) { port.disconnect(); close(); return; }
@@ -150,12 +162,17 @@ export function installSiteAdapters() {
         const lease = await siteTransport.authorize(raw, port.sender!);
         if (!lease || (leaseId && leaseId !== lease.id)) { port.disconnect(); close(); return; }
         leaseId = lease.id;
-        const old = ports.get(lease.id); if (old && old !== port) old.disconnect(); ports.set(lease.id, port);
+        const old = ports.get(lease.id); ports.set(lease.id, port); if (old && old !== port) old.disconnect();
         if (raw.operation.endsWith('.result')) {
           const inspected = await acceptInspection(raw, lease.documentId);
           port.postMessage({ operation: 'reply', requestId: raw.requestId, reply: inspected ? { status: 'readResult', value: 'inspected' } : { status: 'rejected', reason: 'staleContext' } }); return;
         }
-        // SA-01 is read-only. No durable acceptance is claimed before the ledger is integrated.
+        if (raw.operation === 'emit') {
+          chrome.alarms.create(SITE_RECOVERY_ALARM, { when: Date.now() + 30000 });
+          const receipt = await siteLedger.acceptObservation(await sourceContext(lease), raw.requestId, raw.data);
+          port.postMessage({ operation: 'reply', requestId: raw.requestId, reply: receipt }); return;
+        }
+        // Native/model effects remain disabled. No durable acceptance is claimed before the ledger is integrated.
         port.postMessage({ operation: 'reply', requestId: raw.requestId, reply: { status: 'rejected', reason: 'paused' } });
       })().catch(() => { port.disconnect(); close(); }).finally(() => { busy = false; });
     });
@@ -163,6 +180,7 @@ export function installSiteAdapters() {
   const navigated = (d: chrome.webNavigation.CommitDetails) => {
     if (d.frameId !== 0) return;
     void siteTransport.invalidate(d.tabId).then(async () => {
+      await siteLedger.revokeDocuments(d.tabId);
       for (const [id, p] of ports) if (p.sender?.tab?.id === d.tabId) {
         p.disconnect(); ports.delete(id);
       }
@@ -180,13 +198,16 @@ export function installSiteAdapters() {
   };
   installNavigation();
   chrome.permissions.onAdded.addListener(() => { installNavigation(); void reconcile().catch(() => undefined); });
-  chrome.tabs.onRemoved.addListener(id => { void siteTransport.invalidate(id).catch(() => undefined); });
+  chrome.tabs.onRemoved.addListener(id => { void siteTransport.invalidate(id).then(() => siteLedger.revokeDocuments(id)).catch(() => undefined); });
   chrome.permissions.onRemoved.addListener(() => {
-    void siteTransport.invalidate().then(async () => { disconnectAll(); await reconcile(); }).catch(() => undefined);
+    void siteTransport.invalidate().then(async () => { await synchronizeSourceAuthority(await read()); disconnectAll(); await reconcile(); }).catch(() => undefined);
   });
+  chrome.alarms.onAlarm.addListener(alarm => { if (alarm.name === SITE_RECOVERY_ALARM) void synchronizeSourceAuthorityFromCurrent().catch(() => undefined); });
   chrome.runtime.onStartup.addListener(() => { void reconcile().catch(() => undefined); });
   chrome.runtime.onInstalled.addListener(() => {
     void siteTransport.invalidate().then(async () => { disconnectAll(); await reconcile(); await injectOpen(); }).catch(() => undefined);
   });
   void reconcile().catch(() => undefined);
 }
+
+async function synchronizeSourceAuthorityFromCurrent() { await synchronizeSourceAuthority(await read()); }

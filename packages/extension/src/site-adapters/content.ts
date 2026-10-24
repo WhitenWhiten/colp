@@ -79,9 +79,11 @@ if (location.origin === BILIBILI.origin && window.top === window) {
       stop();
       window.removeEventListener('pagehide', stop); window.removeEventListener('pageshow', restart);
       window.removeEventListener('popstate', restart); window.removeEventListener('hashchange', restart);
+      window.removeEventListener('known-site-adapter-stop', deactivate);
       delete scope[slot];
     };
     scope[slot] = { restart };
+    window.addEventListener('known-site-adapter-stop', deactivate);
     window.addEventListener('pagehide', stop); window.addEventListener('pageshow', restart);
     window.addEventListener('popstate', restart); window.addEventListener('hashchange', restart);
     restart();

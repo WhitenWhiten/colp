@@ -68,6 +68,25 @@ test('bundled inspector scopes worlds, reconnects routes and fences revocation w
     await expect(site).toHaveURL('https://www.bilibili.com/video/av2');
     await expect(site.locator('html')).toHaveAttribute('data-persisted', 'true');
     await expect.poll(async () => (await readState()).leases.length).toBe(1);
+    const admitted = await page.evaluate(async () => {
+      const s = (await chrome.storage.local.get('known.siteAdapters.runtime.v1'))['known.siteAdapters.runtime.v1'] as { leases: { id: string; capability: string; tabId: number }[] };
+      const lease = s.leases[0]!;
+      const results = await chrome.scripting.executeScript({ target: { tabId: lease.tabId }, world: 'ISOLATED', args: [lease],
+        func: async (lease: { id: string; capability: string }) => new Promise(resolve => {
+          const port = chrome.runtime.connect({ name: 'known.siteAdapters.v1' });
+          port.onMessage.addListener(message => { const r = message as { requestId?: string; reply?: unknown };
+            if (r.requestId === 'controlled-observation') { resolve(r.reply); port.disconnect(); } });
+          port.postMessage({ protocolVersion: 1, requestId: 'controlled-observation', leaseId: lease.id, capability: lease.capability, operation: 'emit',
+            data: { type: 'membership.observed', item: { id: 'video:av:1', identity: 'siteId', kind: 'video', url: 'https://www.bilibili.com/video/av1', title: 'Fixture' }, memberships: { mode: 'delta', added: ['101'], removed: [] } } });
+        }) });
+      return results[0]?.result;
+    });
+    expect(admitted).toMatchObject({ status: 'accepted' });
+    const observations = await page.evaluate(async () => {
+      const db = await new Promise<IDBDatabase>((resolve, reject) => { const r = indexedDB.open('known-site-adapters'); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
+      try { return await new Promise<number>((resolve, reject) => { const r = db.transaction('observations').objectStore('observations').count(); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); }); } finally { db.close(); }
+    });
+    expect(observations).toBe(1);
     const oldGeneration = (await readState()).generation;
     await page.locator('#disable').click();
     await expect.poll(async () => (await readState()).generation).toBeGreaterThan(oldGeneration);
