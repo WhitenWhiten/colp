@@ -506,6 +506,8 @@ export type SaveEffect = {
   commandId: Id;
   /** Logical effect digest; resolved native command has a separate outbox digest. */
   payloadDigest: string;
+  /** Immutable digest of a referenced shared folder creation payload. */
+  folderReservationDigest?: string;
   dependsOn: readonly Id[];
 } & (
   | { kind: 'ensureSourceFolder'; reservationId: Id }

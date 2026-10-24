@@ -1,3 +1,5 @@
+import { installSiteAdapterEvidence } from './evidence.js';
+import { installPlannedSaveRuntime, wakePlannedSaves } from './planned-runtime.js';
 import { siteLedger, synchronizeSourceAuthority, sourceContext, SITE_RECOVERY_ALARM } from './source-runtime.js';
 import type { AdapterMessage, HostCommand } from './contracts.js';
 import { validMembershipResult, validBootstrap } from './schemas.js';
@@ -99,6 +101,8 @@ const enableSchema = object({ kind: literal('known.siteAdapters.enable'), enable
 const inspectSchema = object({ kind: literal('known.siteAdapters.inspect'), operation: literal('collections', 'items', 'resolve'), collectionId: v => v === undefined || /^\d{1,20}$/u.test(String(v)), cursor: v => v === undefined || v === null || str(512)(v) });
 const confirmSchema = object({ kind: literal('known.siteAdapters.confirm'), accountId: str(128) });
 export function installSiteAdapters() {
+  installPlannedSaveRuntime();
+  if (__KNOWN_EXTENSION_EVIDENCE__) installSiteAdapterEvidence();
   // Registered synchronously; initialization is awaited inside each handler.
   chrome.runtime.onMessage.addListener((raw, sender, respond) => {
     const d = raw as { kind?: string; request?: unknown; enabled?: boolean; accountId?: string } | null;
@@ -202,12 +206,12 @@ export function installSiteAdapters() {
   chrome.permissions.onRemoved.addListener(() => {
     void siteTransport.invalidate().then(async () => { await synchronizeSourceAuthority(await read()); disconnectAll(); await reconcile(); }).catch(() => undefined);
   });
-  chrome.alarms.onAlarm.addListener(alarm => { if (alarm.name === SITE_RECOVERY_ALARM) void synchronizeSourceAuthorityFromCurrent().catch(() => undefined); });
-  chrome.runtime.onStartup.addListener(() => { void reconcile().catch(() => undefined); });
+  chrome.alarms.onAlarm.addListener(alarm => { if (alarm.name === SITE_RECOVERY_ALARM) void synchronizeSourceAuthorityFromCurrent().then(wakePlannedSaves).catch(() => undefined); });
+  chrome.runtime.onStartup.addListener(() => { void reconcile().then(wakePlannedSaves).catch(() => undefined); });
   chrome.runtime.onInstalled.addListener(() => {
     void siteTransport.invalidate().then(async () => { disconnectAll(); await reconcile(); await injectOpen(); }).catch(() => undefined);
   });
-  void reconcile().catch(() => undefined);
+  void reconcile().then(wakePlannedSaves).catch(() => undefined);
 }
 
 async function synchronizeSourceAuthorityFromCurrent() { await synchronizeSourceAuthority(await read()); }

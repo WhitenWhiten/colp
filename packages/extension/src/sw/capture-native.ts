@@ -1,3 +1,4 @@
+import { assertPlannedCaptureAuthority, plannedNativeFault } from '../capture/planned.js';
 import { isSubscriptionExcluded } from '../bookmark-subscriptions/guards.js';
 
 import { browserHistoryStore } from '../capture/browser-history-store.js';
@@ -73,24 +74,25 @@ async function receiptFor(nativeId: string, scope: CaptureScope, savedAt?: numbe
 
 export async function createNativeCapture(task: CaptureTask, reserved: (intentId: string) => Promise<void>, saved: (receipt: CaptureReceipt) => Promise<void>): Promise<CaptureReceipt> {
   if (!await hasBookmarkPermission()) throw new Error('permission_required');
-  const placementStore = createBookmarkCreatePlacementStore({ retainForConsumer: true });
+  await assertPlannedCaptureAuthority(task);
+  const placementStore = createBookmarkCreatePlacementStore({ retainForConsumer: true, retainUntilAcknowledged: !!task.planned });
   const sidecar = createFaviconSidecarStore();
   try {
     const result = await savePagesThroughNativeIngress({ pages: [{ title: task.title, url: task.url, favIconUrl: task.favIconUrl }],
       parentNativeId: task.targetNativeId, insertPosition: task.insertPosition,
-      foldersFirst: (await readEffectiveBookmarkPreferences().catch(() => undefined))?.foldersFirst === true,
+      foldersFirst: !task.planned && (await readEffectiveBookmarkPreferences().catch(() => undefined))?.foldersFirst === true,
       ...(task.resumeNativeIds ? { resumeNativeIds: task.resumeNativeIds } : {}),
       ...(task.scope.collectionId && task.sync !== 'local-only' ? { collectionId: task.scope.collectionId } : {}),
       placementStore, sidecar, bookmarks: {
         getChildren: id => chrome.bookmarks.getChildren(id),
-        async create(input) { await assertCaptureScope(task.scope); await assertBookmarkFolderAllowed(input.parentId); return chrome.bookmarks.create(input); /* savePagesThroughNativeIngress holds the shared boundary. */ },
+        async create(input) { await assertPlannedCaptureAuthority(task); await assertCaptureScope(task.scope); await assertBookmarkFolderAllowed(input.parentId); const node = await chrome.bookmarks.create(input); if (task.planned) await plannedNativeFault('afterBookmarkCreate', task.commandId); return node; /* savePagesThroughNativeIngress holds the shared boundary. */ },
       }, onPlacementReserved: intent => reserved(intent.intentId),
       onNativeCreated: async node => {
         // The native write already succeeded. Its device fact does not depend on
         // a still-current cloud account and never carries that account's commands.
         const savedAt = Date.now();
         await browserHistoryStore.remember({ ...task, savedAt }, node.id).catch(() => undefined);
-        await saved(await receiptFor(node.id, task.scope, savedAt));
+        await saved({ ...await receiptFor(node.id, task.scope, savedAt), ...(node.dateAdded === undefined ? {} : { nativeDateAdded: node.dateAdded }) });
       },
     });
     if (!result[0]) throw new Error('capture_missing_receipt');
@@ -108,7 +110,8 @@ export async function recoverNativeCapture(task: CaptureTask): Promise<CaptureRe
   // No URL guessing, no new native create, even after the placement recovery TTL.
   // Recovery reuses the native write's time, never the time of this retry.
   const native = (await chrome.bookmarks.get(proof.nativeId).catch(() => []))[0];
+  if (task.planned && (!proof.nativeDateAdded || native?.dateAdded !== proof.nativeDateAdded || native.url !== task.url)) return null;
   const savedAt = task.savedAt ?? native?.dateAdded ?? proof.createdAt;
   await browserHistoryStore.remember({ ...task, savedAt }, proof.nativeId).catch(() => undefined);
-  return receiptFor(proof.nativeId, task.scope, savedAt).catch(() => null);
+  return receiptFor(proof.nativeId, task.scope, savedAt).then(r => ({ ...r, ...(proof.nativeDateAdded === undefined ? {} : { nativeDateAdded: proof.nativeDateAdded }) })).catch(() => null);
 }

@@ -1,13 +1,16 @@
+import { assertPlannedTask, plannedCaptureDigest, plannedPayloadDigest } from './planned.js';
 import { requestValue, transactionDone } from '../sync-state/idb.js';
 import { captureScopeKey, captureOwnerKey, type CaptureScope, type CaptureTask } from './contracts.js';
 import { effectiveLocalFeedback, type CaptureFeedbackEvent } from './feedback.js';
 import { captureNeedsAttention } from './statistics.js';
 
+export interface PlannedCommandRecord { commandId: string; kind: 'bookmark' | 'folder'; digest: string; state: 'reserved' | 'submitted' | 'unknown' | 'confirmed';
+  payload?: unknown; task?: CaptureTask; native?: import('../site-adapters/contracts.js').NativeBinding<'folder'>; acknowledged?: boolean }
 interface StoredTask extends CaptureTask { readonly scopeKey: string; readonly ownerKey: string; readonly activeKey?: string }
 const active = (task: CaptureTask) => task.disposition === 'new'
   && (task.save === 'unsubmitted' || task.save === 'unknown' || task.classification === 'waiting' || task.classification === 'running');
 const row = (task: CaptureTask): StoredTask => ({ ...task, scopeKey: captureScopeKey(task.scope), ownerKey: captureOwnerKey(task.scope),
-  ...(active(task) && !task.saveAnother ? { activeKey: JSON.stringify([captureScopeKey(task.scope), task.url]) } : {}) });
+  ...(active(task) && !task.saveAnother && !task.planned ? { activeKey: JSON.stringify([captureScopeKey(task.scope), task.url]) } : {}) });
 const dto = ({ scopeKey: _scopeKey, ownerKey: _ownerKey, activeKey: _activeKey, ...task }: StoredTask): CaptureTask => task;
 
 /** Separate product ledger, referencing existing native/COLP intents. It never stores sync operations. */
@@ -15,7 +18,7 @@ export function createCaptureStore(factory: IDBFactory = indexedDB, onCommitted?
   let connection: Promise<IDBDatabase> | undefined;
   function open(): Promise<IDBDatabase> {
     if (!connection) connection = new Promise((resolve, reject) => {
-      const request = factory.open('known-capture', 3);
+      const request = factory.open('known-capture', 4);
       request.onupgradeneeded = event => {
         if (event.oldVersion < 1) {
         const tasks = request.result.createObjectStore('tasks', { keyPath: ['scopeKey', 'captureId'] });
@@ -41,6 +44,7 @@ export function createCaptureStore(factory: IDBFactory = indexedDB, onCommitted?
             };
           }
         }
+        if (event.oldVersion < 4) request.result.createObjectStore('plannedCommands', { keyPath: 'commandId' });
       };
       request.onsuccess = () => {
         const db = request.result;
@@ -52,7 +56,7 @@ export function createCaptureStore(factory: IDBFactory = indexedDB, onCommitted?
     return connection;
   }
   async function transaction<T>(mode: IDBTransactionMode, work: (tx: IDBTransaction) => Promise<T>): Promise<T> {
-    const tx = (await open()).transaction(['tasks', 'commands', 'feedback', 'gc'], mode);
+    const tx = (await open()).transaction(['tasks', 'commands', 'feedback', 'gc', 'plannedCommands'], mode);
     const done = transactionDone(tx);
     try { const value = await work(tx); await done; if (mode === 'readwrite') onCommitted?.(); return value; }
     catch (error) { try { tx.abort(); } catch { /* already aborted */ } await done.catch(() => undefined); throw error; }
@@ -68,7 +72,7 @@ export function createCaptureStore(factory: IDBFactory = indexedDB, onCommitted?
         const old = await requestValue(tasks.index('ownerHistory').getAll(IDBKeyRange.bound(after ? [owner, ...after] : [owner], [owner, cutoff], Boolean(after)), 200)) as StoredTask[];
         let removed = 0;
         for (const task of old) {
-          if (task.save !== 'local-saved' || !['confirmed', 'local-only'].includes(task.sync)
+          if (task.planned && !task.planned.acknowledged || task.save !== 'local-saved' || !['confirmed', 'local-only'].includes(task.sync)
             || ['waiting', 'running'].includes(task.classification) || captureNeedsAttention(task.save, task.sync, task.reason)
             || retained.has(task.captureId) || task.editIntent && !task.editIntent.completed && task.editIntent.state !== 'rejected' || task.undo && !task.undo.completed
             || task.sync !== 'local-only' && (task.reportedRevision ?? -1) < task.revision) continue;
@@ -146,6 +150,18 @@ export function createCaptureStore(factory: IDBFactory = indexedDB, onCommitted?
     async claim(task: CaptureTask): Promise<CaptureTask> {
       return transaction('readwrite', async tx => {
         const value = row(task), tasks = tx.objectStore('tasks'), commands = tx.objectStore('commands');
+        if (task.planned) {
+          assertPlannedTask(task);
+          const planned = tx.objectStore('plannedCommands'), digest = plannedCaptureDigest(task);
+          const old = await requestValue(planned.get(task.commandId)) as PlannedCommandRecord | undefined;
+          if (old) {
+            if (old.kind !== 'bookmark' || old.digest !== digest || !old.task) throw new Error('capture_command_reused');
+            return dto(await requestValue(tasks.get([captureScopeKey(old.task.scope), old.task.captureId])) as StoredTask ?? row(old.task));
+          }
+          if (await requestValue(commands.get([value.scopeKey, task.commandId]))) throw new Error('capture_command_reused');
+          planned.add({ commandId: task.commandId, kind: 'bookmark', digest, state: 'reserved', task } satisfies PlannedCommandRecord);
+          tasks.add(value); commands.add({ scopeKey: value.scopeKey, commandId: task.commandId, captureId: task.captureId }); return task;
+        }
         const command = await requestValue(commands.get([value.scopeKey, task.commandId])) as { captureId: string } | undefined;
         if (command) {
           const prior = await requestValue(tasks.get([value.scopeKey, command.captureId])) as StoredTask;
@@ -153,7 +169,7 @@ export function createCaptureStore(factory: IDBFactory = indexedDB, onCommitted?
             || prior.saveAnother !== task.saveAnother) throw new Error('capture_command_reused');
           return dto(prior);
         }
-        const unknown = !task.saveAnother ? await requestValue(tasks.index('ownerSaveUrl').get([value.ownerKey, task.url, 'unknown'])) as StoredTask | undefined : undefined;
+        const unknown = !task.saveAnother && !task.planned ? await requestValue(tasks.index('ownerSaveUrl').get([value.ownerKey, task.url, 'unknown'])) as StoredTask | undefined : undefined;
         if (unknown && unknown.scopeKey !== value.scopeKey) throw new Error('capture_prior_result_unknown');
         const prior = value.activeKey
           ? await requestValue(tasks.index('active').get(value.activeKey)) as StoredTask | undefined : undefined;
@@ -217,10 +233,46 @@ export function createCaptureStore(factory: IDBFactory = indexedDB, onCommitted?
     },
     async update(task: CaptureTask, expectedRevision: number): Promise<void> {
       await transaction('readwrite', async tx => {
-        const value = row(task), tasks = tx.objectStore('tasks');
+        let value = row(task); const tasks = tx.objectStore('tasks');
         const prior = await requestValue(tasks.get([value.scopeKey, task.captureId])) as StoredTask | undefined;
         if (!prior || prior.revision !== expectedRevision || task.revision !== expectedRevision + 1) throw new Error('capture_revision_conflict');
+        if (task.planned) {
+          const planned = tx.objectStore('plannedCommands'), command = await requestValue(planned.get(task.commandId)) as PlannedCommandRecord | undefined;
+          if (!command || command.digest !== plannedCaptureDigest(task) || command.kind !== 'bookmark') throw new Error('capture_command_reused');
+          const retainedTask = command.acknowledged ? { ...task, planned: { ...task.planned, acknowledged: true } } : task;
+          value = row(retainedTask);
+          planned.put({ ...command, task: retainedTask, state: task.save === 'local-saved' ? 'confirmed' : task.save === 'unknown' ? 'unknown' : command.state });
+        }
         tasks.put(value);
+      });
+    },
+    async plannedCommand(commandId: string): Promise<PlannedCommandRecord | undefined> {
+      return transaction('readonly', tx => requestValue(tx.objectStore('plannedCommands').get(commandId)));
+    },
+    async claimFolder(commandId: string, payload: unknown, digest: string): Promise<PlannedCommandRecord> {
+      if (plannedPayloadDigest(payload) !== digest) throw new Error('capture_command_reused');
+      return transaction('readwrite', async tx => {
+        const store = tx.objectStore('plannedCommands'), old = await requestValue(store.get(commandId)) as PlannedCommandRecord | undefined;
+        if (old) { if (old.kind !== 'folder' || old.digest !== digest) throw new Error('capture_command_reused'); return old; }
+        const row: PlannedCommandRecord = { commandId, kind: 'folder', digest, payload, state: 'reserved' }; store.add(row); return row;
+      });
+    },
+    async updateFolder(commandId: string, expected: PlannedCommandRecord['state'], next: PlannedCommandRecord['state'], native?: import('../site-adapters/contracts.js').NativeBinding<'folder'>) {
+      return transaction('readwrite', async tx => {
+        const store = tx.objectStore('plannedCommands'), old = await requestValue(store.get(commandId)) as PlannedCommandRecord | undefined;
+        if (!old || old.kind !== 'folder' || old.state !== expected || next === 'reserved' || next === 'confirmed' && (!native || native.dateAdded === null)) throw new Error('capture_command_reused');
+        store.put({ ...old, state: next, ...(native ? { native } : {}) });
+      });
+    },
+    async acknowledgePlanned(commandId: string, digest: string) {
+      return transaction('readwrite', async tx => {
+        const store = tx.objectStore('plannedCommands'), old = await requestValue(store.get(commandId)) as PlannedCommandRecord | undefined;
+        if (!old || (old.kind === 'folder' ? old.digest !== digest : old.task?.planned?.resolvedDigest !== digest) || old.state !== 'confirmed') throw new Error('capture_command_reused');
+        const task = old.task ? { ...old.task, planned: { ...old.task.planned!, acknowledged: true } } : undefined;
+        store.put({ ...old, acknowledged: true, ...(task ? { task } : {}) });
+        if (task) { const key = [captureScopeKey(task.scope), task.captureId], current = await requestValue(tx.objectStore('tasks').get(key));
+          if (current) tx.objectStore('tasks').put({ ...current, planned: task.planned }); }
+        return task?.nativeIntentId;
       });
     },
     async list(scope: CaptureScope, before?: readonly [number, string], limit = 50): Promise<readonly CaptureTask[]> {

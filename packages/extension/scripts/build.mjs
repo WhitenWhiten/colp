@@ -26,6 +26,12 @@ const configPath = configFlag < 0 ? resolve(root, 'config', `${environment}.json
 const config = JSON.parse(await readFile(configPath, 'utf8'));
 if (config.environment !== environment) throw new Error('Build environment and deployment config differ');
 if (configFlag >= 0) validateProductionDeployment(config);
+const evidenceEnabled = environment !== 'production' || config.deploymentId === 'e2e-fixture';
+const siteEvidenceBoundary = { name: 'site-adapter-evidence-boundary', setup(plugin) {
+  if (!evidenceEnabled) plugin.onLoad({ filter: /[\\/]src[\\/]site-adapters[\\/]evidence\.ts$/ }, () => ({
+    contents: 'export function installSiteAdapterEvidence() {}', loader: 'ts',
+  }));
+} };
 const bridgeMatches = subscriptionBridgeMatches(config);
 await rm(output, { recursive: true, force: true }); await mkdir(resolve(output, 'icons'), { recursive: true });
 await syncCaptureRecipe(resolve(output, 'capture.generated.css'));
@@ -39,7 +45,7 @@ await build({ entryPoints: { 'service-worker': resolve(root, 'src/service-worker
   'bookmark-event-queue': resolve(root, 'src/bookmark-event-queue.ts'),
   'bookmark-import-plan': resolve(root, 'src/bookmark-import-plan.ts'),
   'import-preview': resolve(root, 'src/import-preview.ts'), 'site-settings': resolve(root, 'src/site-adapters/settings.ts') },
-  bundle: true, format: 'esm', platform: 'browser', target: 'chrome121', outdir: output, plugins: [automationAjvPlugin(root)], sourcemap: environment === 'production' ? false : 'external',
+  bundle: true, format: 'esm', platform: 'browser', target: 'chrome121', outdir: output, plugins: [automationAjvPlugin(root), siteEvidenceBoundary], sourcemap: environment === 'production' ? false : 'external',
   // Evidence RPC (fault injection, state export) may only exist in non-production
   // builds and the e2e fixture; every real production deployment must be 'false'.
   define: { __KNOWN_EXTENSION_CLASSIFICATION_LOCAL__:String(classificationLocal), __KNOWN_EXTENSION_EVIDENCE__: environment === 'production' && config.deploymentId !== 'e2e-fixture' ? 'false' : 'true' },

@@ -9,7 +9,7 @@ const compatibleProof = (b: NativeBinding) => !!b.bindingId && !!b.nativeId && !
 /** Host-only primitives; reservations never grant approval or browser API authority. */
 export function createSourceReservations(db: SourceDatabase, random = () => crypto.randomUUID()) {
   return {
-    async reserveItem(representation: RepresentationKey, payload: unknown, policy: 'sourceAndSemantic' | 'singlePreferSemantic' | 'singleKeepExisting') {
+    async reserveItem(representation: RepresentationKey, payload: unknown, policy: 'sourceAndSemantic' | 'singlePreferSemantic' | 'singleKeepExisting', commandId?: string) {
       return db.transaction(['itemReservations', 'representations'], 'readwrite', async tx => {
         const key = representationKey(representation), digest = sourceDigest(payload);
         const bound = await get<Representation>(tx, 'representations', key);
@@ -26,7 +26,7 @@ export function createSourceReservations(db: SourceDatabase, random = () => cryp
           // Unknown/pending/confirmed historic copies remain dependencies; no blind replacement.
           if (existing.length) return { status: 'dependency', reservation: existing[0]! } as const;
         }
-        const row: ItemReservation = { id: random(), representation, commandId: random(), payloadDigest: digest, state: 'reserved' };
+        const row: ItemReservation = { id: random(), representation, commandId: commandId ?? random(), payloadDigest: digest, state: 'reserved' };
         put(tx, 'itemReservations', key, row); return { status: 'reserved', reservation: row } as const;
       });
     },

@@ -36,9 +36,9 @@ export const captureStore = createCaptureStore(indexedDB, () => {
 export const captureCoordinator = createCaptureCoordinator({ store: captureStore, now: Date.now,
   assertCurrent: assertCaptureScope, existence: captureExistence, create: createNativeCapture, receipt: recoverNativeCapture,
   acknowledge: async task => {
-    if (task.nativeIntentId) await createBookmarkCreatePlacementStore().acknowledge(task.nativeIntentId);
+    if (task.nativeIntentId && !task.planned) await createBookmarkCreatePlacementStore().acknowledge(task.nativeIntentId);
     // A rule's placement is receipted before anything is sent; a failure here must not undo the save.
-    await recordPreSaveReceipt(task).catch(() => undefined);
+    if (!task.planned) await recordPreSaveReceipt(task).catch(() => undefined);
     return persistCaptureAnnotation(task, bookmark => pinNode(bookmark, true));
   } });
 
@@ -112,7 +112,7 @@ export async function wakeCaptures(): Promise<void> {
     // Only an account rule's placement has a receipt to recover; a browser rule's is logged when it is acknowledged.
     for (const task of page) if (isAccountAutomation(task.automation) && task.automation.outcome === 'placed' && task.save === 'local-saved'
       && task.disposition === 'new' && now - (task.savedAt ?? task.createdAt) < RECEIPT_MAX_AGE_MS) placed.push(task);
-    for (const task of page) if (task.disposition === 'new' && (['unsubmitted', 'unknown'].includes(task.save)
+    for (const task of page) if (!task.planned && task.disposition === 'new' && (['unsubmitted', 'unknown'].includes(task.save)
       || task.save === 'local-saved' && task.annotation && !task.annotationPersisted
       || (task.automaticIntent && ['waiting', 'running'].includes(task.classification)))) {
       await resumeCapture(task);
@@ -170,3 +170,6 @@ export async function handleCaptureRequest(request: CaptureRequest, sender: chro
   await assertCaptureOwner(scope);
   return { ok: true, task: request.kind === 'known.capture.resume' ? await resumeCapture(task) : await reconcileCaptureSync(task, captureStore) };
 }
+
+/** Internal host boundary; management/page message schemas deliberately expose no planned arguments. */
+export { executePlannedSave } from '../site-adapters/planned-runtime.js';

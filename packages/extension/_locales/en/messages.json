@@ -3011,6 +3011,15 @@
   "capture_signInForCloud": {
     "message": "Saving works on this browser without an account. Sign in to use sync and Know-N suggestions."
   },
+  "capture_siteFavorite": {
+    "message": "Site favorite"
+  },
+  "capture_siteImport": {
+    "message": "Site import"
+  },
+  "capture_siteReconcile": {
+    "message": "Site reconciliation"
+  },
   "capture_smallSample": {
     "message": "Small sample: $1 applied automatic results. Interpret feedback counts with this coverage."
   },
@@ -3019,6 +3028,9 @@
   },
   "capture_somethingWentWrongTabs": {
     "message": "Something went wrong. Tabs that were already saved stay saved; resume to finish the rest."
+  },
+  "capture_sourceArchive": {
+    "message": "Source archive"
   },
   "capture_suggestingTags": {
     "message": "Suggesting tags…"

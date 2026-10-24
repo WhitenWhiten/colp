@@ -1,4 +1,4 @@
-export type CaptureSource = 'action-popup' | 'manual-popup' | 'context-page' | 'context-link' | 'batch';
+export type CaptureSource = 'action-popup' | 'manual-popup' | 'context-page' | 'context-link' | 'batch' | 'site-favorite' | 'site-import' | 'site-reconcile';
 export interface CaptureScope {
   readonly serverOrigin: string;
   readonly accountId: string | null;
@@ -33,6 +33,9 @@ export type ClassificationState = 'none' | 'waiting' | 'running' | 'applied' | '
 export type SyncState = 'local-only' | 'pending' | 'syncing' | 'confirmed' | 'attention';
 export interface CaptureTask {
   readonly version: 1;
+  /** Absent on captures migrated from DB v1–v3. Never accepted by capture message parsers. */
+  readonly planned?: import('./planned.js').PlannedCaptureMetadata;
+  readonly nativeDateAdded?: number;
   readonly captureId: string;
   readonly commandId: string;
   readonly batchId: string | null;

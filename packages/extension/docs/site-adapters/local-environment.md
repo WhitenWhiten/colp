@@ -1,6 +1,6 @@
 # MacBook / OrbStack execution environment
 
-Prepared and verified October 24, 2026 for `/Users/whiten/colp`. This is environment-readiness evidence, not implementation acceptance for the proposed adapters. Continue with [SA-00 in the implementation plan](implementation-plan.md#ordered-work-packages); the adapter runtime still needs to be implemented.
+Prepared and verified October 24, 2026 for `/Users/whiten/colp`. This is environment-readiness evidence, not implementation acceptance for the proposed adapters. Continue from [execution evidence](execution-evidence.md) and the [implementation plan](implementation-plan.md#ordered-work-packages); environment readiness does not close adapter acceptance gates.
 
 ## Ready on this machine
 
@@ -92,3 +92,7 @@ Executed against COLP base `364a124471da2bc1633e22b8936656e0ba28e865` plus the w
 | Container cleanup | `docker ps -a` empty after validation |
 
 The latest smoke report is `packages/extension/test-results/results.json` (ignored, overwritten by later Playwright runs), with `unexpected: 0`, `skipped: 0`, and `flaky: 0`. The run began at `2026-10-24T09:12:14.716Z`. Save new task-specific evidence separately when implementing adapter gates. This environment does not include a running backend/database or establish server-backed E2E coverage; set up the existing backend harness only when a selected task actually needs it.
+
+## TypeScript memory during implementation
+
+The prepared OrbStack VM reports about 2 GiB RAM. SA-04 project-wide TypeScript checks were killed with exit 137 when large Node heaps allowed them to exceed that limit. A focused strict check of the changed production entry graphs and new tests passed with `node --max-old-space-size=1536 node_modules/typescript/bin/tsc ...` (see the exact command in execution evidence). Do not report a killed full check as passing or rerun environment preparation to address this memory limit.

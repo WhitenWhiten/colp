@@ -40,6 +40,7 @@ export async function undoSavedCapture(task: CaptureTask, commandId: string, led
 }
 
 export function classifySavedCapture(task: CaptureTask, ledger: CaptureStore): Promise<CaptureTask> {
+  if (task.planned?.classification === 'disabled') return Promise.resolve(task);
   // Local-first: the user's own provider, same classify-and-apply semantics as the server path.
   if (task.local) return classifyLocalCapture(task, ledger);
   return workCoordinator.run('classification', async () => {

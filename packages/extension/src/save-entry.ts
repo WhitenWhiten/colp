@@ -41,7 +41,7 @@ export async function savePagesThroughNativeIngress(input: {
     readonly totalSize: number;
   };
   readonly onPlacementReserved?: (record: import('./bookmark-create-placement.js').BookmarkCreatePlacementRecord) => Promise<void>;
-  readonly onNativeCreated?: (node: { readonly id: string }) => Promise<void>;
+  readonly onNativeCreated?: (node: { readonly id: string; readonly dateAdded?: number }) => Promise<void>;
   /** Folders first: a top save goes after the folders and the pinned bookmarks. */
   readonly foldersFirst?: boolean;
   readonly sidecar: ReturnType<typeof createFaviconSidecarStore>;
@@ -73,8 +73,8 @@ export async function savePagesThroughNativeIngress(input: {
       privateLocal: false, parentNativeId: placementParent, collectionId: input.collectionId,
       bookmarks: {...input.bookmarks,create: nativeInput=>withSubscriptionRead(async()=>{await assertPersonalNativeAllowed(nativeInput.parentId);return input.bookmarks.create(nativeInput);})}, sidecar: input.sidecar,
       ...(index === undefined ? {} : { index }),
-      onNativeCreated: async (node: { readonly id: string }) => {
-        if (reservation) await placementStore!.bind(reservation.intentId, node.id);
+      onNativeCreated: async (node: { readonly id: string; readonly dateAdded?: number }) => {
+        if (reservation) await placementStore!.bind(reservation.intentId, node.id, node.dateAdded);
         await input.onNativeCreated?.(node);
       },
       ...(input.fetch ? { fetch: input.fetch } : {}),

@@ -26,6 +26,7 @@ export function historyBadge(task: LocalHistoryItem): HistoryBadge | undefined {
   if (task.classification === 'manual') return { label: t('history_needsReview', 'Needs your review'), tone: 'warning' };
   if (task.historyReadOnly) return { label: task.historyOrigin === 'device' ? t('capture_savedBrowser2', 'Saved in browser')
     : task.historyOrigin === 'backup' ? t('backup_restoredHistory', 'Restored history') : t('capture_beforeSignIn', 'Saved before sign-in') };
+  if (task.planned?.purpose === 'sourceArchive') return { label: t('capture_sourceArchive', 'Source archive') };
   return undefined;
 }
 

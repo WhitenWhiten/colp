@@ -116,7 +116,7 @@ export function parseLocalBackup(value: unknown): LocalBackup {
     const sourceId = text(item.sourceId, 256);
     if (!sourceId || historyIds.has(sourceId) || typeof item.automaticIntent !== 'boolean' || typeof item.originalApplied !== 'boolean' || !Array.isArray(item.path) || item.path.length > 128) throw new Error('backup_invalid');
     historyIds.add(sourceId);
-    return { sourceId, title: text(item.title), url: url(item.url), source: choice(item.source, ['action-popup', 'manual-popup', 'context-page', 'context-link', 'batch']),
+    return { sourceId, title: text(item.title), url: url(item.url), source: choice(item.source, ['action-popup', 'manual-popup', 'context-page', 'context-link', 'batch', 'site-favorite', 'site-import', 'site-reconcile']),
       createdAt: timestamp(item.createdAt), updatedAt: timestamp(item.updatedAt), save: choice(item.save, ['unsubmitted', 'local-saved', 'unknown', 'failed']),
       classification: choice(item.classification, ['none', 'waiting', 'running', 'applied', 'manual', 'failed']),
       sync: choice(item.sync, ['local-only', 'pending', 'syncing', 'confirmed', 'attention']), disposition: choice(item.disposition, ['new', 'existing', 'cancelled']),

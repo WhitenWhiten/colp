@@ -6,7 +6,7 @@ export type ClassificationTrigger =
   | { readonly kind: 'form-open'; readonly existence: CaptureExistence }
   | { readonly kind: 'user-request' }
   | { readonly kind: 'saved-capture'; readonly task: Pick<CaptureTask,
-    'automaticIntent' | 'disposition' | 'save' | 'classification' | 'manualFence' | 'annotation' | 'annotationPersisted'> };
+    'automaticIntent' | 'disposition' | 'save' | 'classification' | 'manualFence' | 'annotation' | 'annotationPersisted' | 'planned'> };
 
 export type FormOpenClassificationSkip = 'already_saved' | 'existence_unavailable';
 export function classificationTriggerReason(trigger: Exclude<ClassificationTrigger, { kind: 'saved-capture' }>): FormOpenClassificationSkip | null;
@@ -19,6 +19,7 @@ export function classificationTriggerReason(trigger: ClassificationTrigger) {
       return trigger.existence.coverage.local === 'complete' ? null : 'existence_unavailable';
     case 'saved-capture': {
       const task = trigger.task;
+      if (task.planned?.classification === 'disabled') return 'capture_not_ready';
       // A bookmark created by THIS task remains eligible after native save.
       if (task.disposition !== 'new') return 'already_saved';
       if (task.manualFence) return 'manually_edited';

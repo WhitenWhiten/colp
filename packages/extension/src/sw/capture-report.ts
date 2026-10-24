@@ -32,7 +32,7 @@ async function flush() {
     const page = await captureStore.listForOwner(scope, before);
     for (let item of page) {
       // Local-only captures keep their page data on this browser.
-      if (!item.scope.collectionId || item.sync === 'local-only' || (item.reportedRevision ?? -1) >= item.revision
+      if (item.planned || !item.scope.collectionId || item.sync === 'local-only' || (item.reportedRevision ?? -1) >= item.revision
         || item.reportFailure?.revision === item.revision) continue;
       if (!await captureIsInSyncRange(item)) continue;
       if (item.nativeId) {
@@ -49,7 +49,7 @@ async function flush() {
         const result = await client.reportCapture({ captureId: task.captureId, deviceId: task.deviceId ?? deviceId,
           collectionId: task.scope.collectionId!, nodeId: nodeId && !nodeId.startsWith('pending-') ? nodeId : null,
           revision: task.revision, startedAt: new Date(task.createdAt).toISOString(), title: task.title, url: task.url,
-          localPath: [...task.localLocation?.path ?? []], source: task.source, disposition: task.disposition, save: task.save,
+          localPath: [...task.localLocation?.path ?? []], source: legacyReportSource(task.source), disposition: task.disposition, save: task.save,
           automaticIntent: task.automaticIntent, sync: task.sync, reason: task.reason,
           ...(task.savedAt === undefined ? {} : { savedAt: new Date(task.savedAt).toISOString() }),
           ...(task.classificationAppliedAt === undefined ? {} : { classificationAppliedAt: new Date(task.classificationAppliedAt).toISOString() }),
@@ -64,4 +64,9 @@ async function flush() {
     }
     const last = page.at(-1); if (!last || page.length < 50) break; before = [last.createdAt, last.captureId];
   }
+}
+
+function legacyReportSource(source: import('../capture/contracts.js').CaptureSource) {
+  if (source === 'site-favorite' || source === 'site-import' || source === 'site-reconcile') throw new Error('source_cloud_unsupported');
+  return source;
 }

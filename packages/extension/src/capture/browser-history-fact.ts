@@ -13,7 +13,7 @@ export interface BrowserHistoryFact {
   readonly createdAt: number;
   readonly savedAt: number;
 }
-const SOURCES = new Set<CaptureSource>(['action-popup', 'manual-popup', 'context-page', 'context-link', 'batch']);
+const SOURCES = new Set<CaptureSource>(['action-popup', 'manual-popup', 'context-page', 'context-link', 'batch', 'site-favorite', 'site-import', 'site-reconcile']);
 
 export function browserHistoryFact(task: Pick<CaptureTask,
   'captureId' | 'targetNativeId' | 'title' | 'url' | 'source' | 'automaticIntent' | 'createdAt'>,

@@ -48,6 +48,7 @@ for (const fixture of ['indexeddb-p3-03', 'indexeddb-p3-27']) {
 for (const fixture of ['chrome-bookmarks-export', 'netscape-malicious']) {
   assert.equal(files.some((file) => file.includes(fixture)), false, `release contains import fixture ${fixture}`);
 }
+if (config.deploymentId !== 'e2e-fixture') assert.ok(!(await readFile(resolve(root, 'service-worker.js'), 'utf8')).includes('known.siteAdapters.evidence'), 'release contains site-adapter evidence RPC');
 const markers = [/client[_-]?secret/i, /fixture-access|fixture-refresh/i, /TEST[_-]?TOKEN/i, /SYNC-SECRET-MARKER/i,
   /PRIVATE-LOCAL-SENTINEL|PRIVATE-QUEUE-SENTINEL|UNSELECTED-SENTINEL|UNSELECTED-QUEUE-SENTINEL|PROFILE-[AB]-(?:PRIVATE|UNSELECTED)-SENTINEL|native-sensitive-id|https:\/\/sentinel\.invalid\/(?:private(?:-queue)?|unselected-queue|profile-[ab]-(?:private|unselected))/i,
   /postgres(?:ql)?:\/\//i, /\\Users\\|\/home\//i, /eval\s*\(|new Function|https?:\/\/localhost/i];

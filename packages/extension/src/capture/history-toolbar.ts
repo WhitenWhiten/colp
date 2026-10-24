@@ -14,7 +14,7 @@ export function createHistoryToolbar(zoneValue: string) {
   const filter = selectOf([['all', t('common_all', 'All')], ['attention', t('common_needsAttention', 'Needs attention')], ['progress', t('common_inProgress', 'In progress')], ['completed', t('common_completed', 'Completed')]], 'all');
   const scope = selectOf([['local', t('common_thisBrowser', 'This browser')], ['cloud', t('capture_allCloudDevices', 'All cloud devices')]], 'local');
   const source = selectOf([['', t('common_allSources', 'All sources')], ['action-popup', t('common_toolbar', 'Toolbar')], ['manual-popup', t('common_manualPopup', 'Manual popup')], ['context-page', t('common_pageMenu', 'Page menu')],
-    ['context-link', t('common_linkMenu', 'Link menu')], ['batch', t('common_tabBatch', 'Tab batch')]], '');
+    ['context-link', t('common_linkMenu', 'Link menu')], ['batch', t('common_tabBatch', 'Tab batch')], ['site-favorite', t('capture_siteFavorite', 'Site favorite')], ['site-import', t('capture_siteImport', 'Site import')], ['site-reconcile', t('capture_siteReconcile', 'Site reconciliation')]], '');
   const zone = selectOf([...new Set([zoneValue, 'UTC', 'Asia/Tokyo', 'America/New_York', 'Europe/London'])].map((value) => [value, value] as const), zoneValue);
 
   const search = searchCompact(t('capture_titleDomain', 'Title or domain'), t('capture_searchTitlesDomains', 'Search titles and domains'));

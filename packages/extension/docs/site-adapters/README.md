@@ -1,6 +1,6 @@
 # Website favorites adapter design
 
-Status: proposal, not implemented in COLP. Initial research: October 18, 2026. Integration review: October 22, 2026, against repository baseline `7a58017aeeb8fbaf3ee6defd00a594974f0950e4`. Independent Bilibili feasibility evidence and Chrome policy were reviewed on October 23, 2026; see [verification scope and remaining gates](bilibili-feasibility.md).
+Status: partial implementation. See [execution evidence](execution-evidence.md) for completed host kernels and remaining gates; live archiving/import/semantic/community/cloud activation is not yet available. Initial research: October 18, 2026. Integration review: October 22, 2026, against repository baseline `7a58017aeeb8fbaf3ee6defd00a594974f0950e4`. Independent Bilibili feasibility evidence and Chrome policy were reviewed on October 23, 2026; see [verification scope and remaining gates](bilibili-feasibility.md).
 
 Use website adapters running in the page, a source relationship ledger persisted by the host extension, existing automation evaluation, and a shared save planner. Adapters extract items, collections, and membership changes. The host decides whether to save, how many copies to keep, where they belong, and whether to invoke JEV. Bilibili is the first validation target.
 

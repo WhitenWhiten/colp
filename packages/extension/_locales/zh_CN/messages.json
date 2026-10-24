@@ -10330,5 +10330,21 @@
   "automation_tabActivity": {
     "message": "动态",
     "description": "Activity"
+  },
+  "capture_siteFavorite": {
+    "message": "网站收藏",
+    "description": "Site favorite"
+  },
+  "capture_siteImport": {
+    "message": "网站导入",
+    "description": "Site import"
+  },
+  "capture_siteReconcile": {
+    "message": "网站状态核对",
+    "description": "Site reconciliation"
+  },
+  "capture_sourceArchive": {
+    "message": "来源归档",
+    "description": "Source archive"
   }
 }

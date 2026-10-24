@@ -17,9 +17,9 @@ export interface SaveBookmarkCaptureInput {
       readonly id: string; readonly url?: string;
     }[] }[]>;
     create(bookmark: { parentId?: string; index?: number; title?: string; url?: string }): Promise<{
-    readonly id: string; readonly title: string; readonly url?: string }>; };
+    readonly id: string; readonly title: string; readonly url?: string; readonly dateAdded?: number }>; };
   readonly sidecar: ReturnType<typeof createFaviconSidecarStore>;
-  readonly onNativeCreated?: (node: { readonly id: string }) => Promise<void>;
+  readonly onNativeCreated?: (node: { readonly id: string; readonly dateAdded?: number }) => Promise<void>;
   readonly fetch?: typeof fetch; readonly randomUUID?: () => string; readonly now?: () => number;
 }
 

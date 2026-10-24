@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-24T11:02:20.110Z",
+  "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36",
+  "browserVersion": "149.0.7827.0",
+  "workerTermination": "CDP Target.closeTarget",
+  "sourceWorld": "ISOLATED",
+  "cuts": [
+    {
+      "point": "beforeNativeSubmit",
+      "resumedStatus": "confirmed",
+      "folders": 1,
+      "bookmarks": 0
+    },
+    {
+      "point": "afterNativeReceipt",
+      "resumedStatus": "confirmed",
+      "folders": 1,
+      "bookmarks": 1
+    },
+    {
+      "point": "afterFolderCreate",
+      "resumedStatus": "unknown",
+      "folders": 1,
+      "bookmarks": 0
+    },
+    {
+      "point": "afterBookmarkCreate",
+      "resumedStatus": "unknown",
+      "folders": 1,
+      "bookmarks": 1
+    }
+  ],
+  "modelCalls": 0,
+  "automaticSaving": true,
+  "tagMode": "add",
+  "fixture": true,
+  "realSite": false,
+  "runner": {
+    "os": "Linux",
+    "architecture": "arm64",
+    "image": "colp-extension-tests:pw1.61.1",
+    "xvfb": true
+  },
+  "reportStats": {
+    "startTime": "2026-10-24T11:02:10.181Z",
+    "duration": 10054.141000000001,
+    "expected": 1,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "developmentServiceWorkerSha256": "5d64b6d5b615bd0a2c6e342458a88cdc4dbca91bf54265a9c59b30cafde16a7d",
+  "implementationParent": "358f5e34"
+}

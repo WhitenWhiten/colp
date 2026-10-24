@@ -21,7 +21,7 @@ test('AC-08 shows the frozen metric cohort, paginates 1000 local tasks and expor
         const stored = await chrome.storage.local.get(['known.auth.authority-generation.v1', 'known.capture.device.v1']);
         const generation = (stored['known.auth.authority-generation.v1'] as { generation?: number } | undefined)?.generation ?? 0;
         const scope = { serverOrigin: config.serverOrigin, accountId: null, authorityGeneration: generation, collectionId: null };
-        const db = await new Promise<IDBDatabase>((resolve, reject) => { const request = indexedDB.open('known-capture', 3); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
+        const db = await new Promise<IDBDatabase>((resolve, reject) => { const request = indexedDB.open('known-capture', 4); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
         const tx = db.transaction('tasks', 'readwrite'), tasks = tx.objectStore('tasks'), now = Date.now();
         for (let i = start!; i < end!; i++) {
           const auto = i < 90, applied = i < 80, saved = i < 94 || i >= 100;

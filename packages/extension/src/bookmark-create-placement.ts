@@ -41,11 +41,12 @@ export interface BookmarkCreatePlacementRecord {
   readonly expectedIndex: number;
   readonly state: CreatePlacementState;
   readonly nativeId?: string;
+  readonly nativeDateAdded?: number;
   readonly createdAt: number;
 }
 
 export type BookmarkCreatePlacementInput = Omit<BookmarkCreatePlacementRecord,
-  'version' | 'intentId' | 'state' | 'nativeId' | 'createdAt'>;
+  'version' | 'intentId' | 'state' | 'nativeId' | 'nativeDateAdded' | 'createdAt'>;
 
 export interface CreatedBookmarkNode {
   readonly id: string;
@@ -72,6 +73,8 @@ export interface BookmarkCreatePlacementStoreOptions {
    */
   readonly retainForConsumer?: boolean;
   readonly retainTtlMs?: number;
+  /** Source outbox owns this lifetime. Never release before its durable acknowledgment. */
+  readonly retainUntilAcknowledged?: boolean;
 }
 
 /**
@@ -94,25 +97,26 @@ export function createBookmarkCreatePlacementStore(options: BookmarkCreatePlacem
     if (!record) throw new TypeError('bookmark_create_placement_invalid');
     await pruneExpired(createdAt);
     await storage.set({ [storageKey(intentId)]: record,
-      ...(options.retainForConsumer ? { [retainKey(intentId)]: { version: 1, retainedAt: createdAt } } : {}) });
+      ...(options.retainForConsumer ? { [retainKey(intentId)]: { version: 1, retainedAt: createdAt, ...(options.retainUntilAcknowledged ? { durable: true } : {}) } } : {}) });
     return record;
   }
 
-  async function bind(intentId: string, nativeId: string): Promise<BookmarkCreatePlacementRecord | undefined> {
+  async function bind(intentId: string, nativeId: string, nativeDateAdded?: number): Promise<BookmarkCreatePlacementRecord | undefined> {
     const id = validateUuid(intentId, 'intentId');
     const native = validateNativeId(nativeId, 'nativeId');
     const timestamp = validateTimestamp(now());
     await pruneExpired(timestamp);
     const key = storageKey(id);
-    const current = parseBookmarkCreatePlacementRecord((await storage.get(key))[key]);
+    const receiptKey = `${BOOKMARK_CREATE_RECEIPT_KEY_PREFIX}${id}`, values = await storage.get([key, receiptKey]);
+    const current = parseBookmarkCreatePlacementRecord(values[key]) ?? parseBookmarkCreatePlacementRecord(values[receiptKey]);
     if (!current) return undefined;
     if (current.state === 'attention') throw new Error('bookmark_create_placement_attention');
     if (current.state === 'bound' && current.nativeId !== native) {
       throw new Error('bookmark_create_placement_bound_conflict');
     }
-    const updated = parseBookmarkCreatePlacementRecord({ ...current, state: 'bound', nativeId });
+    const updated = parseBookmarkCreatePlacementRecord({ ...current, state: 'bound', nativeId, ...(nativeDateAdded === undefined ? {} : { nativeDateAdded }) });
     if (!updated) throw new TypeError('bookmark_create_placement_invalid');
-    await storage.set({ [key]: updated });
+    await storage.set({ ...(values[key] ? { [key]: updated } : {}), ...(values[receiptKey] || nativeDateAdded !== undefined ? { [receiptKey]: updated } : {}) });
     return updated;
   }
 
@@ -160,7 +164,7 @@ export function createBookmarkCreatePlacementStore(options: BookmarkCreatePlacem
     if (!record || record.state !== 'bound' || record.intentId !== id) return undefined;
     if (now() - record.createdAt < ttlMs) return record;
     const retention = parseRetention((await storage.get(retainKey(id)))[retainKey(id)]);
-    return retention && now() - retention.retainedAt < retainTtlMs ? record : undefined;
+    return retention && (retention.durable || now() - retention.retainedAt < retainTtlMs) ? record : undefined;
   }
 
   async function complete(intentId: string, nativeId?: string): Promise<void> {
@@ -199,7 +203,7 @@ export function createBookmarkCreatePlacementStore(options: BookmarkCreatePlacem
     for (const [key, value] of Object.entries(values)) {
       if (!key.startsWith(RETAIN_KEY_PREFIX)) continue;
       const retention = parseRetention(value);
-      if (!retention || timestamp - retention.retainedAt >= retainTtlMs) removals.push(key);
+      if (!retention || !retention.durable && timestamp - retention.retainedAt >= retainTtlMs) removals.push(key);
       else liveRetention.add(key.slice(RETAIN_KEY_PREFIX.length));
     }
     for (const [key, value] of Object.entries(values)) {
@@ -245,7 +249,7 @@ export function createBookmarkCreatePlacementStore(options: BookmarkCreatePlacem
 export function parseBookmarkCreatePlacementRecord(value: unknown): BookmarkCreatePlacementRecord | undefined {
   if (!isRecord(value)) return undefined;
   const allowed = new Set(['version', 'mode', 'targetParentNativeId', 'collectionId', 'batchId', 'batchOrder', 'batchSize',
-    'intentId', 'title', 'url', 'expectedIndex', 'state', 'nativeId', 'createdAt']);
+    'intentId', 'title', 'url', 'expectedIndex', 'state', 'nativeId', 'nativeDateAdded', 'createdAt']);
   if (Object.keys(value).some((key) => !allowed.has(key))) return undefined;
   if (value.version !== 1 || (value.mode !== 'top' && value.mode !== 'bottom')
       || typeof value.targetParentNativeId !== 'string' || !SAFE_ID.test(value.targetParentNativeId)
@@ -260,6 +264,7 @@ export function parseBookmarkCreatePlacementRecord(value: unknown): BookmarkCrea
       || !safeIntegerInRange(value.expectedIndex, 0, MAX_EXPECTED_INDEX)
       || (value.state !== 'reserved' && value.state !== 'bound' && value.state !== 'attention')
       || !safeIntegerInRange(value.createdAt, 0, Number.MAX_SAFE_INTEGER)) return undefined;
+  if (value.nativeDateAdded !== undefined && !safeIntegerInRange(value.nativeDateAdded, 1, Number.MAX_SAFE_INTEGER)) return undefined;
   if (value.state === 'reserved' && value.nativeId !== undefined) return undefined;
   if (value.state === 'bound' && (typeof value.nativeId !== 'string' || !SAFE_ID.test(value.nativeId))) return undefined;
   if (value.state !== 'bound' && value.nativeId !== undefined && !SAFE_ID.test(String(value.nativeId))) return undefined;
@@ -268,7 +273,7 @@ export function parseBookmarkCreatePlacementRecord(value: unknown): BookmarkCrea
     ...(value.collectionId === undefined ? {} : { collectionId: value.collectionId as string }),
     batchId: value.batchId, batchOrder: value.batchOrder, batchSize: value.batchSize,
     intentId: value.intentId, title: value.title, url: value.url, expectedIndex: value.expectedIndex,
-    state: value.state, ...(value.nativeId === undefined ? {} : { nativeId: value.nativeId }), createdAt: value.createdAt,
+    state: value.state, ...(value.nativeDateAdded === undefined ? {} : { nativeDateAdded: value.nativeDateAdded }), ...(value.nativeId === undefined ? {} : { nativeId: value.nativeId }), createdAt: value.createdAt,
   } as BookmarkCreatePlacementRecord;
 }
 
@@ -309,12 +314,14 @@ function validateRetainTtl(value: number, ttlMs: number): number {
 interface CreateRetention {
   readonly version: 1;
   readonly retainedAt: number;
+  readonly durable?: true;
 }
 
 function parseRetention(value: unknown): CreateRetention | undefined {
-  if (!isRecord(value) || Object.keys(value).length !== 2 || value.version !== 1
+  if (!isRecord(value) || Object.keys(value).some(k => !['version', 'retainedAt', 'durable'].includes(k)) || value.version !== 1
+      || value.durable !== undefined && value.durable !== true
       || !Number.isSafeInteger(value.retainedAt) || (value.retainedAt as number) < 0) return undefined;
-  return { version: 1, retainedAt: value.retainedAt as number };
+  return { version: 1, retainedAt: value.retainedAt as number, ...(value.durable === true ? { durable: true } : {}) };
 }
 
 function safeIntegerInRange(value: unknown, minimum: number, maximum: number): value is number {
