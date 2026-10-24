@@ -101,19 +101,18 @@ describe('every code resolves to a readable sentence (C-19, plan item 11)', () =
 
 describe('the Reset sentence never promises a button that is not there (C-13)', () => {
   test('a terminal code says where Reset is when the card has none', () => {
-    // A real freeze code that the (stale) SyncAttentionTerminalCode union leaves out; the view casts it the same way.
-    const withButton = terminalFreezeReasonCopy('mapping_identity_conflict' as never, { rebuildAvailable: true });
+    const withButton = terminalFreezeReasonCopy('mapping_identity_conflict', { rebuildAvailable: true });
     assert.match(withButton, /Reset sync on this device to continue/u);
-    const noReason = terminalFreezeReasonCopy('mapping_identity_conflict' as never, { rebuildAvailable: false });
+    const noReason = terminalFreezeReasonCopy('mapping_identity_conflict', { rebuildAvailable: false });
     assert.doesNotMatch(noReason, /Reset sync on this device to continue/u);
     assert.match(noReason, /Sync center on the web/u);
     // K3: a Reset that is needed but cannot run now says why, and neither reason sends the person to the web
     // (the Sync center's Reset needs a connection too, and an unsettled bookmark change blocks it there as well).
-    const offline = terminalFreezeReasonCopy('mapping_identity_conflict' as never, { rebuildAvailable: false,
+    const offline = terminalFreezeReasonCopy('mapping_identity_conflict', { rebuildAvailable: false,
       rebuildUnavailableReason: 'offline' });
     assert.match(offline, /Resetting needs a connection, because a change may already have reached the server\. Connect and try again\./u);
     assert.doesNotMatch(offline, /Sync center on the web/u);
-    const unsettled = terminalFreezeReasonCopy('mapping_identity_conflict' as never, { rebuildAvailable: false,
+    const unsettled = terminalFreezeReasonCopy('mapping_identity_conflict', { rebuildAvailable: false,
       rebuildUnavailableReason: 'native_outcome_unsettled' });
     assert.match(unsettled, /no confirmed result yet/u);
     assert.match(unsettled, /under Waiting for you/u);
@@ -123,7 +122,7 @@ describe('the Reset sentence never promises a button that is not there (C-13)', 
   test('rebuild-exit codes no longer claim that bookmarks are missing, except the one where one is', () => {
     for (const code of ['mapping_identity_conflict', 'create_ambiguous', 'create_evidence_missing',
       'snapshot_placement_local_identity_unproven', 'pull_apply_evidence_missing']) {
-      assert.doesNotMatch(terminalFreezeReasonCopy(code as never), /bookmarks on this device are missing/u, code);
+      assert.doesNotMatch(terminalFreezeReasonCopy(code), /bookmarks on this device are missing/u, code);
     }
     assert.match(terminalFreezeReasonCopy('pull_apply_target_missing'), /no longer on this device/u);
   });
@@ -154,7 +153,7 @@ describe('one Retry rule for the card and the Sync center (C-14)', () => {
       // The state this code puts the browser in: terminal codes freeze it, the rest stop it after repeated errors.
       const terminal = policy.exit === 'rebuild' || policy.exit === 'decide';
       const attention: PublicSyncAttention = { ...calm, phase: 'error', lastError: code, retryAutomatic: false,
-        recoveryFrozen: terminal || policy.freezesPull === true, terminal, ...(terminal ? { terminalCode: code as never } : {}) };
+        recoveryFrozen: terminal || policy.freezesPull === true, terminal, ...(terminal ? { terminalCode: code } : {}) };
       const card = describeSyncAttention({ ...attention, rebuildAvailable: false });
       const shown = terminal ? card.terminal.retry : card.recovery.retry;
       const center = projectReplicaHealth({ attention, issues: [] }).actions.includes('retry');

@@ -31,11 +31,17 @@ export interface PublicSyncProgress {
 /** `permissionRequired`: sync is set up but bookmark access was removed, so there is no count to show. */
 export type SyncProgressResponse = { readonly ok: true; readonly progress: PublicSyncProgress | null; readonly permissionRequired?: true }
   | { readonly ok: false; readonly error: 'state_unavailable' };
+/**
+ * A code that ends sync until a person acts (`syncAttentionTerminalCode`): `payload_too_large`, `replica_rebuild_pending`,
+ * or any table code whose exit is a rebuild or a decision. The failure table is the list, so this is open (a union that
+ * named some of them was stale the day another was added); the names below only keep the editor's suggestions.
+ */
 export type SyncAttentionTerminalCode = 'metadata_sync_disabled' | 'replica_rebuild_pending' | 'pull_apply_target_missing' | 'pull_apply_evidence_missing'
   | 'anchor_mapping_missing' | 'payload_too_large' | 'recovery_identity_unproven'
-  | 'deletion_identity_unproven' | 'legacy_resolution_sequence_collision' | 'mapping_identity_collision'
+  | 'deletion_identity_unproven' | 'legacy_resolution_sequence_collision' | 'mapping_identity_collision' | 'mapping_identity_conflict'
   | 'create_ambiguous' | 'create_evidence_missing'
-  | 'create_placement_parent_deleted' | 'create_placement_unproven' | 'pull_issue_ceiling' | 'sync_issue_ceiling';
+  | 'create_placement_parent_deleted' | 'create_placement_unproven' | 'pull_issue_ceiling' | 'sync_issue_ceiling'
+  | (string & Record<never, never>);
 /**
  * What a person can do about one item from this device (`known.sync.issue.act`):
  * `retry` puts a held or blocked upload through its checks again; `dismiss`

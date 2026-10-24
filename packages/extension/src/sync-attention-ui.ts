@@ -2,6 +2,7 @@ import { t } from './i18n.js';
 import { createIcon } from './icons.js';
 import { button, el } from './library-dom.js';
 import { bindReplicaRebuildButton } from './replica-rebuild-ui.js';
+import { bindStorageResetButton } from './sync-storage-reset-ui.js';
 import {
   SYNC_ATTENTION_CENTER_LABEL, SYNC_ATTENTION_COPIED_COPY, SYNC_ATTENTION_COPY_DIAGNOSTICS_LABEL, SYNC_ATTENTION_COPY_FAILED_COPY,
   SYNC_ATTENTION_FOLDERS_LABEL, SYNC_ISSUE_ACTION_LIMIT, describeSyncAttention, issueActionOutcomeCopy, retryOutcomeCopy, syncAttentionInput,
@@ -34,6 +35,10 @@ interface AttentionNodes {
   readonly conflictLink: HTMLAnchorElement | null;
   readonly rejected: HTMLElement | null;
   readonly terminal: HTMLElement | null;
+  /** "Reset sync on this device" in the terminal alert, "Cancel pending reset" beside it, "Reset local sync data" in the recovery alert. */
+  readonly rebuild: HTMLButtonElement | null;
+  readonly rebuildCancel: HTMLButtonElement | null;
+  readonly storageReset: HTMLButtonElement | null;
   readonly recovery: HTMLElement | null;
   readonly recoveryCopy: HTMLElement | null;
   readonly retry: HTMLButtonElement | null;
@@ -61,7 +66,9 @@ export function bindSyncAttentionSettings(): void {
 function bindSyncAttention(hostId: string, syncPaneOnly: boolean): void {
   const host = document.getElementById(hostId);
   if (!host) return;
-  bindReplicaRebuildButton(hostId);
+  // The Reset buttons read the card again when a state they were offered for changes.
+  bindReplicaRebuildButton(hostId, { onChanged: () => refresh() });
+  bindStorageResetButton(hostId, () => refresh());
   const nodes: AttentionNodes = {
     host,
     pause: document.getElementById(`${hostId}-pause`),
@@ -69,6 +76,9 @@ function bindSyncAttention(hostId: string, syncPaneOnly: boolean): void {
     conflictLink: document.getElementById(`${hostId}-conflict-link`) as HTMLAnchorElement | null,
     rejected: document.getElementById(`${hostId}-rejected`),
     terminal: document.getElementById(`${hostId}-terminal`),
+    rebuild: document.getElementById(`${hostId}-rebuild`) as HTMLButtonElement | null,
+    rebuildCancel: document.getElementById(`${hostId}-rebuild-cancel`) as HTMLButtonElement | null,
+    storageReset: document.getElementById(`${hostId}-storage-reset`) as HTMLButtonElement | null,
     recovery: document.getElementById(`${hostId}-recovery`),
     recoveryCopy: document.getElementById(`${hostId}-recovery-copy`),
     retry: document.getElementById(`${hostId}-retry`) as HTMLButtonElement | null,
@@ -136,17 +146,16 @@ function bindSyncAttention(hostId: string, syncPaneOnly: boolean): void {
       ? facts : withNativeWaitFallback(facts, await readNativeWaitCount()));
     report = view.terminal.show ? view.terminal.report : view.recovery.report;
     paintSyncAttention(nodes, view, actOnIssues);
-    const terminalRepair = document.getElementById(`${hostId}-rebuild`);
-    if (terminalRepair) terminalRepair.hidden = attention?.rebuildAvailable !== true;
+    // Outside a terminal card the Reset has a button of its own under the card, shown exactly when a Reset is possible.
     let repair = document.getElementById(`${hostId}-issue-repair`);
     if (!repair) {
       repair = document.createElement('div'); repair.id = `${hostId}-issue-repair`;
       const button = document.createElement('button'); button.type = 'button'; button.className = 'btn btn-danger-ghost btn-sm';
       button.id = `${repair.id}-rebuild`;
       const feedback = document.createElement('p'); feedback.id = `${repair.id}-feedback`; feedback.hidden = true;
-      repair.append(button, feedback); nodes.host.append(repair); bindReplicaRebuildButton(repair.id);
+      repair.append(button, feedback); nodes.host.append(repair); bindReplicaRebuildButton(repair.id, { onChanged: () => refresh() });
     }
-    repair.hidden = attention?.rebuildAvailable !== true || attention.recoveryFrozen === true;
+    repair.hidden = !view.reset.show || view.terminal.show;
     return attention;
   };
   void refresh();
@@ -182,6 +191,9 @@ function paintSyncAttention(nodes: AttentionNodes, view: SyncAttentionView, act:
     nodes.conflictLink.textContent = view.conflict.label;
   }
   if (nodes.terminal) nodes.terminal.hidden = !view.terminal.show;
+  if (nodes.rebuild) nodes.rebuild.hidden = !view.reset.show;
+  if (nodes.rebuildCancel) nodes.rebuildCancel.hidden = !view.reset.cancel;
+  if (nodes.storageReset) nodes.storageReset.hidden = !view.storage.resetLocalData;
   if (nodes.terminalRetry) nodes.terminalRetry.hidden = !view.terminal.retry;
   if (nodes.terminalCopy) nodes.terminalCopy.textContent = view.terminal.show ? view.terminal.copy : '';
   paintLink(nodes.syncCenter, view.terminal.syncCenter);

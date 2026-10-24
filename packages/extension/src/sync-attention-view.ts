@@ -28,6 +28,7 @@ import { formatMoment, localized, t, tn } from './i18n.js';
 import { syncAttentionTerminalCode } from './sync-stop-state.js';
 import { syncIssueBulk, syncIssueRows, type SyncIssueBulk, type SyncIssueRow } from './sync-issue-rows.js';
 import { describeSyncProblem, problemOffersRetry } from './sync-problem-catalog.js';
+import { resetBlockedCopy } from './sync-problem-copy.js';
 import type {
   PublicSyncAttention, RemoteDeleteResponse, SyncAttentionTerminalCode, SyncIssueActionResponse, SyncIssueLocalAction,
 } from './types.js';
@@ -60,6 +61,15 @@ export interface SyncAttentionInput {
   readonly issueCeiling?: PublicSyncAttention['issueCeiling'];
   readonly rebuildAvailable?: boolean;
   readonly rebuildUnavailableReason?: string;
+  /** K3: `server_fenced` takes this browser off the server first (a change may already be there) and needs a connection. */
+  readonly rebuildMode?: 'local' | 'server_fenced';
+  /** K3: a Reset is needed but cannot run now (`offline`, `native_outcome_unsettled`). */
+  readonly rebuildBlockedReason?: string;
+  /** W2A-02: a reset that was confirmed but could not finish can be given up. */
+  readonly rebuildCancelAvailable?: boolean;
+  /** W2A-01: the sync database cannot be used (`lastError` says why); the rest of the facts are not a reading of it. */
+  readonly storageState?: 'newer_version' | 'read_only' | 'upgrade_failed' | 'unavailable';
+  readonly storageResetAvailable?: boolean;
   readonly waitCount?: number;
   readonly retryAt?: number;
   readonly retryAutomatic?: boolean;
@@ -112,6 +122,14 @@ export interface SyncAttentionView {
    */
   readonly issues: { readonly show: boolean; readonly rows: readonly SyncIssueRow[]; readonly more: number;
     readonly bulk: SyncIssueBulk; readonly hint: string };
+  /**
+   * The Reset buttons of the card (K3). `show`: a Reset is possible from this state, and only then. `blocked`: a Reset
+   * is needed and cannot run now, in words, when the card's own sentence does not already say it.
+   */
+  readonly reset: { readonly show: boolean; readonly mode: 'local' | 'server_fenced'; readonly cancel: boolean;
+    readonly blocked?: string };
+  /** The sync database cannot be used (W2A-01): the card says so instead of listing items, and may offer to reset the data. */
+  readonly storage: { readonly show: boolean; readonly resetLocalData: boolean };
   readonly pause: { readonly show: boolean; readonly nativeWait: boolean;
     readonly remoteDeletePending: boolean; readonly copy: string };
   readonly conflict: SyncAttentionLink;
@@ -155,20 +173,25 @@ export function rejectedWorkCopy(): string {
 }
 
 /**
- * Whether the Reset button is on the card of this state. One decision for the
- * words ("reset sync on this device") and for the button, so the copy never
- * promises a control that is not there.
+ * Whether the Reset button is on the card of this state: exactly when the attention read says a Reset is possible
+ * (K3: true in every stuck state, false while one is needed but blocked, and in a healthy one). One decision for the
+ * words ("reset sync on this device") and for the button, so the copy never promises a control that is not there.
  */
-export function resetOnCard(input: SyncAttentionInput, terminal: boolean): boolean {
-  return input.rebuildAvailable === true && (terminal || input.recoveryFrozen !== true);
+export function resetOnCard(input: SyncAttentionInput): boolean {
+  return input.rebuildAvailable === true;
 }
 
 export function terminalFreezeReasonCopy(code: SyncAttentionTerminalCode, input: SyncAttentionInput = {}): string {
-  return describeSyncProblem(code, { resetOffered: resetOnCard(input, true),
+  return describeSyncProblem(code, { resetOffered: resetOnCard(input),
     ...(input.resetInStatus ? { resetInStatus: true } : {}),
-    ...(input.rebuildUnavailableReason ? { resetUnavailableReason: input.rebuildUnavailableReason } : {}),
+    ...(resetReason(input) ? { resetUnavailableReason: resetReason(input)! } : {}),
     ...(input.retryAt !== undefined ? { retryAt: input.retryAt } : {}),
     ...(input.retryAutomatic !== undefined ? { retryAutomatic: input.retryAutomatic } : {}) }).sentence;
+}
+
+/** Why a Reset that is needed is not on offer: the K3 blocked reason, else the capability's own (`rebuild_not_required`). */
+function resetReason(input: SyncAttentionInput): string | undefined {
+  return input.rebuildBlockedReason ?? input.rebuildUnavailableReason;
 }
 
 /** Copy the displayed structured issue snapshot even when the engine has no error. */
@@ -183,6 +206,9 @@ export function terminalFreezeReport(input: SyncAttentionInput, syncCenterHref?:
   `enginePhase: ${input.phase ?? '(unknown)'}`,
   `rebuildAvailable: ${input.rebuildAvailable ?? '(unknown)'}`,
   `rebuildUnavailableReason: ${input.rebuildUnavailableReason ?? '(none)'}`,
+  `rebuildMode: ${input.rebuildMode ?? '(none)'}`,
+  `rebuildBlockedReason: ${input.rebuildBlockedReason ?? '(none)'}`,
+  ...(input.storageState ? [`storageState: ${input.storageState}`] : []),
   `automaticRetry: ${input.retryAutomatic ?? '(unknown)'}`,
   `retryAt: ${input.retryAt ?? '(not scheduled)'}`,
   `recoveryFrozen: ${input.recoveryFrozen ?? '(unknown)'}`,
@@ -215,24 +241,32 @@ export function describeSyncAttention(input: SyncAttentionInput): SyncAttentionV
   const conflict = (input.conflictPending === true || input.queueProjection === 'conflict') && href !== undefined;
   const permission = input.permissionRequired === true;
   const stalled = input.watchdog !== undefined && code === undefined;
-  const recovery = permission || stalled || code === undefined && (input.recoveryFrozen === true || Boolean(input.lastError) || (input.issueCount ?? 0) > 0);
+  const storage = input.storageState !== undefined;
+  const recovery = permission || stalled || storage || code === undefined && (input.recoveryFrozen === true || Boolean(input.lastError) || (input.issueCount ?? 0) > 0);
   const automatic = input.issues?.filter(issue => issue.recovery === 'automatic').length ?? 0;
   const decisions = Math.max(0, (input.issueCount ?? 0) - automatic);
   const issueCopy = [decisions ? tn('sync_itemsNeedAttention', decisions, '$1 item needs attention.', '$1 items need attention.') : '',
     automatic ? tn('sync_itemsRecoveringAutomatically', automatic, '$1 item is waiting for automatic recovery.', '$1 items are waiting for automatic recovery.') : ''].filter(Boolean).join(' ');
-  const { rows, more } = syncIssueRows(input.issues);
+  // A sync database that cannot be used has no items to list: the one synthetic item is the card itself.
+  const { rows, more } = storage ? { rows: [], more: 0 } : syncIssueRows(input.issues);
   const problem = recoveryProblem(input);
   // Something is off: when it last worked is the first thing a person wants to know.
   const off = recovery || code !== undefined || rows.length > 0;
-  const bulk = syncIssueBulk(input.issues);
+  const bulk = syncIssueBulk(storage ? undefined : input.issues);
+  const recoveryCopy = permission ? [describeSyncProblem('permission_required').sentence, issueCopy].filter(Boolean).join(' ')
+    : storage ? storageCopy(input)
+      : stalled && !input.lastError ? [watchdogCopy(input.watchdog!), issueCopy].filter(Boolean).join(' ')
+        : (input.issueCount ?? 0) > 0 && !input.lastError ? issueCopy : recoveryFailureCopy(input, issueCopy);
+  const terminalCopy = code ? terminalFreezeReasonCopy(code, input) : '';
+  // A needed Reset that cannot run now says why, unless the card's own sentence already did.
+  const blocked = input.rebuildAvailable === true ? undefined : resetBlockedCopy(input.rebuildBlockedReason);
+  const blockedNote = blocked !== undefined && !`${recovery ? recoveryCopy : ''} ${terminalCopy}`.includes(blocked) ? blocked : undefined;
   const notes = [...(off && input.lastSyncedAt ? [t('sync_lastSynced', 'Last synced $1.', formatMoment(input.lastSyncedAt))] : []),
     ...(code === undefined && input.issueCeiling ? [ceilingWarningCopy(input.issueCeiling)] : []),
+    ...(blockedNote ? [blockedNote] : []),
     ...(input.healthDelivery ? [healthDeliveryCopy(input.healthDelivery)] : [])];
   return {
-    recovery: { show: recovery,
-      copy: permission ? [describeSyncProblem('permission_required').sentence, issueCopy].filter(Boolean).join(' ')
-        : stalled && !input.lastError ? [watchdogCopy(input.watchdog!), issueCopy].filter(Boolean).join(' ')
-          : (input.issueCount ?? 0) > 0 && !input.lastError ? issueCopy : recoveryFailureCopy(input, issueCopy),
+    recovery: { show: recovery, copy: recoveryCopy,
       report: terminalFreezeReport(input, href), retry: !permission && (problem === undefined || problem.offersRetry),
       syncCenter: { show: recovery && href !== undefined && (input.issueCount ?? 0) > 0, ...(href ? { href } : {}),
         label: SYNC_ATTENTION_CENTER_LABEL },
@@ -240,6 +274,9 @@ export function describeSyncAttention(input: SyncAttentionInput): SyncAttentionV
     notes: { show: notes.length > 0, lines: notes },
     issues: { show: rows.length > 0, rows, more, bulk,
       hint: bulk.retry.length ? t('syncIssue_retryHint', 'Retry sync checks the server again. To release a held item, use Try again on it.') : '' },
+    reset: { show: resetOnCard(input), mode: input.rebuildMode ?? 'local', cancel: input.rebuildCancelAvailable === true,
+      ...(blocked ? { blocked } : {}) },
+    storage: { show: storage, resetLocalData: storage && input.storageResetAvailable === true },
     pause: { show: nativeWait || remoteDeletePending, nativeWait, remoteDeletePending,
       copy: inboundPauseCopy(input) },
     conflict: { show: conflict, ...(conflict && href ? { href } : {}), label: SYNC_ATTENTION_CONFLICT_LABEL },
@@ -247,7 +284,7 @@ export function describeSyncAttention(input: SyncAttentionInput): SyncAttentionV
     terminal: {
       show: code !== undefined,
       ...(code ? { code } : {}),
-      copy: code ? terminalFreezeReasonCopy(code, input) : '',
+      copy: terminalCopy,
       report: terminalFreezeReport(input, href),
       retry: code !== undefined && problemOffersRetry(code),
       // This is only the server status link. The separate local rebuild button
@@ -257,6 +294,16 @@ export function describeSyncAttention(input: SyncAttentionInput): SyncAttentionV
       copyDiagnosticsLabel: SYNC_ATTENTION_COPY_DIAGNOSTICS_LABEL,
     },
   };
+}
+
+/**
+ * The sync database cannot be used (W2A-01): the code's own sentence, which already names the way out, and for a failure
+ * that mends itself what to do if it does not.
+ */
+function storageCopy(input: SyncAttentionInput): string {
+  const sentence = describeSyncProblem(input.lastError ?? 'storage_unavailable', problemContext(input)).sentence;
+  return input.storageState === 'unavailable'
+    ? `${sentence} ${t('syncProblem_nextStorageLast', 'If it keeps happening, free some disk space or reset the sync data on this device.')}` : sentence;
 }
 
 /** The watchdog's sentence, in the catalog's voice: what happened since when, what happens next, and the code. */
@@ -287,8 +334,8 @@ function recoveryProblem(input: SyncAttentionInput) {
 }
 
 function problemContext(input: SyncAttentionInput) {
-  return { resetOffered: resetOnCard(input, false),
-    ...(input.rebuildUnavailableReason ? { resetUnavailableReason: input.rebuildUnavailableReason } : {}),
+  return { resetOffered: resetOnCard(input),
+    ...(resetReason(input) ? { resetUnavailableReason: resetReason(input)! } : {}),
     ...(input.retryAt !== undefined ? { retryAt: input.retryAt } : {}),
     ...(input.coolingDown ? { coolingDown: true } : {}),
     ...(input.stopKind ? { stopKind: input.stopKind } : {}),
@@ -366,6 +413,11 @@ export function syncAttentionInput(attention: PublicSyncAttention | undefined,
   const ok = policy?.ok === true ? policy : undefined;
   return {
     issueCount: attention?.issueCount, issues: attention?.issues, ...(attention?.issueCeiling ? { issueCeiling: attention.issueCeiling } : {}), rebuildAvailable: attention?.rebuildAvailable, rebuildUnavailableReason: attention?.rebuildUnavailableReason,
+    ...(attention?.rebuildMode ? { rebuildMode: attention.rebuildMode } : {}),
+    ...(attention?.rebuildBlockedReason ? { rebuildBlockedReason: attention.rebuildBlockedReason } : {}),
+    ...(attention?.rebuildCancelAvailable ? { rebuildCancelAvailable: true } : {}),
+    ...(attention?.storageState ? { storageState: attention.storageState } : {}),
+    ...(attention?.storageResetAvailable ? { storageResetAvailable: true } : {}),
     waitCount: attention?.waitCount ?? 0,
     retryAt: attention?.retryAt, retryAutomatic: attention?.retryAutomatic,
     ...(attention?.coolingDown ? { coolingDown: true } : {}),
