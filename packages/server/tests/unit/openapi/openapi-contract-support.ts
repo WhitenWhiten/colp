@@ -48,7 +48,12 @@ export function generatedProductOpenApiVersion(): string {
 }
 
 export function currentBreakingBaselinePath(): string {
-  return `openapi/baselines/product-v1.${generatedProductOpenApiVersion()}.yaml`;
+  const packageJson = JSON.parse(readFileSync(join(backendRoot, 'package.json'), 'utf8')) as {
+    scripts: Record<string, string>;
+  };
+  const baseline = packageJson.scripts['openapi:breaking']?.match(/--baseline\s+(\S+)/u)?.[1];
+  assert.ok(baseline, 'openapi:breaking must explicitly select the accepted compatibility baseline');
+  return baseline;
 }
 
 export function assertProductOpenApiVersionMatchesGenerated(

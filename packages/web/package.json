@@ -46,7 +46,7 @@
     "eslint": "^9.20.1",
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-react-hooks": "^7.1.1",
-    "happy-dom": "^20.14.0",
+    "happy-dom": "21.0.4",
     "openapi-typescript": "^7.13.0",
     "rollup-plugin-visualizer": "^7.0.1",
     "stylelint": "^17.14.1",

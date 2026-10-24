@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'yaml';
 import { test } from 'vitest';
+import { currentBreakingBaselinePath } from '../openapi/openapi-contract-support.js';
 
 const backend = join(import.meta.dirname, '../../..');
 interface SchemaProperty {
@@ -63,12 +64,9 @@ test('current Product contract preserves the authenticated owned Collection page
   assert.equal(page.properties.page?.$ref, '#/components/schemas/OwnedCollectionPageState');
 });
 
-test('1.21 baseline remains frozen and the current breaking gate follows the generated bundle version', () => {
-  const generated = parse(readFileSync(join(backend, 'generated/openapi/product-v1.bundle.yaml'), 'utf8')) as {
-    info: { version: string };
-  };
+test('1.21 baseline remains frozen and the current breaking gate uses the accepted compatibility baseline', () => {
   assert.equal(
-    existsSync(join(backend, `openapi/baselines/product-v1.${generated.info.version}.yaml`)),
+    existsSync(join(backend, currentBreakingBaselinePath())),
     true,
   );
   assert.equal(readFileSync(join(backend, 'openapi/baselines/product-v1.1.31.0.yaml'), 'utf8')

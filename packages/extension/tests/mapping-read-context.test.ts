@@ -78,6 +78,31 @@ test('a no-work projection resume lists mappings once', async () => {
   assert.equal(lists, 1);
 });
 
+for (const pending of [false, true]) {
+  test(`without virtual mappings, only unfinished intents resume projection (pending=${pending})`, async () => {
+    let lists = 0, projections = 0;
+    let intents = [{ intentId: 'done', colpId: 'done', state: 'terminal', kind: 'update' },
+      ...pending ? [{ intentId: 'unfinished', colpId: 'root', state: 'executing', kind: 'update' }] : []];
+    const store = { ...projectionStore(() => { lists += 1; return [native]; }, {
+      async listProjectionIntents() { return intents; },
+    }), async hasMappingNativePrefix() { return false; } };
+    await resumeLocalProjection({
+      store: store as never, scope, now: () => 10,
+      snapshotProjector: async (rows) => {
+        projections += 1;
+        assert.deepEqual(rows.map(row => row.nativeId), ['1']);
+        assert.equal((await store.getEngineState()).recoveryFrozen, true);
+        intents = intents.map(intent => ({ ...intent, state: 'terminal' }));
+        return rows;
+      },
+    }, async () => { assert.equal(pending, true, 'completed work must not request authority'); return session(); },
+    createMappingReadContext(store, scope));
+    assert.equal(projections, pending ? 1 : 0);
+    assert.equal(store.unfrozen, pending);
+    if (!pending) assert.equal(lists, 0, 'completed work must not scan the library');
+  });
+}
+
 test('projection sees the pre-write snapshot and the following check sees the write', async () => {
   let projected = false;
   const generations: string[] = [];

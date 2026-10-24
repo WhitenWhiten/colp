@@ -29,6 +29,36 @@ test('clamps recovery create indexes to the current Chrome child boundary', () =
   assert.equal(clampRecoveryCreateIndex(9, 2), 2);
 });
 
+for (const pending of [false, true]) {
+  test(`recovery-only projection leaves unstarted native work untouched (pending intent=${pending})`, async () => {
+    const store = createSyncStateStore({ indexedDB });
+    await store.registerScope({ ...scope, lifecycle: 'active',
+      lease: { leaseId: 'lease-recovery', expiresAt: 99_999 },
+      checkpoint: null, selectedRoots: ['root'], rootStatus: 'ready' });
+    const root: MappingInput = { nativeId: '1', colpId: 'root', rootNativeId: '1', nodeKind: 'folder',
+      projection: { revision: 'r1', digest: 'root', content: { title: 'Root' } } };
+    const child = lifecycleMapping('recovery:child', 'child', 'root');
+    const staged = [root, child];
+    const chrome = fakeChrome([{ id: '1', title: 'Root' }]);
+    try {
+      await store.putMapping(scope, root);
+      if (pending) await store.replaceProjectionIntents(scope, [{
+        intentId: 'create:child', kind: 'create', colpId: 'child', parentColpId: 'root', parentNativeId: '1',
+        title: 'child', url: 'https://child.test/', order: 1, generation: scope.generation,
+        suppression: createProjectionSuppression('1', 'child', 'https://child.test/'), state: 'pending',
+      }]);
+      const recovered = await recoverSnapshotProjection({ scope, store, staged, api: chrome.api, recoveryOnly: true });
+      assert.equal(recovered.find(row => row.colpId === 'child')?.nativeId, 'recovery:child');
+      const projected = await projectVirtualSnapshotChildren({ scope, store, bound: staged, api: chrome.api, recoveryOnly: true });
+      assert.equal(projected.find(row => row.colpId === 'child')?.nativeId, 'recovery:child');
+      assert.equal(chrome.creates, 0);
+      assert.deepEqual([...chrome.nodes.keys()], ['1']);
+      assert.equal(await store.getMappingByColpId(scope, 'child'), null);
+      assert.deepEqual((await store.listProjectionIntents(scope)).map(intent => intent.state), pending ? ['pending'] : []);
+    } finally { await store.close(); }
+  });
+}
+
 test('collects nested native facts with authoritative sibling indexes', async () => {
   const chrome = fakeChrome([
     { id: '1', title: 'Know-N' },

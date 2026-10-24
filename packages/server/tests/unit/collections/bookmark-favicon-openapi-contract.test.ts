@@ -12,6 +12,7 @@ import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { parse, stringify } from 'yaml';
 import { test } from 'vitest';
+import { currentBreakingBaselinePath } from '../openapi/openapi-contract-support.js';
 
 const backendRoot = resolve(import.meta.dirname, '../../..');
 const sourcePath = join(backendRoot, 'openapi/product-v1.yaml');
@@ -154,11 +155,10 @@ test('Product OpenAPI description keeps the 1.31–1.33 additive history after r
   assert.match(String(document.info.description), /1\.31\.0/);
 });
 
-test('the favicon release is additive against 1.21.0 and the current bundle matches its own frozen baseline', () => {
+test('the favicon release is additive against 1.21.0 and the current bundle remains compatible with the accepted baseline', () => {
   const result = runBreakingDiff(join(backendRoot, 'openapi/baselines/product-v1.1.22.0.yaml'));
   assert.equal(result.status, 0, result.stderr || result.stdout);
-  const version = readDocument(generatedBundle).info.version;
-  const current = runBreakingDiff(generatedBundle, join(backendRoot, `openapi/baselines/product-v1.${version}.yaml`));
+  const current = runBreakingDiff(generatedBundle, join(backendRoot, currentBreakingBaselinePath()));
   assert.equal(current.status, 0, current.stderr || current.stdout);
 });
 

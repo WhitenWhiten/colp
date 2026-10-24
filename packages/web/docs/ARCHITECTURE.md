@@ -83,7 +83,8 @@ src/styles/
 ├── sync.css                # pages layer — sync center; route-owned by pages/Sync.tsx
 ├── write-approvals.css     # pages layer — MCP write approvals; route-owned by pages/WriteApprovals.tsx
 ├── agents.css              # pages layer — connected agents; route-owned by pages/Agents.tsx
-├── automations.css         # pages layer — automation rules, rule editor, preview, bookmark history; shared by pages/Automations.tsx and ResourceDetail.tsx
+├── automations.css         # pages layer — automation rules, rule editor, preview, bookmark history; shared by pages/Automations.tsx, Activity.tsx and ResourceDetail.tsx
+├── activity.css            # pages layer — activity inbox; route-owned by pages/Activity.tsx
 ├── extension.css           # pages layer — extension setup; route-owned by pages/Extension.tsx
 ├── library-health.css      # pages layer — link health table; route-owned by pages/LibraryHealth.tsx
 ├── collection-history.css  # pages layer — version history; route-owned by pages/CollectionHistory.tsx

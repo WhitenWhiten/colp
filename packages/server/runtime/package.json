@@ -44,7 +44,7 @@
     "js-yaml": "4.3.2",
     "minimatch": "10.2.5",
     "source-map-js": "1.2.2",
-    "undici": "8.10.2",
+    "undici": "8.12.2",
     "@grpc/grpc-js": "1.14.5",
     "hono": "4.13.11",
     "@better-auth/core": "1.7.7"

@@ -170,12 +170,18 @@ for (const code of ['pull_apply_target_missing', 'payload_too_large']) {
       let root = (await page.evaluate(() => chrome.bookmarks.getTree()))[0]!.children![0]!.id;
       root = await evidence<string>(page, 'configureDurableEngineEvidence', root);
       await wakeUntilSleeping(page);
-      stack.setSyncOffline(true);
       const bookmark = await page.evaluate(parentId => chrome.bookmarks.create({ parentId,
         title: 'Preserved across rebuild', url: 'https://example.test/rebuild-preserved' }), root);
       await evidence(page, 'drainBookmarkEventCaptureEvidence');
+      // Rebuild cannot abandon an upload with an unknown server outcome.
+      // Settle the real Push before freezing: dropping the network here raced
+      // attempt persistence, so the same fixture sometimes prohibited rebuild.
+      await waitForTerminal(page, stack);
+      await wakeUntilSleeping(page);
+      await page.evaluate(() => chrome.alarms.clear('known-sync-engine'));
       const before = await evidence<any>(page, 'exportOutboundPushEvidence');
       expect(before.queue.length).toBeGreaterThan(0);
+      expect(before.queue.every((item: any) => item.status === 'terminal')).toBe(true);
       // Inject only the terminal fact; the button, archive, new Session and
       // first-run status below all execute production code against PostgreSQL.
       await page.evaluate(async ({ key, code }) => {
@@ -188,13 +194,7 @@ for (const code of ['pull_apply_target_missing', 'payload_too_large']) {
           const request = tx.objectStore('sync_engine').get(key);
           request.onsuccess = () => tx.objectStore('sync_engine').put({ ...request.result,
             revision: request.result.revision + 1, phase: 'recovery', recoveryFrozen: true,
-            // Deliberately NOT `authorityRefreshRequired: true`: the wake's authority-refresh
-            // branch recomputes recoveryFrozen from unfinished work
-            // (durable-sync-engine.ts: pendingIncompletePull || nativeResultUnknown), so the
-            // hand-written freeze raced the startup refresh and the rebuild prompt appeared
-            // only sometimes. The freeze flag is what `inspect()` gates on; the post-confirm
-            // re-registration below still exercises the fresh-authority path for real.
-            lastError: code, notBefore: 0 });
+            authorityRefreshRequired: false, lastError: code, notBefore: 0 });
           const scope = tx.objectStore('sync_scopes').get(key);
           scope.onsuccess = () => tx.objectStore('sync_scopes').put({ ...scope.result, lifecycle: 'recovery_required',
             metadata: { ...scope.result.metadata, recoveryCode: code } });
@@ -202,7 +202,6 @@ for (const code of ['pull_apply_target_missing', 'payload_too_large']) {
         });
         db.close();
       }, { key: before.scope.scopeKey, code });
-      stack.setSyncOffline(false);
       await page.reload(); await showOptionsPane(page, 'sync-center');
       const button = page.locator('#sync-attention-settings-rebuild');
       await expect(button).toBeVisible();

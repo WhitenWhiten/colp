@@ -339,6 +339,7 @@
      --shadow-ring-soft   neutral 2px (icon-button hover) */
   --shadow-ring-accent: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
   --shadow-ring-soft: 0 0 0 2px color-mix(in srgb, var(--ink) 6%, transparent);
+  --shadow-ring-paper: 0 0 0 2px var(--paper);
   /* Small lift for avatars / secondary buttons on hover. */
   --shadow-lift: 0 2px 8px color-mix(in srgb, var(--ink) 15%, transparent);
 

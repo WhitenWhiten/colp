@@ -96,7 +96,7 @@ function capturingUnitOfWork(probe: { uowCalls: number }): AnnotationMutationUni
   return Object.freeze({
     execute: async (work) => {
       probe.uowCalls += 1;
-      return work({} as never);
+      return work({ canonical: { execute: vi.fn(async () => { throw new Error('unexpected canonical mutation'); }) } } as never);
     },
   });
 }

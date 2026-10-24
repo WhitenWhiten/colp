@@ -35,6 +35,8 @@ beforeEach(async () => {
       setBadgeBackgroundColor: async ({ color }: { color: string }) => { f.badge.color = color; },
       setTitle: async ({ title }: { title: string }) => { f.badge.title = title; } } });
   answers = {
+    // This suite exercises the automations fallback on servers without Activity.
+    '/api/v1/me/activity/summary': () => json({ error: { code: 'not_found' } }, 404),
     '/api/v1/me/automations/rules': () => json({ items: [serverRule({ name: 'arXiv papers', state: 'degraded' }),
       serverRule({ id: 'rule-digest', name: 'Weekly digest', intake: false })], nextCursor: null }),
     '/api/v1/me/automations/runs': () => json({ items: [serverRun({ id: 'run-1', status: 'waiting', held: true }),
@@ -53,12 +55,14 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 describe('the server’s status in the worker', () => {
   it('reads it on a refresh with the web sign-in, even when Sync can’t reach the server', async () => {
     await refreshAutomation({ manual: true });
-    expect(f.fetch.mock.calls.map(([url, init]) => [String(url), (init as RequestInit).credentials])).toEqual([
-      ['https://colp.example/api/v1/me/automations/rules?limit=100', 'include'], ['https://colp.example/api/v1/me/automations/runs?limit=20', 'include']]);
+    expect(new Set(f.fetch.mock.calls.map(([url, init]) => [String(url), (init as RequestInit).credentials]))).toEqual(new Set([
+      ['https://colp.example/api/v1/me/automations/rules?limit=100', 'include'],
+      ['https://colp.example/api/v1/me/automations/runs?limit=20', 'include'],
+      ['https://colp.example/api/v1/me/activity/summary', 'include']]));
     const { server, problem } = await automationStateView();
     // The bundle refresh failed on its own (no Sync authority); the server's status still came through.
     expect(problem).toBe('signedOut');
-    expect(server).toEqual({ fetchedAt: NOW, problem: null,
+    expect(server).toEqual({ fetchedAt: NOW, problem: null, activity: null, activityProblem: null,
       rules: [{ id: 'rule-arxiv', name: 'arXiv papers', state: 'degraded', inBrowser: true, waiting: null, held: null, approvals: null, cost: null },
         { id: 'rule-digest', name: 'Weekly digest', state: 'active', inBrowser: false, waiting: null, held: null, approvals: null, cost: null }],
       runs: [
@@ -112,9 +116,10 @@ describe('the toolbar badge (AW-60)', () => {
     answers['/api/v1/me/automations/runs'] = digestOnly(false);
     await refreshAutomation({ manual: true });
     expect(f.badge).toEqual({ text: '', color: BADGE_ACCENT, title: 'Know-N — save this page' });
-    // Only the two status reads ever went out: nothing was marked read from here.
+    // Only status reads and the Activity capability probe went out: nothing was marked read here.
     expect(new Set(f.fetch.mock.calls.map(([url]) => new URL(String(url)).pathname)))
-      .toEqual(new Set(['/api/v1/me/automations/rules', '/api/v1/me/automations/runs']));
+      .toEqual(new Set(['/api/v1/me/automations/rules', '/api/v1/me/automations/runs', '/api/v1/me/activity/summary']));
+    expect(f.fetch.mock.calls.every(([, init]) => (init as RequestInit).method === undefined || (init as RequestInit).method === 'GET')).toBe(true);
   });
 
   it('turns muted with the time of the last answer while the server can’t be read', async () => {

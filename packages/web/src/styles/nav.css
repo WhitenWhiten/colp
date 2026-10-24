@@ -201,7 +201,7 @@
   min-width: 1.1rem;
   height: 1.1rem;
   padding: 0 var(--hair-20);
-  box-shadow: 0 0 0 2px var(--paper);
+  box-shadow: var(--shadow-ring-paper);
   line-height: var(--leading-none);
   pointer-events: none;
 }
