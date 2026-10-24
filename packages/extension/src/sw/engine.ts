@@ -32,7 +32,7 @@ import type { BuildConfig, StoredCredential, StoredSession, SyncEngineResponse }
 import { projectNativeWaits } from '../native-wait.js';
 import { currentBookmarkEventQueue, bookmarkListenerLifecycle } from './bookmarks.js';
 import { drainFaviconSidecarsForCurrentScope } from './favicon.js';
-import { resumeRunningBootstrap } from './first-run.js';
+import { matchBootstrapBeforeSnapshotProjection, resumeRunningBootstrap } from './first-run.js';
 import { hasBookmarkPermission, extensionOrigin, safeError, store, sw, syncState, workCoordinator } from './runtime.js';
 import { currentSyncScope, currentSyncStatusAuthority, loadConfig, pushSessionAuthority, restoredSyncScope } from './scope.js';
 import { createSyncAlarmScheduler } from '../sync-alarm.js';
@@ -451,6 +451,8 @@ async function projectSnapshotNode(scope: SyncScope, context: AuthorityContext,
   const advanced = mode?.recoveryOnly ? undefined : await projectAdvancedSnapshot(syncState, scope, staged);
   await assertCurrent();
   if (advanced) return advanced;
+  if (!mode?.recoveryOnly) await matchBootstrapBeforeSnapshotProjection(scope);
+  await assertCurrent();
   const projected = await recoverVerifiedOrFreeze({
     scope, store: syncState, staged, freezeUnprovenIdentity: true, recoveryOnly: mode?.recoveryOnly,
     api,
@@ -493,7 +495,7 @@ async function pendingDurableWorkFacts(scope: SyncScope) {
     queueProjection: queueStatusProjection(live) };
 }
 
-export async function publicSyncEngineState(scope: SyncScope, credential: StoredCredential, session: StoredSession,
+export async function publicSyncEngineState(scope: SyncScope, credential: StoredCredential, session: StoredSession | null,
   config: BuildConfig) {
   const [value, recorded, pendingWork, bookmarkPermissionGranted, nativeWaits] = await Promise.all([
     syncState.getEngineState(scope), syncState.getScope(scope), pendingDurableWorkFacts(scope), hasBookmarkPermission(),
@@ -509,7 +511,7 @@ export async function publicSyncEngineState(scope: SyncScope, credential: Stored
     && credential.issuer === config.issuer && credential.audience === config.audience
     && credential.clientId === config.clientId && config.scopes.every((required) => credential.scope.includes(required))
     && credential.expiresAt - Date.now() > config.refreshBeforeExpirySeconds * 1_000;
-  const sessionReady = credentialReady && session.collection.collectionId === scope.collectionId
+  const sessionReady = session !== null && credentialReady && session.collection.collectionId === scope.collectionId
     && session.scope === 'collection' && session.acceptedProtocolVersion === '0.2'
     && !syncSessionNeedsRenewal(session) && await sessionMatchesCredentialAuthority(session, credential);
   const authorityFacts = { cooldownPending: cooldownIsPending({ now: Date.now(), sessionNotBefore: sw.sessionRetryNotBefore,

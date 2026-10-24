@@ -247,14 +247,14 @@ export async function retireLegacyScopeForRemount(options: {
 
 export async function currentSyncStatusAuthority() {
   const config = await loadConfig();
-  const [credential, session, binding] = await Promise.all([
-    store.loadCredential(), store.loadSession(), store.loadBinding(),
+  const [credential, session] = await Promise.all([
+    store.loadCredential(), store.loadSession(),
   ]);
-  if (!credential?.subject || !session || !binding) throw new Error('not_connected');
-  return { config, credential, session, scope: { environment: config.environment, serverId: config.serverOrigin,
-    serverOrigin: config.serverOrigin, accountId: credential.subject, browserProfileId: binding.browserProfileId,
-    collectionId: session.collection.collectionId, replicaId: binding.replicaId,
-    generation: Number(binding.generation) } satisfies SyncScope };
+  if (!credential?.subject) throw new Error('not_connected');
+  // Status locates durable work while paused or offline. A missing Session
+  // remains sessionReady=false; reading this identity never mints authority.
+  const scope = await currentSyncScope({ allowStopped: true });
+  return { config, credential, session, scope };
 }
 
 export async function pushSessionAuthority(forceRefresh = false) {

@@ -23,6 +23,7 @@ import { readRootFolders, sameDiscovered } from './roots.js';
 import { nativeChromeFacts } from './native-chrome.js';
 import { readSnapshotAuthority, advancedFirstRunStatus, handleAdvancedFirstRunConfirm, handleAdvancedFirstRunPreview } from './advanced-first-run.js';
 import { syncAttentionTerminalCode } from '../sync-attention-ui.js';
+import { readRebuildIdentityHints } from '../replica-rebuild-identity.js';
 
 const PREVIEW_TTL_MS = 30 * 60 * 1000;
 let lastAttentionStatusRead: { scopeKey: string; at: number } | undefined;
@@ -169,6 +170,16 @@ export async function resumeRunningBootstrap(scope: SyncScope): Promise<boolean>
   return added;
 }
 
+/** Match the unchanged browser tree before Snapshot creates any remote-only natives. */
+export async function matchBootstrapBeforeSnapshotProjection(scope: SyncScope): Promise<void> {
+  if (await syncState.listAdvancedPlans(scope).then(plans => plans.some(plan => plan.state !== 'completed'))) return;
+  for (const run of await syncState.listBootstrapRuns(scope)) {
+    if (run.previewOnly || run.bootstrapMode !== 'merge' || !bootstrapRunInFlight(run.phase)) continue;
+    const input = await resumeConfirmInput(scope, run);
+    await createBootstrapCoordinator({ store: syncState, scope }).advance(run.runId, { ...input, pauseAfter: 'matching' });
+  }
+}
+
 async function resumeConfirmInput(scope: SyncScope, run: BootstrapRunRecord): Promise<ConfirmInput> {
   const preview = run.previewId ? await syncState.getScopePreview(scope, run.previewId) : null;
   const bindings = await syncState.listMountBindings(scope);
@@ -182,6 +193,7 @@ async function resumeConfirmInput(scope: SyncScope, run: BootstrapRunRecord): Pr
   const rootNodeId = await resolveLibraryRootId(scope.collectionId);
   return {
     confirmationId: run.confirmationId,
+    identityHints: await readRebuildIdentityHints({ scope, store: syncState, storage: chrome.storage.local }),
     treeDigest: run.treeDigest ?? preview?.treeDigest ?? 'sha256:resume',
     confirmationVersion: run.confirmationVersion ?? preview?.boundaryVersion ?? '1',
     localFacts, mounts,
@@ -241,6 +253,7 @@ async function handleFirstRunConfirm(message: Extract<FirstRunRequest, { readonl
     confirmationVersion: preview.boundaryVersion, localFacts: localFactsFromRoots(tree.roots,
       preview.boundary.selectedNativeIds, preview.boundary.excludedNativeIds, await privateNativeIdsFor(scope)),
     mounts: mountsFromPreview(preview.boundary.mounts),
+    identityHints: await readRebuildIdentityHints({ scope, store: syncState, storage: chrome.storage.local }),
     ...(libraryId ? { libraryId } : {}),
     ...(rootNodeId ? { rootNodeId } : { rootNodeId: null }),
   });

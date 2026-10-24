@@ -28,6 +28,8 @@ export interface ConfirmInput {
   readonly treeDigest: string; readonly confirmationVersion: string;
   readonly localFacts: readonly LocalNodeFact[]; readonly remoteFacts?: readonly RemoteNodeFact[];
   readonly mappings?: readonly MappingFact[]; readonly sidecars?: readonly SidecarFact[];
+  /** Same-profile archived identities; only live selected natives and snapshot nodes may pair. */
+  readonly identityHints?: readonly MappingFact[];
   readonly mounts: readonly MountFact[]; readonly rootNodeId?: string | null;
   readonly bootstrapMode?: BootstrapMode; readonly previewOnly?: boolean;
   readonly destructiveConfirmed?: boolean; readonly pauseAfter?: PauseAfter;
@@ -198,8 +200,12 @@ export function createBootstrapCoordinator(options: {
     const storedMappings = input.mappings ?? (await store.listMappings(scope)).filter(row => row.projection.revision !== 'local-root').map((row) => (
       { nativeId: row.nativeId, colpId: row.colpId }));
     const mounts = await mergeMounts(input.mounts);
+    const localKinds = new Map(local.map(row => [row.nativeId, row.kind]));
+    const remoteKinds = new Map(remote.map(row => [row.nodeId, row.kind]));
+    const hints = (input.identityHints ?? []).filter(row => row.colpId !== rootNodeId && localKinds.has(row.nativeId)
+      && localKinds.get(row.nativeId) === remoteKinds.get(row.colpId));
     const mappings = mergeAuthoritativeMappings(storedMappings,
-      await mappingsFromTerminalCreates(run.confirmationId, local, mounts));
+      [...await mappingsFromTerminalCreates(run.confirmationId, local, mounts), ...hints]);
     const report = matchLocalRemote({
       scopeKey: run.scopeKey, confirmationId: run.confirmationId, local, remote, mappings, mounts,
       sidecars: input.sidecars, rootNodeId,

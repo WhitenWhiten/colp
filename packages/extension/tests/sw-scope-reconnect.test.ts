@@ -63,8 +63,33 @@ test('expired offline renewal can clear Session without losing the existing reco
   assert.equal(await f.store.loadSession(), null);
   assert.deepEqual(await f.api.currentSyncScope(), f.scope);
   assert.equal(serverCalls(f.network), 1);
-  // Locating durable recovery work does not manufacture current authority.
+  // Status still locates durable work without manufacturing a Session or network authority.
+  const status = await f.api.currentSyncStatusAuthority();
+  assert.deepEqual(status.scope, f.scope);
+  assert.equal(status.session, null);
+  assert.equal(serverCalls(f.network), 1);
+});
+
+test('paused status locates an existing scope without a Session, network request, or policy admission', async () => {
+  const f = await disconnectedSession();
+  const { configurePersonalSyncTransport } = await import('../src/personal-sync-fetch.js');
+  const capture = vi.fn(async () => { throw new Error('personal_sync_stopped'); });
+  configurePersonalSyncTransport({ capture } as never);
+  const status = await f.api.currentSyncStatusAuthority();
+  assert.deepEqual(status.scope, f.scope);
+  assert.equal(status.session, null);
+  assert.equal(capture.mock.calls.length, 0);
+  assert.equal(serverCalls(f.network), 0);
+});
+
+test('status never invents a sessionless scope or crosses the selected collection', async () => {
+  const missing = await disconnectedSession(false);
+  await assert.rejects(missing.api.currentSyncStatusAuthority(), /not_connected/);
+  assert.equal(serverCalls(missing.network), 0);
+  const f = await disconnectedSession();
+  await f.local.set({ [f.COLLECTION_BINDING]: 'other-collection' });
   await assert.rejects(f.api.currentSyncStatusAuthority(), /not_connected/);
+  assert.equal(serverCalls(f.network), 0);
 });
 
 test('a restart that emptied the session area restores the credential instead of reporting no connection', async () => {

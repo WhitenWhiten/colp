@@ -1,5 +1,6 @@
 import { digestJson } from './bookmark-event-codec.js';
 import { readReplicaRepairCapability } from './replica-repair-capability.js';
+import { REPLICA_REBUILD_IDENTITY } from './replica-rebuild-identity.js';
 import type { StorageArea, createCredentialStore } from './credential-store.js';
 import type { StoredAuthBinding } from './types.js';
 import type { SyncScope, createSyncStateStore } from './sync-state-store.js';
@@ -102,6 +103,7 @@ export function createReplicaRebuilder(deps: ReplicaRebuildDeps) {
         || rebuilt.collectionId !== plan.scope.collectionId) throw new Error('scope_mismatch');
     if (!await deps.store.getScope(rebuilt)) throw new Error('scope_not_found');
     await deps.credentials.fence.assertWritable(plan.authorityGeneration);
+    await deps.journal.set({ [REPLICA_REBUILD_IDENTITY]: { target: rebuilt, source: plan.scope } });
     await deps.journal.remove(REPLICA_REBUILD_JOURNAL);
     return true;
   }
