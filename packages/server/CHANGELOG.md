@@ -4,6 +4,10 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Added
+
+- Consent is the permit for automation workers. An OAuth agent whose consent included `automation:work` binds itself as a paired worker the first time it talks to the server, over MCP or the HTTP work API, with no pairing code: the server adopts the Owner's existing registration for that client or registers the agent with one standard inbox, and re-pairs the inbox after an opt-in change on the agent's next call. The consent page and agent cards describe the three automation scopes, the OAuth issuer and resource metadata advertise them whenever the matching features are on, and the new `automation.targets.mine` worker tool tells an agent which inboxes it works for. The rule editor and the worker form say that such agents pair on their own; the one-use code remains for scripts on API keys.
+
 ### Fixed
 
 - Activity navigation uses the feature switch returned at sign-in, keeping the inbox reachable while its summary is loading or fails. Older servers retain summary-based discovery.
