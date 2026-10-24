@@ -7433,6 +7433,9 @@
   "syncIssue_dismissAllConfirm": {
     "message": "Dismiss all $1? This browser keeps its versions."
   },
+  "syncIssue_dismissFor": {
+    "message": "Dismiss: $1"
+  },
   "syncIssue_dismissTitle": {
     "message": "Closes this item and keeps this browser’s version. Nothing is deleted."
   },
@@ -7531,6 +7534,9 @@
   },
   "syncIssue_tryAgain": {
     "message": "Try again"
+  },
+  "syncIssue_tryAgainFor": {
+    "message": "Try again: $1"
   },
   "syncIssue_upload": {
     "message": "Upload"

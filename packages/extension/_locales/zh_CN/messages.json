@@ -9603,6 +9603,10 @@
     "message": "确定全部关闭（$1）？此浏览器会保留其版本。",
     "description": "Dismiss all $1? This browser keeps its versions."
   },
+  "syncIssue_dismissFor": {
+    "message": "关闭：$1",
+    "description": "Dismiss: $1"
+  },
   "syncIssue_dismissTitle": {
     "message": "关闭此项目并保留此浏览器上的版本。不会删除任何内容。",
     "description": "Closes this item and keeps this browser’s version. Nothing is deleted."
@@ -9734,6 +9738,10 @@
   "syncIssue_tryAgain": {
     "message": "再试一次",
     "description": "Try again"
+  },
+  "syncIssue_tryAgainFor": {
+    "message": "再试一次：$1",
+    "description": "Try again: $1"
   },
   "syncIssue_upload": {
     "message": "上传",
