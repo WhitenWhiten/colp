@@ -478,6 +478,11 @@ paths:
           $ref: "#/components/responses/MutationConflict"
         "410":
           description: The original command result expired; the read is never reapplied.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/PrivateNoStore"
+            X-Request-Id:
+              $ref: "#/components/headers/XRequestId"
           content:
             application/json:
               schema:

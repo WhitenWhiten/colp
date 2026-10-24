@@ -5481,6 +5481,8 @@ export interface operations {
             /** @description The original command result expired; the read is never reapplied. */
             410: {
                 headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {

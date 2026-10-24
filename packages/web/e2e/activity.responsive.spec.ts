@@ -82,7 +82,7 @@ test('activity bell and inbox remain readable across viewport sizes', async ({ p
   await expect(page.getByRole('heading', { name: 'Activity', exact: true })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Activity, 0 unread', exact: true })).toBeVisible()
   await expect(page.locator('[data-activity-id]')).toHaveCount(5)
-  expect(reads).toEqual([{ through: 'activity-newest' }])
+  expect(reads).toEqual([{ through: 'activity-newest', throughRevision: '1' }])
   await expect(page.getByRole('link', { name: 'Claude added 7 bookmarks to LLM Papers and 1 more folder' })).toHaveAttribute('href', '/library/col-1?folder=papers')
 
   const geometry = await page.evaluate(() => ({
