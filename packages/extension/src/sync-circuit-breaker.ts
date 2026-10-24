@@ -1,5 +1,5 @@
 import type { DurableSyncEngineState } from './sync-state-store.js';
-import { classifySyncFailure, persistentLocalSyncFailure, refreshesReplicaIntegrity } from './sync-failure-class.js';
+import { classifySyncFailure, normalizeSyncFailureCode, persistentLocalSyncFailure, refreshesReplicaIntegrity } from './sync-failure-class.js';
 
 export const CIRCUIT_WINDOW_MS = 30 * 60_000;
 export const CIRCUIT_THRESHOLD = 5;
@@ -29,11 +29,14 @@ const SELF_RESOLVING_TRANSIENT: ReadonlySet<string> = new Set([
   'server_unavailable', 'network_unavailable', 'rate_limited', 'push_network_failed', 'push_batch_timeout',
   'push_batch_response_unknown', 'pull_failed', 'pull_transport_unavailable', 'transaction_aborted',
   'request_failed', 'indexeddb_unavailable', 'quota_exceeded', 'commit_outcome_unknown',
+  // The server's own words for the same outage (Problem codes on Session, Pull, Ack and Snapshot answers).
+  'service_unavailable', 'internal_error',
 ]);
 
 export function stalledTransientWait(code: string | undefined, consecutiveFailures: number): boolean {
+  // A Snapshot answer wraps the server's code (`snapshot_503_service_unavailable`); the wrapper names the endpoint only.
   return code !== undefined && classifySyncFailure(code)?.class === 'transient'
-    && !SELF_RESOLVING_TRANSIENT.has(code) && consecutiveFailures >= TRANSIENT_STALL_ATTEMPTS;
+    && !SELF_RESOLVING_TRANSIENT.has(normalizeSyncFailureCode(code)) && consecutiveFailures >= TRANSIENT_STALL_ATTEMPTS;
 }
 export interface SyncCircuitBreaker {
   readonly progress: string;
