@@ -185,7 +185,7 @@ export async function browserListViews(context: AccountContext | null = null): P
     const canonical = context && folder && folderNativeId && !set ? await context.canonical(folderNativeId).catch(() => null) : null;
     const url = canonical && context?.webUrl ? accountEditorUrl(context.webUrl, rule, canonical) : null;
     // The conditions as written are what the editor opens with; a rule an earlier build wrote without them only switches.
-    const draft: RuleDraft | null = rule.conditions.length ? { name: rule.name, combinator: rule.combinator, conditions: rule.conditions, action: rule.action } : null;
+    const draft: RuleDraft | null = rule.conditions.length ? { name: rule.name, combinator: rule.combinator, conditions: rule.conditions, action: rule.action, ...(rule.site ? { site: rule.site } : {}) } : null;
     // A role with no folder bound here is not a folder gone missing: the set's role is still to be chosen (RS-02.3).
     const role = rule.action.kind === 'file' && 'role' in rule.action ? rule.action.role : null;
     const needsFolder = role !== null && !folderNativeId;
@@ -368,6 +368,7 @@ async function browserPreview(command: Extract<BrowserRuleCommand, { kind: 'know
  * the account names folders by their identity in the collection.
  */
 async function forAccount(draft: RuleDraft, link: AccountLink | null): Promise<BrowserRuleResponse> {
+  if (draft.site) return { ok: false, error: 'notOnWeb' };
   const checked = checkRuleDraft(draft);
   if (!checked.ok) return { ok: false, error: 'invalid', problems: checked.problems };
   // The account's rules file into a synced folder by the web editor's own conditions.

@@ -1,3 +1,5 @@
+import type { BrowserSiteRuleExtension } from '../site-adapters/contracts.js';
+import { validSiteRule } from './site-rule.js';
 import { compilePredicate, validateM1Rule, type Predicate, type RuleDefinition } from '@know-n/colp/automation';
 
 /**
@@ -41,6 +43,7 @@ export interface RuleDraft {
   readonly combinator: 'all' | 'any';
   readonly conditions: readonly RuleCondition[];
   readonly action: RuleAction;
+  readonly site?: BrowserSiteRuleExtension;
 }
 
 export type DraftProblem =
@@ -158,11 +161,13 @@ export function checkRuleDraft(draft: RuleDraft, collections?: CollectionLookup)
       problems.push({ field: 'condition', index: condition.index, code: 'invalidPath' });
     }
   }
+  if (draft.site !== undefined && (!validSiteRule(draft.site) || draft.action.kind !== 'file')) problems.push({ field: 'conditions', code: 'invalid' });
   if (draft.action.kind === 'file' && 'folderNativeId' in draft.action && !draft.action.folderNativeId) problems.push({ field: 'folder', code: 'required' });
   if (draft.name.trim().length > NAME_LIMIT) problems.push({ field: 'name', code: 'tooLong' });
   if (problems.length) return { ok: false, problems };
   const conditions = filled.map(({ kind, value }) => ({ kind, value: conditionValue(kind, value) }));
-  const definition = ruleDefinition(draft.name, draft.combinator, conditions, collections);
+  const base = ruleDefinition(draft.name, draft.combinator, conditions, collections);
+  const definition = draft.site?.admission.entries.includes('siteImport') ? { ...base, policy: { ...base.policy, imports: 'include' as const } } : base;
   const compiled = compilePredicate(definition.match);
   if (!compiled.valid || validateM1Rule(definition).length) return { ok: false, problems: [{ field: 'conditions', code: 'invalid' }] };
   const contentVersions: Record<string, string> = {};

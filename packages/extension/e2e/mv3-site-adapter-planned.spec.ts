@@ -63,9 +63,24 @@ test('planned native commands survive worker cuts or expose unknown without repl
         expect(await page.evaluate(id => chrome.bookmarks.getChildren(id), folders[0]!.id)).toHaveLength(1);
       }
     }
+    const layoutRoot = await page.evaluate(async () => { const bar = (await chrome.bookmarks.getTree())[0]!.children![0]!;
+      return chrome.bookmarks.create({ parentId: bar.id, title: 'Controlled rule layout' }); });
+    const layout = await call<{ planId: string }>(page, { operation: 'layout', rootNativeId: layoutRoot.id, scenario: 'initial' });
+    expect(await call(page, { operation: 'execute', planId: layout.planId, effectId: 'folder' })).toMatchObject({ status: 'confirmed' });
+    expect(await call(page, { operation: 'execute', planId: layout.planId, effectId: 'bookmark' })).toMatchObject({ status: 'confirmed' });
+    const layoutFolders = await page.evaluate(id => chrome.bookmarks.getChildren(id), layoutRoot.id);
+    expect(layoutFolders).toHaveLength(1);
+    const later = await call<{ planId: string }>(page, { operation: 'layout', rootNativeId: layoutRoot.id, scenario: 'later' });
+    await page.evaluate(id => chrome.bookmarks.update(id, { title: 'User renamed source folder' }), layoutFolders[0]!.id);
+    // The shared folder command may acknowledge its old receipt; it issues no mutation.
+    expect(await call(page, { operation: 'execute', planId: later.planId, effectId: 'folder' })).toMatchObject({ status: 'confirmed' });
+    const stopped = await call<any>(page, { operation: 'execute', planId: later.planId, effectId: 'bookmark' });
+    expect(stopped.status).toBe('blocked');
+    expect(['folderManuallyChanged', 'folderNeedsReview']).toContain(stopped.reason);
+    expect(await page.evaluate(id => chrome.bookmarks.getChildren(id), layoutFolders[0]!.id)).toHaveLength(1);
     expect(modelCalls).toBe(0);
     await test.info().attach('source-planned-acceptance.json', { body: Buffer.from(JSON.stringify({ schemaVersion: 1, observedAt: new Date().toISOString(),
       browser: await page.evaluate(() => navigator.userAgent), browserVersion: context.browser()?.version(), workerTermination: 'CDP Target.closeTarget', sourceWorld: 'ISOLATED', cuts, modelCalls,
-      automaticSaving: true, tagMode: 'add', fixture: true, realSite: false }, null, 2)), contentType: 'application/json' });
+      automaticSaving: true, tagMode: 'add', ruleLayout: { createdFolders: 1, createdBookmarks: 1, localRenameStopsPending: stopped.status }, fixture: true, realSite: false }, null, 2)), contentType: 'application/json' });
   } finally { await context.close(); await rm(profile, { recursive: true, force: true }); }
 });

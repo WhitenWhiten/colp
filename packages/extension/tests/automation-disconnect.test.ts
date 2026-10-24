@@ -155,11 +155,11 @@ describe('the store’s account cleanup', () => {
   it('leaves everything alone for an account it holds nothing for', async () => {
     const database = createAutomationDatabase(new IDBFactory());
     await database.area().set(AUTOMATION_RECEIPTS_KEY, [{ version: 1, localReceiptId: 'r-other', ownerKey: otherKey }]);
-    await database.area().set(RULE_LIST_KEY, { version: 2, revision: 1, enabled: true, entries: [] });
+    await database.area().set(RULE_LIST_KEY, { version: 3, revision: 1, enabled: true, entries: [] });
     await database.intents.put(intent('i-other', otherKey));
     await database.clearAccount(ownerKey);
     expect(await database.area().get(AUTOMATION_RECEIPTS_KEY)).toEqual([{ version: 1, localReceiptId: 'r-other', ownerKey: otherKey }]);
-    expect(await database.area().get(RULE_LIST_KEY)).toEqual({ version: 2, revision: 1, enabled: true, entries: [] });
+    expect(await database.area().get(RULE_LIST_KEY)).toEqual({ version: 3, revision: 1, enabled: true, entries: [] });
     expect(await database.intents.list()).toHaveLength(1);
     database.close();
   });

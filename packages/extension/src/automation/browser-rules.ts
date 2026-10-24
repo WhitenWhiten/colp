@@ -42,8 +42,9 @@ export function editorConditions(definition: RuleDefinition): { readonly combina
  * The web editor filled in with this rule (AW-70): the same name and conditions, and its folder by the
  * canonical identity Sync gave it. Null for a rule the editor cannot show.
  */
-export function accountEditorUrl(webUrl: string, rule: { readonly definition: RuleDefinition },
+export function accountEditorUrl(webUrl: string, rule: { readonly definition: RuleDefinition; readonly site?: unknown },
   folder: { readonly collectionId: string; readonly nodeId: string }): string | null {
+  if (rule.site !== undefined) return null;
   const match = editorConditions(rule.definition);
   if (!match) return null;
   const url = new URL(`${webUrl.replace(/\/$/u, '')}/new`);

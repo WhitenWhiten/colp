@@ -18,7 +18,7 @@ function rule(id: string, conditions: RuleCondition[], action: RuleAction = { ki
   return { id, enabled: true, name: checked.name, combinator: 'all', conditions: checked.conditions, action, definition: checked.definition,
     compiledFrom: { contentVersions: {} }, createdAt: NOW, updatedAt: NOW };
 }
-const list = (entries: ListEntry[], over: Partial<RuleListRecord> = {}): RuleListRecord => ({ version: 2, revision: 7, enabled: true, entries, ...over });
+const list = (entries: ListEntry[], over: Partial<RuleListRecord> = {}): RuleListRecord => ({ version: 3, revision: 7, enabled: true, entries, ...over });
 const one = (item: LocalRule): ListEntry => ({ kind: 'rule', rule: item });
 const research = (...rules: LocalRule[]): ListEntry => ({ kind: 'set', set: { id: 's-1', name: 'Research', enabled: true, createdAt: NOW, updatedAt: NOW,
   origin: { kind: 'custom' }, roles: [], bindings: {}, rules } });

@@ -87,6 +87,7 @@ type Subscribed = (id: string) => { readonly record: SubscriptionRecord; readonl
  */
 export async function buildRulesConfig(list: RuleListRecord, folder: (nativeId: string) => Promise<{ readonly title: string; readonly path: readonly string[] } | null>,
   now: number, subscribed: Subscribed = () => null, risk?: ConfigRisk): Promise<RulesConfig> {
+  if (list.entries.some(e => e.kind === 'rule' ? !!e.rule.site : e.kind === 'set' && e.set.rules.some(r => r.site))) throw new Error('sourceRulesCannotExport');
   const entries = list.entries.flatMap((entry): ConfigEntry[] => {
     if (entry.kind === 'rule') return [{ kind: 'rule', rule: ruleOf(entry.rule) }];
     if (entry.kind === 'subscription') {

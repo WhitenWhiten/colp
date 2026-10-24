@@ -2,7 +2,7 @@ import { relateBrowserRule, type OverlapRule } from './browser-overlap.js';
 import type { AtomicStateArea } from './bundle-store.js';
 import { createLane } from './lane.js';
 import { checkRuleDraft, NAME_LIMIT, type CollectionLookup, type DraftProblem, type RuleDraft } from './rule-conditions.js';
-import { EMPTY_LIST, entryId, individualRules, LEGACY_RULES_KEY, migrateLegacyRules, overLimits, parseRuleList, REVIEW_LIMIT, RULE_LIST_KEY,
+import { EMPTY_LIST, entryId, individualRules, LEGACY_RULES_KEY, migrateLegacyRules, migrateOrderedRules, PREVIOUS_RULE_LIST_KEY, RULE_MIGRATION_KEY, overLimits, parseRuleList, REVIEW_LIMIT, RULE_LIST_KEY,
   ruleFolderNativeId, type ListEntry, type LocalRule, type LocalSet, type RuleListRecord } from './rule-list-record.js';
 
 export * from './rule-list-record.js';
@@ -91,11 +91,15 @@ export function createRuleListStore(area: AtomicStateArea, options: { readonly i
   /** Inside the lane: a list written by an earlier build moves here with its old key deleted, in one transaction. */
   async function current(): Promise<RuleListRecord> {
     const value = await area.get(RULE_LIST_KEY);
-    if (value !== undefined) return parseRuleList(value);
-    const legacy = await area.get(LEGACY_RULES_KEY);
-    if (legacy === undefined) return EMPTY_LIST;
-    const migrated = migrateLegacyRules(legacy, clock());
-    await area.commit({ [RULE_LIST_KEY]: migrated }, [LEGACY_RULES_KEY]);
+    const previous = await area.get(PREVIOUS_RULE_LIST_KEY), legacy = await area.get(LEGACY_RULES_KEY);
+    if (value !== undefined) {
+      if (previous !== undefined || legacy !== undefined) throw new Error('legacyRuleMergeRequired');
+      return parseRuleList(value);
+    }
+    if (previous === undefined && legacy === undefined) return EMPTY_LIST;
+    const migrated = previous !== undefined ? migrateOrderedRules(previous) : migrateLegacyRules(legacy, clock());
+    await area.commit({ [RULE_LIST_KEY]: migrated, [RULE_MIGRATION_KEY]: { migratedAt: clock(), previous, legacy } },
+      [PREVIOUS_RULE_LIST_KEY, LEGACY_RULES_KEY]);
     return migrated;
   }
   /** One change: written with the next revision when it changes anything, else left alone. */
@@ -131,6 +135,9 @@ export function createRuleListStore(area: AtomicStateArea, options: { readonly i
   return {
     /** The list as stored; the first read after an upgrade migrates the v1 list. */
     load: () => exclusive(current),
+    /** Repair/export remains possible even when activation is blocked. Never parses away unknown data. */
+    raw: () => exclusive(async () => ({ current: await area.get(RULE_LIST_KEY), previous: await area.get(PREVIOUS_RULE_LIST_KEY),
+      legacy: await area.get(LEGACY_RULES_KEY), migration: await area.get(RULE_MIGRATION_KEY) })),
     /**
      * Creates a rule (no id) at the end of the list or of the set `into`, or replaces one's conditions,
      * name and folder where it is. A collection's sites are read through `collections`; given as a function
@@ -140,9 +147,10 @@ export function createRuleListStore(area: AtomicStateArea, options: { readonly i
     saveRule(input: { readonly id?: string; readonly draft: RuleDraft; readonly enabled?: boolean; readonly into?: string | null;
       readonly index?: number }, now: number, collections?: CollectionLookup | { readonly read: (list: RuleListRecord) => Promise<CollectionLookup> }): Promise<RuleSaveResult> {
       return updateAsync(async (list): Promise<Change<RuleSaveResult>> => {
-        const checked = checkRuleDraft(input.draft, typeof collections === 'function' || collections === undefined ? collections : await collections.read(list));
-        if (!checked.ok) return { result: { ok: false, error: 'invalid', problems: checked.problems } };
         const found = input.id === undefined ? null : locate(list, input.id);
+        const draft = { ...input.draft, ...(input.draft.site ?? found?.rule.site ? { site: input.draft.site ?? found?.rule.site } : {}) };
+        const checked = checkRuleDraft(draft, typeof collections === 'function' || collections === undefined ? collections : await collections.read(list));
+        if (!checked.ok) return { result: { ok: false, error: 'invalid', problems: checked.problems } };
         if (input.id !== undefined && !found) return { result: { ok: false, error: 'notFound' } };
         const into = input.into ?? null, set = found ? found.set : into === null ? null : findSet(list, into);
         if (!found && into !== null && !set) return { result: { ok: false, error: 'notFound' } };
@@ -155,6 +163,7 @@ export function createRuleListStore(area: AtomicStateArea, options: { readonly i
         // An edited rule is no longer the one sent to the account, so it stops waiting to retire; reviews stay.
         const rule: LocalRule = { id: previous?.id ?? newId(), enabled: input.enabled ?? previous?.enabled ?? true, name: checked.name,
           combinator: input.draft.combinator, conditions: checked.conditions, action, definition: checked.definition,
+          ...(draft.site ? { site: draft.site } : {}),
           compiledFrom: { contentVersions: checked.contentVersions }, createdAt: previous?.createdAt ?? now, updatedAt: now,
           ...(previous?.origin ? { origin: previous.origin } : {}), ...(previous?.reviewed ? { reviewed: previous.reviewed } : {}) };
         if (previous) return { result: { ok: true, rule }, entries: mapRule(list.entries, rule.id, () => rule) };
@@ -366,7 +375,7 @@ export function createRuleListStore(area: AtomicStateArea, options: { readonly i
     },
     /** Add mine to the account was chosen: the rule retires once the account's enabled copy arrives. */
     markMoving(id: string, now: number): Promise<LocalRule | null> {
-      return individual(id, (rule) => rule.movingSince === undefined ? { ...rule, movingSince: now } : rule);
+      return individual(id, (rule) => rule.site ? null : rule.movingSince === undefined ? { ...rule, movingSince: now } : rule);
     },
     /** Keep in this browser: it no longer waits to retire (follow-up U5). */
     stopMoving(id: string): Promise<LocalRule | null> {
@@ -380,7 +389,7 @@ export function createRuleListStore(area: AtomicStateArea, options: { readonly i
     retireIfDuplicate(id: string, account: readonly OverlapRule[], now: number): Promise<LocalRule | null> {
       return update((list) => {
         const rule = individualRules(list).find((item) => item.id === id);
-        if (!rule || rule.movingSince === undefined) return { result: null };
+        if (!rule || rule.site || rule.movingSince === undefined) return { result: null };
         const relation = relateBrowserRule({ id: rule.id, definition: rule.definition, folderNativeId: ruleFolderNativeId(rule) }, account, undefined, now);
         return relation?.kind === 'duplicate' ? { result: rule, entries: withoutRule(list.entries, id) } : { result: null };
       });

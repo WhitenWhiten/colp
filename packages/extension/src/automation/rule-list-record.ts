@@ -1,4 +1,6 @@
 import { validateM1Rule, type RuleDefinition } from '@know-n/colp/automation';
+import type { BrowserSiteRuleExtension } from '../site-adapters/contracts.js';
+import { validSiteRule } from './site-rule.js';
 import { witnessOverlap } from './browser-overlap.js';
 import { editorConditions } from './browser-rules.js';
 import { closed, record } from './closed-value.js';
@@ -9,7 +11,9 @@ import { CONDITION_KINDS, CONDITION_LIMIT, NAME_LIMIT, type ConditionKind, type 
  * that read it back from the automation store, and the one-time move of the flat v1 list into it (R2).
  * The store that changes it is rule-list-store.ts.
  */
-export const RULE_LIST_KEY = 'known.automation.browserRules.v2';
+export const RULE_LIST_KEY = 'known.automation.browserRules.v3';
+export const PREVIOUS_RULE_LIST_KEY = 'known.automation.browserRules.v2';
+export const RULE_MIGRATION_KEY = 'known.automation.browserRules.migration.v3';
 /** Where builds before the ordered list kept their rules. */
 export const LEGACY_RULES_KEY = 'known.automation.browserRules.v1';
 
@@ -32,6 +36,7 @@ export interface LocalRule {
   readonly action: RuleAction;
   /** Compiled from `conditions` and normalized the way the evaluator compares, so what is stored is what runs. */
   readonly definition: RuleDefinition;
+  readonly site?: BrowserSiteRuleExtension;
   /** Subscription id → the content version its site-collection conditions were compiled from. */
   readonly compiledFrom: { readonly contentVersions: Readonly<Record<string, string>> };
   readonly createdAt: number;
@@ -67,7 +72,7 @@ export type ListEntry = { readonly kind: 'rule'; readonly rule: LocalRule } | { 
   | { readonly kind: 'subscription'; readonly subscriptionId: string; readonly enabled: boolean };
 
 export interface RuleListRecord {
-  readonly version: 2;
+  readonly version: 3;
   /** +1 per write. */
   readonly revision: number;
   /** The whole list's switch; the account's pause still overrides it. */
@@ -78,7 +83,7 @@ export interface RuleListRecord {
   readonly orderNotice?: { readonly pairs: readonly (readonly [string, string])[]; readonly shownAt: number | null };
 }
 
-export const EMPTY_LIST: RuleListRecord = { version: 2, revision: 0, enabled: true, entries: [] };
+export const EMPTY_LIST: RuleListRecord = { version: 3, revision: 0, enabled: true, entries: [] };
 export const entryId = (entry: ListEntry): string =>
   entry.kind === 'rule' ? entry.rule.id : entry.kind === 'set' ? entry.set.id : entry.subscriptionId;
 
@@ -116,16 +121,18 @@ function validReviewed(value: unknown): value is LocalRule['reviewed'] {
     && text(item.accountRuleId, 256) && text(item.key, 512));
 }
 
-/** A stored rule this build can run; anything else is dropped rather than guessed at. */
+/** Internal parser; the v3 wrapper rejects any loss while v2 migration preserves historical filtering. */
 function parseRule(value: unknown): LocalRule | null {
   if (!record(value) || !closed(value, ['id', 'enabled', 'name', 'combinator', 'conditions', 'action', 'definition', 'compiledFrom', 'createdAt',
-    'updatedAt'], ['origin', 'reviewed', 'movingSince'])) return null;
+    'updatedAt'], ['origin', 'reviewed', 'movingSince', 'site'])) return null;
   const { compiledFrom } = value;
   const valid = typeof value.id === 'string' && ID.test(value.id) && typeof value.enabled === 'boolean' && text(value.name, NAME_LIMIT)
     && (value.combinator === 'all' || value.combinator === 'any') && Array.isArray(value.conditions) && value.conditions.length <= CONDITION_LIMIT
     && value.conditions.every((item) => record(item) && closed(item, ['kind', 'value'])
       && CONDITION_KINDS.includes(item.kind as ConditionKind) && text(item.value, VALUE_LIMIT))
     && validAction(value.action) && !validateM1Rule(value.definition).length
+    && (value.site === undefined || validSiteRule(value.site) && value.action.kind === 'file'
+      && (!value.site.admission.entries.includes('siteImport') || (value.definition as RuleDefinition).policy.imports === 'include'))
     && record(compiledFrom) && closed(compiledFrom, ['contentVersions']) && record(compiledFrom.contentVersions)
     && Object.values(compiledFrom.contentVersions).every((version) => text(version, 64))
     && time(value.createdAt) && time(value.updatedAt) && (value.origin === undefined || validOrigin(value.origin))
@@ -156,15 +163,15 @@ function parseEntry(value: unknown): ListEntry | null {
     && ID.test(value.subscriptionId) && typeof value.enabled === 'boolean' ? value as unknown as ListEntry : null;
 }
 
-/** The stored list as this build reads it. Entries it cannot run are left out; one id appears once. */
-export function parseRuleList(value: unknown): RuleListRecord {
-  if (!record(value) || value.version !== 2 || !closed(value, ['version', 'revision', 'enabled', 'entries'], ['orderNotice'])
+/** Internal normalization used by strict v3 parsing and the historical v2 migration. */
+function parseList(value: unknown): RuleListRecord {
+  if (!record(value) || value.version !== 3 || !closed(value, ['version', 'revision', 'enabled', 'entries'], ['orderNotice'])
     || !time(value.revision) || typeof value.enabled !== 'boolean' || !Array.isArray(value.entries)) return EMPTY_LIST;
   const seen = new Set<string>();
   const entries = value.entries.map(parseEntry).filter((entry): entry is ListEntry => {
     if (!entry) return false;
     const ids = [entryId(entry), ...entry.kind === 'set' ? entry.set.rules.map((rule) => rule.id) : []];
-    if (ids.some((id) => seen.has(id))) return false;
+    if (new Set(ids).size !== ids.length || ids.some((id) => seen.has(id))) return false;
     for (const id of ids) seen.add(id);
     return true;
   });
@@ -172,7 +179,31 @@ export function parseRuleList(value: unknown): RuleListRecord {
   const orderNotice = record(notice) && closed(notice, ['pairs', 'shownAt']) && Array.isArray(notice.pairs)
     && notice.pairs.every((pair) => Array.isArray(pair) && pair.length === 2 && pair.every((id) => typeof id === 'string'))
     && (notice.shownAt === null || time(notice.shownAt)) ? notice as unknown as RuleListRecord['orderNotice'] : undefined;
-  return { version: 2, revision: value.revision, enabled: value.enabled, entries, ...(orderNotice ? { orderNotice } : {}) };
+  return { version: 3, revision: value.revision, enabled: value.enabled, entries, ...(orderNotice ? { orderNotice } : {}) };
+}
+
+/** v3 is fail-closed: an unsupported field or duplicate never disappears during a save. */
+export function parseRuleList(value: unknown): RuleListRecord {
+  if (value === undefined) return EMPTY_LIST;
+  const parsed = parseList(value);
+  if (!record(value) || value.version !== 3 || parsed === EMPTY_LIST || !Array.isArray(value.entries)
+    || value.entries.length !== parsed.entries.length || !Number.isSafeInteger(value.revision) || (value.revision as number) < 0
+    || value.orderNotice !== undefined && parsed.orderNotice === undefined
+    || value.entries.some((e, i) => record(e) && e.kind === 'set' && record(e.set)
+      && Array.isArray(e.set.rules) && e.set.rules.length !== (parsed.entries[i]?.kind === 'set' ? parsed.entries[i].set.rules.length : -1))) {
+    throw new Error('rulesSchemaIncompatible');
+  }
+  return parsed;
+}
+
+/** v2 retains its historical parser semantics, but never accepts source capabilities. */
+export function migrateOrderedRules(value: unknown): RuleListRecord {
+  if (!record(value) || value.version !== 2 || !Array.isArray(value.entries)) throw new Error('rulesSchemaIncompatible');
+  for (const e of value.entries) {
+    const rules = record(e) && e.kind === 'set' && record(e.set) && Array.isArray(e.set.rules) ? e.set.rules : [record(e) ? e.rule : null];
+    if (rules.some(r => record(r) && r.site !== undefined)) throw new Error('rulesSchemaIncompatible');
+  }
+  return parseList({ ...value, version: 3 });
 }
 
 /** A v1 rule (browser-rules.ts BrowserRule) as a list rule: its conditions read back from its definition. */
@@ -206,7 +237,7 @@ export function migrateLegacyRules(value: unknown, now: number): RuleListRecord 
       if (ruleFolderNativeId(a) !== ruleFolderNativeId(b) && witnessOverlap(a.definition, b.definition, now)) pairs.push([a.id, b.id]);
     }
   }
-  return { version: 2, revision: 1, enabled: true, entries: rules.map((rule) => ({ kind: 'rule', rule })),
+  return { version: 3, revision: 1, enabled: true, entries: rules.map((rule) => ({ kind: 'rule', rule })),
     ...(pairs.length ? { orderNotice: { pairs, shownAt: null } } : {}) };
 }
 

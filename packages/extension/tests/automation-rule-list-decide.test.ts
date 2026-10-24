@@ -27,7 +27,7 @@ const titled = (id: string, word: string, folder = '31') => rule(id, [{ kind: 't
 function set(id: string, rules: LocalRule[], over: Partial<LocalSet> = {}): ListEntry {
   return { kind: 'set', set: { id, name: `Set ${id}`, enabled: true, createdAt: NOW, updatedAt: NOW, origin: { kind: 'custom' }, roles: [], bindings: {}, rules, ...over } };
 }
-const list = (entries: ListEntry[], over: Partial<RuleListRecord> = {}): RuleListRecord => ({ version: 2, revision: 7, enabled: true, entries, ...over });
+const list = (entries: ListEntry[], over: Partial<RuleListRecord> = {}): RuleListRecord => ({ version: 3, revision: 7, enabled: true, entries, ...over });
 const individual = (...rules: LocalRule[]): ListEntry[] => rules.map((item) => ({ kind: 'rule', rule: item }));
 const decide = (record: RuleListRecord, at: ReturnType<typeof page>, preview = false) =>
   decideList(flattenList(record).items, at, lookup, NOW, { preview });

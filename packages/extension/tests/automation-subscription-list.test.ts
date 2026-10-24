@@ -73,7 +73,7 @@ describe('what a subscription gives a save', () => {
     expect(named([{ id: 'e-9', name: 'Old name', site: 'arxiv', role: 'papers' }])).toEqual(['Old name']);
     // Not ready: nothing, and flatten says so.
     const waiting = { record: { ...record, state: 'notReady' } as SubscriptionRecord, current: null, fetchedAt: null, local };
-    expect(flattenList({ version: 2, revision: 1, enabled: true, entries: [{ kind: 'subscription', subscriptionId: 's-1', enabled: true }] }, lookupOf([waiting])))
+    expect(flattenList({ version: 3, revision: 1, enabled: true, entries: [{ kind: 'subscription', subscriptionId: 's-1', enabled: true }] }, lookupOf([waiting])))
       .toMatchObject({ items: [], skippedSources: [{ subscriptionId: 's-1', reason: 'notReady' }] });
   });
 
@@ -111,7 +111,7 @@ describe('site collections (RS-10)', () => {
     const left = recompileCollections(after, 's-1', gone);
     expect(left[1]).toEqual(after[1]);
     const record = { id: 's-1', name: 'Community', state: 'ready' } as SubscriptionRecord;
-    const list: RuleListRecord = { version: 2, revision: 1, enabled: true, entries: left };
+    const list: RuleListRecord = { version: 3, revision: 1, enabled: true, entries: left };
     const at = (current: typeof v1 | null) => flattenList({ ...list, entries: left.map((entry) => entry.kind === 'set'
       ? { kind: 'set', set: { ...entry.set, rules: entry.set.rules.map((item) => ({ ...item, enabled: true })) } } : entry) },
     lookupOf(current ? [{ record, current, fetchedAt: NOW, local: NO_ADJUSTMENTS }] : []));

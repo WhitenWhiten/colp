@@ -187,7 +187,7 @@ export async function preSaveDecision(scope: CaptureScope, input: PreSaveInput):
 }
 
 /** The account's pause is for every automation here: while it holds, this browser's own rules stand still too (design 01 §7.5). */
-async function accountPaused(): Promise<boolean> {
+export async function sourceAutomationsPaused(): Promise<boolean> {
   const owner = await currentOwner();
   return owner ? bundleState(await createBundleStore(automationArea(), owner).read(), Date.now()).state === 'paused' : false;
 }
@@ -196,7 +196,7 @@ async function accountPaused(): Promise<boolean> {
 export async function rulesDecision(scope: CaptureScope, input: PreSaveInput): Promise<PreSaveDecision | BrowserPreSaveDecision | null> {
   const account = await preSaveDecision(scope, input).catch(() => null);
   if (account) return account;
-  if (await accountPaused().catch(() => false)) return null;
+  if (await sourceAutomationsPaused().catch(() => false)) return null;
   return browserPreSaveDecision(input).catch(() => null);
 }
 

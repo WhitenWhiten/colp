@@ -1,3 +1,4 @@
+import type { BrowserSiteRuleExtension } from '../site-adapters/contracts.js';
 import type { RuleDefinition } from '@know-n/colp/automation';
 import type { BrowserDecisionEntry } from '../capture/contracts.js';
 import { ruleFolderNativeId, type LocalRule, type LocalSet, type RuleListRecord } from './rule-list-store.js';
@@ -20,6 +21,7 @@ export interface FlatItem {
   /** The set or subscription it belongs to; null for an individual rule. */
   readonly source: { readonly id: string; readonly name: string } | null;
   readonly definition: RuleDefinition;
+  readonly site?: BrowserSiteRuleExtension;
   /** `folderNativeId` null: its role has no folder bound here, so a match is blocked, never passed on (R8). */
   readonly action: { readonly kind: 'file'; readonly folderNativeId: string | null } | { readonly kind: 'keepHere' };
   /** Hosts and registrable domains excluded from this item's subscription only (RS-05.3). */
@@ -52,7 +54,7 @@ export interface FlatList {
 function ruleItem(rule: LocalRule, set: LocalSet | null): FlatItem {
   const folderNativeId = ruleFolderNativeId(rule, set);
   return { ref: set ? { kind: 'setRule', ruleId: rule.id, setId: set.id } : { kind: 'rule', ruleId: rule.id }, id: rule.id, name: rule.name,
-    source: set ? { id: set.id, name: set.name } : null, definition: rule.definition, exceptions: [],
+    source: set ? { id: set.id, name: set.name } : null, definition: rule.definition, exceptions: [], ...(rule.site ? { site: rule.site } : {}),
     action: rule.action.kind === 'keepHere' ? { kind: 'keepHere' } : { kind: 'file', folderNativeId } };
 }
 

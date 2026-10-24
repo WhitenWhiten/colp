@@ -1,3 +1,4 @@
+import { installSourceLayout } from './layout-runtime.js';
 import { installSiteAdapterEvidence } from './evidence.js';
 import { installPlannedSaveRuntime, wakePlannedSaves } from './planned-runtime.js';
 import { siteLedger, synchronizeSourceAuthority, sourceContext, SITE_RECOVERY_ALARM } from './source-runtime.js';
@@ -102,6 +103,7 @@ const inspectSchema = object({ kind: literal('known.siteAdapters.inspect'), oper
 const confirmSchema = object({ kind: literal('known.siteAdapters.confirm'), accountId: str(128) });
 export function installSiteAdapters() {
   installPlannedSaveRuntime();
+  installSourceLayout();
   if (__KNOWN_EXTENSION_EVIDENCE__) installSiteAdapterEvidence();
   // Registered synchronously; initialization is awaited inside each handler.
   chrome.runtime.onMessage.addListener((raw, sender, respond) => {

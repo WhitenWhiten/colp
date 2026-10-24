@@ -30,7 +30,7 @@ const research: LocalSet = { id: 'set-1', name: 'Research', enabled: false, crea
   roles: [{ key: 'papers', description: 'Academic papers' }, { key: 'code', description: 'Source code' }], bindings: { papers: '30', code: '32' },
   rules: [rule('r-role', [{ kind: 'siteEndsWith', value: 'arxiv.org' }], { kind: 'file', role: 'papers' }),
     rule('r-own', [{ kind: 'pathUnder', value: '/docs' }], { kind: 'file', folderNativeId: '31' }, false)] };
-const record: RuleListRecord = { version: 2, revision: 9, enabled: true, entries: [
+const record: RuleListRecord = { version: 3, revision: 9, enabled: true, entries: [
   { kind: 'rule', rule: rule('r-1', [{ kind: 'siteIs', value: 'arxiv.org' }, { kind: 'titleContains', value: 'paper' }], { kind: 'file', folderNativeId: '30' }) },
   { kind: 'set', set: research },
   { kind: 'rule', rule: rule('r-keep', [{ kind: 'siteIs', value: 'example.org' }], { kind: 'keepHere' }) },

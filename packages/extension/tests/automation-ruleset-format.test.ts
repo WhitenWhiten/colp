@@ -130,7 +130,7 @@ describe('the set an import adds', () => {
         { name: 'GitHub repositories', action: { kind: 'file', role: 'code' } }] });
     const checked = checkRuleDraft({ name: 'arXiv', combinator: 'any', conditions: [{ kind: 'siteEndsWith', value: 'arxiv.org' }], action: { kind: 'file', role: 'papers' } });
     expect(checked.ok && checked.definition).toEqual(set.rules[0]!.definition);
-    const flat = flattenList({ version: 2, revision: 1, enabled: true, entries: [{ kind: 'set', set }] });
+    const flat = flattenList({ version: 3, revision: 1, enabled: true, entries: [{ kind: 'set', set }] });
     expect((await decideList(flat.items, { url: 'https://export.arxiv.org/abs/1', title: '', explicit: false }, lookup, NOW)).decision)
       .toMatchObject({ outcome: 'placed', folder: { nativeId: '30' } });
     expect((await decideList(flat.items, { url: 'https://github.com/know-n', title: '', explicit: false }, lookup, NOW)).decision)

@@ -1,3 +1,4 @@
+import { validSiteRule } from './site-rule.js';
 import type { ActivityItem } from './activity-types.js';
 import type { BrowserDecisionEntry } from '../capture/contracts.js';
 import type { DigestIndicator } from './digest-indicator.js';
@@ -144,7 +145,7 @@ function validAction(value: unknown): boolean {
 function validDraft(value: unknown): value is RuleDraft {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const raw = value as Record<string, unknown>;
-  return Object.keys(raw).length === 4 && typeof raw.name === 'string' && raw.name.length <= 1024
+  return Object.keys(raw).length === (raw.site === undefined ? 4 : 5) && (raw.site === undefined || validSiteRule(raw.site)) && typeof raw.name === 'string' && raw.name.length <= 1024
     && (raw.combinator === 'all' || raw.combinator === 'any') && validAction(raw.action)
     && Array.isArray(raw.conditions) && raw.conditions.length <= 16 && raw.conditions.every((item) => {
       if (!item || typeof item !== 'object' || Array.isArray(item)) return false;

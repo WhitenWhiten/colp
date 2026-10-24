@@ -442,6 +442,7 @@ export interface Representation extends RepresentationKey {
   native: NativeBinding<'bookmark'>;
   manualRevision: number;
   state: 'active' | 'detached' | 'suppressed';
+  lastWritten?: { title: string; parentId: string };
 }
 
 export type TargetFolder =

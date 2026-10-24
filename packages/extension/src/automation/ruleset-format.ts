@@ -249,6 +249,7 @@ export function rulesetSet(parsed: Extract<ParsedRuleset, { ok: true }>, binding
  * matching data. Folder ids and anything about this browser stay out.
  */
 export function exportRuleset(set: LocalSet, folderTitle: (nativeId: string) => string | null, now: number): Ruleset {
+  if (set.rules.some(r => r.site)) throw new Error('sourceRulesCannotExport');
   const roles: { key: string; description: string }[] = set.roles.map((role) => ({ ...role }));
   const byFolder = new Map<string, string>();
   const keyFor = (nativeId: string): string => {

@@ -37,7 +37,7 @@ function rule(id: string, conditions: RuleCondition[], action: RuleAction = { ki
   return { id, enabled: true, name: checked.name, combinator: 'all', conditions: checked.conditions, action, definition: checked.definition,
     compiledFrom: { contentVersions: {} }, createdAt: NOW, updatedAt: NOW };
 }
-const list = (...rules: LocalRule[]): RuleListRecord => ({ version: 2, revision: 3, enabled: true, entries: rules.map((item) => ({ kind: 'rule', rule: item })) });
+const list = (...rules: LocalRule[]): RuleListRecord => ({ version: 3, revision: 3, enabled: true, entries: rules.map((item) => ({ kind: 'rule', rule: item })) });
 const mark = (id: string, url: string, parentId: string, title = id): RunTreeNode => ({ id, title, url, parentId });
 const folder = (id: string, children: RunTreeNode[], parentId = '1'): RunTreeNode => ({ id, title: `Folder ${id}`, parentId, children });
 const ports = { lookup, destinationAllowed: async (id: string) => id !== '40' };

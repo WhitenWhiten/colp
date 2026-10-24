@@ -1,3 +1,4 @@
+import { admitsSiteEdge, type SiteRuleEdge } from './site-rule.js';
 import { compilePredicate, preparePredicateInput, type PlacementIntent } from '@know-n/colp/automation';
 import { BROWSER_COLLECTION, resolveBrowserFolder, type FolderLookup } from './browser-rules.js';
 import { preSaveFacts } from './pre-save.js';
@@ -56,13 +57,15 @@ function excepted(item: FlatItem, host: string): boolean {
 }
 
 export async function decideList(items: readonly FlatItem[], page: Page, lookup: FolderLookup, now: number,
-  options: { readonly preview?: boolean } = {}): Promise<ListResult> {
+  options: { readonly preview?: boolean; readonly site?: SiteRuleEdge } = {}): Promise<ListResult> {
   const intent: PlacementIntent = page.explicit ? 'userSelected' : 'userDefault';
-  const facts = preSaveFacts(page, BROWSER_COLLECTION, { ancestors: [] }, intent, now);
+  const initial = preSaveFacts(page, BROWSER_COLLECTION, { ancestors: [] }, options.site ? 'rulePlacement' : intent, now);
+  const facts = options.site?.entry === 'siteImport' ? { ...initial, origin: 'import' as const } : initial;
   const input = preparePredicateInput(facts), host = facts.bookmark.url.host;
   const skipped: FlatItem[] = [], shadowed: FlatItem[] = [];
   let winner: FlatItem | null = null, failed = false;
   for (const item of items) {
+    if (!admitsSiteEdge(item.site, options.site) || options.site?.entry === 'siteImport' && item.definition.policy.imports !== 'include') continue;
     if (excepted(item, host)) continue;
     const predicate = compiled(item);
     const outcome = predicate.valid ? predicate.evaluate(facts, { inputSnapshot: input }).outcome : 'error';

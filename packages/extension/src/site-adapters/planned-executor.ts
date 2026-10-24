@@ -96,7 +96,8 @@ export function createPlannedSaveExecutor(db: SourceDatabase, ports: PlannedExec
       else if (effect.kind === 'createBookmark') {
         const key = representationKey(effect.representation), existing = await get<Representation>(tx, 'representations', key);
         if (existing && existing.native.bindingId !== native.bindingId) throw new Error('representationConflict');
-        put(tx, 'representations', key, existing ?? { ...effect.representation, native, state: 'active', manualRevision: 0 });
+        put(tx, 'representations', key, existing ?? { ...effect.representation, native, state: 'active', manualRevision: 0,
+          lastWritten: { title: outbox.command.title, parentId: outbox.command.parent.nativeId } });
         const reserved = await get<ItemReservation>(tx, 'itemReservations', key);
         if (reserved) put(tx, 'itemReservations', key, { ...reserved, state: 'confirmed' });
       }

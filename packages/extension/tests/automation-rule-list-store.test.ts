@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { BrowserRule } from '../src/automation/browser-rules.js';
 import { checkRuleDraft, type RuleDraft } from '../src/automation/rule-conditions.js';
 import {
-  createRuleListStore, entryId, individualRules, LEGACY_RULES_KEY, LIST_LIMITS, RULE_LIST_KEY,
+  createRuleListStore, entryId, individualRules, LEGACY_RULES_KEY, PREVIOUS_RULE_LIST_KEY, LIST_LIMITS, RULE_LIST_KEY,
   type ListEntry, type LocalRule, type LocalSet, type RuleListRecord,
 } from '../src/automation/rule-list-store.js';
 import { memoryStateArea, NOW } from './automation-fixture.js';
@@ -39,7 +39,7 @@ describe('the move from the v1 list (R2)', () => {
       { kind: 'titleContains', value: 'Review' }] }, { reviewed: [{ accountRuleId: 'a-1', key: '4:1' }], movingSince: NOW - 1 }),
     legacy('b-2', { name: 'Reading', conditions: [{ kind: 'siteIs', value: 'example.org' }], folderNativeId: '31' }, { enabled: false })] });
     const list = await rules.load();
-    expect(list).toMatchObject({ version: 2, revision: 1, enabled: true });
+    expect(list).toMatchObject({ version: 3, revision: 1, enabled: true });
     expect(list).not.toHaveProperty('orderNotice');
     expect(ids(list)).toEqual(['b-1', 'b-2']);
     expect(individualRules(list)[0]).toMatchObject({ id: 'b-1', name: 'Papers from arXiv', combinator: 'any', enabled: true,
@@ -128,7 +128,7 @@ describe('rules and sets', () => {
     const custom = (id: string, count: number): ListEntry => ({ kind: 'set', set: { id, name: id, enabled: true, createdAt: NOW, updatedAt: NOW,
       origin: { kind: 'custom' }, roles: [], bindings: {}, rules: Array.from({ length: count }, (_, index) => rule(`${id}-${index}`)) } });
     const individual = Array.from({ length: LIST_LIMITS.rules }, (_, index): ListEntry => ({ kind: 'rule', rule: rule(`i-${index}`) }));
-    area.values.set(RULE_LIST_KEY, { version: 2, revision: 1, enabled: true, entries: individual });
+    area.values.set(RULE_LIST_KEY, { version: 3, revision: 1, enabled: true, entries: individual });
     expect(await rules.saveRule({ draft: draft() }, NOW)).toEqual({ ok: false, error: 'limit' });
     const set = await rules.saveSet({ name: 'Reading' }, NOW);
     expect(set).toMatchObject({ ok: true, set: { name: 'Reading', origin: { kind: 'custom' }, rules: [] } });
@@ -139,7 +139,7 @@ describe('rules and sets', () => {
     expect(inside?.kind === 'set' && await rules.moveRule(inside.set.rules[0]!.id, null, 0, NOW)).toEqual({ ok: false, error: 'limit' });
     expect(inside?.kind === 'set' && await rules.removeSet(inside.set.id, true, NOW)).toEqual({ ok: false, error: 'limit' });
 
-    area.values.set(RULE_LIST_KEY, { version: 2, revision: 1, enabled: true,
+    area.values.set(RULE_LIST_KEY, { version: 3, revision: 1, enabled: true,
       entries: Array.from({ length: LIST_LIMITS.sets }, (_, index) => custom(`s-${index}`, index < 20 ? 50 : 0)) });
     expect(await rules.saveSet({ name: 'One more' }, NOW)).toEqual({ ok: false, error: 'limit' });
     // 20 × 50 rules fill the thousand.
@@ -195,7 +195,7 @@ describe('rules and sets', () => {
     const byRole = (id: string, role: string): LocalRule => ({ id, enabled: true, name: id, combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }],
       action: { kind: 'file', role }, definition: checked.definition, compiledFrom: { contentVersions: {} }, createdAt: NOW, updatedAt: NOW,
       origin: { kind: 'import', sourceId: 'community', sourceName: 'Community', sourceVersion: '1', importedAt: NOW } });
-    area.values.set(RULE_LIST_KEY, { version: 2, revision: 4, enabled: true,
+    area.values.set(RULE_LIST_KEY, { version: 3, revision: 4, enabled: true,
       entries: [{ kind: 'set', set: importedSet('s-1', [byRole('e-1', 'papers'), byRole('e-2', 'code')], { papers: '30' }) }] });
     expect(await rules.moveRule('e-1', null, 1, NOW + 1)).toEqual({ ok: true, revision: 5 });
     expect(individualRules(await rules.load())).toMatchObject([{ id: 'e-1', action: { kind: 'file', folderNativeId: '30' }, updatedAt: NOW + 1,
@@ -214,7 +214,7 @@ describe('rules and sets', () => {
     const byRole = (id: string, role: string): LocalRule => ({ id, enabled: true, name: id, combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }],
       action: { kind: 'file', role }, definition: checked.definition, compiledFrom: { contentVersions: {} }, createdAt: NOW, updatedAt: NOW,
       origin: { kind: 'import', sourceId: 'community', sourceName: 'Community', sourceVersion: '1', importedAt: NOW } });
-    area.values.set(RULE_LIST_KEY, { version: 2, revision: 4, enabled: true, entries: [
+    area.values.set(RULE_LIST_KEY, { version: 3, revision: 4, enabled: true, entries: [
       { kind: 'rule', rule: { ...byRole('top', 'papers'), action: { kind: 'file', folderNativeId: '31' } } },
       { kind: 'set', set: importedSet('s-1', [byRole('e-1', 'papers'), byRole('e-2', 'code')], { papers: '30' }) }] });
     const copied = await rules.copyToMine('e-1', false, NOW + 1);
@@ -240,7 +240,7 @@ describe('rules and sets', () => {
     if (!checked.ok) throw new Error('invalid draft');
     const rule = (id: string): LocalRule => ({ id, enabled: true, name: id, combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }],
       action: { kind: 'file', folderNativeId: '30' }, definition: checked.definition, compiledFrom: { contentVersions: {} }, createdAt: NOW, updatedAt: NOW });
-    area.values.set(RULE_LIST_KEY, { version: 2, revision: 1, enabled: true, entries: [
+    area.values.set(RULE_LIST_KEY, { version: 3, revision: 1, enabled: true, entries: [
       ...Array.from({ length: LIST_LIMITS.rules }, (_, index): ListEntry => ({ kind: 'rule', rule: rule(`own-${index}`) })),
       { kind: 'set', set: { id: 's-1', name: 'Mine', enabled: true, createdAt: NOW, updatedAt: NOW, origin: { kind: 'custom' }, roles: [], bindings: {}, rules: [rule('in-set')] } }] });
     expect(await rules.copyToMine('in-set', true, NOW)).toEqual({ ok: false, error: 'limit' });
@@ -288,17 +288,18 @@ describe('rules and sets', () => {
     expect(list).toMatchObject({ enabled: false, revision: 5 });
   });
 
-  it('drops a stored entry it cannot run, and an id seen twice, rather than guess', async () => {
+  it('retains historical v2 filtering during migration and preserves the raw backup', async () => {
     const { area, store: rules } = store();
     await rules.saveRule({ draft: draft() }, NOW);
     const stored = area.values.get(RULE_LIST_KEY) as RuleListRecord;
     const good = stored.entries[0]!;
-    area.values.set(RULE_LIST_KEY, { ...stored, entries: [good, good,
+    area.values.delete(RULE_LIST_KEY);
+    area.values.set(PREVIOUS_RULE_LIST_KEY, { ...stored, version: 2, entries: [good, good,
       { kind: 'rule', rule: { ...(good as Extract<ListEntry, { kind: 'rule' }>).rule, id: 'extra', unknown: true } },
       { kind: 'rule', rule: { ...(good as Extract<ListEntry, { kind: 'rule' }>).rule, id: 'odd', action: { kind: 'file' } } },
       { kind: 'folder', id: 'x' }, { kind: 'subscription', subscriptionId: 'sub-1', enabled: true }] });
     expect(ids(await rules.load())).toEqual(['r-1', 'sub-1']);
-    area.values.set(RULE_LIST_KEY, { version: 3, revision: 9, enabled: true, entries: [] });
-    expect(await rules.load()).toEqual({ version: 2, revision: 0, enabled: true, entries: [] });
+    area.values.set(RULE_LIST_KEY, { version: 4, revision: 9, enabled: true, entries: [] });
+    await expect(rules.load()).rejects.toThrow('rulesSchemaIncompatible');
   });
 });

@@ -2,7 +2,7 @@ import { automationDigest } from '@know-n/colp/automation';
 import type { SnapshotStateArea } from './bundle-store.js';
 import { closed, formatOf, record } from './closed-value.js';
 import { createLane } from './lane.js';
-import { parseRuleList, RULE_LIST_KEY, type ListChangeResult, type ListEntry, type LocalRule, type RuleListRecord,
+import { parseRuleList, RULE_LIST_KEY, PREVIOUS_RULE_LIST_KEY, LEGACY_RULES_KEY, type ListChangeResult, type ListEntry, type LocalRule, type RuleListRecord,
   type RuleSaveResult } from './rule-list-store.js';
 import { parseRuleset, withinScope, type ParsedRuleset, type Ruleset } from './ruleset-format.js';
 import { adjusted, copiedRule, recompileCollections, type Adjustment, type SubscriptionSource } from './subscription-list.js';
@@ -257,7 +257,8 @@ export function createSubscriptionStore(area: SnapshotStateArea, list: Subscript
      */
     async snapshot(): Promise<{ readonly list: RuleListRecord; readonly sources: Map<string, SubscriptionSource> }> {
       const ids = (await list.load()).entries.flatMap((entry) => entry.kind === 'subscription' ? [entry.subscriptionId] : []);
-      const values = await area.getMany([RULE_LIST_KEY, ...ids.flatMap(sourceKeys)]);
+      const values = await area.getMany([RULE_LIST_KEY, PREVIOUS_RULE_LIST_KEY, LEGACY_RULES_KEY, ...ids.flatMap(sourceKeys)]);
+      if (values[PREVIOUS_RULE_LIST_KEY] !== undefined || values[LEGACY_RULES_KEY] !== undefined) throw new Error('legacyRuleMergeRequired');
       const current = parseRuleList(values[RULE_LIST_KEY]);
       const sources = new Map(ids.flatMap((id) => { const found = sourceOf(id, values); return found ? [[id, found] as const] : []; }));
       return { list: current, sources };
