@@ -28,7 +28,7 @@ A [single-file complete design book](COLP-Automations-Complete.md) is generated 
 
 ## Machine-readable artifacts
 
-[Product, device and worker OpenAPI](api/automation.openapi.yaml) and [MCP Events OpenAPI](api/mcp-events.openapi.yaml); [operation inventory](api/operations.json) with milestones; [typed MCP tool catalog](api/mcp-tool-catalog.json) with 15 descriptors; [schemas](schemas/) (Draft 2020-12); [examples](examples/); [user-stories.json](user-stories.json), [tasks.json](tasks.json), [acceptance-tests.json](acceptance-tests.json) and the generated [traceability.json](traceability.json).
+[Product, device and worker OpenAPI](api/automation.openapi.yaml) and [MCP Events OpenAPI](api/mcp-events.openapi.yaml); [operation inventory](api/operations.json) with milestones; [typed MCP tool catalog](api/mcp-tool-catalog.json) with 16 descriptors; [schemas](schemas/) (Draft 2020-12); [examples](examples/); [user-stories.json](user-stories.json), [tasks.json](tasks.json), [acceptance-tests.json](acceptance-tests.json) and the generated [traceability.json](traceability.json).
 
 `tasks.json` is the single source for the handbook's packet sections and the file map. Edit it, then run the build. Edit the Markdown chapters directly for prose.
 

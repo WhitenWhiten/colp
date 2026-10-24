@@ -26,6 +26,7 @@ export interface TargetWorkerService {
   profile(tx: DatabaseTransaction,actor: WorkPrincipal): Promise<ProfileRow>;
   authorize: TargetAuthority;
   pair(actor: WorkPrincipal,body: unknown,commandId?: string): Promise<PairingCommandOutcome>;
+  mine(actor: WorkPrincipal): Promise<Target[]>;
 }
 export interface TargetWorkerOptions { eventsEnabled?: boolean }
 export function createTargetWorkerService(db: Kysely<DatabaseSchema>,verifyBinding: CurrentBindingVerifier,
@@ -201,6 +202,17 @@ export function createTargetWorkerService(db: Kysely<DatabaseSchema>,verifyBindi
       }
       return { ...access,pairedTargets: targets.map(({ id,generation }) => ({ id,generation })) };
     }),
+    /** Own paired inboxes only, through the same binding (and consent) checks as any work call. */
+    async mine(actor) {
+      return db.transaction().execute(async tx => {
+        const current = await profile(tx,actor),store = createTargetStore(tx,actor.accountId,verifyBinding,options.eventsEnabled);
+        const rows = (await sql<{ id: string }>`SELECT id FROM automation_targets WHERE owner_id=${actor.accountId} AND profile_id=${current.id} AND paired AND NOT revoked
+          ORDER BY created_at,id LIMIT 100`.execute(tx)).rows;
+        const targets: Target[] = [];
+        for (const row of rows) { const target = await store.targets.load(row.id); if (target) targets.push(target); }
+        return targets;
+      });
+    },
     async pair(actor,body,commandId = randomUUID()) {
       const input = parseContract('PairingClaimInput',body);
       await admitPairing(actor);

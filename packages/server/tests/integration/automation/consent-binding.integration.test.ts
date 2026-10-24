@@ -59,6 +59,8 @@ describeWithPostgres('Consent-granted worker binding: the consent page is the pe
     // The MCP catalog sees the paired inbox at once; the same client in an ordinary chat, without the scope, sees nothing new.
     const access = await f.worker.access(actor);
     expect(access?.catalogs).toEqual(['standard','automationWorker']);expect(access?.pairedTargets).toHaveLength(1);
+    // The worker learns its inbox from the server, so the Owner never relays a target ID.
+    expect((await f.worker.mine(actor)).map(item => ({ id: item.id,name: item.configuration.name,wakeReadiness: item.wakeReadiness }))).toEqual([{ id: targets[0].id,name: 'ChatGPT',wakeReadiness: 'active' }]);
     expect(await f.worker.access(await principal(f,await f.mint({ clientId: CHATGPT,scopes: ['mcp:read:own'] })))).toBeNull();
   });
 

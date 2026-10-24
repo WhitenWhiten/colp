@@ -45,7 +45,7 @@ describeWithPostgres('AW-30 current conditional Automation catalogs',() => {
     await expect(api.readResource(c,'test:standard')).rejects.toThrow('Invalid Resource URI.');
     expect((await f.pair(s.grant)).statusCode).toBe(200);
     const after = await api.listTools(c);
-    expect(after.tools.map(t => t.name).sort()).toEqual(['automation.targets.pair','automation.jobs.list','automation.jobs.get','automation.jobs.inputs',
+    expect(after.tools.map(t => t.name).sort()).toEqual(['automation.targets.pair','automation.targets.mine','automation.jobs.list','automation.jobs.get','automation.jobs.inputs',
       'automation.jobs.claim','automation.jobs.heartbeat','automation.jobs.submit','automation.jobs.fail'].sort());
     expect(after.cacheKey).not.toBe(before.cacheKey);
     for (const tool of after.tools) expect((await api.getTool!(c,tool.name))?.inputSchema).toEqual(tool.inputSchema);
@@ -85,7 +85,7 @@ describeWithPostgres('AW-30 current conditional Automation catalogs',() => {
     const grant = await f.ownerPost(`/targets/${s.target.id}/pairings`,{ reason: 'Pair combined catalog' },String(target.headers.etag));
     expect(grant.statusCode,grant.body).toBe(201);expect((await f.pair(grant.json())).statusCode).toBe(200);
     const api = facade(),worker = await context(),all = await context(await f.mint({ scopes: ['automation:work','automation:read','automation:manage','mcp:read:own'] }));
-    const listed = await api.listTools(all);expect(listed.tools).toHaveLength(16);
+    const listed = await api.listTools(all);expect(listed.tools).toHaveLength(17);
     expect((await api.listTools(worker)).tools.filter(t => t.name.startsWith('automation.rules.'))).toEqual([]);
     expect(await api.callTool(worker,'automation.rules.describe',{})).toMatchObject({ stableCode: 'unknown_tool' });
     expect(await api.getTool!(all,'automation.rules.describe')).toBeTruthy();

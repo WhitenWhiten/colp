@@ -36,4 +36,8 @@ export async function saveExecutor(store: TargetStore,body: unknown,id?: string,
   return store.executors.save(input,id);
 }
 
-export interface WorkerPairingPort { pair(actor: import('./claim-job.js').WorkPrincipal,body: unknown,commandId?: string): Promise<{ kind: 'succeeded'; target: Target } | Exclude<import('../../commands/index.js').ProductCommandClaim,{ kind: 'claimed' }>> }
+export interface WorkerPairingPort {
+  pair(actor: import('./claim-job.js').WorkPrincipal,body: unknown,commandId?: string): Promise<{ kind: 'succeeded'; target: Target } | Exclude<import('../../commands/index.js').ProductCommandClaim,{ kind: 'claimed' }>>;
+  /** The paired inboxes this credential works for; how a worker bound by consent learns its target IDs. */
+  mine(actor: import('./claim-job.js').WorkPrincipal): Promise<Target[]>;
+}

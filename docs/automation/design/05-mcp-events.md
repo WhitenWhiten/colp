@@ -25,9 +25,9 @@ The experimental sketch W02 is a draft with poll/push and provisional errors. Ke
 | standard only | None | No automation instructions or resources leak into ordinary clients |
 | automationManager | rules.describe, bindings.list, targets.list, rules.validate, rules.preview, rules.save, rules.set_state (all prefixed `automation.`) | Explicit manager opt-in and each tool's read/manage scope |
 | automationWorker, not paired | `automation.targets.pair` only | Authenticated worker opt-in, `automation:work`, one-use Owner grant bound to expected client/credential |
-| automationWorker, paired | Pair plus `automation.jobs.list`, get, inputs, claim, heartbeat, submit, fail | Current target binding, work scope, job/input authority |
+| automationWorker, paired | Pair plus `automation.targets.mine`, `automation.jobs.list`, get, inputs, claim, heartbeat, submit, fail | Current target binding, work scope, job/input authority |
 
-The [catalog](api/mcp-tool-catalog.json) contains 15 descriptors: seven manager and eight worker tools. It is a design registry, not a wire `tools/list` response; prune internal metadata and unreachable definitions when generating the actual catalog. Apply the same authorization on `tools/call`. Include tenant, credential/client binding, scopes, profile revision and host mode in caches. A client name such as “dot” grants nothing.
+The [catalog](api/mcp-tool-catalog.json) contains 16 descriptors: seven manager and nine worker tools (`automation.targets.mine` lists the credential's own paired inboxes, so a worker bound by consent learns its target IDs without the pair response). It is a design registry, not a wire `tools/list` response; prune internal metadata and unreachable definitions when generating the actual catalog. Apply the same authorization on `tools/call`. Include tenant, credential/client binding, scopes, profile revision and host mode in caches. A client name such as “dot” grants nothing.
 
 ## 4. Pairing in both transports
 

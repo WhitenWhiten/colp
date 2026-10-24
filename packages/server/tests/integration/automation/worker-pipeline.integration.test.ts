@@ -246,7 +246,7 @@ describeWithPostgres('AW-31 authenticated polling and typed canonical orchestrat
     expect((await sql`SELECT * FROM automation_job_attempts`.execute(f.db)).rows).toEqual([]);
     await f.revokeWorker();expect((await read(`/jobs/${job.id}?deliveryHandle=${job.deliveryHandle}`)).statusCode).toBe(401);
   });
-  test('all fifteen MCP tools dispatch real application operations and share worker state with HTTP',async () => {
+  test('all sixteen MCP tools dispatch real application operations and share worker state with HTTP',async () => {
     const { target,ruleInput } = await setup('aw31_mcp');
     const profile = (await f.app.inject({ url: `/api/v1/me/automations/connection-profiles/${target.configuration.connectionProfileId}`,headers: { cookie: f.owner.cookie } })).json();
     const updated = await f.app.inject({ method: 'PUT',url: `/api/v1/me/automations/connection-profiles/${profile.id}`,
@@ -274,12 +274,13 @@ describeWithPostgres('AW-31 authenticated polling and typed canonical orchestrat
       expect(result.kind === 'complete' && result.structuredContent).toEqual(value);return value;
     };
     await call('automation.targets.pair',{ pairingId: grant.json().pairingId,code: grant.json().code });
-    expect((await api.listTools(context)).tools).toHaveLength(15);
+    expect((await api.listTools(context)).tools).toHaveLength(16);
     const capabilities = await call('automation.rules.describe');
     expect(capabilities.runtimeProfiles).toEqual(['browser-bounded-v1']);
     expect(capabilities).toEqual((await f.app.inject({ url: '/api/v1/me/automations/capabilities',headers: { cookie: f.owner.cookie } })).json());
     expect((await call('automation.bindings.list')).items.length).toBeGreaterThan(0);
     expect((await call('automation.targets.list')).items[0].id).toBe(target.id);
+    expect((await call('automation.targets.mine')).items.map((item: { id: string }) => item.id)).toEqual([target.id]);
     await call('automation.rules.validate',ruleInput);
     await call('automation.rules.preview',{ rule: ruleInput,mode: 'currentState' });
     const saved = await call('automation.rules.save',{ mode: 'create',rule: ruleInput,commandId: randomUUID() });
@@ -297,7 +298,7 @@ describeWithPostgres('AW-31 authenticated polling and typed canonical orchestrat
     const second = (await read('/jobs')).json().items[0],secondLease = (await post(`/jobs/${second.id}/claim`,{ deliveryHandle: second.deliveryHandle })).json();
     await call('automation.jobs.fail',{ jobId: second.id,commandId: randomUUID(),request: { claimToken: secondLease.claimToken,generation: secondLease.generation,kind: 'unknownOutcome',code: 'provider_timeout',message: 'Unknown provider outcome' } });
     expect((await read(`/jobs/${second.id}?deliveryHandle=${second.deliveryHandle}`)).json().status).toBe('uncertain');
-    expect(called.size).toBe(15);
+    expect(called.size).toBe(16);
     await f.revokeWorker();expect((await api.listTools(context)).tools).toEqual([]);
     expect(await api.callTool(context,'automation.jobs.list',{})).toMatchObject({ stableCode: 'unknown_tool' });
   });

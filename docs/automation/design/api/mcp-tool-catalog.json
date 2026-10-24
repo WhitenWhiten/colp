@@ -1,6 +1,6 @@
 {
   "contractVersion": "0.2.1-design",
-  "description": "Conditional catalogs compose through ConnectionProfileInput.catalogs. Seven manager tools and eight worker tools (pair plus seven job tools); only pair is available before binding. Catalog visibility never substitutes for scope/authority checks.",
+  "description": "Conditional catalogs compose through ConnectionProfileInput.catalogs. Seven manager tools and nine worker tools (pair, mine and seven job tools); only pair is available before binding, and a consent that granted automation:work binds without a code. Catalog visibility never substitutes for scope/authority checks.",
   "tools": [
     {
       "name": "automation.rules.describe",
@@ -71,6 +71,25 @@
       },
       "availability": "bootstrapAndPaired",
       "description": "Redeem a one-use Owner grant as the intended authenticated opted-in worker. This tool alone is visible before target binding; it does not require automationManager and does not grant manager or ordinary node tools."
+    },
+    {
+      "name": "automation.targets.mine",
+      "profile": "automationWorker",
+      "requiredScopes": [
+        "automation:work"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/PaginationInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/TargetPage"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "availability": "pairedOnly",
+      "description": "List the paired inboxes (targets) this credential works for, with wake mode and readiness. Call it after sign-in or reconnect to learn the targetId for automation.jobs.list and events/subscribe. It shows no other credential's targets and needs no manager scope."
     },
     {
       "name": "automation.rules.validate",
