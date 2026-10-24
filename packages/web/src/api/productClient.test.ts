@@ -10,7 +10,7 @@ import {
   clearCommandId,
   getOrCreateCommandId,
 } from './commandId'
-import { getCsrfToken, getSessionSnapshot } from './sessionStore'
+import { applyMeView, getCsrfToken, getSessionSnapshot } from './sessionStore'
 import {
   createMemorySessionStorage,
   editorPageBody,
@@ -267,6 +267,9 @@ describe('canonical productClient', () => {
 
   it('updateMe sends the authenticated mutation and immediately updates the session handle', async () => {
     seedAuthenticatedSession('csrf-profile')
+    applyMeView({ account: { id: 'acc-1', email: 'ada@example.com' },
+      profile: { id: 'prof-1', handle: 'ada', displayName: 'Ada', avatarUrl: null },
+      features: { agentActivity: true } })
     const mock = installFetchMock(() => jsonResponse({
       account: { id: 'acc-1', email: 'ada@example.com' },
       profile: { id: 'prof-1', handle: 'ada_new', displayName: 'Ada New', avatarUrl: 'https://cdn.example.test/ada.png', about: 'I collect bookmarks.' },
@@ -283,6 +286,7 @@ describe('canonical productClient', () => {
     expect(getSessionSnapshot().me?.profile.handle).toBe('ada_new')
     expect(getSessionSnapshot().me?.profile.avatarUrl).toBe('https://cdn.example.test/ada.png')
     expect(getSessionSnapshot().me?.profile.about).toBe('I collect bookmarks.')
+    expect(getSessionSnapshot().me?.features?.agentActivity).toBe(true)
 
     const call = lastCall(mock.calls)
     expect(requestMethod(call)).toBe('PATCH')
@@ -297,6 +301,9 @@ describe('canonical productClient', () => {
 
   it('uploadAvatar sends the raw image to /api/v1/me/avatar and applies the returned me', async () => {
     seedAuthenticatedSession('csrf-avatar')
+    applyMeView({ account: { id: 'acc-1', email: 'ada@example.com' },
+      profile: { id: 'prof-1', handle: 'ada', displayName: 'Ada', avatarUrl: null },
+      features: { agentActivity: false } })
     const mock = installFetchMock(() => jsonResponse({
       account: { id: 'acc-1', email: 'ada@example.com' },
       profile: { id: 'prof-1', handle: 'ada', displayName: 'Ada', avatarUrl: 'https://app.example.test/api/v1/avatar/abc' },
@@ -310,6 +317,7 @@ describe('canonical productClient', () => {
     )
     expect(updated.profile.avatarUrl).toBe('https://app.example.test/api/v1/avatar/abc')
     expect(getSessionSnapshot().me?.profile.avatarUrl).toBe('https://app.example.test/api/v1/avatar/abc')
+    expect(getSessionSnapshot().me?.features?.agentActivity).toBe(false)
 
     const call = lastCall(mock.calls)
     expect(requestMethod(call)).toBe('POST')

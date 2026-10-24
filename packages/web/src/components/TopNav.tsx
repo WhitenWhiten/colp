@@ -71,8 +71,11 @@ export function TopNav() {
   /* Automations appear once the server says it has them; "Paused" rides on
      the entry so a paused library is visible from every page (AU-14). */
   const automation = useAutomationStatus(isLoggedIn ? user?.accountId ?? null : null)
-  const activity = useActivityStatus(isLoggedIn ? user?.accountId ?? null : null)
-  const activityAvailable = isLoggedIn && activity.state === 'available'
+  const activityEnabled = user?.features?.agentActivity
+  const activity = useActivityStatus(isLoggedIn && activityEnabled !== false ? user?.accountId ?? null : null)
+  // /me owns availability; summary loads only the badge. Older servers still
+  // use the summary response to discover whether they offer Activity.
+  const activityAvailable = isLoggedIn && (activityEnabled ?? activity.state === 'available')
   const primaryNav = isLoggedIn ? appNav({ automations: automation.state === 'available', sync: !syncUnavailable }) : []
   const automationsPaused = automation.state === 'available' && automation.paused
   // Sign-in and sign-up pages link to each other in their cards already.
@@ -193,7 +196,7 @@ export function TopNav() {
                 to="/activity"
                 end
                 className={() => 'nav-activity'}
-                aria-label={`Activity, ${activity.unreadCount} unread`}
+                aria-label={activity.state === 'available' ? `Activity, ${activity.unreadCount} unread` : 'Activity'}
                 onPointerEnter={() => prefetchRoute('/activity')}
                 onFocus={() => prefetchRoute('/activity')}
               >

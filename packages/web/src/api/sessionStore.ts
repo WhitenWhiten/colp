@@ -94,12 +94,15 @@ export function applySessionView(view: SessionView): void {
   emit()
 }
 
-export function applyMeView(view: MeView | null): void {
+export function applyMeView(view: MeView | null, options?: { preserveFeatures?: boolean }): void {
   const previousId = me?.account.id
   const nextId = view?.account.id
   const hydratingFirstActor = previousId === undefined && nextId !== undefined
   if (previousId !== nextId && !hydratingFirstActor) sessionEpoch += 1
-  me = view
+  // Profile command receipts do not include the deployment's feature switches.
+  me = options?.preserveFeatures && view && previousId === nextId && view.features === undefined && me?.features
+    ? { ...view, features: me.features }
+    : view
   emit()
 }
 

@@ -22,6 +22,23 @@ describe('sessionStore', () => {
     clearSession()
   })
 
+  it('preserves feature switches across profile command responses only for the same account', () => {
+    const view = {
+      account: { id: 'owner', email: 'owner@test' },
+      profile: { id: 'owner', handle: 'owner', displayName: 'Owner', avatarUrl: null },
+    }
+    applyMeView({ ...view, features: { agentActivity: true } })
+    applyMeView(view, { preserveFeatures: true })
+    expect(getSessionSnapshot().me?.features?.agentActivity).toBe(true)
+    applyMeView({ ...view, features: { agentActivity: false } }, { preserveFeatures: true })
+    expect(getSessionSnapshot().me?.features?.agentActivity).toBe(false)
+    applyMeView({ ...view, account: { ...view.account, id: 'other' } }, { preserveFeatures: true })
+    expect(getSessionSnapshot().me?.features).toBeUndefined()
+    applyMeView({ ...view, features: { agentActivity: true } })
+    applyMeView(view)
+    expect(getSessionSnapshot().me?.features).toBeUndefined()
+  })
+
   it('stores csrfToken only in memory (not sessionStorage / localStorage)', () => {
     const sessionStorage = createMemorySessionStorage()
     const localStorage = createMemorySessionStorage()

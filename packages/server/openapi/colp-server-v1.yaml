@@ -2,7 +2,7 @@ openapi: 3.1.0
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Known Product API
-  version: 1.94.0
+  version: 1.95.0
   description: "Version 1.70.0 intentionally removes browser credential
     management: parent keys are provisioned only through the database for
     official bots. Credential child and grant management require a valid parent
@@ -14039,6 +14039,14 @@ components:
           $ref: "#/components/schemas/AccountView"
         profile:
           $ref: "#/components/schemas/ProfileView"
+        features:
+          type: object
+          additionalProperties: false
+          description: Deployment feature switches returned by GET /me, independent of Activity data availability. Absent on older servers and profile command responses.
+          properties:
+            agentActivity:
+              type: boolean
+          required: [agentActivity]
       required:
         - account
         - profile

@@ -256,7 +256,7 @@ function createMemoryPorts(state: MemoryState): IdentityPorts {
   };
 }
 
-function createHarness(avatarStore?: MemoryAvatarStore, productOrigin = 'https://app.example.test') {
+function createHarness(avatarStore?: MemoryAvatarStore, productOrigin = 'https://app.example.test', agentActivityEnabled = false) {
   const state: MemoryState = {
     accounts: new Map(),
     profiles: new Map(),
@@ -286,6 +286,7 @@ function createHarness(avatarStore?: MemoryAvatarStore, productOrigin = 'https:/
     OIDC_TEST_PROVIDER_HMAC_SECRET: 'test-oidc-provider-hmac-secret-not-prod-default',
     NODE_ENV: 'test',
     LOG_LEVEL: 'silent',
+    KNOWN_FEATURE_AGENT_ACTIVITY: String(agentActivityEnabled),
     // Keep Fastify's framework bodyLimit above the avatar route's 2MiB
     // product-level limit so the transport tests exercise the product
     // admission 413 boundary (AVATAR_MAX_BYTES), not the 128KiB default.
@@ -775,6 +776,23 @@ describe('browser auth transport', () => {
     assert.equal(state.sessions.size, 0);
     const bound = state.identities.get(identityKey(issuer, subject));
     assert.equal(bound?.accountId, 'mixed-bound-account');
+  });
+
+  test.each([true, false])('me reports the Activity switch independently of summary data (%s)', async (enabled) => {
+    const { app, unitOfWork, config } = createHarness(undefined, undefined, enabled);
+    apps.push(app);
+    const issued = await unitOfWork.execute(async (ports) => {
+      const ensured = await ensureAccountFromOidcIdentity(ports, {
+        issuer: config.oidc.issuer, subject: 'activity-owner', email: 'activity@example.test',
+        emailVerified: true, displayName: 'Owner', handle: 'activityowner',
+      });
+      return createSession(ports, { accountId: ensured.account.id });
+    });
+    const response = await app.inject({ method: 'GET', url: '/api/v1/me',
+      headers: { cookie: `${SESSION_COOKIE_NAME}=${encodeURIComponent(issued.rawSessionToken)}` } });
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.json().features, { agentActivity: enabled });
+    assert.equal(response.headers['cache-control'], 'private, no-store');
   });
 
   test('getSession re-issues csrf without rotate below threshold; me and DELETE CSRF/Origin flow', async () => {

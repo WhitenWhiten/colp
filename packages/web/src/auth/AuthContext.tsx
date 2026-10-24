@@ -25,6 +25,8 @@ export type AuthUser = {
   initials: string
   accountId: string
   profileId: string
+  /** Server feature switches returned by GET /me; absent on older servers. */
+  features?: MeView['features']
   /** HTTPS avatar URL when the profile has one. */
   avatarUrl?: string | null
   /** Public self-introduction. Empty string when unset. */
@@ -103,6 +105,7 @@ function meToUser(me: MeView): AuthUser {
     initials,
     accountId: me.account.id,
     profileId: me.profile.id,
+    ...(me.features ? { features: me.features } : {}),
     avatarUrl: me.profile.avatarUrl,
     about: me.profile.about ?? '',
   }

@@ -27,6 +27,10 @@ behind `KNOWN_FEATURE_AGENT_ACTIVITY`. The web contract advances to **1.94.0**.
 Compatibility checks explicitly compare against the accepted **1.101.0** baseline;
 this additive delivery does not create a new compatibility baseline.
 
+Version **1.103.0** (web **1.95.0**) adds optional `MeView.features.agentActivity`
+to GET `/api/v1/me`, so navigation can use the deployment switch independently of
+Activity summary requests. Profile command receipts retain their existing shape.
+
 ## Baseline policy after freeze
 
 | File | Role |

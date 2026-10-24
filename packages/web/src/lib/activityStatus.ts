@@ -24,7 +24,7 @@ function subscribe(listener: () => void) {
   return () => { listeners.delete(listener) }
 }
 
-/** Pages can conceal the navigation immediately when their list meets a 404. */
+/** A 404 conceals navigation only on legacy servers without the /me feature switch. */
 export function publishActivityUnavailable(): void {
   publish({ state: 'unavailable', unreadCount: 0, revision: '0' })
   runtime?.pause()

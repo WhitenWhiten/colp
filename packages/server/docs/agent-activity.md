@@ -2,6 +2,9 @@
 
 Activity is the owner's shared inbox for agent bookmark additions and automation results.
 `KNOWN_FEATURE_AGENT_ACTIVITY` defaults to `false`; the self-hosted preset enables it.
+`GET /api/v1/me` exposes this switch as `features.agentActivity`. The web navigation
+uses it independently of summary loading, so an enabled inbox stays reachable when
+its data request fails. Older servers without the switch retain summary-based discovery.
 Its HTTP routes and bookmark producer do not require automation capture or rules to be enabled.
 The worker always registers the durable activity handler so queued events can finish after a flag change.
 

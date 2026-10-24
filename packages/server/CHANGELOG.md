@@ -4,6 +4,10 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Fixed
+
+- Activity navigation uses the feature switch returned at sign-in, keeping the inbox reachable while its summary is loading or fails. Older servers retain summary-based discovery.
+
 ### Security
 
 - Upgrade all container build stages and the server runtime to Node.js 22.23.4, fixing the bundled Brotli decoder vulnerability CVE-2026-111497 and the other issues addressed by the Node.js October 2026 security release.

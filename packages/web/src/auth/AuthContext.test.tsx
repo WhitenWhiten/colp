@@ -44,7 +44,7 @@ let logoutResult: Promise<unknown> | null = null
 function Harness() {
   const auth = useAuth()
   return (
-    <div data-testid="auth" data-logged-in={auth.isLoggedIn} data-session-state={auth.sessionState} data-initials={auth.user?.initials} data-busy={auth.serverBusySeconds ?? ''}>
+    <div data-testid="auth" data-logged-in={auth.isLoggedIn} data-session-state={auth.sessionState} data-initials={auth.user?.initials} data-busy={auth.serverBusySeconds ?? ''} data-activity={auth.user?.features?.agentActivity}>
       {auth.user?.name ?? 'signed out'}
       <button onClick={() => void auth.refreshSession()}>Refresh</button>
       <button onClick={() => { logoutResult = auth.logout() }}>Logout</button>
@@ -78,6 +78,18 @@ describe('AuthProvider session ordering', () => {
   function render() {
     mountTree(<AuthProvider><Harness /></AuthProvider>)
   }
+
+  it.each([true, false])('exposes the Activity switch from session bootstrap (%s)', async (agentActivity) => {
+    const withFeatures = { ...me, features: { agentActivity } }
+    mocks.bootstrap.mockImplementation(async () => {
+      applySessionView(session)
+      applyMeView(withFeatures)
+      return { session, me: withFeatures }
+    })
+    render()
+    await waitForDom(() => loggedInState() === 'true')
+    expect(document.querySelector('[data-testid="auth"]')?.getAttribute('data-activity')).toBe(String(agentActivity))
+  })
   function loggedInState() {
     return document.querySelector('[data-testid="auth"]')?.getAttribute('data-logged-in')
   }

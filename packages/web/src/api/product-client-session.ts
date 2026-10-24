@@ -199,7 +199,7 @@ export function createProductSessionClient(transport: ProductTransport): {
       }),
       options,
     )
-    applyMeView(updated)
+    applyMeView(updated, { preserveFeatures: true })
     return updated
   }
 
@@ -212,7 +212,7 @@ export function createProductSessionClient(transport: ProductTransport): {
       }),
       options,
     )
-    applyMeView(updated)
+    applyMeView(updated, { preserveFeatures: true })
     return updated
   }
 

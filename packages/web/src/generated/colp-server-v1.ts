@@ -3764,6 +3764,10 @@ export interface components {
         MeView: {
             account: components["schemas"]["AccountView"];
             profile: components["schemas"]["ProfileView"];
+            /** @description Deployment feature switches returned by GET /me, independent of Activity data availability. Absent on older servers and profile command responses. */
+            features?: {
+                agentActivity: boolean;
+            };
         };
         UpdateMeRequest: {
             handle: string;
