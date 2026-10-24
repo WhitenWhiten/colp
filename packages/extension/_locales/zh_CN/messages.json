@@ -9519,9 +9519,53 @@
     "message": "未公开列出",
     "description": "Unlisted"
   },
+  "syncIssue_actionDismissed_one": {
+    "message": "已关闭 $1 项。此浏览器保留其版本。",
+    "description": "Dismissed $1 item. This browser keeps its version."
+  },
+  "syncIssue_actionDismissed_other": {
+    "message": "已关闭 $1 项。此浏览器保留其版本。",
+    "description": "Dismissed $1 items. This browser keeps its versions."
+  },
+  "syncIssue_actionError": {
+    "message": "无法完成（$1）。这些项目保持原样。",
+    "description": "Could not do that ($1). The items stay as they were."
+  },
+  "syncIssue_actionFailed_one": {
+    "message": "有 $1 项无法再试一次（$2）。它保持原样。",
+    "description": "$1 item could not be tried again ($2). It stays as it was."
+  },
+  "syncIssue_actionFailed_other": {
+    "message": "有 $1 项无法再试一次（$2）。它们保持原样。",
+    "description": "$1 items could not be tried again ($2). They stay as they were."
+  },
+  "syncIssue_actionMore": {
+    "message": "还有更多项目。请再点一次处理其余的。",
+    "description": "More items are left. Press again for the rest."
+  },
+  "syncIssue_actionNoReply": {
+    "message": "同步没有响应。请稍后再试。",
+    "description": "Sync did not answer. Try again in a moment."
+  },
+  "syncIssue_actionNothing": {
+    "message": "没有变化：该项目已不存在，或不再提供此操作。",
+    "description": "Nothing changed: the item is gone or no longer offers this."
+  },
+  "syncIssue_actionRetried_one": {
+    "message": "已再试一次。$1 项已回到上传队列。",
+    "description": "Tried again. $1 item is back in the upload queue."
+  },
+  "syncIssue_actionRetried_other": {
+    "message": "已再试一次。$1 项已回到上传队列。",
+    "description": "Tried again. $1 items are back in the upload queue."
+  },
+  "syncIssue_actionWorking": {
+    "message": "处理中…",
+    "description": "Working…"
+  },
   "syncIssue_applyFailed": {
-    "message": "浏览器拒绝应用来自书签库的这项更改，因此已将其搁置。选择“再试一次”会重新应用；选择“关闭”则保留此浏览器上的版本。",
-    "description": "The browser refused to apply this change from your library, so it was set aside. Try again re-applies it; Dismiss keeps this browser's version."
+    "message": "浏览器拒绝应用来自书签库的这项更改，因此已将其搁置。选择“关闭”可保留此浏览器上的版本。",
+    "description": "The browser refused to apply this change from your library, so it was set aside. Dismiss keeps this browser's version."
   },
   "syncIssue_conflictHold": {
     "message": "正在等待此书签的冲突解决",
@@ -9550,6 +9594,18 @@
   "syncIssue_deviceBookmark": {
     "message": "此设备上的书签",
     "description": "A bookmark on this device"
+  },
+  "syncIssue_dismissAll": {
+    "message": "全部关闭（$1）",
+    "description": "Dismiss all $1"
+  },
+  "syncIssue_dismissAllConfirm": {
+    "message": "确定全部关闭（$1）？此浏览器会保留其版本。",
+    "description": "Dismiss all $1? This browser keeps its versions."
+  },
+  "syncIssue_dismissTitle": {
+    "message": "关闭此项目并保留此浏览器上的版本。不会删除任何内容。",
+    "description": "Closes this item and keeps this browser’s version. Nothing is deleted."
   },
   "syncIssue_download": {
     "message": "下载",
@@ -9586,6 +9642,10 @@
   "syncIssue_nativeUnknown": {
     "message": "等你在“等你处理”中决定",
     "description": "Waiting for your decision under Waiting for you"
+  },
+  "syncIssue_nearCeiling": {
+    "message": "待处理项目达到 $2 个时同步会停止，目前已有 $1 个。请在此之前对其中一些选择“再试一次”或“关闭”。",
+    "description": "Sync stops when $2 items are open, and $1 are open now. Try again or dismiss some of them before it does."
   },
   "syncIssue_onDevice": {
     "message": "此设备上",
@@ -9631,6 +9691,14 @@
     "message": "服务器已处理这项更改，但拒绝了它的标识。这项更改尚未生效。",
     "description": "The server used this change up but refused its identity. The change has not been applied."
   },
+  "syncIssue_retryAll": {
+    "message": "全部再试一次（$1）",
+    "description": "Try again for all $1"
+  },
+  "syncIssue_retryHint": {
+    "message": "“重试同步”会再次向服务器检查。要释放被搁置的项目，请对它选择“再试一次”。",
+    "description": "Retry sync checks the server again. To release a held item, use Try again on it."
+  },
   "syncIssue_secretField": {
     "message": "某个字段看起来像密码或密钥，因此不会同步",
     "description": "A field looks like a password or key, so it is not synced"
@@ -9662,6 +9730,10 @@
   "syncIssue_subtreeChanged": {
     "message": "已在此处删除，但该文件夹先在别处发生了变化。选择“再试一次”仍会删除它，连同那些变化",
     "description": "Deleted here, but the folder changed elsewhere first. Try again deletes it anyway, with those changes"
+  },
+  "syncIssue_tryAgain": {
+    "message": "再试一次",
+    "description": "Try again"
   },
   "syncIssue_upload": {
     "message": "上传",
@@ -9752,12 +9824,12 @@
     "description": "It will retry automatically."
   },
   "syncProblem_nextCeiling": {
-    "message": "请对下面的部分项目选择“再试一次”“释放”或“关闭”，同步会自行继续。也可以重置此设备上的同步：你的书签会保留，尚未同步的更改会被搁置。",
-    "description": "Try again, release or dismiss some of the items below and sync continues by itself. Or reset sync on this device: your bookmarks stay, and changes that have not synced yet are set aside."
+    "message": "请对下面的部分项目（或同一类的全部项目）选择“再试一次”或“关闭”，同步会自行继续。也可以重置此设备上的同步：你的书签会保留，尚未同步的更改会被搁置。",
+    "description": "Try again or dismiss some of the items below, or all of one kind, and sync continues by itself. Or reset sync on this device: your bookmarks stay, and changes that have not synced yet are set aside."
   },
   "syncProblem_nextCeilingNoReset": {
-    "message": "请对下面的部分项目选择“再试一次”“释放”或“关闭”，同步会自行继续。",
-    "description": "Try again, release or dismiss some of the items below and sync continues by itself."
+    "message": "请对下面的部分项目（或同一类的全部项目）选择“再试一次”或“关闭”，同步会自行继续。",
+    "description": "Try again or dismiss some of the items below, or all of one kind, and sync continues by itself."
   },
   "syncProblem_nextCheckAgain": {
     "message": "重试同步会再次向服务器检查。",

@@ -7370,8 +7370,41 @@
   "subscription_visibility_unlisted": {
     "message": "Unlisted"
   },
+  "syncIssue_actionDismissed_one": {
+    "message": "Dismissed $1 item. This browser keeps its version."
+  },
+  "syncIssue_actionDismissed_other": {
+    "message": "Dismissed $1 items. This browser keeps its versions."
+  },
+  "syncIssue_actionError": {
+    "message": "Could not do that ($1). The items stay as they were."
+  },
+  "syncIssue_actionFailed_one": {
+    "message": "$1 item could not be tried again ($2). It stays as it was."
+  },
+  "syncIssue_actionFailed_other": {
+    "message": "$1 items could not be tried again ($2). They stay as they were."
+  },
+  "syncIssue_actionMore": {
+    "message": "More items are left. Press again for the rest."
+  },
+  "syncIssue_actionNoReply": {
+    "message": "Sync did not answer. Try again in a moment."
+  },
+  "syncIssue_actionNothing": {
+    "message": "Nothing changed: the item is gone or no longer offers this."
+  },
+  "syncIssue_actionRetried_one": {
+    "message": "Tried again. $1 item is back in the upload queue."
+  },
+  "syncIssue_actionRetried_other": {
+    "message": "Tried again. $1 items are back in the upload queue."
+  },
+  "syncIssue_actionWorking": {
+    "message": "Working…"
+  },
   "syncIssue_applyFailed": {
-    "message": "The browser refused to apply this change from your library, so it was set aside. Try again re-applies it; Dismiss keeps this browser's version."
+    "message": "The browser refused to apply this change from your library, so it was set aside. Dismiss keeps this browser's version."
   },
   "syncIssue_conflictHold": {
     "message": "Waiting for a conflict on this bookmark to be resolved"
@@ -7393,6 +7426,15 @@
   },
   "syncIssue_deviceBookmark": {
     "message": "A bookmark on this device"
+  },
+  "syncIssue_dismissAll": {
+    "message": "Dismiss all $1"
+  },
+  "syncIssue_dismissAllConfirm": {
+    "message": "Dismiss all $1? This browser keeps its versions."
+  },
+  "syncIssue_dismissTitle": {
+    "message": "Closes this item and keeps this browser’s version. Nothing is deleted."
   },
   "syncIssue_download": {
     "message": "Download"
@@ -7420,6 +7462,9 @@
   },
   "syncIssue_nativeUnknown": {
     "message": "Waiting for your decision under Waiting for you"
+  },
+  "syncIssue_nearCeiling": {
+    "message": "Sync stops when $2 items are open, and $1 are open now. Try again or dismiss some of them before it does."
   },
   "syncIssue_onDevice": {
     "message": "On this device"
@@ -7454,6 +7499,12 @@
   "syncIssue_resourceId": {
     "message": "The server used this change up but refused its identity. The change has not been applied."
   },
+  "syncIssue_retryAll": {
+    "message": "Try again for all $1"
+  },
+  "syncIssue_retryHint": {
+    "message": "Retry sync checks the server again. To release a held item, use Try again on it."
+  },
   "syncIssue_secretField": {
     "message": "A field looks like a password or key, so it is not synced"
   },
@@ -7477,6 +7528,9 @@
   },
   "syncIssue_subtreeChanged": {
     "message": "Deleted here, but the folder changed elsewhere first. Try again deletes it anyway, with those changes"
+  },
+  "syncIssue_tryAgain": {
+    "message": "Try again"
   },
   "syncIssue_upload": {
     "message": "Upload"
@@ -7545,10 +7599,10 @@
     "message": "It will retry automatically."
   },
   "syncProblem_nextCeiling": {
-    "message": "Try again, release or dismiss some of the items below and sync continues by itself. Or reset sync on this device: your bookmarks stay, and changes that have not synced yet are set aside."
+    "message": "Try again or dismiss some of the items below, or all of one kind, and sync continues by itself. Or reset sync on this device: your bookmarks stay, and changes that have not synced yet are set aside."
   },
   "syncProblem_nextCeilingNoReset": {
-    "message": "Try again, release or dismiss some of the items below and sync continues by itself."
+    "message": "Try again or dismiss some of the items below, or all of one kind, and sync continues by itself."
   },
   "syncProblem_nextCheckAgain": {
     "message": "Retry sync checks with the server again."
