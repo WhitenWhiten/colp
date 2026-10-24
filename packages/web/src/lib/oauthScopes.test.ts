@@ -12,6 +12,16 @@ describe('groupScopes', () => {
     ])
   })
 
+  it('folds the automation scopes into their own group, before the session group', () => {
+    const groups = groupScopes(['offline_access', 'automation:work', 'nodes:read', 'automation:manage', 'automation:read'])
+    expect(groups.map((group) => [group.id, group.scopes])).toEqual([
+      ['read', ['nodes:read']],
+      ['automation', ['automation:work', 'automation:manage', 'automation:read']],
+      ['session', ['offline_access']],
+    ])
+    expect(consentScopeMeta('automation:work')?.name).toBe('Do rule work for you')
+  })
+
   it('keeps unknown scopes visible under Other permissions', () => {
     expect(groupScopes(['mcp:read:own', 'made:up']).map((group) => group.name))
       .toEqual(['Read your library', 'Other permissions'])
@@ -20,7 +30,7 @@ describe('groupScopes', () => {
   it('describes every scope the server advertises', () => {
     const advertised = ['mcp:read:public', 'mcp:read:own', 'collections:read', 'collections:write', 'nodes:read',
       'nodes:write', 'annotations:read', 'annotations:write', 'access:write', 'changes:commit', 'changes:cancel',
-      'product:read', 'product:write', 'offline_access']
+      'product:read', 'product:write', 'automation:read', 'automation:manage', 'automation:work', 'offline_access']
     expect(advertised.filter((scope) => consentScopeMeta(scope) === null)).toEqual([])
   })
 })

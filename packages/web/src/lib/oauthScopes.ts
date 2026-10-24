@@ -6,7 +6,7 @@ import type { IconName } from '../components/Icon'
  * human name, one-line description, group, and icon live here so the
  * surfaces cannot drift apart.
  */
-export type OAuthScopeGroup = 'read' | 'write' | 'approval' | 'session'
+export type OAuthScopeGroup = 'read' | 'write' | 'approval' | 'automation' | 'session'
 
 export type OAuthScopeMeta = {
   /** Short permission name — the bold headline of a consent row. */
@@ -102,6 +102,24 @@ const OAUTH_SCOPE_META = Object.freeze({
     icon: 'cross',
     group: 'approval',
   },
+  'automation:read': {
+    name: 'Read your automation rules',
+    label: 'See your rules, the folders they file into, and the agents they use',
+    icon: 'bolt',
+    group: 'automation',
+  },
+  'automation:manage': {
+    name: 'Manage your automation rules',
+    label: 'Create, change, preview and pause your rules',
+    icon: 'bolt',
+    group: 'automation',
+  },
+  'automation:work': {
+    name: 'Do rule work for you',
+    label: 'Pick up tasks your rules ask for, such as summaries and tags, and send the results back as proposals. Approving this makes the agent a worker; no pairing code is needed.',
+    icon: 'bolt',
+    group: 'automation',
+  },
   'offline_access': {
     name: 'Stay signed in',
     label: 'Stay signed in until you revoke access',
@@ -144,6 +162,12 @@ export const OAUTH_SCOPE_GROUPS: ReadonlyArray<{
     name: 'Act on plans you approve',
     label: 'Publish or change who can see a collection, and apply or cancel change plans after you approve them.',
     icon: 'lock',
+  },
+  {
+    id: 'automation',
+    name: 'Run your automations',
+    label: 'Do the work your rules ask for, such as summaries and tags, and manage the rules. Results still go through your approvals.',
+    icon: 'bolt',
   },
   {
     id: 'session',
