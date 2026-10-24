@@ -9607,6 +9607,10 @@
     "message": "浏览器拒绝应用来自书签库的这项更改，因此已将其搁置。选择“关闭”可保留此浏览器上的版本。",
     "description": "The browser refused to apply this change from your library, so it was set aside. Dismiss keeps this browser's version."
   },
+  "syncIssue_applyFailedRetry": {
+    "message": "浏览器拒绝应用来自书签库的这项更改，因此已搁置。其他内容继续同步。点击“再试一次”会重新应用它；点击“关闭”则保留此浏览器的版本。",
+    "description": "The browser refused to apply this change from your library, so it was set aside. Everything else keeps syncing. Try again applies it; Dismiss keeps this browser's version."
+  },
   "syncIssue_attemptChanged": {
     "message": "有一项更改可能已到达服务器，但无法再次发送，因此之后的上传都在等待。重置此设备上的同步可清除它",
     "description": "A change that may already have reached the server could not be sent again, so later uploads are waiting. Resetting sync on this device clears it"
@@ -9630,6 +9634,10 @@
   "syncIssue_conflictPending": {
     "message": "正在等待冲突解决",
     "description": "Waiting for a conflict to be resolved"
+  },
+  "syncIssue_contentTargetMissing": {
+    "message": "在此设备上已被删除，但书签库中仍有它。同步没有处理它：你可以恢复它，或点击“重试同步”把它加回来",
+    "description": "Deleted on this device while your library still has it. Sync left it alone: restore it, or press Retry sync to add it back"
   },
   "syncIssue_deleteDecision": {
     "message": "等你在“删除”中决定：删除、恢复，或保留在此浏览器上",
@@ -9711,6 +9719,10 @@
     "message": "另有 $1 项。复制详情可查看全部。",
     "description": "and $1 more. Copy details lists all of them."
   },
+  "syncIssue_moveCycle": {
+    "message": "书签库要求把这个文件夹移到它自己的子文件夹中，浏览器不允许这样做，因此已保持原位。请在任一设备上移动这两个文件夹中的一个来解开它们",
+    "description": "The library asks to move this folder into one of its own subfolders, which the browser does not allow. It was left where it is. Move one of the two folders on any device to untangle them"
+  },
   "syncIssue_nativeUnknown": {
     "message": "等你在“等你处理”中决定",
     "description": "Waiting for your decision under Waiting for you"
@@ -9734,6 +9746,10 @@
   "syncIssue_placementUnproven": {
     "message": "无法确认它在文件夹中的位置",
     "description": "Its place in the folder couldn't be confirmed"
+  },
+  "syncIssue_projectionAmbiguous": {
+    "message": "同一文件夹中已有一个完全相同的书签，且没有迹象表明是同步创建的，因此同步没有处理它。请删除多余的副本并点击“重试同步”，同步会把它加上",
+    "description": "An identical bookmark is already in the same folder and nothing shows that sync created it, so sync left it alone. Delete the extra copy and press Retry sync, and sync adds it"
   },
   "syncIssue_pullNotApplied": {
     "message": "无法应用到此浏览器",
@@ -9895,6 +9911,10 @@
     "message": "此设备上的同步已停止：它搁置的项目过多，无法继续安全同步。",
     "description": "Sync on this device has stopped: it set aside too many items to keep syncing safely."
   },
+  "syncProblem_clockOff": {
+    "message": "这台电脑的时钟与服务器相差超过两分钟。",
+    "description": "This computer's clock is more than two minutes off the server's."
+  },
   "syncProblem_codec": {
     "message": "某个书签的值同步无法存储，例如标题或地址过长。",
     "description": "A bookmark has a value sync can't store, such as a very long title or address."
@@ -9955,9 +9975,25 @@
     "message": "此书签由你的浏览器或组织管理，同步无法更改它。",
     "description": "This bookmark is managed by your browser or organization, so sync can't change it."
   },
-  "syncProblem_nativeProjectionAmbiguous": {
-    "message": "同步无法分辨此设备上的哪个书签对应书签库中的那一个。",
-    "description": "Sync can't tell which bookmark on this device matches one from your library."
+  "syncProblem_manifestUnavailable": {
+    "message": "这个地址看起来不是 Know-N 同步服务器：它拒绝说明自己的身份。",
+    "description": "This address does not look like a Know-N sync server: it refused to describe itself."
+  },
+  "syncProblem_moveCycle": {
+    "message": "书签库要求把一个文件夹移到它自己的子文件夹中，浏览器不允许这样做。",
+    "description": "The library asks to move a folder into one of its own subfolders, which the browser does not allow."
+  },
+  "syncProblem_nativeReadFailed": {
+    "message": "浏览器刚才无法读取你的书签。",
+    "description": "The browser could not read your bookmarks just now."
+  },
+  "syncProblem_nextAllowSite": {
+    "message": "请允许访问该站点（Chrome：扩展程序，详细信息，站点访问权限），同步会自动继续。不会丢失任何内容。",
+    "description": "Allow access to the site (Chrome: Extensions, Details, Site access) and sync continues by itself. Nothing is lost."
+  },
+  "syncProblem_nextAllowedOrigins": {
+    "message": "请更新扩展程序，或请运行你的 Know-N 服务器的人检查它允许的来源。你的书签是安全的。",
+    "description": "Update the extension, or ask whoever runs your Know-N server to check its allowed origins. Your bookmarks are safe."
   },
   "syncProblem_nextByItself": {
     "message": "它会自动重试。",
@@ -9971,9 +10007,17 @@
     "message": "请对下面的部分项目（或同一类的全部项目）选择“再试一次”或“关闭”，同步会自行继续。",
     "description": "Try again or dismiss some of the items below, or all of one kind, and sync continues by itself."
   },
+  "syncProblem_nextCheckAddress": {
+    "message": "请在“账号”中检查服务器地址，然后点击“重试同步”。",
+    "description": "Check the server address under Account, then press Retry sync."
+  },
   "syncProblem_nextCheckAgain": {
     "message": "重试同步会再次向服务器检查。",
     "description": "Retry sync checks with the server again."
+  },
+  "syncProblem_nextCheckVersion": {
+    "message": "请更新扩展程序，或请运行你的 Know-N 服务器的人检查它的版本。“重试同步”会再次检查。你的书签是安全的。",
+    "description": "Update the extension, or ask whoever runs your Know-N server to check its version. Retry sync checks again. Your bookmarks are safe."
   },
   "syncProblem_nextChecksAt": {
     "message": "同步会在 $1 自行再次检查，重试同步会立即检查。",
@@ -9987,6 +10031,10 @@
     "message": "请重置此设备上的同步以清除它。你的书签会保留；尚未同步的更改会被搁置，不会重试。",
     "description": "Reset sync on this device to clear it. Your bookmarks stay; changes that have not synced yet are set aside and not retried."
   },
+  "syncProblem_nextClockAuto": {
+    "message": "同步仍在正常进行。请把时钟设为自动校时，登录和到期检查才会保持可靠。",
+    "description": "Sync keeps working. Set the clock to automatic time so sign-in and expiry checks stay reliable."
+  },
   "syncProblem_nextCloseWindows": {
     "message": "请关闭其他 Know-N 窗口，同步会自行继续。",
     "description": "Close other Know-N windows and sync carries on by itself."
@@ -9998,6 +10046,10 @@
   "syncProblem_nextCooling": {
     "message": "它在多次出错后暂停，将在 $1 再次尝试。重试同步会立即尝试。",
     "description": "It paused after repeated errors and will try again at $1. Retry sync tries now."
+  },
+  "syncProblem_nextDeleteExtraCopy": {
+    "message": "请删除多余的副本并点击“重试同步”，同步会添加这个书签。",
+    "description": "Delete the extra copy and press Retry sync, and sync will add the bookmark."
   },
   "syncProblem_nextDetailsOnly": {
     "message": "请复制详情以便排查。你的书签不受影响。",
@@ -10035,9 +10087,21 @@
     "message": "重试同步会再试一次，但可能仍会以同样的方式停止。",
     "description": "Retry sync tries once more, but it may stop the same way."
   },
+  "syncProblem_nextMoveCycle": {
+    "message": "该文件夹保持原位。请在任一设备上移动这两个文件夹中的一个来解开它们。",
+    "description": "The folder was left where it is. Move one of the two folders on any device to untangle them."
+  },
   "syncProblem_nextPermission": {
     "message": "请在“文件夹”标签页中允许书签访问，同步会随即恢复。",
     "description": "Allow bookmark access in the Folders tab and sync resumes."
+  },
+  "syncProblem_nextRaiseSnapshotLimit": {
+    "message": "请让运行你的 Know-N 服务器的人调高它的快照大小上限（SYNC_SNAPSHOT_MAX_BYTES），然后点击“重试同步”。重置没有帮助。你的书签是安全的。",
+    "description": "Ask whoever runs your Know-N server to raise its snapshot size limit (SYNC_SNAPSHOT_MAX_BYTES), then press Retry sync. Resetting will not help. Your bookmarks are safe."
+  },
+  "syncProblem_nextRegisterAgain": {
+    "message": "请重置此设备上的同步，以重新注册此浏览器。如果仍然无效，请退出登录后再登录。此处的书签会保留。",
+    "description": "Reset sync on this device to register this browser again. If that does not help, sign out and in again. Your bookmarks here are kept."
   },
   "syncProblem_nextResendsSame": {
     "message": "重试同步会再次发送它。",
@@ -10063,9 +10127,21 @@
     "message": "它在多次出错后暂停，稍后会自动再试。重试同步会立即尝试。",
     "description": "It paused after repeated errors and tries again shortly. Retry sync tries now."
   },
+  "syncProblem_nextSessionRetry": {
+    "message": "同步会自动再试。如果一直这样，请更新扩展程序，或退出登录后再登录。",
+    "description": "It will try again by itself. If it keeps happening, update the extension, or sign out and in again."
+  },
   "syncProblem_nextSignIn": {
     "message": "请在“账号”中重新登录，同步会随即恢复。",
     "description": "Sign in again from Account and sync resumes."
+  },
+  "syncProblem_nextSignInAgain": {
+    "message": "同步会自动重新登录。如果一直失败，请在“账号”中重新登录。",
+    "description": "Sync signs in again by itself. If it keeps failing, sign in again from Account."
+  },
+  "syncProblem_nextSignOutIn": {
+    "message": "请退出登录后再登录，以重新注册此浏览器。此处的书签会保留。",
+    "description": "Sign out and in again to register this browser. Your bookmarks here are kept."
   },
   "syncProblem_nextStalled": {
     "message": "重试同步会立即再试一次。如果情况没有好转，请复制详情以便排查；你的书签不受影响。",
@@ -10111,9 +10187,17 @@
     "message": "同步需要读取和更改你书签的权限。",
     "description": "Sync needs permission to read and change your bookmarks."
   },
+  "syncProblem_projectionAmbiguous": {
+    "message": "同一文件夹中已有一个完全相同的书签，且没有迹象表明是同步创建的，因此同步没有处理它。",
+    "description": "An identical bookmark is already in the same folder and nothing shows that sync created it, so sync left it alone."
+  },
   "syncProblem_quotaExceeded": {
     "message": "浏览器已没有足够空间保存同步数据。",
     "description": "Your browser has no room left to save sync data."
+  },
+  "syncProblem_rateLimited": {
+    "message": "服务器要求同步放慢速度。",
+    "description": "The server asked sync to slow down."
   },
   "syncProblem_rebuild": {
     "message": "此设备上关于“哪个书签是哪个”的记录已与你的书签库不一致，因此同步在造成任何损害之前就停止了。",
@@ -10127,6 +10211,14 @@
     "message": "此浏览器已在同步中心被停止，因此不再同步。",
     "description": "This browser was stopped from the Sync center, so it no longer syncs."
   },
+  "syncProblem_replicaUnknown": {
+    "message": "服务器不认识此浏览器的同步身份，或找不到你的书签库。",
+    "description": "The server does not recognize this browser's sync identity, or cannot find your library."
+  },
+  "syncProblem_requestRefused": {
+    "message": "服务器拒绝了此扩展程序的一个请求，因为它与服务器期望的不一致。",
+    "description": "The server refused a request from this extension because it does not match what the server expects."
+  },
   "syncProblem_resetNativeUnsettled": {
     "message": "在此浏览器中做出的一项书签更改还没有确认结果，因此暂时无法重置。请先在“等你处理”中决定它。",
     "description": "A bookmark change made in this browser has no confirmed result yet, so Reset is not available. Decide it under Waiting for you first."
@@ -10134,10 +10226,6 @@
   "syncProblem_resetNeedsConnection": {
     "message": "重置需要联网，因为某项更改可能已到达服务器。请联网后再试。",
     "description": "Resetting needs a connection, because a change may already have reached the server. Connect and try again."
-  },
-  "syncProblem_resourceNotFound": {
-    "message": "服务器不认识此浏览器的同步副本。",
-    "description": "The server doesn't recognize this browser's sync copy."
   },
   "syncProblem_retired": {
     "message": "此浏览器已在同步中心被停止，因此不再同步。",
@@ -10151,13 +10239,33 @@
     "message": "服务器目前没有答复上传请求。",
     "description": "The server is not answering the upload right now."
   },
-  "syncProblem_sessionInvalid": {
-    "message": "服务器没有接受此浏览器的同步会话。电脑时钟偏差很大或扩展版本过旧时会出现这种情况。",
-    "description": "The server didn't accept this browser's sync session. This happens when the computer's clock is far off or the extension is out of date."
+  "syncProblem_serverProblem": {
+    "message": "服务器出了问题，无法响应。",
+    "description": "The server had a problem and could not answer."
+  },
+  "syncProblem_sessionGone": {
+    "message": "服务器不再认识这个同步会话：它已过期或被替换。",
+    "description": "The server does not know this sync session any more: it expired or was replaced."
+  },
+  "syncProblem_sessionNotStarted": {
+    "message": "同步无法与服务器建立会话。",
+    "description": "Sync could not start a session with the server."
   },
   "syncProblem_signIn": {
     "message": "你的登录已无法用于同步。",
     "description": "Your sign-in no longer works for sync."
+  },
+  "syncProblem_signInRefused": {
+    "message": "服务器不再接受此浏览器的登录。",
+    "description": "The server stopped accepting this browser's sign-in."
+  },
+  "syncProblem_siteAccessOff": {
+    "message": "Know-N 无法再连接服务器：此扩展程序的站点访问权限已被关闭。",
+    "description": "Know-N can no longer reach the server: this extension's access to the site was turned off."
+  },
+  "syncProblem_snapshotTooLarge": {
+    "message": "这个书签库太大，服务器无法把它发送到新设备。",
+    "description": "This library is too large for the server to send to a new device."
   },
   "syncProblem_stalled": {
     "message": "同步已停止推进，也没有说明原因。",
@@ -10227,6 +10335,10 @@
     "message": "同步无法开始上传。",
     "description": "Sync could not start an upload."
   },
+  "syncProblem_versionMismatch": {
+    "message": "此版本的 Know-N 与服务器不匹配，因此同步已暂停。",
+    "description": "This version of Know-N and the server do not match, so sync paused."
+  },
   "syncProblem_waiting": {
     "message": "同步正在等待此设备上的某件事完成。",
     "description": "Sync is waiting for something on this device to finish."
@@ -10234,6 +10346,10 @@
   "syncProblem_waitingUploads": {
     "message": "同步正在等待待上传的内容完成。",
     "description": "Sync is waiting for pending uploads to finish."
+  },
+  "syncProblem_writeQuota": {
+    "message": "浏览器限制了书签的修改速度，因此同步会暂停片刻。",
+    "description": "The browser limits how fast bookmarks can be changed, so sync is pausing for a moment."
   },
   "syncProgress_attention": {
     "message": "同步需要你处理。打开“状态”查看待处理的内容。",
@@ -10914,6 +11030,10 @@
   "sync_rebuildAccountSwitch": {
     "message": "此浏览器现在登录的是另一个账号。没有进行任何重置。",
     "description": "This browser is signed in to a different account now. Nothing was reset."
+  },
+  "sync_rebuildCannotHelp": {
+    "message": "这里重置没有帮助：新的副本会遇到同样的拒绝。没有进行任何重置。卡片上会说明该怎么做。",
+    "description": "A reset would not help here: a new copy meets the same refusal. Nothing was reset. The card says what does."
   },
   "sync_rebuildConfirm": {
     "message": "你的书签会保留在此设备和你的书签库中。之后你需要重新选择要同步的文件夹，并再次查看合并结果。现在重置同步吗？",
