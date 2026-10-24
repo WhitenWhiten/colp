@@ -91,7 +91,7 @@ async function run(manual: boolean): Promise<void> {
   // Read with the browser's web sign-in, apart from Sync's authority below.
   await Promise.all([
     statusDue ? readServerStatus(owner.serverOrigin).then((result) => status.apply(result, now)) : null,
-    activityDue ? readActivitySummary(owner.serverOrigin).then((result) => activity.apply(result, now)) : null,
+    activityDue ? readActivitySummary(owner.serverOrigin, owner.accountId).then((result) => activity.apply(result, now)) : null,
   ]);
   if (statusDue || activityDue) await paintDigestBadge(owner);
   if (!bundleDue && !receiptsDue) return;

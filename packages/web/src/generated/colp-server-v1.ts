@@ -5422,6 +5422,8 @@ export interface operations {
             /** @description Private activity for the signed-in owner. */
             200: {
                 headers: {
+                    /** @description Authenticated account owning this summary; clients must match it to their connected account before caching. */
+                    "Known-Activity-Account-Id"?: string;
                     "Cache-Control": components["headers"]["PrivateNoStore"];
                     "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;

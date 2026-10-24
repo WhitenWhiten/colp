@@ -78,7 +78,9 @@ describeWithPostgres('durable owner agent activity', () => {
     expect((await read({ ids: [oldest.id, 'unknown'] })).json()).toEqual({ readCount: 1, unreadCount: 1 });
     expect((await read({ ids: [oldest.id] })).json()).toEqual({ readCount: 0, unreadCount: 1 });
     expect((await get('?state=unread')).json().items.map((i: { id: string }) => i.id)).toEqual([newest.id]);
-    const foreign = await f.issue('activity_foreign'); expect((await get('', foreign.cookie)).json()).toEqual({ items: [], nextCursor: null, unreadCount: 0 });
+    expect((await get('/summary')).headers['known-activity-account-id']).toBe(f.owner.accountId);
+    const foreign = await f.issue('activity_foreign');
+    expect((await get('/summary', foreign.cookie)).headers['known-activity-account-id']).toBe(foreign.accountId); expect((await get('', foreign.cookie)).json()).toEqual({ items: [], nextCursor: null, unreadCount: 0 });
     expect(await store.markRead(foreign.accountId, { through: newest.id })).toEqual({ readCount: 0, unreadCount: 0 });
     expect((await read({ through: 'unknown' })).json()).toEqual({ readCount: 0, unreadCount: 1 });
     expect((await read({ through: newest.id })).json()).toEqual({ readCount: 1, unreadCount: 0 });

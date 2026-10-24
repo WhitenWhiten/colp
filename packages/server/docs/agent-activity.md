@@ -9,6 +9,9 @@ The worker always registers the durable activity handler so queued events can fi
 - `GET /api/v1/me/activity/summary` returns the unread item count, latest item, and maximum item revision.
 - `POST /api/v1/me/activity/read` accepts either `ids` (1–100 unique IDs) or `through` (an activity ID).
 
+The summary response includes `Known-Activity-Account-Id`, bound to the same authenticated request as its data.
+The extension checks it against its connected account and clears activity on authentication loss or mismatch.
+
 All routes require a browser session and return `Cache-Control: private, no-store`.
 The read command also requires Origin, CSRF, and Known-Command-Id headers.
 Unknown or foreign read IDs have no effect; repeated reads are harmless.

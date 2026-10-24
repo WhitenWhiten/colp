@@ -140,6 +140,10 @@ paths:
         '200':
           description: Private activity for the signed-in owner.
           headers:
+            Known-Activity-Account-Id:
+              description: Authenticated account owning this summary; clients must match it to their connected account before caching.
+              schema:
+                type: string
             Cache-Control:
               $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:

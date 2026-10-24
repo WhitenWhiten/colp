@@ -6,7 +6,7 @@ import { IDBFactory } from 'fake-indexeddb';
 
 import { item } from './automation-activity-fixture.js';
 const summary: ActivitySummary = { unreadCount: 1, latest: item, revision: '2' };
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Known-Activity-Account-Id': 'owner-1' } });
 const OWNER = '["https://colp.example","owner-1"]';
 const NOW = Date.parse('2026-10-23T08:01:00.000Z');
 function memoryArea() {
@@ -17,28 +17,28 @@ function memoryArea() {
 describe('activity summary transport', () => {
   it('reads the bounded contract with cookie authority and host permission checking', async () => {
     const fetcher = vi.fn(async () => json(summary));
-    expect(await readActivitySummary('https://colp.example/', fetcher)).toEqual({ ok: true, summary });
+    expect(await readActivitySummary('https://colp.example/', 'owner-1', fetcher)).toEqual({ ok: true, summary });
     expect(fetcher).toHaveBeenCalledWith('https://colp.example/api/v1/me/activity/summary', expect.objectContaining({
       method: 'GET', credentials: 'include', cache: 'no-store', redirect: 'error', headers: { Accept: 'application/json' }, signal: expect.any(AbortSignal) }));
     vi.stubGlobal('chrome', { permissions: { contains: async () => false } });
-    try { await expect(readActivitySummary('https://colp.example', fetcher)).rejects.toThrow('server_configuration_failed'); }
+    try { await expect(readActivitySummary('https://colp.example', 'owner-1', fetcher)).rejects.toThrow('server_configuration_failed'); }
     finally { vi.unstubAllGlobals(); }
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
   it('accepts an empty inbox and rejects malformed or oversized summaries', async () => {
-    expect(await readActivitySummary('https://colp.example', async () => json({ unreadCount: 0, latest: null, revision: '0' }))).toMatchObject({ ok: true });
+    expect(await readActivitySummary('https://colp.example', 'owner-1', async () => json({ unreadCount: 0, latest: null, revision: '0' }))).toMatchObject({ ok: true });
     const bad = [{ ...summary, unreadCount: -1 }, { ...summary, revision: 2 }, { ...summary, latest: { ...item, agent: { name: 'Claude' } } },
       { ...summary, latest: { ...item, folders: Array(6).fill(item.folders[0]) } }, { ...summary, latest: { ...item, updatedAt: 'invalid' } },
       { ...summary, latest: { ...item, items: [{ ...item.items[0], title: 'x'.repeat(65_536) }] } }];
-    for (const body of bad) expect(await readActivitySummary('https://colp.example', async () => json(body))).toEqual({ ok: false, problem: 'invalid' });
+    for (const body of bad) expect(await readActivitySummary('https://colp.example', 'owner-1', async () => json(body))).toEqual({ ok: false, problem: 'invalid' });
   });
 
   it('maps unavailable, authentication, rate and connection failures', async () => {
     for (const [status, problem] of [[404, 'unavailable'], [401, 'signedOut'], [403, 'signedOut'], [429, 'rateLimited'], [503, 'rateLimited'], [500, 'server']] as const) {
-      expect(await readActivitySummary('https://colp.example', async () => json({}, status))).toEqual({ ok: false, problem });
+      expect(await readActivitySummary('https://colp.example', 'owner-1', async () => json({}, status))).toEqual({ ok: false, problem });
     }
-    expect(await readActivitySummary('https://colp.example', async () => { throw new Error('offline'); })).toEqual({ ok: false, problem: 'offline' });
+    expect(await readActivitySummary('https://colp.example', 'owner-1', async () => { throw new Error('offline'); })).toEqual({ ok: false, problem: 'offline' });
   });
 });
 
@@ -72,4 +72,25 @@ describe('the account activity cache', () => {
       expect(await db.area().get(ACTIVITY_STATUS_KEY)).toBeUndefined();
     } finally { db.close(); }
   });
+});
+
+it('refuses mismatched or missing owner identity and erases authenticated data after sign-out', async () => {
+  const cache = createActivityStatusStore(memoryArea(), OWNER);
+  await cache.apply({ ok: true, summary }, NOW);
+  for (const owner of [null, 'other-owner']) {
+    const headers = new Headers();
+    if (owner) headers.set('Known-Activity-Account-Id', owner);
+    const result = await readActivitySummary('https://colp.example', 'owner-1', async () =>
+      new Response(JSON.stringify(summary), { headers }));
+    expect(result).toEqual({ ok: false, problem: 'signedOut' });
+    expect(await cache.apply(result, NOW + 1)).toMatchObject({ latest: null, unreadCount: 0, fetchedAt: null });
+  }
+  await cache.apply({ ok: true, summary }, NOW);
+  expect(await cache.apply({ ok: false, problem: 'signedOut' }, NOW + 1)).toMatchObject({ latest: null, unreadCount: 0, fetchedAt: null });
+});
+
+it('discards legacy caches whose account identity was not verified', async () => {
+  const area = memoryArea();
+  await area.set(ACTIVITY_STATUS_KEY, { ...summary, version: 1, ownerKey: OWNER, fetchedAt: NOW });
+  expect(await createActivityStatusStore(area, OWNER).read()).toMatchObject({ latest: null, unreadCount: 0, fetchedAt: null });
 });
