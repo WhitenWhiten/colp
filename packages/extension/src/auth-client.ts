@@ -2,6 +2,12 @@ import { parseHttpsAvatarUrl, parseRemoteAvatarUrl } from './avatar-url.js';
 import { readBoundedJson } from './json-response.js';
 import { isLoopbackHttpHost } from './http-origin.js';
 import { assertCredentialHostPermission } from './server-origin-permission.js';
+import { classifyHttpStatus } from './sync-transport-failure.js';
+
+/** A hung server must not hold the auth and Session lanes (and with them Sign out and every engine wake) for minutes. */
+const AUTH_REQUEST_TIMEOUT_MS = 15_000;
+/** The profile photo is decoration: it never gets to delay the credential it decorates. */
+const AVATAR_REQUEST_TIMEOUT_MS = 3_000;
 
 export const SESSION_COOKIE_NAME = '__Host-known_session';
 /** Plain HTTP (`COLP_INSECURE_HTTP`) cannot set a `__Host-` cookie. */
@@ -36,8 +42,12 @@ export function createAuthClient(options: {
   readonly origin: string;
   readonly fetch?: typeof fetch;
   readonly readHostCookie?: () => Promise<string | undefined>;
+  readonly requestTimeoutMs?: number;
 }): AuthClient {
   const fetcher = options.fetch ?? fetch;
+  const timeoutMs = options.requestTimeoutMs ?? AUTH_REQUEST_TIMEOUT_MS;
+  const deadline = (signal?: AbortSignal, ms = timeoutMs): AbortSignal =>
+    signal ? AbortSignal.any([signal, AbortSignal.timeout(ms)]) : AbortSignal.timeout(ms);
   const base = `${options.serverOrigin.replace(/\/$/u, '')}/api/v1/auth`;
   const cookieName = sessionCookieName(options.serverOrigin);
   const sessionCookie = (response: Response) => readSessionCookie(response, cookieName);
@@ -54,6 +64,7 @@ export function createAuthClient(options: {
         redirect: 'error',
         cache: 'no-store',
         credentials: 'include',
+        signal: deadline(),
         headers: {
           Accept: 'application/json',
           'Content-Type': 'application/json',
@@ -73,6 +84,7 @@ export function createAuthClient(options: {
         redirect: 'error',
         cache: 'no-store',
         credentials: 'include',
+        signal: deadline(),
         headers: {
           Accept: 'application/json',
           Origin: options.origin,
@@ -94,6 +106,8 @@ export function createAuthClient(options: {
 
   async function parsedLiveSession(response: Response): Promise<AuthSessionInfo> {
     if (response.status === 401 || response.status === 403) throw new Error('authentication_required');
+    // A gateway hiccup is transient whatever its body says; it is not a verdict on the credential (W2B-P2-5).
+    if (classifyHttpStatus(response.status) === 'transient') throw new Error('server_unavailable');
     await assertOk(response, 'session_unavailable');
     const body = await readBoundedJson(response, AUTH_RESPONSE_MAX_BYTES, 'session_unavailable');
     if (body === null) throw new Error('authentication_required');
@@ -169,6 +183,7 @@ export function createAuthClient(options: {
         const headers = { Accept: 'application/json', Cookie: cookieHeader(cookieValue, cookieName) };
         const get = (path: string) => transmit(`${origin}${path}`, {
           method: 'GET', redirect: 'error', cache: 'no-store', credentials: 'include', headers,
+          signal: deadline(undefined, Math.min(timeoutMs, AVATAR_REQUEST_TIMEOUT_MS)),
         });
         const session = await get('/api/v1/session');
         if (!session.ok) return undefined;
@@ -194,7 +209,7 @@ export function createAuthClient(options: {
             Origin: options.origin,
             Cookie: cookieHeader(cookieValue, cookieName),
           },
-          signal,
+          signal: deadline(signal),
         });
       } catch {
         /* sign-out is best-effort once local authority is being cleared */
@@ -268,6 +283,8 @@ function errorCodeOf(body: unknown, status: number, fallback: string): string {
   }
   if (status === 401 || status === 403) return 'invalid_credentials';
   if (status === 429) return 'rate_limited';
+  // An outage is not the person's mistake: never blame the password for a server that did not answer.
+  if (classifyHttpStatus(status) === 'transient') return 'server_unavailable';
   return fallback;
 }
 
@@ -298,6 +315,8 @@ function parseProfileAvatar(body: unknown, serverOrigin: string): string | undef
 
 function normalizeTransport(error: unknown): Error {
   if (error instanceof TypeError && error.message === 'Failed to fetch') return new Error('offline');
+  // The deadline above fired (or the caller aborted): the server did not answer in time, which is the same as offline.
+  if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) return new Error('offline');
   if (error instanceof Error) return error;
   return new Error('offline');
 }

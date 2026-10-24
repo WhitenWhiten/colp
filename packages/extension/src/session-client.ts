@@ -12,6 +12,7 @@ import {
 } from './colp-transport-budget-browser.js';
 import { measureClientClockSkew, serverNow, localTimeOf } from './session-clock.js';
 import { authorityCodeForStatus, classifyHttpStatus } from './sync-transport-failure.js';
+import { classifySyncFailure } from './sync-failure-class.js';
 
 const SESSION_RESPONSE_MAX_BYTES = 128 * 1_024;
 const REPLICA_LEASE_RENEWAL_MARGIN_MS = 60_000;
@@ -201,9 +202,19 @@ export function retainSessionAfterTransientRenewalFailure(session: StoredSession
   const retryUntil = error instanceof SessionRequestError && error.code === 'rate_limited'
     && error.retryAfterMilliseconds !== undefined ? now + error.retryAfterMilliseconds : now;
   return localTimeOf(session, session.expiresAt) > retryUntil && localTimeOf(session, session.replicaLease.expiresAt) > retryUntil
-    && (error instanceof TypeError && error.message === 'Failed to fetch'
-      || error instanceof Error && error.name === 'AbortError'
-      || error instanceof SessionRequestError && error.code === 'rate_limited');
+    && transientRenewalFailure(error);
+}
+
+/**
+ * The server or the network could not be asked, which says nothing about the Session in hand (W2B-P2-5): a 5xx, a
+ * gateway timeout, a cut-off body, a deadline, a rate limit or a missing host permission. The failure table already
+ * names these `transient`; a renewal that fails for one of them must not discard authority that is still valid.
+ */
+function transientRenewalFailure(error: unknown): boolean {
+  if (error instanceof TypeError && error.message === 'Failed to fetch') return true;
+  if (error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError')) return true;
+  const code = error instanceof SessionRequestError ? error.code : error instanceof Error ? error.message : undefined;
+  return classifySyncFailure(code)?.class === 'transient';
 }
 function mergeAbortSignals(left: AbortSignal, right: AbortSignal): AbortSignal {
   if (typeof AbortSignal.any === 'function') return AbortSignal.any([left, right]);

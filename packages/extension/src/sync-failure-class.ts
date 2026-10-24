@@ -318,6 +318,9 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   pause_baseline_invalid: entry('replica', 'stop'),
   permission_required: entry('transient', 'retry'),
   permission_revoked: entry('transient', 'retry'),
+  // W2B-P2-1: this extension no longer has access to the server's address (the person removed the site access, or set
+  // it to "on click"). No request leaves, so nothing is lost; access granted again ends it, and a permissions event wakes Sync.
+  server_configuration_failed: entry('transient', 'retry'),
   preformal_invalid: entry('replica', 'stop'),
   preview_boundary_invalid: entry('replica', 'stop'),
   preview_content_forbidden: entry('replica', 'stop'),

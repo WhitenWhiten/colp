@@ -49,6 +49,7 @@ import { FOLDERS_FIRST_ALARM, installNativeFoldersFirst, installNativeFoldersFir
 import { installWorkerMetadataWake } from './sw/metadata-sync-wake.js';
 import { bindLibraryOnStartup } from './sw/library.js';
 import { handleSyncEngineRequest, scheduleSyncEngineWake } from './sw/engine.js';
+import { wakeSyncForServerPermission } from './sw/server-permission.js';
 import { REPLICA_HEALTH_ALARM, REPLICA_HEALTH_PERIOD_MINUTES, reportReplicaHealth } from './sw/replica-health.js';
 import { handleSyncStateEvidence } from './sw/evidence.js';
 import { clearFaviconForCurrentScope, drainFaviconSidecarsForCurrentScope, readFaviconPolicyForCurrentScope, resolveFaviconSaveContext, resolveLocalSaveContext } from './sw/favicon.js';
@@ -125,6 +126,7 @@ chrome.runtime.onStartup.addListener(() => {
   void flushCaptureReports().catch((error) => logBackgroundFailure('startup.capture-reports', error));
 });
 chrome.permissions.onAdded.addListener((permissions) => {
+  void wakeSyncForServerPermission(permissions);
   if (permissions.permissions?.includes('bookmarks')) {
     installNativeFoldersFirst();
     void resumeBookmarksAfterPermissionGrant().finally(() => scheduleNativeFoldersFirst());

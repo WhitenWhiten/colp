@@ -42,10 +42,18 @@ interface Dependencies {
   readonly retire?: (credential: StoredCredential, session: StoredSession, signal?: AbortSignal) => Promise<void>;
   readonly drain?: () => Promise<void>;
   readonly logoutTimeoutMs?: number;
+  /** Deadline of one identity-server request (default 15 s). */
+  readonly requestTimeoutMs?: number;
 }
 
 const OAUTH_TIMEOUT_MS = 5 * 60 * 1_000;
 const OAUTH_POLL_MS = 250;
+/**
+ * Failures that say nothing about the credential: the identity server or the network could not be asked. They never
+ * sign anyone out and never discard the Session (W2B-P2-2, P2-5).
+ */
+const UNVERIFIED_CODES: ReadonlySet<string> = new Set(['offline', 'server_unavailable', 'network_unavailable',
+  'rate_limited', 'server_configuration_failed']);
 
 function controller(dependencies: Dependencies) {
   const now = dependencies.now ?? Date.now;
@@ -55,13 +63,15 @@ function controller(dependencies: Dependencies) {
   const restoreOnce = async (generation: number): Promise<StoredCredential | null> => {
     if (cookieRestoreAttempted) return null;
     cookieRestoreAttempted = true;
-    return restoreCredentialFromCookie(dependencies, auth, generation);
+    try { return await restoreCredentialFromCookie(dependencies, auth, generation); }
+    catch (error) { cookieRestoreAttempted = false; throw error; } // could not ask: a later call asks again
   };
   const auth = dependencies.auth ?? createAuthClient({
     serverOrigin: dependencies.config.serverOrigin,
     origin: dependencies.origin,
     fetch: dependencies.fetch,
     readHostCookie: () => readHostCookie(dependencies),
+    ...(dependencies.requestTimeoutMs !== undefined ? { requestTimeoutMs: dependencies.requestTimeoutMs } : {}),
   });
   return {
     dependencies,
@@ -113,12 +123,13 @@ function controller(dependencies: Dependencies) {
       } catch (error) {
         const stillCurrent = (await dependencies.store.fence.read()).generation === expectedGeneration;
         if (stillCurrent) {
-          if (safeCode(error) === 'authentication_required') {
+          const code = safeCode(error);
+          if (code === 'authentication_required') {
             // The server no longer knows this credential (W2B-P1-1). Only the secrets go: the replica binding
             // and the account pin stay, so signing in again resumes the same replica, scope and queue.
             await dependencies.store.clearCredentialKeepingReplica();
             await dependencies.store.markSignOutReason('authentication_required');
-          } else await dependencies.store.clearSession();
+          } else if (!UNVERIFIED_CODES.has(code)) await dependencies.store.clearSession();
         }
         throw error;
       }
@@ -164,7 +175,12 @@ function controller(dependencies: Dependencies) {
       const session = await dependencies.store.loadSession();
       if (!credential) {
         // Restore a live browser cookie after the session storage area is reset.
-        credential = await restoreOnce((await dependencies.store.fence.read()).generation);
+        try { credential = await restoreOnce((await dependencies.store.fence.read()).generation); }
+        catch (error) {
+          // The cookie could not be checked (server or network unreachable): that is not a sign-out (W2B-P2-2).
+          const code = safeCode(error);
+          return stateView(code === 'server_configuration_failed' ? 'error' : 'offline', dependencies.config, code);
+        }
       }
       if (!credential) {
         const reason = await dependencies.store.loadSignOutReason();
@@ -297,12 +313,14 @@ async function restoreCredentialFromCookie(
     // Throws when the authority is fenced, which is the point: a revoked authority
     // must not be silently restored.
     await dependencies.store.saveCredential(next, expectedGeneration);
-    await dependencies.store.clearSignOutReason();
+    await dependencies.store.clearSignOutReason().catch(() => undefined); // restored: the earlier sign-out no longer applies
     if (session.cookieValue !== cookieValue) {
       await writeHostCookie(dependencies, session.cookieValue, Date.parse(session.session.expiresAt));
     }
     return next;
-  } catch {
+  } catch (error) {
+    // "Could not ask" is not "signed out": the cookie may be perfectly good (W2B-P2-2).
+    if (UNVERIFIED_CODES.has(safeCode(error))) throw error;
     return null;
   }
 }
