@@ -1,5 +1,6 @@
 import { isNonChromeNativeId } from './pull-mount-apply.js';
 import { nativeContent } from './pull-projection.js';
+import { sameNativeContentValue } from './native-event-correlation.js';
 import type { RejoinChrome, RejoinNative } from './scope-rejoin-mutation.js';
 import type { MappingInput, MountBindingRecord, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
@@ -13,7 +14,7 @@ export async function protectedRejoinDeletions(input: Input, mappings: readonly 
     if (isNonChromeNativeId(mapping.nativeId)) continue;
     const live = await input.getNative(mapping.nativeId);
     const baseline = nativeContent(mapping.projection.content ?? {});
-    const changed = live && (Object.entries(baseline).some(([key, value]) => live[key as 'title' | 'url'] !== value)
+    const changed = live && (Object.entries(baseline).some(([key, value]) => !sameNativeContentValue(key, live[key as 'title' | 'url'], value))
       || live.parentId !== undefined && mapping.parentNativeId !== undefined && live.parentId !== mapping.parentNativeId);
     const hasUnmappedChildren = live && mapping.nodeKind === 'folder' && input.getChildren
       ? (await input.getChildren(mapping.nativeId)).some(child => !byNative.has(child.id)) : false;

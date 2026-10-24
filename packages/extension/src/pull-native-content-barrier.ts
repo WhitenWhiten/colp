@@ -10,6 +10,7 @@ import { isNonChromeNativeId, isProtectedNativeRoot, mayMutateNative } from './p
 import { mappingMountActivity } from './pull-range-move.js';
 import { pauseBindingForMapping } from './sync-state/remote-observation.js';
 import { withinPrivateNativeBoundary } from './native-private-boundary.js';
+import { sameNativeContentValue } from './native-event-correlation.js';
 
 type Store = Pick<ReturnType<typeof createSyncStateStore>, 'getScope' | 'stageBookmarkEvent' | 'getPullEvent' | 'getMappingByColpId'>;
 
@@ -22,7 +23,8 @@ export function unqueuedNativeContentFields(
   const fields: Record<string, string> = {};
   for (const key of ['title', 'url'] as const) {
     const live = current?.[key];
-    if (typeof live === 'string' && live !== known[key] && live !== incoming[key]) fields[key] = live;
+    if (typeof live === 'string' && !sameNativeContentValue(key, live, known[key])
+        && !sameNativeContentValue(key, live, incoming[key])) fields[key] = live;
   }
   return fields;
 }
@@ -131,7 +133,7 @@ export async function applyRemoteMappingContentUpdate(input: RemoteContentUpdate
     } else {
       const projectedContent = { ...incoming, ...local };
       const changes = Object.fromEntries(Object.entries(projectedContent)
-        .filter(([key, value]) => current?.[key as 'title' | 'url'] !== value));
+        .filter(([key, value]) => !sameNativeContentValue(key, current?.[key as 'title' | 'url'], value)));
       if (Object.keys(changes).length) await api.update(mapping.nativeId, changes);
     }
   }
