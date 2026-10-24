@@ -5,7 +5,7 @@ import { guardSyncWake } from './sync-circuit-breaker-engine.js';
 import { circuitIsStopped } from './sync-circuit-breaker.js';
 import { SyncFailureError, refreshesReplicaIntegrity, holdsInboundPull, holdsUnprovenIdentity, needsReplicaRebuild, persistentLocalSyncFailure } from './sync-failure-class.js';
 import { recordRecoveryDiagnostic } from './recovery-diagnostic.js';
-import { readEngineSessionAuthority } from './sync-session-handoff.js';
+import { readEngineSessionAuthority, sessionExpiresWithin } from './sync-session-handoff.js';
 import type { SyncAckResult, SyncPullV02 } from '@know-n/colp/types';
 import { readBoundedJson } from './json-response.js';
 import { syncAckResult, syncPullV02 } from './generated/pull-effect-validators.js';
@@ -292,7 +292,7 @@ export function createDurableSyncEngine(options: EngineOptions) {
 
   async function pull(authority: Awaited<ReturnType<typeof sessionAuthority>>, persistOffline = true): Promise<'complete' | 'recovery' | 'offline'> {
     activeMappingReads?.invalidate();
-    if (Date.parse(authority.session.expiresAt) <= now() + 60_000) authority = await sessionAuthority();
+    if (sessionExpiresWithin(authority.session, now(), 60_000)) authority = await sessionAuthority();
     // hasMore pages continue in this wake; the page budget hands any tail to the next alarm.
     for (let pages = 0; pages < MAX_PULL_PAGES_PER_WAKE; pages += 1) {
       const held = await state(); const heldScope = await options.store.getScope(options.scope);

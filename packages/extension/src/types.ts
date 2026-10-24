@@ -56,6 +56,11 @@ export interface StoredSession {
     readonly expiresAt: string; readonly acknowledgedCursor?: string | null };
   readonly acceptedProtocolVersion?: '0.2';
   readonly snapshotRequired: boolean;
+  /**
+   * This computer's clock minus the server's at the mint (positive: the clock is ahead). Session and lease
+   * expiry are judged in server time with it; absent on a Session stored before it was measured.
+   */
+  readonly clientClockSkewMilliseconds?: number;
   readonly conversionPolicy?: { readonly separator: 'native' | 'omit' | 'preserve_remote' | 'reject' };
   readonly transportBudget?: {
     readonly pullResponseBytes: number;
@@ -96,6 +101,8 @@ export interface PublicSyncEngineState {
   readonly rejectedPending: boolean;
   readonly queueProjection: 'idle' | 'syncing' | 'conflict' | 'rejected';
   readonly hasPublishedCursor: boolean; readonly cursorsConverged: boolean; readonly errorCode?: string;
+  /** K4: this computer's clock minus the server's; present only when it is more than two minutes off. Sync keeps working. */
+  readonly clockSkewMilliseconds?: number;
   readonly nativeWaitPending?: boolean;
   readonly listenerInstalled: boolean; readonly eventObserved: number; readonly eventAccepted: number;
   readonly eventRejected: number; readonly eventRejectedReason?: 'filtered' | 'permission_required' | 'not_connected'

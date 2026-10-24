@@ -64,6 +64,12 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   recovery_authority_invalid: entry('authority', 'refresh', FREEZES),
   effect_page_transport_unavailable: entry('authority', 'refresh', FREEZES),
   stale_replica: entry('authority', 'refresh'),
+  // W2B-P0-1: the Session the server just minted is unusable (wrong protocol/collection, or expired in
+  // server time). A fresh Session is the exit, so the breaker counts it as authority, not as an unknown fault.
+  session_invalid: entry('authority', 'refresh'),
+  // K4: this computer's clock is more than two minutes from the server's. Sessions and leases are judged in
+  // server time, so sync keeps working; the code only names the cause (skew in the Session / diagnostics).
+  clock_skew: entry('transient', 'retry', { pullsOnWake: true }),
   push_authentication_rejected: entry('authority', 'refresh'),
   push_denial_escalated: entry('authority', 'refresh'),
   push_scope_mismatch: entry('authority', 'refresh'),

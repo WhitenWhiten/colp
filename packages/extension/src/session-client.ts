@@ -10,6 +10,7 @@ import {
   SYNC_TRANSPORT_BUDGET_HEADER,
   type SyncTransportBudget,
 } from './colp-transport-budget-browser.js';
+import { measureClientClockSkew, serverNow, localTimeOf } from './session-clock.js';
 
 const SESSION_RESPONSE_MAX_BYTES = 128 * 1_024;
 const REPLICA_LEASE_RENEWAL_MARGIN_MS = 60_000;
@@ -82,6 +83,7 @@ export async function createSyncSession(input: { readonly endpoints: SyncEndpoin
     await assertCredentialHostPermission(input.endpoints.syncSessions, sessionInit);
     response = await (input.fetch ?? fetch)(input.endpoints.syncSessions, sessionInit);
   } finally { clearTimeout(timer); }
+  const receivedAt = Date.now();
   if (response.status !== 201 || !/^application\/json(?:\s*;|$)/i.test(response.headers.get('content-type') ?? '')) {
     if (response.status === 401) throw new SessionRequestError('credential_revoked');
     const problem = await readBoundedJson(response, SESSION_RESPONSE_MAX_BYTES, 'session_problem_invalid', { signal: input.signal })
@@ -102,11 +104,11 @@ export async function createSyncSession(input: { readonly endpoints: SyncEndpoin
     throw new Error('session_invalid');
   }
   return parseSyncSessionResult(value, input.request, await credentialAuthorityDigest(input.credential.accessToken),
-    transportBudget);
+    transportBudget, receivedAt);
 }
 
 export function parseSyncSessionResult(value: unknown, requestInput: unknown,
-  authorityDigest: string, transportBudget?: SyncTransportBudget): StoredSession {
+  authorityDigest: string, transportBudget?: SyncTransportBudget, receivedAt: number = Date.now()): StoredSession {
   const request = record(requestInput) ? requestInput : {};
   const requestCollection = record(request.collection) ? request.collection : {};
   const replica = record(request.replica) ? request.replica : {};
@@ -140,8 +142,11 @@ export function parseSyncSessionResult(value: unknown, requestInput: unknown,
     throw new Error('session_invalid');
   }
   if (!/^[a-f0-9]{64}$/u.test(authorityDigest)) throw new Error('session_invalid');
+  // W2B-P0-1: `expiresAt` and the lease are server time. Keep the offset so every expiry decision can use it.
+  const clientClockSkewMilliseconds = measureClientClockSkew({ clientTime: request.clientTime,
+    serverTime: string(value.serverTime), receivedAt });
   return Object.freeze({ sessionId: value.sessionId, credentialAuthorityDigest: authorityDigest,
-    expiresAt: value.expiresAt, scope: 'collection',
+    expiresAt: value.expiresAt, clientClockSkewMilliseconds, scope: 'collection',
     acceptedProtocolVersion: '0.2', maxBatchOperations: Number(value.maxBatchOperations), snapshotRequired: value.collection.snapshotRequired,
     conversionPolicy: { separator: value.conversionPolicy.separator as
       'native' | 'omit' | 'preserve_remote' | 'reject' },
@@ -167,16 +172,18 @@ export async function sessionMatchesCredentialAuthority(session: StoredSession,
     && session.credentialAuthorityDigest === await credentialAuthorityDigest(credential.accessToken);
 }
 
+/** `now` is this computer's clock; the Session and its lease expire in server time (W2B-P0-1). */
 export function syncSessionNeedsRenewal(session: StoredSession, now = Date.now()): boolean {
-  return Date.parse(session.expiresAt) <= now + REPLICA_LEASE_RENEWAL_MARGIN_MS
+  const server = serverNow(session, now);
+  return Date.parse(session.expiresAt) <= server + REPLICA_LEASE_RENEWAL_MARGIN_MS
     || (session.replicaLease as { readonly state: unknown }).state !== 'active'
-    || Date.parse(session.replicaLease.expiresAt) <= now + REPLICA_LEASE_RENEWAL_MARGIN_MS;
+    || Date.parse(session.replicaLease.expiresAt) <= server + REPLICA_LEASE_RENEWAL_MARGIN_MS;
 }
 
 export async function retryStaleReplicaSession(session: StoredSession, error: unknown,
   renew: () => Promise<StoredSession>, now = Date.now()): Promise<StoredSession> {
   if (!(error instanceof Error) || error.message !== 'stale_replica'
-      || Date.parse(session.expiresAt) <= now) throw error;
+      || Date.parse(session.expiresAt) <= serverNow(session, now)) throw error;
   return renew();
 }
 
@@ -184,7 +191,7 @@ export function retainSessionAfterTransientRenewalFailure(session: StoredSession
   now = Date.now()): boolean {
   const retryUntil = error instanceof SessionRequestError && error.code === 'rate_limited'
     && error.retryAfterMilliseconds !== undefined ? now + error.retryAfterMilliseconds : now;
-  return Date.parse(session.expiresAt) > retryUntil && Date.parse(session.replicaLease.expiresAt) > retryUntil
+  return localTimeOf(session, session.expiresAt) > retryUntil && localTimeOf(session, session.replicaLease.expiresAt) > retryUntil
     && (error instanceof TypeError && error.message === 'Failed to fetch'
       || error instanceof Error && error.name === 'AbortError'
       || error instanceof SessionRequestError && error.code === 'rate_limited');

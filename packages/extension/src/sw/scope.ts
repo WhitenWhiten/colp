@@ -16,6 +16,8 @@ import { resolveSessionBootstrapMode, resolveSessionMountBinding, retireScopeIfQ
 import { COLLECTION_BINDING, extensionOrigin, safeError, store, sw, syncState, workCoordinator } from './runtime.js';
 import { writeAuthSnapshot } from '../auth-snapshot.js';
 import { configuredPersonalSyncPolicy, personalSyncFetch } from '../personal-sync-fetch.js';
+import { lastKnownClientClockSkew, localTimeOf, rememberClientClockSkew } from '../session-clock.js';
+import { recordClockSkew } from '../session-clock-record.js';
 
 export async function loadConfig(): Promise<BuildConfig> {
   sw.configPromise ??= fetch(chrome.runtime.getURL('generated-config.json'), { cache: 'no-store' })
@@ -52,6 +54,8 @@ export function createRuntimeAuth(
     cookies: chrome.cookies,
     openOAuthTab: (url) => chrome.tabs.create({ url }),
     fetch: evidenceTransportFetch,
+    // The credential's expiry is server time too (W2B-P0-1): judge it with the skew the last Session measured.
+    now: () => Date.now() - lastKnownClientClockSkew(),
     ...(retireSession ? { retire: retireSession } : {}),
     drain: () => workCoordinator.drain('auth'),
   });
@@ -133,7 +137,7 @@ export async function sessionRequest(expectedGeneration: number, maxBatchOperati
 }
 
 export async function ensureSyncScope(config: BuildConfig, credential: StoredCredential, session: StoredSession,
-  expectedGeneration: number) {
+  expectedGeneration: number): Promise<SyncScope> {
   await store.assertWritable(expectedGeneration);
   if (!credential.subject) throw new Error('account_identity_missing');
   const binding = await bindingForRequest(expectedGeneration);
@@ -154,6 +158,7 @@ export async function ensureSyncScope(config: BuildConfig, credential: StoredCre
     }
     throw error;
   }
+  return scope;
 }
 
 export async function currentSyncScope(options: { allowStopped?: boolean; allowUnregistered?: boolean } = {}): Promise<SyncScope> {
@@ -274,6 +279,7 @@ async function pushSessionAuthorityExclusive(forceRefresh = false, observedSessi
   const auth = createRuntimeAuth(config, async (credential, session, signal) =>
     retire(await endpoints(), credential, session, signal));
   const before = await store.loadCredential(); let session = await store.loadSession();
+  if (session) rememberClientClockSkew(session);
   const target = await boundCollectionId();
   if (before?.subject && target) await configuredPersonalSyncPolicy()?.capture({ serverOrigin: before.serverOrigin, accountId: before.subject, collectionId: target });
   const effectiveForce = shouldForceSessionRefresh(forceRefresh, observedSessionId, session?.sessionId ?? null);
@@ -292,8 +298,8 @@ async function pushSessionAuthorityExclusive(forceRefresh = false, observedSessi
   if (Date.now() < sw.sessionRetryNotBefore) {
     const retryAfterMilliseconds = sw.sessionRetryNotBefore - Date.now();
     if (!effectiveForce && session && sessionMatchesCredential && sessionMatchesCollection
-        && Date.parse(session.expiresAt) > sw.sessionRetryNotBefore
-        && Date.parse(session.replicaLease.expiresAt) > sw.sessionRetryNotBefore) return { credential, session };
+        && localTimeOf(session, session.expiresAt) > sw.sessionRetryNotBefore
+        && localTimeOf(session, session.replicaLease.expiresAt) > sw.sessionRetryNotBefore) return { credential, session };
     throw new SessionRequestError('rate_limited', retryAfterMilliseconds);
   }
   if (effectiveForce || before?.accessToken !== credential.accessToken || !session || !sessionMatchesCredential
@@ -327,7 +333,8 @@ async function pushSessionAuthorityExclusive(forceRefresh = false, observedSessi
       }
     }
     await store.saveSession(session, context.generation);
-    await ensureSyncScope(config, credential, session, context.generation);
+    rememberClientClockSkew(session);
+    await recordClockSkew(syncState, await ensureSyncScope(config, credential, session, context.generation), session);
   }
   return { credential, session };
 }
