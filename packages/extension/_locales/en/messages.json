@@ -8156,6 +8156,9 @@
   "sync_actionRequired": {
     "message": "Action required"
   },
+  "sync_allowSiteAccess": {
+    "message": "Allow access"
+  },
   "sync_askFirst": {
     "message": "Ask me first"
   },
@@ -8173,6 +8176,12 @@
   },
   "sync_changesPreviewed": {
     "message": "Changes are previewed before anything syncs."
+  },
+  "sync_clockAhead": {
+    "message": "Your computer’s clock is $1 minutes ahead of the server’s. Sync keeps working, but set your clock to automatic time so sign-in and expiry checks stay reliable."
+  },
+  "sync_clockBehind": {
+    "message": "Your computer’s clock is $1 minutes behind the server’s. Sync keeps working, but set your clock to automatic time so sign-in and expiry checks stay reliable."
   },
   "sync_copyDetails": {
     "message": "Copy details"
@@ -8641,6 +8650,12 @@
   },
   "sync_signInLibrary": {
     "message": "Sign in to sync this browser with your bookmark library."
+  },
+  "sync_siteAccessAllowed": {
+    "message": "Access allowed. Sync is trying again."
+  },
+  "sync_siteAccessDenied": {
+    "message": "Access was not allowed, so sync still cannot reach the server."
   },
   "sync_someSelectedFoldersWere": {
     "message": "Some folders you picked are inside other picked folders. Only the outer folders are listed."

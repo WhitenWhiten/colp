@@ -10567,6 +10567,10 @@
     "message": "需要处理",
     "description": "Action required"
   },
+  "sync_allowSiteAccess": {
+    "message": "允许访问",
+    "description": "Allow access"
+  },
   "sync_askFirst": {
     "message": "先问我",
     "description": "Ask me first"
@@ -10590,6 +10594,14 @@
   "sync_changesPreviewed": {
     "message": "任何内容同步前，都会先预览更改。",
     "description": "Changes are previewed before anything syncs."
+  },
+  "sync_clockAhead": {
+    "message": "你的电脑时钟比服务器快 $1 分钟。同步仍在正常进行，但请把时钟设为自动校时，登录和到期检查才会保持可靠。",
+    "description": "Your computer’s clock is $1 minutes ahead of the server’s. Sync keeps working, but set your clock to automatic time so sign-in and expiry checks stay reliable."
+  },
+  "sync_clockBehind": {
+    "message": "你的电脑时钟比服务器慢 $1 分钟。同步仍在正常进行，但请把时钟设为自动校时，登录和到期检查才会保持可靠。",
+    "description": "Your computer’s clock is $1 minutes behind the server’s. Sync keeps working, but set your clock to automatic time so sign-in and expiry checks stay reliable."
   },
   "sync_copyDetails": {
     "message": "复制详情",
@@ -11174,6 +11186,14 @@
   "sync_signInLibrary": {
     "message": "登录后即可将此浏览器与你的书签库同步。",
     "description": "Sign in to sync this browser with your bookmark library."
+  },
+  "sync_siteAccessAllowed": {
+    "message": "已允许访问。同步正在重试。",
+    "description": "Access allowed. Sync is trying again."
+  },
+  "sync_siteAccessDenied": {
+    "message": "未允许访问，因此同步仍然无法连接服务器。",
+    "description": "Access was not allowed, so sync still cannot reach the server."
   },
   "sync_someSelectedFoldersWere": {
     "message": "你选的部分文件夹位于其他已选文件夹之内，只列出最外层的文件夹。",
