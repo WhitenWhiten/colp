@@ -72,22 +72,40 @@ export async function collectNativeOccupancy(store: Store, scope: SyncScope): Pr
   return occupied;
 }
 
+/**
+ * B-16: who already owns the native id Chrome answered a create with, through lookups that do not grow with the library.
+ * `collectNativeOccupancy` also lists intents' answers and local exclusions, but by the time this runs the intent of this
+ * very create has recorded the answer under its own colpId: a local exclusion therefore never decided anything here,
+ * and another intent counted only when it happened to sort ahead of this one. A live mapping or an open projection
+ * intent is what can name another owner.
+ */
+export async function nativeOccupant(store: Store, scope: SyncScope, nativeId: string): Promise<string | undefined> {
+  if (virtualNativeId(nativeId)) return undefined;
+  const mapping = await store.getMappingByNativeId(scope, nativeId);
+  if (mapping) return mapping.colpId;
+  return (await store.listProjectionIntents(scope))
+    .find((intent) => intent.state !== 'terminal' && intent.observedNativeId === nativeId)?.colpId;
+}
+
 export async function executeNativeCreate(input: NativeCreateInput): Promise<NativeCreateOutcome> {
   if (input.permissionGranted === false) return fail(input, 'permission_revoked');
   let intent = await ensureIntent(input);
-  const occupancy = await collectNativeOccupancy(input.store, input.scope);
-  const classified = classifyIntent(intent, occupancy, input.owner.colpId);
+  // B-16: the occupancy map lists every mapping and every intent. A create that has not started compares no native
+  // id before its call, so only the branches that do read it.
+  let occupancyRead: Promise<Map<string, string>> | undefined;
+  const occupancy = () => occupancyRead ??= collectNativeOccupancy(input.store, input.scope);
+  const classified = await classifyIntent(intent, occupancy, input.owner.colpId);
   if (classified === 'applied_with_evidence') {
     const nativeId = appliedNativeId(intent);
-    if (!nativeId) return persistUnknown(input, occupancy);
-    const owner = occupancy.get(nativeId);
-    if (owner !== undefined && owner !== input.owner.colpId) return persistUnknown(input, occupancy);
+    if (!nativeId) return persistUnknown(input, await occupancy());
+    const owner = (await occupancy()).get(nativeId);
+    if (owner !== undefined && owner !== input.owner.colpId) return persistUnknown(input, await occupancy());
     return { result: 'applied_with_evidence', nativeId };
   }
-  if (classified === 'result_unknown') return persistUnknown(input, occupancy);
-  if (classified === 'waiting_dependency') return persistDependency(input, occupancy);
+  if (classified === 'result_unknown') return persistUnknown(input, await occupancy());
+  if (classified === 'waiting_dependency') return persistDependency(input, await occupancy());
   if (classified === 'failed') return fail(input, 'native_call_failed');
-  if (classified !== 'not_started') return persistUnknown(input, occupancy);
+  if (classified !== 'not_started') return persistUnknown(input, await occupancy());
 
   await persistStarted(input, intent);
   let created: { readonly id: string };
@@ -102,18 +120,19 @@ export async function executeNativeCreate(input: NativeCreateInput): Promise<Nat
   await persistReceipt(input, created.id);
   input.crash?.('after_evidence_before_mapping');
   input.crash?.('after_api_evidence');
-  const after = await collectNativeOccupancy(input.store, input.scope);
-  const occupiedBy = after.get(created.id);
-  if (occupiedBy !== undefined && occupiedBy !== input.owner.colpId) return persistUnknown(input, after);
+  const occupiedBy = await nativeOccupant(input.store, input.scope, created.id);
+  if (occupiedBy !== undefined && occupiedBy !== input.owner.colpId) {
+    return persistUnknown(input, await collectNativeOccupancy(input.store, input.scope));
+  }
   return { result: 'applied_with_evidence', nativeId: created.id };
 }
 
-function classifyIntent(intent: IntentRecord, occupancy: ReadonlyMap<string, string>,
-  colpId: string): NativeCallResult {
+async function classifyIntent(intent: IntentRecord, occupancy: () => Promise<ReadonlyMap<string, string>>,
+  colpId: string): Promise<NativeCallResult> {
   const apiId = apiReturnId(intent);
   const confirmed = intent.nativeResultConfirmation?.kind === 'candidate_event'
     ? intent.nativeResultConfirmation.nativeId : undefined;
-  if (typeof confirmed === 'string' && unoccupiedOrSelf(occupancy, confirmed, colpId)) {
+  if (typeof confirmed === 'string' && unoccupiedOrSelf(await occupancy(), confirmed, colpId)) {
     return 'applied_with_evidence';
   }
   if (intent.nativeResult === 'result_unknown') return 'result_unknown';
