@@ -12,7 +12,11 @@ export function sourceDigest(value: unknown): string {
 }
 export const sourceKey = (...parts: unknown[]) => JSON.stringify(parts);
 export const sourcePrefixRange = (...parts: unknown[]) => { const prefix = JSON.stringify(parts).slice(0, -1) + ','; return IDBKeyRange.bound(prefix, prefix + '\uffff'); };
-export const rows = <T>(tx: IDBTransaction, store: SourceStore, ...parts: unknown[]) => cursorPage<T>(tx.objectStore(store), sourcePrefixRange(...parts), 100001);
+export const rows = async <T>(tx: IDBTransaction, store: SourceStore, ...parts: unknown[]) => {
+  const values = await cursorPage<T>(tx.objectStore(store), sourcePrefixRange(...parts), 100001);
+  if (values.length > 100000) throw new Error('capacity'); // Never treat a truncated dependency set as complete.
+  return values;
+};
 export const get = async <T>(tx: IDBTransaction, store: SourceStore, key: IDBValidKey): Promise<T | undefined> =>
   requestValue(tx.objectStore(store).get(key)) as Promise<T | undefined>;
 export const put = (tx: IDBTransaction, store: SourceStore, key: IDBValidKey, value: unknown) => tx.objectStore(store).put(value, key);

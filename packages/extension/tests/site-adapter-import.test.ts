@@ -278,3 +278,20 @@ test('registered stable cursor strategy resumes the last accepted cursor under a
   expect(f.sent.at(-1)).toMatchObject({ operation: 'readPage', leaseId: 'new-lease', query: { kind: 'collections', cursor: 'stable-next' } });
   await f.db.close();
 });
+
+test('cancellation reclaims reservations even if plan persistence fails before the preview checkpoint', async () => {
+  const f = await fixture('singlePreferSemantic'), { id } = await f.scan(); await f.importer.freeze(id);
+  const transaction = f.db.transaction.bind(f.db);
+  let cut = true;
+  f.db.transaction = ((stores: any, mode: any, work: any) => {
+    if (cut && mode === 'readwrite' && stores.includes('savePlans')) { cut = false; return Promise.reject(new Error('workerCutBeforePlan')); }
+    return transaction(stores, mode, work);
+  }) as typeof f.db.transaction;
+  await f.importer.wake();
+  expect(cut).toBe(false); const preview = (await f.importer.status())!.preview!; expect(preview.counts.review).toBeGreaterThan(0);
+  await f.create().cancel(id);
+  await expect(f.layout.plan({ context: f.context(), itemId: video.id, collectionId: '101', entry: 'siteImport', trigger: { kind: 'import', importRunId: id, previewId: preview.id } })).rejects.toThrow('planCancelled');
+  const bindings = createContentBindings(f.db, async () => {});
+  expect(await bindings.prepare({ itemId: video.id, commandId: 'after-preparation-cut', captureIntentId: 'capture-after-cut', title: video.title, url: video.url, parentId: 'root', automatic: true })).toMatchObject({ mode: 'create' });
+  expect(f.counts).toEqual({ folder: 0, bookmark: 0 }); await f.db.close();
+});

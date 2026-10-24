@@ -1,3 +1,4 @@
+import { assertPlanIntentActive } from './plan-intents.js';
 import { readConnectionAuthority } from './ledger.js';
 import type { NativeBinding, SavePlan, SaveEffect, SourceFolderReservation, Representation, ImportApproval, ImportPreview } from './contracts.js';
 import type { ItemReservation } from './reservations.js';
@@ -19,7 +20,8 @@ export async function persistSavePlan(db: SourceDatabase, plan: SavePlan, state:
   };
   if (!plan.effects.every(e => visit(e.effectId))) throw new Error('invalidPlan');
   const row: StoredSavePlan = { plan, digest: planDigest(plan), state };
-  await db.transaction(['savePlans'], 'readwrite', async tx => {
+  await db.transaction(['savePlans', 'meta'], 'readwrite', async tx => {
+    if (state !== 'cancelled') await assertPlanIntentActive(tx, plan.id);
     const prior = await get<StoredSavePlan>(tx, 'savePlans', plan.id);
     if (prior && (prior.digest !== row.digest || prior.state === 'cancelled' && state !== 'cancelled')) throw new Error('conflict');
     put(tx, 'savePlans', plan.id, row);

@@ -1,3 +1,4 @@
+import { beginSourcePlan } from './plan-intents.js';
 import { contentBindingKey } from './content-identity.js';
 import { admitsSiteEdge } from '../automation/site-rule.js';
 import { decideList } from '../automation/rule-list-decide.js';
@@ -157,6 +158,8 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
         if (primary !== input.collectionId) return { status: 'policySkipped' } as const;
       }
       const id = identity({ trigger: input.trigger, representation, snapshot: snapshot(flat), policy: settings.policy.revision, ...(c.communityOrigin ? { communityOrigin: c.communityOrigin } : {}) });
+      const bookmarkCommandId = identity({ representation, effect: 'bookmark' });
+      await beginSourcePlan(db, { id, trigger: input.trigger, representation, commandId: bookmarkCommandId, folder: { mountId: m.id, collectionId: input.collectionId }, state: 'active' });
       const oldFolder = await db.read<SourceFolderReservation>('folderReservations', sourceKey(m.id, input.collectionId));
       if (oldFolder) {
         await assertFolder(oldFolder);
@@ -168,11 +171,11 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
       } : { mountId: m.id, collectionId: input.collectionId, mountRevision: m.revision, parent: { kind: 'native', binding: m.root }, title: facts.collection.title }, { planId: id, effectId: 'folder' });
       const ensure: SaveEffect = { kind: 'ensureSourceFolder', effectId: 'folder', commandId: identity({ id, effect: 'folder' }), payloadDigest: '',
         dependsOn: [], reservationId: folder.id, folderReservationDigest: folder.payloadDigest };
-      const bookmark: SaveEffect = { kind: 'createBookmark', effectId: 'bookmark', commandId: identity({ representation, effect: 'bookmark' }), payloadDigest: '',
+      const bookmark: SaveEffect = { kind: 'createBookmark', effectId: 'bookmark', commandId: bookmarkCommandId, payloadDigest: '',
         dependsOn: ['folder'], representation, item: facts.item, parent: { kind: 'sourceFolder', reservationId: folder.id }, folderReservationDigest: folder.payloadDigest };
       ensure.payloadDigest = effectDigest(ensure); bookmark.payloadDigest = effectDigest(bookmark);
       const { payloadDigest: _digest, ...payload } = bookmark;
-      const itemReservation = await reservations.reserveItem(representation, payload, settings.policy.copies, bookmark.commandId);
+      const itemReservation = await reservations.reserveItem(representation, payload, settings.policy.copies, bookmark.commandId, id);
       if (itemReservation.status !== 'reserved') throw new Error('sourceDependencyPending');
       const plan: SavePlan = { id, trigger: input.trigger, purpose: 'sourceArchive', connectionId: c.connectionId, installationGeneration: c.installationGeneration,
         ...(c.communityOrigin ? { communityOrigin: c.communityOrigin } : {}),

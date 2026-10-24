@@ -1,3 +1,4 @@
+import { assertPlanIntentActive, type SourcePlanIntent } from './plan-intents.js';
 import type { NativeBinding, Representation, RepresentationKey, SourceFolderReservation } from './contracts.js';
 import { get, put, rows, sourceDigest, sourceKey, type SourceDatabase } from './source-db.js';
 export const representationKey = (r: RepresentationKey) => sourceKey(r.connectionId, r.itemId, r.purpose, r.sourceCollectionId, r.mountId);
@@ -9,8 +10,9 @@ const compatibleProof = (b: NativeBinding) => !!b.bindingId && !!b.nativeId && !
 /** Host-only primitives; reservations never grant approval or browser API authority. */
 export function createSourceReservations(db: SourceDatabase, random = () => crypto.randomUUID()) {
   return {
-    async reserveItem(representation: RepresentationKey, payload: unknown, policy: 'sourceAndSemantic' | 'singlePreferSemantic' | 'singleKeepExisting', commandId?: string) {
-      return db.transaction(['itemReservations', 'representations'], 'readwrite', async tx => {
+    async reserveItem(representation: RepresentationKey, payload: unknown, policy: 'sourceAndSemantic' | 'singlePreferSemantic' | 'singleKeepExisting', commandId?: string, planId?: string) {
+      return db.transaction(['itemReservations', 'representations', 'meta'], 'readwrite', async tx => {
+        if (planId) await assertPlanIntentActive(tx, planId);
         const key = representationKey(representation), digest = sourceDigest(payload);
         const bound = await get<Representation>(tx, 'representations', key);
         if (bound) return { status: bound.state === 'active' ? 'bound' : 'blocked', representation: bound } as const;
@@ -38,7 +40,8 @@ export function createSourceReservations(db: SourceDatabase, random = () => cryp
       });
     },
     async reserveFolder(input: Omit<SourceFolderReservation, 'id' | 'commandId' | 'payloadDigest' | 'state' | 'native'>, consumer: { planId: string; effectId: string }) {
-      return db.transaction(['folderReservations', 'folderConsumers'], 'readwrite', async tx => {
+      return db.transaction(['folderReservations', 'folderConsumers', 'meta'], 'readwrite', async tx => {
+        await assertPlanIntentActive(tx, consumer.planId);
         const key = sourceKey(input.mountId, input.collectionId), digest = sourceDigest(input);
         let row = await get<SourceFolderReservation>(tx, 'folderReservations', key);
         if (row && row.payloadDigest !== digest) throw new Error('conflict');
@@ -85,10 +88,10 @@ export function createSourceReservations(db: SourceDatabase, random = () => cryp
 }
 
 /** Call inside the cancellation transaction. Only never-submitted, unconsumed work is reclaimable. */
-export async function releaseUnsubmittedReservations(tx: IDBTransaction, plans: readonly import('./contracts.js').SavePlan[]) {
-  const items = plans.flatMap(p => p.effects.filter(e => e.kind === 'createBookmark'));
+export async function releaseUnsubmittedReservations(tx: IDBTransaction, plans: readonly import('./contracts.js').SavePlan[], intents: readonly SourcePlanIntent[] = []) {
+  const items = [...plans.flatMap(p => p.effects.filter(e => e.kind === 'createBookmark')), ...intents];
   const commands = new Set(items.map(e => e.commandId));
-  const used = new Set<string>();
+  const used = new Set((await rows<SourcePlanIntent>(tx, 'meta', 'sourcePlanIntent')).filter(i => i.state !== 'cancelled').map(i => i.commandId));
   await new Promise<void>((resolve, reject) => {
     const request = tx.objectStore('savePlans').openCursor();
     request.onerror = () => reject(request.error);
