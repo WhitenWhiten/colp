@@ -10,6 +10,7 @@ import { configuredPersonalSyncPolicy, personalSyncNativeApi } from '../personal
 import { refreshLocalClassificationProjection } from './classification-local-projection.js';
 import { syncBrowserMetadata } from './bookmark-metadata.js';
 import { replicaRebuilder } from './scope-rebuild.js';
+import { ensureRegisteredScope } from './scope-registration.js';
 import { AuthorityFencedError, type AuthorityContext } from '../authority-fence.js';
 import { activateAdvancedPlan, activeAdvancedPlan, executeActiveAdvancedPlan,
   projectAdvancedSnapshot } from '../bootstrap/advanced-run.js';
@@ -154,6 +155,9 @@ async function runSyncEnginePass(reason: 'startup' | 'alarm' | 'online' | 'manua
   if (!restored.ok) return;
   const scope = restored.value; await locate(scope);
   if (configuredPersonalSyncPolicy() && !await configuredPersonalSyncPolicy()!.allowed(scope)) return;
+  // W2A-06: a live Session whose scope record is gone (the database was lost) is registered again, not skipped silently.
+  const registered = await step('scope_registration', () => ensureRegisteredScope(scope));
+  if (!registered.ok || registered.value === 'no_authority') return;
   await step('history_prune', () => syncState.prunePullHistory(scope));
   const planned = await step('advanced_plan', async () => {
     const plan = await activeAdvancedPlan(syncState, scope);
