@@ -4,6 +4,9 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+
+## [0.1.0-rc.10] - 2026-10-24
+
 ### Added
 
 - Consent is the permit for automation workers. An OAuth agent whose consent included `automation:work` binds itself as a paired worker the first time it talks to the server, over MCP or the HTTP work API, with no pairing code: the server adopts the Owner's existing registration for that client or registers the agent with one standard inbox, and re-pairs the inbox after an opt-in change on the agent's next call. The consent page and agent cards describe the three automation scopes, the OAuth issuer and resource metadata advertise them whenever the matching features are on, and the new `automation.targets.mine` worker tool tells an agent which inboxes it works for. The rule editor and the worker form say that such agents pair on their own; the one-use code remains for scripts on API keys.
@@ -12,11 +15,19 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 - Background automation delivery and approvals only verify existing worker bindings; only live worker requests may pair inboxes through consent. `automation.targets.mine` now honors page sizes and signed cursors so workers can discover more than 100 inboxes without exposing other credentials' targets.
 - Sync center keeps device recovery controls available when conflicts, library data, or diagnostics fail to load. With an updated extension, Reset sync first retires the old replica before archiving uncertain uploads; command delivery and results survive lost responses and interrupted resets. Browser bookmarks and library content are retained, followed by folder selection and merge review in the extension.
+- Extension sync no longer lets failed or missing sibling anchors block unrelated saves. Live predecessor operations still preserve bookmark ordering until their create receipts arrive.
 - Activity navigation uses the feature switch returned at sign-in, keeping the inbox reachable while its summary is loading or fails. Older servers retain summary-based discovery.
 
 ### Security
 
 - Upgrade all container build stages and the server runtime to Node.js 22.23.4, fixing the bundled Brotli decoder vulnerability CVE-2026-111497 and the other issues addressed by the Node.js October 2026 security release.
+
+### Upgrade notes
+
+From 0.1.0-rc.9, update the checkout and deployment files from this tag,
+set `COLP_IMAGE_TAG=0.1.0-rc.10`, and recreate the server. There are no new
+database migrations. The image includes the web app; update the extension
+separately for the sync recovery and sibling-anchor fixes.
 
 
 ## [0.1.0-rc.9] - 2026-10-23
