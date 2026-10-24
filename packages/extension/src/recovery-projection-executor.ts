@@ -7,7 +7,7 @@ import { lookupBookmark } from './bookmark-api-error.js';
 import { applySnapshotContent, planSnapshotContentUpdates, type RecoveryContentStore } from './recovery-content.js';
 import { applySnapshotPlacement, planSnapshotPlacementUpdates } from './recovery-placement.js';
 import {
-  occupancyByNative, resolveCreateIdentity, virtualNativeId,
+  createIdentityNeedsOccupancy, projectionOccupancy, resolveCreateIdentity, virtualNativeId,
 } from './projection-native-occupancy.js';
 import {
   createProjectionSuppression,
@@ -194,6 +194,9 @@ export async function executeProjectionIntents(input: {
   const persist = input.persistMappings !== false;
   const intents = [...await input.store.listProjectionIntents(input.scope)]
     .sort((left, right) => left.order - right.order);
+  // B-16: what the open intents claim, read once; re-listing every intent for each create is O(N^2) on a large Snapshot.
+  const claims = new Map(intents.flatMap((row) => row.state !== 'terminal' && row.observedNativeId && !virtualNativeId(row.observedNativeId)
+    ? [[row.observedNativeId, row.colpId] as const] : []));
   const liveMappings = (await input.store.listMappings(input.scope)).map(({ scopeKey: _key, ...row }) => row);
   const deleted = await pendingLocalDeletionIds(input.store, input.scope, [...liveMappings, ...input.seedMappings]);
   for (const intent of intents) {
@@ -245,12 +248,10 @@ export async function executeProjectionIntents(input: {
           parentNativeId: activeIntent.parentNativeId,
         });
       }
-      const occupancy = occupancyByNative({
-        liveMappings: await input.store.listMappings(input.scope),
-        seedMappings: [...mappings.values()],
-        intents: await input.store.listProjectionIntents(input.scope),
-      });
-      observed = await perform(input.api, activeIntent, mappings, snapshotMappings, occupancy, input);
+      // Read the claims of the whole library only for a create that meets an equal bookmark or a recorded answer.
+      let claimed: Promise<ReadonlyMap<string, string>> | undefined;
+      const occupancy = () => claimed ??= projectionOccupancy(input.store, input.scope, mappings.values());
+      observed = await perform(input.api, activeIntent, mappings, snapshotMappings, occupancy, { ...input, claims });
     } catch (error) {
       if (error instanceof SnapshotItemPreconditionError && error.subject?.nativeId) {
         await input.store.recordLocalIssue(input.scope, { code: error.code, nativeId: error.subject.nativeId, now: Date.now() });
@@ -288,6 +289,7 @@ export async function executeProjectionIntents(input: {
           store: input.store, scope: input.scope, intent: activeIntent,
           observed, mappings,
         });
+        claims.delete(observed);
       } else {
         await input.store.settleProjectionIntent(input.scope, intent.intentId, { state: 'terminal' });
       }
@@ -435,8 +437,9 @@ async function persistProjectionMapping(
 async function perform(
   api: PullBookmarkApi, intent: ProjectionIntentRecord, mappings: Map<string, MappingInput>,
   snapshotMappings: ReadonlyMap<string, MappingInput>,
-  occupancy: ReadonlyMap<string, string>,
-  ctx: { readonly scope: SyncScope; readonly store: RecoveryStore; readonly snapshotCursor?: string },
+  occupancy: () => Promise<ReadonlyMap<string, string>>,
+  ctx: { readonly scope: SyncScope; readonly store: RecoveryStore; readonly snapshotCursor?: string;
+    readonly claims: ReadonlyMap<string, string> },
 ): Promise<string | undefined | 'ambiguous'> {
   if (intent.kind === 'create') {
     const parentNativeId = intent.parentNativeId
@@ -446,10 +449,11 @@ async function perform(
     // B-04: the receipt of a create that already happened answers before the equal-content check can call it unknown.
     const recorded = await recordedProjectionCreate(ctx.store, ctx.scope, intent.intentId, children, occupancy, intent.colpId);
     if (recorded) return recorded;
-    const resolution = resolveCreateIdentity({ intent, children, occupancy });
+    const claimed = createIdentityNeedsOccupancy(intent, children) ? await occupancy() : new Map<string, string>();
+    const resolution = resolveCreateIdentity({ intent, children, occupancy: claimed });
     if (resolution.action === 'ambiguous') return 'ambiguous';
     if (resolution.action === 'reuse') {
-      const owner = occupancy.get(resolution.nativeId);
+      const owner = claimed.get(resolution.nativeId);
       if (owner !== undefined && owner !== intent.colpId) return 'ambiguous';
       return resolution.nativeId;
     }
@@ -471,7 +475,7 @@ async function perform(
         eventId: intent.intentId, colpId: intent.colpId, substep: 'projection',
       },
       parentNativeId, expected: { title: intent.title ?? '', ...(intent.url ? { url: intent.url } : {}) },
-      liveWorkKind: 'create',
+      liveWorkKind: 'create', projectionClaims: ctx.claims,
       create: async () => api.create({
         parentId: parentNativeId, title: intent.title ?? '',
         ...(intent.url ? { url: intent.url } : {}),
@@ -586,5 +590,6 @@ function inheritBoundNativeParents(mappings: readonly MappingInput[]): MappingIn
 
 async function protectedSnapshotIds(store: RecoveryStore, scope: SyncScope, mappings: readonly MappingInput[], staged: readonly MappingInput[] = []) {
   const roots = (await readOpenSyncIssues(store, scope)).roots;
-  return snapshotIssueProtectionIds(mappings, staged, roots);
+  // No open issue protects nothing; the ancestry of every mapping is not built for it (once per intent otherwise).
+  return roots.size === 0 ? new Set<string>() : snapshotIssueProtectionIds(mappings, staged, roots);
 }

@@ -53,6 +53,8 @@ export interface NativeCreateInput {
   readonly crash?: (boundary: string) => void;
   readonly now?: () => number;
   readonly permissionGranted?: boolean;
+  /** Open projection intents' claims (browser id -> colpId) when the caller holds them; a run of N creates must not re-list N intents each. */
+  readonly projectionClaims?: ReadonlyMap<string, string>;
 }
 
 export async function collectNativeOccupancy(store: Store, scope: SyncScope): Promise<Map<string, string>> {
@@ -79,10 +81,12 @@ export async function collectNativeOccupancy(store: Store, scope: SyncScope): Pr
  * and another intent counted only when it happened to sort ahead of this one. A live mapping or an open projection
  * intent is what can name another owner.
  */
-export async function nativeOccupant(store: Store, scope: SyncScope, nativeId: string): Promise<string | undefined> {
+export async function nativeOccupant(store: Store, scope: SyncScope, nativeId: string,
+  projectionClaims?: ReadonlyMap<string, string>): Promise<string | undefined> {
   if (virtualNativeId(nativeId)) return undefined;
   const mapping = await store.getMappingByNativeId(scope, nativeId);
   if (mapping) return mapping.colpId;
+  if (projectionClaims) return projectionClaims.get(nativeId);
   return (await store.listProjectionIntents(scope))
     .find((intent) => intent.state !== 'terminal' && intent.observedNativeId === nativeId)?.colpId;
 }
@@ -120,7 +124,7 @@ export async function executeNativeCreate(input: NativeCreateInput): Promise<Nat
   await persistReceipt(input, created.id);
   input.crash?.('after_evidence_before_mapping');
   input.crash?.('after_api_evidence');
-  const occupiedBy = await nativeOccupant(input.store, input.scope, created.id);
+  const occupiedBy = await nativeOccupant(input.store, input.scope, created.id, input.projectionClaims);
   if (occupiedBy !== undefined && occupiedBy !== input.owner.colpId) {
     return persistUnknown(input, await collectNativeOccupancy(input.store, input.scope));
   }
