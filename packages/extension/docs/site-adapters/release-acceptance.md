@@ -2,7 +2,7 @@
 
 SA-08 evidence is recorded in [execution evidence](execution-evidence.md) and the [controlled](evidence/sa-08-controlled.json) / [real-site](evidence/sa-08-live.json) records. This qualifies the bundled Bilibili adapter, identity v1, positive observations and explicitly configured local archives. Negative readback, human-action proof, short links, non-video resources, space-origin injection and automatic destructive mirroring remain unavailable.
 
-Adapters require Chromium **149+**. Chromium 149 in Linux/xvfb and Chrome 154 in ego-lite on macOS are the measured versions. Chrome 121–148 and other engines are explicitly unsupported for adapters; ordinary extension saving retains its own manifest minimum. The host rejects activation and source authority outside this range. This is not a claim that Chrome 121 or every intermediate browser was tested. Community execution has separate SA-09 gates.
+Adapters require Chromium **149+**. Chromium 149 in Linux/xvfb and Chrome 154 in ego-lite on macOS are the measured versions. Chrome 121–148 and other engines are explicitly unsupported for adapters; ordinary extension saving retains its own manifest minimum. The host rejects activation and source authority outside this range. This is not a claim that Chrome 121 or every intermediate browser was tested. Community execution has separate SA-09 evidence. Reviewed COLP Server source batches and device leases have separate [SA-10 evidence](evidence/sa-10-controlled.json) and a [versioned contract](cloud-contract-proposal.md); backend classification remains unavailable.
 
 ## Recovery behavior
 
@@ -36,7 +36,7 @@ Historical entries identify the task where each boundary was established; SA-08 
 | 12 | SA-04 worker cuts around native submission/create/receipt; SA-08 recovery inspector visibly retains `unknown` and blocks replacement. Classification restart/revocation is covered by SA-07 local capture tests. |
 | 13 | SA-01/SA-02 signed-out/offline reader tests; SA-07 provider failure retains both archive and saved semantic content. |
 | 14 | SA-05 global/list/rule/source fences; SA-07 late semantic move after source disable; SA-08 browser-range authority fence. |
-| 15 | SA-05 rejects exporting source layout to v1/account rules; SA-07 blocks unsupported cloud classification/application before dispatch. Positive server integration is SA-10 and is not claimed. |
+| 15 | SA-05/SA-07 rejection remains. SA-10 real COLP Server/PostgreSQL/xvfb Chromium: B-only admission, exact final parent and canonical mutation receipts, rollback, immutable replay/conflict, cancellation, lost-response/worker-cut recovery, two browser profiles, independent device approval/epoch transfer, shared canonical copy and zero models. Older/missing profiles, partial mappings, single-copy cloud semantic policies and backend classification reject explicitly. |
 | 16 | SA-09 verifies named worlds, immediate execution, actual toggle revocation, extension version replacement, SPA and actual BFCache on Chromium 149. Chrome 121–148 is explicitly unsupported; no older-browser branch is claimed tested. See [community evidence](community-packages.md). |
 | 17 | SA-03 atomic item/folder reservation and contradictory reports; SA-06 acknowledged-page replay and live/import race; SA-07 simultaneous semantic/source intents. |
 | 18 | SA-05 identity/date/manual-ownership review; SA-08 cross-profile native import, disabled restore, matching account/root proof, stale preview and unresolved-copy blocks. Native-site removal retained its archive. |

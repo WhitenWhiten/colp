@@ -105,9 +105,9 @@ test('bundled inspector scopes worlds, reconnects routes and fences revocation w
     expect(admitted).toMatchObject({ status: 'accepted' });
     const observations = await page.evaluate(async () => {
       const db = await new Promise<IDBDatabase>((resolve, reject) => { const r = indexedDB.open('known-site-adapters'); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
-      try { return await new Promise<number>((resolve, reject) => { const r = db.transaction('observations').objectStore('observations').count(); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); }); } finally { db.close(); }
+      try { return await new Promise<string[]>((resolve, reject) => { const r = db.transaction('observations').objectStore('observations').getAll(); r.onsuccess = () => resolve((r.result as { observation: { type: string } }[]).map(row => row.observation.type).sort()); r.onerror = () => reject(r.error); }); } finally { db.close(); }
     });
-    expect(observations).toBe(2);
+    expect(observations).toEqual(['catalog.upsert', 'membership.observed', 'membership.observed']);
     const oldGeneration = (await readState()).generation;
     await page.locator('#disable').click();
     await expect.poll(async () => (await readState()).generation).toBeGreaterThan(oldGeneration);

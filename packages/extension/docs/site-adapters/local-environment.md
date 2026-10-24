@@ -96,3 +96,13 @@ The latest smoke report is `packages/extension/test-results/results.json` (ignor
 ## TypeScript memory during implementation
 
 The prepared OrbStack VM reports about 2 GiB RAM. SA-04 project-wide TypeScript checks were killed with exit 137 when large Node heaps allowed them to exceed that limit. A focused strict check of the changed production entry graphs and new tests passed with `node --max-old-space-size=1536 node_modules/typescript/bin/tsc ...` (see the exact command in execution evidence). Do not report a killed full check as passing or rerun environment preparation to address this memory limit.
+
+## SA-10 disposable server/database validation
+
+For the selected source archive server/browser spec only, use:
+
+```sh
+COLP_ADAPTER_POSTGRES=1 node packages/extension/scripts/with-orbstack.mjs e2e e2e/mv3-site-adapter-cloud.spec.ts
+```
+
+This reuses the same image and dependency volumes and still forces xvfb. The runner additionally starts PostgreSQL 16.4-alpine on a unique temporary Docker network with no published host port. Only that run's database URL enters the test container. The actual COLP Fastify/auth/canonical/Sync harness creates an isolated schema and drops it on close. Finally the runner removes its test/database containers and network, including after failures/signals; it keeps reusable image/volume caches. No separate Know-N backend or classification service is started. The cached PostgreSQL image digest is `sha256:5660c2cbfea50c7a9127d17dc4e48543eedd3d7a41a595a2dfa572471e37e64c`.

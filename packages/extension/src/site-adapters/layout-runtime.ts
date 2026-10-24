@@ -17,15 +17,7 @@ export const sourceLayout = createSourceLayout(siteLedger.db, {
   rules: currentFlat, paused: sourceAutomationsPaused, deviceId: captureDeviceId,
   lookup: nativeFolderLookup, assertRoot: assertPlannedNative,
   sourceCopies: input => contentBindings.sourceDecision(input),
-  async beforeExclusion() {
-    if (workCoordinator.hasInFlight('classification')) throw new Error('cloudClassificationPending');
-    const scope = await currentCaptureScope(); let before: readonly [number, string] | undefined;
-    for (;;) {
-      const page = await captureStore.listForOwner(scope, before);
-      if (page.some(unsettledCloudDestination)) throw new Error('cloudClassificationPending');
-      const last = page.at(-1); if (!last || page.length < 50) break; before = [last.createdAt, last.captureId];
-    }
-  },
+  beforeExclusion: assertNoCloudDestinationWork,
 });
 export function installSourceLayout() {
   installSourcePlanAuthorization((plan, effect) => sourceLayout.authorize(plan, effect));
@@ -46,4 +38,14 @@ export function installSourceLayout() {
   };
   listen();
   chrome.permissions.onAdded.addListener(listen);
+}
+
+export async function assertNoCloudDestinationWork() {
+  if (workCoordinator.hasInFlight('classification')) throw new Error('cloudClassificationPending');
+  const scope = await currentCaptureScope(); let before: readonly [number, string] | undefined;
+  for (;;) {
+    const page = await captureStore.listForOwner(scope, before);
+    if (page.some(unsettledCloudDestination)) throw new Error('cloudClassificationPending');
+    const last = page.at(-1); if (!last || page.length < 50) break; before = [last.createdAt, last.captureId];
+  }
 }

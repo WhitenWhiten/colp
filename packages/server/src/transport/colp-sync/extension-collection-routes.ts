@@ -1,3 +1,4 @@
+import { registerSourceArchiveRoutes } from './source-archive-routes.js';
 import { ensureLibraryCollection, type LibraryCollectionUnitOfWork } from '../../modules/collections/index.js';
 import { rateLimitClientIp, createMemorySyncAdmissionPolicy, syncAdmissionSubjectKey, type SyncAdmissionPolicy } from '../../infrastructure/rate-limit/index.js';
 import { createHash } from 'node:crypto';
@@ -37,6 +38,7 @@ export interface ExtensionOwnerAccountPort {
 }
 
 export interface ExtensionCollectionRouteDependencies {
+  readonly sourceArchives?: import('../../modules/source-archives/index.js').SourceArchiveApplication;
   readonly libraryCollectionUnitOfWork?: LibraryCollectionUnitOfWork;
   readonly credentialVerifier: ExtensionCredentialEvidencePort;
   readonly ownedCollectionsQuery: GetOwnedCollectionsPagePorts;
@@ -63,6 +65,7 @@ export function registerExtensionCollectionRoutes(
   app: FastifyInstance,
   dependencies: ExtensionCollectionRouteDependencies,
 ): void {
+  registerSourceArchiveRoutes(app, dependencies);
   const admission = dependencies.admission ?? createMemorySyncAdmissionPolicy({
     budgets: { pull: { maxRequests: 120, windowMs: 60_000 }, push: { maxRequests: 120, windowMs: 60_000 } },
   });

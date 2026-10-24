@@ -1,0 +1,126 @@
+{
+  "fixture": true,
+  "realSite": false,
+  "baseCommit": "bc1a830f",
+  "runner": "prepared OrbStack Linux arm64 / forced xvfb / Playwright 1.61.1 / PostgreSQL 16.4",
+  "command": "COLP_ADAPTER_POSTGRES=1 node packages/extension/scripts/with-orbstack.mjs e2e e2e/mv3-site-adapter-cloud.spec.ts",
+  "acceptance": {
+    "fixture": true,
+    "realSite": false,
+    "browserVersion": "149.0.7827.0",
+    "backend": "real COLP Server Fastify + PostgreSQL 16.4",
+    "backendCases": {
+      "sameNameCollectionsDistinct": true,
+      "twoSourceCopies": true,
+      "immutableReplay": true,
+      "digestConflict": true,
+      "twoReplicaEpochRace": true,
+      "staleEpochRejected": true,
+      "receiptRetainedAfterRevocation": true,
+      "globalReservationsReused": true,
+      "backendClassificationUnavailable": true,
+      "canonicalMutationReceipts": true,
+      "simultaneousAcquisition": true,
+      "unmappedRootRejected": true,
+      "preparedCancellation": true,
+      "cancellationFencesLatePrepare": true
+    },
+    "sourceAccount": "controlled",
+    "bOnly": true,
+    "cWrites": 0,
+    "rollbackAtomic": true,
+    "lostResponse": true,
+    "workerCutRecoveryAfterDisable": true,
+    "twoBrowsers": true,
+    "ordinarySyncDoesNotGrantSourceAuthority": true,
+    "exclusiveLeaseTransfer": true,
+    "sameCanonicalCopyAfterTransfer": true,
+    "modelCalls": 0,
+    "classification": false,
+    "receiptUsesActualFinalParent": true,
+    "cancelledPreviewCannotApproveNewCommand": true
+  },
+  "combinedStats": {
+    "startTime": "2026-10-24T17:10:42.968Z",
+    "duration": 130017.361,
+    "expected": 3,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  },
+  "combinedCommand": "COLP_ADAPTER_POSTGRES=1 node packages/extension/scripts/with-orbstack.mjs e2e e2e/mv3-site-adapter-cloud.spec.ts e2e/mv3-site-adapter-community.spec.ts e2e/mv3-site-adapter-lifecycle.spec.ts e2e/mv3-site-adapter-planned.spec.ts",
+  "lifecycleAssertionUpdate": "Combined run had one failure: catalog inspection now durably admits a catalog.upsert observation. The lifecycle test is updated to assert one catalog.upsert and exactly two membership.observed records, retaining all no-effects/ingress assertions. Final selected rerun is recorded separately.",
+  "finalLifecycleStats": {
+    "startTime": "2026-10-24T17:13:37.408Z",
+    "duration": 28863.042,
+    "expected": 1,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "finalLifecycleCommand": "node packages/extension/scripts/with-orbstack.mjs e2e e2e/mv3-site-adapter-lifecycle.spec.ts",
+  "unitTests": {
+    "passed": 29,
+    "files": 4,
+    "command": "node packages/extension/scripts/with-orbstack.mjs run node_modules/.bin/vitest run tests/site-adapter-cloud.test.ts tests/site-adapter-confirmation.test.ts tests/site-adapter-rules.test.ts tests/classification-destination-policy.test.ts"
+  },
+  "classification": "Unavailable by user-confirmed COLP Server scope. Backend classify rejects; source archives make zero model/tag requests with automatic capture, tag-add, local AI and provider access enabled.",
+  "limits": [
+    "Cloud profile v1 supports explicitly approved 20-edge positive source import batches and sourceAndSemantic only. The two single-copy semantic policies remain local and reject cloud submission.",
+    "No background cloud classifier, automatic cloud live importer, negative membership readback, automatic rename/root migration or cross-device native-ID adoption.",
+    "Full-project TypeScript memory limitation from earlier tasks remains; only the focused strict graph is counted."
+  ],
+  "cleanup": "Disposable profiles, copied artifact, isolated PostgreSQL schema, xvfb runner/database containers and unique Docker network removed after passing/failing runs. No site mutation or external backend/classifier started. Cached prepared image/dependencies and PostgreSQL image retained.",
+  "initialCloudStats": {
+    "startTime": "2026-10-24T17:04:54.218Z",
+    "duration": 60706.94300000001,
+    "expected": 1,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "finalCloudStats": {
+    "startTime": "2026-10-24T17:23:06.281Z",
+    "duration": 62211.79,
+    "expected": 1,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "qualifiedSpecs": {
+    "cloud": "passed final selected rerun, 58.5s",
+    "community": "passed combined run, 26.3s",
+    "lifecycle": "passed final selected rerun, 28.6s",
+    "planned": "passed combined run, 10.6s"
+  },
+  "cancelledApproval": "Plan ID is included in the immutable approval digest; a cancelled preview cannot approve a later same-content command. Actual settings Cancel button resets its approval.",
+  "strictTypecheck": {
+    "passed": true,
+    "heapMiB": 1536,
+    "command": "node packages/extension/scripts/with-orbstack.mjs run node --max-old-space-size=1536 node_modules/typescript/bin/tsc --noEmit --strict --skipLibCheck --noUncheckedIndexedAccess --target ES2023 --module NodeNext --moduleResolution NodeNext --lib ES2023,DOM,DOM.AsyncIterable src/chrome.d.ts src/bookmark-subscriptions/chrome-external.d.ts src/service-worker.ts src/site-adapters/settings.ts tests/site-adapter-cloud.test.ts e2e/mv3-site-adapter-cloud.spec.ts e2e/mv3-site-adapter-lifecycle.spec.ts ../server/src/bootstrap/source-archive-helpers.ts ../server/src/infrastructure/source-archives/postgres.ts ../server/src/transport/colp-sync/source-archive-routes.ts",
+    "fullProject": "Earlier recorded VM memory limit; not counted as passed."
+  },
+  "productionSha256": {
+    "service-worker.js": "203a0a8aa787a012e39abdc452be9d8a11c04082b4673273987319dbcc3a2db3",
+    "site-adapter.js": "ea88e87e919fd51b3c0216eade668d15b78bba5d5c11e4c872a904fe5a8d8a59",
+    "site-probe.js": "adce621480b74a7224f7bab51e2adfd3650898b9cb19d91c38de02d12ee1f359",
+    "site-settings.js": "19a970a4a5d2a3c6e38155709e4eee42109f2d63162e4459d5df429b2e4847d5"
+  },
+  "releaseVerifier": {
+    "passed": true,
+    "files": 41,
+    "sourceMaps": false,
+    "secretScan": "passed",
+    "command": "node packages/extension/scripts/with-orbstack.mjs run node scripts/verify-release-artifact.mjs dist/production"
+  },
+  "staticChecks": [
+    "Extension/server focused ESLint passed",
+    "Server import boundaries passed",
+    "Migration 202611020600 appends after existing 202611020500 head",
+    "Server source-size: 1070 files passed; no grandfather cap expansion",
+    "Runner node --check passed",
+    "git diff --check passed"
+  ],
+  "nativeRootGuard": "Before scope review and every dispatch, reuse captureTarget to require a currently selected personal Sync-range folder, excluding private/unmodifiable/subscription/unsupported targets; canonical mapping must remain proven and current.",
+  "observedAt": "2026-10-24T17:25:53.615557+00:00"
+}

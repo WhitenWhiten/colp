@@ -1,3 +1,4 @@
+import { createPostgresSourceArchives } from '../../server/src/infrastructure/source-archives/postgres.js';
 import { registerExtensionReplicaHealthRoutes } from '../../server/src/transport/colp-sync/extension-replica-health-routes.js';
 import { createPostgresReplicaHealthRecorder } from '../../server/src/infrastructure/sync/replica-health-postgres.js';
 import { createPostgresLibraryCollectionUnitOfWork } from '../../server/src/infrastructure/collections/library-collection-postgres.js';
@@ -152,6 +153,8 @@ export interface FixtureReplicaBinding {
 }
 
 export interface RealStack {
+  sourceArchiveProbe?(body?: unknown): Promise<{ status: number; body: unknown }>;
+  setSourceArchiveFault?(fault: 'none' | 'lost-response' | 'rollback-after-create'): void;
   readonly subscriptionProduct?: Awaited<ReturnType<typeof createBookmarkSubscriptionProductFixture>>;
   readonly classificationProduct?: ClassificationProductFixture;
   readonly browserHostResolverRules: string;
@@ -339,6 +342,7 @@ export async function startRealStack(options: {readonly classification?:boolean;
     key: await readFile(keyPath),
     cert: await readFile(certificatePath),
   } }) as FastifyInstance;
+  let sourceFault: 'none' | 'lost-response' | 'rollback-after-create' = 'none';
   let denyPull = false; let loseHealthResult = false; let holdHealth = false;
   let healthWaiting = false; let releaseHealth: (() => void) | undefined;
   app.addHook('onRequest', async (request, reply) => {
@@ -346,6 +350,7 @@ export async function startRealStack(options: {readonly classification?:boolean;
       type: 'about:blank', title: 'Injected authority denial', status: 409, code: 'need_authority' });
   });
   app.addHook('onSend', async (request, _reply, payload) => {
+    if (sourceFault === 'lost-response' && request.url === '/colp/v0.1/sync/source-archives' && (request.body as { action?: string } | null)?.action === 'commit') { request.raw.socket.destroy(); }
     if (!request.url.startsWith('/colp/v0.1/sync/replica-health')) return payload;
     const body = request.body as { commandResults?: unknown[] } | undefined;
     if (loseHealthResult && body?.commandResults?.length) {
@@ -634,6 +639,7 @@ export async function startRealStack(options: {readonly classification?:boolean;
     } }), rateLimit: { maxRequests: 100, windowMs: 60_000 },
     maxBodyBytes: 16_384, maxWarnings: 8, maxWarningBytes: 2_048 });
   registerExtensionCollectionRoutes(app, {
+    sourceArchives: createPostgresSourceArchives(isolated.runtime.db, { afterCanonicalCreate: () => { if (sourceFault === 'rollback-after-create') { sourceFault = 'none'; throw new Error('controlled_source_rollback'); } } }),
     libraryCollectionUnitOfWork: createPostgresLibraryCollectionUnitOfWork(isolated.runtime.db),
     ownerAccount: createPostgresExtensionOwnerAccountPort(isolated.runtime.db),
     credentialVerifier,
@@ -739,6 +745,11 @@ export async function startRealStack(options: {readonly classification?:boolean;
   }
 
   return {
+    setSourceArchiveFault: fault => { sourceFault = fault; },
+    async sourceArchiveProbe(body) {
+      const response = await app.inject({ method: body === undefined ? 'GET' : 'POST', url: '/colp/v0.1/sync/source-archives', headers: { Authorization: `Bearer ${latestAccessToken}`, Origin: EXTENSION_ORIGIN, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) }, ...(body === undefined ? {} : { payload: body as Record<string, unknown> }) });
+      return { status: response.statusCode, body: response.json() };
+    },
     resilience: {
       setPullDenial(value) { denyPull = value; }, loseResultResponse() { loseHealthResult = true; },
       delayCommandResponse() { holdHealth = true; }, commandResponseWaiting() { return healthWaiting; },

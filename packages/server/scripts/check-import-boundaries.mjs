@@ -202,6 +202,7 @@ const moduleEdges = {
   governance: new Set(['commands', 'collections', 'reports', 'publication', 'access-policy']),
 };
 const infrastructureEdges = {
+  'source-archives': new Set(['database', 'collections']),
   activity: new Set(['database', 'outbox', 'telemetry']),
   automation: new Set(['database', 'collections', 'access-policy', 'telemetry', 'outbox', 'egress']),
   // Transaction composition for browser projections and atomic follow exit.
@@ -307,6 +308,7 @@ const infrastructureEdges = {
 // facades only; allowing a layer category here would let a new deep import
 // bypass the public contract without a graph review.
 const infrastructureModuleEdges = {
+  'source-archives': new Set(['module:collections:facade', 'module:source-archives:facade']),
   activity: new Set(['module:activity:facade', 'module:automation:facade']),
   automation: new Set(['module:mcp:facade', 'module:collections:facade', 'module:identity:facade', 'module:automation:facade', 'module:commands:facade', 'module:access-policy:facade']),
   'bookmark-subscriptions': new Set(['module:bookmark-subscriptions:facade','module:commands:facade','module:collections:facade','module:reports:facade']),
@@ -411,6 +413,8 @@ const rootEntryTargets = new Set([
 // Bootstrap composes the process from these concrete public surfaces. This
 // deliberately includes the module aggregate only at its actual entrypoint.
 const bootstrapTargets = new Set([
+  'bootstrap/source-archive-helpers.ts',
+  'infrastructure/source-archives/postgres.ts',
   'infrastructure/activity/index.ts',
   'bootstrap/automation-approval-composition.ts',
   'bootstrap/worker-automation-maintenance.ts',
@@ -616,6 +620,8 @@ const bootstrapTargets = new Set([
 // layer graph remains explicit without granting every transport file access to
 // every bootstrap, infrastructure, or COLP path.
 const transportTargets = new Set([
+  'modules/source-archives/index.ts',
+  'transport/colp-sync/source-archive-routes.ts',
   'modules/activity/index.ts',
   'transport/product/activity-routes.ts',
   'transport/product/folder-share-routes.ts',

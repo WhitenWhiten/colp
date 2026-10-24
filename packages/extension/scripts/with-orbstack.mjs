@@ -12,6 +12,9 @@ const image = `colp-extension-tests:pw${version}`;
 const prefix = `colp-adapters-${createHash('sha256').update(root).digest('hex').slice(0, 10)}`;
 const [mode, ...args] = process.argv.slice(2);
 let container;
+let postgres;
+let network;
+let databaseUrl;
 let stopping = false;
 
 function run(command, argv, quiet = false) {
@@ -23,6 +26,9 @@ function run(command, argv, quiet = false) {
 }
 async function cleanup() {
   if (container) await run('docker', ['rm', '--force', container], true).catch(() => {});
+  if (postgres) await run('docker', ['rm', '--force', postgres], true).catch(() => {});
+  if (network) await run('docker', ['network', 'rm', network], true).catch(() => {});
+  postgres = network = undefined;
 }
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, async () => {
   if (stopping) return;
@@ -46,11 +52,22 @@ async function inContainer(command) {
   container = `${prefix}-${randomUUID().slice(0, 8)}`;
   console.log(`Linux runner: ${image}; dependency volumes: ${prefix}-{extension,server,npm}`);
   try {
-    await run('docker', ['run', '--rm', '--init', '--name', container, '--shm-size=1g',
+    if (process.env.COLP_ADAPTER_POSTGRES === '1') {
+      network = `${container}-db`; postgres = `${container}-postgres`;
+      const password = randomUUID();
+      await run('docker', ['network', 'create', network], true);
+      // No host port, no Docker socket in the test container. Remove this DB with its run.
+      await run('docker', ['run', '--detach', '--rm', '--name', postgres, '--network', network,
+        '--network-alias', 'source-postgres', '--env', `POSTGRES_PASSWORD=${password}`, '--env', 'POSTGRES_DB=colp_source_tests', 'postgres:16.4-alpine'], true);
+      await run('docker', ['exec', postgres, 'sh', '-ec', 'for n in $(seq 1 60); do pg_isready -U postgres -d colp_source_tests >/dev/null 2>&1 && exit 0; sleep 1; done; exit 1'], true);
+      databaseUrl = `postgres://postgres:${password}@source-postgres:5432/colp_source_tests`;
+    }
+    await run('docker', ['run' , '--rm', '--init', '--name', container, '--shm-size=1g',
       '--mount', `type=bind,source=${root},target=/workspace`,
       '--mount', `type=volume,source=${prefix}-extension,target=/workspace/packages/extension/node_modules`,
       '--mount', `type=volume,source=${prefix}-server,target=/workspace/packages/server/node_modules`,
       '--mount', `type=volume,source=${prefix}-npm,target=/root/.npm`,
+      ...(network ? ['--network', network, '--env', `DATABASE_URL=${databaseUrl}`] : []),
       '--workdir', '/workspace/packages/extension', image, ...command]);
   } finally { await cleanup(); container = undefined; }
 }

@@ -1,3 +1,4 @@
+import { sourceArchiveHelpers } from './source-archive-helpers.js';
 import { undoAutomationApproval } from '../infrastructure/automation/index.js';
 import { isFaviconReadableBySubject } from '../infrastructure/database/index.js';
 import {
@@ -26,10 +27,6 @@ import {
   createPostgresSharedExposureFactsPort,
   type DatabaseRuntime,
 } from '../infrastructure/database/index.js';
-import {
-  createPostgresExtensionOwnerAccountPort,
-  createPostgresExtensionOwnerSubjectPort,
-} from '../infrastructure/identity/index.js';
 import {
   createPhase4bMcpAgentApprovalApi,
   createPostgresCollectionPolicyRevisionPort,
@@ -516,11 +513,10 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
       syncRetireRoutes: syncRuntime.retire,
       extensionReplicaHealthRoutes: syncRuntime.health,
       extensionCollectionRoutes: {
+        ...sourceArchiveHelpers(database.db),
         libraryCollectionUnitOfWork: ports.libraryCollectionUnitOfWork,
         credentialVerifier: syncRuntime.session.credentialVerifier,
         ownedCollectionsQuery: ports.ownedCollectionsQueryPorts,
-        ownerSubject: createPostgresExtensionOwnerSubjectPort(database.db),
-        ownerAccount: createPostgresExtensionOwnerAccountPort(database.db),
         collectionMutation: ports.productCollectionMutationUnitOfWork,
         allowedOrigins: syncRuntime.session.allowedOrigins,
       },

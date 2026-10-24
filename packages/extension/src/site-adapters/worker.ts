@@ -1,3 +1,4 @@
+import { validCloudManagement, handleCloudManagement } from './cloud-runtime.js';
 import { validDestinationRequest, handleDestinationRequest } from './destination-runtime.js';
 import { installContentBindings, installContentResolver, validContentRequest, handleContentRequest } from './content-runtime.js';
 import { AUTOMATION_CHANGED_KEY } from '../automation/messages.js';
@@ -91,6 +92,10 @@ async function acceptInspection(message: AdapterMessage, context: import('./ledg
       const combined = [...cache.items, ...message.result.page.items];
       if (combined.length > 2000 || new Set(combined.map(c => c.id)).size !== combined.length) return false;
       catalog = { ...cache, items: combined, outstanding: null, nextCursor: message.result.page.nextCursor };
+      for (let offset = 0; offset < message.result.page.items.length; offset += 32) {
+        const accepted = await siteLedger.acceptObservation(context, `inspection-catalog:${message.requestId}:${offset}`, { type: 'catalog.upsert', collections: message.result.page.items.slice(offset, offset + 32) });
+        if (accepted.status === 'rejected') return false;
+      }
     } else catalog = { ...cache, outstanding: null, nextCursor: null };
   }
   await chrome.storage.local.set({ [INSPECTION]: { ...stored, result: message.result }, ...(catalog ? { [CATALOG]: catalog } : {}) });
@@ -241,6 +246,9 @@ export function installSiteAdapters() {
       const path = sender.url && new URL(sender.url).pathname;
       if (sender.id !== chrome.runtime.id || !sender.url?.startsWith(`chrome-extension://${chrome.runtime.id}/`) || !['/popup.html', '/site-adapters.html'].includes(path || '')) return false;
       void (validDestinationRequest(raw) ? handleDestinationRequest(raw) : handleContentRequest(raw)).then(respond, e => respond({ ok: false, error: e instanceof Error ? e.message : 'unavailable' })); return true;
+    }
+    if (management(sender) && validCloudManagement(raw)) {
+      void handleCloudManagement(raw).then(respond, e => respond({ ok: false, error: e instanceof Error ? e.message : 'sourceCloudUnavailable' })); return true;
     }
     if (management(sender) && validRepairRequest(raw)) {
       void handleRepairRequest(raw).then(respond, e => respond({ ok: false, error: e instanceof Error ? e.message : 'unavailable' })); return true;
