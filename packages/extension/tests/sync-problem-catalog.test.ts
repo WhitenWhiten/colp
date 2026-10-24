@@ -99,9 +99,10 @@ describe('every code resolves to a readable sentence (C-19, plan item 11)', () =
 
 describe('the Reset sentence never promises a button that is not there (C-13)', () => {
   test('a terminal code says where Reset is when the card has none', () => {
-    const withButton = terminalFreezeReasonCopy('mapping_identity_conflict', { rebuildAvailable: true });
+    // A real freeze code that the (stale) SyncAttentionTerminalCode union leaves out; the view casts it the same way.
+    const withButton = terminalFreezeReasonCopy('mapping_identity_conflict' as never, { rebuildAvailable: true });
     assert.match(withButton, /Reset sync on this device to continue/u);
-    const blocked = terminalFreezeReasonCopy('mapping_identity_conflict', { rebuildAvailable: false,
+    const blocked = terminalFreezeReasonCopy('mapping_identity_conflict' as never, { rebuildAvailable: false,
       rebuildUnavailableReason: 'upload_outcome_unsettled' });
     assert.doesNotMatch(blocked, /Reset sync on this device to continue/u);
     assert.match(blocked, /no confirmed result/u);

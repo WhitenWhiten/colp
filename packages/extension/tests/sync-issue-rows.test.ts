@@ -3,7 +3,7 @@ import { describe, test } from 'vitest';
 import { describeSyncAttention } from '../src/sync-attention-view.js';
 import { issueSummaryCopy, mergeResolutionFailureCopy } from '../src/sync-issue-copy.js';
 import { SYNC_ISSUE_ROW_LIMIT, syncIssueRows } from '../src/sync-issue-rows.js';
-import { reportCode, replicaIssuesFromPull, replicaIssuesFromQueue } from '../src/sync-issue-snapshot.js';
+import { reportCode, replicaIssuesFromPull, replicaIssuesFromQueue, type ReplicaHealthIssue } from '../src/sync-issue-snapshot.js';
 import { withResolvedTitles } from '../src/sync-issue-titles.js';
 import { handleSyncAttentionRequest } from '../src/sw/sync-attention.js';
 import type { SyncIssueDiagnostic } from '../src/types.js';
@@ -118,7 +118,7 @@ describe('titles for rows that only name their target (C-03)', () => {
   });
 
   test('a lookup that throws or has no title leaves the row alone; no lookup port leaves everything alone', async () => {
-    const row = { issueId: 'a', code: 'set_aside', direction: 'push' as const, nodeId: 'node-1', count: 1, firstSeenAt: 't', lastSeenAt: 't', actions: [] as const };
+    const row: ReplicaHealthIssue = { issueId: 'a', code: 'set_aside', direction: 'push', nodeId: 'node-1', count: 1, firstSeenAt: 't', lastSeenAt: 't', actions: [] };
     assert.equal((await withResolvedTitles([row], scope, async () => { throw new Error('closed'); }))[0]?.title, undefined);
     assert.equal((await withResolvedTitles([row], scope, async () => named(undefined)))[0]?.title, undefined);
     assert.equal((await withResolvedTitles([row], scope, undefined))[0]?.title, undefined);
