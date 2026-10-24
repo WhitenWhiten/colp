@@ -36,9 +36,11 @@ import { createAccountView } from './options-account.js';
 import { bindSelectPills, paintSelectPills } from './select-pill.js';
 import { bindLogoutConfirm, openLogoutConfirm } from './logout-confirm-ui.js';
 import { bindServerAccount } from './server-account-ui.js';
-import { formatMoment, t } from './i18n.js';
+import { formatMoment, onUiLanguageChanged, t } from './i18n.js';
 import { bindPageLanguage, hydrateInfoTips } from './page-language.js';
 import { bindAutomationsPane } from './automation/options-pane.js';
+import { SignedInSetupError, settleFailedLogin } from './login-outcome.js';
+import { endedSignInReason, paintSignedOut, signInHasEnded } from './signed-out-reason.js';
 
 hydrateIcons(document); bindSelectPills();
 const languageReady = bindPageLanguage(() => { hydrateInfoTips(); paintSelectPills(); paintWelcomeSteps(element('welcome-steps')); });
@@ -110,6 +112,9 @@ const creditsLedger = bindOptionsCredits(element('credits-card'), () => request(
 bindBookmarkOrganizer(async () => { if (!panes.bookmarks.hidden) await bookmarkManager.activate(); });
 const bookmarkPreferences = bindBookmarkPreferences(foldersFirst => { void bookmarkManager.preferencesChanged(foldersFirst); });
 let connected = false;
+// Why a working sign-in was ended for the person, while it is (W2B-P1-2); a language change repaints its words.
+let endedSignIn: string | undefined;
+onUiLanguageChanged(() => { paintSignedOut({ lede: accountCopy, connect: syncConnect }, endedSignIn); });
 let serverField: Awaited<ReturnType<typeof bindServerOriginField>> | undefined;
 let renderTurn = 0;
 const personalSync = bindPersonalSyncControls(element('personal-sync-settings'));
@@ -239,7 +244,11 @@ async function completeLogin(message: Extract<ExtensionRequest, { kind: 'known.a
     isProtocolOpaqueId((await chrome.storage.local.get(COLLECTION_BINDING))[COLLECTION_BINDING]));
   if (response.state.status === 'connected') navigation.returnAfterLogin();
   if (response.state.status !== 'connected') {
-    throw new Error(response.state.errorCode ?? (response.ok ? 'authentication_failed' : response.error));
+    const failure = response.state.errorCode ?? (response.ok ? 'authentication_failed' : response.error);
+    // The credential can be stored although the setup behind it failed: the page shows what the browser really holds,
+    // with the failure in front of the person (W2B-P3-4).
+    const signedIn = await settleFailedLogin(failure, { request, render, alert: (view) => { accountView.paintAlert(view, true, false); } });
+    throw signedIn ? new SignedInSetupError(failure) : new Error(failure);
   }
 }
 function render(response: ExtensionResponse): void {
@@ -262,6 +271,8 @@ function render(response: ExtensionResponse): void {
   // Signed out, the session detail is hidden, so the reason toasts like on the web.
   if (!signedInView) announceAuthReason(state);
   sessionStage.hidden = !signedInView; accountCopy.hidden = signedInView;
+  endedSignIn = endedSignInReason(state);
+  paintSignedOut({ lede: accountCopy, connect: syncConnect }, endedSignIn);
   navigation.setPaneViews('account', signedInView ? ['session', 'credits'] : ['session']);
   void refreshCloudOptions(state.serverOrigin, {
     signedIn: signedInView,
@@ -273,7 +284,7 @@ function render(response: ExtensionResponse): void {
   syncConnect.hidden = connected; navigation.setPaneViews('sync', connected ? SYNC_VIEWS : []);
   if (signedInView) welcome.hidden = true;
   setLoginProductLinks(state.serverOrigin);
-  hubChrome.setAccount(state.status, state.accountLabel && shortLabel(state.accountLabel)); void refreshLibrary();
+  hubChrome.setAccount(state.status, state.accountLabel && shortLabel(state.accountLabel), endedSignIn !== undefined); void refreshLibrary();
   if (connected && navigation.currentView('account') === 'credits') void creditsLedger.activate();
   refreshCreditsSummary();
   if (connected) void refreshEngineStatus();
@@ -318,7 +329,8 @@ function copy(state: PublicAuthState): { title: string; detail: string; action: 
       if (state.errorCode === 'logout_gesture_required') {
         return { title: t('options_signOutFailed', 'Sign out failed'), detail: authErrorCopy(state.errorCode), action: t('common_signOut', 'Sign out'), actionKind: 'logout' };
       }
-      const needsReauth = state.errorCode === 'credential_revoked' || state.errorCode === 'invalid_grant' || state.errorCode === 'authentication_required';
+      // Retry only asks again: a sign-in that is over (expired, revoked, reconfigured) needs signing in again.
+      const needsReauth = signInHasEnded(state.errorCode) || state.errorCode === 'invalid_grant';
       return { title: t('common_signInProblem', 'Sign-in problem'), detail: authErrorCopy(state.errorCode), action: needsReauth ? t('options_signInAgain', 'Sign in again') : t('common_retry', 'Retry'), actionKind: needsReauth ? 'login' : 'retry' };
     }
     default: return { title: t('icons_notConnected', 'Not connected'), detail: t('options_signThenChooseWhere', 'Sign in, then choose where this browser syncs.'), action: t('common_signIn', 'Sign in'), actionKind: 'login' };
