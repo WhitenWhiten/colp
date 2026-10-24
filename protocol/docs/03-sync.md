@@ -672,7 +672,8 @@ Proofs are bearer credentials, MUST NOT appear in health JSON or product views,
 and MUST be redacted from logs. A Session identifier may serve as the proof only
 if the server verifies its retained installation binding separately from Session
 expiry. Reporting MUST NOT mint a Session, renew a lease, touch last-seen, move a
-cursor/checkpoint, or change replica lifecycle.
+cursor/checkpoint, or change replica lifecycle, except for the explicitly
+owner-confirmed fenced Rebuild command described below.
 
 Reports use last-writer-wins: only a greater `revision` replaces health state.
 Duplicate/older reports MUST NOT roll state back. The server MAY still settle
@@ -695,6 +696,24 @@ and authorization fence; a changed target MUST reject the stale command.
 v1 implements Retry and Rebuild; it does not claim single-Node
 refresh or automatic archive re-import. A destructive action requires explicit
 owner confirmation, and Rebuild preserves unsent evidence before rotating.
+
+A client that can archive uncertain uploads MAY negotiate `Known-Sync-Rebuild:
+retire` on health requests. When delivering an owner-confirmed, whole-replica
+Rebuild, the server MUST commit retirement under the same authority lock as Push
+before returning `replicaRetired: true` on that command. The marker is legal only
+for `action: rebuild` without `issueId`, and MUST NOT be sent to clients that did
+not negotiate it. No old upload may commit after this fence. The client MAY then
+archive unresolved uploads and native intents without replaying them, preserve
+browser bookmarks, rotate the replica, and require a new setup/merge review.
+Previously committed uploads remain in the server library; uncertainty is not
+evidence that an upload failed.
+
+An owner-requested fenced Rebuild keeps only its authenticated health command
+and result channel available after retirement, including receipt loss and
+restart. Ordinary retired replicas remain denied. Local issue disappearance or
+diagnostic corruption MUST NOT cancel an already fenced reset; original target
+and credential authority checks still apply. Without the retirement marker the
+client MUST retain its ordinary guards against abandoning uncertain uploads.
 
 The client durably deduplicates command IDs before execution. A redelivery MUST
 NOT execute twice; interrupted execution must be reconciled from durable evidence

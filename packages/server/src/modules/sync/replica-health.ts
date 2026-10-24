@@ -58,6 +58,8 @@ export interface ReplicaCommand {
   readonly commandId: string;
   readonly action: ReplicaIssueAction;
   readonly issueId?: string;
+  /** Negotiated rebuild receipt: the old replica can no longer write. */
+  readonly replicaRetired?: true;
 }
 export interface ReplicaCommandResult {
   readonly commandId: string;
@@ -82,7 +84,8 @@ export interface ReplicaHealthRecorder {
    * Stores the report unless a newer revision is already stored, settles the
    * commands it reports on either way, and hands over the commands still open.
    */
-  record(input: { readonly credential: VerifiedExtensionCredential; readonly report: ReplicaHealthReport; readonly replicaProof?: string }):
+  record(input: { readonly credential: VerifiedExtensionCredential; readonly report: ReplicaHealthReport; readonly replicaProof?: string;
+    readonly supportsFencedRebuild?: boolean }):
     Promise<{ readonly accepted: boolean; readonly revision: number; readonly commands: readonly ReplicaCommand[] }>;
   /** Keeps the latest Ack warnings of a replica; an empty list clears them. */
   recordAckWarnings(input: { readonly replicaId: string; readonly warnings: readonly ReplicaAckWarning[] }): Promise<void>;

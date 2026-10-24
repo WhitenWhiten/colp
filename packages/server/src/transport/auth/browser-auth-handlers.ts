@@ -544,10 +544,7 @@ export function registerSessionMeRoutes(app: FastifyInstance, deps: BrowserAuthD
     });
     if (!me) throw authenticationRequired();
     if (!me.handle) throw missingAccountHandle();
-    return reply.code(200).send({
-      ...toMeView(me),
-      features: { agentActivity: deps.config.agentActivityEnabled === true },
-    });
+    return reply.code(200).send(toMeView(me, { agentActivity: deps.config.agentActivityEnabled === true }));
   });
 
   app.patch('/api/v1/me', {

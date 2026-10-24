@@ -61,7 +61,7 @@ export function createBookmarkEventHealer(input: {
       const parentNativeId = String(context.parentNativeId ?? '');
       const parent = await trusted(parentNativeId, event.ordinal);
       if ('blocked' in parent) return blockedOutcome(parent.blocked);
-      const relative = await trustedRelative(context, event.ordinal, markers);
+      const relative = await trustedRelative(context, event.ordinal, markers, parent.identity.nativeId);
       if ('blocked' in relative) return blockedOutcome(relative.blocked);
       const original = details.mapping as unknown as MappingInput;
       const payload = { ...asObject(template.payload, 'payload') };
@@ -98,7 +98,7 @@ export function createBookmarkEventHealer(input: {
       if ('blocked' in source) return blockedOutcome(source.blocked);
       const target = await trusted(String(context.targetParentNativeId ?? ''), event.ordinal);
       if ('blocked' in target) return blockedOutcome(target.blocked);
-      const relative = await trustedRelative(context, event.ordinal, markers);
+      const relative = await trustedRelative(context, event.ordinal, markers, target.identity.nativeId);
       if ('blocked' in relative) return blockedOutcome(relative.blocked);
       if (!source.identity.childrenRevision) {
         return { kind: 'blocked', reason: 'children_fence_missing',
@@ -177,7 +177,8 @@ export function createBookmarkEventHealer(input: {
     return queued ? { nativeId, opId: queued.opId } : { nativeId, eventId: token };
   }
 
-  async function trustedRelative(context: JsonObject, beforeOrdinal: number, markers: ParkMarkers): Promise<
+  async function trustedRelative(context: JsonObject, beforeOrdinal: number, markers: ParkMarkers,
+    parentNativeId: string): Promise<
     { readonly wire: JsonObject } | { readonly blocked: EventDependency }> {
     for (const key of ['afterNativeId', 'beforeNativeId'] as const) {
       if (typeof context[key] !== 'string') continue;
@@ -186,16 +187,23 @@ export function createBookmarkEventHealer(input: {
       // neighbour, or by the folder alone, rather than wait for it.
       if ('blocked' in anchor && await anchorHeld(anchor.blocked, markers)) continue;
       if ('blocked' in anchor) return { blocked: anchor.blocked };
+      if (anchor.identity.parentNativeId !== undefined && anchor.identity.parentNativeId !== parentNativeId) continue;
       return { wire: { [key === 'afterNativeId' ? 'afterId' : 'beforeId']: anchor.identity.colpId } };
     }
     return { wire: {} };
   }
 
   async function anchorHeld(dependency: EventDependency, markers: ParkMarkers): Promise<boolean> {
-    if (dependency.eventId && markers.get(dependency.eventId)?.state === 'parked') return true;
-    if (!dependency.opId) return false;
+    if (dependency.eventId) {
+      if (markers.get(dependency.eventId)?.state === 'parked') return true;
+      return (await input.store.getBookmarkEvent(input.scope, dependency.eventId))?.status !== 'pending';
+    }
+    // A missing/deleted neighbour has no operation that could release the wait.
+    // Only a live predecessor may hold ordering; parent/target identity stays mandatory.
+    if (!dependency.opId) return true;
     const row = await input.store.getQueueByOpId(input.scope, dependency.opId);
-    return row?.status === 'set_aside' || row?.status === 'rejected' || row?.recovery?.resultStatus === 'rejected';
+    return !row || row.status === 'set_aside' || row.status === 'rejected' || row.status === 'terminal'
+      || row.recovery?.code === 'conflict_pending' || row.recovery?.resultStatus === 'rejected';
   }
 
   /** Old quarantines may have an unchanged stamp but only need to omit a failed neighbour. */

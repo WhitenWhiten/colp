@@ -16,6 +16,8 @@ export function useSyncCenterData() {
   const sessionIdentity = useSyncExternalStore(subscribeSession, privateSessionIdentity, privateSessionIdentity)
   const [status, setStatus] = useState<SyncStatusView | null>(null)
   const [conflicts, setConflicts] = useState<SyncConflictSummary[]>([])
+  const [conflictError, setConflictError] = useState<string | null>(null)
+  const [conflictsLoading, setConflictsLoading] = useState(true)
   const [drafts, setDrafts] = useState<Record<string, ConflictDraft>>({})
   const [trashItems, setTrashItems] = useState<SyncTrashListItem[]>([])
   const [trashCollectionTitles, setTrashCollectionTitles] = useState<Record<string, string>>({})
@@ -100,25 +102,30 @@ export function useSyncCenterData() {
     else setRefreshing(true)
     setLoadError(null)
     setLoadErrorKind(null)
+    const current = () => !superseded() && mounted.current
+    setConflictError(null); setConflictsLoading(true)
+    // These panels are independent recovery surfaces. A slow/broken conflict
+    // or library read must never withhold device commands.
+    const conflictsRequest = productClient.loadSyncConflicts({ signal, maxRetries: 0, limit: 25 })
+      .then(items => { if (current()) applyConflicts(items) })
+      .catch(() => { if (current()) setConflictError('Couldn’t load browser conflicts. Refresh to try again.') })
+      .finally(() => { if (current()) setConflictsLoading(false) })
+    const libraryRequest = productClient.getLibrary({ signal, maxRetries: 0 })
+      .then(async library => {
+        if (!current()) return
+        setTrashCollectionTitles({ [library.id]: library.title })
+        await loadTrash(library.id, signal)
+      }).catch(() => {
+        if (current()) { setTrashErrorKind('other'); setTrashError('Couldn’t load the library. Refresh to try again.') }
+      })
     try {
-      const [nextStatus, nextConflicts, library] = await Promise.all([
-        productClient.getSyncStatus({ signal, maxRetries: 0 }),
-        productClient.loadSyncConflicts({ signal, maxRetries: 0, limit: 25 }),
-        productClient.getLibrary({ signal, maxRetries: 0 }),
-      ])
-      if (superseded() || !mounted.current) return
+      const nextStatus = await productClient.getSyncStatus({ signal, maxRetries: 0 })
+      if (!current()) return
       markServerFeatureAvailable('sync')
       setStatus(nextStatus)
-      applyConflicts(nextConflicts)
-      setTrashCollectionTitles({ [library.id]: library.title })
-      const selected = library.id
-      await loadTrash(selected, signal)
     } catch (error) {
-      // The signal, not `mounted`: a superseded pass that rejects with a
-      // non-abort error (a 503, say) would otherwise paint `loadError` and, via
-      // the view's `!loading && !loadError` gate, hide the status the live read
-      // already loaded. `mounted.current` cannot stand in for it — the remount
-      // sets it back to true, and `load('refresh')` runs with no signal at all.
+      // An older request must not replace the live request's error state,
+      // including refreshes without an AbortSignal.
       if (superseded()) return
       if (error instanceof DOMException && error.name === 'AbortError') return
       if (!mounted.current) return
@@ -137,11 +144,13 @@ export function useSyncCenterData() {
       if (superseded()) return
       if (mounted.current) { setLoading(false); setRefreshing(false) }
     }
+    await Promise.all([conflictsRequest, libraryRequest])
   }, [applyConflicts, loadTrash, sessionIdentity])
 
   useEffect(() => {
     renderedIdentityRef.current = sessionIdentity
     mounted.current = true
+    setConflictError(null); setConflictsLoading(true)
     setStatus(null); setConflicts([]); setDrafts({}); setTrashItems([]); setTrashDetails({});
     setTrashCollectionTitles({}); setTrashCollectionId(null)
     setLoadError(null); setLoadErrorKind(null); setTrashError(null); setTrashErrorKind(null)
@@ -201,6 +210,8 @@ export function useSyncCenterData() {
     setStatus,
     conflicts: identityReady ? conflicts : [],
     setConflicts,
+    conflictError: identityReady ? conflictError : null,
+    conflictsLoading: identityReady ? conflictsLoading : true,
     drafts: identityReady ? drafts : {},
     setDrafts,
     trashItems: identityReady ? trashItems : [],

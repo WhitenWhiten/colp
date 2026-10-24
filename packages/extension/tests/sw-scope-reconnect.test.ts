@@ -214,3 +214,30 @@ for (const boundary of ['no durable scope', 'no credential', 'different collecti
     assert.equal(serverCalls(f.network), 0);
   });
 }
+
+test('runtime rebuild resumes after identity rotation succeeded but registration failed', async () => {
+  const f = await disconnectedSession();
+  const { replicaRebuilder } = await import('../src/sw/scope-rebuild.js');
+  const result = await replicaRebuilder().rebuildServerRetired(f.scope);
+  assert.equal(result.outcome, 'failed', 'the fixture is offline during new Session registration');
+  const binding = (await f.store.loadBinding())!;
+  assert.notEqual(binding.replicaId, f.scope.replicaId);
+  assert.ok(await replicaRebuilder().hasPending());
+  await assert.rejects(f.api.currentSyncScope(), /not_connected/);
+  const next = await f.api.currentSyncScope({ allowUnregistered: true });
+  assert.equal(next.replicaId, binding.replicaId);
+  // The new registration now succeeds. Use the real runtime scope lookup and
+  // journal: a harness retaining the old scope hides this crash window.
+  const registration = vi.spyOn(f.api, 'requireSyncScope').mockImplementation(async () => {
+    await f.syncState.registerScope({ ...next, lifecycle: 'active', firstRun: 'none', selectedRoots: [],
+      lease: { leaseId: 'new-lease', expiresAt: Date.now() + 60000 }, checkpoint: null, rootStatus: 'ready' });
+    return next;
+  });
+  try {
+    assert.equal(await replicaRebuilder().resume(), true);
+    assert.equal(await replicaRebuilder().hasPending(), false);
+    assert.deepEqual(await f.store.loadBinding(), binding);
+    assert.deepEqual(await f.api.currentSyncScope(), next);
+    assert.equal((await f.syncState.exportArchive(f.scope)).reason, 'user_replica_rebuild');
+  } finally { registration.mockRestore(); }
+});

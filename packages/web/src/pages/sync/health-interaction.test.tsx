@@ -73,3 +73,26 @@ test('a loaded list older than health cannot execute issue actions', async () =>
   expect(document.querySelector<HTMLButtonElement>('[aria-label^="Try again:"]')?.disabled).toBe(true)
   expect(mocks.send).not.toHaveBeenCalled()
 })
+
+test('a retired replica retains its unfinished reset and can retry a failed reset', () => {
+  const command = { commandId: 'reset', replicaId: 'r', action: 'rebuild' as const, issueId: null,
+    state: 'delivered' as const, resultCode: null, createdAt: now, completedAt: null, expiresAt: now }
+  const retired = { ...replica({ ...health, actions: ['rebuild'], commands: [command] }), status: 'retired' as const }
+  const mounted = mountTree(<ReplicaHealth replica={retired} onChanged={() => {}} />)
+  expect(document.body.textContent).toContain('stopped uploads from the old sync copy')
+  expect(document.body.textContent).toContain('Waiting for Chrome to report back')
+  mounted.rerender(<ReplicaHealth replica={{ ...retired, health: { ...health, actions: ['rebuild'],
+    commands: [{ ...command, state: 'failed', resultCode: 'command_interrupted', completedAt: now }] } }} onChanged={() => {}} />)
+  expect([...document.querySelectorAll('button')].some(button => button.textContent === 'Reset sync')).toBe(true)
+  expect(document.body.textContent).toContain('browser stopped before it finished')
+})
+
+test('diagnostic read failure still exposes recovery actions inside the dialog', async () => {
+  mocks.list.mockRejectedValue(new Error('diagnostics unavailable'))
+  mountTree(<ReplicaHealth replica={replica({ ...health, state: 'stopped', code: 'sync_diagnostics_unavailable',
+    issueCount: 0, actions: ['rebuild'] })} onChanged={() => {}} />)
+  click('Show diagnostics')
+  await waitForDom(() => document.body.textContent?.includes('Couldn’t load the items') === true)
+  const dialog = document.querySelector('[role="dialog"]')!
+  expect([...dialog.querySelectorAll('button')].some(button => button.textContent === 'Reset sync')).toBe(true)
+})

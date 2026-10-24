@@ -4,17 +4,20 @@ import { REPLICA_COMMANDS_DELIVERED_MAX, ReplicaHealthError, type ReplicaCommand
   type ReplicaHealthRecorder } from '../../modules/sync/index.js';
 import type { DatabaseSchema } from '../database/runtime.js';
 import { isJoseSyncCredentialRevoked } from './postgres/sync-jose-credential-revocation-postgres.js';
+import { lockCollectionReplicaGate } from '../database/lock-order.js';
+import { retireReplicaInTransaction } from './replica-lifecycle-postgres.js';
 
 /**
  * Replica reports are display facts. Authority is the verified Sync credential
  * plus durable installation possession: a stopped extension may hold no live Session, and its credential may
  * have rotated since its last Session, so neither is required. The credential's
- * active account must own the named, unretired replica. The proof binds the
+ * active account must own the named replica (retired only for an owner-requested
+ * rebuild's command/result delivery). The proof binds the
  * device/profile/generation and account security epoch, independently of token expiry.
  */
 export function createPostgresReplicaHealthRecorder(db: Kysely<DatabaseSchema>): ReplicaHealthRecorder {
   const recorder: ReplicaHealthRecorder = {
-    async record({ credential, report, replicaProof }) {
+    async record({ credential, report, replicaProof, supportsFencedRebuild }) {
       return db.transaction().execute(async (db) => {
       if (!credential.scopes.includes('known.sync')) throw new ReplicaHealthError('invalid_token');
       const account = await db.selectFrom('account_identities as identity')
@@ -27,11 +30,22 @@ export function createPostgresReplicaHealthRecorder(db: Kysely<DatabaseSchema>):
         tokenDigest: credential.credentialDigest,
         issuedAtSeconds: Math.floor(credential.credentialIssuedAt.getTime() / 1_000), clockSkewSeconds: 0,
       })) throw new ReplicaHealthError('invalid_token');
-      const replica = await db.selectFrom('sync_replicas').select(['account_id', 'status'])
+      const located = await db.selectFrom('sync_replicas').select('collection_id')
+        .where('replica_id', '=', report.replicaId).where('account_id', '=', account.account_id).executeTakeFirst();
+      if (!located) throw new ReplicaHealthError('resource_not_found');
+      // Retirement shares the collection/replica gate with Push. Once its
+      // receipt leaves this transaction, no old upload can commit afterwards.
+      if (supportsFencedRebuild) await lockCollectionReplicaGate(db, located.collection_id);
+      const replica = await db.selectFrom('sync_replicas').selectAll()
         .where('replica_id', '=', report.replicaId).forUpdate().executeTakeFirst();
       if (!replica || replica.account_id !== account.account_id) throw new ReplicaHealthError('resource_not_found');
       if (!await hasReplicaReportAuthority(db, credential, report.replicaId, replicaProof)) throw new ReplicaHealthError('resource_not_found');
-      if (replica.status === 'retired') throw new ReplicaHealthError('replica_retired');
+      const rebuild = supportsFencedRebuild ? await db.selectFrom('sync_replica_commands').select('command_id')
+        .where('replica_id', '=', report.replicaId).where('action', '=', 'rebuild').where('issue_id', 'is', null)
+        .executeTakeFirst() : undefined;
+      // Only an owner-requested rebuild keeps its command/result channel alive
+      // after retirement. Ordinary stopped devices still receive 410.
+      if (replica.status === 'retired' && !rebuild) throw new ReplicaHealthError('replica_retired');
       const issues = JSON.stringify(report.issues.items);
       const stored = await sql<{ health_revision: string }>`
         INSERT INTO sync_replica_reports AS report (replica_id, account_id, health_state, health_code, health_since,
@@ -47,7 +61,24 @@ export function createPostgresReplicaHealthRecorder(db: Kysely<DatabaseSchema>):
         WHERE report.health_revision IS NULL OR report.health_revision < EXCLUDED.health_revision
         RETURNING health_revision::text`.execute(db);
       // A result is a fact about one command, true whatever the report's revision.
-      const commands = await settleAndDeliverCommands(db, report.replicaId, report.commandResults);
+      let commands = await settleAndDeliverCommands(db, report.replicaId, report.commandResults);
+      const resetting = supportsFencedRebuild && commands.some(command => command.action === 'rebuild' && command.issueId === undefined);
+      if (resetting && replica.status !== 'retired') {
+        const retired = await retireReplicaInTransaction(db, { accountId: account.account_id,
+          collectionId: replica.collection_id, replicaId: report.replicaId,
+          expectedLeaseGeneration: BigInt(replica.lease_generation).toString(),
+          expectedLifecycleRevision: BigInt(replica.lifecycle_revision).toString() }, { auditPrincipalId: account.account_id });
+        if (retired.state !== 'committed') throw new Error('replica_rebuild_retirement_failed');
+        await db.updateTable('sync_sessions').set({ status: 'terminated', termination_reason: 'administrative',
+          terminated_at: sql<Date>`clock_timestamp()` }).where('replica_id', '=', report.replicaId).where('status', '=', 'active').execute();
+      }
+      if (resetting || replica.status === 'retired') {
+        await db.updateTable('sync_replica_commands').set({ state: 'failed', result_code: 'replica_rebuilt',
+          completed_at: sql<Date>`clock_timestamp()` }).where('replica_id', '=', report.replicaId)
+          .where('state', 'in', ['pending', 'delivered']).where('action', '!=', 'rebuild').execute();
+        commands = commands.filter(command => command.action === 'rebuild' && command.issueId === undefined)
+          .map(command => ({ ...command, replicaRetired: true as const }));
+      }
       if (stored.rows.length === 1) return { accepted: true, revision: report.revision, commands };
       const current = await db.selectFrom('sync_replica_reports').select('health_revision')
         .where('replica_id', '=', report.replicaId).executeTakeFirst();

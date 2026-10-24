@@ -22,6 +22,8 @@ All notable changes to the Know-N browser extension are documented here. The for
 
 ### Fixed
 
+- Missing, deleted, moved, or orphaned sorting neighbours no longer hold later saves in their folder. Server-confirmed Reset sync can archive uncertain uploads and corrupt diagnostic records after the server retires the old replica; local bookmarks and library data remain intact. Interrupted resets resume from the durable journal, including identity rotation before registration, and the health heartbeat retries registration when connectivity returns.
+
 - A second browser joining a collection no longer uploads the bookmarks it downloads during its first sync. While sync recovery or a first-sync Snapshot was being applied, the browser's own bookmark creates, moves and reorders were recorded as local edits, so each downloaded bookmark came back as a duplicate, and later deletes or restores from other browsers stopped syncing. Unmapped snapshot creates wait for the tree check when recovery ends; mapped moves, reorders, removals and content changes remain durable, with projection echoes filtered before upload.
 - Opening Options or the popup no longer starts a sync run each time the sync status is shown. Only a first sync that is still running is pushed along by status reads; before, a page refresh could queue many runs back to back.
 - Same-folder sorting during sync recovery now survives worker restart and uploads after recovery, instead of being discarded.

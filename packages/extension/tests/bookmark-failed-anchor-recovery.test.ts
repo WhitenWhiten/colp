@@ -140,3 +140,27 @@ for (const legacy of [false, true]) test(`same-node edits remain held while thei
     expect((await f.store.listIngressDiagnostics(scope)).find(row => row.park?.eventId === edit!.eventId)?.park?.attempts).toBe(1);
   } finally { f.store.close(); }
 });
+
+for (const failure of ['tombstone', 'orphan', 'moved'] as const) {
+  test(`a ${failure} sorting neighbour cannot pin later saves in its folder`, async () => {
+    const f = await fixture(new IDBFactory(), { mappedNode: true });
+    try {
+      await mapping(f.store, 'mapped', 'mapped-colp', 'root-selected', 'r1', { title: 'Neighbour' }, 'root-selected');
+      f.api.put(bookmark('mapped', 'root-selected', 1, 'Neighbour', 'https://example.test/old'));
+      for (let i = 0; i < 2; i++) {
+        const node = bookmark(`saved-${i}`, 'root-selected', i + 2, `Saved ${i}`, `https://example.test/${i}`);
+        f.api.put(node); await f.queue.created(node.id, node);
+      }
+      if (failure === 'tombstone') await f.store.putRemoteObservation(scope, { colpId: 'mapped-colp', kind: 'tombstone',
+        remoteRevision: 'deleted', cursor: 'c2', observedAt: 2000, sourceDigest: 'deleted', payload: {} });
+      else await mapping(f.store, 'mapped', 'mapped-colp', 'root-selected', failure === 'orphan' ? 'local-missing-event' : 'r2',
+        { title: 'Neighbour' }, failure === 'moved' ? 'folder-parent' : 'root-selected');
+      await f.queue.flush();
+      const saved = (await f.store.listQueue(scope))[0]!;
+      expect(saved.payload.payload).not.toHaveProperty('afterId');
+      expect(saved.status).toBe('pending');
+      expect((await f.store.listBookmarkEventsByStatus(scope, 'pending')).map(event => event.nativeId)).toEqual(['saved-1']);
+      expect((await f.store.getScope(scope))?.lifecycle).toBe('active');
+    } finally { f.store.close(); }
+  });
+}

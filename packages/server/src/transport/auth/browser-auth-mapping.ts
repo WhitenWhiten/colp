@@ -30,9 +30,10 @@ export function toUtc(date: Date): string {
   return date.toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
 
-export function toMeView(me: Awaited<ReturnType<typeof getAccountWithProfile>>) {
+export function toMeView(me: Awaited<ReturnType<typeof getAccountWithProfile>>, features?: { readonly agentActivity: boolean }) {
   if (!me?.handle) throw missingAccountHandle();
   return {
+    ...(features ? { features } : {}),
     account: {
       id: me.account.id,
       email: me.account.email,

@@ -25,6 +25,13 @@ export function reportReplicaHealth(force = false): Promise<void> {
 }
 
 async function send(force: boolean) {
+  // A reset can publish its replacement identity and then lose connectivity
+  // before registration. No scope exists for reporting yet; the independent
+  // heartbeat must also resume that journal, not wait for an engine wake.
+  if (await replicaRebuilder().hasPending()) {
+    try { await workCoordinator.run('engine', () => replicaRebuilder().resume()); }
+    catch { return; }
+  }
   let scope: Awaited<ReturnType<typeof restoredSyncScope>>;
   try { scope = await restoredSyncScope(); } catch { return; }
   const authority = await store.fence.capture();
@@ -68,6 +75,10 @@ function commandRunner(scope: SyncScope, assertCurrent: () => Promise<void>): Re
     async replica(action) {
       if (action === 'retry') { await retry(); return { outcome: 'done', code: 'retry_completed' }; }
       return runReplicaRebuildCommand(async request => { await assertCurrent(); return replicaRebuilder().handle(request); }, scope);
+    },
+    async serverRebuild() {
+      await assertCurrent();
+      return replicaRebuilder().rebuildServerRetired(scope);
     },
     async issue(_action, issue) {
       const row = issue.opId ? await syncState.getQueueByOpId(scope, issue.opId) : null;

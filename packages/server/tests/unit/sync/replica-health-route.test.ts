@@ -122,3 +122,14 @@ test('the route enforces the shared UTF-8 budget even without the product transp
   assert.throws(() => parseReplicaHealthReport(oversized), ReplicaHealthError);
   assert.equal(calls.length, 0);
 });
+
+test('retirement receipts require an explicit client capability negotiation', async () => {
+  const { post, calls } = await harness(async ({ report, supportsFencedRebuild }) => ({ accepted: true,
+    revision: report.revision, commands: [{ commandId: 'reset', action: 'rebuild',
+      ...(supportsFencedRebuild ? { replicaRetired: true as const } : {}) }] }));
+  assert.deepEqual((await post(report())).json().commands, [{ commandId: 'reset', action: 'rebuild' }]);
+  assert.equal(calls[0]!.supportsFencedRebuild, false);
+  const response = await post(report(), { 'known-sync-rebuild': 'retire' });
+  assert.equal(calls[1]!.supportsFencedRebuild, true);
+  assert.deepEqual(response.json().commands, [{ commandId: 'reset', action: 'rebuild', replicaRetired: true }]);
+});

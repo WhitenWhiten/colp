@@ -47,6 +47,11 @@ describe('optional replica health wire contracts', () => {
   });
 
   it('commands carry identities and actions, never data; standard warnings retain the existing envelope', () => {
+    const reset = { commandId: 'reset', action: 'rebuild', replicaRetired: true };
+    expect(validators.validate('syncReplicaCommand', reset).valid).toBe(true);
+    for (const invalid of [{ ...reset, action: 'retry' }, { ...reset, issueId: 'one' }, { ...reset, replicaRetired: false }]) {
+      expect(validators.validate('syncReplicaCommand', invalid).valid).toBe(false);
+    }
     for (const invalid of [{ ...result.commands[0], payload: { title: 'New' } },
       { ...result.commands[0], action: 'format_disk' }, { commandId: '', action: 'retry' }]) {
       expect(validators.validate('syncReplicaCommand', invalid).valid).toBe(false);

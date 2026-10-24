@@ -21,7 +21,7 @@ interface RebuildJournal {
 }
 export interface ReplicaRebuildDeps {
   readonly store: Pick<ReturnType<typeof createSyncStateStore>, 'getScope' | 'getEngineState' | 'listQueue'
-    | 'retireScope' | 'exportArchive'> & Partial<Pick<ReturnType<typeof createSyncStateStore>,
+    | 'retireScope' | 'exportScope' | 'exportArchive'> & Partial<Pick<ReturnType<typeof createSyncStateStore>,
       'getQueueReceipt' | 'listPullIssues' | 'listLocalIssues' | 'listApplyIntents' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'>>;
   readonly credentials: ReturnType<typeof createCredentialStore>;
   readonly journal: StorageArea;
@@ -55,16 +55,25 @@ export function createReplicaRebuilder(deps: ReplicaRebuildDeps) {
     }
     return value;
   }
-  async function inspect(): Promise<{ scope: SyncScope; preview: ReplicaRebuildPreview }> {
+  async function inspect(serverRetiredScope?: SyncScope): Promise<{ scope: SyncScope; preview: ReplicaRebuildPreview }> {
     const scope = await deps.currentScope();
     const credential = await deps.credentials.loadCredential();
     if (credential?.subject !== scope.accountId || credential.serverOrigin !== scope.serverOrigin) throw new Error('account_switch');
     const authority = await deps.credentials.fence.assertWritable();
-    const capability = await readReplicaRepairCapability(deps.store, scope);
-    if (!capability.rebuildAvailable) throw new Error(capability.reason ?? 'action_unavailable');
-    const { state, queuedOperations } = capability;
+    if (serverRetiredScope && digestJson({ ...serverRetiredScope }) !== digestJson({ ...scope })) throw new Error('stale_ref');
+    // The server fence makes raw archival safe even when one corrupt record
+    // prevents the normal diagnostics/queue validators from reading the scope.
+    // Never delete that evidence merely to get past its failed validation.
+    const capability = serverRetiredScope ? undefined : await readReplicaRepairCapability(deps.store, scope);
+    if (capability && !capability.rebuildAvailable) throw new Error(capability.reason ?? 'action_unavailable');
+    const archive = serverRetiredScope ? await deps.store.exportScope(scope) : undefined;
+    const rawEngine = archive?.engine;
+    const revision = capability?.state?.revision ?? (rawEngine && typeof rawEngine === 'object' && 'revision' in rawEngine
+      ? rawEngine.revision : undefined);
+    const queuedOperations = capability?.queuedOperations ?? archive?.queue.length ?? 0;
     return { scope, preview: { replicaId: scope.replicaId, generation: scope.generation,
-      revision: state?.revision ?? 0, queuedOperations, scope, targetFence: digestJson({ scope: { ...scope }, authority: authority.generation }) } };
+      revision: Number.isSafeInteger(revision) && Number(revision) >= 0 ? Number(revision) : 0,
+      queuedOperations, scope, targetFence: digestJson({ scope: { ...scope }, authority: authority.generation }) } };
   }
   async function resume(): Promise<boolean> {
     const plan = await pending(); if (!plan) return false;
@@ -93,16 +102,16 @@ export function createReplicaRebuilder(deps: ReplicaRebuildDeps) {
     await deps.journal.remove(REPLICA_REBUILD_JOURNAL);
     return true;
   }
-  async function handle(message: ReplicaRebuildRequest): Promise<ReplicaRebuildResponse> {
+  async function handle(message: ReplicaRebuildRequest, serverRetiredScope?: SyncScope): Promise<ReplicaRebuildResponse> {
     try {
       const existing = await pending();
       if (message.kind === 'known.scope.rebuild.preview') {
-        return { ok: true, preview: existing?.preview ?? (await inspect()).preview };
+        return { ok: true, preview: existing?.preview ?? (await inspect(serverRetiredScope)).preview };
       }
-      const inspected = existing ? { scope: existing.scope, preview: existing.preview } : await inspect();
+      const inspected = existing ? { scope: existing.scope, preview: existing.preview } : await inspect(serverRetiredScope);
       if (inspected.preview.replicaId !== message.replicaId || inspected.preview.generation !== message.generation
           || inspected.preview.revision !== message.revision || inspected.preview.targetFence !== message.targetFence) throw new Error('stale_ref');
-      if (!existing && (await inspect()).preview.targetFence !== message.targetFence) throw new Error('stale_ref');
+      if (!existing && (await inspect(serverRetiredScope)).preview.targetFence !== message.targetFence) throw new Error('stale_ref');
       if (!existing) {
         const authority = await deps.credentials.fence.capture();
         const binding = await deps.credentials.loadBinding();
@@ -116,7 +125,11 @@ export function createReplicaRebuilder(deps: ReplicaRebuildDeps) {
       return { ok: false, code: /^[a-z][a-z0-9_:-]{0,63}$/u.test(code) ? code : 'rebuild_failed' };
     }
   }
-  return { handle, resume, hasPending: async () => Boolean(await pending()) };
+  return { handle: (message: ReplicaRebuildRequest) => handle(message), resume,
+    // Only the authenticated health-command runner supplies this server fence.
+    // It is deliberately absent from the runtime message/request schema.
+    rebuildServerRetired: (scope: SyncScope) => runReplicaRebuildCommand(message => handle(message, scope), scope),
+    hasPending: async () => Boolean(await pending()) };
 }
 
 /** The same checked preview/confirm path serves a web command and local Status. */

@@ -85,7 +85,7 @@ export function SyncView({ data, mutations, trashBatch }: {
         )}
         {loading && !status && <LoadingState label="Loading Sync status…" />}
 
-        {!loading && !loadError && <>
+        {status && loadErrorKind !== 'auth' && loadErrorKind !== 'unavailable' && <>
           <section className="sync-section" aria-labelledby="replica-heading">
             <div className="section-head section-head--split">
               <div className="sync-heading-row">
@@ -152,7 +152,9 @@ export function SyncView({ data, mutations, trashBatch }: {
                 {conflicts.length > 0 && <span className="count-pill" data-testid="sync-count">{conflicts.length}</span>}
               </div>
             </div>
-            {conflicts.length === 0 && receiptList.length === 0 ? (
+            {data.conflictError && <p role="alert">{data.conflictError}</p>}
+            {data.conflictsLoading && <LoadingState label="Loading browser conflicts…" />}
+            {!data.conflictsLoading && !data.conflictError && conflicts.length === 0 && receiptList.length === 0 ? (
               <EmptyState
                 className="empty-state--compact empty-state--slot sync-empty"
                 icon="check"

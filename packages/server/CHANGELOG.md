@@ -10,6 +10,7 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ### Fixed
 
+- Sync center keeps device recovery controls available when conflicts, library data, or diagnostics fail to load. With an updated extension, Reset sync first retires the old replica before archiving uncertain uploads; command delivery and results survive lost responses and interrupted resets. Browser bookmarks and library content are retained, followed by folder selection and merge review in the extension.
 - Activity navigation uses the feature switch returned at sign-in, keeping the inbox reachable while its summary is loading or fails. Older servers retain summary-based discovery.
 
 ### Security

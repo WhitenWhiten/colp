@@ -48,8 +48,24 @@ export async function healthServerFixture(scope: SyncScope, input: ConfirmInput)
     mode: async () => 'enabled', credential: async () => ({ accessToken: 'extension-health-test', subject: scope.accountId, serverOrigin: scope.serverOrigin }),
     replicaProof: async () => replicaProof, fetch: fetcher,
     commands: { replica: () => runReplicaRebuildCommand(request => rebuilder.handle(request), scope),
+      serverRebuild: () => rebuilder.rebuildServerRetired(scope),
       issue: async () => ({ outcome: 'failed', code: 'action_unavailable' }) } });
-  return { store, run, report, async resolve(fetcher: typeof fetch, session: StoredSession, accessToken: string) {
+  return { store, run, report, async stallUpload() {
+    await store.allocateSequenceAndEnqueue(scope, { opId: 'uncertain-upload', batchId: 'uncertain-upload',
+      idempotencyKey: 'uncertain-upload', digest: 'sha256:uncertain', endpointIdentity: 'syncPush', mediaType: 'application/json',
+      baseRevision: null, operationRevision: 'local-uncertain', status: 'pending', retry: { attempt: 0, notBefore: 0 },
+      payload: { type: 'update_node_content', targetId: input.localFacts[0]!.sourceRefColpId! } }, { allowUnstamped: true });
+    const clock = Date.now() + 120000;
+    const lease = await store.acquireLease(scope, 'uncertain-worker', clock, 30000);
+    const row = (await store.claimNextQueue(scope, 'uncertain-worker', lease.fence, clock))!;
+    await store.bindPushAttempt(scope, row.sequence, 'uncertain-worker', lease.fence, {
+      sessionId: 'old-session', batchId: row.batchId, idempotencyKey: row.idempotencyKey, endpointIdentity: 'syncPush',
+      mediaType: 'application/json', body: JSON.stringify({ sessionId: 'old-session', batchId: row.batchId, operations: [row.payload] }),
+      bodyDigest: 'sha256:unknown' });
+    await store.settleClaimedPush(scope, row.sequence, 'uncertain-worker', lease.fence, {
+      outcome: 'unknown', retry: { attempt: 10, notBefore: 0 }, recovery: { code: 'push_response_unrecognized' } });
+    return rebuilder.handle({ kind: 'known.scope.rebuild.preview' });
+  }, async resolve(fetcher: typeof fetch, session: StoredSession, accessToken: string) {
     for (const item of run.run.attention!.items) {
       const result = await handleAttentionDecide(store, scope, run.run.runId, item.itemId, 'completed', {
         decision: 'keep_local', evidenceDigest: item.evidenceDigest, input });

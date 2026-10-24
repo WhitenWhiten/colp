@@ -937,10 +937,17 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
           ...nodes.map((node, i) => ({ nodeId: node.id, parentId: folder.id, kind: 'bookmark' as const, title: `Cloud ${i} base`,
             url: 'https://example.test/redacted-marker', revision: node.revision }))] });
       assert.equal(local.run.run.attention?.items.length, 4);
+      let loseResetReceipt = false;
       const post: typeof fetch = async (_url, init) => {
         const response = await health.inject({ method: 'POST', url: EXTENSION_REPLICA_HEALTH_PATH,
           headers: init?.headers as Record<string, string>, payload: String(init?.body) });
         assert.equal(response.statusCode, 200, response.body);
+        if (loseResetReceipt && response.json().commands.some((command: { replicaRetired?: boolean }) => command.replicaRetired)) {
+          loseResetReceipt = false;
+          const fenced = (await runtime.pool.query('select status from sync_replicas where replica_id=$1', [replicaId])).rows[0];
+          assert.equal(fenced.status, 'retired', 'the fence commits before command delivery');
+          throw new Error('lost reset receipt');
+        }
         return new Response(response.body, { status: response.statusCode, headers: { 'Content-Type': 'application/json' } });
       };
       await post('', { headers: { authorization: 'Bearer extension-health-test', origin: EXTENSION_ORIGIN, 'content-type': 'application/json',
@@ -969,19 +976,49 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
       const resolved = await api.inject({ method: 'GET', url: `/api/v1/sync/replicas/${replicaId}/issues`, headers: { cookie: owner.cookie } });
       assert.equal(resolved.json().total, 0); assert.deepEqual(resolved.json().items, []);
       // A separate explicit repair remains archive-backed and reports actual execution.
-      await local.freeze(); await local.report(post, context.session.sessionId);
+      assert.deepEqual(await local.stallUpload(), { ok: false, code: 'upload_outcome_unsettled' });
+      await local.report(post, context.session.sessionId);
       const command = await api.inject({ method: 'POST', url: `/api/v1/sync/replicas/${replicaId}/commands`,
         headers: mutation(owner, randomUUID(), 'application/json'), payload: { action: 'rebuild' } });
       assert.equal(command.statusCode, 200, command.body);
+      loseResetReceipt = true;
+      assert.equal(await local.report(post, context.session.sessionId), 'failed');
+      assert.ok(await local.store.getScope(scope), 'lost response must not discard the uncertain queue');
+      const blockedPush = await pushApp.inject({ method: 'POST', url: '/private-entry/canonical-update',
+        headers: { authorization: AUTHORIZATION, origin: EXTENSION_ORIGIN, 'content-type': 'application/json',
+          'known-sync-session': context.envelope.sessionId, 'idempotency-key': 'after-reset' },
+        payload: syncNodeUpdatePushRequest({ sessionId: context.envelope.sessionId, replicaId,
+          collectionId: owned.collectionId, sequence: 5, opId: 'after-reset', targetId: nodes[0]!.id,
+          baseRevision: landed.rows[0].resource_revision, value: { title: 'Must never commit' } }) });
+      assert.ok(['replica_retired', 'session_expired', 'resource_not_found', 'authentication_required'].includes(blockedPush.json().code), blockedPush.body);
+      assert.equal((await runtime.pool.query('select count(*)::int as count from nodes where collection_id=$1 and title=$2',
+        [owned.collectionId, 'Must never commit'])).rows[0].count, 0);
+      const pendingStatus = (await api.inject({ method: 'GET', url: '/api/v1/sync/status', headers: { cookie: owner.cookie } })).json();
+      assert.equal(pendingStatus.replicas.find((row: { id: string }) => row.id === replicaId).health.commands[0].state, 'delivered');
       await local.report(post, context.session.sessionId);
       const status = (await api.inject({ method: 'GET', url: '/api/v1/sync/status', headers: { cookie: owner.cookie } })).json();
       const reported = status.replicas.find((row: { id: string }) => row.id === replicaId).health;
       assert.equal(reported.code, 'replica_rebuilt'); assert.equal(reported.issueCount, 0);
       assert.equal(reported.commands.find((row: { commandId: string }) => row.commandId === command.json().commandId).state, 'done');
       const archive = await local.store.exportArchive(scope);
+      assert.ok((archive.queue as { opId: string; status: string; attempt?: unknown }[])
+        .some(row => row.opId === 'uncertain-upload' && row.status === 'unknown' && row.attempt));
+      const sessions = await runtime.pool.query('select status from sync_sessions where replica_id=$1', [replicaId]);
+      assert.ok(sessions.rows.every(row => row.status === 'terminated'));
       assert.equal(archive.reason, 'user_replica_rebuild'); assert.match(JSON.stringify(archive), /Device 0/);
       const retained = await runtime.pool.query('select id,title from nodes where id = any($1::text[]) order by title', [nodes.map(node => node.id)]);
       assert.equal(retained.rows.length, 4); assert.equal(retained.rows[0].title, 'Device 0');
+      const replacement = await syncContext(owner, owned.collectionId, 'After reset');
+      const replacementClient = await startPush(replacement);
+      const recoveredPush = await replacementClient.push({ idempotencyKey: 'recovered-upload',
+        request: syncNodeUpdatePushRequest({ sessionId: replacement.session.sessionId,
+          replicaId: replacement.replica.replicaId, collectionId: owned.collectionId,
+          targetId: owned.node.id, baseRevision: owned.node.revision, opId: 'recovered-upload',
+          base: { title: 'Health loop base' }, value: { title: 'Recovered upload' } }) });
+      assert.equal(recoveredPush.status, 200, JSON.stringify(recoveredPush.body));
+      assert.equal(syncResult(recoveredPush.body).results[0]?.status, 'applied');
+      assert.equal((await runtime.pool.query('select title from nodes where id=$1', [owned.node.id])).rows[0].title,
+        'Recovered upload');
     } finally { local?.store.close(); await health.close(); await api.close(); }
   }, 120_000);
 

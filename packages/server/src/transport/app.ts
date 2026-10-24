@@ -390,7 +390,7 @@ export function buildApiApp(input: AppDependencies) {
         betterAuthExtensionOrigin
           ? 'Authorization, Content-Type, Cookie, Origin, X-CSRF-Token, X-Known-Auth-Intent'
           : syncOrigin || collectionsOrigin
-            ? 'Authorization, Content-Type, Cookie, Origin, Idempotency-Key, If-Match, Known-Sync-Session, Known-Sync-Replica-Proof'
+            ? 'Authorization, Content-Type, Cookie, Origin, Idempotency-Key, If-Match, Known-Sync-Session, Known-Sync-Replica-Proof, Known-Sync-Rebuild'
             : 'Content-Type, If-Match, If-None-Match, If-Content-Match, Known-Command-Id, X-CSRF-Token, X-Known-Auth-Intent, Known-Subscription-Exit-Preview',
       );
       reply.header(

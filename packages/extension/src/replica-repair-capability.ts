@@ -23,7 +23,8 @@ export async function readReplicaRepairCapability(store: Store, scope: SyncScope
     if (receipt?.kind !== 'terminal' || receipt.opId !== row.opId) { unsettled = true; break; }
   }
   const nativeUnknown = issues.waits.some(wait => wait.waitReason === 'native_result_unknown');
-  const required = state?.recoveryFrozen === true || issues.operationalTotal - issues.local.filter(issue => issue.recovery === 'automatic').length > 0;
+  const required = state?.phase === 'error' || state?.recoveryFrozen === true
+    || issues.operationalTotal - issues.local.filter(issue => issue.recovery === 'automatic').length > 0;
   return { state, queuedOperations: live.length, rebuildAvailable: required && !unsettled && !nativeUnknown,
     reason: nativeUnknown ? 'native_outcome_unsettled' : unsettled ? 'upload_outcome_unsettled' : required ? undefined : 'rebuild_not_required' };
 }

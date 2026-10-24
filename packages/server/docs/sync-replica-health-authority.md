@@ -20,11 +20,34 @@ replica ownership, the proof bindings and current security epoch, and retirement
 before any report write, command delivery, or result settlement. Access-token
 rotation and Session/lease expiry do not invalidate this separate reporting
 capability. Reports neither issue a Session nor change lease, checkpoint, cursor,
-last-seen, or replica lifecycle. Account epoch changes, removed accounts, changed
+last-seen, or replica lifecycle during ordinary reporting. Account epoch changes, removed accounts, changed
 browser generation and retired replicas fail closed. Report-proof rows follow their
 account/replica deletion lifecycle and contain only proof digests. The existing
 Session store/audit retains Session identifiers under its existing access policy;
 these identifiers must now also be treated as possession capabilities.
+
+The exception is an owner-confirmed Reset sync in the Sync center. Extensions
+negotiate `Known-Sync-Rebuild: retire`; when delivering the whole-replica Rebuild
+command the server retires the old replica and terminates its Sessions in the
+same transaction, under the collection/replica write gate. Only after that
+commit does the command carry `replicaRetired: true`. Legacy clients receive the
+unchanged command and retain their stricter local rebuild preconditions.
+
+The fenced extension archives the complete old scope, including unknown upload
+results and malformed records, before changing its replica identity. Browser
+bookmarks and the server library remain intact. It never replays the archived
+queue: an unknown upload may already have committed. The user then chooses sync
+folders and reviews the merge in the extension. A corrupt diagnostics row can
+still report a stopped state and offer this reset, without parsing that row to
+archive it. A physically unavailable or unwritable browser database must become
+available before an archive can be committed.
+
+For an owner-requested reset only, possession-protected health delivery and
+result settlement continue after retirement; Sync writes remain forbidden.
+Lost receipts redeliver the fenced command, interrupted local work resumes the
+durable rebuild journal, and pending or failed reset controls remain visible on
+the retired device. Other retired replicas still receive 410. New extensions
+never infer a retirement fence from an older server's ordinary Rebuild response.
 
 Existing-replica Session HTTP issuance also checks continuity: either the same
 previously admitted credential or an installation proof is required. Otherwise

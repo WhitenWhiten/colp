@@ -1638,7 +1638,7 @@ export interface SyncReplicaHealthIssue {
   issueId: OpaqueId; code: string; direction: 'push' | 'pull' | 'local'; nodeId?: OpaqueId; opId?: OpaqueId;
   title?: string; count: number; firstSeenAt: string; lastSeenAt: string; actions: SyncReplicaIssueAction[];
 }
-export interface SyncReplicaCommand { commandId: OpaqueId; action: SyncReplicaIssueAction; issueId?: OpaqueId }
+export interface SyncReplicaCommand { commandId: OpaqueId; action: SyncReplicaIssueAction; issueId?: OpaqueId; replicaRetired?: true }
 export interface SyncReplicaCommandResult { commandId: OpaqueId; outcome: 'done' | 'failed'; code?: string }
 export type SyncReplicaHealthReport = {
   replicaId: OpaqueId; revision: number; since: string;

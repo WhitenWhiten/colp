@@ -4,7 +4,7 @@ import { currentSyncScope, ensureSyncScope, loadConfig, requireSyncScope } from 
 
 export function replicaRebuilder() {
   return createReplicaRebuilder({ store: syncState, credentials: store, journal: chrome.storage.local,
-    currentScope: currentSyncScope, ensureScope: async () => {
+    currentScope: () => currentSyncScope({ allowUnregistered: true }), ensureScope: async () => {
       const scope = await requireSyncScope();
       // Session storage and IDB are separate commits. A restart after saving the
       // new Session must still materialize its scope before setup can proceed.

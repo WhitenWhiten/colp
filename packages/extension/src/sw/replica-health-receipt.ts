@@ -5,7 +5,8 @@ const CODE = /^[a-z][a-z0-9_]{0,63}$/u;
 export const HEALTH_RECEIPT_MAX_BYTES = 16 * 1024;
 export interface HealthReceipt {
   readonly replicaId: string; readonly revision: number; readonly accepted: boolean;
-  readonly commands: readonly { readonly commandId: string; readonly action: string; readonly issueId?: string }[];
+  readonly commands: readonly { readonly commandId: string; readonly action: string; readonly issueId?: string;
+    readonly replicaRetired?: true }[];
 }
 function record(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -26,10 +27,12 @@ export async function readHealthReceipt(response: Response, sent: Record<string,
       || !Array.isArray(value.commands) || value.commands.length > 8) throw invalid();
   const ids = new Set<string>();
   for (const command of value.commands) {
-    if (!record(command) || Object.keys(command).some(key => !['commandId', 'action', 'issueId'].includes(key))
+    if (!record(command) || Object.keys(command).some(key => !['commandId', 'action', 'issueId', 'replicaRetired'].includes(key))
         || typeof command.commandId !== 'string' || !OPAQUE.test(command.commandId) || ids.has(command.commandId)
         || typeof command.action !== 'string' || !CODE.test(command.action)
-        || command.issueId !== undefined && (typeof command.issueId !== 'string' || !OPAQUE.test(command.issueId))) throw invalid();
+        || command.issueId !== undefined && (typeof command.issueId !== 'string' || !OPAQUE.test(command.issueId))
+        || command.replicaRetired !== undefined && (command.replicaRetired !== true
+          || command.action !== 'rebuild' || command.issueId !== undefined)) throw invalid();
     ids.add(command.commandId);
   }
   return value as unknown as HealthReceipt;

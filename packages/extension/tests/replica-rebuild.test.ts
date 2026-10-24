@@ -106,3 +106,38 @@ test('rebuild deep-link opens the Sync center pane, not Sync folders', async () 
   assert.match(ui, /options\.html#sync/);
   assert.doesNotMatch(ui, /options\.html#folders/);
 });
+
+test('a stopped engine without item issues still offers a local repair', async () => {
+  const f = await setup();
+  try {
+    await f.store.transitionEngine(f.scope, { phase: 'error', recoveryFrozen: false, authorityRefreshRequired: false,
+      updatedAt: 2000, notBefore: 0, lastError: 'pull_invalid' });
+    const preview = await f.rebuilder.handle({ kind: 'known.scope.rebuild.preview' });
+    assert.equal(preview.ok, true);
+  } finally { f.store.close(); }
+});
+
+test('only server-fenced rebuild can archive uncertain uploads; scope and authority checks still apply', async () => {
+  const f = await setup();
+  try {
+    await f.store.transitionEngine(f.scope, { phase: 'sleeping', recoveryFrozen: false, authorityRefreshRequired: false,
+      updatedAt: 2000, notBefore: 0 });
+    const lease = await f.store.acquireLease(f.scope, 'test', 2000, 10000);
+    const row = (await f.store.claimNextQueue(f.scope, 'test', lease.fence, 2000))!;
+    await f.store.bindPushAttempt(f.scope, row.sequence, 'test', lease.fence, {
+      sessionId: 'old', batchId: row.batchId, idempotencyKey: row.idempotencyKey, endpointIdentity: 'syncPush',
+      mediaType: 'application/json', body: JSON.stringify({ sessionId: 'old', batchId: row.batchId, operations: [] }),
+      bodyDigest: 'sha256:uncertain' });
+    await f.store.settleClaimedPush(f.scope, row.sequence, 'test', lease.fence, { outcome: 'unknown',
+      retry: { attempt: 10, notBefore: 0 }, recovery: { code: 'push_response_unrecognized' } });
+    assert.deepEqual(await f.rebuilder.handle({ kind: 'known.scope.rebuild.preview' }),
+      { ok: false, code: 'upload_outcome_unsettled' });
+    assert.equal((await f.rebuilder.rebuildServerRetired({ ...f.scope, replicaId: 'another' })).outcome, 'failed');
+    assert.equal(f.registrations, 0);
+    assert.equal((await f.rebuilder.rebuildServerRetired(f.scope)).outcome, 'done');
+    const archive = await f.store.exportArchive(f.scope);
+    assert.ok((archive.queue as { opId: string; status: string; attempt?: unknown }[])
+      .some(saved => saved.opId === row.opId && saved.status === 'unknown' && saved.attempt));
+    assert.equal(f.registrations, 1);
+  } finally { f.store.close(); }
+});

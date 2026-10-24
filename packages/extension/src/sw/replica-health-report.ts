@@ -49,7 +49,8 @@ const CODE = /^[a-z][a-z0-9_]{0,63}$/u;
 export type ReplicaHealthState = 'syncing' | 'degraded' | 'stopped' | 'paused';
 /** What this browser can do when the Sync center asks: for itself, or for one issue. */
 export type ReplicaAction = 'retry' | 'rebuild';
-export interface ReplicaCommand { readonly commandId: string; readonly action: string; readonly issueId?: string }
+export interface ReplicaCommand { readonly commandId: string; readonly action: string; readonly issueId?: string;
+  readonly replicaRetired?: true }
 export interface ReplicaCommandOutcome {
   readonly outcome: 'done' | 'failed';
   readonly code?: string;
@@ -59,6 +60,7 @@ export interface ReplicaCommandOutcome {
 export interface ReplicaCommandRunner {
   run?<T>(work: () => Promise<T>): Promise<T>;
   replica(action: ReplicaAction): Promise<ReplicaCommandOutcome>;
+  serverRebuild?(): Promise<ReplicaCommandOutcome>;
   issue(action: 'retry', issue: ReplicaHealthIssue): Promise<ReplicaCommandOutcome>;
 }
 export interface ReplicaHealthProjection {
@@ -74,6 +76,8 @@ export function projectReplicaHealth(input: {
   readonly attention: PublicSyncAttention;
   readonly issues: readonly ReplicaHealthIssue[];
   readonly total?: number;
+  /** This reporter can archive uncertain work after the server fences the old replica. */
+  readonly serverRebuild?: boolean;
 }): ReplicaHealthProjection {
   const total = input.total ?? input.issues.length;
   // While paused nothing syncs, so the report names no bookmarks and offers nothing.
@@ -85,11 +89,13 @@ export function projectReplicaHealth(input: {
     const code = [input.attention.terminalCode, input.attention.lastError].find((value) => value && CODE.test(value));
     // A retry is a manual wake; it cannot end a stop whose only way out is a rebuild or a fix.
     const actions: ReplicaAction[] = needsReplicaRebuild(code) || persistentLocalSyncFailure(code) ? [] : ['retry'];
-    // The same precondition as the extension's own Reset button (replica-rebuild.ts).
-    if (input.attention.rebuildAvailable === true) actions.push('rebuild');
+    // Local rebuild uses receipt guards; a negotiated server fence also makes
+    // uncertain uploads recoverable without replaying them.
+    if (input.attention.rebuildAvailable === true || input.serverRebuild) actions.push('rebuild');
     return { state: 'stopped', code: code ?? 'sync_stopped', issues, actions };
   }
-  return { state: total > 0 ? 'degraded' : 'syncing', issues, actions: [...(input.attention.retryAvailable ? ['retry' as const] : []), ...(input.attention.rebuildAvailable ? ['rebuild' as const] : [])] };
+  return { state: total > 0 ? 'degraded' : 'syncing', issues, actions: [...(input.attention.retryAvailable ? ['retry' as const] : []),
+    ...(input.attention.rebuildAvailable || input.serverRebuild && total > 0 ? ['rebuild' as const] : [])] };
 }
 
 interface SentRecord {
@@ -154,7 +160,7 @@ export async function sendReplicaHealthReport(deps: ReplicaHealthReporterDeps): 
   // Diagnostics use IndexedDB; delivery uses the separate Chrome storage journal.
   // Preserve an unsent diagnostic failure even if IndexedDB recovers before retry.
   const unavailable: ReplicaHealthProjection = { state: 'stopped', code: 'sync_diagnostics_unavailable',
-    issues: { total: 0, items: [] }, actions: [] };
+    issues: { total: 0, items: [] }, actions: deps.commands?.serverRebuild ? ['rebuild'] : [] };
   const projection = record.failed && record.observed?.code === unavailable.code ? unavailable
     : await readProjection(deps).catch(() => unavailable);
   // Times are display facts: a report that only moved a clock is not a change.
@@ -213,7 +219,7 @@ export async function sendReplicaHealthReport(deps: ReplicaHealthReporterDeps): 
   let ran = false; let replaced = false;
   for (const command of delivered) {
     const seen = commands.find((entry) => entry.commandId === command.commandId);
-    if (seen) {
+    if (seen && !(command.replicaRetired && command.action === 'rebuild' && !seen.outcome)) {
       // Seen without a result: the worker stopped while carrying it out, so it is never run again.
       // Seen with one: the server has not taken it yet, so it goes out again.
       commands = commands.map((entry) => entry !== seen ? entry : entry.outcome
@@ -222,7 +228,8 @@ export async function sendReplicaHealthReport(deps: ReplicaHealthReporterDeps): 
       await save(commands); ran = true; continue;
     }
     if (replaced || !deps.commands) continue;
-    commands = [...commands, { commandId: command.commandId, action: command.action }]; await save(commands);
+    if (!seen) commands = [...commands, { commandId: command.commandId, action: command.action }];
+    await save(commands);
     const outcome = await carryOut(command, deps, deps.commands);
     replaced ||= outcome.replaced === true; ran = true;
     commands = commands.map((entry) => entry.commandId === command.commandId ? { commandId: entry.commandId,
@@ -254,6 +261,7 @@ async function post(deps: ReplicaHealthReporterDeps, body: Record<string, unknow
       ...colpCredentialHeaders(credential.accessToken), ...(proof ? { 'Known-Sync-Replica-Proof': proof } : {}) },
     body: JSON.stringify(fitReplicaHealthBody(body)),
   };
+  if (deps.commands?.serverRebuild) (init.headers as Record<string, string>)['Known-Sync-Rebuild'] = 'retire';
   await assertCredentialHostPermission(url, init);
   return deps.fetch(url, init);
 }
@@ -269,7 +277,7 @@ async function readProjection(deps: ReplicaHealthReporterDeps): Promise<ReplicaH
   if (stalled) issues.push(stalledUploadIssue(stalled.row, stalled.code, deps.now()));
   const mode = await deps.mode();
   return projectReplicaHealth({ ...(mode ? { mode } : {}), attention: response.attention, issues,
-    total: open.total + (stalled ? 1 : 0) });
+    total: open.total + (stalled ? 1 : 0), serverRebuild: deps.commands?.serverRebuild !== undefined });
 }
 
 /** A sent change the server has kept unsettled; later uploads wait behind it, so the Sync center must see it. */
@@ -285,8 +293,18 @@ function stalledUploadIssue(row: QueueOperation, code: string, now: number): Rep
 async function carryOut(command: ReplicaCommand, deps: ReplicaHealthReporterDeps,
   runner: ReplicaCommandRunner): Promise<ReplicaCommandOutcome> {
   try {
+    // A restarted reset may already have archived/rotated the old scope. Its
+    // durable archive proves completion of that phase; never rotate twice.
+    if (command.replicaRetired && command.action === 'rebuild'
+        && (await deps.store.exportArchive?.(deps.scope).catch(() => undefined))?.reason === 'user_replica_rebuild'
+        && !await deps.rebuildPending?.()) return { outcome: 'done', replaced: true };
     const execute = async (): Promise<ReplicaCommandOutcome> => {
       await deps.assertCommandCurrent?.();
+      // The user already confirmed this reset and the server committed the
+      // retirement. A new local error or disappeared issue cannot cancel it.
+      if (command.replicaRetired && command.action === 'rebuild' && command.issueId === undefined) {
+        return runner.serverRebuild ? runner.serverRebuild() : { outcome: 'failed', code: 'action_unavailable' };
+      }
       const projection = await readProjection(deps);
       if (command.issueId === undefined) {
         const action = projection.actions.find((offered) => offered === command.action);
@@ -309,10 +327,11 @@ function deliveredCommands(value: unknown): ReplicaCommand[] {
   if (!Array.isArray(list)) return [];
   return list.slice(0, 8).flatMap((item: unknown) => {
     if (!item || typeof item !== 'object') return [];
-    const { commandId, action, issueId } = item as Record<string, unknown>;
+    const { commandId, action, issueId, replicaRetired } = item as Record<string, unknown>;
     if (typeof commandId !== 'string' || !OPAQUE.test(commandId) || typeof action !== 'string' || !CODE.test(action)
         || (issueId !== undefined && (typeof issueId !== 'string' || !OPAQUE.test(issueId)))) return [];
-    return [{ commandId, action, ...(typeof issueId === 'string' ? { issueId } : {}) }];
+    return [{ commandId, action, ...(typeof issueId === 'string' ? { issueId } : {}),
+      ...(replicaRetired === true ? { replicaRetired: true as const } : {}) }];
   });
 }
 

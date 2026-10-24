@@ -156,7 +156,7 @@ export async function ensureSyncScope(config: BuildConfig, credential: StoredCre
   }
 }
 
-export async function currentSyncScope(options: { allowStopped?: boolean } = {}): Promise<SyncScope> {
+export async function currentSyncScope(options: { allowStopped?: boolean; allowUnregistered?: boolean } = {}): Promise<SyncScope> {
   const config = await loadConfig(); const credential = await store.loadCredential(); const session = await store.loadSession();
   const binding = await store.loadBinding();
   if (!credential?.subject || !binding) throw new Error('not_connected');
@@ -176,7 +176,10 @@ export async function currentSyncScope(options: { allowStopped?: boolean } = {})
   // Expired offline renewal can clear Session authority. Keep only the address
   // of existing durable work; the engine must still mint a valid Session before
   // it can Pull/Push or consume a local projection owner.
-  if (!session) {
+  // Rebuild journal recovery must locate its newly published identity before
+  // that identity has a Session or IDB scope. Ordinary callers still require
+  // durable work; the address alone grants no Sync authority.
+  if (!session && !options.allowUnregistered) {
     const recorded = await syncState.getScope(scope);
     if (!recorded || recorded.lifecycle === 'retired') throw new Error('not_connected');
   }

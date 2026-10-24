@@ -153,7 +153,9 @@ function latestCommand(replica: SyncReplicaView, issueId: string | null): SyncRe
 }
 
 const RESET_WARNING = 'That browser keeps its bookmarks, and so does your library here. Changes on it that haven’t '
-  + 'synced yet are set aside. Afterwards, open the extension on that browser to choose which folders sync and review the merge.'
+  + 'synced yet are archived and will not be retried. The server stops uploads from its old sync copy before rebuilding it. '
+  + 'An upload whose result was unknown may already be in your library. Afterwards, open the extension on that browser '
+  + 'to choose which folders sync and review the merge.'
 
 /** Sends one command; the server returns an open one instead of a second, so a double press is harmless. */
 function useReplicaCommand(replica: SyncReplicaView, onSent: () => void) {
@@ -221,13 +223,16 @@ export function ReplicaHealth({ replica, onChanged, children }: {
     if (expanded) void load(controller.signal)
     return () => { controller.abort(); invalidateRequests() }
   }, [load, expanded, health?.reportedAt, invalidateRequests])
-  if (replica.status === 'retired') return null
+  if (replica.status === 'retired' && !health?.commands.some(item => item.action === 'rebuild')) return null
   const notes: string[] = []
   const latest = latestCommand(replica, null)
   // An open request takes the place of its button.
   const offered = (health?.actions ?? []).filter((action) => ACTION_LABELS[action]
+    && (replica.status !== 'retired' || action === 'rebuild')
     && !(latest && open(latest) && latest.action === action))
-  if (health?.state === 'stopped' && health.code === 'replica_rebuilt') {
+  if (replica.status === 'retired' && health?.code !== 'replica_rebuilt') {
+    notes.push('The server has stopped uploads from the old sync copy. Waiting for this browser to finish resetting sync.')
+  } else if (health?.state === 'stopped' && health.code === 'replica_rebuilt') {
     notes.push('Sync on this browser was reset. Open the extension on it to choose which folders sync; it then shows up here as a new browser.')
   } else if (health?.state === 'stopped') {
     notes.push(`Sync on this browser has stopped: ${stopReason(health.code)} ${offered.length > 0
@@ -235,7 +240,7 @@ export function ReplicaHealth({ replica, onChanged, children }: {
   } else if (health?.state === 'paused') {
     notes.push('Sync is paused on this browser. Nothing syncs until it’s resumed there.')
   } else if (health?.state === 'degraded') {
-    notes.push(`${plural(count, 'item')} on this browser couldn’t sync. Everything else keeps syncing. ${offered.includes('rebuild') ? 'Reset sync below to repair this browser’s copy.' : ''}`)
+    notes.push(`${plural(count, 'item')} on this browser couldn’t sync. Review the items and available recovery actions below. ${offered.includes('rebuild') ? 'Reset sync can repair this browser’s copy if retrying does not help.' : ''}`)
   }
   if (notSyncing(replica) && health?.state !== 'stopped') notes.push(activityNote(replica))
   // A reset browser's own report already says what came of the reset.
@@ -253,18 +258,19 @@ export function ReplicaHealth({ replica, onChanged, children }: {
   const framed = notes.length > 0 || command.feedback !== null || staleReport
   const retry = offered.includes('retry')
   const rebuild = offered.includes('rebuild')
+  const recoveryActions = (retry || rebuild) && <div className="replica-actions">
+    {retry && <button type="button" className="btn btn-secondary btn-sm" disabled={command.busy !== null}
+      onClick={() => void command.send('retry')}>{command.busy === 'retry:' ? 'Sending…' : 'Retry'}</button>}
+    {rebuild && <button type="button" className="btn btn-danger-ghost btn-sm" disabled={command.busy !== null}
+      onClick={() => void reset()}>{command.busy === 'rebuild:' ? 'Sending…' : 'Reset sync'}</button>}
+  </div>
   return <>
     {framed && <div className={`replica-message ${tone}`.trim()} role={notes.length > 0 ? 'status' : undefined}>
       {notes.map((note) => <p key={note}>{note}</p>)}
       {health && <p className="replica-reported">Reported {formatRelative(health.reportedAt)}.</p>}
       {command.feedback && <p role="alert">{command.feedback}</p>}
       {staleReport && <p>This browser’s report is over 15 minutes old. Open the extension to refresh its status before relying on it.</p>}
-      {(retry || rebuild) && <div className="replica-actions">
-        {retry && <button type="button" className="btn btn-secondary btn-sm" disabled={command.busy !== null}
-          onClick={() => void command.send('retry')}>{command.busy === 'retry:' ? 'Sending…' : 'Retry'}</button>}
-        {rebuild && <button type="button" className="btn btn-danger-ghost btn-sm" disabled={command.busy !== null}
-          onClick={() => void reset()}>{command.busy === 'rebuild:' ? 'Sending…' : 'Reset sync'}</button>}
-      </div>}
+      {recoveryActions}
     </div>}
     <div className="replica-foot">
       <button type="button" className="btn btn-secondary btn-sm" onClick={() => setExpanded(true)}>{showLabel}</button>
@@ -282,6 +288,8 @@ export function ReplicaHealth({ replica, onChanged, children }: {
           </div>
           {(issues.phase === 'loading' || issues.phase === 'closed') && <LoadingState label="Loading items…" />}
           {issues.phase === 'failed' && <p>Couldn’t load the items.</p>}
+          {command.feedback && <p role="alert">{command.feedback}</p>}
+          {recoveryActions}
           {issues.phase === 'loaded' && <>
             {paused
               ? <p>Sync is paused on this browser, so its items aren’t listed.</p>

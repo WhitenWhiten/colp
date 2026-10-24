@@ -118,7 +118,7 @@ function ports(transaction: DatabaseTransaction, options: ProductSyncCenterPostg
             acknowledgedCommitOrdinal: replica.checkpoint_commit_ordinal === null ? null : BigInt(replica.checkpoint_commit_ordinal).toString(),
             lifecycleRevision: revision, etag: `"${revision}"`,
             activity, behindSince: activity === null || behind === null ? null : behind.toISOString(),
-            health: replica.status === 'retired' ? null
+            health: replica.status === 'retired' && !(commands.get(replica.replica_id) ?? []).some(command => command.action === 'rebuild') ? null
               : healthView(reports.get(replica.replica_id), commands.get(replica.replica_id) ?? []) }); }) });
     },
     async getReplicaIssues({ accountId, replicaId }) {
@@ -206,9 +206,12 @@ function ports(transaction: DatabaseTransaction, options: ProductSyncCenterPostg
       if (!replica) throw notFound();
       const report = await transaction.selectFrom('sync_replica_reports').select(['health_state', 'health_actions', 'issues'])
         .where('replica_id', '=', input.replicaId).executeTakeFirst();
+      const resumingReset = replica.status === 'retired' && input.action === 'rebuild' && input.issueId === undefined
+        && await transaction.selectFrom('sync_replica_commands').select('command_id')
+          .where('replica_id', '=', input.replicaId).where('action', '=', 'rebuild').where('issue_id', 'is', null).executeTakeFirst();
       // The browser decides what it can do; the Sync center only asks for what it offered.
       const issues = (report?.issues ?? []) as ProductReplicaIssuesView['items'];
-      const offered = replica.status !== 'retired' && report?.health_state != null && (input.issueId === undefined
+      const offered = (replica.status !== 'retired' || resumingReset) && report?.health_state != null && (input.issueId === undefined
         ? report.health_actions.includes(input.action)
         : issues.some((issue) => issue.issueId === input.issueId && issue.actions.includes(input.action)));
       if (!offered) throw Object.assign(new Error('Replica action not offered'), { code: 'replica_action_unavailable' });
@@ -261,7 +264,12 @@ function commandView(row: CommandRow, now: Date): ProductReplicaCommandView {
 
 async function readRecentCommands(transaction: DatabaseTransaction, accountId: string, now: Date) {
   const rows = await transaction.selectFrom('sync_replica_commands').selectAll()
-    .where('account_id', '=', accountId).where('created_at', '>', new Date(now.getTime() - REPLICA_COMMAND_TTL_MS))
+    .where('account_id', '=', accountId).where(eb => eb.or([
+      eb('created_at', '>', new Date(now.getTime() - REPLICA_COMMAND_TTL_MS)),
+      // A failed/interrupted reset may have retired the replica already. Keep
+      // its recovery entry reachable even after a long offline period.
+      eb.and([eb('action', '=', 'rebuild'), eb('state', '!=', 'done')]),
+    ]))
     .orderBy('created_at', 'desc').orderBy('command_id', 'desc').execute();
   const byReplica = new Map<string, ProductReplicaCommandView[]>();
   for (const row of rows) {

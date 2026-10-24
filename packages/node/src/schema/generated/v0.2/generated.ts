@@ -108,6 +108,10 @@ const schema = {
             "rebuild"
           ]
         },
+        "replicaRetired": {
+          "const": true,
+          "description": "Only returned after negotiating Known-Sync-Rebuild: retire; the server has committed retirement of this replica."
+        },
         "issueId": {
           "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
         }
@@ -115,6 +119,27 @@ const schema = {
       "required": [
         "commandId",
         "action"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "replicaRetired"
+            ]
+          },
+          "then": {
+            "properties": {
+              "action": {
+                "const": "rebuild"
+              }
+            },
+            "not": {
+              "required": [
+                "issueId"
+              ]
+            }
+          }
+        }
       ],
       "additionalProperties": false
     },

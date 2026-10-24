@@ -153,3 +153,36 @@ describe('useSyncCenterData load ordering', () => {
     await waitForDom(() => current.refreshing === false)
   })
 })
+
+it('device commands remain available while unrelated panels fail or never settle', async () => {
+  vi.clearAllMocks()
+  mocks.status.mockResolvedValue(status('ready', 'collection-a'))
+  mocks.conflicts.mockImplementation(() => new Promise(() => {}))
+  mocks.collections.mockRejectedValue(new ProductApiError({ status: 404, code: 'resource_not_found', message: 'missing library' }))
+  let current!: ReturnType<typeof useSyncCenterData>
+  function Probe() { current = useSyncCenterData(); return null }
+  try {
+    mountTree(<Probe />)
+    await waitForDom(() => current.status !== null && !current.loading)
+    expect(current.loadError).toBeNull()
+    expect(current.loadErrorKind).toBeNull()
+    expect(current.trashError).toContain('Couldn’t load the library')
+    expect(current.conflictsLoading).toBe(true)
+  } finally { cleanup() }
+})
+
+it('a conflict failure does not conceal devices or masquerade as an empty conflict list', async () => {
+  vi.clearAllMocks()
+  mocks.status.mockResolvedValue(status('ready', 'collection-a'))
+  mocks.conflicts.mockRejectedValue(new Error('corrupt conflict payload'))
+  mocks.collections.mockResolvedValue({ id: 'collection-a', title: 'Library' })
+  mocks.trash.mockResolvedValue([])
+  let current!: ReturnType<typeof useSyncCenterData>
+  function Probe() { current = useSyncCenterData(); return null }
+  try {
+    mountTree(<Probe />)
+    await waitForDom(() => current.status !== null && !current.conflictsLoading)
+    expect(current.loadError).toBeNull()
+    expect(current.conflictError).toContain('Couldn’t load browser conflicts')
+  } finally { cleanup() }
+})
