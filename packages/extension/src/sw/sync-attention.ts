@@ -26,6 +26,12 @@ export interface SyncAttentionDeps {
   readonly rebuildCancelAvailable?: () => Promise<boolean>;
   /** The repeated failures of engine wake steps for this replica (default: the worker's own record). */
   readonly wakeFailures?: (replicaId: string | undefined) => Promise<readonly WakeFailure[]>;
+  /**
+   * W2A-01 / B-09: answer a store that cannot be used, or a record that cannot be read, with a readable
+   * state instead of an error. Status wants that; the Sync center report keeps its own wording for it
+   * (`sync_diagnostics_unavailable`, or the storage code), so it leaves this off.
+   */
+  readonly readableFailure?: boolean;
 }
 
 /** Same status set `pendingDurableWorkFacts` live-scans (engine.ts), bounded to one page each. */
@@ -48,7 +54,9 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
   let scope: SyncScope;
   // W2A-01: a store that cannot be read is a readable state of its own, not "not connected" or "unavailable".
   try { scope = await deps.scope(); }
-  catch (error) { return await readStorageAttention(deps.store, error) ?? { ok: false, error: 'not_connected' }; }
+  catch (error) {
+    return (deps.readableFailure ? await readStorageAttention(deps.store, error) : undefined) ?? { ok: false, error: 'not_connected' };
+  }
   try {
     const [recorded, engine] = await Promise.all([
       deps.store.getScope(scope),
@@ -97,8 +105,11 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
       ...(terminalCode ? { terminalCode } : {}),
     } };
   } catch (error) {
-    return await readStorageAttention(deps.store, error) ?? await unreadableStateAttention(deps.store, scope, error)
-      ?? { ok: false, error: 'state_unavailable' };
+    if (deps.readableFailure) {
+      const readable = await readStorageAttention(deps.store, error) ?? await unreadableStateAttention(deps.store, scope, error);
+      if (readable) return readable;
+    }
+    return { ok: false, error: 'state_unavailable' };
   }
 }
 

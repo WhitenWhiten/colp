@@ -65,7 +65,7 @@ describe('Status answers with the readable state instead of "unavailable"', () =
   test('a newer database is a terminal, readable state with the reset as its exit', async () => {
     const factory = new IDBFactory(); await seedDatabase(factory, DATABASE_VERSION + 1);
     const store = createSyncStateStore({ indexedDB: factory });
-    const response = await handleSyncAttentionRequest({ scope: async () => scope, store });
+    const response = await handleSyncAttentionRequest({ scope: async () => scope, store, readableFailure: true });
     assert.equal(response.ok, true); if (!response.ok) return;
     const attention = response.attention;
     assert.equal(attention.storageState, 'newer_version');
@@ -78,10 +78,16 @@ describe('Status answers with the readable state instead of "unavailable"', () =
     assert.deepEqual(attention.issues, [{ direction: 'local', code: 'future_schema', rootCause: 'newer_version' }]);
   });
 
+  test('the report to the Sync center does not opt in: it keeps its own wording for an unusable store', async () => {
+    const factory = new IDBFactory(); await seedDatabase(factory, DATABASE_VERSION + 1);
+    const store = createSyncStateStore({ indexedDB: factory });
+    assert.deepEqual(await handleSyncAttentionRequest({ scope: async () => scope, store }), { ok: false, error: 'state_unavailable' });
+  });
+
   test('without a Session the scope itself cannot be read; that is the storage state too, not "not connected"', async () => {
     const factory = new IDBFactory(); await seedDatabase(factory, DATABASE_VERSION + 1);
     const store = createSyncStateStore({ indexedDB: factory });
-    const response = await handleSyncAttentionRequest({ scope: async () => { throw new Error('future_schema'); }, store });
+    const response = await handleSyncAttentionRequest({ scope: async () => { throw new Error('future_schema'); }, store, readableFailure: true });
     assert.equal(response.ok, true); if (!response.ok) return;
     assert.equal(response.attention.storageState, 'newer_version');
   });
@@ -89,13 +95,13 @@ describe('Status answers with the readable state instead of "unavailable"', () =
   test('a signed-out browser is still just not connected', async () => {
     const factory = new IDBFactory(); await seedDatabase(factory, DATABASE_VERSION + 1);
     const store = createSyncStateStore({ indexedDB: factory });
-    assert.deepEqual(await handleSyncAttentionRequest({ scope: async () => { throw new Error('not_connected'); }, store }),
+    assert.deepEqual(await handleSyncAttentionRequest({ scope: async () => { throw new Error('not_connected'); }, store, readableFailure: true }),
       { ok: false, error: 'not_connected' });
   });
 
   test('a storage hiccup retries by itself and is not terminal', async () => {
     const store = createSyncStateStore({ indexedDB: failingFactory('UnknownError') });
-    const response = await handleSyncAttentionRequest({ scope: async () => scope, store });
+    const response = await handleSyncAttentionRequest({ scope: async () => scope, store, readableFailure: true });
     assert.equal(response.ok, true); if (!response.ok) return;
     assert.deepEqual([response.attention.storageState, response.attention.lastError, response.attention.terminal,
       response.attention.retryAutomatic, response.attention.retryAvailable, response.attention.storageResetAvailable],
@@ -104,7 +110,7 @@ describe('Status answers with the readable state instead of "unavailable"', () =
 
   test('a signed-in browser whose scope is not registered yet is setup, not damage: still "unavailable"', async () => {
     const store = createSyncStateStore({ indexedDB: new IDBFactory() });
-    assert.deepEqual(await handleSyncAttentionRequest({ scope: async () => scope, store }),
+    assert.deepEqual(await handleSyncAttentionRequest({ scope: async () => scope, store, readableFailure: true }),
       { ok: false, error: 'state_unavailable' });
     store.close();
   });
@@ -112,7 +118,7 @@ describe('Status answers with the readable state instead of "unavailable"', () =
   test('a record that cannot be read (B-09) still shows the card and the Reset instead of "unavailable"', async () => {
     const broken = async () => { throw new Error('record_invalid'); };
     const store = { getScope: broken, getEngineState: broken, listQueue: broken, storageState: async () => ({ state: 'ok' as const }) };
-    const response = await handleSyncAttentionRequest({ scope: async () => scope, store: store as unknown as SyncAttentionStore });
+    const response = await handleSyncAttentionRequest({ scope: async () => scope, store: store as unknown as SyncAttentionStore, readableFailure: true });
     assert.equal(response.ok, true); if (!response.ok) return;
     const attention = response.attention;
     assert.equal(attention.lastError, 'record_invalid');
@@ -128,7 +134,7 @@ describe('Status answers with the readable state instead of "unavailable"', () =
     await real.registerScope({ ...scope, lifecycle: 'active', lease: { leaseId: 'lease-1', expiresAt: 99_999 },
       checkpoint: { serverRevision: 'revision-0', cursor: 'cursor-0' }, selectedRoots: [] });
     const store = { ...real, getScope: async (input: SyncScope) => { if (calls++ === 0) throw new Error('transaction_aborted'); return real.getScope(input); } };
-    const response = await handleSyncAttentionRequest({ scope: async () => scope, store: store as unknown as SyncAttentionStore });
+    const response = await handleSyncAttentionRequest({ scope: async () => scope, store: store as unknown as SyncAttentionStore, readableFailure: true });
     // The first read fails once; the repair capability then reads fine, so nothing is claimed about the state.
     assert.deepEqual(response, { ok: false, error: 'state_unavailable' });
     real.close();
