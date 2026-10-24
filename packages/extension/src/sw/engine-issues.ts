@@ -12,7 +12,7 @@ export const WAKE_FAILURE_ISSUE_CODE = 'sync_step_failed';
 export const UNREAD_QUEUE_CODE = { sent: 'queue_head_unreadable', unsent: 'queue_row_unreadable' } as const;
 
 /** The failing steps of this replica that have repeated enough to report; empty outside a worker. */
-export async function readVisibleWakeFailures(replicaId: string): Promise<WakeFailure[]> {
+export async function readVisibleWakeFailures(replicaId: string | undefined): Promise<WakeFailure[]> {
   return workerWakeFailureLog().visible(replicaId).catch(() => []);
 }
 

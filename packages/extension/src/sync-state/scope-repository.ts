@@ -365,8 +365,9 @@ export function createScopeRepository(ctx: SyncStoreRuntime) {
   async function exportArchive(input: SyncScope) {
     const key = scopeKey(validateScope(input)); const db = await open(); const tx = db.transaction(STORES.archives, 'readonly');
     const completion = transactionDone(tx);
-    const values = await cursorPage<UnknownRecord>(tx.objectStore(STORES.archives), scopeRowsRange(key), 1);
-    await completion; if (!values[0]) throw new SyncStateError('archive_not_found'); return clone(values[0]);
+    // The newest archive of the scope: a scope key retired once before must not hide the reset that just ran (B-13).
+    const newest = await requestValue(tx.objectStore(STORES.archives).openCursor(scopeRowsRange(key), 'prev'));
+    await completion; if (!newest) throw new SyncStateError('archive_not_found'); return clone(newest.value as UnknownRecord);
   }
 
   function peekDurableCache(input: SyncScope) { return clone(durableCache.get(scopeKey(validateScope(input))) ?? null); }

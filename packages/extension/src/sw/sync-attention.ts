@@ -21,8 +21,10 @@ export interface SyncAttentionDeps {
   readonly store: SyncAttentionStore;
   readonly openIssues?: OpenSyncIssues;
   readonly rebuildPending?: () => Promise<boolean>;
+  /** Whether the pending reset can still be given up (nothing archived yet). */
+  readonly rebuildCancelAvailable?: () => Promise<boolean>;
   /** The repeated failures of engine wake steps for this replica (default: the worker's own record). */
-  readonly wakeFailures?: (replicaId: string) => Promise<readonly WakeFailure[]>;
+  readonly wakeFailures?: (replicaId: string | undefined) => Promise<readonly WakeFailure[]>;
 }
 
 /** Same status set `pendingDurableWorkFacts` live-scans (engine.ts), bounded to one page each. */
@@ -30,11 +32,18 @@ const LIVE_STATUSES = ['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unkn
 const QUEUE_PAGE = 1_000;
 
 export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promise<SyncAttentionResponse> {
-  if (await deps.rebuildPending?.()) return { ok: true, attention: {
-    recoveryFrozen: true, queueProjection: 'idle', conflictPending: false, rejectedPending: false,
-    nativeWaitPending: false, waitCount: 0, terminal: true, terminalCode: 'replica_rebuild_pending', phase: 'recovery',
-    lastError: 'replica_rebuild_pending', rebuildAvailable: true,
-  } };
+  if (await deps.rebuildPending?.()) {
+    // A reset that keeps failing to finish says why (Rule E) and, while nothing is archived, can be given up (W2A-02).
+    const failed = (await (deps.wakeFailures ?? readVisibleWakeFailures)(undefined).catch((): WakeFailure[] => []))
+      .filter(failure => failure.stage === 'rebuild_resume');
+    return { ok: true, attention: {
+      recoveryFrozen: true, queueProjection: 'idle', conflictPending: false, rejectedPending: false,
+      nativeWaitPending: false, waitCount: 0, terminal: true, terminalCode: 'replica_rebuild_pending', phase: 'recovery',
+      lastError: 'replica_rebuild_pending', rebuildAvailable: true, rebuildMode: 'local',
+      ...(failed.length > 0 ? { issueCount: failed.length, issues: wakeFailureDiagnostics(failed) } : {}),
+      ...(await deps.rebuildCancelAvailable?.().catch(() => false) ? { rebuildCancelAvailable: true } : {}),
+    } };
+  }
   let scope: SyncScope;
   try { scope = await deps.scope(); } catch { return { ok: false, error: 'not_connected' }; }
   try {
@@ -72,6 +81,8 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
       ...(engine?.notBefore ? { retryAt: engine.notBefore } : {}),
       ...queue,
       issueCount: open.total + (stalled ? 1 : 0) + unreadable.length + failedSteps.length, issues, rebuildAvailable: capability.rebuildAvailable,
+      rebuildMode: capability.rebuildMode,
+      ...(capability.rebuildBlockedReason ? { rebuildBlockedReason: capability.rebuildBlockedReason } : {}),
       ...(capability.reason ? { rebuildUnavailableReason: capability.reason } : {}),
       retryAvailable: Boolean(stalled) || failedSteps.length > 0
         || open.queue.some(row => row.recovery?.code === 'sequence_blocked' && row.attempt !== undefined),

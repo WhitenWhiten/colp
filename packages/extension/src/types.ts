@@ -458,6 +458,12 @@ export interface PublicSyncAttention {
   readonly issues?: readonly SyncIssueDiagnostic[];
   readonly rebuildAvailable?: boolean;
   readonly rebuildUnavailableReason?: string;
+  /** K3: `server_fenced` retires the old replica on the server first (an upload may already be there); it needs a connection. */
+  readonly rebuildMode?: 'local' | 'server_fenced';
+  /** K3: set only when a Reset is needed but cannot be done now (`offline`, `native_outcome_unsettled`). */
+  readonly rebuildBlockedReason?: string;
+  /** W2A-02: a Reset that was confirmed but has not finished can be given up (nothing is archived yet). */
+  readonly rebuildCancelAvailable?: boolean;
   readonly retryAvailable?: boolean;
   readonly retryAt?: number;
   readonly retryAutomatic?: boolean;

@@ -148,8 +148,9 @@ test('only server-fenced rebuild can archive uncertain uploads; scope and author
       bodyDigest: 'sha256:uncertain' });
     await f.store.settleClaimedPush(f.scope, row.sequence, 'test', lease.fence, { outcome: 'unknown',
       retry: { attempt: 10, notBefore: 0 }, recovery: { code: 'push_response_unrecognized' } });
-    assert.deepEqual(await f.rebuilder.handle({ kind: 'known.scope.rebuild.preview' }),
-      { ok: false, code: 'upload_outcome_unsettled' });
+    // K3: the local Reset is offered too, but as a server-fenced one (see replica-fenced-local-reset.test.ts).
+    const preview = await f.rebuilder.handle({ kind: 'known.scope.rebuild.preview' });
+    assert.ok(preview.ok && 'preview' in preview && preview.preview.mode === 'server_fenced');
     assert.equal((await f.rebuilder.rebuildServerRetired({ ...f.scope, replicaId: 'another' })).outcome, 'failed');
     assert.equal(f.registrations, 0);
     assert.equal((await f.rebuilder.rebuildServerRetired(f.scope)).outcome, 'done');
