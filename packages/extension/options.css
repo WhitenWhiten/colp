@@ -517,6 +517,7 @@ body[data-first-run="syncing"] .folder-foot { display: none; }
   font-size: var(--text-xs);
 }
 .ingress-diagnostics-meta { margin: 0; }
+.ingress-diagnostics-example { margin: 0; overflow-wrap: anywhere; }
 [data-subscription-diagnostics] .feedback:not(:empty) { padding: var(--hair-85) var(--space-4); border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--surface-raised); color: var(--ink-2); font-size: var(--text-sm); }
 
 /* ------------------------------------------------------------ import pane */

@@ -327,7 +327,8 @@ describe('A-08 options/worker wiring', () => {
 
     assert.match(worker, /validIngressDiagnosticsRequest\(message\)/u);
     assert.match(worker, /handleIngressDiagnosticsRequest\(ingressDiagnosticsDeps\)/u);
-    assert.match(worker, /const ingressDiagnosticsDeps: IngressDiagnosticsDeps = \{ scope: currentSyncScope, store: syncState \}/u);
+    // C-20: the same read, with the optional live example per refused-bookmark row.
+    assert.match(worker, /const ingressDiagnosticsDeps: IngressDiagnosticsDeps = \{ scope: currentSyncScope, store: syncState,\s+examples: /u);
     assert.match(worker, /IngressDiagnosticsResponse/u);
     assert.match(messages, /export function validIngressDiagnosticsRequest/u);
     assert.match(ui, /known\.sync\.ingressDiagnostics\.get/u);

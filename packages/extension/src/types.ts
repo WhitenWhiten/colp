@@ -432,7 +432,11 @@ export interface PublicIngressDiagnostic {
   readonly firstAt: number;
   /** Epoch ms of the most recent occurrence; `0` means the same unknown time. */
   readonly lastAt: number;
+  /** One live bookmark still refused for this reason; only the options list may show it (never a copy or a report). */
+  readonly example?: PublicIngressExample;
 }
+/** A bookmark title (cut short) or, for a bookmark without one, its host; and how many others are refused the same way now. */
+export interface PublicIngressExample { readonly text: string; readonly others: number }
 export type IngressDiagnosticsResponse =
   | { readonly ok: true; readonly diagnostics: readonly PublicIngressDiagnostic[] }
   | { readonly ok: false; readonly error: 'not_connected' | 'state_unavailable' };

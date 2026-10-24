@@ -29,7 +29,7 @@ import { localized, t, tn } from './i18n.js';
  */
 import { PARK_MARKER_PREFIX } from './bookmark-event-quarantine.js';
 import type {
-  IngressDiagnosticsGetRequest, IngressDiagnosticsResponse, PublicIngressDiagnostic,
+  IngressDiagnosticsGetRequest, IngressDiagnosticsResponse, PublicIngressDiagnostic, PublicIngressExample,
 } from './types.js';
 
 export const INGRESS_DIAGNOSTICS_HOST = 'ingress-diagnostics-settings';
@@ -105,6 +105,8 @@ export interface IngressDiagnosticRow {
   readonly count: number;
   /** `Count: N · Latest: T` (see `ingressDiagnosticMeta`). */
   readonly meta: string;
+  /** `For example: “Title”` for a refused bookmark found in the live tree, else empty. On screen only. */
+  readonly example: string;
 }
 
 export type IngressDiagnosticsView =
@@ -168,6 +170,18 @@ export function ingressDiagnosticMeta(row: PublicIngressDiagnostic): string {
   return t('sync_firstLatest', '$1 · First: $2 · Latest: $3', count, formatIngressTimestamp(firstAt), last);
 }
 
+/**
+ * C-20 / D2: the bookmark behind a "cannot be synced" row, found by the worker in
+ * the live tree when the list was read. It is shown on this list only; nothing
+ * here copies it anywhere.
+ */
+export function ingressDiagnosticExample(example: PublicIngressExample | undefined): string {
+  if (!example || typeof example.text !== 'string' || example.text === '') return '';
+  const others = Number.isSafeInteger(example.others) && example.others > 0 ? example.others : 0;
+  return others > 0 ? t('sync_ingressExampleMore', 'For example: “$1” (and $2 more)', example.text, others)
+    : t('sync_ingressExample', 'For example: “$1”', example.text);
+}
+
 /** Order is the store's (`lastAt` desc, `code` asc) — never re-sorted here. */
 export function ingressDiagnosticRows(diagnostics: readonly PublicIngressDiagnostic[]): readonly IngressDiagnosticRow[] {
   return diagnostics.filter((diagnostic) => !isParkMarkerCode(diagnostic.code)).map((diagnostic) => ({
@@ -177,6 +191,7 @@ export function ingressDiagnosticRows(diagnostics: readonly PublicIngressDiagnos
     tag: ingressDiagnosticTag(diagnostic.code),
     count: Number.isSafeInteger(diagnostic.count) && diagnostic.count >= 1 ? diagnostic.count : 1,
     meta: ingressDiagnosticMeta(diagnostic),
+    example: ingressDiagnosticExample(diagnostic.example),
   }));
 }
 
@@ -277,7 +292,7 @@ function paintIngressDiagnostics(nodes: IngressNodes, view: IngressDiagnosticsVi
   nodes.list.replaceChildren(...view.rows.map((row) => ingressDiagnosticItem(nodes.template, row)));
 }
 
-function ingressDiagnosticItem(template: HTMLTemplateElement | null, row: IngressDiagnosticRow): HTMLElement {
+export function ingressDiagnosticItem(template: HTMLTemplateElement | null, row: IngressDiagnosticRow): HTMLElement {
   const item = (template?.content.firstElementChild?.cloneNode(true) ?? document.createElement('li')) as HTMLElement;
   item.classList.add('ingress-diagnostics-item');
   item.dataset.code = row.code;
@@ -294,6 +309,12 @@ function ingressDiagnosticItem(template: HTMLTemplateElement | null, row: Ingres
   meta.className = 'ingress-diagnostics-meta detail';
   meta.textContent = row.meta;
   item.replaceChildren(reason, meta);
+  if (row.example) {
+    const example = document.createElement('p');
+    example.className = 'ingress-diagnostics-example detail';
+    example.textContent = row.example;
+    item.append(example);
+  }
   return item;
 }
 

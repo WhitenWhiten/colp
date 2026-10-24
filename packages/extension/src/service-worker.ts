@@ -69,6 +69,9 @@ import { handleNativeWaitRequest, type NativeWaitAuthority, type NativeWaitDeps 
 import { handleRemoteDeleteRequest } from './sw/remote-delete.js';
 import { handleImportRequest } from './sw/import.js';
 import { handleIngressDiagnosticsRequest, type IngressDiagnosticsDeps } from './sw/ingress-diagnostics.js';
+import { readIngressExamples } from './sw/ingress-examples.js';
+import { personalTreeApi } from './bookmark-subscriptions/personal-boundary.js';
+import { createChromeBookmarkTreeAdapter } from './chrome-bookmark-tree.js';
 import { handleSyncAttentionRequest, type SyncAttentionDeps } from './sw/sync-attention.js';
 import { handleSyncProgressRequest } from './sw/sync-progress.js';
 import { handleSyncIssueAction } from './sw/sync-issue-actions.js';
@@ -207,8 +210,9 @@ const syncAttentionDeps: SyncAttentionDeps = { scope: currentSyncScope, store: s
 // A deliberate disconnect tells the Sync center before this browser leaves its library (C-17d).
 onBeforePersonalSyncDisconnect(reportReplicaDisconnected);
 
-/** SR-10 / A-08: the read-only ingress-diagnostic read behind the options list. */
-const ingressDiagnosticsDeps: IngressDiagnosticsDeps = { scope: currentSyncScope, store: syncState };
+/** SR-10 / A-08: the read-only ingress-diagnostic read behind the options list; C-20: with a live example per refused-bookmark row. */
+const ingressDiagnosticsDeps: IngressDiagnosticsDeps = { scope: currentSyncScope, store: syncState,
+  examples: scope => readIngressExamples(syncState, scope, () => createChromeBookmarkTreeAdapter(personalTreeApi()).read()) };
 
 void workCoordinator.run('engine', () => guardWakeStep(workerWakeFailureLog(), 'rebuild_resume',
   () => replicaRebuilder().resume()))
