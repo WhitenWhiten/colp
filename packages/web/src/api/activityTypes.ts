@@ -25,5 +25,5 @@ export interface ActivityItem {
 
 export interface ActivityPage { items: ActivityItem[]; nextCursor: string | null; unreadCount: number }
 export interface ActivitySummary { unreadCount: number; latest: ActivityItem | null; revision: string }
-export type ActivityReadRequest = { ids: string[] } | { through: string }
+export type ActivityReadRequest = { ids: string[] } | { through: string; throughRevision?: string }
 export interface ActivityReadResult { readCount: number; unreadCount: number }

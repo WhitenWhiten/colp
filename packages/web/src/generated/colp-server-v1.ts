@@ -2248,6 +2248,8 @@ export interface components {
             ids: string[];
         } | {
             through: string;
+            /** @description Supply the observed revision when reading a displayed page. A changed revision reads nothing. Omission explicitly reads through the current item version. */
+            throughRevision?: string;
         };
         ActivityReadResult: {
             readCount: number;

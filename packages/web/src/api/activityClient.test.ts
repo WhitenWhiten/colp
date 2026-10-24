@@ -27,10 +27,10 @@ describe('activity client', () => {
 
   it('marks through an item with CSRF, Origin and a command id', async () => {
     const fetcher = vi.fn<typeof fetch>(async () => json(200, { readCount: 7, unreadCount: 0 }))
-    await createActivityApi(fetcher).markActivityRead({ through: 'activity-newest' })
+    await createActivityApi(fetcher).markActivityRead({ through: 'activity-newest', throughRevision: '1' })
     const [url, init] = fetcher.mock.calls[0]!
     expect(url).toBe('/api/v1/me/activity/read')
-    expect(init).toMatchObject({ method: 'POST', credentials: 'include', body: '{"through":"activity-newest"}' })
+    expect(init).toMatchObject({ method: 'POST', credentials: 'include', body: '{"through":"activity-newest","throughRevision":"1"}' })
     const headers = new Headers(init?.headers)
     expect(headers.get('X-CSRF-Token')).toBe('csrf-activity')
     expect(headers.get('Origin')).toBe(window.location.origin)

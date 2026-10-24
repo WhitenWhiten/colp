@@ -7,7 +7,9 @@ The worker always registers the durable activity handler so queued events can fi
 
 - `GET /api/v1/me/activity?state=all|unread&limit=20&cursor=…` lists activity, newest first.
 - `GET /api/v1/me/activity/summary` returns the unread item count, latest item, and maximum item revision.
-- `POST /api/v1/me/activity/read` accepts either `ids` (1–100 unique IDs) or `through` (an activity ID).
+- `POST /api/v1/me/activity/read` accepts either `ids` (1–100 unique IDs) or `through` (an activity ID) with optional `throughRevision` (its observed revision).
+  Page-driven reads always supply the revision: a changed boundary reads nothing until a fresh read.
+  Legacy callers that omit the revision explicitly read through the current version, as with `ids`.
 
 The summary response includes `Known-Activity-Account-Id`, bound to the same authenticated request as its data.
 The extension checks it against its connected account and clears activity on authentication loss or mismatch.

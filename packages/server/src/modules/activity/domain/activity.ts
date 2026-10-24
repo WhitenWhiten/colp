@@ -11,7 +11,7 @@ export interface ActivityItem {
 }
 export interface ActivityPage { items: ActivityItem[]; nextCursor: string | null; unreadCount: number }
 export interface ActivitySummary { unreadCount: number; latest: ActivityItem | null; revision: string }
-export type ActivityReadRequest = { ids: string[] } | { through: string };
+export type ActivityReadRequest = { ids: string[] } | { through: string; throughRevision?: string };
 export interface ActivityReadResult { readCount: number; unreadCount: number }
 export interface OpenAgentCandidate { id: string; occurredAt: Date; readAt: Date | null }
 /** The first event fixes the window; later arrivals never extend its 24-hour boundary. */

@@ -53,7 +53,7 @@ describe('Activity inbox', () => {
     renderWithRouter(<Activity api={api} />, { route: '/activity' })
     await waitForDom(() => api.markActivityRead.mock.calls.length === 1)
     expect(entries()).toEqual(['newest'])
-    expect(api.markActivityRead).toHaveBeenCalledWith({ through: 'newest' })
+    expect(api.markActivityRead).toHaveBeenCalledWith({ through: 'newest', throughRevision: '1' })
     click('Load more')
     await waitForDom(() => entries().length === 2)
     expect(api.listActivity).toHaveBeenCalledWith({ state: 'all', cursor: 'page-2', limit: 20 })
@@ -80,13 +80,13 @@ describe('Activity inbox', () => {
     expect(toast.error).toHaveBeenCalledWith('Could not mark activity read.')
     click('Mark all read')
     await waitForDom(() => api.markActivityRead.mock.calls.length === 2)
-    expect(api.markActivityRead.mock.calls[1]).toEqual([{ through: 'activity-1' }])
+    expect(api.markActivityRead.mock.calls[1]).toEqual([{ through: 'activity-1', throughRevision: '1' }])
   })
 
   it('offers Mark all read only after the automatic read, then reaches activity that arrived later', async () => {
     const api = fakeActivityApi()
     api.listActivity.mockResolvedValue({ items: [activityItem('shown')], nextCursor: null, unreadCount: 2 })
-    api.getActivitySummary.mockResolvedValue({ unreadCount: 1, latest: activityItem('arrived'), revision: '3' })
+    api.getActivitySummary.mockResolvedValue({ unreadCount: 1, latest: activityItem('arrived', { revision: '3' }), revision: '3' })
     let finishRead: ((result: { readCount: number; unreadCount: number }) => void) | undefined
     api.markActivityRead.mockImplementationOnce(() => new Promise(resolve => { finishRead = resolve }))
     renderWithRouter(<Activity api={api} />, { route: '/activity' })
@@ -98,8 +98,8 @@ describe('Activity inbox', () => {
     await waitForDom(() => markAll()?.textContent === 'Mark all read')
     click('Mark all read')
     await waitForDom(() => api.markActivityRead.mock.calls.length === 2)
-    expect(api.markActivityRead.mock.calls[0]).toEqual([{ through: 'shown' }])
-    expect(api.markActivityRead.mock.calls[1]).toEqual([{ through: 'arrived' }])
+    expect(api.markActivityRead.mock.calls[0]).toEqual([{ through: 'shown', throughRevision: '1' }])
+    expect(api.markActivityRead.mock.calls[1]).toEqual([{ through: 'arrived', throughRevision: '3' }])
     await waitForDom(() => markAll() === undefined)
   })
 

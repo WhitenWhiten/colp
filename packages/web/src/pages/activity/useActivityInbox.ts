@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { isActivityUnavailableError, type ActivityApi } from '../../api/activityClient'
-import type { ActivityPage } from '../../api/activityTypes'
+import type { ActivityItem, ActivityPage } from '../../api/activityTypes'
 import { privateSessionIdentity, subscribeSession } from '../../api/sessionStore'
 import { useToast } from '../../components/AppToast'
 import { publishActivityUnavailable, refreshActivitySummary } from '../../lib/activityStatus'
@@ -53,13 +53,14 @@ export function useActivityInbox(api: ActivityApi, accountId: string | null) {
     return () => controller.abort()
   }, [accountId, api, filter, key, version])
 
-  const markRead = useCallback(async (shown: string, everything = false) => {
+  const markRead = useCallback(async (shown: ActivityItem, everything = false) => {
     setMarkingFor(key)
     try {
       // On demand, also what arrived after this page loaded: the summary
       // names the newest item; the page's newest stands in if it can't.
-      const latest = everything ? (await api.getActivitySummary().catch(() => null))?.latest?.id : undefined
-      const result = await api.markActivityRead({ through: latest ?? shown })
+      const latest = everything ? (await api.getActivitySummary().catch(() => null))?.latest : undefined
+      const boundary = latest ?? shown
+      const result = await api.markActivityRead({ through: boundary.id, throughRevision: boundary.revision })
       if (!mounted.current || key !== activeKey.current) return
       setLoaded((value) => value.key === key ? { ...value, inbox: { ...value.inbox, unreadCount: result.unreadCount } } : value)
       await refreshActivitySummary()
@@ -77,7 +78,7 @@ export function useActivityInbox(api: ActivityApi, accountId: string | null) {
     if (inbox.loading || inbox.error || !newest || firstPageMarked.current === key) return
     firstPageMarked.current = key
     if (inbox.unreadCount === 0) setSettledFor(key)
-    else void markRead(newest.id).finally(() => { if (mounted.current && key === activeKey.current) setSettledFor(key) })
+    else void markRead(newest).finally(() => { if (mounted.current && key === activeKey.current) setSettledFor(key) })
   }, [inbox, key, markRead])
 
   async function more() {
@@ -102,6 +103,6 @@ export function useActivityInbox(api: ActivityApi, accountId: string | null) {
     inbox, filter, setFilter, marking, more,
     canMarkAll: settledFor === key && inbox.unreadCount > 0 && inbox.items.length > 0,
     retry: () => setVersion((value) => value + 1),
-    markAll: () => { if (!marking && inbox.items[0]) void markRead(inbox.items[0].id, true) },
+    markAll: () => { if (!marking && inbox.items[0]) void markRead(inbox.items[0], true) },
   }
 }

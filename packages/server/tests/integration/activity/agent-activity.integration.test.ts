@@ -81,9 +81,9 @@ describeWithPostgres('durable owner agent activity', () => {
     expect((await get('/summary')).headers['known-activity-account-id']).toBe(f.owner.accountId);
     const foreign = await f.issue('activity_foreign');
     expect((await get('/summary', foreign.cookie)).headers['known-activity-account-id']).toBe(foreign.accountId); expect((await get('', foreign.cookie)).json()).toEqual({ items: [], nextCursor: null, unreadCount: 0 });
-    expect(await store.markRead(foreign.accountId, { through: newest.id })).toEqual({ readCount: 0, unreadCount: 0 });
-    expect((await read({ through: 'unknown' })).json()).toEqual({ readCount: 0, unreadCount: 1 });
-    expect((await read({ through: newest.id })).json()).toEqual({ readCount: 1, unreadCount: 0 });
+    expect(await store.markRead(foreign.accountId, { through: newest.id, throughRevision: newest.revision })).toEqual({ readCount: 0, unreadCount: 0 });
+    expect((await read({ through: 'unknown', throughRevision: '1' })).json()).toEqual({ readCount: 0, unreadCount: 1 });
+    expect((await read({ through: newest.id, throughRevision: newest.revision })).json()).toEqual({ readCount: 1, unreadCount: 0 });
     await create('three', null); await route.handle(await context('three')); expect((await get('/summary')).json().latest.agent).toBeNull();
     await f.db.updateTable('nodes').set({ deleted_at: new Date() }).where('id', '=', 'three').execute();
     expect((await get('/summary')).json().latest).toMatchObject({ count: 1, items: [], folders: [] });
@@ -104,11 +104,24 @@ describeWithPostgres('durable owner agent activity', () => {
     await f.db.updateTable('accounts').set({ status: 'disabled' }).where('id', '=', f.owner.accountId).execute();
     await route.handle(inactive); expect(await f.db.selectFrom('activity_items').selectAll().execute()).toHaveLength(3);
   });
+  test('read-through cannot advance past the rendered revision after concurrent aggregation', async () => {
+    await setup(); const route = createActivityAgentRoute(f.db);
+    await create('seen', 'agent-a'); await route.handle(await context('seen'));
+    const seen = (await store.list(f.owner.accountId, {})).items[0]!;
+    await create('new-other', 'agent-b'); await route.handle(await context('new-other'));
+    await create('new-same', 'agent-a'); await route.handle(await context('new-same'));
+    expect((await read({ through: seen.id, throughRevision: seen.revision })).json()).toEqual({ readCount: 0, unreadCount: 2 });
+    for (const throughRevision of ['0', '1 OR 1=1', '9'.repeat(20), 1]) {
+      expect((await read({ through: seen.id, throughRevision })).statusCode).toBe(400);
+    }
+    const latest = (await store.summary(f.owner.accountId)).latest!;
+    expect((await read({ through: latest.id, throughRevision: latest.revision })).json()).toEqual({ readCount: 2, unreadCount: 0 });
+  });
   test('browser session, Origin, CSRF and command id admission', async () => {
     await setup(); expect((await app.inject({ url: '/api/v1/me/activity/summary' })).statusCode).toBe(401);
     expect((await app.inject({ url: '/api/v1/me/activity', headers: { authorization: 'Bearer sync-token' } })).statusCode).toBe(401);
-    expect((await read({ through: 'unknown' }, { origin: 'https://foreign.test' })).statusCode).toBe(403);
-    expect((await read({ through: 'unknown' }, { 'x-csrf-token': 'wrong' })).statusCode).toBe(403);
-    expect((await read({ through: 'unknown' }, { 'known-command-id': '' })).statusCode).toBe(400);
+    expect((await read({ through: 'unknown', throughRevision: '1' }, { origin: 'https://foreign.test' })).statusCode).toBe(403);
+    expect((await read({ through: 'unknown', throughRevision: '1' }, { 'x-csrf-token': 'wrong' })).statusCode).toBe(403);
+    expect((await read({ through: 'unknown', throughRevision: '1' }, { 'known-command-id': '' })).statusCode).toBe(400);
   });
 });

@@ -12,13 +12,17 @@ import { readKnownCommandId } from './collection-route-helpers.js';
 export interface ActivityRouteDeps {
   identityUnitOfWork: IdentityUnitOfWork; allowedOrigins: readonly string[]; activity: ActivityPorts;
 }
-const invalid = () => new ProductHttpError({ statusCode: 400, code: 'invalid_request', message: 'Provide either 1–100 unique activity ids or one through id.' });
+const invalid = () => new ProductHttpError({ statusCode: 400, code: 'invalid_request', message: 'Provide either 1–100 unique activity ids or a through id with its observed throughRevision.' });
 function parseRead(body: unknown): ActivityReadRequest {
-  if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).length !== 1) throw invalid();
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw invalid();
   const record = body as Record<string, unknown>;
   const id = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= 128;
-  if (id(record.through)) return { through: record.through };
-  if (Array.isArray(record.ids) && record.ids.length >= 1 && record.ids.length <= 100 && record.ids.every(id)
+  if (id(record.through) && Object.keys(record).every(key => key === 'through' || key === 'throughRevision')) {
+    if (record.throughRevision === undefined) return { through: record.through };
+    if (typeof record.throughRevision === 'string' && /^[1-9][0-9]{0,18}$/u.test(record.throughRevision))
+      return { through: record.through, throughRevision: record.throughRevision };
+  }
+  if (Object.keys(record).length === 1 && Array.isArray(record.ids) && record.ids.length >= 1 && record.ids.length <= 100 && record.ids.every(id)
     && new Set(record.ids).size === record.ids.length) return { ids: record.ids };
   throw invalid();
 }

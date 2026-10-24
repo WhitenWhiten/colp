@@ -39,7 +39,7 @@ export function createActivityStore(db: Kysely<DatabaseSchema>, cursorKey: strin
         await tx.selectFrom('accounts').select('id').where('id', '=', accountId).forUpdate().executeTakeFirst();
         const target = 'ids' in request
           ? sql`id IN (${sql.join(request.ids.map(id => sql`${id}`))})`
-          : sql`(updated_at,id)<=(SELECT updated_at,id FROM activity_items WHERE id=${request.through} AND account_id=${accountId})`;
+          : sql`(updated_at,id)<=(SELECT updated_at,id FROM activity_items WHERE id=${request.through} AND account_id=${accountId} ${request.throughRevision === undefined ? sql`` : sql`AND revision::text=${request.throughRevision}`})`;
         const changed = await sql`UPDATE activity_items SET read_at=clock_timestamp(),revision=revision+1
           WHERE account_id=${accountId} AND read_at IS NULL AND ${target} RETURNING id`.execute(tx);
         return { readCount: changed.rows.length, unreadCount: await unreadCount(tx, accountId) };

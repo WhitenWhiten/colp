@@ -20250,6 +20250,10 @@ components:
               type: string
               minLength: 1
               maxLength: 128
+            throughRevision:
+              type: string
+              pattern: ^[1-9][0-9]{0,18}$
+              description: Supply the observed revision when reading a displayed page. A changed revision reads nothing. Omission explicitly reads through the current item version.
     ActivityReadResult:
       type: object
       additionalProperties: false
