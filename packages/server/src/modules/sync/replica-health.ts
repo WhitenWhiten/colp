@@ -1,6 +1,8 @@
 import { REPLICA_HEALTH_MAX_ITEMS, REPLICA_HEALTH_MAX_BODY_BYTES, REPLICA_HEALTH_TITLE_MAX, REPLICA_COMMAND_RESULTS_MAX } from './generated/replica-health-limits.js';
 export { REPLICA_HEALTH_MAX_ITEMS, REPLICA_HEALTH_MAX_BODY_BYTES, REPLICA_COMMAND_RESULTS_MAX } from './generated/replica-health-limits.js';
 import type { VerifiedExtensionCredential } from '../identity/index.js';
+import { replicaReportTextIsSafe } from './replica-report-text.js';
+export { replicaReportTextIsSafe } from './replica-report-text.js';
 
 /**
  * A replica's own account of its sync, reported by the browser extension so the
@@ -29,7 +31,7 @@ export interface ReplicaHealthIssue {
   readonly direction: ReplicaIssueDirection;
   readonly nodeId?: string;
   readonly opId?: string;
-  /** Display only; dropped when it looks like a URL, credential or browser id. */
+  /** Display only; dropped when it carries a credential or a browser id (see `replicaReportTextIsSafe`). */
   readonly title?: string;
   readonly count: number;
   readonly firstSeenAt: string;
@@ -94,9 +96,6 @@ export interface ReplicaHealthRecorder {
 const OPAQUE = /^[A-Za-z0-9._~-]{1,128}$/u;
 const CODE = /^[a-z][a-z0-9_]{0,63}$/u;
 const VERSION = /^[0-9A-Za-z.+-]{1,32}$/u;
-/** The Ack warning content rule: no URLs, credentials or browser-native identities in display text. */
-export const REPLICA_REPORT_UNSAFE_TEXT
-  = /(?:https?:\/\/|javascript:|chrome:|authorization|bearer|token=|secret|native[_ -]?id)/iu;
 
 export function parseReplicaHealthReport(value: unknown): ReplicaHealthReport {
   if (new TextEncoder().encode(JSON.stringify(value)).byteLength > REPLICA_HEALTH_MAX_BODY_BYTES) throw invalid();
@@ -132,7 +131,7 @@ function parseIssue(value: unknown): ReplicaHealthIssue {
   const actions = actionList(issue.actions, REPLICA_ISSUE_ACTIONS);
   if (issue.title !== undefined && (typeof issue.title !== 'string' || issue.title.length > REPLICA_HEALTH_TITLE_MAX)) throw invalid();
   const title = typeof issue.title === 'string' && issue.title.trim().length > 0
-    && !REPLICA_REPORT_UNSAFE_TEXT.test(issue.title) ? issue.title : undefined;
+    && replicaReportTextIsSafe(issue.title) ? issue.title : undefined;
   return Object.freeze({
     issueId: pattern(issue.issueId, OPAQUE), code: pattern(issue.code, CODE),
     direction: oneOf(issue.direction, REPLICA_ISSUE_DIRECTIONS),
