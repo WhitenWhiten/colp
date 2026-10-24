@@ -14,7 +14,7 @@ describe('P3-27 release artifact contract', () => {
     // pages (bookmark manager rows); it carries no install-time warning.
     assert.deepEqual(manifest.permissions, ['cookies', 'storage', 'unlimitedStorage', 'alarms', 'activeTab', 'favicon', 'contextMenus']);
     // webNavigation: asked for only when risk alerts are switched on while browsing (doc 17 RW-17).
-    assert.deepEqual(manifest.optional_permissions, ['bookmarks', 'tabs', 'webNavigation']);
+    assert.deepEqual(manifest.optional_permissions, ['bookmarks', 'tabs', 'webNavigation', 'scripting']);
     assert.equal(manifest.options_ui.open_in_tab, true);
     assert.equal(manifest.storage.managed_schema, 'managed-storage-schema.json');
     assert.deepEqual(manifest.content_security_policy, { extension_pages: "script-src 'self'; object-src 'none'; base-uri 'none'; img-src 'self' blob: data: https:" });
@@ -49,6 +49,6 @@ describe('P3-27 release artifact contract', () => {
     const source = `${await readServiceWorkerGraph(ROOT)}\n${(await Promise.all(files.map((file) => readFile(resolve(ROOT, file), 'utf8')))).join('\n')}`;
     assert.doesNotMatch(source, /eval\s*\(|new Function|document\.write|innerHTML\s*=|console\.(log|debug|info)/);
     assert.doesNotMatch(source, /client[_-]?secret/i);
-    assert.doesNotMatch(source, /postMessage|content_scripts/);
+    assert.doesNotMatch(source, /window\.postMessage|content_scripts/); // dedicated runtime Port only
   });
 });

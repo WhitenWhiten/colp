@@ -18,7 +18,7 @@ export function validSender(sender: chrome.runtime.MessageSender): boolean {
   let page: URL;
   try { page = new URL(sender.url); } catch { return false; }
   return page.protocol === 'chrome-extension:' && page.hostname === chrome.runtime.id
-    && (page.pathname === '/options.html' || page.pathname === '/popup.html' || page.pathname === '/capture-tabs.html');
+    && (page.pathname === '/site-adapters.html' || page.pathname === '/options.html' || page.pathname === '/popup.html' || page.pathname === '/capture-tabs.html');
 }
 
 export function validRequest(value: unknown): value is AuthExtensionRequest {

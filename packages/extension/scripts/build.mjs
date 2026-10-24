@@ -38,13 +38,14 @@ await build({ entryPoints: { 'service-worker': resolve(root, 'src/service-worker
   'bookmark-privacy': resolve(root, 'src/bookmark-privacy.ts'),
   'bookmark-event-queue': resolve(root, 'src/bookmark-event-queue.ts'),
   'bookmark-import-plan': resolve(root, 'src/bookmark-import-plan.ts'),
-  'import-preview': resolve(root, 'src/import-preview.ts') },
+  'import-preview': resolve(root, 'src/import-preview.ts'), 'site-settings': resolve(root, 'src/site-adapters/settings.ts') },
   bundle: true, format: 'esm', platform: 'browser', target: 'chrome121', outdir: output, plugins: [automationAjvPlugin(root)], sourcemap: environment === 'production' ? false : 'external',
   // Evidence RPC (fault injection, state export) may only exist in non-production
   // builds and the e2e fixture; every real production deployment must be 'false'.
   define: { __KNOWN_EXTENSION_CLASSIFICATION_LOCAL__:String(classificationLocal), __KNOWN_EXTENSION_EVIDENCE__: environment === 'production' && config.deploymentId !== 'e2e-fixture' ? 'false' : 'true' },
   legalComments: 'none', treeShaking: true, minify: environment === 'production', charset: 'ascii' });
-await Promise.all(['capture-tabs.html', 'options.html', 'options.css', 'welcome.css', 'popup.html', 'popup.css', 'auth.css', 'chrome.css', 'fonts.css', 'managed-storage-schema.json'].map((file) => cp(resolve(root, file), resolve(output, file))));
+await build({ entryPoints: { 'site-adapter': resolve(root, 'src/site-adapters/content.ts'), 'site-probe': resolve(root, 'src/site-adapters/bilibili/probe.ts') }, bundle: true, format: 'iife', platform: 'browser', target: 'chrome121', outdir: output, sourcemap: environment === 'production' ? false : 'external', minify: environment === 'production', legalComments: 'none' });
+await Promise.all(['site-adapters.html', 'capture-tabs.html', 'options.html', 'options.css', 'welcome.css', 'popup.html', 'popup.css', 'auth.css', 'chrome.css', 'fonts.css', 'managed-storage-schema.json'].map((file) => cp(resolve(root, file), resolve(output, file))));
 await cp(resolve(root, '_locales'), resolve(output, '_locales'), { recursive: true });
 // One brand with the site: the popup/options/capture-tabs headers show the
 // web's drawn wordmark (design/brand-wordmark.svg), not a text + mark stand-in.
@@ -66,7 +67,7 @@ const manifest = JSON.parse(await readFile(resolve(root, 'manifest.base.json'), 
 // (bookmark manager rows) and carries no install-time warning.
 if (JSON.stringify(manifest.permissions) !== JSON.stringify(['cookies', 'storage', 'unlimitedStorage', 'alarms', 'activeTab', 'favicon', 'contextMenus'])
   // webNavigation is asked for only when risk alerts are switched on while browsing (doc 17 RW-17).
-  || JSON.stringify(manifest.optional_permissions) !== JSON.stringify(['bookmarks', 'tabs', 'webNavigation'])) {
+  || JSON.stringify(manifest.optional_permissions) !== JSON.stringify(['bookmarks', 'tabs', 'webNavigation', 'scripting'])) {
   throw new Error('manifest permission contract invalid');
 }
 // Required host_permissions stay the pinned Know-N server and issuer, replaced

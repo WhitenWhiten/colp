@@ -1,3 +1,4 @@
+import { installSiteAdapters } from './site-adapters/worker.js';
 import { validSubscriptionSender } from './bookmark-subscriptions/commands.js';
 import { validateCommand as validSubscriptionRequest } from './bookmark-subscriptions/commands.js';
 import { handleSubscriptionRequest } from './bookmark-subscriptions/worker.js';
@@ -521,3 +522,5 @@ chrome.runtime.onMessageExternal.addListener((message,sender,respond)=>{
   void loadSubscriptionConfig().then(config=>acceptExternalReference(message,sender.url,config)).then(respond,()=>respond({accepted:false}));
   return true;
 });
+
+installSiteAdapters();

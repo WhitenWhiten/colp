@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { Script } from 'node:vm';
 import { readdir, readFile } from 'node:fs/promises';
 import { join, relative, resolve } from 'node:path';
 
@@ -17,7 +18,7 @@ const config = JSON.parse(await readFile(resolve(root, 'generated-config.json'),
 assert.deepEqual(manifest.permissions, ['cookies', 'storage', 'unlimitedStorage', 'alarms', 'activeTab', 'favicon', 'contextMenus'], 'release required permissions changed');
 // webNavigation: risk alerts while browsing are optional and requested with tabs
 // (doc 17 RW-17, risk-settings.ts BROWSE_PERMISSIONS).
-assert.deepEqual(manifest.optional_permissions, ['bookmarks', 'tabs', 'webNavigation'], 'release optional permissions changed');
+assert.deepEqual(manifest.optional_permissions, ['bookmarks', 'tabs', 'webNavigation', 'scripting'], 'release optional permissions changed');
 assert.deepEqual(manifest.host_permissions, [...new Set([
   `${new URL(config.serverOrigin).origin}/*`, `${new URL(config.issuer).origin}/*`,
 ])], 'release host permissions changed');
@@ -33,6 +34,13 @@ if (Array.isArray(optionalHosts) && optionalHosts[0] === 'https://api.cloudflare
 } else {
   assert.deepEqual(optionalHosts, serverHostPatterns, 'release optional host permissions changed');
 }
+for (const bundle of ['site-adapter.js', 'site-probe.js']) {
+  const code = await readFile(resolve(root, bundle), 'utf8');
+  new Script(code, { filename: bundle }); // classic-script grammar, no unresolved ESM
+  assert.doesNotMatch(code, /import\s*\(|https?:\/\/[^'" ]+\.js/);
+}
+assert.equal(manifest.content_scripts, undefined);
+assert.equal(manifest.web_accessible_resources, undefined);
 assert.equal(files.some((file) => file.endsWith('.map')), false, 'release source maps are forbidden');
 for (const fixture of ['indexeddb-p3-03', 'indexeddb-p3-27']) {
   assert.equal(files.some((file) => file.includes(fixture)), false, `release contains test fixture ${fixture}`);

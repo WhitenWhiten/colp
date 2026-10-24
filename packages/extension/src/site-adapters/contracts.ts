@@ -148,6 +148,7 @@ export interface AdapterEnvelope {
 }
 
 export type AdapterMessage = AdapterEnvelope & (
+  | { operation: 'connect' }
   | { operation: 'emit'; data: SiteObservation }
   | { operation: 'capture'; data: CaptureControlRequest }
   | { operation: 'read'; recipeId: string; params: Readonly<Record<string, string | number | boolean | null>> }

@@ -15,12 +15,16 @@ declare namespace chrome {
     const onMessage: { addListener(callback: (message: unknown, sender: MessageSender,
       sendResponse: (response: unknown) => void) => boolean | void): void;
       removeListener(callback: (message: unknown, sender: MessageSender, sendResponse: (response: unknown) => void) => boolean | void): void };
-    interface MessageSender { id?: string; url?: string; documentId?: string; tab?: tabs.Tab; }
+    interface MessageSender { id?: string; url?: string; documentId?: string; frameId?: number; origin?: string; documentLifecycle?: string; tab?: tabs.Tab; }
     type ContextType = 'POPUP' | 'TAB' | 'BACKGROUND' | 'OFFSCREEN_DOCUMENT' | 'SIDE_PANEL' | 'DEVELOPER_TOOLS';
     function getContexts(filter: { contextTypes?: ContextType[]; documentIds?: string[]; documentUrls?: string[] }): Promise<{
       contextType: ContextType; documentId?: string; documentUrl?: string;
     }[]>;
     function sendMessage(message: unknown): Promise<unknown>;
+    interface Port { name: string; sender?: MessageSender; postMessage(message: unknown): void; disconnect(): void;
+      onMessage: { addListener(callback: (message: unknown) => void): void }; onDisconnect: { addListener(callback: () => void): void } }
+    function connect(options: { name: string }): Port;
+    const onConnect: { addListener(callback: (port: Port) => void): void };
   }
   namespace cookies {
     interface Cookie { name: string; value: string; domain?: string; path: string; secure: boolean; httpOnly: boolean }
@@ -38,8 +42,9 @@ declare namespace chrome {
     };
   }
   namespace storage {
-    const local: import('./credential-store.js').StorageArea;
-    const managed: import('./credential-store.js').StorageArea;
+    const local: import('./credential-store.js').StorageArea & AccessControlled;
+    const managed: import('./credential-store.js').StorageArea & AccessControlled;
+    interface AccessControlled { setAccessLevel?(options: { accessLevel: 'TRUSTED_CONTEXTS' }): Promise<void> }
     /**
      * Session storage: cleared when the browser session ends. `setAccessLevel`
      * pins it to `TRUSTED_CONTEXTS`, which excludes CONTENT SCRIPTS — it does
@@ -120,16 +125,27 @@ declare namespace chrome {
       readonly url?: string
       readonly favIconUrl?: string
       readonly windowId?: number
+      readonly incognito?: boolean
       readonly highlighted?: boolean
     }
     function create(createProperties: { url: string; active?: boolean }): Promise<Tab>;
     function get(tabId: number): Promise<Tab>;
-    function query(queryInfo: { active?: boolean; currentWindow?: boolean; highlighted?: boolean; windowId?: number }): Promise<Tab[]>;
+    function query(queryInfo: { url?: string[]; active?: boolean; currentWindow?: boolean; highlighted?: boolean; windowId?: number }): Promise<Tab[]>;
     const onRemoved: { addListener(callback: (tabId: number) => void): void };
   }
   /** Optional permission: present only while it is granted. */
+  namespace scripting {
+    interface RegisteredContentScript { id: string; js: string[]; matches: string[]; runAt: 'document_start'; world: 'MAIN' | 'ISOLATED'; allFrames: boolean; persistAcrossSessions: boolean }
+    function registerContentScripts(scripts: RegisteredContentScript[]): Promise<void>;
+    function getRegisteredContentScripts(filter: { ids: string[] }): Promise<RegisteredContentScript[]>;
+    function unregisterContentScripts(filter: { ids: string[] }): Promise<void>;
+    function executeScript(options: { target: { tabId: number }; world: 'MAIN' | 'ISOLATED'; files?: string[]; func?: (...args: any[]) => unknown; args?: unknown[] }): Promise<{ result?: unknown }[]>;
+  }
   namespace webNavigation {
-    interface CommitDetails { readonly tabId: number; readonly frameId: number; readonly url: string; readonly timeStamp: number }
+    function getFrame(details: { tabId: number; frameId: number }): Promise<{ url: string; documentId: string; documentLifecycle: string } | null>;
+    const onHistoryStateUpdated: typeof onCommitted;
+    const onReferenceFragmentUpdated: typeof onCommitted;
+    interface CommitDetails { readonly tabId: number; readonly frameId: number; readonly url: string; readonly timeStamp: number; readonly documentId?: string; readonly documentLifecycle?: string }
     const onCommitted: {
       addListener(callback: (details: CommitDetails) => void): void;
       removeListener(callback: (details: CommitDetails) => void): void;

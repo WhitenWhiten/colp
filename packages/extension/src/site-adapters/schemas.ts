@@ -49,6 +49,7 @@ const resolutionSchema = union(object(failed), object({ status: literal('resolve
 const envelope = { protocolVersion: literal(1), requestId: id, leaseId: id, capability: str(256) };
 // v1 has no host read recipes. Arbitrary params/URLs are never an available fallback.
 const messageSchema = union(
+  object({ ...envelope, operation: literal('connect') }),
   object({ ...envelope, operation: literal('emit'), data: observationSchema }),
   object({ ...envelope, operation: literal('capture'), data: object({ type: literal('capture.requested'), item: itemSchema, requestedPurpose: literal('sourceArchive', 'semantic') }) }),
   object({ ...envelope, operation: literal('page.result'), readSessionId: id, pageRequestId: id, result: pageResultSchema }),
