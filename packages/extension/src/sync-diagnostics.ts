@@ -29,6 +29,8 @@ export async function collectSyncDiagnostics(store: Store, scope: SyncScope) {
     engine: { phase: engine?.phase ?? 'idle', errorCode: engine?.lastError ?? null,
       recoveryFrozen: engine?.recoveryFrozen === true, authorityRefreshRequired: engine?.authorityRefreshRequired === true,
       retryAutomatic: engine?.phase !== 'error' && !terminal, retryAt: engine?.notBefore || null },
+    // A breaker that tripped is why sync paused after repeated errors; its deadline is `retryAt` above.
+    breaker: { trips: engine?.circuitBreaker?.trips ?? 0, deadline: engine?.circuitBreaker?.retryAt ?? null },
     firstRun: { state: recorded?.firstRun ?? 'none', phase: run ? bootstrapAttentionPhase(run) : 'draft', retryReason: run?.retryReason ?? null,
       pendingReviews: run?.attention ? publicAttentionSummary(run.attention).pendingCount : 0 },
     recovery: { staged: recovery !== null, complete: recovery?.complete ?? false,

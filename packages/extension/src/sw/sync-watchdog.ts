@@ -30,6 +30,19 @@ export interface SyncWatchdog {
     readonly explained: boolean }): Promise<WatchdogResult | undefined>;
 }
 
+/** What the watchdog remembers, for a diagnostic: times only, never an id. */
+export async function readWatchdogFacts(local: Pick<Area, 'get'>, scope: SyncScope): Promise<{
+  readonly lastSyncedAt: number | null; readonly oldestUploadUnmovedSince: number | null;
+  readonly suspect: { readonly kind: string; readonly since: number } | null } | undefined> {
+  try {
+    const stored = (await local.get(WATCHDOG_MARKER_KEY))[WATCHDOG_MARKER_KEY] as Stored | undefined;
+    if (stored?.replicaId !== scope.replicaId || stored.marker?.version !== 1) return undefined;
+    const { marker } = stored;
+    return { lastSyncedAt: marker.lastPassAt ?? null, oldestUploadUnmovedSince: marker.head?.since ?? null,
+      suspect: marker.suspect ? { kind: marker.suspect.kind, since: marker.suspect.since } : null };
+  } catch { return undefined; }
+}
+
 export function createSyncWatchdog(deps: SyncWatchdogDeps): SyncWatchdog {
   const clock = deps.now ?? Date.now;
   async function sessionStart(now: number): Promise<number> {
