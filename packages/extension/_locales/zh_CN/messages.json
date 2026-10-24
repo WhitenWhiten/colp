@@ -10043,6 +10043,10 @@
     "message": "下一轮同步会再试。",
     "description": "It is tried again on the next pass."
   },
+  "syncProblem_nextStorageLast": {
+    "message": "如果问题持续出现，请腾出一些磁盘空间，或重置此设备上的同步数据。",
+    "description": "If it keeps happening, free some disk space or reset the sync data on this device."
+  },
   "syncProblem_nextTooLarge": {
     "message": "请复制详情，发送给运行你的 Know-N 服务器的人。",
     "description": "Copy details and send them to whoever runs your Know-N server."
@@ -10423,6 +10427,14 @@
     "message": "书签栏",
     "description": "Bookmarks bar"
   },
+  "sync_cancelPendingReset": {
+    "message": "取消待完成的重置",
+    "description": "Cancel pending reset"
+  },
+  "sync_cancelResetConfirm": {
+    "message": "取消待完成的重置吗？此设备上还没有任何改动，同步会保持原样。你以后可以再次点击“重置此设备上的同步”。",
+    "description": "Cancel the pending reset? Nothing on this device has been changed yet, so sync stays as it was. You can press Reset sync on this device again later."
+  },
   "sync_changesPreviewed": {
     "message": "任何内容同步前，都会先预览更改。",
     "description": "Changes are previewed before anything syncs."
@@ -10671,6 +10683,10 @@
     "message": "保留在此",
     "description": "Keep it here"
   },
+  "sync_keepPendingReset": {
+    "message": "保留重置",
+    "description": "Keep it pending"
+  },
   "sync_keepSyncingNamed": {
     "message": "在新位置继续同步 $1",
     "description": "Keep syncing $1 at the new location"
@@ -10851,21 +10867,53 @@
     "message": "$1 $2。",
     "description": "$1 $2."
   },
-  "sync_rebuildBlockedUnsettled": {
-    "message": "有一项已发送到服务器的更改还没有确认结果（$1），因此此设备上暂时无法重置。请在网页版同步中心进行重置。",
-    "description": "A change sent to the server has no confirmed result yet ($1), so Reset is not available on this device. Reset it from the Sync center on the web."
+  "sync_rebuildAccountSwitch": {
+    "message": "此浏览器现在登录的是另一个账号。没有进行任何重置。",
+    "description": "This browser is signed in to a different account now. Nothing was reset."
   },
   "sync_rebuildConfirm": {
     "message": "你的书签会保留在此设备和你的书签库中。之后你需要重新选择要同步的文件夹，并再次查看合并结果。现在重置同步吗？",
     "description": "Your bookmarks stay on this device and in your library. Afterwards you'll choose which folders sync and review the merge again. Reset sync now?"
   },
+  "sync_rebuildConfirmFenced": {
+    "message": "来自此浏览器的某项更改可能已到达服务器，同步无法确定它是否到达。为了让重置安全，服务器会先停止接收此浏览器当前同步副本的任何内容，然后此设备上的同步从头开始。这需要联网。你的书签会保留在此设备和你的书签库中。之后你需要重新选择要同步的文件夹，并再次查看合并结果。现在重置同步吗？",
+    "description": "A change from this browser may already have reached the server, and sync can't tell whether it did. To make a reset safe, the server first stops taking anything from this browser's current sync copy; then sync on this device starts again. This needs a connection. Your bookmarks stay on this device and in your library. Afterwards you'll choose which folders sync and review the merge again. Reset sync now?"
+  },
+  "sync_rebuildConfirmFencedSetAside": {
+    "message": "来自此浏览器的某项更改可能已到达服务器，同步无法确定它是否到达。为了让重置安全，服务器会先停止接收此浏览器当前同步副本的任何内容，然后此设备上的同步从头开始。这需要联网。你的书签会保留在此设备和你的书签库中。$1之后你需要重新选择要同步的文件夹，并再次查看合并结果。现在重置同步吗？",
+    "description": "A change from this browser may already have reached the server, and sync can't tell whether it did. To make a reset safe, the server first stops taking anything from this browser's current sync copy; then sync on this device starts again. This needs a connection. Your bookmarks stay on this device and in your library. $1 Afterwards you'll choose which folders sync and review the merge again. Reset sync now?"
+  },
   "sync_rebuildConfirmSetAside": {
     "message": "你的书签会保留在此设备和你的书签库中。$1之后你需要重新选择要同步的文件夹，并再次查看合并结果。现在重置同步吗？",
     "description": "Your bookmarks stay on this device and in your library. $1 Afterwards you'll choose which folders sync and review the merge again. Reset sync now?"
   },
+  "sync_rebuildFenceRefused": {
+    "message": "服务器没有接受这次重置（$1）。没有进行任何重置。",
+    "description": "The server did not accept the reset ($1). Nothing was reset."
+  },
+  "sync_rebuildFenceUnauthorized": {
+    "message": "你的登录已失效，因此无法通知服务器。没有进行任何重置。请先在“账号”中重新登录，然后再重置。",
+    "description": "Your sign-in no longer works, so the server could not be told. Nothing was reset. Sign in again from Account, then reset."
+  },
   "sync_rebuildNoLongerAvailable": {
     "message": "同步状态已变化。请刷新“状态”查看当前可用的操作（$1）。",
     "description": "Sync state changed. Refresh Status to review the available actions ($1)."
+  },
+  "sync_rebuildNoSession": {
+    "message": "同步未能从服务器获得重置许可。没有进行任何重置，请重试。",
+    "description": "Sync could not get permission from the server to reset. Nothing was reset; try again."
+  },
+  "sync_rebuildNotCancellable": {
+    "message": "重置已经开始，只能完成它。请点击“重置此设备上的同步”来完成。",
+    "description": "The reset has already started and can only be finished. Press Reset sync on this device to finish it."
+  },
+  "sync_rebuildRateLimited": {
+    "message": "服务器要求同步稍等。没有进行任何重置，请一分钟后再试。",
+    "description": "The server asked sync to wait. Nothing was reset; try again in a minute."
+  },
+  "sync_rebuildServerDown": {
+    "message": "服务器没有响应。没有进行任何重置，请稍后再试。",
+    "description": "The server is not answering. Nothing was reset; try again later."
   },
   "sync_rebuildSetAside_other": {
     "message": "$1 项尚未同步的更改将被搁置，不会再重试。",
@@ -10895,9 +10943,21 @@
     "message": "有项更改无法同步，不会自动重试。其他项目会继续同步。下面的列表会说明是哪几项。",
     "description": "A change could not be synced and will not retry automatically. Other items keep syncing. The items below say which."
   },
+  "sync_resetCancelled": {
+    "message": "已取消重置。此设备上的同步和之前一样。",
+    "description": "The reset was cancelled. Sync on this device is as it was before."
+  },
   "sync_resetIsntFinishedYet": {
     "message": "重置尚未完成，请重试。",
     "description": "Reset isn't finished yet. Try again."
+  },
+  "sync_resetLocalSyncData": {
+    "message": "重置本地同步数据",
+    "description": "Reset local sync data"
+  },
+  "sync_resetSyncData": {
+    "message": "重置同步数据",
+    "description": "Reset sync data"
   },
   "sync_resetSyncDevice": {
     "message": "重置此设备上的同步",
@@ -10982,6 +11042,66 @@
   "sync_stopSyncing": {
     "message": "停止同步",
     "description": "Stop syncing"
+  },
+  "sync_storageResetArchiveFailed": {
+    "message": "同步无法保存你未同步更改的副本，因此没有进行任何重置。请腾出一些磁盘空间后再试。",
+    "description": "Sync could not save a copy of your unsent changes, so nothing was reset. Free some disk space and try again."
+  },
+  "sync_storageResetArchived_one": {
+    "message": "已将 $1 项未同步的更改保存到本地归档。",
+    "description": "$1 unsent change was saved to a local archive."
+  },
+  "sync_storageResetArchived_other": {
+    "message": "已将 $1 项未同步的更改保存到本地归档。",
+    "description": "$1 unsent changes were saved to a local archive."
+  },
+  "sync_storageResetBlocked": {
+    "message": "仍有程序在使用同步数据。请关闭其他 Know-N 窗口；一旦没有程序再使用，重置会自动完成。",
+    "description": "Something is still using the sync data. Close other Know-N windows; the reset finishes by itself once nothing uses it."
+  },
+  "sync_storageResetDone": {
+    "message": "此设备上的同步数据已重置。你的书签没有变化。",
+    "description": "Sync data on this device was reset. Your bookmarks were not changed."
+  },
+  "sync_storageResetFailed": {
+    "message": "重置未能完成（$1），请重试。",
+    "description": "The reset could not finish ($1). Try again."
+  },
+  "sync_storageResetHead": {
+    "message": "这会重置保存在此浏览器中的同步数据。你的书签不会改变。",
+    "description": "This resets the sync data stored in this browser. Your bookmarks are not changed."
+  },
+  "sync_storageResetNoneFound": {
+    "message": "没有发现未同步的更改。",
+    "description": "No unsent changes were found."
+  },
+  "sync_storageResetNotNeeded": {
+    "message": "此设备上的同步数据现在可以正常使用，无需重置。",
+    "description": "Sync data on this device works now, so there is nothing to reset."
+  },
+  "sync_storageResetOmitted_one": {
+    "message": "还有 $1 项更改太多，无法保留。",
+    "description": "$1 more change was too much to keep."
+  },
+  "sync_storageResetOmitted_other": {
+    "message": "还有 $1 项更改太多，无法保留。",
+    "description": "$1 more changes were too much to keep."
+  },
+  "sync_storageResetSaved_one": {
+    "message": "会先将 $1 项未同步的更改保存到本地归档。",
+    "description": "$1 unsent change is saved to a local archive first."
+  },
+  "sync_storageResetSaved_other": {
+    "message": "会先将 $1 项未同步的更改保存到本地归档。",
+    "description": "$1 unsent changes are saved to a local archive first."
+  },
+  "sync_storageResetTail": {
+    "message": "之后同步会从首次同步的合并开始重新进行，此浏览器会成为服务器上的一台新设备。现在重置同步数据吗？",
+    "description": "Afterwards sync starts again from the first-sync merge, and this browser becomes a new device on the server. Reset the sync data now?"
+  },
+  "sync_storageResetUnreadable": {
+    "message": "完全无法读取这些数据，因此无法先保存任何内容。",
+    "description": "The data could not be read at all, so nothing can be saved first."
   },
   "sync_stuck": {
     "message": "同步卡住了",
