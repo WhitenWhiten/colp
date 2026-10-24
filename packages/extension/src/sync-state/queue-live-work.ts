@@ -1,6 +1,6 @@
 import { iterateCursor, requestValue } from './idb.js';
 import { INDEXES } from './schema.js';
-import { validateQueueRecord } from './queue-validate.js';
+import { tryValidateQueueRecord, type UnreadableHandler } from './queue-lenient.js';
 import { type JsonObject, type JsonValue, type QueueOperation } from './types.js';
 
 const LIVE_STATUSES = ['pending', 'claimed', 'deferred', 'unknown', 'gap', 'blocked'] as const;
@@ -33,13 +33,27 @@ async function someLiveQueueRow(queue: IDBObjectStore, key: string,
  * work behind it, or one bad row wedges outbound push forever.
  */
 export async function firstLiveQueueRow(queue: IDBObjectStore, key: string,
-  maxRecordBytes: number, afterSequence = 0): Promise<QueueOperation | null> {
+  maxRecordBytes: number, afterSequence = 0, unreadable?: UnreadableHandler): Promise<QueueOperation | null> {
   const index = queue.index(INDEXES.queueByStatusSequence); const candidates: QueueOperation[] = [];
   if (afterSequence >= Number.MAX_SAFE_INTEGER) return null;
   for (const status of LIVE_STATUSES) {
-    const value = await requestValue(index.get(
-      IDBKeyRange.bound([key, status, afterSequence + 1], [key, status, Number.MAX_SAFE_INTEGER])));
-    if (value) candidates.push(validateQueueRecord(value, maxRecordBytes));
+    // Rule C: a row that cannot be read is quarantined by the claim, or waits the lane if the
+    // server may own it; a read-only scan steps over it.
+    let after = afterSequence;
+    for (;;) {
+      const value = await requestValue(index.get(
+        IDBKeyRange.bound([key, status, after + 1], [key, status, Number.MAX_SAFE_INTEGER])));
+      if (!value) break;
+      const row = tryValidateQueueRecord(value, maxRecordBytes);
+      if (row) { candidates.push(row); break; }
+      const verdict = unreadable?.(value) ?? 'skipped';
+      if (verdict === 'blocking') return null;
+      if (verdict === 'skipped') {
+        const sequence = (value as { readonly sequence?: unknown }).sequence;
+        if (typeof sequence !== 'number' || !Number.isSafeInteger(sequence) || sequence <= after) break;
+        after = sequence;
+      }
+    }
   }
   return candidates.sort((left, right) => left.sequence - right.sequence)[0] ?? null;
 }

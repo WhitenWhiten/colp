@@ -27,6 +27,18 @@ function refreshingSessions(forced: boolean[]): PushSessionController {
         expiresAt: '2099-01-01T00:00:00Z' } } };
   } };
 }
+/**
+ * The Session endpoint refuses the forced refresh: the credential itself is the problem. Since
+ * A-F2 an unexplained refusal only escalates to authority recovery then; with a working
+ * credential it is contained as one item (tests/outbound-push-denial-containment.test.ts).
+ */
+function unrefreshableSessions(forced: boolean[]): PushSessionController {
+  const sessions = refreshingSessions(forced);
+  return { async get(forceRefresh = false) {
+    if (forceRefresh) { forced.push(true); throw new Error('session_failed'); }
+    return sessions.get(false);
+  } };
+}
 
 describe('T-02 F004 push refusal routing', () => {
   test('classifier: authority refusals never fall into the operation-level rejected branch', () => {
@@ -94,9 +106,9 @@ describe('T-02 F004 push refusal routing', () => {
     assert.equal(recorded?.lifecycle, 'recovery_required');
   });
 
-  test('an unrecognized 401 escalates to authority recovery after a bounded number of replays', async () => {
+  test('an unrecognized 401 escalates to authority recovery after a bounded number of replays when the credential cannot be refreshed', async () => {
     const fixture = await setup(); const forced: boolean[] = [];
-    const worker = createOutboundPushWorker({ ...fixture.options, sessions: refreshingSessions(forced),
+    const worker = createOutboundPushWorker({ ...fixture.options, sessions: unrefreshableSessions(forced),
       fetch: async () => problem(401, 'gateway_denial') });
     for (let replay = 0; replay < 3; replay += 1) {
       const outcome = await worker.drain();
@@ -123,7 +135,7 @@ describe('T-02 F004 push refusal routing', () => {
 
   test('a 410 with an unparseable problem body escalates instead of replaying identical bytes', async () => {
     const fixture = await setup();
-    const worker = createOutboundPushWorker({ ...fixture.options,
+    const worker = createOutboundPushWorker({ ...fixture.options, sessions: unrefreshableSessions([]),
       fetch: async () => new Response('not-a-problem', { status: 410,
         headers: { 'Content-Type': 'application/problem+json' } }) });
     let last = await worker.drain();
@@ -149,7 +161,7 @@ describe('T-02 F004 push refusal routing', () => {
   ] as const)(
     'a bodyless %s authority response escalates instead of replaying identical bytes', async (status, replayCode) => {
       const fixture = await setup();
-      const worker = createOutboundPushWorker({ ...fixture.options,
+      const worker = createOutboundPushWorker({ ...fixture.options, sessions: unrefreshableSessions([]),
         fetch: async () => new Response('', { status }) });
       for (let replay = 0; replay < 3; replay += 1) {
         const outcome = await worker.drain();
