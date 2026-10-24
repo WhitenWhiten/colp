@@ -8,7 +8,7 @@ import { fetchSyncEndpoints } from '../manifest-client.js';
 import { declaredClientTransportBudget, SYNC_TRANSPORT_BUDGET_EXTENSION } from '../colp-transport-budget-browser.js';
 import { isProtocolOpaqueId } from '../protocol-id.js';
 import { createSyncSession, retainSessionAfterTransientRenewalFailure, retryStaleReplicaSession,
-  SessionRequestError,
+  SESSION_REPLICA_UNKNOWN, SessionRequestError,
   sessionMatchesCredentialAuthority, shouldForceSessionRefresh, syncSessionNeedsRenewal } from '../session-client.js';
 import type { SyncScope } from '../sync-state-store.js';
 import type { BuildConfig, ExtensionRequest, StoredAuthBinding, StoredCredential, StoredSession } from '../types.js';
@@ -318,29 +318,37 @@ async function pushSessionAuthorityExclusive(forceRefresh = false, observedSessi
     const sessionFetch = credentialGatedFetch(credential.subject && target
       ? personalSyncFetch({ serverOrigin: credential.serverOrigin, accountId: credential.subject, collectionId: target })
       : fetch);
-    try { session = await createSyncSession({ endpoints: await endpoints(), credential, replicaProof: await loadBoundReplicaReportProof(), request: await sessionRequest(context.generation, (await endpoints()).maxBatchOperations ?? 1),
+    const mint = async () => createSyncSession({ endpoints: await endpoints(), credential,
+      replicaProof: await loadBoundReplicaReportProof(),
+      request: await sessionRequest(context.generation, (await endpoints()).maxBatchOperations ?? 1),
       origin: extensionOrigin(), signal: context.signal, fetch: sessionFetch });
-      sw.sessionRetryNotBefore = 0; }
+    try { session = await mint(); sw.sessionRetryNotBefore = 0; }
     catch (error) {
       if (error instanceof SessionRequestError && error.code === 'rate_limited'
           && error.retryAfterMilliseconds !== undefined) {
         sw.sessionRetryNotBefore = Date.now() + error.retryAfterMilliseconds;
       }
       if (!effectiveForce) await recheckRefusedCredential(auth, error);
-      if (!prior) { await clearSessionIfGeneration(context.generation); throw error; }
-      try { session = await retryStaleReplicaSession(prior, error, async () => createSyncSession({
-        endpoints: await endpoints(), credential, replicaProof: await loadBoundReplicaReportProof(), request: await sessionRequest(context.generation, (await endpoints()).maxBatchOperations ?? 1), origin: extensionOrigin(),
-        signal: context.signal, fetch: sessionFetch,
-      })); }
-      catch {
-        // Retention is for a TRANSIENT failure of a Session that is still this
-        // Collection's authority. A prior Session for a DIFFERENT Collection is
-        // not a fallback: keeping it let Push/Pull run against the Collection the
-        // user just switched away from, because `currentSyncScope` preferred the
-        // Session's Collection over the binding.
-        if (prior !== null && authenticatesBoundCollection(prior, boundCollection)
-            && retainSessionAfterTransientRenewalFailure(prior, error)) throw error;
-        await clearSessionIfGeneration(context.generation); throw error;
+      if (!prior) {
+        // W2B-P1-3: a replica id this browser never registered, refused as unknown (another account holds it).
+        // Nothing was ever synced under it, so a new name loses nothing; try once.
+        if (!await renameUnregisteredReplica(error, context.generation)) {
+          await clearSessionIfGeneration(context.generation); throw error;
+        }
+        try { session = await mint(); sw.sessionRetryNotBefore = 0; }
+        catch (again) { await clearSessionIfGeneration(context.generation); throw again; }
+      } else {
+        try { session = await retryStaleReplicaSession(prior, error, mint); }
+        catch {
+          // Retention is for a TRANSIENT failure of a Session that is still this
+          // Collection's authority. A prior Session for a DIFFERENT Collection is
+          // not a fallback: keeping it let Push/Pull run against the Collection the
+          // user just switched away from, because `currentSyncScope` preferred the
+          // Session's Collection over the binding.
+          if (authenticatesBoundCollection(prior, boundCollection)
+              && retainSessionAfterTransientRenewalFailure(prior, error)) throw error;
+          await clearSessionIfGeneration(context.generation); throw error;
+        }
       }
     }
     await store.saveSession(session, context.generation);
@@ -348,6 +356,26 @@ async function pushSessionAuthorityExclusive(forceRefresh = false, observedSessi
     await recordClockSkew(syncState, await ensureSyncScope(config, credential, session, context.generation), session);
   }
   return { credential, session };
+}
+
+/**
+ * W2B-P1-3 (server half): the Session route did not know a replica id this browser never registered, which is what it
+ * answers when another account holds that id. No scope was ever recorded under the id, so nothing was synced with it
+ * and a new name loses nothing. A replica that did sync is a Reset (or a new sign-in), never a silent new name.
+ */
+async function renameUnregisteredReplica(error: unknown, generation: number): Promise<boolean> {
+  if (!(error instanceof SessionRequestError) || error.code !== SESSION_REPLICA_UNKNOWN) return false;
+  const [config, credential, binding, collectionId] = await Promise.all([
+    loadConfig(), store.loadCredential(), store.loadBinding(), boundCollectionId()]);
+  if (!credential?.subject || !binding || !collectionId) return false;
+  const scope: SyncScope = { environment: config.environment, serverId: config.serverOrigin, serverOrigin: config.serverOrigin,
+    accountId: credential.subject, browserProfileId: binding.browserProfileId, collectionId,
+    replicaId: binding.replicaId, generation: Number(binding.generation) };
+  if (await syncState.getScope(scope)) return false;
+  await store.assertWritable(generation);
+  await store.clearBinding();
+  sw.bindingPromise = undefined;
+  return true;
 }
 
 /**

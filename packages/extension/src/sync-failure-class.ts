@@ -164,6 +164,10 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   idempotency_key_reused: entry('replica', 'stop'),
   // The manifest answered with a definitive 4xx; a 5xx or timeout is `server_unavailable` instead.
   manifest_unavailable: entry('replica', 'stop'),
+  // W2B-P1-3: the Session route does not know this browser's replica id (another account holds it, the server lost
+  // it, or the Collection is not this account's). A browser that never synced under the id takes a new one at once;
+  // one that did needs a Reset (or a new sign-in when the Collection is gone). Renewing authority cannot cure it.
+  session_replica_unknown: entry('replica', 'stop'),
   // A queued operation contradicts current consent; rebuilding archives it before setup.
   metadata_sync_disabled: entry('replica', 'rebuild'),
   // Other local sync boundaries are explicitly registered: contention retries;

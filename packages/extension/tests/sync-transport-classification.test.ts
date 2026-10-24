@@ -351,7 +351,9 @@ describe('manifest and Session mint', () => {
     assert.equal(await mint(html(503)), 'server_unavailable');
     assert.equal(await mint(html(502)), 'server_unavailable');
     assert.equal(await mint(problem(503, 'service_unavailable', {})), 'server_unavailable');
-    assert.equal(await mint(html(404)), 'resource_not_found');
+    // No Session exists yet on this route, so "not found" means the replica id or Collection, not an expired Session.
+    assert.equal(await mint(html(404)), 'session_replica_unknown');
+    assert.equal(await mint(problem(404, 'resource_not_found', {})), 'session_replica_unknown');
     assert.equal(await mint(html(401)), 'credential_revoked');
     assert.equal(await mint(problem(410, 'replica_retired', {})), 'replica_retired');
     assert.equal(await mint(html(400)), 'session_failed');

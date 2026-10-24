@@ -23,6 +23,8 @@ const LEASE_KEYS = new Set(['leaseId', 'generation', 'state', 'lastSeenAt', 'exp
 const COLLECTION_KEYS = new Set(['collectionId', 'snapshotRequired', 'serverCursor', 'serverRevision']);
 const CONVERSION_KEYS = new Set(['alias', 'separator', 'unknownExtensions']);
 const MAX_RETRY_AFTER_SECONDS = 3_600;
+/** The Session route answered "not found": the server does not know this replica id for this account or Collection. */
+export const SESSION_REPLICA_UNKNOWN = 'session_replica_unknown';
 
 export class SessionRequestError extends Error {
   readonly code: string;
@@ -91,9 +93,12 @@ export async function createSyncSession(input: { readonly endpoints: SyncEndpoin
       .catch(() => undefined);
     // A gateway hiccup is transient whatever its body (or lack of one) says; an unreadable body on a denial keeps the status' meaning.
     const kind = classifyHttpStatus(response.status);
-    const code = kind === 'transient' ? 'server_unavailable'
+    const named = kind === 'transient' ? 'server_unavailable'
       : record(problem) && typeof problem.code === 'string' && /^[a-z][a-z0-9_]{0,63}$/u.test(problem.code)
         ? problem.code : authorityCodeForStatus(response.status) ?? 'session_failed';
+    // No Session exists yet, so "not found" here cannot mean an expired one: the server does not know this replica id
+    // for this account (or this Collection). Renewing authority cannot cure it (W2B-P1-3).
+    const code = response.status === 404 && named === 'resource_not_found' ? SESSION_REPLICA_UNKNOWN : named;
     const retryAfterMilliseconds = code === 'rate_limited' ? sessionRetryAfter(response, problem) : undefined;
     throw new SessionRequestError(code, retryAfterMilliseconds);
   }
