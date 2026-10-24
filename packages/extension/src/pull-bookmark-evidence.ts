@@ -51,12 +51,15 @@ export function createPullBookmarkEvidence(options: PullApplierOptions, api: Pul
   /**
    * Pre-state evidence for a create. A vanished parent is the same divergence as a vanished
    * mutation target; any other read failure must fail the expectation outright - digesting an
-   * empty child list would fabricate evidence that was never observed.
+   * empty child list would fabricate evidence that was never observed. B-10: that failure is
+   * transient (nothing was written, the read is tried again), never a freeze whose only exit is
+   * a rebuild; a lost permission keeps waiting for the user like every other native call.
    */
   async function parentChildren(colpId: string, parentNativeId: string): Promise<readonly BookmarkNode[]> {
     const looked = await lookupChildren(parentNativeId);
     if (looked.class === 'not_found') throw await targetMissingError(colpId, parentNativeId, 'parent');
-    if (looked.class !== 'present') throw new SyncFailureError('pull_apply_evidence_missing');
+    if (looked.class === 'permission_denied') throw new SyncFailureError('permission_revoked');
+    if (looked.class !== 'present') throw new SyncFailureError('native_read_failed');
     return looked.nodes;
   }
 

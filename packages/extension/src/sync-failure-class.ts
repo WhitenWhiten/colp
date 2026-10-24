@@ -106,6 +106,9 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   delete_subtree_changed: entry('item', 'decide'),
   remote_delete_confirmation_required: entry('item', 'confirm', FREEZES),
   pull_apply_target_missing: entry('item', 'rebuild', SETS_ASIDE),
+  // B-03: the server moved a folder into one of its own descendants on this browser (two devices nested the same
+  // folders in opposite directions). Chrome would refuse the move, so the node is set aside before the call.
+  pull_apply_move_cycle: entry('item', 'decide', SETS_ASIDE),
   pull_apply_evidence_missing: entry('item', 'rebuild', FREEZES),
   anchor_mapping_missing: entry('item', 'rebuild', { ...SETS_ASIDE, stagesAsItem: true }),
   create_ambiguous: entry('item', 'rebuild', FREEZES),
@@ -150,6 +153,9 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   pull_issue_ceiling: entry('replica', 'rebuild', FREEZES),
   sync_issue_ceiling: entry('replica', 'rebuild'),
   snapshot_projection_incomplete: entry('replica', 'stop'),
+  // B-04: a bookmark with the same title and address already sits where this one would be created and nothing proves
+  // this extension did not create it. Shown for that one bookmark; the rest of the library keeps projecting.
+  snapshot_native_projection_ambiguous: entry('item', 'decide'),
   // B-08: definitive server refusals no retry or refresh changes. The owner retired this browser in the Sync center
   // (a Reset registers a new replica), or the server's configuration/this build cannot be made to agree.
   replica_retired: entry('replica', 'stop'),
@@ -282,6 +288,12 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   move_predecessor_pending: entry('transient', 'retry'),
   managed_not_writable: entry('item', 'decide', SETS_ASIDE),
   native_call_failed: entry('transient', 'retry'),
+  // B-03, W2C-13: Chrome refused a bookmark write the engine could not contain (a quota, or a multi-step change
+  // whose first steps may already have landed). Retried with backoff; the stalled-state bound applies.
+  bookmark_api_error: entry('transient', 'retry'),
+  bookmark_write_quota: entry('transient', 'retry'),
+  // B-10: a read of Chrome's bookmark tree failed while preparing a change; nothing was written.
+  native_read_failed: entry('transient', 'retry'),
   native_result_cas: entry('transient', 'retry'),
   native_result_confirmation_invalid: entry('replica', 'stop'),
   native_result_invalid: entry('replica', 'stop'),

@@ -4,6 +4,8 @@ import { exceedsSyncIssueCeiling } from './sync-issue-ceiling.js';
 import { remoteDeleteDeferral, remoteDeleteDeferralMatches } from './remote-delete-pending-facts.js';
 import { SyncFailureError } from './sync-failure-class.js';
 import { setAsideFailedPullItem, setAsidePullItem } from './pull-item-set-aside.js';
+import { setAsideRefusedPullEvent } from './pull-apply-containment.js';
+import { refuseMoveCycle } from './pull-move-cycle.js';
 import { createPullBookmarkEvidence, readOptional } from './pull-bookmark-evidence.js';
 import { createExpectation, executePullNativeCreate, recoverCreatedNative, sidecarExpectation } from './pull-create-evidence.js';
 import { nativeEventCorrelation } from './native-event-correlation.js';
@@ -121,7 +123,9 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       else await callAndCommit(raw.eventId as string, event);
       } catch (error) {
         // B5: a failure about this event's own node sets that node aside; the page goes on.
-        if (!await setAsideRejectedChromeUrl(options.store, options.scope, String(raw.eventId), event, error, now()) && !await setAsideFailedPullItem(options, raw, event, error, now())) throw error;
+        // B-03: so does a browser refusal of the node's own call, after a few wakes of the same refusal.
+        if (!await setAsideRejectedChromeUrl(options.store, options.scope, String(raw.eventId), event, error, now()) && !await setAsideFailedPullItem(options, raw, event, error, now())
+          && !await setAsideRefusedPullEvent(options, raw, event, error, now())) throw error;
       }
     }
     await publishSupersededPullMappings(options, authority);
@@ -183,6 +187,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       if (plan.chromeMutation) {
         await requirePullAnchor(options, effect.placement.afterId, parent.nativeId, new Set());
         await requirePullAnchor(options, effect.placement.beforeId, parent.nativeId, new Set());
+        if (plan.action === 'native_move') await refuseMoveCycle(api, mapping, parent);
       }
       const index = plan.chromeMutation
         ? await nativeIndex(effect.placement.afterId, effect.placement.beforeId) : 0;
