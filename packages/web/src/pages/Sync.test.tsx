@@ -64,8 +64,9 @@ function choose(value: string) { const radio = document.querySelector<HTMLInputE
 
 describe('Sync Center authoritative workflow', () => {
   beforeEach(() => {
+    vi.resetAllMocks()
     mocks.getLibrary.mockResolvedValue({ id: 'collection-1', title: 'Bookmarks' })
-    vi.clearAllMocks(); sessionStorage.clear(); document.body.innerHTML = '<div id="root"></div>'
+    sessionStorage.clear(); document.body.innerHTML = '<div id="root"></div>'
     ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     mocks.getSyncStatus.mockResolvedValue(status()); mocks.loadSyncConflicts.mockResolvedValue([conflict()])
     mocks.loadSyncTrash.mockResolvedValue([])
@@ -151,7 +152,8 @@ describe('Sync Center authoritative workflow', () => {
     expect(cards().map(badge)).toEqual(['Stopped', 'Needs attention', 'Paused', 'Stopped'])
     const note = (index: number) => cards()[index]?.querySelector('[role=status]')?.textContent ?? ''
     expect(note(0)).toContain('Sync on this browser has stopped: it can’t tell where a saved bookmark belongs. Open the extension on that browser to fix it.')
-    expect(note(1)).toContain('1 item on this browser couldn’t sync. Everything else keeps syncing.')
+    expect(note(1)).toContain('1 item on this browser couldn’t sync. Review the items and available recovery actions below.')
+    expect(note(1)).not.toContain('Everything else keeps syncing.')
     expect(note(2)).toContain('Sync is paused on this browser.')
     // A stop the web does not know yet still says the code; the stop outranks the silence note.
     expect(note(3)).toContain('it reported “brand_new_code”.')
@@ -240,7 +242,7 @@ describe('Sync Center authoritative workflow', () => {
       issueId: null, state: 'pending', resultCode: null, createdAt: new Date().toISOString(), completedAt: null,
       expiresAt: new Date(Date.now() + 100000).toISOString() })
     render(); await waitForDom(domFinishedLoading)
-    expect(document.body.textContent).toContain('Reset sync below to repair this browser’s copy.')
+    expect(document.body.textContent).toContain('Reset sync can repair this browser’s copy if retrying does not help.')
     act(() => byButton('Reset sync').click()); await confirmModal('Cancel')
     expect(mocks.sendSyncReplicaCommand).not.toHaveBeenCalled()
     act(() => byButton('Reset sync').click()); await confirmModal('Reset sync')

@@ -96,7 +96,7 @@ test('web Retry executes in MV3; result loss and browser restart retain the real
   } finally { stack.resilience?.releaseCommandResponse(); await context?.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
 });
 
-test('pending deletion allows unrelated live sync; stale web Rebuild is rejected, then a normal web Rebuild archives and reports setup', async () => {
+test('pending deletion allows unrelated live sync; delayed web Rebuild recognizes a local reset, then a normal web Rebuild archives and reports setup', async () => {
   test.setTimeout(300000); const stack = await startRealStack({ web: true });
   const profile = await mkdtemp(resolve(tmpdir(), 'colp-resilience-rebuild-')); let context: BrowserContext | undefined;
   try {
@@ -120,7 +120,8 @@ test('pending deletion allows unrelated live sync; stale web Rebuild is rejected
     await webRebuild(web); stack.resilience!.delayCommandResponse();
     await page.evaluate(() => { void chrome.runtime.sendMessage({ kind: 'known.sync-state.evidence', method: 'reportReplicaHealthEvidence', args: [] }); });
     await expect.poll(() => stack.resilience!.commandResponseWaiting()).toBe(true);
-    // A real local Reset wins while the old command waits on HTTP. The server's command must not reset the new scope.
+    // A local Reset completes the server-fenced rebuild while its receipt waits on HTTP.
+    // The old archive proves completion; the delayed command must not reset the new scope.
     const preview: any = await page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.scope.rebuild.preview' }));
     expect(preview.ok, JSON.stringify(preview)).toBe(true);
     const reset = await page.evaluate(preview => chrome.runtime.sendMessage({ kind: 'known.scope.rebuild.confirm', userGesture: true,
@@ -129,11 +130,14 @@ test('pending deletion allows unrelated live sync; stale web Rebuild is rejected
     const replacement = await currentReplica(page); expect(replacement).not.toBe(original);
     stack.resilience!.releaseCommandResponse();
     await evidence(page, 'reportReplicaHealthEvidence');
-    await expect.poll(async () => (await status(web)).replicas.find((r: any) => r.id === original).health.commands[0].state).toBe('failed');
-    expect((await status(web)).replicas.find((r: any) => r.id === original).health.commands[0].resultCode).toBe('stale_ref');
+    await expect.poll(async () => (await status(web)).replicas.find((r: any) => r.id === original).health.commands[0].state).toBe('done');
+    const retired = (await status(web)).replicas.find((r: any) => r.id === original);
+    expect(retired.status).toBe('retired');
+    expect(retired.health.code).toBe('replica_rebuilt');
+    expect(retired.health.commands).toHaveLength(1);
+    expect(retired.health.commands[0]).toMatchObject({ action: 'rebuild', state: 'done', resultCode: null });
     expect(await currentReplica(page)).toBe(replacement);
     await refresh(web); await expect(web.getByText(/Sync on this browser was reset/)).toBeVisible();
-    await expect(web.getByText(/didn’t work: that browser switched/)).toBeVisible();
     await page.reload(); await completeSetup(page);
     await pendingDelete(page, stack, String(independent.url));
     await webRebuild(web); await evidence(page, 'reportReplicaHealthEvidence');

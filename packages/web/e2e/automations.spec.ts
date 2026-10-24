@@ -94,7 +94,7 @@ async function mockOwnerWithAutomations(page: Page, withAgent = false) {
         state.binding = { ...input.bindings as object, id: 'bind-ai', revision: '1', updatedAt: T }
         state.rule = { id: 'rule-ai', revision: '1', desiredState: 'draft', effectiveState: 'draft', definition: { ...input.definition as object,
           route: { mode: 'targets', execution: 'single', targetIds: ['target-e2e'] } }, bindingSetId: 'bind-ai', executionPolicyId: 'policy-ai', createdAt: T, updatedAt: T }
-        return json(route, { rule: state.rule, binding: state.binding, target: currentTarget(), pairing: { pairingId: 'pair-e2e', targetId: 'target-e2e', code: 'once-fixture-code', expiresAt: new Date(Date.now() + 300_000).toISOString() } }, 201)
+        return json(route, { rule: state.rule, binding: state.binding, target: currentTarget(), pairing: null }, 201)
       }
       if (sub === '/rules/rule-ai') return json(route, state.rule)
       if (sub === '/binding-sets/bind-ai') return json(route, state.binding)
@@ -164,10 +164,16 @@ test.describe('automations with mocked Product API', () => {
     await expect(page.getByRole('button', { name: 'Test on this bookmark' })).toBeHidden()
     await expect(page.getByLabel('Rule definition JSON')).toBeHidden()
     await page.screenshot({ path: testInfo.outputPath('agent-connection.png'), fullPage: true })
-    // A reload restores the saved draft and target, never the one-use code.
+    // OAuth consent lets this agent pair itself; reloading preserves that flow.
     await page.reload()
-    await expect(page.getByRole('button', { name: 'Make a new connection request' })).toBeVisible()
-    expect(await page.locator('body').innerText()).not.toContain('once-fixture-code')
+    await expect(page.getByText('Waiting for ChatGPT to connect.', { exact: false })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Copy connection request', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Make a new connection request' })).toBeHidden()
+    await page.getByText('View connection request', { exact: true }).click()
+    const request = await page.getByTestId('automation-agent-connection').innerText()
+    expect(request).toContain('automation.targets.mine')
+    expect(request).not.toContain('automation.targets.pair')
+    expect(request).not.toContain('target-e2e')
     setup.connectAgent()
     await expect(page.getByRole('button', { name: 'Test on this bookmark' })).toBeEnabled()
     await page.getByRole('button', { name: 'Preview', exact: true }).click()

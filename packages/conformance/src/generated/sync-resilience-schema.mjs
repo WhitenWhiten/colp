@@ -264,6 +264,10 @@ export default {
             "rebuild"
           ]
         },
+        "replicaRetired": {
+          "const": true,
+          "description": "Only returned after negotiating Known-Sync-Rebuild: retire; the server has committed retirement of this replica."
+        },
         "issueId": {
           "$ref": "#/$defs/opaqueId"
         }
@@ -271,6 +275,27 @@ export default {
       "required": [
         "commandId",
         "action"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "replicaRetired"
+            ]
+          },
+          "then": {
+            "properties": {
+              "action": {
+                "const": "rebuild"
+              }
+            },
+            "not": {
+              "required": [
+                "issueId"
+              ]
+            }
+          }
+        }
       ],
       "additionalProperties": false
     }

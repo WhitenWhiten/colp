@@ -56,8 +56,8 @@ test('an edit already included in the scan retains the receipt needed by its suc
   } finally { f.store.close(); }
 });
 
-for (const anchor of ['mapped', 'unmapped'] as const) for (const position of ['before', 'after'] as const)
-  test(`an unmapped move retains its ${position} ${anchor} sibling through queueing`, async () => {
+for (const anchor of ['mapped', 'pending', 'missing'] as const) for (const position of ['before', 'after'] as const)
+  test(`an unmapped move resolves its ${position} ${anchor} sibling through queueing`, async () => {
   const f = await setupBootstrapRace();
   try {
     const index = position === 'before' ? 0 : 1;
@@ -67,21 +67,27 @@ for (const anchor of ['mapped', 'unmapped'] as const) for (const position of ['b
     f.api.getChildren = async id => [...await children(id)].sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
     if (anchor === 'mapped') await mapping(f.store, sibling.id, 'sibling-colp', 'root-selected', 'sibling-r1',
       { title: sibling.title, url: sibling.url }, 'folder-parent');
+    if (anchor === 'pending') await f.queue.created(sibling.id, sibling);
     await allocateWithMutation(f, async () => {
       f.api.put({ ...f.node, parentId: 'folder-parent', index });
       await f.queue.moved(f.node.id, { parentId: 'folder-parent', oldParentId: f.node.parentId, index, oldIndex: 0 });
     });
     await settleNext(f, 'created-r1');
     await f.queue.flush();
-    if (anchor === 'unmapped') {
-      assert.equal((await f.store.listQueue(scope)).length, 1, 'wait for the original native anchor');
-      await mapping(f.store, sibling.id, 'sibling-colp', 'root-selected', 'sibling-r1',
-        { title: sibling.title, url: sibling.url }, 'folder-parent');
+    if (anchor === 'pending') {
+      const queued = await f.store.listQueue(scope);
+      assert.deepEqual(queued.map(row => row.payload.type), ['create_node', 'create_node'], 'wait for the live sibling create');
+      await settleNext({ ...f, node: sibling }, 'sibling-r1', 'applied', 'sibling-colp');
       await f.queue.flush();
     }
     const move = await settleNext(f, 'moved-r2');
     assert.equal(move.payload.type, 'move_node');
-    assert.equal((move.payload.payload as JsonObject)[`${position}Id`], 'sibling-colp');
+    const payload = move.payload.payload as JsonObject;
+    if (anchor === 'missing') {
+      // Without a mapping or live create, the neighbour cannot release a wait.
+      assert.equal(payload.beforeId, undefined);
+      assert.equal(payload.afterId, undefined);
+    } else assert.equal(payload[`${position}Id`], 'sibling-colp');
     assert.equal((await f.store.getMappingByNativeId(scope, f.node.id))?.parentNativeId, 'folder-parent');
   } finally { f.store.close(); }
 });

@@ -28,12 +28,13 @@ export async function setupBootstrapRace() {
 
 export type BootstrapRace = Awaited<ReturnType<typeof setupBootstrapRace>>;
 
-export async function settleNext(context: BootstrapRace, revision: string, status: 'applied' | 'rebased' = 'applied') {
+export async function settleNext(context: BootstrapRace, revision: string, status: 'applied' | 'rebased' = 'applied',
+  createdTargetId = 'remote-new') {
   const { store, node } = context;
   const lease = await store.acquireLease(scope, 'race-worker', 1, 30_000);
   const row = await store.claimNextQueue(scope, 'race-worker', lease.fence, 1);
   if (!row) throw new Error('expected_queued_operation');
-  const targetId = row.payload.type === 'create_node' ? 'remote-new' : String(row.payload.targetId);
+  const targetId = row.payload.type === 'create_node' ? createdTargetId : String(row.payload.targetId);
   await store.settleClaimedPush(scope, row.sequence, 'race-worker', lease.fence, {
     outcome: 'terminal', receipt: { opId: row.opId, operationDigest: row.digest, kind: 'terminal',
       receiptId: `receipt-${row.opId}`, resultDigest: 'sha256:receipt',
