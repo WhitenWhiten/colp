@@ -90,8 +90,8 @@ export const CODE_NEXT: Readonly<Record<string, (context: SyncProblemNext) => st
 
 function ceilingClause(context: SyncProblemNext): string {
   return context.resetOffered
-    ? t('syncProblem_nextCeiling', 'Retry, release or dismiss some of the items below and sync continues by itself. Or reset sync on this device: your bookmarks stay, and changes that have not synced yet are set aside.')
-    : t('syncProblem_nextCeilingNoReset', 'Retry, release or dismiss some of the items below and sync continues by itself.');
+    ? t('syncProblem_nextCeiling', 'Try again, release or dismiss some of the items below and sync continues by itself. Or reset sync on this device: your bookmarks stay, and changes that have not synced yet are set aside.')
+    : t('syncProblem_nextCeilingNoReset', 'Try again, release or dismiss some of the items below and sync continues by itself.');
 }
 
 /** The clause after the sentence: what happens by itself, or what to press. */
