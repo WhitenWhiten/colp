@@ -264,7 +264,7 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
       await db.transaction(['importRuns', 'meta', 'authorities', 'documentLeases'], 'readwrite', async tx => {
         await requireSourceAuthority(tx, source.context);
         const run = await get<SourceImportRun>(tx, 'importRuns', id); if (!run) throw new Error('importMissing');
-        put(tx, 'importRuns', id, { ...run, phase: 'scanning', context: source.context, outstanding: null, cursor: null });
+        put(tx, 'importRuns', id, { ...run, phase: 'scanning', context: source.context, outstanding: null, cursor: null, seenCursors: [] });
         put(tx, 'meta', key(id), { ...job, context: source.context, phase: 'scanning', stage: 'collections', found: [], collectionIndex: 0, cursor: null, outstanding: null,
           coverage: 'partial', scanComplete: false, reason: 'restartAndDeduplicate' });
       }); ports.alarm(Date.now() + 100);

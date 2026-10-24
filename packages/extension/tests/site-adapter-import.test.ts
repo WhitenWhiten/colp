@@ -255,3 +255,16 @@ test('cancelling unknown submitted work retains its command and folder reservati
   }));
   expect(after).toEqual(retained); expect(after).toHaveLength(1); await f.db.close();
 });
+
+test('restart clears traversal cursor history but preserves entity deduplication and loop detection', async () => {
+  const f = await fixture(), id = await f.importer.start(['101', '102']);
+  const first = { ...f.catalog, page: { ...f.catalog.page, nextCursor: 'stable-next-page' } } as const;
+  await f.page(first);
+  await f.renew(); f.advance(); await f.importer.wake();
+  await f.importer.resume(id); await f.page(first);
+  f.advance(); await f.importer.wake();
+  const c = f.sent.at(-1)!; if (c.operation !== 'readPage') throw new Error('noPage');
+  const loop = await f.importer.accept(f.context(), { protocolVersion: 1, requestId: c.pageRequestId, leaseId: c.leaseId, capability: 'host-validated',
+    operation: 'page.result', readSessionId: c.readSessionId, pageRequestId: c.pageRequestId, result: first });
+  expect(loop).toMatchObject({ status: 'rejected', reason: 'invalid' }); await f.db.close();
+});
