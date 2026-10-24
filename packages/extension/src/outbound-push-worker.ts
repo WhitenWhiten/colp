@@ -286,8 +286,9 @@ export function createOutboundPushWorker(options: WorkerOptions) {
       } catch (error) {
         clearTimeout(timeout);
         if (reasonCode(error, '') === 'bootstrap_upload_excluded') return rejectExcluded(queue, fence, error);
-        if (await stopDeniedMetadataAttempt({ error, store: options.store, scope: options.scope,
-          queue, ownerId, fence, now })) return 'recovery';
+        const denied = await stopDeniedMetadataAttempt({ error, store: options.store, scope: options.scope,
+          queue, ownerId, fence, now, unsent: boundHere.has(queue.sequence) });
+        if (denied) return denied === 'held' ? 'terminal' : 'recovery';
         return persistRefusal(queue, fence, reasonCode(error, 'push_dispatch_failed'), null, transmitted);
       }
       try {
@@ -434,7 +435,8 @@ export function createOutboundPushWorker(options: WorkerOptions) {
    */
   async function persistRefusal(queue: QueueOperation, fence: number, reason: string, retryAfter: string | null,
     transmitted: boolean): Promise<'unknown' | 'terminal'> {
-    const unsent = transmitted || !boundHere.has(queue.sequence) ? undefined
+    // The metadata gate refuses before the network is reached, whatever `transmitted` says.
+    const unsent = transmitted && reason !== 'metadata_sync_disabled' || !boundHere.has(queue.sequence) ? undefined
       : await dropUnsentAttempt({ store: options.store, scope: options.scope, ownerId }, queue, fence, reason);
     return unsent ? persistLocalFailure(unsent, fence, reason) : persistUnknown(queue, fence, reason, retryAfter);
   }
