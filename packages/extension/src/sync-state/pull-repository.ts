@@ -195,7 +195,7 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
   }
 
   /** Targeted single-store reads for engine wakes; exportScope reads every store and is for evidence/recovery. */
-  async function getCursor(input: SyncScope): Promise<{ readonly cursor?: string; readonly evidence?: unknown } | null> {
+  async function getCursor(input: SyncScope): Promise<{ readonly cursor?: string; readonly checkpoint?: string; readonly evidence?: unknown } | null> {
     const key = scopeKey(validateScope(input)); const db = await open();
     const tx = db.transaction(STORES.cursors, 'readonly'); const completion = transactionDone(tx);
     const value = await requestValue(tx.objectStore(STORES.cursors).get(key)); await completion;

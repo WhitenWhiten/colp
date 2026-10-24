@@ -4,11 +4,12 @@ import { ISSUE_DEPENDENCY_STORES, transactionIssueDependencies } from './issue-d
 import type { RecaptureQueueRow } from '../queue-recapture.js';
 import { recapturedOperationDigest } from '../queue-recapture.js';
 import { validateOperation } from '../bookmark-event-codec.js';
-import { cursorPage, scopeRowsRange } from './idb.js';
+import { cursorPage, iterateCursor, scopeRowsRange } from './idb.js';
 import { stampColpQueueRecord } from './queue-target.js';
 import { boundedString, clone, safeInteger } from './codec.js';
 import { requestValue, requireActiveScope, runTransaction, transactionDone } from './idb.js';
 import { asHeld, CONFLICT_HOLD, validatedConflictResolutionRows, DEPENDENT_HOLDS, firstLaneQueueRow, heldBy, holdWaitingRows, laneHolders } from './queue-hold.js';
+import { readableQueueRows } from './queue-lenient.js';
 import { validateQueueRecord } from './queue-validate.js';
 import type { SyncStoreRuntime } from './runtime.js';
 import { INDEXES, STORES } from './schema.js';
@@ -164,9 +165,10 @@ export function createQueueSetAsideRepository(ctx: SyncStoreRuntime) {
       const replacements = new Map<string, string>();
       const metadata = tx.objectStore(STORES.metadata); const ordinalKey = `bookmark-event-ordinal:${key}`;
       const ordinalCounter = await requestValue(metadata.get(ordinalKey)) as { next: number } | undefined;
-      const previousEvents = await cursorPage<{ ordinal: number }>(tx.objectStore(STORES.bookmarkEvents),
-        scopeRowsRange(key), Number.MAX_SAFE_INTEGER);
-      let ordinal = previousEvents.reduce((next, event) => Math.max(next, event.ordinal + 1), ordinalCounter?.next ?? 1);
+      // W2A-07: the highest ordinal is the last entry of the unique ordinal index, not a read of every event.
+      const lastEvent = await requestValue(tx.objectStore(STORES.bookmarkEvents).index(INDEXES.eventByOrdinal)
+        .openCursor(IDBKeyRange.bound([key, 0], [key, Number.MAX_SAFE_INTEGER]), 'prev'));
+      let ordinal = Math.max(ordinalCounter?.next ?? 1, lastEvent ? (lastEvent.value as { ordinal: number }).ordinal + 1 : 1);
       for (const { row, code } of failed) tx.objectStore(STORES.diagnostics).put({
         id: `queue-recapture:${key}:${row.opId}`, scopeKey: key, kind: 'queue_recapture_failed', code,
         details: { opId: row.opId },
@@ -213,8 +215,13 @@ export function createQueueSetAsideRepository(ctx: SyncStoreRuntime) {
       }
       // Rebind unsent dependants and provisional mappings atomically with the new creates.
       if (replacements.size) {
-        const rows = await cursorPage<QueueOperation>(queue, scopeRowsRange(key), Number.MAX_SAFE_INTEGER);
-        for (const row of rows) {
+        // W2A-07: only unsent rows can hold a replaced identity; settled history is the bulk of the queue.
+        const unsent: unknown[] = [];
+        for (const status of ['pending', 'set_aside']) {
+          unsent.push(...await cursorPage<unknown>(queue.index(INDEXES.queueByStatusSequence),
+            IDBKeyRange.bound([key, status, 0], [key, status, Number.MAX_SAFE_INTEGER]), Number.MAX_SAFE_INTEGER));
+        }
+        for (const row of readableQueueRows(unsent, ctx.maxRecordBytes)) {
           if (!['pending', 'set_aside'].includes(row.status) || row.attempt) continue;
           const payload = rebindOperationIdentity(row.payload, replacements);
           if (JSON.stringify(payload) === JSON.stringify(row.payload)) continue;
@@ -222,9 +229,12 @@ export function createQueueSetAsideRepository(ctx: SyncStoreRuntime) {
             baseRevision: rebindIdentity(row.baseRevision, replacements), digest: recapturedOperationDigest(payload),
             idempotencyKey: `${row.opId}.recaptured` }, ctx.maxRecordBytes));
         }
+        // W2A-07: read as a stream and write only the mappings that name a replaced identity.
         const mappings = tx.objectStore(STORES.mappings);
-        const rows2 = await cursorPage<MappingInput>(mappings, scopeRowsRange(key), Number.MAX_SAFE_INTEGER);
-        for (const row of rows2) mappings.put(rebindMappingIdentity(row, replacements));
+        await iterateCursor(mappings, scopeRowsRange(key), (value, cursor) => {
+          const row = value as MappingInput; const rebound = rebindMappingIdentity(row, replacements);
+          if (JSON.stringify(rebound) !== JSON.stringify(row)) cursor.update(rebound);
+        });
       }
       sequences.put({ scopeKey: key, next }); metadata.put({ key: ordinalKey, next: ordinal });
     });

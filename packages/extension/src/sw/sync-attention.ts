@@ -13,11 +13,15 @@ import { syncAttentionTerminalCode } from '../sync-attention-ui.js';
 import { circuitIsStopped } from '../sync-circuit-breaker.js';
 import { refreshesReplicaIntegrity } from '../sync-failure-class.js';
 import type { SyncWatchdog } from './sync-watchdog.js';
+import type { UnreadableQueueRow } from '../sync-state/queue-lenient.js';
 import type { SyncAttentionResponse } from '../types.js';
 import type { createSyncStateStore, QueueOperation, SyncScope } from '../sync-state-store.js';
+import type { WakeFailure } from './wake-failure.js';
+import { readVisibleWakeFailures, unreadableQueueDiagnostics, wakeFailureDiagnostics } from './engine-issues.js';
+import { readStorageAttention, unreadableStateAttention } from './storage-attention.js';
 
 export type SyncAttentionStore = NativeWaitStore & Pick<ReturnType<typeof createSyncStateStore>,
-  'getEngineState' | 'listQueue'> & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'listConsumedQueueIssues' | 'listBootstrapRuns' | 'listMappings' | 'getMappingByColpId' | 'listPullIssues' | 'listLocalIssues' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'>>;
+  'getEngineState' | 'listQueue'> & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'listConsumedQueueIssues' | 'listBootstrapRuns' | 'listMappings' | 'getMappingByColpId' | 'listPullIssues' | 'listLocalIssues' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage' | 'listUnreadableQueue' | 'storageState'>>;
 
 export interface SyncAttentionDeps {
   readonly scope: () => Promise<SyncScope>;
@@ -30,6 +34,16 @@ export interface SyncAttentionDeps {
   readonly healthDelivery?: (scope: SyncScope) => Promise<{ readonly code: string; readonly since: number } | undefined>;
   /** Notices a stall nothing else explains, and knows when a pass last ended cleanly. Absent: not checked. */
   readonly watchdog?: SyncWatchdog;
+  /** Whether the pending reset can still be given up (nothing archived yet). */
+  readonly rebuildCancelAvailable?: () => Promise<boolean>;
+  /** The repeated failures of engine wake steps for this replica (default: the worker's own record). */
+  readonly wakeFailures?: (replicaId: string | undefined) => Promise<readonly WakeFailure[]>;
+  /**
+   * W2A-01 / B-09: answer a store that cannot be used, or a record that cannot be read, with a readable
+   * state instead of an error. Status wants that; the Sync center report keeps its own wording for it
+   * (`sync_diagnostics_unavailable`, or the storage code), so it leaves this off.
+   */
+  readonly readableFailure?: boolean;
 }
 
 /** Open issues whose own sentence says the browser checks them automatically: they need nobody. */
@@ -40,13 +54,24 @@ const LIVE_STATUSES = ['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unkn
 const QUEUE_PAGE = 1_000;
 
 export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promise<SyncAttentionResponse> {
-  if (await deps.rebuildPending?.()) return { ok: true, attention: {
-    recoveryFrozen: true, queueProjection: 'idle', conflictPending: false, rejectedPending: false,
-    nativeWaitPending: false, waitCount: 0, terminal: true, terminalCode: 'replica_rebuild_pending', phase: 'recovery',
-    lastError: 'replica_rebuild_pending', rebuildAvailable: true,
-  } };
+  if (await deps.rebuildPending?.()) {
+    // A reset that keeps failing to finish says why (Rule E) and, while nothing is archived, can be given up (W2A-02).
+    const failed = (await (deps.wakeFailures ?? readVisibleWakeFailures)(undefined).catch((): WakeFailure[] => []))
+      .filter(failure => failure.stage === 'rebuild_resume');
+    return { ok: true, attention: {
+      recoveryFrozen: true, queueProjection: 'idle', conflictPending: false, rejectedPending: false,
+      nativeWaitPending: false, waitCount: 0, terminal: true, terminalCode: 'replica_rebuild_pending', phase: 'recovery',
+      lastError: 'replica_rebuild_pending', rebuildAvailable: true, rebuildMode: 'local',
+      ...(failed.length > 0 ? { issueCount: failed.length, issues: wakeFailureDiagnostics(failed) } : {}),
+      ...(await deps.rebuildCancelAvailable?.().catch(() => false) ? { rebuildCancelAvailable: true } : {}),
+    } };
+  }
   let scope: SyncScope;
-  try { scope = await deps.scope(); } catch { return { ok: false, error: 'not_connected' }; }
+  // W2A-01: a store that cannot be read is a readable state of its own, not "not connected" or "unavailable".
+  try { scope = await deps.scope(); }
+  catch (error) {
+    return (deps.readableFailure ? await readStorageAttention(deps.store, error) : undefined) ?? { ok: false, error: 'not_connected' };
+  }
   try {
     const [recorded, engine] = await Promise.all([
       deps.store.getScope(scope),
@@ -65,10 +90,13 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
     const open = deps.openIssues ?? await readOpenSyncIssues(deps.store, scope);
     const capability = await readReplicaRepairCapability(deps.store, scope, open);
     const waits = open.waits;
-    const { stalled, ...queue } = await queueFacts(deps.store, scope, open);
-    // Only a stall that nothing else names is the watchdog's to tell.
+    const { stalled, unreadable, ...queue } = await queueFacts(deps.store, scope, open);
+    // Rule E: a step of the engine wake that keeps failing is a visible item, not a silent return.
+    const failedSteps = await (deps.wakeFailures ?? readVisibleWakeFailures)(scope.replicaId).catch((): WakeFailure[] => []);
+    // Only a stall that nothing else names is the watchdog's to tell: a stalled or unreadable upload and a failing step name theirs.
     const watch = await deps.watchdog?.sample({ scope, engine, explained: permissionRequired || terminalCode !== undefined
       || coolingDown || lastError !== undefined || queue.conflictPending || queue.rejectedPending
+      || stalled !== undefined || unreadable.length > 0 || failedSteps.length > 0
       || recorded?.firstRun === 'running' || ['offline', 'error', 'recovery', 'retired'].includes(engine?.phase ?? '') });
     // A move or delete names its target by id; the mapping still knows what it was called.
     const named = await withResolvedTitles(snapshotSyncIssues(open), scope, deps.store.getMappingByColpId?.bind(deps.store));
@@ -87,6 +115,9 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
         recovery: local.recovery } : {}) };
     });
     if (stalled) issues.push({ direction: 'push', code: stalled.code } as typeof issues[number]);
+    // Rule C / Rule E: a change that cannot be read keeps the push lane waiting (or is about to be held); say so.
+    issues.push(...unreadableQueueDiagnostics(unreadable) as typeof issues);
+    issues.push(...wakeFailureDiagnostics(failedSteps) as typeof issues);
     return { ok: true, attention: {
       ...(engine?.phase ? { phase: engine.phase } : {}),
       recoveryFrozen: engine?.recoveryFrozen === true,
@@ -99,10 +130,13 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
       ...(watch?.verdict ? { watchdog: watch.verdict } : {}),
       ...(watch?.lastSyncedAt ? { lastSyncedAt: watch.lastSyncedAt } : {}),
       ...queue,
-      issueCount: open.total + (stalled ? 1 : 0), issues, rebuildAvailable: capability.rebuildAvailable,
+      issueCount: open.total + (stalled ? 1 : 0) + unreadable.length + failedSteps.length, issues, rebuildAvailable: capability.rebuildAvailable,
+      rebuildMode: capability.rebuildMode,
+      ...(capability.rebuildBlockedReason ? { rebuildBlockedReason: capability.rebuildBlockedReason } : {}),
       ...(issueCeilingWarning(open.operationalTotal) ? { issueCeiling: issueCeilingWarning(open.operationalTotal)! } : {}),
       ...(capability.reason ? { rebuildUnavailableReason: capability.reason } : {}),
-      retryAvailable: Boolean(stalled) || open.queue.some(row => row.recovery?.code === 'sequence_blocked' && row.attempt !== undefined),
+      retryAvailable: Boolean(stalled) || failedSteps.length > 0
+        || open.queue.some(row => row.recovery?.code === 'sequence_blocked' && row.attempt !== undefined),
       // A wait for a parent folder ends when the parent arrives; only the others wait for a person.
       nativeWaitPending: waits.some(wait => wait.waitReason !== 'waiting_dependency'),
       waitCount: waits.length,
@@ -111,17 +145,26 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
       terminal: terminalCode !== undefined,
       ...(terminalCode ? { terminalCode } : {}),
     } };
-  } catch { return { ok: false, error: 'state_unavailable' }; }
+  } catch (error) {
+    if (deps.readableFailure) {
+      const readable = await readStorageAttention(deps.store, error) ?? await unreadableStateAttention(deps.store, scope, error);
+      if (readable) return readable;
+    }
+    return { ok: false, error: 'state_unavailable' };
+  }
 }
 
 /** Best-effort like `sw/remote-delete.ts#status`: a failed queue read still leaves the freeze visible. */
 async function queueFacts(store: SyncAttentionStore, scope: SyncScope, open: OpenSyncIssues) {
   let live: QueueOperation[];
+  const unreadable: UnreadableQueueRow[] = store.listUnreadableQueue
+    ? await store.listUnreadableQueue(scope).catch((): UnreadableQueueRow[] => []) : [];
   try { live = await liveQueueRows(store, scope); }
-  catch { return { queueProjection: 'idle' as const, conflictPending: false, rejectedPending: false, stalled: undefined }; }
+  catch { return { queueProjection: 'idle' as const, conflictPending: false, rejectedPending: false, stalled: undefined, unreadable }; }
   const facts = [...live, ...open.queue];
-  return { queueProjection: queueStatusProjection(facts), conflictPending: hasConflictBarrier(facts),
-    rejectedPending: hasRejectedBarrier(facts), stalled: stalledUploadHead(live) };
+  const projection = queueStatusProjection(facts);
+  return { queueProjection: projection === 'idle' && unreadable.length > 0 ? 'syncing' as const : projection,
+    conflictPending: hasConflictBarrier(facts), rejectedPending: hasRejectedBarrier(facts), stalled: stalledUploadHead(live), unreadable };
 }
 
 /** One page of each live status, the same scan `pendingDurableWorkFacts` makes. */

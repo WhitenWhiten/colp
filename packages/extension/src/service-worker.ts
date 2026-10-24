@@ -28,6 +28,8 @@ import { validBookmarkAnnotationNotice } from './bookmark-annotation-notice.js';
 import { handleClassificationRequest } from './sw/classification.js';
 import { validReplicaRebuildRequest } from './replica-rebuild.js';
 import { replicaRebuilder } from './sw/scope-rebuild.js';
+import { validSyncStorageResetRequest } from './sync-storage-reset.js';
+import { syncStorageReset } from './sw/storage-reset.js';
 import { writeAuthSnapshot } from './auth-snapshot.js';
 import { FAVICON_SIDECAR_ALARM } from './favicon-sidecar-store.js';
 import { handle, onExtensionInstalled } from './sw/auth.js';
@@ -50,8 +52,10 @@ import { installWorkerMetadataWake } from './sw/metadata-sync-wake.js';
 import { bindLibraryOnStartup } from './sw/library.js';
 import { handleSyncEngineRequest, scheduleSyncEngineWake } from './sw/engine.js';
 import { readHealthDeliveryFailure } from './sw/health-delivery-status.js';
-import { settleManualRetry } from './sw/manual-retry.js';
+import { runManualRetry } from './sw/manual-retry.js';
+import { requestExplicitSyncRetry } from './sw/explicit-retry.js';
 import { syncWatchdog } from './sw/sync-watchdog-runtime.js';
+import { guardWakeStep, workerWakeFailureLog } from './sw/wake-failure.js';
 import { REPLICA_HEALTH_ALARM, REPLICA_HEALTH_PERIOD_MINUTES, reportReplicaDisconnected, reportReplicaHealth } from './sw/replica-health.js';
 import { handleSyncStateEvidence } from './sw/evidence.js';
 import { clearFaviconForCurrentScope, drainFaviconSidecarsForCurrentScope, readFaviconPolicyForCurrentScope, resolveFaviconSaveContext, resolveLocalSaveContext } from './sw/favicon.js';
@@ -195,8 +199,9 @@ const nativeWaitDeps: NativeWaitDeps = {
 };
 
 /** S7 / B2 (SR-09·SR-11·SR-13): the read-only attention read shared by popup and options. */
-const syncAttentionDeps: SyncAttentionDeps = { scope: currentSyncScope, store: syncState,
-  rebuildPending: () => replicaRebuilder().hasPending(), bookmarkPermission: hasBookmarkPermission,
+const syncAttentionDeps: SyncAttentionDeps = { scope: currentSyncScope, store: syncState, readableFailure: true,
+  rebuildPending: () => replicaRebuilder().hasPending(), rebuildCancelAvailable: () => replicaRebuilder().canCancelPending(),
+  bookmarkPermission: hasBookmarkPermission,
   healthDelivery: scope => readHealthDeliveryFailure(chrome.storage.local, scope, Date.now()), watchdog: syncWatchdog };
 
 // A deliberate disconnect tells the Sync center before this browser leaves its library (C-17d).
@@ -205,7 +210,8 @@ onBeforePersonalSyncDisconnect(reportReplicaDisconnected);
 /** SR-10 / A-08: the read-only ingress-diagnostic read behind the options list. */
 const ingressDiagnosticsDeps: IngressDiagnosticsDeps = { scope: currentSyncScope, store: syncState };
 
-void workCoordinator.run('engine', () => replicaRebuilder().resume())
+void workCoordinator.run('engine', () => guardWakeStep(workerWakeFailureLog(), 'rebuild_resume',
+  () => replicaRebuilder().resume()))
   .catch((error) => logBackgroundFailure('startup.replica-rebuild-resume', error))
   .then(() => recoverBookmarkEventsAfterEngineSettles('manual', { workerBoot: true }));
 
@@ -346,10 +352,10 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     return true;
   }
   if (validSyncRetryRequest(message)) {
-    // Answer after the pass has run (bounded), so the page can say whether Retry did anything.
-    const wake = scheduleSyncEngineWake('manual');
-    void wake.catch((error) => logBackgroundFailure('message.sync-engine-wake', error));
-    void settleManualRetry(wake, safeError).then(respond);
+    // The person's own Retry: the next manual pass treats it as such (explicit-retry.ts), and the answer waits
+    // (bounded) for that pass, so the page can say whether Retry did anything.
+    void runManualRetry({ request: requestExplicitSyncRetry, wake: () => scheduleSyncEngineWake('manual'), describeError: safeError,
+      onError: (error) => logBackgroundFailure('message.sync-engine-wake', error) }).then(respond);
     return true;
   }
   if (validSyncIssueActionRequest(message)) {
@@ -464,6 +470,12 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (validReplicaRebuildRequest(message)) {
     void workCoordinator.run('engine', () => replicaRebuilder().handle(message)).then(respond,
       () => respond({ ok: false, code: 'rebuild_failed' }));
+    return true;
+  }
+  if (validSyncStorageResetRequest(message)) {
+    // W2A-01: the exit when the sync database itself cannot be used; serialized with every engine run.
+    void workCoordinator.run('engine', () => syncStorageReset().handle(message)).then(respond,
+      () => respond({ ok: false, code: 'storage_reset_failed' }));
     return true;
   }
   if (validNativeWaitRequest(message)) {

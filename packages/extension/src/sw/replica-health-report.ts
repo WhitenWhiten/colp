@@ -31,6 +31,8 @@ import { problemOffersRetry } from '../sync-problem-catalog.js';
 import type { PublicSyncAttention } from '../types.js';
 import { handleSyncAttentionRequest, readStalledUpload, type SyncAttentionStore } from './sync-attention.js';
 import type { SyncWatchdog } from './sync-watchdog.js';
+import { readVisibleWakeFailures, replicaIssuesFromUnreadable, replicaIssuesFromWakeFailures } from './engine-issues.js';
+import { storageStopProjection } from './storage-attention.js';
 
 export const REPLICA_HEALTH_PATH = '/colp/v0.1/sync/replica-health';
 export const REPLICA_HEALTH_RECORD_KEY = 'known.sync.health.v1';
@@ -187,7 +189,7 @@ export async function sendReplicaHealthReport(deps: ReplicaHealthReporterDeps): 
   const unavailable: ReplicaHealthProjection = { state: 'stopped', code: 'sync_diagnostics_unavailable',
     issues: { total: 0, items: [] }, actions: deps.commands?.serverRebuild ? ['rebuild'] : [] };
   const projection = record.failed && record.observed?.code === unavailable.code ? unavailable
-    : await readProjection(deps).catch(() => unavailable);
+    : await readProjection(deps).catch(async () => await storageStopProjection(deps.store) ?? unavailable);
   // Times are display facts: a report that only moved a clock is not a change.
   const digest = digestJson({ state: projection.state, code: projection.code ?? null, total: projection.issues.total,
     items: projection.issues.items.map((item) => [item.issueId, item.code, item.title ?? null, item.count, ...item.actions]),
@@ -333,9 +335,14 @@ async function readProjection(deps: ReplicaHealthReporterDeps): Promise<ReplicaH
   const issues = await withResolvedTitles(snapshotSyncIssues(open), deps.scope, deps.store.getMappingByColpId?.bind(deps.store));
   const stalled = await readStalledUpload(deps.store, deps.scope);
   if (stalled) issues.push(stalledUploadIssue(stalled.row, stalled.code, deps.now()));
+  // Engine-level items no row carries: unreadable saved uploads (Rule C) and failing wake steps (Rule E).
+  const unreadable = await deps.store.listUnreadableQueue?.(deps.scope).catch(() => []) ?? [];
+  const failedSteps = await readVisibleWakeFailures(deps.scope.replicaId);
+  issues.push(...replicaIssuesFromUnreadable(unreadable, deps.now()), ...replicaIssuesFromWakeFailures(failedSteps));
   const mode = await deps.mode();
   return projectReplicaHealth({ ...(mode ? { mode } : {}), attention: response.attention, issues,
-    total: open.total + (stalled ? 1 : 0), serverRebuild: deps.commands?.serverRebuild !== undefined });
+    total: open.total + (stalled ? 1 : 0) + unreadable.length + failedSteps.length,
+    serverRebuild: deps.commands?.serverRebuild !== undefined });
 }
 
 /** A sent change the server has kept unsettled; later uploads wait behind it, so the Sync center must see it. */

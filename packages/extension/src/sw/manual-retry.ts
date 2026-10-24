@@ -22,3 +22,27 @@ export async function settleManualRetry(wake: Promise<unknown>, describeError: (
     return { ok: false, error: describeError(error) };
   } finally { if (timer !== undefined) clearTimeout(timer); }
 }
+
+export interface ManualRetryDeps {
+  /** Marks the next manual pass as the person's own Retry (`explicit-retry.ts`); bookmark captures and worker boots are not. */
+  readonly request: () => void;
+  /** Asks for the manual pass. It is asked for after the request is recorded, never before. */
+  readonly wake: () => Promise<unknown>;
+  readonly describeError: (error: unknown) => string;
+  /** Where a failed pass is logged; the answer carries the code either way. */
+  readonly onError?: (error: unknown) => void;
+  readonly waitMilliseconds?: number;
+}
+
+/**
+ * The one path of the Status tab's "Retry sync": record that the person asked, run the manual
+ * pass, and answer once it has settled (or after the bounded wait). The Sync center's Retry
+ * command records the same request and runs the same pass inside its own command lane.
+ */
+export function runManualRetry(deps: ManualRetryDeps): Promise<SyncRetryResponse> {
+  deps.request();
+  let wake: Promise<unknown>;
+  try { wake = Promise.resolve(deps.wake()); } catch (error) { wake = Promise.reject(error); }
+  if (deps.onError) wake.catch(deps.onError);
+  return settleManualRetry(wake, deps.describeError, deps.waitMilliseconds);
+}

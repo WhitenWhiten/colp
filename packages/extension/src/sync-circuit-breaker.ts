@@ -1,9 +1,40 @@
 import type { DurableSyncEngineState } from './sync-state-store.js';
-import { classifySyncFailure, refreshesReplicaIntegrity } from './sync-failure-class.js';
+import { classifySyncFailure, persistentLocalSyncFailure, refreshesReplicaIntegrity } from './sync-failure-class.js';
 
 export const CIRCUIT_WINDOW_MS = 30 * 60_000;
 export const CIRCUIT_THRESHOLD = 5;
 const INITIAL_COOLDOWN_MS = 60_000;
+/**
+ * A stopped engine is never forgotten: it is probed again after 5 minutes, then 15 minutes,
+ * 1 hour and every 6 hours, so one stop code (a corrupt record, a version skew) that later heals
+ * does not need a bookmark edit or a browser restart to be noticed. Probes are the engine's own
+ * alarm; a user's Retry is not a probe and does not move this schedule.
+ */
+export const STOP_PROBE_DELAYS_MS = [5 * 60_000, 15 * 60_000, 60 * 60_000, 6 * 60 * 60_000] as const;
+export const STOP_BUCKET_PREFIX = 'stop:';
+/** Consecutive failed wakes of the transient class after which a waiting (non-network) code stops polling. */
+export const TRANSIENT_STALL_ATTEMPTS = 20;
+export const STALLED_BUCKET_PREFIX = 'stalled:';
+
+export function stopProbeDelay(trips: number): number {
+  return STOP_PROBE_DELAYS_MS[Math.min(Math.max(0, trips), STOP_PROBE_DELAYS_MS.length - 1)]!;
+}
+
+/**
+ * Transient codes that end because the network or the server came back. A code outside this set
+ * names a fact the engine waits for (a native outcome, a hand-over, a page it cannot yet place);
+ * repeating it for ever without progress is a stall, not an outage.
+ */
+const SELF_RESOLVING_TRANSIENT: ReadonlySet<string> = new Set([
+  'server_unavailable', 'network_unavailable', 'rate_limited', 'push_network_failed', 'push_batch_timeout',
+  'push_batch_response_unknown', 'pull_failed', 'pull_transport_unavailable', 'transaction_aborted',
+  'request_failed', 'indexeddb_unavailable', 'quota_exceeded', 'commit_outcome_unknown',
+]);
+
+export function stalledTransientWait(code: string | undefined, consecutiveFailures: number): boolean {
+  return code !== undefined && classifySyncFailure(code)?.class === 'transient'
+    && !SELF_RESOLVING_TRANSIENT.has(code) && consecutiveFailures >= TRANSIENT_STALL_ATTEMPTS;
+}
 export interface SyncCircuitBreaker {
   readonly progress: string;
   readonly failures: readonly { readonly code: string; readonly attempts: readonly number[] }[];
@@ -42,11 +73,51 @@ function parseProgress(value: string): { readonly work: string | null; readonly 
   } catch { return undefined; }
 }
 
+export interface CircuitContext {
+  /** The failing wake was an automatic probe or trigger, not a user's Retry. */
+  readonly probe?: boolean;
+  /** Consecutive failed wakes of any non-stop kind (`networkBackoffCount`). */
+  readonly consecutiveFailures?: number;
+}
+
+/**
+ * A failure that stops the engine without damaging the user's data: schedule the next probe in
+ * its own bucket. Only an automatic probe that fails again moves the schedule on; a user's Retry
+ * re-arms the delay already reached.
+ */
+function advanceProbeSchedule(prior: SyncCircuitBreaker | undefined, bucket: string, progress: string, now: number,
+  probe: boolean): SyncCircuitBreaker {
+  const base = prior !== undefined && sameSyncProgress(prior.progress, progress) ? prior : undefined;
+  const others = (base?.failures ?? []).filter(row => row.code !== bucket);
+  const previous = base?.failures.find(row => row.code === bucket);
+  const attempts = [...(previous?.attempts.filter(at => now >= at) ?? []), now].slice(-CIRCUIT_THRESHOLD);
+  const trips = base === undefined ? 0 : probe ? Math.min(base.trips + 1, 32) : base.trips;
+  return { progress: base?.progress ?? progress, failures: [...others, { code: bucket, attempts }], trips,
+    retryAt: now + stopProbeDelay(trips) };
+}
+
+/** Whether a stopped engine's next probe is due. A deadline beyond every schedule means the clock stepped back. */
+export function stopProbeDue(state: DurableSyncEngineState, now: number): boolean {
+  return state.notBefore <= now || state.notBefore - now > STOP_PROBE_DELAYS_MS[STOP_PROBE_DELAYS_MS.length - 1]!;
+}
+
+/** An `error` state written before probes existed: a stop code, no breaker row, nothing scheduled. */
+export function unprobedStop(state: DurableSyncEngineState | null | undefined): boolean {
+  return state?.phase === 'error' && state.circuitBreaker === undefined
+    && persistentLocalSyncFailure(state.lastError) && !refreshesReplicaIntegrity(state.lastError);
+}
+
 /** Count failures across worker restarts, independently for each denial code. */
 export function advanceSyncCircuit(prior: SyncCircuitBreaker | undefined, code: string | undefined,
-  progress: string, now: number): SyncCircuitBreaker | undefined {
+  progress: string, now: number, context: CircuitContext = {}): SyncCircuitBreaker | undefined {
   const policy = classifySyncFailure(code);
   const integrity = refreshesReplicaIntegrity(code);
+  if (code && persistentLocalSyncFailure(code) && !integrity) {
+    return advanceProbeSchedule(prior, `${STOP_BUCKET_PREFIX}${code}`, progress, now, context.probe === true);
+  }
+  if (code && stalledTransientWait(code, context.consecutiveFailures ?? 0)) {
+    return advanceProbeSchedule(prior, `${STALLED_BUCKET_PREFIX}${code}`, progress, now, context.probe === true);
+  }
   if (policy?.class === 'replica' && !integrity || policy?.class === 'item') return undefined;
   // The window keeps the progress it was opened on; a rebase that only dropped evidence does not rename it.
   const base = prior !== undefined && sameSyncProgress(prior.progress, progress) ? prior : undefined;

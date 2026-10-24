@@ -1,4 +1,5 @@
 import { bookmarkKind, digestJson, isDescendantIn, nativeParentIndex, nodeContent } from './bookmark-event-codec.js';
+import { createNodeIsolation } from './capture-node-isolation.js';
 import { identityFromCreateReceipt, inFlightCreateEvidence, plannedCreateOpIdForNative } from './bookmark-create-receipt-identity.js';
 import {
   authoritativeColpId, classifyObservedNative, identityFromMapping, type FirstRunPhase, type NodeIdentity,
@@ -40,23 +41,33 @@ export async function reconcileBookmarkTree(host: ReconcileHost): Promise<void> 
   const privateNative = boundary.privateNative;
   const pendingEvents = await host.listPendingEvents();
   const seen = new Set<string>(selectedNative);
+  // One bookmark that throws must not switch the whole net off (A-F11).
+  const isolation = createNodeIsolation({ store: host.store, scope: host.scope });
   const visit = async (parentNativeId: string, ancestors: readonly string[] = []) => {
     const children = await host.readChildren(parentNativeId);
     const chain = parentNativeId ? [...ancestors, parentNativeId] : [...ancestors];
     for (const node of children) {
       if (privateNative.has(node.id)) continue;
       seen.add(node.id);
-      if (!await nativeIsLocallyExcluded(host.store, host.scope, node.id, chain)) {
-        const identity = await recoverObservedNative(host, {
-          node, parentNativeId, generation: scope.generation, firstRun: scope.firstRun, pendingEvents, ancestors: chain,
-        });
-        if (identity && mutateMapped) await reconcileMapped(host, node, parentNativeId, identity);
-      }
-      if (bookmarkKind(node) === 'folder') await visit(node.id, chain);
+      await isolation.run(node.id, async () => {
+        if (!await nativeIsLocallyExcluded(host.store, host.scope, node.id, chain)) {
+          const identity = await recoverObservedNative(host, {
+            node, parentNativeId, generation: scope.generation, firstRun: scope.firstRun, pendingEvents, ancestors: chain,
+          });
+          if (identity && mutateMapped) await reconcileMapped(host, node, parentNativeId, identity);
+        }
+      });
+      if (bookmarkKind(node) === 'folder') await isolation.run(node.id, () => visit(node.id, chain));
     }
   };
   for (const root of selectedNative) await visit(root);
-  if (!mutateMapped) return;
+  if (mutateMapped) await stageMissing(host, mappings, selectedNative, privateNative, seen, isolation);
+  await isolation.finish();
+}
+
+/** The native identities the scan did not see and a direct lookup proves gone are staged as deletions. */
+async function stageMissing(host: ReconcileHost, mappings: readonly MappingInput[], selectedNative: readonly string[],
+  privateNative: ReadonlySet<string>, seen: ReadonlySet<string>, isolation: ReturnType<typeof createNodeIsolation>) {
   const missing = mappings.filter((mapping) => selectedNative.includes(mapping.rootNativeId)
     && !selectedNative.includes(mapping.nativeId) && !privateNative.has(mapping.nativeId)
     && !seen.has(mapping.nativeId) && !virtualNativeId(mapping.nativeId));
@@ -65,22 +76,24 @@ export async function reconcileBookmarkTree(host: ReconcileHost): Promise<void> 
   const missingIds = new Set(missing.map((mapping) => mapping.nativeId));
   const parentByNative = nativeParentIndex(missing);
   for (const mapping of missing) {
-    if (dependsOnIssue([mapping.colpId], openIssues.roots, parents)) continue;
-    if (mapping.parentNativeId && missingIds.has(mapping.parentNativeId)) continue;
-    const mappingParentChain = mappingParentNativeChain(mapping, mappings);
-    if (await nativeIsLocallyExcluded(host.store, host.scope, mapping.nativeId, mappingParentChain)) continue;
-    // A sequence of getChildren calls is not a tree snapshot. Only a direct
-    // negative lookup proves this native identity was deleted. Present nodes
-    // may have moved behind the scan, including across privacy boundaries;
-    // leave their move callback / next scan to reconcile placement safely.
-    const looked = await lookupBookmark(id => host.readNode(id), mapping.nativeId);
-    if (looked.class === 'present') continue;
-    if (looked.class !== 'not_found') throw new Error(looked.message);
-    const descendants = missing.filter((candidate) => isDescendantIn(candidate, mapping.nativeId, parentByNative))
-      .map((item) => item.nativeId);
-    const identity = await host.identityFor(mapping.nativeId); if (!identity) continue;
-    await host.stageDelete(mapping.nativeId, identity, mapping.nodeKind === 'folder',
-      [mapping.nativeId, ...descendants]);
+    await isolation.run(mapping.nativeId, async () => {
+      if (dependsOnIssue([mapping.colpId], openIssues.roots, parents)) return;
+      if (mapping.parentNativeId && missingIds.has(mapping.parentNativeId)) return;
+      const mappingParentChain = mappingParentNativeChain(mapping, mappings);
+      if (await nativeIsLocallyExcluded(host.store, host.scope, mapping.nativeId, mappingParentChain)) return;
+      // A sequence of getChildren calls is not a tree snapshot. Only a direct
+      // negative lookup proves this native identity was deleted. Present nodes
+      // may have moved behind the scan, including across privacy boundaries;
+      // leave their move callback / next scan to reconcile placement safely.
+      const looked = await lookupBookmark(id => host.readNode(id), mapping.nativeId);
+      if (looked.class === 'present') return;
+      if (looked.class !== 'not_found') throw new Error(looked.message);
+      const descendants = missing.filter((candidate) => isDescendantIn(candidate, mapping.nativeId, parentByNative))
+        .map((item) => item.nativeId);
+      const identity = await host.identityFor(mapping.nativeId); if (!identity) return;
+      await host.stageDelete(mapping.nativeId, identity, mapping.nodeKind === 'folder',
+        [mapping.nativeId, ...descendants]);
+    });
   }
 }
 

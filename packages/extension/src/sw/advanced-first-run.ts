@@ -11,6 +11,7 @@ import { scanBoundary } from '../bookmark-boundary.js';
 import { createChromeBookmarkTreeAdapter } from '../chrome-bookmark-tree.js';
 import { matchLocalRemote } from '../bootstrap/matcher.js';
 import { fetchSyncEndpoints } from '../manifest-client.js';
+import { readRebuildIdentityHints, withRebuildIdentityHints } from '../replica-rebuild-identity.js';
 import type { JsonObject, SyncScope } from '../sync-state-store.js';
 import type { FirstRunConfirmRequest, FirstRunOrScopeResponse, FirstRunPreviewOk,
   FirstRunPreviewRequest } from '../types.js';
@@ -97,8 +98,9 @@ export async function handleAdvancedFirstRunPreview(message: FirstRunPreviewRequ
     if (!rootNodeId) return { ok: false, error: 'snapshot_root_invalid' };
     const mounts = await resolvedMounts(scope, scan.mounts, authority.snapshot.remoteFacts, rootNodeId);
     const localFacts = normalizeMountFacts(advancedLocalFacts(tree.roots, scan), scan.selectedNativeIds);
-    const mappings = (await syncState.listMappings(scope)).map(({ nativeId, colpId }) => ({ nativeId, colpId }));
-    const mappingDigest = digestJson(mappings as unknown as JsonObject[]);
+    const stored = (await syncState.listMappings(scope)).map(({ nativeId, colpId }) => ({ nativeId, colpId }));
+    const mappingDigest = digestJson(stored as unknown as JsonObject[]);
+    const mappings = withRebuildIdentityHints(stored, await rebuildHints(scope), localFacts, authority.snapshot.remoteFacts, rootNodeId);
     const treeDigest = advancedTreeDigest(scan.treeDigest, localFacts);
     const previewId = crypto.randomUUID();
     const result = buildPreviewPlan({ scope, previewId, mode,
@@ -358,8 +360,9 @@ async function rescanAdvanced(scope: SyncScope, cache: CachedAdvancedPreview): P
       return { ok: false, response: staleConfirmationResponse({ bookmarkCount: scan.bookmarkCount,
         folderCount: scan.folderCount, skippedCount: scan.skippedCount }, 'boundary_changed') };
     }
-    const mappings = (await syncState.listMappings(scope)).map(({ nativeId, colpId }) => ({ nativeId, colpId }));
-    const mappingDigest = digestJson(mappings as unknown as JsonObject[]);
+    const stored = (await syncState.listMappings(scope)).map(({ nativeId, colpId }) => ({ nativeId, colpId }));
+    const mappingDigest = digestJson(stored as unknown as JsonObject[]);
+    const mappings = withRebuildIdentityHints(stored, await rebuildHints(scope), localFacts, authority.snapshot.remoteFacts, rootNodeId);
     if (mappingDigest !== cache.mappingDigest) {
       return { ok: false, response: staleConfirmationResponse({ bookmarkCount: scan.bookmarkCount,
         folderCount: scan.folderCount, skippedCount: scan.skippedCount }, 'mapping_changed') };
@@ -496,6 +499,11 @@ function resolvePreviewRefs(scope: SyncScope, viewId: string, refs: readonly str
   }
   const resolved = refs.map((ref) => sw.rootViewTokens!.entries.get(ref)?.nativeId);
   return resolved.some((value) => !value) ? null : resolved as string[];
+}
+
+/** The archived pairs of a replica that was just reset; none when this replica was not made by a reset. */
+async function rebuildHints(scope: SyncScope): Promise<MappingFact[]> {
+  try { return [...await readRebuildIdentityHints({ scope, store: syncState, storage: chrome.storage.local })]; } catch { return []; }
 }
 
 async function privateNativeIdsFor(scope: SyncScope): Promise<string[]> {

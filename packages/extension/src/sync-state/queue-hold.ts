@@ -5,6 +5,7 @@ import { dependsOnIssueOrdered, transactionIssueDependencies, type DependencyGra
 import { conflictResolutionBindings } from './conflict-resolution-bindings.js';
 import { cursorPage, iterateCursor, requestValue } from './idb.js';
 import { enqueueDependencyIds, firstLiveQueueRow } from './queue-live-work.js';
+import { readableQueueRows, tryValidateQueueRecord, type UnreadableHandler } from './queue-lenient.js';
 import { validateQueueRecord, validateReceipt } from './queue-validate.js';
 import { INDEXES, STORES } from './schema.js';
 import { SyncStateError, type QueueOperation, type UnknownRecord } from './types.js';
@@ -31,24 +32,36 @@ export async function consumedConflict(receipts: IDBObjectStore, key: string, ro
 
 /** The row the push lane sends next: the earliest live row that still owns its server sequence. */
 export async function firstLaneQueueRow(queue: IDBObjectStore, receipts: IDBObjectStore, key: string,
-  maxRecordBytes: number): Promise<QueueOperation | null> {
-  let row = await firstLiveQueueRow(queue, key, maxRecordBytes);
+  maxRecordBytes: number, unreadable?: UnreadableHandler): Promise<QueueOperation | null> {
+  let row = await firstLiveQueueRow(queue, key, maxRecordBytes, 0, unreadable);
   while (row && await consumedConflict(receipts, key, row)) {
-    row = await firstLiveQueueRow(queue, key, maxRecordBytes, row.sequence);
+    row = await firstLiveQueueRow(queue, key, maxRecordBytes, row.sequence, unreadable);
   }
   return row;
 }
 
 /** Rows later changes of their bookmark wait for: open conflicts, rejections and held rows, in sequence order. */
-export async function laneHolders(queue: IDBObjectStore, key: string, maxRecordBytes: number): Promise<QueueOperation[]> {
-  const rows: unknown[] = [];
-  for (const status of ['blocked', 'rejected', 'set_aside'] as const) {
-    await iterateCursor(queue.index(INDEXES.queueByStatusSequence),
-      IDBKeyRange.bound([key, status, 1], [key, status, Number.MAX_SAFE_INTEGER]), (value) => {
-        rows.push(value);
-      });
+export async function laneHolders(queue: IDBObjectStore, key: string, maxRecordBytes: number,
+  unreadable?: UnreadableHandler): Promise<QueueOperation[]> {
+  const collect = async () => {
+    const rows: unknown[] = [];
+    for (const status of ['blocked', 'rejected', 'set_aside'] as const) {
+      await iterateCursor(queue.index(INDEXES.queueByStatusSequence),
+        IDBKeyRange.bound([key, status, 1], [key, status, Number.MAX_SAFE_INTEGER]), (value) => {
+          rows.push(value);
+        });
+    }
+    return rows;
+  };
+  let rows = await collect();
+  // Rule C: a held row that cannot be read is rewritten as a held item by the claim, so it stays a
+  // visible item; read-only scans step over it.
+  if (unreadable) {
+    let repaired = false;
+    for (const value of rows) if (!tryValidateQueueRecord(value, maxRecordBytes) && unreadable(value) === 'repaired') repaired = true;
+    if (repaired) rows = await collect();
   }
-  const projected = rows.map(value => validateQueueRecord(value, maxRecordBytes))
+  const projected = readableQueueRows(rows, maxRecordBytes)
     .filter(row => isOpenQueueIssue(row) && row.recovery?.code !== 'sequence_blocked');
   projected.push(...await consumedRejectionRows(queue.transaction, key, maxRecordBytes));
   return projected.sort((left, right) => left.sequence - right.sequence);
@@ -128,15 +141,17 @@ export async function holdIfWaiting(queue: IDBObjectStore, key: string, input: u
  * no pending change can overtake one that is held.
  */
 export async function holdWaitingRows(queue: IDBObjectStore, key: string, maxRecordBytes: number,
-  afterSequence: number): Promise<number> {
-  const holders = await laneHolders(queue, key, maxRecordBytes);
+  afterSequence: number, unreadable?: UnreadableHandler): Promise<number> {
+  const holders = await laneHolders(queue, key, maxRecordBytes, unreadable);
   const graph = await transactionIssueDependencies(queue, key);
   if (holders.length === 0 && graph.roots.size === 0) return 0;
   const pending = await cursorPage<unknown>(queue.index(INDEXES.queueByStatusSequence),
     IDBKeyRange.bound([key, 'pending', afterSequence + 1], [key, 'pending', Number.MAX_SAFE_INTEGER]), Number.MAX_SAFE_INTEGER);
   let held = 0;
   for (const value of pending) {
-    const row = validateQueueRecord(value, maxRecordBytes);
+    // An unreadable row waits to be quarantined when it becomes the head of the lane (Rule C).
+    const row = tryValidateQueueRecord(value, maxRecordBytes);
+    if (!row) continue;
     const holder = holdable(row) ? await heldBy(row, holders, graph) : undefined;
     if (!holder) continue;
     const updated = asHeld(row, dependentHold(holder), maxRecordBytes);

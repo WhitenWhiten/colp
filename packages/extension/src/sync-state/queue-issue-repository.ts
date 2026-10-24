@@ -2,6 +2,7 @@ import { withReceiptOutcome } from './open-issue-facts.js';
 import { cursorPage, requestValue, requireActiveScope, runTransaction, transactionDone } from './idb.js';
 import { INDEXES, STORES } from './schema.js';
 import { scopeKey, validateScope } from './scope-key.js';
+import { tryValidateQueueRecord } from './queue-lenient.js';
 import { validateQueueRecord } from './queue-validate.js';
 import type { SyncStoreRuntime } from './runtime.js';
 import { SyncStateError, type QueueOperation, type SyncScope, type UnknownRecord } from './types.js';
@@ -21,10 +22,9 @@ export async function consumedRejectionRows(tx: IDBTransaction, key: string, max
   const rows: QueueOperation[] = [];
   for (const fact of facts) {
     const row = await requestValue(tx.objectStore(STORES.queue).index(INDEXES.queueByOpId).get([key, fact.opId as string]));
-    if (row) {
-      const validated = validateQueueRecord(row, maxBytes);
-      if (validated.status === 'terminal' && validated.recovery?.resultStatus === 'rejected') rows.push(validated);
-    }
+    // An unreadable settled row is stepped over (Rule C); it cannot be an open issue.
+    const validated = row ? tryValidateQueueRecord(row, maxBytes) : undefined;
+    if (validated?.status === 'terminal' && validated.recovery?.resultStatus === 'rejected') rows.push(validated);
   }
   return rows;
 }

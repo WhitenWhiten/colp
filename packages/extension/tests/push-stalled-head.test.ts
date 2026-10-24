@@ -53,7 +53,9 @@ test('a sent change the server keeps unsettled is reported as a stalled upload, 
   assert.equal(attention.attention.issueCount, 1);
   assert.deepEqual(attention.attention.issues, [{ direction: 'push', code: 'push_response_unrecognized' }]);
   assert.equal(attention.attention.queueProjection, 'syncing');
-  assert.equal(attention.attention.rebuildAvailable, false, 'a stalled upload is not a reason to rebuild');
+  // K3 (C-01/C-02): a sent change the server never settles had no exit; the server-fenced Reset is it.
+  assert.equal(attention.attention.rebuildAvailable, true, 'a stalled upload is a reason to reset');
+  assert.equal(attention.attention.rebuildMode, 'server_fenced');
   const sent = await report(f);
   assert.equal(sent.state, 'degraded');
   assert.equal(sent.issues.total, 1);

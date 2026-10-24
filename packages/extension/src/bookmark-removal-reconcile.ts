@@ -1,4 +1,5 @@
 import { lookupBookmark } from './bookmark-api-error.js';
+import { createNodeIsolation } from './capture-node-isolation.js';
 import { resolveIngressBoundary } from './bookmark-event-ingress.js';
 import { virtualNativeId } from './projection-native-occupancy.js';
 import type { BookmarkEventApi, BookmarkEventNode } from './bookmark-event-queue.js';
@@ -38,19 +39,24 @@ export async function captureMissingNativeRemovals(input: {
     if (events.length < 1000) break;
     after = events[events.length - 1]!.ordinal;
   }
+  // One bookmark that throws must not stop the scan for the others (A-F11).
+  const isolation = createNodeIsolation({ store: input.store, scope: input.scope });
   for (const row of absent) {
-    if (row.parentNativeId && absentIds.has(row.parentNativeId)) continue;
-    // A durable callback is already stronger evidence than this repair scan.
-    // In particular, do not reclassify it against a changing recovery binding.
-    if (captured.has(row.nativeId)) continue;
-    const lookup = await lookupBookmark(id => input.api.get(id), row.nativeId);
-    if (lookup.class === 'present') continue; // A concurrent move is not a delete.
-    if (lookup.class !== 'not_found') throw new Error(lookup.message);
-    const content = row.projection.content ?? {};
-    const parentId = row.parentNativeId ?? row.rootNativeId;
-    await input.removed(row.nativeId, { parentId, index: 0, node: { id: row.nativeId, parentId,
-      title: typeof content.title === 'string' ? content.title : '',
-      ...(typeof content.url === 'string' ? { url: content.url } : {}),
-      type: row.nodeKind === 'bookmark' ? 'bookmark' : 'folder' } });
+    await isolation.run(row.nativeId, async () => {
+      if (row.parentNativeId && absentIds.has(row.parentNativeId)) return;
+      // A durable callback is already stronger evidence than this repair scan.
+      // In particular, do not reclassify it against a changing recovery binding.
+      if (captured.has(row.nativeId)) return;
+      const lookup = await lookupBookmark(id => input.api.get(id), row.nativeId);
+      if (lookup.class === 'present') return; // A concurrent move is not a delete.
+      if (lookup.class !== 'not_found') throw new Error(lookup.message);
+      const content = row.projection.content ?? {};
+      const parentId = row.parentNativeId ?? row.rootNativeId;
+      await input.removed(row.nativeId, { parentId, index: 0, node: { id: row.nativeId, parentId,
+        title: typeof content.title === 'string' ? content.title : '',
+        ...(typeof content.url === 'string' ? { url: content.url } : {}),
+        type: row.nodeKind === 'bookmark' ? 'bookmark' : 'folder' } });
+    });
   }
+  await isolation.finish();
 }

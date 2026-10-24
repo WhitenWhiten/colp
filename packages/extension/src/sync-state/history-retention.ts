@@ -24,6 +24,8 @@ export interface HistoryRetentionState {
 export interface HistoryRetentionReport {
   readonly queue: number; readonly events: number; readonly acks: number;
   readonly deletionJournal: number; readonly summaries: number;
+  /** Rows this pass could not interpret and stepped over (W2A-12); they stay in place. */
+  readonly damaged: number;
 }
 export const HISTORY_RETENTION_STORES = [STORES.engine, STORES.intents,
   STORES.pullPages, STORES.pullEvents, STORES.ackIntents, STORES.recovery,
@@ -36,11 +38,15 @@ export async function pruneSyncHistory(tx: IDBTransaction, key: string, now: num
   const prior = watermark.retention ?? {};
   const next: Record<string, IDBValidKey | null> = {};
   const removed = { queue: 0, events: 0, acks: 0, deletionJournal: 0, summaries: 0 };
+  const damaged = { count: 0 };
   const queue = tx.objectStore(STORES.queue), events = tx.objectStore(STORES.bookmarkEvents);
   const receipts = tx.objectStore(STORES.receipts), acks = tx.objectStore(STORES.ackIntents);
   const cursor = await requestValue(tx.objectStore(STORES.cursors).get(key)) as UnknownRecord | undefined;
   const evidence = cursor?.evidence as UnknownRecord | undefined;
-  const quiet = await historyHasNoLiveWork(tx, key);
+  // W2A-04: a change set aside for a person's decision is one item's problem. It pins the deletion journal
+  // (a stale create could resurrect a removed native) but not the reclamation of everything settled around it.
+  const strictQuiet = await historyHasNoLiveWork(tx, key, true);
+  const quiet = strictQuiet || await historyHasNoLiveWork(tx, key, false);
   const consumedThrough = Math.max(prior.consumedThroughSequence ?? 0, await highestConsumedSequence(receipts, key));
   next.consumedThroughSequence = consumedThrough;
   const latest = { ...watermark.latestCompleteAck };
@@ -56,7 +62,7 @@ export async function pruneSyncHistory(tx: IDBTransaction, key: string, now: num
     }
     if (!await aged('ack', row.intentId)) return;
     acks.delete([key, row.intentId]); forget('ack', row.intentId); removed.acks += 1;
-  });
+  }, damaged);
 
   next.eventAfter = await retentionBatch<BookmarkEventRecord>(events.index(INDEXES.eventByStatusOrdinal),
     statusRange(key, 'processed', prior.eventAfter), batch, async row => {
@@ -76,7 +82,7 @@ export async function pruneSyncHistory(tx: IDBTransaction, key: string, now: num
       await retainAutomationCreate(tx, key, queued, receipt, row.nativeId);
       events.delete([key, row.eventId]); forget('event', row.eventId);
       tx.objectStore(STORES.compactSummaries).delete([key, 'event', row.eventId]); removed.events += 1;
-    });
+    }, damaged);
 
   next.queueAfter = await retentionBatch<QueueOperation>(queue.index(INDEXES.queueByStatusSequence),
     statusRange(key, 'terminal', prior.queueAfter), batch, async row => {
@@ -89,7 +95,7 @@ export async function pruneSyncHistory(tx: IDBTransaction, key: string, now: num
       await retainAutomationCreate(tx, key, row, receipt);
       queue.delete([key, row.sequence]); receipts.delete([key, receipt.receiptId]); forget('queue', row.opId);
       tx.objectStore(STORES.compactSummaries).delete([key, 'queue', row.opId]); removed.queue += 1;
-    });
+    }, damaged);
   next.rejectedAfter = await retentionBatch<QueueOperation>(queue.index(INDEXES.queueByStatusSequence),
     statusRange(key, 'rejected', prior.rejectedAfter), batch, async row => {
       if (!quiet || !closedRejection(row) || removed.queue >= batch || !await aged('queue', row.opId)) return;
@@ -102,7 +108,7 @@ export async function pruneSyncHistory(tx: IDBTransaction, key: string, now: num
       // the higher consumed sequence proves the server lane passed its slot.
       if (receipt) receipts.delete([key, receipt.receiptId]);
       tx.objectStore(STORES.compactSummaries).delete([key, 'queue', row.opId]); removed.queue += 1;
-    });
+    }, damaged);
 
   // Journal entries prevent stale bootstrap creates from resurrecting locally
   // removed natives. Only a settled, acknowledged scope with no unresolved
@@ -110,7 +116,7 @@ export async function pruneSyncHistory(tx: IDBTransaction, key: string, now: num
   const terminal = await requestValue<QueueOperation[]>(queue.index(INDEXES.queueByStatusSequence)
     .getAll(statusRange(key, 'terminal'), 2));
   const terminalSettled = terminal.length === 0 || terminal.length === 1 && Boolean(await terminalReceipt(tx, key, terminal[0]!));
-  const journalSettled = quiet && terminalSettled
+  const journalSettled = strictQuiet && terminalSettled
     && !await requestValue(queue.index(INDEXES.queueByStatusSequence).count(statusRange(key, 'rejected')))
     && await cursorHasCompleteAck(acks, key, cursor?.cursor, latest);
   next.deletionAfter = await retentionBatch<DeletionJournalRecord>(tx.objectStore(STORES.deletionJournal),
@@ -121,7 +127,7 @@ export async function pruneSyncHistory(tx: IDBTransaction, key: string, now: num
       if (!await aged('deletion', id)) return;
       tx.objectStore(STORES.deletionJournal).delete([key, row.nativeId, row.ordinal]);
       forget('deletion', id); removed.deletionJournal += 1;
-    });
+    }, damaged);
 
   // Older releases left summaries behind permanently, including after reset or
   // history pruning. Remove orphan summaries and bookkeeping in bounded passes.
@@ -132,9 +138,9 @@ export async function pruneSyncHistory(tx: IDBTransaction, key: string, now: num
       if (exists) return;
       tx.objectStore(STORES.compactSummaries).delete([key, String(row.kind), String(row.id)]);
       removed.summaries += 1;
-    });
+    }, damaged);
   watermarks.put({ ...watermark, latestCompleteAck: latest, retention: next });
-  return removed;
+  return { ...removed, damaged: damaged.count };
 
   function aged(kind: string, id: string) { return retainedLongEnough(tx, key, kind, id, now, SYNC_HISTORY_RETENTION_MS); }
   function operationAged(kind: string, id: string, row: QueueOperation) {
@@ -153,7 +159,8 @@ function statusRange(key: string, status: string, after?: IDBValidKey | null): I
   return IDBKeyRange.bound(after ?? [key, status, 0], [key, status, Number.MAX_SAFE_INTEGER], Boolean(after));
 }
 
-async function historyHasNoLiveWork(tx: IDBTransaction, key: string): Promise<boolean> {
+/** `heldItemsPin`: whether a change set aside for a decision counts as live work. */
+async function historyHasNoLiveWork(tx: IDBTransaction, key: string, heldItemsPin: boolean): Promise<boolean> {
   const engine = await requestValue(tx.objectStore(STORES.engine).get(key)) as UnknownRecord | undefined;
   if (engine?.recoveryFrozen || engine?.authorityRefreshRequired
       || await requestValue(tx.objectStore(STORES.recovery).count(scopeRowsRange(key)))) return false;
@@ -165,7 +172,8 @@ async function historyHasNoLiveWork(tx: IDBTransaction, key: string): Promise<bo
   if (runs.length > 200 || runs.some(row => !row.previewOnly && row.phase !== 'completed' && row.phase !== 'draft')) return false;
   const scope = await requestValue(tx.objectStore(STORES.scopes).get(key)) as UnknownRecord;
   if (scope.firstRun === 'running') return false;
-  for (const status of ['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown', 'set_aside']) {
+  for (const status of heldItemsPin ? ['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown', 'set_aside']
+    : ['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown']) {
     if (await requestValue(tx.objectStore(STORES.queue).index(INDEXES.queueByStatusSequence).count(statusRange(key, status)))) return false;
   }
   if (await requestValue(tx.objectStore(STORES.bookmarkEvents).index(INDEXES.eventByStatusOrdinal)

@@ -1,4 +1,4 @@
-import type { SyncIssueLocalAction } from './types.js';
+import type { SyncIssueLocalAction } from './sync-attention-types.js';
 
 /** Items named by one press: a row's own id, or every row of a kind. */
 export type SyncIssueActionRequest = { readonly kind: 'known.sync.issue.act'; readonly action: SyncIssueLocalAction;
