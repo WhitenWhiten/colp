@@ -1,3 +1,4 @@
+import { selectedSite } from './settings-client.js';
 import { COMMUNITY_RISK, COMMUNITY_PACKAGE_BYTES } from './community-package.js';
 const element = <T extends Element>(id: string) => document.querySelector<T>(`#${id}`)!;
 const ack = element<HTMLInputElement>('community-ack'), install = element<HTMLButtonElement>('community-install'), status = element<HTMLPreElement>('community-status');
@@ -54,6 +55,6 @@ element<HTMLInputElement>('community-file').onchange = () => { void (async () =>
 })().catch(e => { status.textContent = String(e); }); };
 ack.onchange = () => { install.disabled = !approval || !ack.checked; };
 install.onclick = () => { if (approval && ack.checked) { install.disabled = true; void request({ ...approval, acknowledgeRisk: true }).then(() => { approval = null; ack.checked = false; return refresh(); }); } };
-element<HTMLButtonElement>('community-grant').onclick = () => { void chrome.permissions.request({ permissions: ['userScripts', 'webNavigation'], origins: ['https://www.bilibili.com/*'] }).then(refresh).catch(e => { status.textContent = String(e); }); };
+element<HTMLButtonElement>('community-grant').onclick = () => { void chrome.permissions.request({ permissions: ['userScripts', 'webNavigation'], origins: [...selectedSite.matches] }).then(refresh).catch(e => { status.textContent = String(e); }); };
 element<HTMLButtonElement>('community-refresh').onclick = () => { void refresh(); };
 void refresh();

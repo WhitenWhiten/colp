@@ -1,3 +1,4 @@
+import { legacySite } from './registry.js';
 import { requestValue, runTransaction, cursorPage } from '../sync-state/idb.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
@@ -19,12 +20,26 @@ export const put = (tx: IDBTransaction, store: SourceStore, key: IDBValidKey, va
 export function createSourceDatabase(factory: IDBFactory = indexedDB, name = 'known-site-adapters') {
   let connection: Promise<IDBDatabase> | undefined;
   const open = () => connection ??= new Promise<IDBDatabase>((resolve, reject) => {
-    const r = factory.open(name, 2);
+    const r = factory.open(name, 3);
     r.onupgradeneeded = () => {
       for (const store of SOURCE_STORES) if (!r.result.objectStoreNames.contains(store)) r.result.createObjectStore(store);
+      const connections = r.transaction!.objectStore('connections');
+      if (!connections.indexNames.contains('id')) connections.createIndex('id', 'id', { unique: true });
+      const bindings = r.transaction!.objectStore('contentBindings');
+      const bindingCursor = bindings.openCursor();
+      bindingCursor.onsuccess = () => { const c = bindingCursor.result; if (!c) return;
+        const b = c.value, key = sourceKey(b.content.siteKey, b.content.identityVersion, b.content.itemId, b.id);
+        if (c.key !== key) { bindings.put(b, key); c.delete(); } c.continue(); };
       const observations = r.transaction!.objectStore('observations');
       if (!observations.indexNames.contains('state')) observations.createIndex('state', 'state');
       if (!observations.indexNames.contains('stateOrdinal')) observations.createIndex('stateOrdinal', ['state', 'ordinal']);
+      if (!observations.indexNames.contains('installationStateOrdinal')) {
+        observations.createIndex('installationStateOrdinal', ['installationId', 'state', 'ordinal']);
+        const cursor = observations.openCursor();
+        cursor.onsuccess = () => { const c = cursor.result; if (!c) return;
+          c.update({ ...c.value, installationId: c.value.installationId ?? legacySite.adapterId }); c.continue(); };
+      }
+
     };
     r.onerror = () => { connection = undefined; reject(new Error(r.error?.name === 'VersionError' ? 'schemaIncompatible' : 'sourceStoreUnavailable')); };
     r.onblocked = () => reject(new Error('schemaIncompatible'));

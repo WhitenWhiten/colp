@@ -6,7 +6,7 @@ import { requireSourceAuthority, type createSourceLedger } from './ledger.js';
 import { get, put, sourceDigest, sourceKey } from './source-db.js';
 import type { createReadScheduler } from './read-scheduler.js';
 import { LIMITS } from './limits.js';
-import { aidFromItem } from './bilibili/identity.js';
+import { installationKey } from './installation.js';
 type Ledger = ReturnType<typeof createSourceLedger>;
 type Command = Extract<HostCommand, { operation: 'readMemberships' | 'resolveItem' }>;
 export interface ConfirmationRow {
@@ -20,11 +20,11 @@ interface Ports {
   send(context: SourceContext, command: Command): void;
   alarm(at: number): void;
 }
-const PENDING = 'confirmationQueue:v1', PAUSE = 'confirmationPause:v1', LAST = 'confirmationLast:v1';
 const rowKey = (id: string) => sourceKey('hint', id);
 /** MAIN hints can spend only a bounded, paced read. Fresh positives remain observed state. */
 export function createConfirmationQueue(ledger: Ledger, scheduler: ReturnType<typeof createReadScheduler>, ports: Ports, now = Date.now) {
   const db = ledger.db, lane = createLane();
+  const PENDING = installationKey('confirmationQueue:v1', ledger.definition), PAUSE = installationKey('confirmationPause:v1', ledger.definition), LAST = installationKey('confirmationLast:v1', ledger.definition);
   const commandId = (r: ConfirmationRow) => r.active?.command.operation === 'resolveItem' ? r.active.command.resolutionId : r.active?.command.readRequestId;
   const same = (a: ConfirmationRow | undefined, b: ConfirmationRow) => a?.state === b.state && a.attempts === b.attempts && commandId(a) === commandId(b);
   async function settle(tx: IDBTransaction, row: ConfirmationRow) {
@@ -75,7 +75,7 @@ export function createConfirmationQueue(ledger: Ledger, scheduler: ReturnType<ty
       if (deadlineAt <= now() + LIMITS.spacingMs) { ports.alarm(now() + LIMITS.spacingMs); return; }
       const command: Command = row.state === 'membership' ? { operation: 'readMemberships', leaseId: c.leaseId, readSessionId: row.id, readRequestId: requestId,
         deadlineAt, query: { itemId: row.hint.itemId, collectionIds: row.hint.added } }
-        : { operation: 'resolveItem', leaseId: c.leaseId, resolutionId: requestId, deadlineAt, url: `https://www.bilibili.com/video/av${aidFromItem(row.hint.itemId)!}` };
+        : { operation: 'resolveItem', leaseId: c.leaseId, resolutionId: requestId, deadlineAt, url: ledger.definition.itemUrl(row.hint.itemId) ?? (() => { throw new Error('identityUnresolved'); })() };
       const acquired = await scheduler.acquire({ id: requestId, documentId: c.documentId, deadlineAt });
       if (acquired.status !== 'ready') { ports.alarm(now() + acquired.retryAfterMs); return; }
       const prior = row;

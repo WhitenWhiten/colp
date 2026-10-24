@@ -1,3 +1,4 @@
+import { legacySite, type SiteDefinition } from './registry.js';
 import { createLane } from '../automation/lane.js';
 import { cursorPage } from '../sync-state/idb.js';
 import { settleSourceObservation } from './ledger.js';
@@ -5,12 +6,12 @@ import type { ObservationRow, SourceAuthority } from './ledger-types.js';
 import type { SourceDatabase } from './source-db.js';
 import type { createSourceLayout, SourcePolicyRecord } from './layout.js';
 /** Independent of import admission: scanning never discards or substitutes a live observation. */
-export function createLiveSourcePlanner(db: SourceDatabase, layout: ReturnType<typeof createSourceLayout>, alarm: (delay?: number) => void) {
+export function createLiveSourcePlanner(db: SourceDatabase, layout: ReturnType<typeof createSourceLayout>, alarm: (delay?: number) => void, definition: SiteDefinition = legacySite) {
   const lane = createLane();
   return { wake: () => lane(async () => {
-    const authority = await db.read<SourceAuthority>('authorities', 'bundled.bilibili'); if (!authority?.enabled || !authority.connectionId) return;
+    const authority = await db.read<SourceAuthority>('authorities', definition.adapterId); if (!authority?.enabled || !authority.connectionId) return;
     const policy = await db.read<SourcePolicyRecord>('meta', `policy:${authority.connectionId}`); if (!policy?.enabled || !policy.liveArchive) return;
-    const batch = await db.transaction(['observations'], 'readonly', tx => cursorPage<ObservationRow>(tx.objectStore('observations').index('stateOrdinal'), IDBKeyRange.bound(['pending', 0], ['pending', Number.MAX_SAFE_INTEGER]), 20));
+    const batch = await db.transaction(['observations'], 'readonly', tx => cursorPage<ObservationRow>(tx.objectStore('observations').index('installationStateOrdinal'), IDBKeyRange.bound([definition.adapterId, 'pending', 0], [definition.adapterId, 'pending', Number.MAX_SAFE_INTEGER]), 20));
     for (const row of batch) {
       if (row.state === 'settled') continue;
       const plans: string[] = [], edges: { collectionId: string; status: string }[] = []; let reason = 'noPositiveMembership';

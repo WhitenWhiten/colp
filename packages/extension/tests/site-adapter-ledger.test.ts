@@ -101,10 +101,10 @@ test('single-copy intents serialize across purposes; manual delete suppresses re
 });
 test('future database versions stay intact and disabled instead of resetting source data', async () => {
   const factory = new IDBFactory();
-  const future = await new Promise<IDBDatabase>((resolve, reject) => { const r = factory.open('known-site-adapters', 3);
+  const future = await new Promise<IDBDatabase>((resolve, reject) => { const r = factory.open('known-site-adapters', 4);
     r.onupgradeneeded = () => { r.result.createObjectStore('future').put('keep', 'sentinel'); }; r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
   future.close(); await expect(createSourceDatabase(factory).open()).rejects.toThrow('schemaIncompatible');
-  const reopened = await new Promise<IDBDatabase>((resolve, reject) => { const r = factory.open('known-site-adapters', 3); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
+  const reopened = await new Promise<IDBDatabase>((resolve, reject) => { const r = factory.open('known-site-adapters', 4); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
   const value = await new Promise<unknown>(resolve => { const r = reopened.transaction('future').objectStore('future').get('sentinel'); r.onsuccess = () => resolve(r.result); });
   expect(value).toBe('keep'); reopened.close();
 });
@@ -133,7 +133,7 @@ test('source v1 upgrades to indexed pending work without changing facts or unkno
   await new Promise<void>((resolve, reject) => { const tx = old.transaction(['observations', 'outbox'], 'readwrite');
     tx.objectStore('observations').put({ id: 'pending', state: 'pending', ordinal: 7, observation }, 'pending');
     tx.objectStore('outbox').put({ state: 'unknown', digest: 'retained' }, 'native-command'); tx.oncomplete = () => resolve(); tx.onabort = () => reject(tx.error); });
-  old.close(); const db = createSourceDatabase(factory, name), upgraded = await db.open(); expect(upgraded.version).toBe(2);
+  old.close(); const db = createSourceDatabase(factory, name), upgraded = await db.open(); expect(upgraded.version).toBe(3);
   expect(await db.read('outbox', 'native-command')).toEqual({ state: 'unknown', digest: 'retained' });
   expect(await db.read('observations', 'pending')).toMatchObject({ state: 'pending', ordinal: 7 });
   const count = await db.transaction(['observations'], 'readonly', tx => new Promise<number>((resolve, reject) => {

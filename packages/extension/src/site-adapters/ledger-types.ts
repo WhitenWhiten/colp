@@ -1,14 +1,14 @@
 import type { SiteObservation } from './contracts.js';
-export interface SourceAuthority { enabled: boolean; installationGeneration: number; sourceSessionGeneration: number;
+export interface SourceAuthority { installationId?: string; enabled: boolean; installationGeneration: number; sourceSessionGeneration: number;
   connectionId: string | null; accountId: string | null; negativeReadback: boolean }
 export interface SourceConnection { id: string; siteKey: string; accountId: string; identityVersion: number }
 /** Constructed only by the host from a verified lease; never page input. */
-export interface SourceContext { connectionId: string; installationGeneration: number; sourceSessionGeneration: number;
+export interface SourceContext { installationId?: string; connectionId: string; installationGeneration: number; sourceSessionGeneration: number;
   communityOrigin?: import('./community-state.js').CommunityOrigin;
   documentId: string; tabId: number; routeEpoch: number; leaseId: string }
 export interface LedgerEdge { connectionId: string; itemId: string; collectionId: string; state: 'present' | 'absent' | 'unresolved';
   ordinal: number; liveOrdinal: number; evidence: 'live' | 'import' | 'read'; observationId: string; conflicts: readonly string[] }
-export interface ObservationRow { id: string; ordinal: number; context: SourceContext; observation: SiteObservation; acceptedAt: number; adapterVersion: string; cause: 'siteFavorite' | 'reconcile'; state: 'pending' | 'settled' }
+export interface ObservationRow { installationId?: string; id: string; ordinal: number; context: SourceContext; observation: SiteObservation; acceptedAt: number; adapterVersion: string; cause: 'siteFavorite' | 'reconcile'; state: 'pending' | 'settled' }
 export interface SourceReceipt { id: string; digest: string; ordinal: number }
 export interface SourceImportRun { id: string; context: SourceContext; baselineOrdinal: number; phase: 'scanning' | 'stopped';
   outstanding: string | null; cursor: string | null; coverage: 'complete' | 'partial'; seenItems: readonly string[]; seenCursors: readonly string[] }

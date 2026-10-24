@@ -1,3 +1,4 @@
+import { contentBindingKey } from './content-identity.js';
 import { admitsSiteEdge } from '../automation/site-rule.js';
 import { decideList } from '../automation/rule-list-decide.js';
 import type { FlatList } from '../automation/rule-list-flatten.js';
@@ -215,7 +216,7 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
       const ids = new Set(nativeIds);
       await db.transaction(['representations', 'folderReservations', 'mounts', 'contentBindings'], 'readwrite', async tx => {
         const bindings = await cursorPage<import('./content-bindings.js').ContentBindingRow>(tx.objectStore('contentBindings'), null, 100001);
-        for (const b of bindings) if (b.native && ids.has(b.native.nativeId)) put(tx, 'contentBindings', sourceKey('bilibili', b.content.itemId, b.id), { ...b, state: deleted ? 'suppressed' : 'detached' });
+        for (const b of bindings) if (b.native && ids.has(b.native.nativeId)) put(tx, 'contentBindings', contentBindingKey(b.content, b.id), { ...b, state: deleted ? 'suppressed' : 'detached' });
         for (const store of ['representations', 'folderReservations', 'mounts'] as const) {
           const rows = await cursorPage<Representation | SourceFolderReservation | SourceMount>(tx.objectStore(store), null, 100001);
           for (const row of rows) {

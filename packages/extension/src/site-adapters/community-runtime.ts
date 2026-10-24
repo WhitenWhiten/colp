@@ -1,17 +1,17 @@
 import { inspectCommunityPackage, COMMUNITY_RISK, type PackagePreview } from './community-package.js';
 import { communityWrapper } from './community-wrapper.js';
 import { communityStore, communityScriptId, communityWorldId, communityScopeDigest, fenceCommunity, type CommunityInstallation, type CommunityArchiveScope } from './community-state.js';
-import { COMMUNITY_GRANTS, communityApiAvailable, assertCommunityArchive } from './community-authority.js';
+import { communityApiAvailable, assertCommunityArchive } from './community-authority.js';
 import { object, literal, str, integer, jsonBytes } from './schema.js';
 import { validMembershipHint } from './schemas.js';
-import { aidFromItem, decimal, BILIBILI } from './bilibili/identity.js';
+import { identityDefinition } from './registry.js';
+import { readConnectionAuthority } from './ledger.js';
 import { validSiteSender, type SiteSender } from './transport.js';
 import type { MembershipHint } from './contracts.js';
 import type { SourceContext } from './ledger-types.js';
 import { siteLedger } from './source-runtime.js';
 import type { SourcePolicyRecord } from './layout.js';
 import { sourceDigest, sourceKey } from './source-db.js';
-import type { SourceAuthority } from './ledger-types.js';
 import { createLane } from '../automation/lane.js';
 import { communityRegistration, communityRegistrationMatches } from './community-registration.js';
 const PREVIEW = 'known.siteAdapters.communityPreview.v1';
@@ -29,10 +29,11 @@ const hintSchema = object({ kind: literal('known.community.hint'), installationI
 const scriptCode = (r: CommunityInstallation) => communityWrapper({ id: r.id, generation: r.generation, credential: r.credential, script: r.approved.package.script });
 interface Ports {
   ready(): Promise<void>;
-  source(tabId?: number): Promise<{ context: SourceContext; expiresAt: number } | null>;
+  source(tabId?: number, adapterId?: string): Promise<{ context: SourceContext; expiresAt: number } | null>;
   enqueue(context: SourceContext, requestId: string, hint: MembershipHint): Promise<unknown>;
   wake(): void;
 }
+const definitionFor = (r: CommunityInstallation) => identityDefinition(r.approved.package.manifest.siteKey, r.approved.package.manifest.identityVersion);
 export function createCommunityRuntime(ports: Ports) {
   const lane = createLane();
   async function bounded<T>(work: Promise<T>, ms = 8000): Promise<T> {
@@ -44,7 +45,7 @@ export function createCommunityRuntime(ports: Ports) {
     for (const tab of await chrome.tabs.query({ url: [...r.approved.package.manifest.matches] }).catch(() => [])) {
       if (tab.id === undefined || tab.incognito) continue;
       const frame = await chrome.webNavigation.getFrame({ tabId: tab.id, frameId: 0 }).catch(() => null);
-      if (frame?.documentLifecycle === 'active' && new URL(frame.url).origin === BILIBILI.origin && chrome.userScripts?.execute) await bounded(chrome.userScripts.execute({
+      if (frame?.documentLifecycle === 'active' && new URL(frame.url).origin === definitionFor(r).origin && chrome.userScripts?.execute) await bounded(chrome.userScripts.execute({
         target: { tabId: tab.id, documentIds: [frame.documentId] }, world: 'USER_SCRIPT', worldId: communityWorldId(r), js: [{ code: 'globalThis.__colpCommunity?.stop();' }], injectImmediately: true,
       }), 2000).catch(() => undefined);
     }
@@ -56,7 +57,7 @@ export function createCommunityRuntime(ports: Ports) {
     for (const tab of await chrome.tabs.query({ url: [...r.approved.package.manifest.matches] })) {
       if (tab.id === undefined || tab.incognito || tabId !== undefined && tab.id !== tabId) continue;
       const frame = await chrome.webNavigation.getFrame({ tabId: tab.id, frameId: 0 }).catch(() => null);
-      if (!frame || frame.documentLifecycle !== 'active' || new URL(frame.url).origin !== BILIBILI.origin) continue;
+      if (!frame || frame.documentLifecycle !== 'active' || new URL(frame.url).origin !== definitionFor(r).origin) continue;
       if (typeof chrome.userScripts.execute !== 'function') { await communityStore.mutate(rows => { const row = rows.find(x => x.id === r.id); if (row) row.error = 'reloadRequired'; }); continue; }
       await bounded(chrome.userScripts.execute({ target: { tabId: tab.id, documentIds: [frame.documentId] }, world: 'USER_SCRIPT', worldId: communityWorldId(r),
         js: [{ code: scriptCode(r) }], injectImmediately: true })).catch(() => communityStore.mutate(rows => {
@@ -66,8 +67,9 @@ export function createCommunityRuntime(ports: Ports) {
   }
   async function register(r: CommunityInstallation, immediate = true) {
     if (inspectCommunityPackage(r.approved.text).digest !== r.approved.digest) throw new Error('communityPackageChanged');
+    await communityApiAvailable(definitionFor(r));
     await chrome.userScripts.configureWorld({ worldId: communityWorldId(r), messaging: true,
-      csp: "script-src 'self'; object-src 'none'; connect-src 'self' https://api.bilibili.com" });
+      csp: `script-src 'self'; object-src 'none'; connect-src 'self' ${definitionFor(r).community!.connectOrigins.join(' ')}` });
     await chrome.userScripts.register([communityRegistration(r)]);
     if (immediate) await inject(r);
   }
@@ -104,14 +106,15 @@ export function createCommunityRuntime(ports: Ports) {
   }
   async function scopePreview(id: string) {
     await communityApiAvailable();
-    const r = (await communityStore.read()).find(r => r.id === id), source = await ports.source();
+    const r = (await communityStore.read()).find(r => r.id === id);
+    const source = r ? await ports.source(undefined, definitionFor(r).adapterId) : null;
     if (!r?.enabled || r.hostVersion !== chrome.runtime.getManifest().version || !source) throw new Error('communityConnectedSourceRequired');
     const c = source.context, config = await siteLedger.db.read<{ root: { nativeId: string }; collectionIds: string[]; live: boolean; state: string }>('meta', `archiveConfig:${c.connectionId}`);
     const policy = await siteLedger.db.read<SourcePolicyRecord>('meta', `policy:${c.connectionId}`);
     if (!config?.live || config.state !== 'active' || !policy?.enabled || !policy.liveArchive || !await chrome.permissions.contains({ permissions: ['bookmarks'] })) throw new Error('communityArchiveSetupRequired');
     const scope: CommunityArchiveScope = { connectionId: c.connectionId, rootNativeId: config.root.nativeId, collectionIds: [...config.collectionIds].sort(),
       installationGeneration: c.installationGeneration, sourceSessionGeneration: c.sourceSessionGeneration, policyRevision: policy.policy.revision };
-    const authority = await siteLedger.db.read<SourceAuthority>('authorities', 'bundled.bilibili');
+    const authority = await readConnectionAuthority(siteLedger.db, c.connectionId);
     if (!authority?.enabled || authority.connectionId !== c.connectionId || !authority.accountId) throw new Error('communityConnectedSourceRequired');
     const path: string[] = [], seen = new Set<string>(); let current: string | undefined = scope.rootNativeId;
     while (current && current !== '0') {
@@ -194,9 +197,12 @@ export function createCommunityRuntime(ports: Ports) {
   async function message(raw: unknown, sender: SiteSender) {
     if (!jsonBytes(raw, 16384) || !(bootstrapSchema(raw) || hintSchema(raw))) return { status: 'rejected', reason: 'invalid' };
     await ports.ready(); const scripts = await communityApiAvailable();
-    if (!validSiteSender(sender, chrome.runtime.id)) return { status: 'rejected', reason: 'sender' };
+    const installation = (await communityStore.read()).find(r => r.id === (raw as { installationId: string }).installationId);
+    if (!installation) return { status: 'rejected', reason: 'communityRevoked' };
+    const definition = definitionFor(installation); await communityApiAvailable(definition);
+    if (!validSiteSender(sender, chrome.runtime.id, definition)) return { status: 'rejected', reason: 'sender' };
     const frame = await chrome.webNavigation.getFrame({ tabId: sender.tab.id, frameId: 0 });
-    if (!frame || frame.documentId !== sender.documentId || frame.documentLifecycle !== 'active' || new URL(frame.url).origin !== BILIBILI.origin) return { status: 'rejected', reason: 'sender' };
+    if (!frame || frame.documentId !== sender.documentId || frame.documentLifecycle !== 'active' || new URL(frame.url).origin !== definition.origin) return { status: 'rejected', reason: 'sender' };
     const input = raw as { installationId: string; generation: number; credential: string; leaseId: string; capability: string; requestId: string; hint: MembershipHint };
     const accepted = await communityStore.mutate(rows => {
       const r = rows.find(r => r.id === input.installationId);
@@ -214,28 +220,27 @@ export function createCommunityRuntime(ports: Ports) {
       }
       const lease = r.leases.find(l => l.id === input.leaseId && l.capability === input.capability && l.documentId === sender.documentId && l.tabId === sender.tab.id
         && l.url === frame.url && l.routeEpoch === (r.routes[String(sender.tab.id)] ?? 0));
-      if (!lease || !aidFromItem(input.hint.itemId) || [...input.hint.added, ...input.hint.removed].some(id => !decimal(id))) throw new Error('communityLeaseRejected');
+      if (!lease || !definition.itemUrl(input.hint.itemId) || [...input.hint.added, ...input.hint.removed].some(id => !definition.validateCollection(id))) throw new Error('communityLeaseRejected');
       r.lastReport = { at: Date.now(), mode: r.archive ? 'archiveHints' : 'inspector', itemId: input.hint.itemId };
       return { status: 'accepted' as const, origin: r.archive ? { installationId: r.id, generation: r.generation, scopeDigest: r.archive.digest, packageDigest: r.approved.digest } : null };
     });
     if (accepted.status === 'ready') return accepted;
     if (!accepted.origin) return { status: 'inspected', writes: false, models: false };
-    const source = await ports.source(sender.tab.id); if (!source || source.context.documentId !== sender.documentId) throw new Error('communityConnectedSourceRequired');
+    const source = await ports.source(sender.tab.id, definition.adapterId); if (!source || source.context.documentId !== sender.documentId) throw new Error('communityConnectedSourceRequired');
     await assertCommunityArchive(accepted.origin, { connectionId: source.context.connectionId, collectionIds: [...input.hint.added, ...input.hint.removed] });
     const reply = await ports.enqueue({ ...source.context, communityOrigin: accepted.origin }, `community:${input.installationId}:${input.requestId}`, input.hint); ports.wake(); return reply;
   }
   async function navigated(tabId: number) {
     if (!(await communityStore.read()).some(r => r.enabled || r.leases.length)) return;
     const frame = await chrome.webNavigation.getFrame({ tabId, frameId: 0 }).catch(() => null);
-    const here = frame?.documentLifecycle === 'active' && new URL(frame.url).origin === BILIBILI.origin;
+    const here = (r: CommunityInstallation) => frame?.documentLifecycle === 'active' && new URL(frame.url).origin === definitionFor(r).origin;
     await communityStore.mutate(rows => { for (const r of rows) {
       r.leases = r.leases.filter(l => l.tabId !== tabId && l.expiresAt > Date.now());
-      if (here && r.enabled) r.routes[String(tabId)] = (r.routes[String(tabId)] ?? 0) + 1;
+      if (here(r) && r.enabled) r.routes[String(tabId)] = (r.routes[String(tabId)] ?? 0) + 1;
       const active = new Set(r.leases.map(l => String(l.tabId)));
-      r.routes = Object.fromEntries(Object.entries(r.routes).filter(([key]) => active.has(key) || here && r.enabled && key === String(tabId)));
+      r.routes = Object.fromEntries(Object.entries(r.routes).filter(([key]) => active.has(key) || here(r) && r.enabled && key === String(tabId)));
     } });
-    if (!here) return;
-    try { await communityApiAvailable(); for (const r of (await communityStore.read()).filter(r => r.enabled)) await inject(r, tabId); } catch { /* status exposes the disabled runtime */ }
+    try { await communityApiAvailable(); for (const r of (await communityStore.read()).filter(r => r.enabled && here(r))) await inject(r, tabId); } catch { /* status exposes the disabled runtime */ }
   }
   function install() {
     let pending = 0;
@@ -248,7 +253,7 @@ export function createCommunityRuntime(ports: Ports) {
     chrome.runtime.onStartup.addListener(() => { void lane(() => reconcile()).catch(() => undefined); });
     chrome.runtime.onInstalled.addListener(details => { if (details.reason === 'update') void lane(() => reconcile(true)).catch(() => undefined); });
     chrome.permissions.onAdded.addListener(() => { void lane(() => reconcile()).catch(() => undefined); });
-    chrome.permissions.onRemoved.addListener(() => { void communityStore.mutate(rows => { for (const r of rows) fenceCommunity(r); }).then(() => lane(() => reconcile())).catch(() => undefined); });
+    chrome.permissions.onRemoved.addListener(removed => { void communityStore.mutate(rows => { for (const r of rows) if (removed.permissions?.some(p => ['userScripts', 'webNavigation'].includes(p)) || removed.origins?.some(o => definitionFor(r).matches.includes(o) || o === '<all_urls>')) fenceCommunity(r); }).then(() => lane(() => reconcile())).catch(() => undefined); });
     chrome.tabs.onRemoved.addListener(tabId => { void lane(() => navigated(tabId)).catch(() => undefined); });
     void lane(() => reconcile()).catch(() => undefined);
   }

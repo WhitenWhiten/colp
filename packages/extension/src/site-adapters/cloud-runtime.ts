@@ -1,3 +1,5 @@
+import { legacySite, type SiteDefinition } from './registry.js';
+import { installationKey } from './installation.js';
 import { captureTarget } from '../sw/capture-target.js';
 import { currentCaptureScope } from '../sw/capture-native.js';
 import { cloudEdgeUnseen, cloudProgress } from './cloud-progress.js';
@@ -20,23 +22,24 @@ import { createLane } from '../automation/lane.js';
 import type { SourceAuthority, LedgerEdge } from './ledger-types.js';
 import type { SiteCollection, SiteItem } from './contracts.js';
 import type { SourcePolicyRecord, SourceMount } from './layout.js';
+export function createCloudRuntime(definition: SiteDefinition = legacySite) {
 const db = siteLedger.db, lane = createLane();
 interface Owner { serverOrigin: string; accountId: string; collectionId: string; replicaId: string; generation: number }
 interface Snapshot { owner: Owner; authority: SourceAuthority; scope: CloudScope; nativeRoots: { ruleId: string; nativeId: string; dateAdded: number; path: string }[]; fence: string }
 interface RecordState { snapshot: Snapshot; lease: CloudLease; scopeDigest: string; after: string | null; pending: string | null; processed?: Record<string, number>; revoked?: boolean }
 interface Plan { planId: string; digest: string; epoch: number; scope: CloudScope; edges: CloudEdge[]; owner: Owner; snapshotFence: string; after: string | null; ordinals?: Record<string, number>;
   state: 'prepared' | 'submitted' | 'unknown' | 'committed' | 'cancelled'; receipt?: CloudReceipt }
-const activeKey = (owner: Owner) => `sourceCloudActive:${sourceDigest(owner)}`;
+const activeKey = (owner: Owner) => installationKey(`sourceCloudActive:${sourceDigest(owner)}`, definition);
 const stateKey = (id: string) => `sourceCloud:${id}`, planKey = (id: string) => `sourceCloudPlan:${id}`;
 const sameOwner = (a: Owner, b: Owner) => sourceDigest(a) === sourceDigest(b);
 async function client() {
-  const initialSource = await db.read<SourceAuthority>('authorities', 'bundled.bilibili');
+  const initialSource = await db.read<SourceAuthority>('authorities', definition.adapterId);
   const owner = await currentSyncScope(), config = await loadConfig(), credential = await store.loadCredential(), authority = await store.fence.read();
   if (!credential || config.serverOrigin !== owner.serverOrigin) throw new Error('not_connected');
   const assertCurrent = async () => { await store.assertWritable(authority.generation); if (!sameOwner(owner, await currentSyncScope())) throw new Error('sourceCloudOwnerChanged'); };
   return { owner, api: createSourceCloudClient({ origin: owner.serverOrigin, fetch: credentialGatedFetch(), assertCurrent, authorize: async action => {
     if (action && ['configure', 'preview', 'commit', 'renew'].includes(action)) {
-      const a = await db.read<SourceAuthority>('authorities', 'bundled.bilibili');
+      const a = await db.read<SourceAuthority>('authorities', definition.adapterId);
       if (!a?.enabled || sourceDigest(a) !== sourceDigest(initialSource)) throw new Error('sourceAuthorizationChanged');
       if (await sourceAutomationsPaused()) throw new Error('sourceAutomationPaused');
       if (action === 'commit') await requireRecord();
@@ -44,7 +47,7 @@ async function client() {
   }, headers: async () => colpCredentialHeaders(credential.accessToken) }) };
 }
 async function snapshot(): Promise<Snapshot> {
-  const owner = await currentSyncScope(), authority = await db.read<SourceAuthority>('authorities', 'bundled.bilibili');
+  const owner = await currentSyncScope(), authority = await db.read<SourceAuthority>('authorities', definition.adapterId);
   if (!authority?.enabled || !authority.connectionId || !authority.accountId) throw new Error('sourceAuthorizationChanged');
   await assertSourceRebound(db, authority.connectionId);
   const policy = await db.read<SourcePolicyRecord>('meta', `policy:${authority.connectionId}`), flat = await currentFlat();
@@ -71,7 +74,7 @@ async function snapshot(): Promise<Snapshot> {
     nativeRoots.push({ ruleId: item.id, nativeId: id, dateAdded: n.dateAdded, path: path.join(' / ') });
   }
   if (!roots.length) throw new Error('chooseSyncedSourceRuleRoot');
-  const scope: CloudScope = { site: 'bilibili', identityVersion: 1, sourceAccount: authority.accountId, collectionId: owner.collectionId, roots,
+  const scope: CloudScope = { site: definition.siteKey, identityVersion: definition.identityVersion, sourceAccount: authority.accountId, collectionId: owner.collectionId, roots,
     policy: { revision: policy.policy.revision, copies: 'sourceAndSemantic', backgroundClassification: 'disabled', sourceRemoval: 'retainArchive' },
     rulesDigest: sourceDigest(flat), bindingDigest: sourceDigest({ owner, nativeRoots }) };
   return { owner, authority, scope, nativeRoots, fence: sourceDigest({ owner, authority, scope, nativeRoots }) };
@@ -81,15 +84,15 @@ async function requireRecord() {
   const s = await state(); if (!s.record || s.record.revoked || s.record.snapshot.fence !== s.snapshot.fence) throw new Error('sourceCloudApprovalRequired'); return { ...s, record: s.record };
 }
 const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
-export function validCloudManagement(v: unknown): boolean {
+function validCloudManagement(v: unknown): boolean {
   if (!record(v) || typeof v.kind !== 'string' || !v.kind.startsWith('known.siteAdapters.cloud.')) return false;
   const op = v.kind.slice('known.siteAdapters.cloud.'.length);
   return ['status', 'review', 'preview', 'recover', 'revoke', 'cancel'].includes(op) ? Object.keys(v).length === 1
     : ['approve', 'commit'].includes(op) ? Object.keys(v).length === 2 && typeof v.digest === 'string' && /^sha256:[a-f0-9]{64}$/.test(v.digest)
     : op === 'configureRule' && Object.keys(v).length === 3 && typeof v.rootNativeId === 'string' && v.rootNativeId.length < 129 && Array.isArray(v.collectionIds)
-      && v.collectionIds.length > 0 && v.collectionIds.length <= 64 && new Set(v.collectionIds).size === v.collectionIds.length && v.collectionIds.every(x => typeof x === 'string' && /^[1-9]\d{0,19}$/.test(x));
+      && v.collectionIds.length > 0 && v.collectionIds.length <= 64 && new Set(v.collectionIds).size === v.collectionIds.length && v.collectionIds.every(x => definition.validateCollection(x));
 }
-export async function handleCloudManagement(raw: unknown) {
+async function handleCloudManagement(raw: unknown) {
   if (!validCloudManagement(raw)) throw new Error('invalid'); const r = raw as { kind: string; digest?: string; rootNativeId?: string; collectionIds?: string[] };
   return lane(async () => {
     const { api, owner } = await client();
@@ -101,7 +104,7 @@ export async function handleCloudManagement(raw: unknown) {
     }
     if (r.kind.endsWith('.configureRule')) {
       await api.profile();
-      const a = await db.read<SourceAuthority>('authorities', 'bundled.bilibili'); if (!a?.enabled || !a.connectionId) throw new Error('sourceAuthorizationChanged');
+      const a = await db.read<SourceAuthority>('authorities', definition.adapterId); if (!a?.enabled || !a.connectionId) throw new Error('sourceAuthorizationChanged');
       await assertSourceRebound(db, a.connectionId);
       const m = await syncState.getMappingByNativeId(owner, r.rootNativeId!); const n = (await chrome.bookmarks.get(r.rootNativeId!).catch(() => []))[0];
       if (!m || m.quarantine || m.nodeKind !== 'folder' || !n || n.url || !n.dateAdded) throw new Error('sourceCloudMappingNeedsReview');
@@ -115,7 +118,7 @@ export async function handleCloudManagement(raw: unknown) {
       const priorMount = old ? await db.read<SourceMount>('mounts', sourceKey(a.connectionId, old)) : undefined;
       if (priorMount && (priorMount.root.nativeId !== n.id || priorMount.root.dateAdded !== n.dateAdded)) throw new Error('mountMigrationRequired');
       return withDestinationPolicyBoundary(async () => { await assertNoCloudDestinationWork();
-      const saved = await browserRuleStore().saveRule({ ...(old ? { id: old } : {}), draft: { name: 'Bilibili COLP archive', combinator: 'all', conditions: [{ kind: 'siteIs', value: 'www.bilibili.com' }],
+      const saved = await browserRuleStore().saveRule({ ...(old ? { id: old } : {}), draft: { name: `${definition.label} COLP archive`, combinator: 'all', conditions: [{ kind: 'siteIs', value: new URL(definition.origin).hostname }],
         action: { kind: 'file', folderNativeId: n.id }, site: { version: 1, admission: { entries: ['siteImport', 'reconcile'], purpose: 'sourceArchive', connectionId: a.connectionId!, collectionIds: r.collectionIds! }, layout: { kind: 'sourceCollections', root: 'actionDestination' } } } }, Date.now());
       if (!saved.ok) throw new Error('ruleRejected');
         const mount: SourceMount = { id: sourceDigest([a.connectionId, saved.rule.id]), connectionId: a.connectionId!, rootRuleId: saved.rule.id, revision: 1, state: 'active', aiDestination: 'excluded',
@@ -188,7 +191,7 @@ export async function handleCloudManagement(raw: unknown) {
         await assertRestoredItemAvailable(db, e.connectionId, e.itemId, e.collectionId);
         const item = (await db.read<{ entity: SiteItem }>('items', sourceKey(e.connectionId, e.itemId)))?.entity;
         const col = (await db.read<{ entity: SiteCollection }>('collections', sourceKey(e.connectionId, e.collectionId)))?.entity;
-        if (!item || !col || col.identity !== 'siteId' || e.conflicts.length || !/^video:av:[1-9]\d{0,19}$/.test(item.id) || item.url !== `https://www.bilibili.com/video/av${item.id.slice(9)}`) { omissions++; continue; }
+        if (!item || !col || col.identity !== 'siteId' || e.conflicts.length || !definition.validateItem(item)) { omissions++; continue; }
         const result = await decideList(flat.items, { url: item.url, title: item.title, explicit: false }, nativeFolderLookup, Date.now(), { site: { entry: 'siteImport', purpose: 'sourceArchive', connectionId: e.connectionId, collectionId: e.collectionId } });
         const d = result.decision; if (!d || d.outcome !== 'placed' || !s.scope.roots.some(root => root.ruleId === d.item.id && root.collectionIds.includes(e.collectionId))) { omissions++; continue; }
         // Page/community code cannot grant an account/cloud archive authority.
@@ -218,3 +221,7 @@ export async function handleCloudManagement(raw: unknown) {
     return { state: p.state, receipt: p.receipt };
   });
 }
+
+return { validCloudManagement, handleCloudManagement };
+}
+export const { validCloudManagement, handleCloudManagement } = createCloudRuntime();

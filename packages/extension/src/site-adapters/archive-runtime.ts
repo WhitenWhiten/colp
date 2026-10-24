@@ -1,5 +1,6 @@
 import { array, integer, jsonBytes, literal, object, str } from './schema.js';
-import { BILIBILI } from './bilibili/identity.js';
+import { legacySite, type SiteDefinition } from './registry.js';
+import type { createSourceLedger } from './ledger.js';
 import type { HostCommand, NativeBinding, SiteCollection } from './contracts.js';
 import type { SourceContext } from './ledger-types.js';
 import { siteLedger } from './source-runtime.js';
@@ -14,10 +15,10 @@ import { assertPlannedNative } from '../sw/planned-capture.js';
 import type { SourcePolicyRecord } from './layout.js';
 import { createLane } from '../automation/lane.js';
 import { sourceAutomationsPaused } from '../sw/automation.js';
-const configureSchema = object({ kind: literal('known.siteAdapters.archive.configure'), rootNativeId: str(128),
-  collectionIds: array(v => typeof v === 'string' && /^[1-9]\d{0,19}$/u.test(v), 64, 1, v => v), live: literal(true, false),
+const configureSchemaFor = (definition: SiteDefinition) => object({ kind: literal('known.siteAdapters.archive.configure'), rootNativeId: str(128),
+  collectionIds: array(v => definition.validateCollection(v), 64, 1, v => v), live: literal(true, false),
   copies: v => v === undefined || literal('sourceAndSemantic', 'singlePreferSemantic', 'singleKeepExisting')(v),
-  primarySourceCollectionId: v => v === undefined || v === null || typeof v === 'string' && /^[1-9]\d{0,19}$/u.test(v),
+  primarySourceCollectionId: v => v === undefined || v === null || definition.validateCollection(v),
   aiDestination: v => v === undefined || literal('excluded', 'allowed')(v) });
 const disableSchema = object({ kind: literal('known.siteAdapters.archive.disable') });
 const startSchema = object({ kind: literal('known.siteAdapters.import.start') });
@@ -33,15 +34,16 @@ interface RuntimePorts {
   prioritizeLive(): Promise<void>;
   alarm(at: number): void;
 }
-export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadScheduler>, ports: RuntimePorts) {
-  const db = siteLedger.db, configureLane = createLane();
+export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadScheduler>, ports: RuntimePorts, ledger: ReturnType<typeof createSourceLedger> = siteLedger, definition: SiteDefinition = legacySite) {
+  const configureSchema = configureSchemaFor(definition);
+  const db = ledger.db, configureLane = createLane();
   const configKey = (id: string) => `archiveConfig:${id}`;
-  const live = createLiveSourcePlanner(db, sourceLayout, (delay = 100) => ports.alarm(Date.now() + delay));
-  const importer = createSiteImporter(siteLedger, sourceLayout, reads, { ...ports, source: ports.readSource, execute: executePlannedSave,
+  const live = createLiveSourcePlanner(db, sourceLayout, (delay = 100) => ports.alarm(Date.now() + delay), definition);
+  const importer = createSiteImporter(ledger, sourceLayout, reads, { ...ports, source: ports.readSource, execute: executePlannedSave,
     snapshot: async () => {
       const source = await ports.source();
       // Approved/frozen work can continue without its page. Source authority still fences it.
-      const authority = await db.read<import('./ledger-types.js').SourceAuthority>('authorities', 'bundled.bilibili');
+      const authority = await db.read<import('./ledger-types.js').SourceAuthority>('authorities', definition.adapterId);
       const connectionId = source?.context.connectionId ?? authority?.connectionId;
       if (!connectionId || !authority?.enabled) throw new Error('sourceAuthorizationChanged');
       const flat = await currentFlat(), policy = await db.read<SourcePolicyRecord>('meta', `policy:${connectionId}`);
@@ -50,7 +52,7 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
     },
   });
   async function config() {
-    const a = await db.read<import('./ledger-types.js').SourceAuthority>('authorities', 'bundled.bilibili');
+    const a = await db.read<import('./ledger-types.js').SourceAuthority>('authorities', definition.adapterId);
     return a?.connectionId ? db.read<ArchiveConfig>('meta', configKey(a.connectionId)) : undefined;
   }
   return {
@@ -72,8 +74,8 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
         if (input.primarySourceCollectionId && !input.collectionIds.includes(input.primarySourceCollectionId)) throw new Error('invalidPrimaryCollection');
         const c = source.context, old = await db.read<ArchiveConfig>('meta', configKey(c.connectionId));
         if (old) await sourceLayout.bindRoot(c.connectionId, old.ruleId, node.id);
-        const saved = await browserRuleStore().saveRule({ ...(old ? { id: old.ruleId } : {}), draft: { name: 'Bilibili source archive', combinator: 'all',
-          conditions: [{ kind: 'siteIs', value: new URL(BILIBILI.origin).hostname }], action: { kind: 'file', folderNativeId: node.id },
+        const saved = await browserRuleStore().saveRule({ ...(old ? { id: old.ruleId } : {}), draft: { name: `${definition.label} source archive`, combinator: 'all',
+          conditions: [{ kind: 'siteIs', value: new URL(definition.origin).hostname }], action: { kind: 'file', folderNativeId: node.id },
           site: { version: 1, admission: { entries: ['siteImport', 'reconcile'], purpose: 'sourceArchive', connectionId: c.connectionId, collectionIds: input.collectionIds },
             layout: { kind: 'sourceCollections', root: 'actionDestination' } } } }, Date.now());
         if (!saved.ok) throw new Error('ruleRejected');
@@ -83,7 +85,7 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
         const mount = await sourceLayout.bindRoot(c.connectionId, saved.rule.id, node.id);
         await sourceLayout.configureMount(c.connectionId, saved.rule.id, input.aiDestination ?? 'excluded');
         for (let offset = 0; offset < selected.length; offset += 32) {
-          const receipt = await siteLedger.acceptObservation(c, crypto.randomUUID(), { type: 'catalog.upsert', collections: selected.slice(offset, offset + 32) });
+          const receipt = await ledger.acceptObservation(c, crypto.randomUUID(), { type: 'catalog.upsert', collections: selected.slice(offset, offset + 32) });
           if (receipt.status === 'rejected') throw new Error(receipt.reason);
         }
         const oldPolicy = await db.read<SourcePolicyRecord>('meta', `policy:${c.connectionId}`);

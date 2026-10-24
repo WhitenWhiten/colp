@@ -4,6 +4,7 @@ import { validBilibiliMessage } from './wire.js';
 export const bilibiliDefinition: SiteDefinition = Object.freeze<SiteDefinition>({
   ...BILIBILI, label: 'Bilibili', negativeReadback: false, importResume: 'restartAndDeduplicate',
   capabilities: ['observeFavorites', 'resolveItem', 'readMemberships', 'enumerateCollections', 'enumerateItems'],
+  community: { connectOrigins: ['https://api.bilibili.com'] },
   scripts: { adapter: 'site-adapter.js', probe: 'site-probe.js' },
   validateAccount: (id: unknown) => typeof id === 'string' && !!decimal(id),
   validateCollection: (id: unknown) => typeof id === 'string' && !!decimal(id),

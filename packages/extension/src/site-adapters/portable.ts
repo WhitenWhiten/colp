@@ -1,3 +1,6 @@
+import { legacySite, identityDefinition, type SiteDefinition } from './registry.js';
+import { readConnectionAuthority, authorityForConnection } from './ledger.js';
+import { readSourceConnection } from './content-identity.js';
 import type { Representation, SourceFolderReservation } from './contracts.js';
 import type { SourceAuthority, SourceConnection } from './ledger-types.js';
 import type { SourceMount, SourcePolicyRecord, LayoutNativeNode } from './layout.js';
@@ -10,22 +13,23 @@ interface PortableAssociation { itemId: string; collectionId: string | null; mou
   nativeSourceId: string | null; state: 'active' | 'detached' | 'suppressed' }
 interface PortableMount { ref: string; rootSourceId: string | null; aiDestination: 'excluded' | 'allowed';
   folders: { collectionId: string; nativeSourceId: string | null; state: string }[] }
-export interface PortableSources { version: 1; connections: { ref: string; accountId: string; identityVersion: 1;
+export interface PortableSources { version: 1 | 2; connections: { ref: string; siteKey?: string; accountId: string; identityVersion: number;
   copies: 'sourceAndSemantic' | 'singlePreferSemantic' | 'singleKeepExisting'; mounts: PortableMount[]; associations: PortableAssociation[] }[] }
 const nullable = (v: unknown) => v === null || str(256)(v);
-const association = object({ itemId: v => typeof v === 'string' && /^video:av:[1-9]\d{0,19}$/u.test(v), collectionId: nullable, mountRef: nullable,
+const association = object({ itemId: str(128), collectionId: nullable, mountRef: nullable,
   purpose: literal('sourceArchive', 'semantic'), nativeSourceId: nullable, state: literal('active', 'detached', 'suppressed') }, v => {
   const a = v as PortableAssociation; return a.purpose === 'semantic' ? a.collectionId === null && a.mountRef === null : !!a.collectionId && !!a.mountRef;
 });
 const mountSchema = object({ ref: str(256), rootSourceId: nullable, aiDestination: literal('excluded', 'allowed'),
   folders: array(object({ collectionId: str(256), nativeSourceId: nullable, state: literal('reserved', 'submitted', 'unknown', 'confirmed', 'blocked') }), 100_000, 0, v => (v as { collectionId: string }).collectionId) });
 export function parsePortableSources(value: unknown): PortableSources {
-  if (!jsonBytes(value, 32 * 1024 * 1024) || !object({ version: literal(1), connections: array(object({ ref: str(256),
-    accountId: v => typeof v === 'string' && /^[1-9]\d{0,19}$/u.test(v), identityVersion: literal(1),
+  if (!jsonBytes(value, 32 * 1024 * 1024) || !object({ version: literal(1, 2), connections: array(object({ ref: str(256),
+    siteKey: v => v === undefined || str(128)(v), accountId: str(128), identityVersion: v => Number.isSafeInteger(v) && Number(v) > 0,
     copies: literal('sourceAndSemantic', 'singlePreferSemantic', 'singleKeepExisting'), mounts: array(mountSchema, 1000, 0, v => (v as PortableMount).ref),
     associations: array(association, 100_000) }), 1000, 0, v => (v as { ref: string }).ref) })(value)) throw new Error('sourceBackupInvalid');
   const result = value as PortableSources;
   for (const c of result.connections) {
+    if (result.version === 1 && (c.siteKey !== undefined || c.identityVersion !== legacySite.identityVersion || !legacySite.validateAccount(c.accountId)) || result.version === 2 && !c.siteKey) throw new Error('sourceBackupInvalid');
     if (new Set(c.associations.map(a => sourceKey(a.itemId, a.purpose, a.collectionId, a.mountRef))).size !== c.associations.length
       || c.associations.some(a => a.mountRef && !c.mounts.some(m => m.ref === a.mountRef))) throw new Error('sourceBackupInvalid');
   }
@@ -40,11 +44,10 @@ export async function exportPortableSources(db: SourceDatabase, nativeSourceIds:
   const [connections, mounts, reps, folders] = await Promise.all([all<SourceConnection>(db, 'connections'), all<SourceMount>(db, 'mounts'),
     all<Representation>(db, 'representations'), all<SourceFolderReservation>(db, 'folderReservations')]);
   const sourceRef = (id: string | undefined) => id && nativeSourceIds.has(id) ? id : null;
-  const result: PortableSources = { version: 1, connections: [] };
+  const result: PortableSources = { version: 2, connections: [] };
   for (const c of connections) {
-    if (c.siteKey !== 'bilibili' || c.identityVersion !== 1) throw new Error('sourceIdentityNeedsReview');
     const policy = await db.read<SourcePolicyRecord>('meta', `policy:${c.id}`);
-    result.connections.push({ ref: c.id, accountId: c.accountId, identityVersion: 1, copies: policy?.policy.copies ?? 'sourceAndSemantic',
+    result.connections.push({ ref: c.id, siteKey: c.siteKey ?? legacySite.siteKey, accountId: c.accountId, identityVersion: c.identityVersion, copies: policy?.policy.copies ?? 'sourceAndSemantic',
       mounts: mounts.filter(m => m.connectionId === c.id).map(m => ({ ref: m.id, rootSourceId: sourceRef(m.root.nativeId), aiDestination: m.aiDestination,
         folders: folders.filter(f => f.mountId === m.id).map(f => ({ collectionId: f.collectionId, nativeSourceId: sourceRef(f.native?.nativeId), state: f.state })) })),
       associations: reps.filter(r => r.connectionId === c.id).map(r => ({ itemId: r.itemId, collectionId: r.sourceCollectionId, mountRef: r.mountId,
@@ -59,7 +62,7 @@ export async function exportPortableSources(db: SourceDatabase, nativeSourceIds:
     if (!pending.length && !associations.length) continue;
     const mapRef = (ref: string) => sourceDigest([restore.id, c.ref, ref]);
     const mapNative = (ref: string | null) => ref && Object.hasOwn(restore.nativeIds, ref) ? sourceRef(restore.nativeIds[ref]) : null;
-    result.connections.push({ ref: sourceDigest([restore.id, c.ref]), accountId: c.accountId, identityVersion: 1, copies: c.copies,
+    result.connections.push({ ref: sourceDigest([restore.id, c.ref]), siteKey: c.siteKey ?? legacySite.siteKey, accountId: c.accountId, identityVersion: c.identityVersion, copies: c.copies,
       mounts: pending.map(m => ({ ...m, ref: mapRef(m.ref), rootSourceId: mapNative(m.rootSourceId), folders: m.folders.map(f => ({ ...f, nativeSourceId: mapNative(f.nativeSourceId) })) })),
       associations: associations.map(r => ({ ...r, mountRef: r.mountRef && mapRef(r.mountRef), nativeSourceId: mapNative(r.nativeSourceId) })) });
   }
@@ -75,14 +78,14 @@ export async function restorePortableSources(db: SourceDatabase, id: string, dat
     if (old) { if (sourceDigest(old.data) !== sourceDigest(parsed) || sourceDigest(old.nativeIds) !== sourceDigest(mapping)) throw new Error('sourceRestoreConflict'); return; }
     put(tx, 'meta', key, { id, data: parsed, nativeIds: mapping, state: 'disabled', reviewed: [] } satisfies RestoredSources);
     for (const c of parsed.connections) {
-      const gate = `restoredAccount:${c.accountId}`, ids = await get<string[]>(tx, 'meta', gate) ?? [];
+      const gate = accountGate(c), ids = await get<string[]>(tx, 'meta', gate) ?? [];
       put(tx, 'meta', gate, [...new Set([...ids, id])]);
     }
   });
 }
 export async function assertSourceRebound(db: SourceDatabase, connectionId: string) {
-  const authority = await db.read<SourceAuthority>('authorities', 'bundled.bilibili');
-  if (authority?.connectionId === connectionId && authority.accountId && (await db.read<string[]>('meta', `restoredAccount:${authority.accountId}`))?.length)
+  const authority = await readConnectionAuthority(db, connectionId);
+  if (authority?.accountId && (await db.read<string[]>('meta', accountGate(await readSourceConnection(db, connectionId))))?.length)
     throw new Error('sourceRestoreRebindRequired');
 }
 export async function assertRestoredItemAvailable(db: SourceDatabase, connectionId: string, itemId: string, collectionId?: string) {
@@ -92,18 +95,19 @@ export async function assertRestoredItemAvailable(db: SourceDatabase, connection
 export interface RebindPorts { authority(): Promise<SourceAuthority | undefined>; mount(): Promise<SourceMount | undefined>;
   lookup(id: string): Promise<LayoutNativeNode | null>; deviceId(): Promise<string> }
 /** Rebind only exact import-receipt mappings. No URL/title search, native moves or creates. */
-export function createSourceRebinder(db: SourceDatabase, ports: RebindPorts) {
+export function createSourceRebinder(db: SourceDatabase, ports: RebindPorts, definition: SiteDefinition = legacySite) {
+  const matches = (c: PortableSources['connections'][number]) => (c.siteKey ?? legacySite.siteKey) === definition.siteKey && c.identityVersion === definition.identityVersion;
   async function reviewBlocked(id: string, connectionRef: string) {
     const restore = await db.read<RestoredSources>('meta', `restoredSources:${id}`), a = await ports.authority();
     const c = restore?.data.connections.find(c => c.ref === connectionRef);
-    if (!restore || !c || !a?.enabled || !a.connectionId || a.accountId !== c.accountId) throw new Error('sourceRestoreAccountOrRootRequired');
+    if (!restore || !c || !matches(c) || !a?.enabled || !a.connectionId || a.accountId !== c.accountId) throw new Error('sourceRestoreAccountOrRootRequired');
     const payload = { id, connectionRef, connection: c, authority: a, action: 'retainBlockedForManualReview', nativeWrites: 0 };
     return { ...payload, digest: sourceDigest(payload) };
   }
   async function preview(id: string, connectionRef: string, mountRef: string) {
     const restore = await db.read<RestoredSources>('meta', `restoredSources:${id}`), a = await ports.authority(), mount = await ports.mount();
     const c = restore?.data.connections.find(c => c.ref === connectionRef), original = c?.mounts.find(m => m.ref === mountRef);
-    if (!restore || !c || !original || !a?.enabled || !a.connectionId || a.accountId !== c.accountId || !mount || mount.connectionId !== a.connectionId) throw new Error('sourceRestoreAccountOrRootRequired');
+    if (!restore || !c || !matches(c) || !original || !a?.enabled || !a.connectionId || a.accountId !== c.accountId || !mount || mount.connectionId !== a.connectionId) throw new Error('sourceRestoreAccountOrRootRequired');
     if (original.rootSourceId === null || !Object.hasOwn(restore.nativeIds, original.rootSourceId) || restore.nativeIds[original.rootSourceId] !== mount.root.nativeId) throw new Error('sourceRestoreRootMismatch');
     const deviceId = await ports.deviceId(), root = await ports.lookup(mount.root.nativeId);
     if (mount.state !== 'active' || mount.root.deviceId !== deviceId || root?.url || root?.dateAdded !== mount.root.dateAdded) throw new Error('bindingNeedsRebind');
@@ -117,7 +121,7 @@ export function createSourceRebinder(db: SourceDatabase, ports: RebindPorts) {
     for (const association of c.associations.filter(r => r.mountRef === mountRef)) {
       const nativeId = association.nativeSourceId && Object.hasOwn(restore.nativeIds, association.nativeSourceId) && restore.nativeIds[association.nativeSourceId], node = nativeId ? await ports.lookup(nativeId) : null;
       const folder = folders.find(f => f.collectionId === association.collectionId);
-      if (association.state !== 'active' || !node?.dateAdded || node.url !== `https://www.bilibili.com/video/av${association.itemId.slice(9)}`
+      if (association.state !== 'active' || !node?.dateAdded || node.url !== identityDefinition(c.siteKey ?? legacySite.siteKey, c.identityVersion).itemUrl(association.itemId)
         || node.parentId !== folder?.node.id) review.push(`item:${association.itemId}:${association.state}:manualReview`);
       else representations.push({ association, node });
     }
@@ -129,14 +133,14 @@ export function createSourceRebinder(db: SourceDatabase, ports: RebindPorts) {
   return { preview, reviewBlocked, async retainBlocked(id: string, connectionRef: string, digest: string) {
     const p = await reviewBlocked(id, connectionRef); if (p.digest !== digest) throw new Error('sourceRestorePreviewStale');
     await db.transaction(['meta', 'authorities'], 'readwrite', async tx => {
-      if (sourceDigest(await get(tx, 'authorities', 'bundled.bilibili')) !== sourceDigest(p.authority)) throw new Error('sourceRestorePreviewStale');
+      if (sourceDigest(await authorityForConnection(tx, p.authority.connectionId!)) !== sourceDigest(p.authority)) throw new Error('sourceRestorePreviewStale');
       const key = `restoredSources:${id}`, restore = (await get<RestoredSources>(tx, 'meta', key))!;
       for (const r of p.connection.associations) put(tx, 'meta', sourceKey('restoredItemBlocked', p.authority.connectionId, r.itemId), { restoreId: id, connectionRef, state: 'blocked', reason: 'sourceRestoredCopyNeedsReview' });
       for (const m of p.connection.mounts) for (const f of m.folders) put(tx, 'meta', sourceKey('restoredCollectionBlocked', p.authority.connectionId, f.collectionId), { restoreId: id, connectionRef, state: 'blocked', reason: 'sourceRestoredFolderNeedsReview' });
       const reviewed = [...new Set([...restore.reviewed, sourceKey(connectionRef, '__blocked__')])]; put(tx, 'meta', key, { ...restore, reviewed });
-      const done = restore.data.connections.filter(c => c.accountId === p.authority.accountId).every(c => reviewed.includes(sourceKey(c.ref, '__blocked__'))
+      const done = restore.data.connections.filter(c => matches(c) && c.accountId === p.authority.accountId).every(c => reviewed.includes(sourceKey(c.ref, '__blocked__'))
         || c.mounts.length > 0 && !c.associations.some(r => !r.mountRef) && c.mounts.every(m => reviewed.includes(sourceKey(c.ref, m.ref))));
-      if (done) { const gate = `restoredAccount:${p.authority.accountId}`; put(tx, 'meta', gate, (await get<string[]>(tx, 'meta', gate) ?? []).filter(v => v !== id)); }
+      if (done) { const gate = accountGate({ siteKey: definition.siteKey, identityVersion: definition.identityVersion, accountId: p.authority.accountId! }); put(tx, 'meta', gate, (await get<string[]>(tx, 'meta', gate) ?? []).filter(v => v !== id)); }
     });
     return { state: 'blocked', nativeWrites: 0 };
   }, async approve(id: string, connectionRef: string, mountRef: string, digest: string) {
@@ -146,7 +150,7 @@ export function createSourceRebinder(db: SourceDatabase, ports: RebindPorts) {
     const binding = <T extends 'bookmark' | 'folder'>(node: LayoutNativeNode, kind: T) => ({ bindingId: crypto.randomUUID(), deviceId: p.deviceId,
       nativeId: node.id, kind, dateAdded: node.dateAdded!, proof: { kind: 'explicitAdoption' as const, id: crypto.randomUUID() } });
     await db.transaction(['meta', 'authorities', 'mounts', 'folderReservations', 'representations', 'itemReservations'], 'readwrite', async tx => {
-      if (sourceDigest(await get(tx, 'authorities', 'bundled.bilibili')) !== sourceDigest(p.authority)
+      if (sourceDigest(await authorityForConnection(tx, p.authority.connectionId!)) !== sourceDigest(p.authority)
         || sourceDigest(await get(tx, 'mounts', sourceKey(p.mount.connectionId, p.mount.rootRuleId))) !== sourceDigest(p.mount)) throw new Error('sourceRestorePreviewStale');
       const key = `restoredSources:${id}`, restore = (await get<RestoredSources>(tx, 'meta', key))!;
       const scope = sourceKey(connectionRef, mountRef); if (restore.reviewed.includes(scope)) return;
@@ -164,11 +168,17 @@ export function createSourceRebinder(db: SourceDatabase, ports: RebindPorts) {
         put(tx, 'representations', key, rep);
       }
       const reviewed = [...restore.reviewed, scope]; put(tx, 'meta', key, { ...restore, reviewed });
-      const done = restore.data.connections.filter(c => c.accountId === p.authority.accountId).every(c => c.mounts.length > 0
+      const done = restore.data.connections.filter(c => matches(c) && c.accountId === p.authority.accountId).every(c => c.mounts.length > 0
         && !c.associations.some(r => !r.mountRef) && c.mounts.every(m => reviewed.includes(sourceKey(c.ref, m.ref))));
-      if (done) { const gate = `restoredAccount:${p.authority.accountId}`;
+      if (done) { const gate = accountGate({ siteKey: definition.siteKey, identityVersion: definition.identityVersion, accountId: p.authority.accountId! });
         put(tx, 'meta', gate, (await get<string[]>(tx, 'meta', gate) ?? []).filter(v => v !== id)); }
     });
     return { adopted: p.representations.length, nativeWrites: 0 };
   } };
+}
+
+function accountGate(c: { siteKey?: string; identityVersion: number; accountId: string }) {
+  const siteKey = c.siteKey ?? legacySite.siteKey;
+  return siteKey === legacySite.siteKey && c.identityVersion === legacySite.identityVersion
+    ? `restoredAccount:${c.accountId}` : sourceKey('restoredAccount', siteKey, c.identityVersion, c.accountId);
 }

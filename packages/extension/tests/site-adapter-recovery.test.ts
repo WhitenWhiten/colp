@@ -51,7 +51,7 @@ async function restored() {
     root: { bindingId: 'new-proof', nativeId: 'newRoot', deviceId: 'new-device', dateAdded: 11, kind: 'folder', proof: { kind: 'explicitAdoption', id: 'new-root-adoption' } } };
   const nodes = new Map<string, LayoutNativeNode>([['newRoot', { id: 'newRoot', title: 'Root', parentId: '1', dateAdded: 11 }],
     ['newFolder', { id: 'newFolder', title: 'B', parentId: 'newRoot', dateAdded: 12 }], ['newBookmark', { id: 'newBookmark', title: 'Video', parentId: 'newFolder', dateAdded: 13, url: 'https://www.bilibili.com/video/av1' }]]);
-  await db.transaction(['authorities', 'mounts'], 'readwrite', async tx => { tx.objectStore('authorities').put(authority, 'bundled.bilibili'); tx.objectStore('mounts').put(mount, sourceKey(mount.connectionId, mount.rootRuleId)); });
+  await db.transaction(['authorities', 'mounts', 'connections'], 'readwrite', async tx => { tx.objectStore('authorities').put(authority, 'bundled.bilibili'); tx.objectStore('connections').put({ id: 'new-connection', accountId: '7', siteKey: 'bilibili', identityVersion: 1 }, sourceKey('bilibili', '7')); tx.objectStore('mounts').put(mount, sourceKey(mount.connectionId, mount.rootRuleId)); });
   const mapping = new Map([['oldRoot', 'newRoot'], ['oldFolder', 'newFolder'], ['oldBookmark', 'newBookmark']]);
   await restorePortableSources(db, 'restore', portable(), mapping);
   const rebinder = createSourceRebinder(db, { authority: async () => authority, mount: async () => mount, lookup: async id => nodes.get(id) ?? null, deviceId: async () => 'new-device' });
@@ -62,7 +62,7 @@ test('foreign backup remains inert and idempotent; matching account/root preview
     await restorePortableSources(f.db, 'restore', portable(), f.mapping);
     const repeated = await exportPortableSources(f.db, new Set(['newRoot', 'newFolder', 'newBookmark']));
     expect(repeated?.connections[0]?.mounts[0]?.rootSourceId).toBe('newRoot');
-    expect(repeated?.connections[0]?.associations[0]?.nativeSourceId).toBe('newBookmark');
+    expect(repeated?.connections.flatMap(c => c.associations)[0]?.nativeSourceId).toBe('newBookmark');
     await expect(assertSourceRebound(f.db, 'new-connection')).rejects.toThrow('sourceRestoreRebindRequired');
     expect((await exportSourceDiagnosticFromDb(f.db)).stores.find(s => s.name === 'outbox')?.records).toEqual([]);
     const p = await f.rebinder.preview('restore', 'foreign-connection', 'foreign-mount'); expect(p.review).toEqual([]);

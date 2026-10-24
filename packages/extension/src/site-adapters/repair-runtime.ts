@@ -1,3 +1,4 @@
+import { legacySite, type SiteDefinition } from './registry.js';
 import { exportSourceDiagnostic, diagnosticSummary } from './repair.js';
 import { siteLedger } from './source-runtime.js';
 import { createSourceRebinder, type RestoredSources } from './portable.js';
@@ -15,16 +16,17 @@ const blockedReview = object({ kind: literal('known.siteAdapters.repair.reviewBl
   connectionRef: str(256), digest: v => v === undefined || str(128)(v) });
 export const validRepairRequest = (raw: unknown) => jsonBytes(raw, 16384) && (status(raw) || rebind(raw) || blockedReview(raw));
 const db = siteLedger.db;
-const rebinder = createSourceRebinder(db, {
-  authority: () => db.read<SourceAuthority>('authorities', 'bundled.bilibili'),
+const rebinderFor = (definition: SiteDefinition) => createSourceRebinder(db, {
+  authority: () => db.read<SourceAuthority>('authorities', definition.adapterId),
   async mount() {
-    const a = await db.read<SourceAuthority>('authorities', 'bundled.bilibili');
+    const a = await db.read<SourceAuthority>('authorities', definition.adapterId);
     const config = a?.connectionId ? await db.read<{ ruleId: string }>('meta', `archiveConfig:${a.connectionId}`) : undefined;
     return config && a?.connectionId ? db.read<SourceMount>('mounts', JSON.stringify([a.connectionId, config.ruleId])) : undefined;
   }, deviceId: captureDeviceId,
   async lookup(id) { await assertPersonalNativeAllowed(id); return (await chrome.bookmarks.get(id).catch(() => []))[0] ?? null; },
-});
-export async function handleRepairRequest(raw: unknown) {
+}, definition);
+export async function handleRepairRequest(raw: unknown, definition: SiteDefinition = legacySite) {
+  const rebinder = rebinderFor(definition);
   if (!validRepairRequest(raw)) throw new Error('invalid');
   const r = raw as { kind: string; restoreId: string; connectionRef: string; mountRef: string; digest?: string };
   if (r.kind.endsWith('.export')) return { ok: true, diagnostic: await exportSourceDiagnostic() };

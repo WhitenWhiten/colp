@@ -1,3 +1,6 @@
+import { contentBindingKey } from './content-identity.js';
+import { legacySite, type SiteDefinition } from './registry.js';
+import { readConnectionAuthority } from './ledger.js';
 import { installCaptureContentBindings, assertCaptureContent } from '../capture/content-binding.js';
 import { createContentBindings, contentIdentityFromUrl } from './content-bindings.js';
 import { siteLedger } from './source-runtime.js';
@@ -24,22 +27,22 @@ export async function assertContentNative(binding: NativeBinding<'bookmark'>, ex
     || expected && (node.title !== expected.title || node.parentId !== expected.parentId || expected.url && node.url !== expected.url)) throw new Error('content_binding_needs_review');
 }
 export const contentBindings = createContentBindings(siteLedger.db, assertContentNative);
-let resolveIdentity: (url: string, tabId?: number) => Promise<string | null> = async () => null;
+let resolveIdentity: (url: string, tabId?: number) => Promise<import('./contracts.js').ContentIdentity | null> = async () => null;
 export function installContentResolver(resolve: typeof resolveIdentity) { resolveIdentity = resolve; }
 const adoptSchema = object({ kind: literal('known.siteAdapters.content.adopt'), captureId: str(128), nativeId: str(128) });
 const listSchema = object({ kind: literal('known.siteAdapters.content.list') });
 const accountAdoptSchema = object({ kind: literal('known.siteAdapters.content.adoptAccount'), itemId: str(128), bindingId: str(128), allowAccountChange: literal(true) });
 export const validContentRequest = (v: unknown) => adoptSchema(v) || listSchema(v) || accountAdoptSchema(v);
-export async function handleContentRequest(raw: unknown) {
+export async function handleContentRequest(raw: unknown, definition: SiteDefinition = legacySite) {
   if (listSchema(raw)) {
     const rows = await siteLedger.db.transaction(['contentBindings'], 'readonly', tx => cursorPage<ContentBindingRow>(tx.objectStore('contentBindings'), null, 1001));
-    const authority = await siteLedger.db.read<import('./ledger-types.js').SourceAuthority>('authorities', 'bundled.bilibili');
+    const authority = await siteLedger.db.read<import('./ledger-types.js').SourceAuthority>('authorities', definition.adapterId);
     return { ok: true, connectionId: authority?.enabled ? authority.connectionId : null, truncated: rows.length > 1000 || rows.filter(b => !b.supersededBy).length > 50,
-      bindings: rows.filter(b => !b.supersededBy).slice(0, 50).map(b => ({ id: b.id, itemId: b.content.itemId, title: b.title, state: b.state, connectionId: b.connectionId, native: !!b.native })) };
+      bindings: rows.filter(b => !b.supersededBy && b.content.siteKey === definition.siteKey && b.content.identityVersion === definition.identityVersion).slice(0, 50).map(b => ({ id: b.id, itemId: b.content.itemId, title: b.title, state: b.state, connectionId: b.connectionId, native: !!b.native })) };
   }
   if (accountAdoptSchema(raw)) {
-    const r = raw as { itemId: string; bindingId: string }, b = await siteLedger.db.read<ContentBindingRow>('contentBindings', sourceKey('bilibili', r.itemId, r.bindingId));
-    const authority = await siteLedger.db.read<import('./ledger-types.js').SourceAuthority>('authorities', 'bundled.bilibili');
+    const r = raw as { itemId: string; bindingId: string }, b = await siteLedger.db.read<ContentBindingRow>('contentBindings', contentBindingKey({ siteKey: definition.siteKey, identityVersion: definition.identityVersion, itemId: r.itemId }, r.bindingId));
+    const authority = await siteLedger.db.read<import('./ledger-types.js').SourceAuthority>('authorities', definition.adapterId);
     if (!b?.native || b.state !== 'active' || b.supersededBy || !authority?.enabled || !authority.connectionId) throw new Error('content_adoption_unavailable');
     await assertContentNative(b.native, { title: b.title, parentId: b.parentId, url: b.url });
     await contentBindings.adopt(b, { ...b.native, proof: { kind: 'explicitAdoption', id: crypto.randomUUID() } },
@@ -64,9 +67,9 @@ export function installContentBindings() {
   installCaptureContentBindings({
     async prepare(input) {
       if (!['manual-popup', 'action-popup'].includes(input.source)) return null;
-      const identity = contentIdentityFromUrl(input.url), itemId = identity?.itemId ?? await resolveIdentity(input.url, input.tabId);
-      if (!itemId) return null; // Ordinary unresolved saves retain the existing explicit adoption path.
-      const b = await contentBindings.prepare({ ...input, itemId });
+      const identity = contentIdentityFromUrl(input.url) ?? await resolveIdentity(input.url, input.tabId);
+      if (!identity) return null; // Ordinary unresolved saves retain the existing explicit adoption path.
+      const itemId = identity.itemId, b = await contentBindings.prepare({ ...input, itemId, content: identity });
       return { bindingId: b.id, itemId, connectionId: b.connectionId, mode: b.mode, captureIntentId: b.captureIntentId, forceAnother: b.forceAnother,
         ...(b.native ? { nativeId: b.native.nativeId, dateAdded: b.native.dateAdded! } : {}), title: b.title, url: b.url, parentId: b.parentId };
     },
@@ -78,7 +81,7 @@ export function installContentBindings() {
       if (b.connectionId) {
         await assertSourceRebound(siteLedger.db, b.connectionId);
         await assertRestoredItemAvailable(siteLedger.db, b.connectionId, b.content.itemId);
-        const a = await siteLedger.db.read<import('./ledger-types.js').SourceAuthority>('authorities', 'bundled.bilibili');
+        const a = await readConnectionAuthority(siteLedger.db, b.connectionId);
         const p = await siteLedger.db.read<import('./layout.js').SourcePolicyRecord>('meta', `policy:${b.connectionId}`);
         if (!a?.enabled || a.connectionId !== b.connectionId || !p?.enabled || p.policy.revision !== b.policyRevision
           || b.sourceGeneration && (b.sourceGeneration[0] !== a.installationGeneration || b.sourceGeneration[1] !== a.sourceSessionGeneration)) throw new Error('source_policy_changed');
@@ -104,7 +107,7 @@ export function installContentBindings() {
       await move(); // Stable native identity + explicit target; an unknown result never authorizes a create.
       await assertContentNative(b.native, { title: b.title, parentId: target });
       await siteLedger.db.transaction(['meta', 'contentBindings', 'representations'], 'readwrite', async tx => {
-        const key = sourceKey('bilibili', b.content.itemId, b.id), current = await get<ContentBindingRow>(tx, 'contentBindings', key);
+        const key = contentBindingKey(b.content, b.id), current = await get<ContentBindingRow>(tx, 'contentBindings', key);
         if (!current || current.state !== 'active' || current.supersededBy) throw new Error('content_binding_changed');
         put(tx, 'contentBindings', key, { ...current, parentId: target });
         if (b.connectionId) for (const r of await rows<Representation>(tx, 'representations', b.connectionId, b.content.itemId)) {

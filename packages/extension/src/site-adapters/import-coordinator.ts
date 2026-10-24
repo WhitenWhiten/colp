@@ -1,3 +1,5 @@
+import { legacySite } from './registry.js';
+import { installationKey } from './installation.js';
 import { authorityForConnection, readConnectionAuthority } from './ledger.js';
 import { releaseUnsubmittedReservations } from './reservations.js';
 import { createLane } from '../automation/lane.js';
@@ -17,6 +19,7 @@ type Layout = ReturnType<typeof createSourceLayout>;
 interface Edge { kind: 'collectedEdge'; collectionId: string; itemId: string }
 interface Snapshot { browserRules: BrowserRuleSnapshot; policyRevision: number }
 export interface ImportJob {
+  installationId?: string;
   id: string; context: SourceContext; selected: readonly string[];
   phase: 'scanning' | 'paused' | 'preparing' | 'preview' | 'approved' | 'attention' | 'cancelled' | 'completed';
   stage: 'collections' | 'items'; found: readonly string[]; collectionIndex: number; cursor: string | null;
@@ -33,13 +36,15 @@ interface Ports {
   execute(planId: string, effectId: string): Promise<{ status: string; reason?: string }>;
   alarm(at: number): void;
 }
-const ACTIVE = 'activeImport:v1', key = (id: string) => `importJob:${id}`;
+const key = (id: string) => `importJob:${id}`;
 const EDGE_LIMIT = LIMITS.importItems, PAGE_LIMIT = 2000;
 const emptyCounts = () => ({ createFolders: 0, createBookmarks: 0, reuseBookmarks: 0, review: 0 });
 /** Scan facts, freeze exact scope, then approve: none of the first two phases grants native writes. */
 export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: ReturnType<typeof createReadScheduler>, ports: Ports) {
-  const db = ledger.db, lane = createLane();
-  const load = async (id?: string) => { const active = id ?? await db.read<string>('meta', ACTIVE); return active ? db.read<ImportJob>('meta', key(active)) : undefined; };
+  const db = ledger.db, lane = createLane(), ACTIVE = installationKey('activeImport:v1', ledger.definition);
+  const load = async (id?: string) => { const active = id ?? await db.read<string>('meta', ACTIVE); const job = active ? await db.read<ImportJob>('meta', key(active)) : undefined;
+    if (job && (job.installationId ?? legacySite.adapterId) !== ledger.definition.adapterId) throw new Error('sourceAuthorizationChanged');
+    return job; };
   const save = (job: ImportJob) => db.transaction(['meta'], 'readwrite', async tx => { put(tx, 'meta', key(job.id), job); });
   async function authority(job: ImportJob, tx?: IDBTransaction) {
     const a = tx ? await authorityForConnection(tx, job.context.connectionId) : await readConnectionAuthority(db, job.context.connectionId);
@@ -174,7 +179,7 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
       if (!selected.length || selected.length > 64 || new Set(selected).size !== selected.length) throw new Error('invalidScope');
       const source = await ports.source(); if (!source) throw new Error('pageUnavailable');
       const id = crypto.randomUUID(); await ledger.startImport(source.context, id);
-      const job: ImportJob = { id, context: source.context, selected, phase: 'scanning', stage: 'collections', found: [], collectionIndex: 0, cursor: null, outstanding: null,
+      const job: ImportJob = { installationId: ledger.definition.adapterId, id, context: source.context, selected, phase: 'scanning', stage: 'collections', found: [], collectionIndex: 0, cursor: null, outstanding: null,
         pages: 0, edgeCount: 0, scanComplete: false, omissions: 0, omissionSamples: [], coverage: 'complete', pageReceipts: [], reason: null, previewId: null, previewRevision: 0, nextEdge: 0,
         planIds: [], nextPlan: 0, scanSnapshot: await ports.snapshot(), counts: emptyCounts(), snapshot: null, approvalId: null };
       await db.transaction(['meta'], 'readwrite', async tx => { put(tx, 'meta', key(id), job); put(tx, 'meta', ACTIVE, id); }); ports.alarm(Date.now() + 100); return id;
@@ -262,12 +267,13 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
     resume: (id: string) => lane(async () => {
       const job = await load(id), source = await ports.source();
       if (!job || job.phase !== 'paused' || !source) throw new Error('importChanged'); await authority(job);
+      const restart = ledger.definition.importResume !== 'stableCursor' || job.reason === 'staleCursor';
       await db.transaction(['importRuns', 'meta', 'authorities', 'documentLeases'], 'readwrite', async tx => {
         await requireSourceAuthority(tx, source.context);
         const run = await get<SourceImportRun>(tx, 'importRuns', id); if (!run) throw new Error('importMissing');
-        put(tx, 'importRuns', id, { ...run, phase: 'scanning', context: source.context, outstanding: null, cursor: null, seenCursors: [] });
-        put(tx, 'meta', key(id), { ...job, context: source.context, phase: 'scanning', stage: 'collections', found: [], collectionIndex: 0, cursor: null, outstanding: null,
-          coverage: 'partial', scanComplete: false, reason: 'restartAndDeduplicate' });
+        put(tx, 'importRuns', id, { ...run, phase: 'scanning', context: source.context, outstanding: null, ...(restart ? { cursor: null, seenCursors: [] } : {}) });
+        put(tx, 'meta', key(id), { ...job, context: source.context, phase: 'scanning', ...(restart ? { stage: 'collections', found: [], collectionIndex: 0, cursor: null } : {}), outstanding: null,
+          coverage: 'partial', scanComplete: false, reason: restart ? 'restartAndDeduplicate' : 'stableCursor' });
       }); ports.alarm(Date.now() + 100);
     }),
     wake: () => lane(async () => {

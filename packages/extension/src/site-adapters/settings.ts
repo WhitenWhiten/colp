@@ -1,4 +1,5 @@
-import { BILIBILI } from './bilibili/identity.js';
+import { selectedSite, sendSiteMessage, mountSiteSelector } from './settings-client.js';
+mountSiteSelector();
 import './community-settings.js';
 import './cloud-settings.js';
 interface ImportStatus { id: string; phase: string; edgeCount: number; pages: number; omissions: number; coverage: string; reason: string | null; nextEdge: number; nextPlan: number;
@@ -69,7 +70,7 @@ let inspectionRetry: ReturnType<typeof setTimeout> | undefined;
 let refreshTimer: ReturnType<typeof setTimeout> | undefined;
 async function send(message: unknown) {
   clearTimeout(refreshTimer);
-  const result = await chrome.runtime.sendMessage(message) as SiteStatus;
+  const result = await sendSiteMessage(message) as SiteStatus;
   candidate = result.candidateAccount ?? null; confirm.hidden = !candidate;
   document.querySelector('#connection')!.textContent = candidate ? `Detected account ${candidate}. Confirm the account you want to connect.` : '';
   status.textContent = JSON.stringify(result, null, 2);
@@ -88,7 +89,7 @@ async function requestInspection(message: unknown, until = Date.now() + 30000) {
     inspectionRetry = setTimeout(() => { void requestInspection(message, until); }, Math.max(500, result.inspectionStatus.retryAfterMs ?? 1500));
 }
 document.querySelector('#enable')!.addEventListener('click', () => {
-  void chrome.permissions.request({ permissions: ['scripting', 'webNavigation'], origins: [...BILIBILI.matches] }).then(granted => {
+  void chrome.permissions.request({ permissions: ['scripting', 'webNavigation'], origins: [...selectedSite.matches] }).then(granted => {
     if (granted) return send({ kind: 'known.siteAdapters.enable', enabled: true }); status.textContent = 'Site access is required.';
   }).catch(() => { status.textContent = 'Site access is unavailable.'; });
 });
@@ -120,14 +121,14 @@ button('next-catalog').addEventListener('click', () => { if (nextCatalog) void r
 collections.addEventListener('change', () => { for (const o of Array.from(collections.options)) { if (o.selected) collectionSelection.add(o.value); else collectionSelection.delete(o.value); } });
 
 button('read-bindings').addEventListener('click', () => { void (async () => {
-  const result = await chrome.runtime.sendMessage({ kind: 'known.siteAdapters.content.list' }) as { ok?: boolean; connectionId?: string; truncated?: boolean;
+  const result = await sendSiteMessage({ kind: 'known.siteAdapters.content.list' }) as { ok?: boolean; connectionId?: string; truncated?: boolean;
     bindings?: { id: string; itemId: string; title: string; state: string; connectionId: string | null; native: boolean }[] };
   const container = document.querySelector('#content-bindings')!; container.replaceChildren();
   for (const b of result.bindings ?? []) {
     const row = document.createElement('p'); row.textContent = `${b.title} (${b.itemId}): ${b.state}. `;
     if (b.native && b.state === 'active' && result.connectionId && b.connectionId !== result.connectionId) {
       const adopt = document.createElement('button'); adopt.type = 'button'; adopt.textContent = 'Adopt this copy into the connected account';
-      adopt.onclick = () => { void chrome.runtime.sendMessage({ kind: 'known.siteAdapters.content.adoptAccount', itemId: b.itemId, bindingId: b.id, allowAccountChange: true }).then(r => {
+      adopt.onclick = () => { void sendSiteMessage({ kind: 'known.siteAdapters.content.adoptAccount', itemId: b.itemId, bindingId: b.id, allowAccountChange: true }).then(r => {
         status.textContent = JSON.stringify(r, null, 2); if ((r as { ok?: boolean }).ok) adopt.disabled = true;
       }); }; row.append(adopt);
     }
@@ -137,7 +138,7 @@ button('read-bindings').addEventListener('click', () => { void (async () => {
 })(); });
 
 async function repair(kind: 'status' | 'recover' | 'export') {
-  const result = await chrome.runtime.sendMessage({ kind: `known.siteAdapters.repair.${kind}` }) as { ok?: boolean; error?: string; diagnostic?: unknown;
+  const result = await sendSiteMessage({ kind: `known.siteAdapters.repair.${kind}` }) as { ok?: boolean; error?: string; diagnostic?: unknown;
     restored?: { id: string; connections: { ref: string; accountId: string; retainedBlocked: boolean; mounts: { ref: string; rootCandidate: string | null; reviewed: boolean }[] }[] }[] };
   const summary = document.querySelector('#repair-summary')!, container = document.querySelector('#repair-records')!;
   if (result.diagnostic) {
@@ -153,10 +154,10 @@ async function repair(kind: 'status' | 'recover' | 'export') {
     preview.textContent = 'Review keeping this restored scope blocked';
     preview.onclick = () => { void (async () => {
       const request = { restoreId: restored.id, connectionRef: connection.ref };
-      const response = await chrome.runtime.sendMessage({ kind: 'known.siteAdapters.repair.reviewBlocked', ...request }) as { preview?: { digest: string } };
+      const response = await sendSiteMessage({ kind: 'known.siteAdapters.repair.reviewBlocked', ...request }) as { preview?: { digest: string } };
       summary.textContent = JSON.stringify(response, null, 2);
       if (response.preview) { const approve = document.createElement('button'); approve.type = 'button'; approve.textContent = 'Keep these restored items and collections blocked';
-        approve.onclick = () => { approve.disabled = true; void chrome.runtime.sendMessage({ kind: 'known.siteAdapters.repair.retainBlocked', ...request, digest: response.preview!.digest }).then(r => { summary.textContent = JSON.stringify(r, null, 2); }); }; row.append(approve); }
+        approve.onclick = () => { approve.disabled = true; void sendSiteMessage({ kind: 'known.siteAdapters.repair.retainBlocked', ...request, digest: response.preview!.digest }).then(r => { summary.textContent = JSON.stringify(r, null, 2); }); }; row.append(approve); }
     })(); }; row.append(preview); container.append(row);
   }
   for (const restored of result.restored ?? []) for (const connection of restored.connections) for (const mount of connection.mounts) {
@@ -164,11 +165,11 @@ async function repair(kind: 'status' | 'recover' | 'export') {
     if (!mount.reviewed) { const preview = document.createElement('button'); preview.textContent = 'Preview account and root rebinding'; preview.type = 'button';
       preview.onclick = () => { void (async () => {
         const request = { restoreId: restored.id, connectionRef: connection.ref, mountRef: mount.ref };
-        const response = await chrome.runtime.sendMessage({ kind: 'known.siteAdapters.repair.preview', ...request }) as { preview?: { digest: string; review: string[] }; error?: string };
+        const response = await sendSiteMessage({ kind: 'known.siteAdapters.repair.preview', ...request }) as { preview?: { digest: string; review: string[] }; error?: string };
         summary.textContent = JSON.stringify(response, null, 2);
         if (response.preview && !response.preview.review.length) {
           const approve = document.createElement('button'); approve.textContent = 'Adopt these proven copies (no native writes)'; approve.type = 'button';
-          approve.onclick = () => { approve.disabled = true; void chrome.runtime.sendMessage({ kind: 'known.siteAdapters.repair.approve', ...request, digest: response.preview!.digest }).then(r => { summary.textContent = JSON.stringify(r, null, 2); }); };
+          approve.onclick = () => { approve.disabled = true; void sendSiteMessage({ kind: 'known.siteAdapters.repair.approve', ...request, digest: response.preview!.digest }).then(r => { summary.textContent = JSON.stringify(r, null, 2); }); };
           row.append(approve);
         }
       })(); }; row.append(preview); }

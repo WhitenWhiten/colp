@@ -1,8 +1,9 @@
+import { sendSiteMessage } from './settings-client.js';
 interface Reply { digest?: string; edges?: unknown[]; receipt?: unknown; error?: string; configured?: boolean; approved?: boolean; state?: string }
 const summary = document.querySelector<HTMLPreElement>('#cloud-status')!;
 let approval: string | undefined, plan: string | undefined;
 async function call(action: string, input: Record<string, unknown> = {}) {
-  const result = await chrome.runtime.sendMessage({ kind: `known.siteAdapters.cloud.${action}`, ...input }) as Reply;
+  const result = await sendSiteMessage({ kind: `known.siteAdapters.cloud.${action}`, ...input }) as Reply;
   summary.textContent = JSON.stringify(result, null, 2);
   if (result.error) return;
   if (action === 'review') approval = result.digest;

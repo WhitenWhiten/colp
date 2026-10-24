@@ -1,3 +1,4 @@
+import { legacySite } from '../src/site-adapters/registry.js';
 import { createContentBindings } from '../src/site-adapters/content-bindings.js';
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
@@ -18,9 +19,9 @@ import type { SourceContext } from '../src/site-adapters/ledger-types.js';
 import type { PlannedExecutionPorts, PlannedNativeResult } from '../src/site-adapters/planned-types.js';
 import { video } from './fixtures/site-adapters/bilibili.js';
 afterEach(() => vi.restoreAllMocks());
-async function fixture(copies: import('../src/site-adapters/contracts.js').SavePolicy['copies'] = 'sourceAndSemantic') {
+async function fixture(copies: import('../src/site-adapters/contracts.js').SavePolicy['copies'] = 'sourceAndSemantic', importResume: 'stableCursor' | 'restartAndDeduplicate' = 'restartAndDeduplicate') {
   let time = Date.now(); vi.spyOn(Date, 'now').mockImplementation(() => time);
-  const db = createSourceDatabase(new IDBFactory()), ledger = createSourceLedger(db), storage = new MemoryStorageArea();
+  const db = createSourceDatabase(new IDBFactory()), ledger = createSourceLedger(db, {}, { ...legacySite, importResume }), storage = new MemoryStorageArea();
   const a = await ledger.setAuthority({ enabled: true, installationGeneration: 1, sourceSessionGeneration: 1, accountId: '42', negativeReadback: false });
   let context: SourceContext = { connectionId: a.connectionId!, documentId: 'doc', leaseId: 'lease', installationGeneration: 1, sourceSessionGeneration: 1, routeEpoch: 0, tabId: 1 };
   await ledger.bindLease(context, time + 10000000);
@@ -267,4 +268,13 @@ test('restart clears traversal cursor history but preserves entity deduplication
   const loop = await f.importer.accept(f.context(), { protocolVersion: 1, requestId: c.pageRequestId, leaseId: c.leaseId, capability: 'host-validated',
     operation: 'page.result', readSessionId: c.readSessionId, pageRequestId: c.pageRequestId, result: first });
   expect(loop).toMatchObject({ status: 'rejected', reason: 'invalid' }); await f.db.close();
+});
+
+test('registered stable cursor strategy resumes the last accepted cursor under a new lease', async () => {
+  const f = await fixture('sourceAndSemantic', 'stableCursor'), id = await f.importer.start(['101', '102']);
+  await f.page({ ...f.catalog, page: { ...f.catalog.page, nextCursor: 'stable-next' } });
+  await f.renew(); f.advance(); await f.importer.wake(); await f.importer.resume(id);
+  f.advance(); await f.importer.wake();
+  expect(f.sent.at(-1)).toMatchObject({ operation: 'readPage', leaseId: 'new-lease', query: { kind: 'collections', cursor: 'stable-next' } });
+  await f.db.close();
 });

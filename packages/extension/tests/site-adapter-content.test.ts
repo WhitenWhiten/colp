@@ -15,6 +15,7 @@ async function fixture(copies: SavePolicy['copies'], connected = true) {
   const bindings = createContentBindings(db, async b => { if (invalid || b.dateAdded !== 10) throw new Error('content_binding_needs_review'); });
   const a = await ledger.setAuthority({ enabled: connected, installationGeneration: 1, sourceSessionGeneration: 1, accountId: connected ? '42' : null, negativeReadback: false });
   const connectionId = a.connectionId ?? 'later-connection';
+  if (!a.connectionId) await db.transaction(['connections'], 'readwrite', async tx => { put(tx, 'connections', 'later-connection', { id: connectionId, siteKey: 'bilibili', identityVersion: 1, accountId: '42' }); });
   const policy: SavePolicy = { revision: 1, copies, sourceRemoval: 'retainArchive', backgroundClassification: 'disabled' };
   await db.transaction(['meta'], 'readwrite', async tx => { put(tx, 'meta', `policy:${connectionId}`, { connectionId, enabled: true, liveArchive: true, policy }); });
   const representation: RepresentationKey = { connectionId, itemId: request.itemId, purpose: 'sourceArchive', sourceCollectionId: '101', mountId: 'mount' };

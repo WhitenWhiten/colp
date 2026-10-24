@@ -1,7 +1,7 @@
 import { readBoundedJson } from '../json-response.js';
 import { sourceDigest } from './source-db.js';
 export const SOURCE_CLOUD_PATH = '/colp/v0.1/sync/source-archives';
-export interface CloudScope { site: 'bilibili'; identityVersion: 1; sourceAccount: string; collectionId: string;
+export interface CloudScope { site: string; identityVersion: number; sourceAccount: string; collectionId: string;
   roots: { ruleId: string; nodeId: string; resourceRevision: string; collectionIds: string[] }[];
   policy: { revision: number; copies: 'sourceAndSemantic'; backgroundClassification: 'disabled'; sourceRemoval: 'retainArchive' };
   rulesDigest: string; bindingDigest: string }

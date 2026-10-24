@@ -1,3 +1,4 @@
+import { installationKey } from './installation.js';
 import { SITE_PORT } from './transport.js';
 import { abortableSleep, SiteReadError } from './read-errors.js';
 import { validHostCommand, validAdapterMessage } from './schemas.js';
@@ -47,7 +48,7 @@ if (location.origin === definition.origin && window.top === window) {
         if (!reply.readerEpoch || readerEpoch !== reply.readerEpoch) localReader.clear?.();
         readerEpoch = reply.readerEpoch; failures = 0;
         const accountId = source.accountId;
-        port = chrome.runtime.connect({ name: SITE_PORT }); const ownPort = port;
+        port = chrome.runtime.connect({ name: installationKey(SITE_PORT, definition) }); const ownPort = port;
         const envelope = { protocolVersion: 1 as const, leaseId: reply.leaseId, capability: reply.capability };
         let busy = false;
         const pending = new Map<string, { resolve(value: AdmissionReply): void; reject(error: Error): void }>();
