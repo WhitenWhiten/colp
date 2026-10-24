@@ -1,3 +1,4 @@
+import { createConfirmationQueue } from './confirmation-queue.js';
 import { installSourceLayout } from './layout-runtime.js';
 import { installSiteAdapterEvidence } from './evidence.js';
 import { installPlannedSaveRuntime, wakePlannedSaves } from './planned-runtime.js';
@@ -40,6 +41,7 @@ async function senderCurrent(sender: SiteSender): Promise<boolean> {
   return !!frame && frame.documentId === sender.documentId && new URL(frame.url).origin === BILIBILI.origin && frame.documentLifecycle === 'active';
 }
 async function inspect(kind: 'collections' | 'items' | 'resolve', collectionId?: string, cursor: string | null = null) {
+  await confirmations.wake();
   const s = await read(), lease = s.leases.find(l => l.expiresAt > Date.now() && ports.has(l.id));
   if (!lease) throw new Error('pageUnavailable');
   const id = crypto.randomUUID(), deadlineAt = Math.min(Date.now() + LIMITS.commandMs, lease.expiresAt - 1000);
@@ -69,6 +71,19 @@ async function acceptInspection(message: AdapterMessage, documentId: string) {
   return true;
 }
 const ports = new Map<string, chrome.runtime.Port>();
+let confirmationTimer: ReturnType<typeof setTimeout> | undefined;
+const confirmations = createConfirmationQueue(siteLedger, reads, {
+  source: async () => {
+    const s = await read(), lease = s.leases.find(l => l.expiresAt > Date.now() && ports.has(l.id));
+    return lease ? { context: await sourceContext(lease), expiresAt: lease.expiresAt } : null;
+  },
+  send: (c, command) => { const port = ports.get(c.leaseId); if (!port) throw new Error('pageUnavailable'); port.postMessage(command); },
+  alarm: at => {
+    chrome.alarms.create(SITE_RECOVERY_ALARM, { when: at });
+    clearTimeout(confirmationTimer);
+    confirmationTimer = setTimeout(() => { void confirmations.wake().catch(() => undefined); }, Math.max(50, at - Date.now()));
+  },
+});
 function disconnectAll() { for (const [id, p] of ports) { try { p.postMessage({ operation: 'shutdown', leaseId: id }); p.disconnect(); } catch { /* gone */ } } ports.clear(); }
 function management(sender: SiteSender) {
   if (sender.id !== chrome.runtime.id || !sender.url) return false;
@@ -100,6 +115,7 @@ async function reconcile() {
 const statusSchema = object({ kind: literal('known.siteAdapters.status') });
 const enableSchema = object({ kind: literal('known.siteAdapters.enable'), enabled: literal(true, false) });
 const inspectSchema = object({ kind: literal('known.siteAdapters.inspect'), operation: literal('collections', 'items', 'resolve'), collectionId: v => v === undefined || /^\d{1,20}$/u.test(String(v)), cursor: v => v === undefined || v === null || str(512)(v) });
+const retrySchema = object({ kind: literal('known.siteAdapters.retryConfirmation') });
 const confirmSchema = object({ kind: literal('known.siteAdapters.confirm'), accountId: str(128) });
 export function installSiteAdapters() {
   installPlannedSaveRuntime();
@@ -135,7 +151,7 @@ export function installSiteAdapters() {
         return reply;
       })().then(respond, () => respond({ status: 'unavailable', reason: 'disabled' })); return true;
     }
-    if (!management(sender) || !(statusSchema(raw) || enableSchema(raw) || confirmSchema(raw) || inspectSchema(raw))) return false;
+    if (!management(sender) || !(statusSchema(raw) || enableSchema(raw) || confirmSchema(raw) || inspectSchema(raw) || retrySchema(raw))) return false;
     void (async () => {
       if (enableSchema(raw)) {
         if (d!.enabled && !await chrome.permissions.contains(grants)) throw new Error('permissionRequired');
@@ -149,30 +165,41 @@ export function installSiteAdapters() {
         await reconcile(); if (d!.enabled) await injectOpen();
       }
       if (confirmSchema(raw)) { await siteTransport.confirm(d!.accountId!); await synchronizeSourceAuthority(await read()); disconnectAll(); await injectOpen(); }
+      let inspectionStatus: unknown;
+      if (retrySchema(raw)) await confirmations.retry();
       if (inspectSchema(raw)) {
         const q = raw as { operation: 'collections' | 'items' | 'resolve'; collectionId?: string; cursor?: string | null };
-        await inspect(q.operation, q.collectionId, q.cursor);
+        inspectionStatus = await inspect(q.operation, q.collectionId, q.cursor);
       }
-      return { ...await siteTransport.status(), inspection: (await chrome.storage.local.get(INSPECTION))[INSPECTION] ?? null };
+      return { ...await siteTransport.status(), capabilities: { itemIdentity: 'avAndBv', observation: 'freshPositiveMembership', humanActionProof: 'unavailable',
+        negativeMembership: 'unavailable', shortLinks: 'unavailable', collectionChanges: 'explicitCatalogRead', nativeWrites: 'unavailable' },
+      confirmations: await confirmations.status(), ...(inspectionStatus ? { inspectionStatus } : {}), inspection: (await chrome.storage.local.get(INSPECTION))[INSPECTION] ?? null };
     })().then(respond, e => respond({ error: e instanceof Error ? e.message : 'unavailable' })); return true;
   });
   chrome.runtime.onConnect.addListener(port => {
     if (port.name !== SITE_PORT || !port.sender) return;
-    let leaseId: string | null = null, closed = false, busy = false;
+    let leaseId: string | null = null, closed = false, pending = 0, tail = Promise.resolve();
     const close = () => { closed = true; if (leaseId && ports.get(leaseId) === port) { ports.delete(leaseId); void siteTransport.retire(leaseId).catch(() => undefined); void siteLedger.revokeLease(leaseId).catch(() => undefined); } };
     port.onDisconnect.addListener(close);
     port.onMessage.addListener(raw => {
-      if (closed || busy || !validAdapterMessage(raw)) { port.disconnect(); close(); return; }
-      busy = true;
-      void (async () => {
+      if (closed || pending >= LIMITS.queue || !validAdapterMessage(raw)) { port.disconnect(); close(); return; }
+      pending++;
+      tail = tail.then(async () => {
+        if (closed) return;
         const lease = await siteTransport.authorize(raw, port.sender!);
         if (!lease || (leaseId && leaseId !== lease.id)) { port.disconnect(); close(); return; }
         leaseId = lease.id;
         const old = ports.get(lease.id); ports.set(lease.id, port); if (old && old !== port) old.disconnect();
         if (raw.operation.endsWith('.result')) {
-          const inspected = await acceptInspection(raw, lease.documentId);
+          const inspected = await confirmations.accept(await sourceContext(lease), raw) || await acceptInspection(raw, lease.documentId);
           port.postMessage({ operation: 'reply', requestId: raw.requestId, reply: inspected ? { status: 'readResult', value: 'inspected' } : { status: 'rejected', reason: 'staleContext' } }); return;
         }
+        if (raw.operation === 'membership.hint') {
+          const receipt = await confirmations.enqueue(await sourceContext(lease), raw.requestId, raw.hint);
+          port.postMessage({ operation: 'reply', requestId: raw.requestId, reply: receipt });
+          void confirmations.wake().catch(() => undefined); return;
+        }
+        if (raw.operation === 'connect') { void confirmations.wake().catch(() => undefined); }
         if (raw.operation === 'emit') {
           chrome.alarms.create(SITE_RECOVERY_ALARM, { when: Date.now() + 30000 });
           const receipt = await siteLedger.acceptObservation(await sourceContext(lease), raw.requestId, raw.data);
@@ -180,7 +207,7 @@ export function installSiteAdapters() {
         }
         // Native/model effects remain disabled. No durable acceptance is claimed before the ledger is integrated.
         port.postMessage({ operation: 'reply', requestId: raw.requestId, reply: { status: 'rejected', reason: 'paused' } });
-      })().catch(() => { port.disconnect(); close(); }).finally(() => { busy = false; });
+      }).catch(() => { port.disconnect(); close(); }).finally(() => { pending--; });
     });
   });
   const navigated = (d: chrome.webNavigation.CommitDetails) => {
@@ -208,12 +235,12 @@ export function installSiteAdapters() {
   chrome.permissions.onRemoved.addListener(() => {
     void siteTransport.invalidate().then(async () => { await synchronizeSourceAuthority(await read()); disconnectAll(); await reconcile(); }).catch(() => undefined);
   });
-  chrome.alarms.onAlarm.addListener(alarm => { if (alarm.name === SITE_RECOVERY_ALARM) void synchronizeSourceAuthorityFromCurrent().then(wakePlannedSaves).catch(() => undefined); });
-  chrome.runtime.onStartup.addListener(() => { void reconcile().then(wakePlannedSaves).catch(() => undefined); });
+  chrome.alarms.onAlarm.addListener(alarm => { if (alarm.name === SITE_RECOVERY_ALARM) void synchronizeSourceAuthorityFromCurrent().then(async () => { await confirmations.wake(); await wakePlannedSaves(); }).catch(() => undefined); });
+  chrome.runtime.onStartup.addListener(() => { void reconcile().then(async () => { await confirmations.wake(); await wakePlannedSaves(); }).catch(() => undefined); });
   chrome.runtime.onInstalled.addListener(() => {
     void siteTransport.invalidate().then(async () => { disconnectAll(); await reconcile(); await injectOpen(); }).catch(() => undefined);
   });
-  void reconcile().then(wakePlannedSaves).catch(() => undefined);
+  void reconcile().then(async () => { await confirmations.wake(); await wakePlannedSaves(); }).catch(() => undefined);
 }
 
 async function synchronizeSourceAuthorityFromCurrent() { await synchronizeSourceAuthority(await read()); }

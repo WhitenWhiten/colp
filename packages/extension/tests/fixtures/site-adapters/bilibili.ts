@@ -1,6 +1,7 @@
-/** Synthetic IDs/titles in observed shapes. Fixture revision 1, 2026-10-24;
- * prototype observations 2026-10-23. No account/session data copied. */
+/** Synthetic IDs/titles in observed shapes. Fixture revision 2, 2026-10-24;
+ * prototype observations 2026-10-23; fixed BV view response observed 2026-10-24. No account/session data copied. */
 export const fixtures = {
+  view: { code: 0, data: { aid: 1, bvid: 'BV1xx411c7mD', title: 'Video', state: 0 } },
   nav: { code: 0, data: { isLogin: true, mid: 42 } },
   signedOut: { code: -101, data: { isLogin: false } },
   catalog: { code: 0, data: { list: [{ id: 101, title: 'Collection', media_count: 3 }, { id: 102, title: 'Collection', media_count: 0 }] } },

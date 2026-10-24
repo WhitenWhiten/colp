@@ -7,11 +7,15 @@ export class SiteReadError extends Error {
 export function fail(code: ReadFailure['code'], retryAfterMs?: number): never {
   throw new SiteReadError({ code, ...(retryAfterMs === undefined ? {} : { retryAfterMs }) });
 };
-export type Operation = { kind: 'account' } | { kind: 'collections'; accountId: string }
+export type Operation = { kind: 'video'; bvid: string } | { kind: 'account' } | { kind: 'collections'; accountId: string }
   | { kind: 'ids'; collectionId: string; page: number } | { kind: 'details'; ids: readonly { id: string; type: number }[] };
 export function operationUrl(op: Operation): string {
-  if (!['account', 'collections', 'ids', 'details'].includes(op.kind)) fail('invalidData');
+  if (!['account', 'collections', 'ids', 'details', 'video'].includes(op.kind)) fail('invalidData');
   const url = new URL('https://api.bilibili.com');
+  if (op.kind === 'video') {
+    if (!/^BV[1-9A-HJ-NP-Za-km-z]{10}$/u.test(op.bvid)) fail('invalidData');
+    url.pathname = '/x/web-interface/view'; url.searchParams.set('bvid', op.bvid);
+  }
   if (op.kind === 'account') url.pathname = '/x/web-interface/nav';
   if (op.kind === 'collections') {
     if (!decimal(op.accountId)) fail('invalidData');

@@ -98,3 +98,16 @@ test('confirmation reports fresh observed state, keeps failed or unproven hints 
   expect(await confirmHint(reader, hint, ctx)).toMatchObject({ type: 'membership.observed', memberships: { added: ['101'], removed: [] } });
   expect(await confirmHint(reader, { ...hint, itemId: 'video:av:99' }, ctx)).toMatchObject({ type: 'favorite.uncertain' });
 });
+
+test('BV and parameterized av links resolve to one numeric identity using a matching fixed view response', async () => {
+  const reader = new BilibiliReader(read(op => op.kind === 'video' ? fixtures.view.data : fixtures.details.data));
+  const av = await reader.resolveItem('https://www.bilibili.com/video/av1?tracking=value', ctx);
+  expect(await reader.resolveItem('https://www.bilibili.com/video/BV1xx411c7mD/?tracking=value', ctx)).toEqual(av);
+  expect(operationUrl({ kind: 'video', bvid: 'BV1xx411c7mD' })).toBe('https://api.bilibili.com/x/web-interface/view?bvid=BV1xx411c7mD');
+  expect(() => operationUrl({ kind: 'video', bvid: 'BV1xx411c7mD&url=evil' })).toThrow('invalidData');
+  expect(await reader.resolveItem('https://b23.tv/unresolved', ctx)).toMatchObject({ status: 'unresolved', reason: 'unsupportedUrl' });
+  for (const data of [{ aid: 1, bvid: 'BV1xx411c7mE', title: 'Other', state: 0 }, { aid: 9007199254740992, bvid: 'BV1xx411c7mD', title: 'Video', state: 0 },
+    { aid: 1, bvid: 'BV1xx411c7mD', title: 'Video' }]) {
+    expect(await new BilibiliReader(read(() => data)).resolveItem('https://www.bilibili.com/video/BV1xx411c7mD', ctx)).toMatchObject({ status: 'unresolved', reason: 'ambiguousIdentity' });
+  }
+});

@@ -11,6 +11,7 @@ function observation(o: SiteObservation): boolean {
 /** Registry-specific semantics supplement the generic closed v1 schema. */
 export function validBilibiliMessage(m: AdapterMessage): boolean {
   if (m.operation === 'connect') return true;
+  if (m.operation === 'membership.hint') return !!aidFromItem(m.hint.itemId) && collections([...m.hint.added, ...m.hint.removed]);
   if (m.operation === 'read') return false;
   if (m.operation === 'emit') return observation(m.data);
   if (m.operation === 'capture') return validBilibiliItem(m.data.item);

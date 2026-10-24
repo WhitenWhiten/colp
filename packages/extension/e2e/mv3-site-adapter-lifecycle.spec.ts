@@ -18,10 +18,16 @@ test('bundled inspector scopes worlds, reconnects routes and fences revocation w
     await context.route('https://www.bilibili.com/**', route => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Controlled site</title><h1>Fixture</h1><script>addEventListener("pageshow",e=>{document.documentElement.dataset.persisted=String(e.persisted)})</script>' }));
     await context.route('https://api.bilibili.com/x/web-interface/nav', route => route.fulfill({ contentType: 'application/json',
       headers: { 'access-control-allow-origin': 'https://www.bilibili.com', 'access-control-allow-credentials': 'true' }, body: JSON.stringify({ code: 0, data: { isLogin: true, mid: 42 } }) }));
+    await context.route('https://api.bilibili.com/x/web-interface/view*', route => route.fulfill({ contentType: 'application/json',
+      headers: { 'access-control-allow-origin': 'https://www.bilibili.com', 'access-control-allow-credentials': 'true' }, body: JSON.stringify({ code: 0, data: { aid: 1, bvid: 'BV1xx411c7mD', title: 'Fixture', state: 0 } }) }));
     await context.route('https://api.bilibili.com/x/v3/fav/folder/created/list-all*', route => route.fulfill({ contentType: 'application/json',
       headers: { 'access-control-allow-origin': 'https://www.bilibili.com', 'access-control-allow-credentials': 'true' }, body: JSON.stringify({ code: 0, data: { list: [{ id: 101, title: 'Fixture collection' }] } }) }));
     await context.route('https://api.bilibili.com/x/v3/fav/resource/deal', route => route.fulfill({ contentType: 'application/json',
       headers: { 'access-control-allow-origin': 'https://www.bilibili.com', 'access-control-allow-credentials': 'true' }, body: JSON.stringify({ code: 0 }) }));
+    await context.route('https://api.bilibili.com/x/v3/fav/resource/ids*', route => route.fulfill({ contentType: 'application/json',
+      headers: { 'access-control-allow-origin': 'https://www.bilibili.com', 'access-control-allow-credentials': 'true' }, body: JSON.stringify({ code: 0, data: [{ id: 1, type: 2 }] }) }));
+    await context.route('https://api.bilibili.com/x/v3/fav/resource/infos*', route => route.fulfill({ contentType: 'application/json',
+      headers: { 'access-control-allow-origin': 'https://www.bilibili.com', 'access-control-allow-credentials': 'true' }, body: JSON.stringify({ code: 0, data: [{ id: 1, type: 2, title: 'Fixture', attr: 1 }] }) }));
     const site = await context.newPage(); await site.goto('https://www.bilibili.com/video/av1');
     await page.goto(`${extensionOrigin}/site-adapters.html`);
     await grantOptionalBookmarks(page, 'Enable Bilibili inspector', 'Known adapter access', {
@@ -49,6 +55,21 @@ test('bundled inspector scopes worlds, reconnects routes and fences revocation w
     const hint = await site.evaluate(() => (globalThis as any).fixtureHints[0]);
     expect(hint).toMatchObject({ itemId: 'video:av:1', added: ['101'], removed: [], code: 0 });
     expect(Object.keys(hint).sort()).toEqual(['added', 'code', 'interactionId', 'itemId', 'removed']);
+    await expect.poll(() => page.evaluate(async () => {
+      const s = await chrome.runtime.sendMessage({ kind: 'known.siteAdapters.status' }) as { confirmations: { last?: { state: string } } };
+      return s.confirmations.last?.state;
+    }), { timeout: 30000 }).toBe('observed');
+    await site.evaluate(() => history.pushState({}, '', '/video/BV1xx411c7mD'));
+    await expect.poll(async () => (await readState()).leases[0]?.url).toContain('/video/BV1xx411c7mD');
+    await expect.poll(() => page.evaluate(async () => {
+      const q = (await chrome.storage.local.get('known.siteAdapters.readQueue.v1'))['known.siteAdapters.readQueue.v1'] as { nextAt: number; active: unknown };
+      return !q.active && q.nextAt <= Date.now();
+    })).toBe(true);
+    await page.locator('#read-item').click();
+    await expect.poll(() => page.evaluate(async () => {
+      const s = (await chrome.storage.local.get('known.siteAdapters.inspection.v1'))['known.siteAdapters.inspection.v1'] as { result?: { status: string; item?: { id: string } } };
+      return s.result?.item?.id;
+    }), { timeout: 15000 }).toBe('video:av:1');
     // MAIN synthetic messages cannot invoke the dedicated runtime ingress.
     await site.evaluate(() => window.postMessage({ kind: 'known.capture.start', userGesture: true }, '*'));
     await page.evaluate(async () => { await chrome.runtime.sendMessage({ kind: 'known.siteAdapters.enable', enabled: true }); });
@@ -86,7 +107,7 @@ test('bundled inspector scopes worlds, reconnects routes and fences revocation w
       const db = await new Promise<IDBDatabase>((resolve, reject) => { const r = indexedDB.open('known-site-adapters'); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
       try { return await new Promise<number>((resolve, reject) => { const r = db.transaction('observations').objectStore('observations').count(); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); }); } finally { db.close(); }
     });
-    expect(observations).toBe(1);
+    expect(observations).toBe(2);
     const oldGeneration = (await readState()).generation;
     await page.locator('#disable').click();
     await expect.poll(async () => (await readState()).generation).toBeGreaterThan(oldGeneration);
@@ -102,5 +123,9 @@ test('bundled inspector scopes worlds, reconnects routes and fences revocation w
     expect(await page.evaluate(() => chrome.permissions.contains({ permissions: ['bookmarks'] }))).toBe(false);
     const dbs = await page.evaluate(() => indexedDB.databases());
     expect(dbs.some(db => db.name === 'known-capture')).toBe(false);
+    await test.info().attach('source-confirmation-acceptance.json', { body: Buffer.from(JSON.stringify({ schemaVersion: 1, observedAt: new Date().toISOString(),
+      browserVersion: context.browser()?.version(), browserUa: await page.evaluate(() => navigator.userAgent), fixture: true, realSite: false,
+      positiveHintReadback: 'membership.observed', avBvIdentity: 'video:av:1', durableObservations: observations, bfcache: true,
+      sourceRegistrationsAfterDisable: scripts.length, collectorAfterDisable: cleanup[0]?.result, bookmarksPermission: false, captureDatabase: false }, null, 2)), contentType: 'application/json' });
   } finally { await context.close(); await rm(profile, { recursive: true, force: true }); }
 });

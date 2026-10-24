@@ -16,6 +16,12 @@ export function resolveAvUrl(value: string): string | null {
     return decimal(/^\/video\/av([1-9]\d*)\/?$/u.exec(u.pathname)?.[1]);
   } catch { return null; }
 }
+export function resolveBvUrl(value: string): string | null {
+  try {
+    const u = new URL(value);
+    return u.origin === BILIBILI.origin && !u.username && !u.password ? /^\/video\/(BV[1-9A-HJ-NP-Za-km-z]{10})\/?$/u.exec(u.pathname)?.[1] ?? null : null;
+  } catch { return null; }
+}
 export function collection(raw: unknown): SiteCollection | null {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>, id = decimal(r.id);

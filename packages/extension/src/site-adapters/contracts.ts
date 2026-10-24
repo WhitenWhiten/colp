@@ -149,6 +149,7 @@ export interface AdapterEnvelope {
 
 export type AdapterMessage = AdapterEnvelope & (
   | { operation: 'connect' }
+  | { operation: 'membership.hint'; hint: MembershipHint }
   | { operation: 'emit'; data: SiteObservation }
   | { operation: 'capture'; data: CaptureControlRequest }
   | { operation: 'read'; recipeId: string; params: Readonly<Record<string, string | number | boolean | null>> }
@@ -156,6 +157,15 @@ export type AdapterMessage = AdapterEnvelope & (
   | { operation: 'item.result'; resolutionId: Id; result: ItemResolutionResult }
   | { operation: 'membership.result'; readSessionId: Id; readRequestId: Id; result: MembershipReadResult }
 );
+
+/** Forgeable page evidence: it may request a bounded read, never a native effect. */
+export interface MembershipHint {
+  interactionId: Id;
+  itemId: Id;
+  added: readonly Id[];
+  removed: readonly Id[];
+  code: number;
+}
 
 export type AdmissionReply =
   | { status: 'accepted' | 'duplicate'; receiptId: Id }

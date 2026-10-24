@@ -1,6 +1,6 @@
 # Bilibili standalone feasibility evidence
 
-Evidence date and repository review: October 23, 2026. COLP integration remains a proposal. This record distinguishes the independent prototype's observed behavior from the host/runtime acceptance requirements in [the design](README.md#implementation-sequence-and-acceptance).
+Historical prototype evidence and repository review: October 23, 2026. Dated COLP integration results are appended below and tracked in execution-evidence.md. This record distinguishes the independent prototype's observed behavior from the host/runtime acceptance requirements in [the design](README.md#implementation-sequence-and-acceptance).
 
 ## Provenance and verification scope
 
@@ -61,9 +61,9 @@ The MAIN probe projects resource ID/type, added/removed collection IDs, and busi
 
 ## Remaining acceptance gates
 
-The evidence closes the basic question of whether a signed-in Bilibili favorites-to-bookmarks flow and live additions can work. Phase A is partially validated, not complete; phases B/C and community execution remain unimplemented in COLP.
+The evidence closes the basic question of whether a signed-in Bilibili favorites-to-bookmarks flow and live additions can work. At the proposal baseline, phase A was partial and phases B/C and community execution were unimplemented. Current implementation results are separate from that prototype evidence.
 
-Use these gate IDs in [implementation evidence](implementation-plan.md#validation-commands-and-evidence). All remain open in COLP; prototype support is listed separately. A declared unavailable capability must stay disabled and visible, not be counted as a successful supported flow.
+Use these gate IDs in [implementation evidence](implementation-plan.md#validation-commands-and-evidence). The table records the original required gates; current supported/limited capabilities are summarized below and in execution evidence. Prototype support is listed separately. A declared unavailable capability must stay disabled and visible, not be counted as a successful supported flow.
 
 | Gate | Existing support | Required acceptance / task |
 | --- | --- | --- |
@@ -79,3 +79,18 @@ Use these gate IDs in [implementation evidence](implementation-plan.md#validatio
 | D1 Community execution | None; bundled prototype only | Separate package/version provenance, USER_SCRIPT isolation, surviving old scripts, updates and revocation. SA-09, deferred from the bundled release. |
 
 Sanitized fixtures should preserve observed response shapes and failure/coverage distinctions without copying account IDs, private collection names, session tokens, or complete network traffic. No live source action, bookmark mutation, or browser test was performed as part of this documentation backfill.
+
+## COLP reader integration — October 24, 2026
+
+SA-02 now has a durable confirmation queue and bounded bundled reader. It is complete for the following explicitly limited capability set, not a claim that all proposed A–C features or every matrix variant is supported. See [execution evidence](execution-evidence.md#sa-02--reader-and-confirmation-completion-with-explicit-limits) for exact commands, artifacts and sanitized real-site results.
+
+| Gate | Current COLP result / limit |
+| --- | --- |
+| A1 | Native video-dialog B addition, C addition, B-to-C, simultaneous B+C, and cancellation exercised in ego-lite. A successful hint authorizes only paced reads. Fresh positives become `membership.observed`; human-action proof and `favorite.confirmed` emission are unavailable. Failed/late/duplicate/challenge cases have fixtures; real business failures are not claimed. List pages on `space.bilibili.com` are outside the granted/injected origin and unavailable. |
+| A2 | Numeric aid identity and canonical av links; BV resolution uses fixed page-side `view?bvid=…`, requiring matching bvid, safe aid and published state 0. Parameterized av/BV variants are covered. Short links, non-video identity, unconnected/signed-out page resolution and automatic cross-account adoption remain unavailable. Popup-first binding/adoption belongs to SA-07. |
+| A3 | Bounded catalog/IDs/details and streamed JSON, omissions, deadlines, retry/pacing/cooldown, replay and stale cursors covered. Real catalog traversal and bounded item pages work. Full-account import/restart approval is not enabled; SA-06 owns that gate. |
+| A4 | Fresh positive or unknown results only. A native B-to-C action records positive C while removal evidence stays uncertain. Negative membership readback remains unavailable, including after complete best-effort enumeration. Ledger concurrency protection is covered by SA-03. |
+| A5 | Controlled Chromium 149/Linux/xvfb ingress, world isolation, SPA and actual BFCache pass; real Chrome 154/macOS positive reads pass. Chrome 121 and community world/toggle behavior are not verified by these results; SA-08/SA-09 must gate unsupported versions/capabilities. |
+| A6 | Real temporary collection rename preserved its ID; two equal display names retained distinct IDs in a fresh catalog read. Test collections were removed afterward. Only type 2 video resources are supported; invalid/missing/non-video records stay separate. Native source-folder automatic renaming is unavailable; SA-05 retains its immutable creation binding and local ownership. Archive retention/manual-edit behavior has controlled SA-03–SA-05 evidence; real native archive smoke follows SA-08. |
+
+The original prototype was temporarily disabled during native favorite changes and restored to its previous enabled state afterward. The two dedicated test collections and their temporary memberships were deleted. Final catalog count returned to 22, with neither test ID present. COLP had no bookmarks grant during this read-only real-site acceptance. No real user's bookmark tree, model endpoint, original favorite membership or unrelated collection was changed by COLP.

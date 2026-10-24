@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-24T12:07:06.081Z",
+  "browserVersion": "149.0.7827.0",
+  "browserUa": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.7827.55 Safari/537.36",
+  "fixture": true,
+  "realSite": false,
+  "positiveHintReadback": "membership.observed",
+  "avBvIdentity": "video:av:1",
+  "durableObservations": 2,
+  "bfcache": true,
+  "sourceRegistrationsAfterDisable": 0,
+  "collectorAfterDisable": false,
+  "bookmarksPermission": false,
+  "captureDatabase": false,
+  "reportStats": {
+    "startTime": "2026-10-24T12:06:36.922Z",
+    "duration": 29318.310999999998,
+    "expected": 1,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "runner": {
+    "os": "linux",
+    "arch": "arm64",
+    "xvfb": true,
+    "image": "colp-extension-tests:pw1.61.1",
+    "playwright": "1.61.1"
+  }
+}

@@ -1,4 +1,4 @@
-import type { AdapterMessage, BootstrapRequest, HostCommand, MembershipReadResult, PageResult, SiteObservation } from './contracts.js';
+import type { AdapterMessage, BootstrapRequest, HostCommand, MembershipReadResult, PageResult, SiteObservation, MembershipHint } from './contracts.js';
 import { LIMITS as L } from './limits.js';
 import { array, integer, jsonBytes, literal, object, optional, str, union, type Check } from './schema.js';
 const id = str(L.id), ids = array(id, L.memberships, 0, x => x);
@@ -22,6 +22,12 @@ export const observationSchema = union(
   object({ type: literal('membership.observed'), item: itemSchema, memberships, sourceRevision: optional(id) }),
   object({ type: literal('favorite.uncertain'), interactionId: id, itemId: id, reason: literal('timeout', 'ambiguousState', 'accountChanged', 'navigationChanged') }),
 );
+export const hintSchema = object({ interactionId: id, itemId: id, added: ids, removed: ids,
+  code: v => Number.isSafeInteger(v) && Math.abs(v as number) <= 1_000_000_000 }, v => {
+  const h = v as MembershipHint;
+  return h.added.length + h.removed.length > 0 && h.added.length + h.removed.length <= L.memberships && !h.added.some(x => h.removed.includes(x));
+});
+export const validMembershipHint = (v: unknown): v is MembershipHint => jsonBytes(v, 8192) && hintSchema(v);
 const source = union(object({ state: literal('signedIn'), accountId: id }), object({ state: literal('signedOut', 'unknown') }));
 const bootstrapFields = { protocolVersion: literal(1), operation: literal('hello'), adapterId: id, source };
 const bootstrapSchema = union(object({ ...bootstrapFields, runtime: literal('bundled'), activationId: id }),
@@ -50,6 +56,7 @@ const envelope = { protocolVersion: literal(1), requestId: id, leaseId: id, capa
 // v1 has no host read recipes. Arbitrary params/URLs are never an available fallback.
 const messageSchema = union(
   object({ ...envelope, operation: literal('connect') }),
+  object({ ...envelope, operation: literal('membership.hint'), hint: hintSchema }),
   object({ ...envelope, operation: literal('emit'), data: observationSchema }),
   object({ ...envelope, operation: literal('capture'), data: object({ type: literal('capture.requested'), item: itemSchema, requestedPurpose: literal('sourceArchive', 'semantic') }) }),
   object({ ...envelope, operation: literal('page.result'), readSessionId: id, pageRequestId: id, result: pageResultSchema }),

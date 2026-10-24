@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-24T12:11:07.762019+00:00",
+  "realSite": true,
+  "runner": "ego-lite on macOS",
+  "browserVersionEvidence": {
+    "source": "navigator.userAgent",
+    "chrome": "154.0.0.0"
+  },
+  "fixtureRevision": 2,
+  "scope": "www.bilibili.com, connected account, video resources",
+  "nativeVideoDialog": {
+    "singleB": "positiveObserved",
+    "singleC": "positiveObserved",
+    "moveBtoC": "positiveC; removal remains uncertain",
+    "simultaneousBandC": "two positive edges",
+    "cancel": "no hint emitted"
+  },
+  "durableObservations": {
+    "membershipObserved": 5,
+    "favoriteConfirmed": 0,
+    "addedEdgeCountsSorted": [
+      1,
+      1,
+      1,
+      2,
+      2
+    ],
+    "removedEdges": 0
+  },
+  "identity": {
+    "bundledBvResolvedToNumericAv": true,
+    "freshViewMatchedBvid": true,
+    "publishedState": 0
+  },
+  "collectionSemantics": {
+    "renameKeptId": true,
+    "sameNameDistinctIds": 2
+  },
+  "limits": {
+    "humanActionProof": "unavailable",
+    "negativeReadback": "unavailable",
+    "shortLinks": "unavailable",
+    "listPagesOutsideGrantedOrigin": "unavailable",
+    "nonVideo": "unavailable",
+    "automaticNativeRename": "unavailable",
+    "realBusinessFailure": "not induced; fixture only"
+  },
+  "cleanup": {
+    "testCollectionsDeleted": 2,
+    "catalogCountBefore": 22,
+    "catalogCountAfter": 22,
+    "testIdsRemaining": 0,
+    "prototypeRestoredEnabled": true,
+    "bookmarksPermission": false,
+    "nativeBookmarksCreated": 0,
+    "originalFavoritesChanged": 0
+  },
+  "artifactNotes": "The loaded classic adapter/probe match the development digests below. The final worker adds explicit retry-cycle identities, validated by the controlled suite after the native smoke; no additional real challenge was induced.",
+  "developmentArtifacts": {
+    "siteAdapterSha256": "4758a385fd26d2663b25f2314baa6a42a0ec8be4b8c28b0da8e0d65ef6c27a88",
+    "siteProbeSha256": "b240ddd3b8119ca2cf4aed4d6ab1922137d2fe24fbf6d9427c452ba21487dbf6"
+  }
+}

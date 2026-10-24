@@ -1,7 +1,7 @@
 import type { CollectionItem, ItemResolutionResult, MembershipReadQuery, MembershipReadResult, SiteCollection, SiteItem, SourceIdentityClaim, SourcePage } from '../contracts.js';
 import { LIMITS as L } from '../limits.js';
 import { jsonBytes } from '../schema.js';
-import { aidFromItem, collection, decimal, detail, itemId, resolveAvUrl } from './identity.js';
+import { aidFromItem, collection, decimal, detail, itemId, resolveAvUrl, resolveBvUrl } from './identity.js';
 import { fail, record, type HttpContext, type Operation } from './http.js';
 type Read = (operation: Operation, ctx: HttpContext) => Promise<unknown>;
 type Resource = { id: string; type: number };
@@ -28,8 +28,15 @@ export class BilibiliReader {
   }
   async resolveItem(url: string, ctx: HttpContext): Promise<ItemResolutionResult> {
     const aid = resolveAvUrl(url);
-    if (!aid) return { status: 'unresolved', reason: 'unsupportedUrl' };
-    const item = await this.readItem(itemId(aid), ctx);
+    const bvid = resolveBvUrl(url);
+    if (!aid && !bvid) return { status: 'unresolved', reason: 'unsupportedUrl' };
+    let item: SiteItem | null;
+    if (bvid) {
+      const data = record(await this.read({ kind: 'video', bvid }, ctx)), resolvedAid = decimal(data.aid);
+      if (data.bvid !== bvid || !resolvedAid || data.state !== 0) return { status: 'unresolved', reason: 'ambiguousIdentity' };
+      const resolved = detail({ id: resolvedAid, type: 2, title: data.title, attr: 0 });
+      item = resolved.status === 'ok' ? resolved.item : null;
+    } else item = await this.readItem(itemId(aid!), ctx);
     return item ? { status: 'resolved', item } : { status: 'unresolved', reason: 'ambiguousIdentity' };
   }
   async readItem(id: string, ctx: HttpContext): Promise<SiteItem | null> {

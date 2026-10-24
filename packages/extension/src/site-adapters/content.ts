@@ -2,7 +2,7 @@ import { BILIBILI } from './bilibili/identity.js';
 import { SITE_PORT } from './transport.js';
 import { BilibiliReader } from './bilibili/reader.js';
 import { abortableSleep, createPageHttp, SiteReadError } from './bilibili/http.js';
-import { validHostCommand } from './schemas.js';
+import { validHostCommand, validMembershipHint } from './schemas.js';
 import { LIMITS } from './limits.js';
 import type { AdapterMessage, BootstrapReply, HostCommand, ReadFailure, SourceIdentityClaim } from './contracts.js';
 const slot = '__knownSiteAdapterV1';
@@ -12,7 +12,8 @@ if (location.origin === BILIBILI.origin && window.top === window) {
   else {
     let controller: AbortController | null = null, port: chrome.runtime.Port | null = null, timer: ReturnType<typeof setTimeout> | undefined;
     let epoch = 0, reader: BilibiliReader | null = null;
-    const stop = () => { epoch++; controller?.abort(); controller = null; const oldPort = port; port = null; oldPort?.disconnect(); clearTimeout(timer); reader?.clear(); reader = null; };
+    let removeHints = () => {};
+    const stop = () => { removeHints(); removeHints = () => {}; epoch++; controller?.abort(); controller = null; const oldPort = port; port = null; oldPort?.disconnect(); clearTimeout(timer); reader?.clear(); reader = null; };
     const restart = () => { stop(); const current = epoch; controller = new AbortController(); const signal = controller.signal;
       reader = new BilibiliReader(createPageHttp({ fetch, now: Date.now, sleep: abortableSleep }));
       const localReader = reader;
@@ -36,7 +37,19 @@ if (location.origin === BILIBILI.origin && window.top === window) {
         const accountId = source.accountId;
         port = chrome.runtime.connect({ name: SITE_PORT }); const ownPort = port;
         const envelope = { protocolVersion: 1 as const, leaseId: reply.leaseId, capability: reply.capability };
-        let busy = false;
+        let busy = false, pendingHints = 0;
+        const hints = (event: Event) => {
+          const hint: unknown = (event as CustomEvent).detail;
+          if (epoch !== current || !validMembershipHint(hint) || pendingHints >= LIMITS.queue) return;
+          pendingHints++;
+          try { ownPort.postMessage({ ...envelope, requestId: hint.interactionId, operation: 'membership.hint', hint }); }
+          catch { /* a lost hint is repaired by later authorized reconciliation */ }
+        };
+        window.addEventListener('known-bilibili-favorite-hint', hints);
+        removeHints = () => window.removeEventListener('known-bilibili-favorite-hint', hints);
+        ownPort.onMessage.addListener(raw => {
+          if (raw && typeof raw === 'object' && (raw as { operation?: string }).operation === 'reply') pendingHints = Math.max(0, pendingHints - 1);
+        });
         const replays = new Map<string, AdapterMessage>();
         ownPort.onDisconnect.addListener(() => { if (port === ownPort) { stop(); timer = setTimeout(restart, LIMITS.spacingMs); } });
         ownPort.onMessage.addListener(raw => {

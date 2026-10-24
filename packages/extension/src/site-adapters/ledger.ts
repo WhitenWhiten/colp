@@ -7,7 +7,7 @@ import type { ImportRead, LedgerAdmission, LedgerEdge, ObservationRow, SourceAut
 import { mergeEdge, mergeEntity, mergeObservation } from './ledger-merge.js';
 import { LIMITS } from './limits.js';
 const AUTHORITY = 'bundled.bilibili';
-const facts = ['meta', 'authorities', 'documentLeases', 'observations', 'receipts', 'items', 'collections', 'memberships'] as const;
+const facts = ['meta', 'authorities', 'documentLeases', 'observations', 'receipts', 'readRequests', 'items', 'collections', 'memberships'] as const;
 export async function requireSourceAuthority(tx: IDBTransaction, context: SourceContext): Promise<SourceAuthority> {
   const a = await get<SourceAuthority>(tx, 'authorities', AUTHORITY);
   if (!a?.enabled || a.connectionId !== context.connectionId || a.installationGeneration !== context.installationGeneration
@@ -69,19 +69,23 @@ export function createSourceLedger(db: SourceDatabase = createSourceDatabase(), 
             if (c.value.context.leaseId === leaseId) c.update({ ...c.value, active: false }); c.continue(); }; });
       });
     },
-    async acceptObservation(context: SourceContext, requestId: string, observation: SiteObservation): Promise<LedgerAdmission> {
+    async acceptObservation(context: SourceContext, requestId: string, observation: SiteObservation, commit?: (tx: IDBTransaction, receiptId: string) => Promise<void>): Promise<LedgerAdmission> {
       if (!validObservation(observation) || !validBilibiliMessage({ protocolVersion: 1, requestId, leaseId: context.leaseId, capability: 'host-validated', operation: 'emit', data: observation })) return { status: 'rejected', reason: 'invalid' };
       const key = sourceKey(AUTHORITY, context.installationGeneration, context.documentId, requestId), digest = sourceDigest({ operation: 'emit', observation });
       try { return await db.transaction(facts, 'readwrite', async tx => {
         await requireSourceAuthority(tx, context);
         const previous = await get<SourceReceipt>(tx, 'receipts', key);
-        if (previous) return previous.digest === digest ? { status: 'duplicate', receiptId: previous.id } : { status: 'rejected', reason: 'conflict' };
+        if (previous) {
+          if (previous.digest !== digest) return { status: 'rejected', reason: 'conflict' };
+          await commit?.(tx, previous.id); return { status: 'duplicate', receiptId: previous.id };
+        }
         await capacity(tx, 'observations', LIMITS.pendingObservations); await capacity(tx, 'receipts', 100000);
         const receipt = { id: random(), digest, ordinal: await ordinal(tx) };
         const row: ObservationRow = { id: receipt.id, ordinal: receipt.ordinal, context, observation, state: 'pending', acceptedAt: now(), adapterVersion: '1.0.0',
           cause: observation.type === 'favorite.confirmed' || observation.type === 'favorite.uncertain' ? 'siteFavorite' : 'reconcile' };
         put(tx, 'observations', receipt.id, row); put(tx, 'receipts', key, receipt);
         await mergeObservation(tx, context, observation, receipt.ordinal, receipt.id);
+        await commit?.(tx, receipt.id);
         options.beforeCommit?.(tx);
         return { status: 'accepted', receiptId: receipt.id };
       }); } catch (e) { return rejected(e); }
