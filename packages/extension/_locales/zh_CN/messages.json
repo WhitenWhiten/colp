@@ -10643,6 +10643,14 @@
     "message": "有 $1 个云端项目正等待你决定。",
     "description": "$1 cloud items are waiting for your decision."
   },
+  "sync_ingressExample": {
+    "message": "例如：“$1”",
+    "description": "For example: “$1”"
+  },
+  "sync_ingressExampleMore": {
+    "message": "例如：“$1”（另有 $2 项）",
+    "description": "For example: “$1” (and $2 more)"
+  },
   "sync_ingressUnknownReason": {
     "message": "因某个此版本没有说明的原因未同步（$1）",
     "description": "Left out of sync for a reason this version doesn’t describe ($1)"

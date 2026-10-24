@@ -8237,6 +8237,12 @@
   "sync_inboundWaitsPlain_other": {
     "message": "$1 cloud items are waiting for your decision."
   },
+  "sync_ingressExample": {
+    "message": "For example: “$1”"
+  },
+  "sync_ingressExampleMore": {
+    "message": "For example: “$1” (and $2 more)"
+  },
   "sync_ingressUnknownReason": {
     "message": "Left out of sync for a reason this version doesn’t describe ($1)"
   },
