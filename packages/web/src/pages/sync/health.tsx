@@ -13,6 +13,7 @@ import { Modal } from '../../components/Modal'
 import type { StatusTone } from '../../components/StatusBadge'
 import { formatRelative } from '../../lib/formatDate'
 import { plural } from '../../lib/plural'
+import { isRealInstant, issueSummary, resultReason, stopNext, stopReason } from './problems'
 import { REPLICA_STATE_TONE, STATUS_LABELS } from './types'
 
 /**
@@ -30,73 +31,7 @@ export function replicaBadge(replica: SyncReplicaView): { readonly tone: StatusT
   return { tone: REPLICA_STATE_TONE[replica.status], label: STATUS_LABELS[replica.status] }
 }
 
-const RECORD_CODES = new Set(['record_too_large', 'bounded_string_invalid', 'secret_field_forbidden', 'i_json_invalid',
-  'operation_schema_invalid', 'operation_byte_budget_exceeded'])
-const REBUILD_CODES = new Set(['pull_apply_target_missing', 'pull_apply_evidence_missing', 'anchor_mapping_missing',
-  'legacy_resolution_sequence_collision', 'mapping_identity_collision', 'mapping_identity_conflict', 'create_ambiguous',
-  'create_evidence_missing', 'snapshot_projection_incomplete'])
-const STOP_REASONS: Readonly<Record<string, string>> = {
-  create_placement_unproven: 'it can’t tell where a saved bookmark belongs.',
-  create_placement_parent_deleted: 'a saved bookmark’s folder was deleted before the bookmark synced.',
-  recovery_identity_unproven: 'it can’t match a bookmark in the browser with its copy here.',
-  deletion_identity_unproven: 'it can’t confirm which bookmark a deletion was for.',
-  payload_too_large: 'an item is too large to sync.',
-  target_unavailable: 'the library it syncs with isn’t available.',
-  replica_rebuild_pending: 'its copy of your library is being rebuilt.',
-  pull_issue_ceiling: 'it set aside too many items to keep syncing safely.',
-  sync_issue_ceiling: 'it has too many unresolved items to keep syncing safely.',
-  snapshot_invalid: 'the server’s Snapshot failed integrity checks. Retry after the source is repaired, or rebuild this browser’s copy.',
-  snapshot_graph_incomplete: 'the server’s Snapshot has an incomplete library graph.',
-  snapshot_chain_invalid: 'the server’s Snapshot pages do not form a valid chain.',
-  replica_rebuilt: 'its sync was reset.',
-  sync_diagnostics_unavailable: 'it can’t read its local sync status. It will retry reporting automatically.',
-}
-
-/** The reason a browser gave for stopping, in plain words; the code only when it is new to us. */
-export function stopReason(code: string | null | undefined): string {
-  if (!code) return 'it didn’t say why.'
-  if (STOP_REASONS[code]) return STOP_REASONS[code]
-  if (RECORD_CODES.has(code)) return 'a bookmark in it can’t be stored.'
-  if (REBUILD_CODES.has(code)) return 'its copy of your library needs a rebuild.'
-  return `it reported “${code}”.`
-}
-
-export function issueSummary(issue: SyncReplicaIssue): string {
-  switch (issue.code) {
-    case 'remote_delete_confirmation_required': return 'Waiting for a deletion decision in the extension: delete, restore, or keep on this browser'
-    case 'conflict_pending': return 'Waiting for a conflict to be resolved'
-    case 'conflict_hold': return 'Waiting for a conflict on this bookmark to be resolved'
-    case 'dependency_hold': return 'Waiting for an earlier change to it that couldn’t sync'
-    case 'parent_set_aside': return 'Its folder couldn’t be added to this browser'
-    case 'create_placement_parent_deleted': return 'Its folder was deleted before it synced'
-    case 'create_placement_unproven': return 'Its place in the folder couldn’t be confirmed'
-    case 'recovery_identity_unproven': return 'It couldn’t be matched with one saved bookmark'
-    case 'deletion_identity_unproven': return 'Deleted on that browser, but it couldn’t be matched, so nothing else was deleted'
-    case 'delete_subtree_changed': return 'Deleted on that browser, but the folder changed elsewhere first. Retry deletes it anyway, with those changes'
-    case 'record_too_large': return 'Too large for this browser to store'
-    case 'managed_not_writable': return 'This bookmark is managed by the browser and cannot be changed here'
-    case 'bounded_string_invalid': return 'A field is too long for this browser to store'
-    case 'native_result_unknown': return 'Waiting for a decision in the browser'
-    case 'local_merge_difference': return 'Review this local merge difference in the extension’s Sync → Folders list. It is not a server conflict.'
-    case 'duplicate_candidate': return 'Review possible duplicates in the extension’s Sync → Folders list.'
-    case 'dependency_pending': case 'dependency_parked': return 'Waiting for an earlier operation; the browser checks its dependency automatically'
-    case 'sequence_blocked': return 'An earlier deferred operation holds this upload sequence. Exact retries are bounded; Retry checks again without changing its identity.'
-    case 'resource_id_unavailable': return 'The server consumed this operation but refused its resource identity. The change has not been applied.'
-    case 'waiting_dependency': return 'Waiting for another change to finish'
-    // A sent change the server keeps unsettled; the browser's later uploads wait behind it.
-    case 'push_deferred': return 'The server keeps deferring this change; later uploads from that browser wait behind it'
-    case 'sequence_gap': return 'The server is waiting for an earlier change first; later uploads from that browser wait behind it'
-    case 'push_response_unrecognized': case 'push_result_processing_failed': case 'push_problem_status_mismatch':
-    case 'push_batch_response_invalid': case 'push_stalled':
-      return 'The server’s answer to this change couldn’t be settled; later uploads from that browser wait behind it'
-  }
-  // A held upload that offers Retry never reached the server: the browser could not get it ready.
-  if (issue.direction === 'push') return issue.actions.includes('retry')
-    ? 'That browser couldn’t get it ready to upload'
-    : 'The server didn’t accept this change'
-  if (issue.direction === 'pull') return 'Couldn’t be applied in the browser'
-  return 'Couldn’t be prepared for sync'
-}
+export { issueSummary, stopReason } from './problems'
 
 /** The server's own inference: the browser has missed changes for an hour. */
 function notSyncing(replica: SyncReplicaView): boolean {
@@ -113,33 +48,48 @@ function activityNote(replica: SyncReplicaView): string {
 
 type Action = SyncReplicaCommandView['action']
 const ACTION_LABELS: Partial<Record<Action, string>> = { retry: 'Retry', rebuild: 'Reset sync' }
-const RESULT_REASONS: Readonly<Record<string, string>> = {
-  stale_ref: 'that browser switched libraries, accounts, or sync copies before it ran',
-  authority_fenced: 'that browser changed its sign-in before it ran',
-  action_unavailable: 'that browser no longer offered it',
-  issue_gone: 'the item had already cleared',
-  command_interrupted: 'the browser stopped before it finished',
-  rebuild_not_required: 'its sync no longer needed a reset',
-}
 const DAY_MS = 24 * 60 * 60_000
+/**
+ * A healthy browser reports at least every 15 minutes, checked by an alarm every 5, so up to 20 minutes between
+ * two reports is normal. The band waits for two such gaps and a margin, so it never shows for a browser that is fine.
+ */
+export const REPORT_STALE_MINUTES = 45
+const STATE_SINCE = { stopped: 'Stopped', degraded: 'Needs attention', paused: 'Paused' } as const
+
+/** “Upload · First seen … · Last seen …”. A time the browser could not know (it sends the epoch) is left out. */
+function issueMeta(issue: SyncReplicaIssue): string {
+  const kind = issue.direction === 'push' ? 'Upload' : issue.direction === 'pull' ? 'Download' : 'Local merge or capture'
+  return [kind, isRealInstant(issue.firstSeenAt) && `First seen ${formatRelative(issue.firstSeenAt)}`,
+    isRealInstant(issue.lastSeenAt) && `Last seen ${formatRelative(issue.lastSeenAt)}`].filter(Boolean).join(' · ')
+}
 
 function open(command: SyncReplicaCommandView): boolean {
   return command.state === 'pending' || command.state === 'delivered'
 }
 
-/** What came of the latest command, in plain words. */
-export function commandNote(command: SyncReplicaCommandView, browser: string): string {
+type Reported = Pick<NonNullable<SyncReplicaView['health']>, 'state' | 'reportedAt'>
+
+/** A request the browser carried out is not a cure: say what it did, and what the browser reports since. */
+function triedAgain(command: SyncReplicaCommandView, browser: string, report: Reported | undefined): string {
+  const did = command.issueId ? `${browser} tried this item again` : `${browser} tried again`
+  const ranAt = command.completedAt ? Date.parse(command.completedAt) : Number.NaN
+  // The report that carried the result is the first to reflect it.
+  if (!report || !(Date.parse(report.reportedAt) >= ranAt)) return `${did}. Its next report shows whether that fixed it.`
+  return report.state === 'syncing' ? `${did}, and it now reports that sync is running.` : `${did}, but it still reports a problem.`
+}
+
+/** What came of the latest command, in plain words. `report` is the browser's latest, to say whether the request helped. */
+export function commandNote(command: SyncReplicaCommandView, browser: string, report?: Reported): string {
   const label = ACTION_LABELS[command.action] ?? 'The request'
-  const reason = command.resultCode ? RESULT_REASONS[command.resultCode] ?? `it reported “${command.resultCode}”` : null
   switch (command.state) {
     case 'pending': return `${label} sent. It runs when ${browser} next checks in, usually within five minutes while it’s open.`
     case 'delivered': return `${label} sent. Waiting for ${browser} to report back.`
-    case 'done': if (command.resultCode === 'exact_retry_requested' || command.resultCode === 'recapture_completed' || command.resultCode === 'retry_completed') return `The browser processed ${label.toLowerCase()}. Upload and download convergence must be checked in its latest report.`
+    case 'done': if (command.resultCode === 'exact_retry_requested' || command.resultCode === 'recapture_completed' || command.resultCode === 'retry_completed') return triedAgain(command, browser, report)
       if (command.resultCode === 'retry_scheduled') return `Retry was scheduled on ${browser}. Check its sync status for the result.`
       return command.action === 'rebuild'
       ? `Sync was reset ${formatRelative(command.completedAt ?? command.createdAt)}. Open the extension on that browser to choose which folders sync.`
       : `${label} ran ${formatRelative(command.completedAt ?? command.createdAt)}.`
-    case 'failed': return `${label} didn’t work${reason ? `: ${reason}` : ''}.`
+    case 'failed': return `${label} didn’t work${command.resultCode ? `: ${resultReason(command.resultCode)}` : ''}.`
     case 'expired': return `${label} expired. ${browser} didn’t check in within a week.`
   }
 }
@@ -235,16 +185,17 @@ export function ReplicaHealth({ replica, onChanged, children }: {
   } else if (health?.state === 'stopped' && health.code === 'replica_rebuilt') {
     notes.push('Sync on this browser was reset. Open the extension on it to choose which folders sync; it then shows up here as a new browser.')
   } else if (health?.state === 'stopped') {
-    notes.push(`Sync on this browser has stopped: ${stopReason(health.code)} ${offered.length > 0
-      ? 'Try the options below, or open the extension on that browser.' : 'Open the extension on that browser to fix it.'}`)
+    notes.push(`Sync on this browser has stopped: ${stopReason(health.code)} ${stopNext(health.code, offered)}`)
   } else if (health?.state === 'paused') {
     notes.push('Sync is paused on this browser. Nothing syncs until it’s resumed there.')
   } else if (health?.state === 'degraded') {
-    notes.push(`${plural(count, 'item')} on this browser couldn’t sync. Review the items and available recovery actions below. ${offered.includes('rebuild') ? 'Reset sync can repair this browser’s copy if retrying does not help.' : ''}`)
+    // A code on a degraded report is a pause the browser ends by itself, not a stop.
+    if (health.code) notes.push(`Sync on this browser hit repeated errors and is waiting to try again: ${stopReason(health.code)} ${stopNext(health.code, offered)}`)
+    if (count > 0 || !health.code) notes.push(`${plural(count, 'item')} on this browser couldn’t sync. Review the items and available recovery actions below. ${offered.includes('rebuild') ? 'Reset sync can repair this browser’s copy if retrying does not help.' : ''}`)
   }
   if (notSyncing(replica) && health?.state !== 'stopped') notes.push(activityNote(replica))
   // A reset browser's own report already says what came of the reset.
-  if (latest && (health?.code !== 'replica_rebuilt' || latest.action !== 'rebuild' || latest.state !== 'done')) notes.push(commandNote(latest, replica.name))
+  if (latest && (health?.code !== 'replica_rebuilt' || latest.action !== 'rebuild' || latest.state !== 'done')) notes.push(commandNote(latest, replica.name, health ?? undefined))
   const reset = async () => {
     if (await confirm({ title: `Reset sync on ${replica.name}?`, body: RESET_WARNING, confirmLabel: 'Reset sync' })) {
       await command.send('rebuild')
@@ -253,7 +204,9 @@ export function ReplicaHealth({ replica, onChanged, children }: {
   const tone = health?.state === 'stopped' ? 'is-blocked' : notes.length > 0 ? 'is-stale' : ''
   const paused = health?.state === 'paused'
   const showLabel = count > 0 && !paused ? `Show ${plural(count, 'item')}` : 'Show diagnostics'
-  const staleReport = health !== null && health !== undefined && Date.now() - Date.parse(health.reportedAt) > 15 * 60_000
+  const staleReport = health !== null && health !== undefined && Date.now() - Date.parse(health.reportedAt) > REPORT_STALE_MINUTES * 60_000
+  const sinceNote = health && health.state !== 'syncing' && isRealInstant(health.since)
+    ? `. ${STATE_SINCE[health.state]} since ${formatRelative(health.since)}` : ''
   // The band only frames something to say; a quiet browser shows its foot alone.
   const framed = notes.length > 0 || command.feedback !== null || staleReport
   const retry = offered.includes('retry')
@@ -267,9 +220,9 @@ export function ReplicaHealth({ replica, onChanged, children }: {
   return <>
     {framed && <div className={`replica-message ${tone}`.trim()} role={notes.length > 0 ? 'status' : undefined}>
       {notes.map((note) => <p key={note}>{note}</p>)}
-      {health && <p className="replica-reported">Reported {formatRelative(health.reportedAt)}.</p>}
+      {health && <p className="replica-reported">Reported {formatRelative(health.reportedAt)}{sinceNote}.</p>}
       {command.feedback && <p role="alert">{command.feedback}</p>}
-      {staleReport && <p>This browser’s report is over 15 minutes old. Open the extension to refresh its status before relying on it.</p>}
+      {staleReport && <p>This browser’s report is over {REPORT_STALE_MINUTES} minutes old. Open the extension to refresh its status before relying on it.</p>}
       {recoveryActions}
     </div>}
     <div className="replica-foot">
@@ -328,11 +281,10 @@ function ReplicaIssueList({ view, replica, busy, onRetry }: {
           <strong>{issue.title ?? (issue.nodeId ? 'A bookmark in your library' : 'A bookmark on that browser')}</strong>
           <span>{issueSummary(issue)}{issue.count > 1 ? ` (${issue.count} times)` : ''}</span>
           <div className="replica-issue-meta">
-            <span>{issue.direction === 'push' ? 'Upload' : issue.direction === 'pull' ? 'Download' : 'Local merge or capture'} ·
-              First seen {formatRelative(issue.firstSeenAt)} · Last seen {formatRelative(issue.lastSeenAt)}</span>
+            <span>{issueMeta(issue)}</span>
             <CopyField label="error code" compact value={issue.code} />
           </div>
-          {latest && <span className="replica-issue-note">{commandNote(latest, replica.name)}</span>}
+          {latest && <span className="replica-issue-note">{commandNote(latest, replica.name, replica.health ?? undefined)}</span>}
         </div>
         {retry && <button type="button" className="btn btn-secondary btn-sm" disabled={stale || busy !== null}
           aria-label={`Try again: ${issue.title ?? 'this item'}`} onClick={() => onRetry(issue.issueId)}>

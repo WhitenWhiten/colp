@@ -155,8 +155,8 @@ describe('Sync Center authoritative workflow', () => {
     expect(note(1)).toContain('1 item on this browser couldn’t sync. Review the items and available recovery actions below.')
     expect(note(1)).not.toContain('Everything else keeps syncing.')
     expect(note(2)).toContain('Sync is paused on this browser.')
-    // A stop the web does not know yet still says the code; the stop outranks the silence note.
-    expect(note(3)).toContain('it reported “brand_new_code”.')
+    // A stop the web does not know yet is still a sentence, with the code in brackets; the stop outranks the silence note.
+    expect(note(3)).toContain('it reported a problem that has no description yet (brand_new_code).')
     expect(note(3)).not.toContain('are waiting')
     // Paused hides item names while keeping latest Ack diagnostics reachable.
     expect(cards()[2]?.querySelector('button')?.textContent).toBe('Show diagnostics')

@@ -1,0 +1,142 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { describe, expect, it } from 'vitest'
+import { isRealInstant, issueSummary, problemFamily, resultReason, stopNext, stopReason, type ProblemFamily } from './problems'
+
+/**
+ * C-12 / C-19: the words a browser's stop gets on this page are checked against the extension's own failure
+ * table, read as text (this package cannot import the extension's TypeScript). A code added there that this
+ * page has no family for fails here, instead of reaching an owner as “it reported x”.
+ */
+const extensionSource = (file: string) => readFileSync(resolve(import.meta.dirname, '../../../../extension/src', file), 'utf8')
+
+interface TableRow { readonly code: string; readonly kind: string }
+function readTable(): readonly TableRow[] {
+  const source = extensionSource('sync-failure-class.ts')
+  const body = source.slice(source.indexOf('export const SYNC_FAILURE_TABLE'), source.indexOf('} satisfies Record<string, SyncFailureEntry>'))
+  const rows: TableRow[] = []
+  for (const line of body.split('\n')) {
+    const match = /^\s{2}(?:'([^']+)'|([A-Za-z_0-9]+)): entry\('(\w+)', '(\w+)'/u.exec(line)
+    if (match) rows.push({ code: (match[1] ?? match[2])!, kind: `${match[3]}/${match[4]}` })
+  }
+  return rows
+}
+/** A report carries `name:detail` as `name_detail`: one lowercase word. */
+const reported = (code: string) => code.replace(/:/gu, '_')
+
+const FAMILIES_BY_KIND: Readonly<Record<string, readonly ProblemFamily[]>> = {
+  'transient/retry': ['offline', 'server_busy', 'waiting', 'permission'],
+  'authority/refresh': ['authority'],
+  'item/confirm': ['confirm'],
+  'item/decide': ['decide'],
+  'item/rebuild': ['rebuild'],
+  'item/refresh': ['item_mapping'],
+  'item/stop': ['codec'],
+  'replica/rebuild': ['rebuild'],
+  'replica/refresh': ['integrity_pull', 'integrity_snapshot'],
+  'replica/stop': ['stop_upload', 'stop_download', 'stop_first_sync', 'stop_feature', 'stop_local'],
+}
+
+describe('every code the extension can report reads as a sentence (C-12, C-19)', () => {
+  const table = readTable()
+
+  it('walks the extension table at test time', () => {
+    expect(table.length).toBeGreaterThan(300)
+  })
+
+  it('puts each table entry in a family that matches its class and exit, so the words match what ends it', () => {
+    const wrong = table.filter(({ code, kind }) => !(FAMILIES_BY_KIND[kind] ?? []).includes(problemFamily(reported(code))))
+      .map(({ code, kind }) => `${code} (${kind}) is ${problemFamily(reported(code))}`)
+    expect(wrong).toEqual([])
+    // A snapshot code is about the server's copy; every other refresh code is about a Pull page.
+    for (const { code, kind } of table.filter(row => row.kind === 'replica/refresh')) {
+      expect(problemFamily(code), code).toBe(code.startsWith('snapshot_') ? 'integrity_snapshot' : 'integrity_pull')
+    }
+  })
+
+  it('gives every table code a reason and a next step, and never the bare “it reported x”', () => {
+    for (const { code } of table) {
+      const reason = stopReason(reported(code))
+      expect(reason, code).not.toMatch(/^it reported “/u)
+      expect(reason, code).toMatch(/^[a-z].{20,}\.$/u)
+      expect(stopNext(reported(code), ['retry']), code).toMatch(/\.$/u)
+    }
+  })
+
+  it('shows the code in brackets when the code has no words of its own', () => {
+    expect(stopReason('queue_state_invalid')).toBe('its record of changes waiting to upload failed an internal check (queue_state_invalid).')
+    expect(stopReason('ack_invalid')).toBe('its record of changes from your library failed an internal check (ack_invalid).')
+    expect(stopReason('pull_event_conflict')).toBe('changes it downloaded from your library failed a safety check, so it stopped taking them in (pull_event_conflict).')
+    expect(stopReason('snapshot_node_duplicate')).toContain('(snapshot_node_duplicate)')
+    expect(stopReason('network_unavailable')).toBe('it couldn’t reach the server several times in a row (network_unavailable).')
+  })
+
+  it('a code nobody has seen yet still reads as a sentence with the code in brackets', () => {
+    expect(stopReason('brand_new_code')).toBe('it reported a problem that has no description yet (brand_new_code).')
+    expect(problemFamily('brand_new_code')).toBe('unknown')
+    expect(stopReason(null)).toBe('it didn’t say why.')
+    expect(stopReason('snapshot_404_resource_not_found')).toContain('(snapshot_404_resource_not_found)')
+    expect(problemFamily('snapshot_http_502')).toBe('integrity_snapshot')
+  })
+
+  it('names what the server and the sign-in did, which no table entry covers', () => {
+    expect(stopReason('replica_retired')).toBe('this browser was stopped, so it no longer syncs.')
+    expect(stopReason('resource_not_found')).toBe('the server doesn’t recognize this browser’s sync copy.')
+    expect(stopReason('session_invalid')).toContain('clock is far off')
+    expect(stopReason('credential_revoked')).toBe('its sign-in no longer works for sync (credential_revoked).')
+    expect(stopReason('sync_stopped')).toBe('it stopped and didn’t record why.')
+  })
+
+  it('points a rebuild, a sign-in or a permission at the exit that ends it', () => {
+    expect(stopNext('mapping_identity_conflict', ['retry', 'rebuild'])).toContain('Reset sync below to continue')
+    expect(stopNext('mapping_identity_conflict', [])).toBe('Open the extension on that browser to reset its sync.')
+    expect(stopNext('credential_revoked', [])).toBe('Open the extension on that browser and sign in again.')
+    expect(stopNext('permission_required', ['retry'])).toBe('Open the extension on that browser and allow bookmark access.')
+    expect(stopNext('network_unavailable', ['retry'])).toBe('It tries again by itself; Retry below tries now.')
+    expect(stopNext('create_placement_unproven', [])).toBe('Open the extension on that browser to fix it.')
+    expect(stopNext('queue_state_invalid', ['retry'])).toBe('Try the options below, or open the extension on that browser.')
+  })
+})
+
+describe('the item vocabulary is the extension’s (C-12)', () => {
+  it('has a sentence of its own for every code the extension names, never the generic fallback', () => {
+    const source = extensionSource('sync-issue-copy.ts')
+    const block = source.slice(source.indexOf('const ITEM'), source.indexOf('export const ISSUE_SUMMARY_CODES'))
+    const codes = [...block.matchAll(/^ {2}([a-z_]+): \(\) =>/gmu)].map(match => match[1]!)
+    expect(codes.length).toBeGreaterThan(25)
+    const generic = new Set(['The server didn’t accept this change', 'Couldn’t be applied in the browser', 'Couldn’t be prepared for sync'])
+    for (const code of codes) {
+      expect(generic.has(issueSummary({ code, direction: 'push', actions: [] })), code).toBe(false)
+    }
+  })
+
+  it('reads a refused browser call as one, and a secret-looking field as a field', () => {
+    expect(issueSummary({ code: 'apply_failed_bookmark_api_error', direction: 'pull', actions: [] }))
+      .toBe('The browser refused to apply this change from your library, so it was set aside')
+    expect(issueSummary({ code: 'secret_field_forbidden', direction: 'push', actions: [] })).toContain('password or key')
+  })
+})
+
+describe('how a request to a browser ended (C-12)', () => {
+  it('explains the failures that used to read “it reported x”, each with what to do', () => {
+    expect(resultReason('upload_outcome_unsettled')).toContain('no confirmed result yet')
+    expect(resultReason('upload_outcome_unsettled')).toContain('Try Retry first')
+    expect(resultReason('native_outcome_unsettled')).toContain('waiting for your answer')
+    expect(resultReason('rebuild_failed')).toContain('Its bookmarks are untouched')
+    expect(resultReason('command_failed')).toContain('unexpected error')
+    expect(resultReason('command_context_missing')).toContain('Try again')
+  })
+
+  it('a code nobody wrote words for is still a sentence with the code in brackets', () => {
+    expect(resultReason('some_new_failure')).toBe('the browser couldn’t carry it out (some_new_failure)')
+  })
+})
+
+describe('times a browser could not know', () => {
+  it('treats the epoch as no time at all', () => {
+    expect(isRealInstant('1970-01-01T00:00:00.000Z')).toBe(false)
+    expect(isRealInstant('not a date')).toBe(false)
+    expect(isRealInstant(null)).toBe(false)
+    expect(isRealInstant('2026-10-24T10:00:00.000Z')).toBe(true)
+  })
+})
