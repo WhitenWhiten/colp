@@ -126,6 +126,29 @@ test('while sync owns the order the flag is kept and placement is left to the fo
   expect(await pinnedIds()).toEqual(['u3']);
 });
 
+test('a pin retries placement when sync starts after the initial order check', async () => {
+  mocks.busy.mockReturnValueOnce(false).mockReturnValue(true);
+  expect(await pin('u3')).toEqual({ ok: true, blockers: [] });
+  expect(await pinnedIds()).toEqual(['u3']);
+  expect(ids('1')).toEqual(['f', 'u1', 'u2', 'u3']);
+  expect(chrome.bookmarks.move).not.toHaveBeenCalled();
+  expect(mocks.schedule).toHaveBeenCalledWith('1');
+});
+
+test('an unpin retries sorting the remaining pins when sync starts mid-pass', async () => {
+  await pin('u3'); await pin('u2');
+  // Native order may still need repair when the flag is removed.
+  const children = nodes.get('1')!.children!;
+  children.splice(children.findIndex(node => node.id === 'u2'), 1);
+  children.push(nodes.get('u2')!);
+  mocks.schedule.mockClear(); vi.mocked(chrome.bookmarks.move).mockClear();
+  mocks.busy.mockReturnValueOnce(false).mockReturnValue(true);
+  expect(await pin('u3', false)).toEqual({ ok: true, blockers: [] });
+  expect(await pinnedIds()).toEqual(['u2']);
+  expect(chrome.bookmarks.move).not.toHaveBeenCalled();
+  expect(mocks.schedule).toHaveBeenCalledWith('1');
+});
+
 test('an unavailable sync database does not report failure after persisting the local pin', async () => {
   mocks.scope.mockResolvedValue({ accountId: 'account', collectionId: 'collection' });
   mocks.state.mockRejectedValue(new Error('sync_database_unavailable'));

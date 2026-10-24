@@ -41,7 +41,10 @@ test('a pin travels from one browser to the server and the other browser, and ba
     // A pins the second bookmark: it moves above the first, and both the flag and the order sync.
     const secondA = await idOf(pageA, rootA, SECOND);
     expect(await setPin(pageA, secondA, true)).toEqual({ ok: true, blockers: [] });
-    expect(await urlsIn(pageA, rootA)).toEqual([SECOND, FIRST]);
+    // The flag is durable at acknowledgement; sync may still own native order.
+    // Wait for the real deferred sorter without manually waking A's engine.
+    await expect.poll(() => urlsIn(pageA, rootA), { timeout: 60_000,
+      message: 'the pinned bookmark moves after sync releases native order' }).toEqual([SECOND, FIRST]);
     try { await expect.poll(() => stack.canonicalBookmarkExtensions(SECOND), { timeout: 30_000 }).toEqual([{ [PIN]: { pinned: true } }]); }
     catch (error) { throw new Error(`pin_upload_timeout:${JSON.stringify(await diagnose(pageA, secondA, stack))}`, { cause: error }); }
     await expect.poll(async () => {

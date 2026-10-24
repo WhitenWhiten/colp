@@ -64,14 +64,17 @@ export async function pinNode(node: chrome.bookmarks.BookmarkTreeNode | undefine
     return { ok: true, blockers };
   }
   const enabled = async () => orderAvailable();
+  let placed = true;
   if (pinned) {
-    await sortFolderPins(parentId, await loadPinIndex(), preferences, excluded, enabled, { last: node.id });
+    placed = await sortFolderPins(parentId, await loadPinIndex(), preferences, excluded, enabled, { last: node.id });
   } else if (toBottom) {
     await moveToBottom(node.id, parentId);
   } else if (!blockers.length) {
     const pins = await loadPinIndex();
-    await sortPinnedBookmarks(chrome.bookmarks, parentId, pinnedChildIds(await chrome.bookmarks.getChildren(parentId), pins), enabled);
+    placed = await sortPinnedBookmarks(chrome.bookmarks, parentId, pinnedChildIds(await chrome.bookmarks.getChildren(parentId), pins), enabled);
   }
+  // Sync can acquire the order after the initial check, including between moves.
+  if (!placed) scheduleNativeFoldersFirst(parentId);
   return { ok: true, blockers };
 }
 
