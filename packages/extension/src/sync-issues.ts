@@ -1,4 +1,5 @@
 import { openBootstrapAttention, type BootstrapDisplayIssue } from './bootstrap/open-attention.js';
+import { uniqueAttentionItems } from './bootstrap/attention-report.js';
 import { OPEN_REMOTE_DELETE_STATES } from './remote-delete-pending-facts.js';
 import { mergeLocalIssues, ingressProtectsNode, blockedPullIssue, isOpenQueueIssue, addQueueIssueRoots, type BlockedPullIssue } from './sync-state/open-issue-facts.js';
 /** One interpretation of durable open issues, shared by sync and repair consumers. */
@@ -51,8 +52,8 @@ export async function readOpenSyncIssues(store: SyncIssueStore, scope: SyncScope
   for (const wait of waits) if (wait.colpId) roots.add(wait.colpId);
   const nativeRoots = new Set([...local.filter(ingressProtectsNode).map(row => row.nativeId), ...deletes.flatMap(row => row.nativeIds)]);
   const runs = await store.listBootstrapRuns?.(scope) ?? [];
-  const bootstrapRefs = new Set(runs.flatMap(run => run.previewOnly ? [] : run.attention?.items
-    .filter(item => item.decision === 'open').flatMap(item => item.nodeRefs ?? []) ?? []));
+  const bootstrapRefs = new Set(runs.flatMap(run => run.previewOnly || !run.attention ? [] : uniqueAttentionItems(run.attention)
+    .filter(item => item.decision === 'open').flatMap(item => item.nodeRefs ?? [])));
   const knownMappings = options.mappings ?? await issueMappings(store, scope, nativeRoots, bootstrapRefs);
   if (nativeRoots.size) for (const row of knownMappings) {
     if (nativeRoots.has(row.nativeId)) roots.add(row.colpId);

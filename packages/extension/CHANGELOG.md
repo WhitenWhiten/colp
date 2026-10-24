@@ -22,6 +22,7 @@ All notable changes to the Know-N browser extension are documented here. The for
 
 ### Fixed
 
+- Duplicate bookmarks sync as independent occurrences without a review decision. Old duplicate-only review reports no longer keep first sync, progress, diagnostics, or replica health in an attention state. Actual merge differences retain their own review, and review-only issues no longer offer Reset sync.
 - Open sync issues now keep the popup status and progress card at Action required, including when the engine is sleeping and independent changes can still sync. Completing a remote reset reopens folder setup on an already open settings page. An interrupted reset retains its recovery journal across browser-session credential loss and restores the credential before resuming.
 - Pin and unpin sorting is retried when sync takes ownership of native bookmark order after placement has started. The saved pin flag is retained while placement waits for sync to release the order.
 - Import bookmarks reopens correctly when a deep link or toolbar click arrives before the previous dialog's queued close event. A late close event cannot clear the newly opened dialog.

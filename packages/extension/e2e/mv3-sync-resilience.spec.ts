@@ -63,6 +63,73 @@ async function webRebuild(web: Page) {
   await web.getByRole('dialog').getByRole('button', { name: 'Reset sync', exact: true }).click();
 }
 
+test('duplicate bookmarks complete first sync and stay independent; legacy duplicate reviews clear without a reset', async () => {
+  test.setTimeout(180000); const stack = await startRealStack({ web: true });
+  const profile = await mkdtemp(resolve(tmpdir(), 'colp-duplicate-sync-')); let context: BrowserContext | undefined;
+  const repeated = 'https://example.test/resilience/repeated';
+  try {
+    context = await launch(profile, stack);
+    const { page } = await openExtensionOptions(context);
+    await showOptionsPane(page, 'bookmarks');
+    await grantOptionalBookmarks(page, page.locator('#manager-grant'), 'Duplicate bookmark sync acceptance');
+    const saved = await page.evaluate(async url => {
+      const folder = await chrome.bookmarks.create({ parentId: '1', title: 'Duplicates in another folder' });
+      const nodes = [];
+      for (const parentId of ['1', '1', '1', folder.id, folder.id, '2']) {
+        nodes.push(await chrome.bookmarks.create({ parentId, title: 'Repeated bookmark', url }));
+      }
+      return nodes;
+    }, repeated);
+    await signInExtension(page, stack.collectionId); await completeSetup(page);
+    await expect.poll(async () => ((await stack.observations()).canonicalNodes as any[])
+      .filter(node => node.url === repeated && node.deleted_at === null).length, { timeout: 45000 }).toBe(6);
+    await page.evaluate(id => chrome.bookmarks.update(id, { title: 'Edited one occurrence' }), saved[0]!.id);
+    await expect.poll(async () => ((await stack.observations()).canonicalNodes as any[])
+      .filter(node => node.url === repeated && node.deleted_at === null && node.title === 'Edited one occurrence').length,
+    { timeout: 45000 }).toBe(1);
+    await page.evaluate(url => chrome.bookmarks.create({ parentId: '1', title: 'Repeated bookmark', url }), repeated);
+    await expect.poll(async () => ((await stack.observations()).canonicalNodes as any[])
+      .filter(node => node.url === repeated && node.deleted_at === null).length, { timeout: 45000 }).toBe(7);
+    const replica = await currentReplica(page);
+    // Reproduce the report left by an older build, without changing any
+    // bookmark, mapping, upload, or replica identity.
+    await page.evaluate(async () => {
+      const state: any = await chrome.runtime.sendMessage({ kind: 'known.sync.engine.status' });
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open('known-phase3-indexeddb-entry');
+        request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
+      });
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const tx = db.transaction('bootstrap_runs', 'readwrite');
+          tx.oncomplete = () => resolve(); tx.onabort = () => reject(tx.error);
+          const store = tx.objectStore('bootstrap_runs'); const request = store.getAll();
+          request.onsuccess = () => {
+            const run = request.result.find((row: any) => row.scopeKey === state.engine.scopeKey && !row.previewOnly);
+            if (!run) { tx.abort(); return; }
+            store.put({ ...run, phase: 'needs_attention', attention: { reportId: run.runId, version: 1,
+              candidateCount: 14, conflictCount: 0, localOnlyCount: 0, remoteOnlyCount: 0, matchedCount: 7,
+              createdAt: Date.now(), items: Array.from({ length: 14 }, (_, i) => ({ itemId: `legacy-duplicate-${i}`,
+                kind: 'duplicate_candidate', locationCount: 2, decision: 'open' })) } });
+          };
+        });
+      } finally { db.close(); }
+    });
+    await page.reload();
+    const firstRun: any = await page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.firstRun.status' }));
+    expect(firstRun).toMatchObject({ ok: true, firstRun: 'completed', phase: 'completed', attention: { pendingCount: 0 } });
+    await expect(page.locator('#first-run-attention')).toBeHidden();
+    const progress: any = await page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.sync.progress.get' }));
+    expect(progress.progress?.issueCount ?? 0).toBe(0);
+    await evidence(page, 'reportReplicaHealthEvidence');
+    const web = await context.newPage(); await web.goto(`${stack.serverOrigin}/sync`);
+    await expect.poll(async () => (await status(web)).replicas.find((row: any) => row.id === replica)?.health)
+      .toMatchObject({ state: 'syncing', issueCount: 0, actions: [] });
+    expect(await currentReplica(page)).toBe(replica);
+    expect(await page.evaluate(async url => (await chrome.bookmarks.search({ url })).length, repeated)).toBe(7);
+  } finally { await context?.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
+});
+
 test('web Retry executes in MV3; result loss and browser restart retain the real server receipt', async () => {
   test.setTimeout(240000); const stack = await startRealStack({ web: true });
   const profile = await mkdtemp(resolve(tmpdir(), 'colp-resilience-retry-')); let context: BrowserContext | undefined;

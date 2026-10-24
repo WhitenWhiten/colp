@@ -1,4 +1,5 @@
 import { holdsUnprovenIdentity, needsReplicaRebuild } from './sync-failure-class.js';
+import { bootstrapAttentionPhase, publicAttentionSummary } from './bootstrap/attention-report.js';
 import type { SyncScope, createSyncStateStore } from './sync-state-store.js';
 
 type Store = Pick<ReturnType<typeof createSyncStateStore>, 'getEngineState' | 'getScope' | 'listBootstrapRuns'
@@ -28,8 +29,8 @@ export async function collectSyncDiagnostics(store: Store, scope: SyncScope) {
     engine: { phase: engine?.phase ?? 'idle', errorCode: engine?.lastError ?? null,
       recoveryFrozen: engine?.recoveryFrozen === true, authorityRefreshRequired: engine?.authorityRefreshRequired === true,
       retryAutomatic: engine?.phase !== 'error' && !terminal, retryAt: engine?.notBefore || null },
-    firstRun: { state: recorded?.firstRun ?? 'none', phase: run?.phase ?? 'draft', retryReason: run?.retryReason ?? null,
-      pendingReviews: run?.attention?.items.filter(item => item.decision === 'open').length ?? 0 },
+    firstRun: { state: recorded?.firstRun ?? 'none', phase: run ? bootstrapAttentionPhase(run) : 'draft', retryReason: run?.retryReason ?? null,
+      pendingReviews: run?.attention ? publicAttentionSummary(run.attention).pendingCount : 0 },
     recovery: { staged: recovery !== null, complete: recovery?.complete ?? false,
       pendingProjections: projections.filter(row => row.state !== 'terminal').length,
       pendingAcknowledgements: acks.filter(row => row.state === 'pending').length },

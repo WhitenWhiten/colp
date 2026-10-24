@@ -1,4 +1,4 @@
-import { FIRST_RUN_KEEP_BOTH, attentionItemCopy } from './first-run-draft.js';
+import { attentionItemCopy } from './first-run-draft.js';
 import { syncCenterHref } from './sync-attention-ui.js';
 import type { PublicAttentionItem } from './types.js';
 import { t } from './i18n.js';
@@ -8,6 +8,7 @@ export function renderAttentionItems(
 ): void {
   list.replaceChildren();
   for (const item of items) {
+    if (item.kind === 'duplicate_candidate') continue;
     const row = document.createElement('li');
     const label = document.createElement('span');
     label.textContent = [item.label, attentionItemCopy(item)].filter(Boolean).join(' · ');
@@ -17,15 +18,7 @@ export function renderAttentionItems(
       placement.textContent = t('firstRun_mergeFolderComparison', 'Device folder: $1; cloud folder: $2.', item.parentLabels[0]!, item.parentLabels[1]!);
       row.append(placement);
     }
-    if (item.decision === 'open' && item.kind === 'duplicate_candidate') {
-      const keep = document.createElement('button');
-      keep.type = 'button';
-      keep.className = 'btn btn-ghost btn-sm';
-      keep.textContent = FIRST_RUN_KEEP_BOTH;
-      keep.addEventListener('click', () => onKeepBoth(item.itemId));
-      row.append(keep);
-    }
-    if (item.kind !== 'duplicate_candidate' && item.decision === 'open') {
+    if (item.decision === 'open') {
       const action = document.createElement('button'); action.type = 'button'; action.className = 'btn btn-secondary btn-sm';
       action.textContent = item.resolutionPending ? t('firstRun_mergeResolutionPending', 'Upload submitted; waiting for convergence')
         : t('firstRun_uploadLocalVersion', 'Upload this device’s version and folder');

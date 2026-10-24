@@ -83,6 +83,8 @@ export function projectReplicaHealth(input: {
   // While paused nothing syncs, so the report names no bookmarks and offers nothing.
   if (input.mode === 'paused') return { state: 'paused', issues: { total, items: [] }, actions: [] };
   const issues = { total, items: input.issues.slice(0, MAX_ITEMS) };
+  const canRebuild = input.attention.rebuildAvailable === true
+    || input.serverRebuild && input.attention.rebuildUnavailableReason !== 'rebuild_not_required';
   if (input.mode === 'target-unavailable') return { state: 'stopped', code: 'target_unavailable', issues, actions: [] };
   if (input.attention.retryAutomatic === false || input.attention.terminal
       || input.attention.recoveryFrozen && refreshesReplicaIntegrity(input.attention.lastError ?? input.attention.recoveryCode)) {
@@ -91,11 +93,11 @@ export function projectReplicaHealth(input: {
     const actions: ReplicaAction[] = needsReplicaRebuild(code) || persistentLocalSyncFailure(code) ? [] : ['retry'];
     // Local rebuild uses receipt guards; a negotiated server fence also makes
     // uncertain uploads recoverable without replaying them.
-    if (input.attention.rebuildAvailable === true || input.serverRebuild) actions.push('rebuild');
+    if (canRebuild) actions.push('rebuild');
     return { state: 'stopped', code: code ?? 'sync_stopped', issues, actions };
   }
   return { state: total > 0 ? 'degraded' : 'syncing', issues, actions: [...(input.attention.retryAvailable ? ['retry' as const] : []),
-    ...(input.attention.rebuildAvailable || input.serverRebuild && total > 0 ? ['rebuild' as const] : [])] };
+    ...(canRebuild && total > 0 ? ['rebuild' as const] : [])] };
 }
 
 interface SentRecord {
