@@ -44,6 +44,8 @@ interface Dependencies {
   readonly logoutTimeoutMs?: number;
   /** Deadline of one identity-server request (default 15 s). */
   readonly requestTimeoutMs?: number;
+  /** Told when the server ended this sign-in, so a surface that paints from a snapshot can stop saying "connected". */
+  readonly onSignedOut?: (state: PublicAuthState) => void;
 }
 
 const OAUTH_TIMEOUT_MS = 5 * 60 * 1_000;
@@ -127,8 +129,11 @@ function controller(dependencies: Dependencies) {
           if (code === 'authentication_required') {
             // The server no longer knows this credential (W2B-P1-1). Only the secrets go: the replica binding
             // and the account pin stay, so signing in again resumes the same replica, scope and queue.
+            // A sign-in that had run past its lifetime is expired, not revoked (W2B-P2-7).
+            const reason = current.expiresAt <= now() ? 'session_expired' : 'authentication_required';
             await dependencies.store.clearCredentialKeepingReplica();
-            await dependencies.store.markSignOutReason('authentication_required');
+            await dependencies.store.markSignOutReason(reason);
+            dependencies.onSignedOut?.(stateView('signed_out', dependencies.config, reason));
           } else if (!UNVERIFIED_CODES.has(code)) await dependencies.store.clearSession();
         }
         throw error;
@@ -192,7 +197,10 @@ function controller(dependencies: Dependencies) {
           || credential.clientId !== dependencies.config.clientId
           || credential.serverOrigin !== dependencies.config.serverOrigin) {
         await dependencies.store.markSignOutReason('binding_mismatch');
-        await dependencies.store.clearAuthority();
+        // The configuration changed under this credential; the account and its replica did not necessarily (W2B-P2-7).
+        // Keep the replica and the pin: signing in as the same account on the same server resumes it, and another
+        // account or server drops it (credential store).
+        await dependencies.store.clearCredentialKeepingReplica();
         return stateView('error', dependencies.config, 'binding_mismatch');
       }
       return {

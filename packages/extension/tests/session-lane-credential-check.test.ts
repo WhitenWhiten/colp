@@ -76,6 +76,12 @@ test('a 401 on the Session route that the identity server confirms signs out and
   assert.deepEqual(await f.store.loadBinding(), f.binding, 'the replica survives');
   assert.ok(f.identityCalls.some((url) => url.endsWith('/get-session')), 'the identity server was asked');
   assert.equal(mocks.session.mock.calls.length, 1);
+  // The popup paints from this snapshot before the worker answers (W2B-P3-5): it must not keep saying "connected".
+  await vi.waitFor(async () => {
+    const snapshot = (await chrome.storage.local.get('known.auth.snapshot.v1'))['known.auth.snapshot.v1'] as
+      { status?: string; errorCode?: string } | undefined;
+    assert.deepEqual([snapshot?.status, snapshot?.errorCode], ['signed_out', 'authentication_required']);
+  });
 });
 
 test('a 401 the identity server does not confirm stays a Session refusal and keeps the credential', async () => {

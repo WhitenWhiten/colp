@@ -56,6 +56,8 @@ export function createRuntimeAuth(
     fetch: evidenceTransportFetch,
     // The credential's expiry is server time too (W2B-P0-1): judge it with the skew the last Session measured.
     now: () => Date.now() - lastKnownClientClockSkew(),
+    // The popup paints from this snapshot before the worker answers (W2B-P3-5).
+    onSignedOut: (state) => { void writeAuthSnapshot(state).catch(() => undefined); },
     ...(retireSession ? { retire: retireSession } : {}),
     drain: () => workCoordinator.drain('auth'),
   });
