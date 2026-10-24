@@ -22,7 +22,7 @@
 # including upgrades, retaining hashed assets for tabs opened before an upgrade. The Node process does not serve the UI and this image does not
 # add a second server.
 
-FROM node:22-alpine@sha256:b6f26b36c8ff49624cfdac716b8ea1138d606df02586a77d364bb5536a634f85 AS web-build
+FROM node:22.23.4-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS web-build
 WORKDIR /src/packages/web
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 COPY packages/web/package.json packages/web/package-lock.json packages/web/.npmrc ./
@@ -40,7 +40,7 @@ COPY packages/server/CHANGELOG.md deploy/INSTALL.md /src/docs/
 RUN npm run build \
     && cp /src/docs/CHANGELOG.md /src/docs/INSTALL.md dist/
 
-FROM node:22-alpine@sha256:b6f26b36c8ff49624cfdac716b8ea1138d606df02586a77d364bb5536a634f85 AS server-build
+FROM node:22.23.4-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS server-build
 # Keep the repo layout. `npm run build` runs
 # ../../scripts/generate-replica-health-limits.mjs --check, and that script
 # resolves the repo root from its own path.
@@ -65,7 +65,7 @@ COPY packages/extension/src/generated/replica-health-limits.ts /src/packages/ext
 RUN npm run build \
     && test -d dist/migrations
 
-FROM node:22-alpine@sha256:b6f26b36c8ff49624cfdac716b8ea1138d606df02586a77d364bb5536a634f85 AS runtime-deps
+FROM node:22.23.4-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS runtime-deps
 WORKDIR /app
 COPY packages/server/runtime/package.json packages/server/runtime/package-lock.json ./
 COPY packages/server/vendor ./vendor
@@ -77,7 +77,7 @@ RUN npm ci --omit=dev --omit=peer --ignore-scripts --no-audit --no-fund \
          test ! -e "node_modules/$forbidden" || { echo "runtime image must not ship $forbidden" >&2; exit 1; }; \
        done
 
-FROM node:22-alpine@sha256:b6f26b36c8ff49624cfdac716b8ea1138d606df02586a77d364bb5536a634f85 AS runtime
+FROM node:22.23.4-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS runtime
 WORKDIR /app
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
