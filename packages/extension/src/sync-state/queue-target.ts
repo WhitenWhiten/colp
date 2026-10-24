@@ -1,6 +1,7 @@
 import { boundedString } from './codec.js';
 import { iterateCursor, transactionDone } from './idb.js';
 import { INDEXES, STORES } from './schema.js';
+import { tryValidateQueueRecord } from './queue-lenient.js';
 import { validateQueueRecord } from './queue-validate.js';
 import { scopeKey, validateScope } from './scope-key.js';
 import { SyncStateError, type JsonObject, type QueueOperation, type SyncScope } from './types.js';
@@ -45,19 +46,21 @@ export async function readAllQueueRowsByTarget(db: IDBDatabase, input: SyncScope
     const lower: readonly unknown[] = after === null ? [key, targetId] : [key, targetId, after[2]];
     const range = IDBKeyRange.bound(lower, [key, targetId, []]);
     const rows: QueueOperation[] = [];
-    let lastKey: readonly [string, string, unknown] | null = null;
+    let lastKey: readonly [string, string, unknown] | null = null; let scanned = 0;
     await iterateCursor(index, range, (value, cursor) => {
       const cursorKey = cursor.key as unknown as readonly [string, string, unknown];
       // Resume strictly after the previous page's last key.
       if (after !== null && String(cursorKey[2]) === String(after[2])) return undefined;
-      rows.push(validateQueueRecord(value, maxBytes));
-      lastKey = cursorKey;
-      if (rows.length >= QUEUE_TARGET_PAGE_SIZE) return false;
+      // An unreadable row is the claim's to quarantine (Rule C), not a reason to fail this read.
+      const row = tryValidateQueueRecord(value, maxBytes);
+      if (row) rows.push(row);
+      lastKey = cursorKey; scanned += 1;
+      if (scanned >= QUEUE_TARGET_PAGE_SIZE) return false;
       return undefined;
     });
     await completion;
     all.push(...rows);
-    if (rows.length < QUEUE_TARGET_PAGE_SIZE || lastKey === null) return all;
+    if (scanned < QUEUE_TARGET_PAGE_SIZE || lastKey === null) return all;
     after = lastKey;
   }
 }

@@ -7,11 +7,12 @@ import { readOpenSyncIssues, type OpenSyncIssues } from '../sync-issues.js';
 import { hasConflictBarrier, hasRejectedBarrier, queueStatusProjection, stalledUploadHead } from '../engine-public-stability.js';
 import type { NativeWaitStore } from '../native-wait.js';
 import { syncAttentionTerminalCode } from '../sync-attention-ui.js';
+import type { UnreadableQueueRow } from '../sync-state/queue-lenient.js';
 import type { SyncAttentionResponse } from '../types.js';
 import type { createSyncStateStore, QueueOperation, SyncScope } from '../sync-state-store.js';
 
 export type SyncAttentionStore = NativeWaitStore & Pick<ReturnType<typeof createSyncStateStore>,
-  'getEngineState' | 'listQueue'> & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'listConsumedQueueIssues' | 'listBootstrapRuns' | 'listMappings' | 'listPullIssues' | 'listLocalIssues' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'>>;
+  'getEngineState' | 'listQueue'> & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'listConsumedQueueIssues' | 'listBootstrapRuns' | 'listMappings' | 'listPullIssues' | 'listLocalIssues' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage' | 'listUnreadableQueue'>>;
 
 export interface SyncAttentionDeps {
   readonly scope: () => Promise<SyncScope>;
@@ -44,7 +45,7 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
     const open = deps.openIssues ?? await readOpenSyncIssues(deps.store, scope);
     const capability = await readReplicaRepairCapability(deps.store, scope, open);
     const waits = open.waits;
-    const { stalled, ...queue } = await queueFacts(deps.store, scope, open);
+    const { stalled, unreadable, ...queue } = await queueFacts(deps.store, scope, open);
     const issues = snapshotSyncIssues(open).map(issue => {
       const local = open.local.find(row => issue.direction === 'local' && row.code === issue.code
         && localIssueId(row) === issue.issueId);
@@ -55,13 +56,17 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
         recovery: local.recovery } : {}) };
     });
     if (stalled) issues.push({ direction: 'push', code: stalled.code } as typeof issues[number]);
+    // Rule C / Rule E: a change that cannot be read keeps the push lane waiting (or is about to be held); say so.
+    for (const row of unreadable) issues.push({ direction: 'push',
+      code: row.kind === 'sent' ? 'queue_head_unreadable' : 'queue_row_unreadable',
+      ...(row.opId ? { opId: row.opId } : {}) } as typeof issues[number]);
     return { ok: true, attention: {
       ...(engine?.phase ? { phase: engine.phase } : {}),
       recoveryFrozen: engine?.recoveryFrozen === true,
       retryAutomatic: engine?.phase !== 'error' && terminalCode === undefined,
       ...(engine?.notBefore ? { retryAt: engine.notBefore } : {}),
       ...queue,
-      issueCount: open.total + (stalled ? 1 : 0), issues, rebuildAvailable: capability.rebuildAvailable,
+      issueCount: open.total + (stalled ? 1 : 0) + unreadable.length, issues, rebuildAvailable: capability.rebuildAvailable,
       ...(capability.reason ? { rebuildUnavailableReason: capability.reason } : {}),
       retryAvailable: Boolean(stalled) || open.queue.some(row => row.recovery?.code === 'sequence_blocked' && row.attempt !== undefined),
       nativeWaitPending: waits.length > 0,
@@ -77,11 +82,14 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
 /** Best-effort like `sw/remote-delete.ts#status`: a failed queue read still leaves the freeze visible. */
 async function queueFacts(store: SyncAttentionStore, scope: SyncScope, open: OpenSyncIssues) {
   let live: QueueOperation[];
+  const unreadable: UnreadableQueueRow[] = store.listUnreadableQueue
+    ? await store.listUnreadableQueue(scope).catch((): UnreadableQueueRow[] => []) : [];
   try { live = await liveQueueRows(store, scope); }
-  catch { return { queueProjection: 'idle' as const, conflictPending: false, rejectedPending: false, stalled: undefined }; }
+  catch { return { queueProjection: 'idle' as const, conflictPending: false, rejectedPending: false, stalled: undefined, unreadable }; }
   const facts = [...live, ...open.queue];
-  return { queueProjection: queueStatusProjection(facts), conflictPending: hasConflictBarrier(facts),
-    rejectedPending: hasRejectedBarrier(facts), stalled: stalledUploadHead(live) };
+  const projection = queueStatusProjection(facts);
+  return { queueProjection: projection === 'idle' && unreadable.length > 0 ? 'syncing' as const : projection,
+    conflictPending: hasConflictBarrier(facts), rejectedPending: hasRejectedBarrier(facts), stalled: stalledUploadHead(live), unreadable };
 }
 
 /** One page of each live status, the same scan `pendingDurableWorkFacts` makes. */

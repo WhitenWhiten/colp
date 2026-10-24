@@ -4,6 +4,8 @@ import { ISSUE_DEPENDENCY_STORES } from './issue-dependencies.js';
 import { parkedOutOfLane } from './queue-set-aside-repository.js';
 import { firstLaneQueueRow, holdable, holdIfWaiting, holdWaitingRows } from './queue-hold.js';
 import { enqueueParentIds, enqueueTargetId, findBlockingUnsettledAttempt } from './queue-live-work.js';
+import { readableQueueRows } from './queue-lenient.js';
+import { createQueueQuarantine, readRangeQuarantining } from './queue-quarantine.js';
 import {
   SyncStateError, type DurableSyncEngineState, type FaultOptions, type JsonObject, type LeaseRecord, type LeaseResult,
   type PushSettlement, type QueueOperation, type ReceiptInput, type SyncScope, type MappingInput,
@@ -132,7 +134,7 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
       values[i] = withReceiptOutcome(values[i]!, receipt as never);
     }
     await completion;
-    return values.map((value) => clone(validateQueueRecord(value, maxRecordBytes)));
+    return readableQueueRows(values, maxRecordBytes).map((row) => clone(row));
   }
 
   /** One target's rows, paged to completion; see {@link readAllQueueRowsByTarget}. */
@@ -287,9 +289,11 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
       // holds only its own bookmark; a change queued before that was known is
       // held now, with every later change waiting with it.
       const receipts = tx.objectStore(STORES.receipts);
-      let first = await firstLaneQueueRow(queue, receipts, key, maxRecordBytes);
-      if (first && holdable(first) && await holdWaitingRows(queue, key, maxRecordBytes, first.sequence - 1) > 0) {
-        first = await firstLaneQueueRow(queue, receipts, key, maxRecordBytes);
+      // Rule C: an unreadable head is quarantined here (never sent) or waits the lane (may be sent).
+      const quarantine = createQueueQuarantine(tx, key, maxRecordBytes);
+      let first = await firstLaneQueueRow(queue, receipts, key, maxRecordBytes, quarantine);
+      if (first && holdable(first) && await holdWaitingRows(queue, key, maxRecordBytes, first.sequence - 1, quarantine) > 0) {
+        first = await firstLaneQueueRow(queue, receipts, key, maxRecordBytes, quarantine);
       }
       if (!first || first.retry.notBefore > now || first.status === 'gap' || (first.status === 'blocked'
           && (first.recovery?.code !== 'sequence_blocked' || !first.attempt || first.retry.attempt >= MAX_SEQUENCE_BLOCKED_RETRIES))) return;
@@ -349,9 +353,9 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
       const sequences = tx.objectStore(STORES.sequences);
       const counter = await requestValue(sequences.get(key)) as { scopeKey: string; next: number } | undefined;
       if (!counter) throw new SyncStateError('sequence_missing');
-      const laneRange = IDBKeyRange.bound([key, expected], [key, Number.MAX_SAFE_INTEGER]);
-      const above = await cursorPage<QueueOperation>(queue.index(INDEXES.queueBySequence), laneRange,
-        Number.MAX_SAFE_INTEGER);
+      // Rule C: an unreadable unsent change is held before it is renumbered; one the server may own leaves the lane alone.
+      const above = await readRangeQuarantining(tx, key, IDBKeyRange.bound([key, expected], [key, Number.MAX_SAFE_INTEGER]), maxRecordBytes);
+      if (!above) return;
       // Terminal rows at or above the expected slot would contradict the lane
       // (their receipts would have advanced it); claimed or blocked rows mean
       // other work is still settling or a receipt is bound to that sequence.
@@ -374,9 +378,8 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
         // Rows between the local head and the lane were never accepted there.
         // Terminal ones are already applied and keep their receipts; in-flight
         // ones would strand a receipt, so they refuse the move.
-        const below = await cursorPage<QueueOperation>(queue.index(INDEXES.queueBySequence),
-          IDBKeyRange.bound([key, head.sequence], [key, expected - 1]), Number.MAX_SAFE_INTEGER);
-        if (below.some((row) => row.status === 'claimed' || row.status === 'blocked')) return;
+        const below = await readRangeQuarantining(tx, key, IDBKeyRange.bound([key, head.sequence], [key, expected - 1]), maxRecordBytes);
+        if (!below || below.some((row) => row.status === 'claimed' || row.status === 'blocked')) return;
         affected = [...below.filter((row) => row.status !== 'terminal'), ...above];
         mode = 'renumber_up';
       } else mode = 'renumber_down';

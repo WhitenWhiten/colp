@@ -327,8 +327,12 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   push_batch_response_unknown: entry('transient', 'retry'),
   push_batch_timeout: entry('transient', 'retry'),
   push_request_invalid: entry('replica', 'stop'),
+  // Rule C: a saved upload that cannot be read. One that was never sent leaves the lane as an item;
+  // one the server may own keeps the push lane waiting (Pull and Ack carry on) until Reset.
+  queue_head_unreadable: entry('replica', 'stop'),
   queue_not_found: entry('replica', 'stop'),
   queue_recovery_frozen: entry('transient', 'retry'),
+  queue_row_unreadable: entry('item', 'decide'),
   queue_state_invalid: entry('replica', 'stop'),
   quota_exceeded: entry('transient', 'retry'),
   range_dependency_pending: entry('transient', 'retry'),

@@ -9,6 +9,7 @@ import { stampColpQueueRecord } from './queue-target.js';
 import { boundedString, clone, safeInteger } from './codec.js';
 import { requestValue, requireActiveScope, runTransaction, transactionDone } from './idb.js';
 import { asHeld, CONFLICT_HOLD, validatedConflictResolutionRows, DEPENDENT_HOLDS, firstLaneQueueRow, heldBy, holdWaitingRows, laneHolders } from './queue-hold.js';
+import { readableQueueRows } from './queue-lenient.js';
 import { validateQueueRecord } from './queue-validate.js';
 import type { SyncStoreRuntime } from './runtime.js';
 import { INDEXES, STORES } from './schema.js';
@@ -213,7 +214,7 @@ export function createQueueSetAsideRepository(ctx: SyncStoreRuntime) {
       }
       // Rebind unsent dependants and provisional mappings atomically with the new creates.
       if (replacements.size) {
-        const rows = await cursorPage<QueueOperation>(queue, scopeRowsRange(key), Number.MAX_SAFE_INTEGER);
+        const rows = readableQueueRows(await cursorPage<unknown>(queue, scopeRowsRange(key), Number.MAX_SAFE_INTEGER), ctx.maxRecordBytes);
         for (const row of rows) {
           if (!['pending', 'set_aside'].includes(row.status) || row.attempt) continue;
           const payload = rebindOperationIdentity(row.payload, replacements);
