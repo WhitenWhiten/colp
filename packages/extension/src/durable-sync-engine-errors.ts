@@ -49,10 +49,10 @@ export function stableError(error: unknown) { const code = error && typeof error
     ?.replace(/([a-z0-9])([A-Z])/gu, '$1_$2').toLowerCase();
   return named && /^[a-z][a-z0-9_]{0,55}$/u.test(named) ? `${named}_error` : 'sync_failed'; }
 
+/** The wait a server asked for, at most five minutes: a longer Retry-After is honoured as five, not dropped (W2B-P3-7). */
 export function retryAfterMilliseconds(error: unknown) { const value = error && typeof error === 'object'
   ? (error as { readonly retryAfterMilliseconds?: unknown }).retryAfterMilliseconds : undefined;
-  return Number.isSafeInteger(value) && Number(value) >= 1_000 && Number(value) <= MAX_BACKOFF_MS
-    ? Number(value) : undefined; }
+  return Number.isSafeInteger(value) && Number(value) >= 1_000 ? Math.min(MAX_BACKOFF_MS, Number(value)) : undefined; }
 
 export function httpFailure(response: Response, fallback: string, now: number) {
   // Rule A: the status decides transient / rate limited / authority; a body that named a code keeps it.
