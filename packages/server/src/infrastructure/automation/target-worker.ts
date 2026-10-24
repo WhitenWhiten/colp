@@ -27,14 +27,91 @@ export interface TargetWorkerService {
   authorize: TargetAuthority;
   pair(actor: WorkPrincipal,body: unknown,commandId?: string): Promise<PairingCommandOutcome>;
 }
+export interface TargetWorkerOptions { eventsEnabled?: boolean }
 export function createTargetWorkerService(db: Kysely<DatabaseSchema>,verifyBinding: CurrentBindingVerifier,
-  admitPairing: (actor: WorkPrincipal) => Promise<void>): TargetWorkerService {
-  const profile = async (tx: DatabaseTransaction,actor: WorkPrincipal,options: BindingCheckOptions = {}): Promise<ProfileRow> => {
-    if (!actor.scopes.includes('automation:work')) throw unavailable();
-    const row = (await sql<ProfileRow>`SELECT p.* FROM automation_connection_profiles p JOIN accounts a ON a.id=p.owner_id
+  admitPairing: (actor: WorkPrincipal) => Promise<void>,options: TargetWorkerOptions = {}): TargetWorkerService {
+  /** The profile this credential is bound to, whatever the Owner's current opt-ins. */
+  const boundProfile = async (tx: DatabaseTransaction,actor: WorkPrincipal): Promise<ProfileRow | undefined> =>
+    (await sql<ProfileRow>`SELECT p.* FROM automation_connection_profiles p JOIN accounts a ON a.id=p.owner_id
+      WHERE p.owner_id=${actor.accountId} AND a.subject_id=${actor.subjectId} AND a.status='active' AND a.deleted_at IS NULL
+        AND p.configuration_json->>'authorizedClientId'=${actor.clientId} AND p.configuration_json->>'credentialBindingId'=${actor.credentialBindingId}`.execute(tx)).rows[0];
+  /**
+   * The Owner's permit for an OAuth agent is the consent that granted automation:work: the consent page
+   * names the client and says that allowing the scope makes it a worker. A live token of that client
+   * therefore binds its own connection on first contact, with no code. Only consented clients bind; an
+   * API key keeps the one-use code, because its token scopes are the script's choice, not the Owner's.
+   * Stored observations never reach here, so background delivery and approvals cannot create authority.
+   */
+  const consentedScopes = async (tx: DatabaseTransaction,actor: WorkPrincipal): Promise<{ name: string | null; scopes: string[] } | null> => {
+    if (!actor.scopes.includes('automation:work') || !actor.credentialDigest || !actor.expiresAt) return null;
+    const row = (await sql<{ name: string | null; scopes: unknown }>`SELECT c.name,consent.scopes FROM "auth_oauth_consent" consent
+      JOIN auth_user_account_map m ON m.auth_user_id=consent."userId" JOIN accounts a ON a.id=m.account_id
+      JOIN "auth_oauth_client" c ON c."clientId"=consent."clientId"
+      WHERE consent."clientId"=${actor.clientId} AND m.account_id=${actor.accountId} AND a.subject_id=${actor.subjectId}
+        AND a.status='active' AND a.deleted_at IS NULL AND c.disabled IS DISTINCT FROM true
+      ORDER BY consent."updatedAt" DESC LIMIT 1`.execute(tx)).rows[0];
+    if (!row) return null;
+    const scopes = scopeList(row.scopes);
+    return scopes.includes('automation:work') ? { name: row.name,scopes } : null;
+  };
+  /** Inboxes an opt-in change unpaired come back on the agent's next call: the consent still stands. */
+  const repairInboxes = async (tx: DatabaseTransaction,actor: WorkPrincipal,profileId: string,unpaired: boolean): Promise<void> => {
+    if (!unpaired || !await consentedScopes(tx,actor)) return;
+    const binding = await verifyBinding(tx,actor);
+    await sql`UPDATE automation_targets SET paired=true,dedicated_binding=${binding.dedicated},last_seen_at=clock_timestamp(),revision=revision+1
+      WHERE owner_id=${actor.accountId} AND profile_id=${profileId} AND NOT paired AND NOT revoked`.execute(tx);
+    await touchAutomationConfiguration(tx,actor.accountId);
+  };
+  const bindByConsent = async (tx: DatabaseTransaction,actor: WorkPrincipal): Promise<void> => {
+    const consent = await consentedScopes(tx,actor);
+    if (!consent) return;
+    const binding = await verifyBinding(tx,actor);
+    // One Owner's first contacts run one at a time; the unique binding index turns a lost race into a plain retry.
+    await tx.selectFrom('accounts').select('id').where('id','=',actor.accountId).forUpdate().execute();
+    if (await boundProfile(tx,actor)) return;
+    // The Owner may have registered this agent before it connected (guided rule setup), or an earlier credential of
+    // it may have lapsed: adopt that registration. One another live credential of the same client works on stays.
+    const registered = (await sql<ProfileRow>`SELECT * FROM automation_connection_profiles WHERE owner_id=${actor.accountId}
+      AND configuration_json->>'authorizedClientId'=${actor.clientId} ORDER BY created_at,id FOR UPDATE`.execute(tx)).rows;
+    let profile: ProfileRow | undefined;
+    for (const row of registered) {
+      if (row.observation_json) {
+        try { await verifyBinding(tx,row.observation_json as unknown as WorkPrincipal); continue; }
+        catch (error) { if (!(error instanceof AutomationError)) throw error; }
+      }
+      profile = row; break;
+    }
+    if (profile) {
+      await sql`UPDATE automation_connection_profiles SET configuration_json=jsonb_set(configuration_json,'{credentialBindingId}',to_jsonb(${actor.credentialBindingId}::text)),
+        revision=revision+1,observation_json=NULL WHERE id=${profile.id}`.execute(tx);
+    } else {
+      const store = createTargetStore(tx,actor.accountId,verifyBinding,options.eventsEnabled),name = agentDisplayName(consent.name,actor.clientId);
+      const created = await store.profiles.save({ name,authorizedClientId: actor.clientId,credentialBindingId: actor.credentialBindingId,automationEnabled: true,
+        catalogs: ['standard','automationWorker',...(consent.scopes.includes('automation:manage') ? ['automationManager' as const] : [])] });
+      await store.targets.save({ name,providerLabel: '',broadcastOptIn: false,privacy: 'standard',connectionProfileId: created.id,
+        wakeMode: options.eventsEnabled ? 'events' : 'poll',pollIntervalMinutes: 1 });
+      profile = (await sql<ProfileRow>`SELECT * FROM automation_connection_profiles WHERE id=${created.id}`.execute(tx)).rows[0]!;
+    }
+    // A new generation ends subscriptions and grants of the previous credential; the Owner's inboxes carry over paired.
+    await sql`UPDATE automation_targets SET paired=true,dedicated_binding=${binding.dedicated},pairing_generation=pairing_generation+1,last_seen_at=clock_timestamp(),revision=revision+1
+      WHERE owner_id=${actor.accountId} AND profile_id=${profile.id} AND NOT revoked`.execute(tx);
+    await sql`UPDATE automation_connection_profiles SET observation_json=${JSON.stringify(principalObservation(actor))}::jsonb WHERE id=${profile.id}`.execute(tx);
+    await touchAutomationConfiguration(tx,actor.accountId);
+  };
+  const enabledProfile = async (tx: DatabaseTransaction,actor: WorkPrincipal): Promise<(ProfileRow & { unpaired: boolean }) | undefined> =>
+    (await sql<ProfileRow & { unpaired: boolean }>`SELECT p.*,EXISTS(SELECT 1 FROM automation_targets t WHERE t.owner_id=p.owner_id AND t.profile_id=p.id AND NOT t.paired AND NOT t.revoked) AS unpaired
+      FROM automation_connection_profiles p JOIN accounts a ON a.id=p.owner_id
       WHERE p.owner_id=${actor.accountId} AND a.subject_id=${actor.subjectId} AND a.status='active' AND a.deleted_at IS NULL
       AND p.configuration_json->>'authorizedClientId'=${actor.clientId} AND p.configuration_json->>'credentialBindingId'=${actor.credentialBindingId}
       AND p.configuration_json->>'automationEnabled'='true' AND p.configuration_json->'catalogs' ? 'automationWorker'`.execute(tx)).rows[0];
+  const profile = async (tx: DatabaseTransaction,actor: WorkPrincipal,options: BindingCheckOptions = {}): Promise<ProfileRow> => {
+    if (!actor.scopes.includes('automation:work')) throw unavailable();
+    let row = await enabledProfile(tx,actor);
+    // Pinned (stored-observation) checks only verify; a live request may bind or repair under the Owner's consent.
+    if (!options.allowExpiredObservation) {
+      if (!row) { await bindByConsent(tx,actor); row = await enabledProfile(tx,actor); }
+      if (row) await repairInboxes(tx,actor,row.id,row.unpaired);
+    }
     if (!row) throw unavailable();
     await verifyBinding(tx,actor,options);
     // Refresh token-free observations only after the current credential passed all
@@ -107,17 +184,22 @@ export function createTargetWorkerService(db: Kysely<DatabaseSchema>,verifyBindi
   };
   return { profile,authorize,
     access: actor => db.transaction().execute(async tx => {
-      const row = (await sql<ProfileRow>`SELECT p.* FROM automation_connection_profiles p JOIN accounts a ON a.id=p.owner_id
-        WHERE p.owner_id=${actor.accountId} AND a.subject_id=${actor.subjectId} AND a.status='active' AND a.deleted_at IS NULL
-          AND p.configuration_json->>'authorizedClientId'=${actor.clientId} AND p.configuration_json->>'credentialBindingId'=${actor.credentialBindingId}`.execute(tx)).rows[0];
+      let row = await boundProfile(tx,actor);
+      if (!row) { await bindByConsent(tx,actor); row = await boundProfile(tx,actor); }
       if (!row) return confirmableAccess(tx,actor);
       const access = { id: row.id,revision: String(row.revision),automationEnabled: row.configuration_json.automationEnabled,catalogs: row.configuration_json.catalogs,pairedTargets: [] as { id: string; generation: string }[] };
       try { await verifyBinding(tx,actor); }
       catch (error) { if (!(error instanceof AutomationError)) throw error; return { ...access,automationEnabled: false,catalogs: [] }; }
-      const targets = (await sql<{ id: string; generation: string }>`SELECT id,pairing_generation::text AS generation FROM automation_targets
-        WHERE owner_id=${actor.accountId} AND profile_id=${row.id} AND paired AND NOT revoked ORDER BY id LIMIT 501`.execute(tx)).rows;
-      if (targets.length>500) throw new AutomationError('payload_too_large','Profile target bound exceeded.');
-      return { ...access,pairedTargets: targets };
+      const inboxes = (await sql<{ id: string; generation: string; paired: boolean }>`SELECT id,pairing_generation::text AS generation,paired FROM automation_targets
+        WHERE owner_id=${actor.accountId} AND profile_id=${row.id} AND NOT revoked ORDER BY id LIMIT 501`.execute(tx)).rows;
+      if (inboxes.length>500) throw new AutomationError('payload_too_large','Profile target bound exceeded.');
+      let targets = inboxes.filter(target => target.paired);
+      if (access.automationEnabled && access.catalogs.includes('automationWorker') && targets.length<inboxes.length) {
+        await repairInboxes(tx,actor,row.id,true);
+        targets = (await sql<{ id: string; generation: string; paired: boolean }>`SELECT id,pairing_generation::text AS generation,paired FROM automation_targets
+          WHERE owner_id=${actor.accountId} AND profile_id=${row.id} AND paired AND NOT revoked ORDER BY id LIMIT 501`.execute(tx)).rows;
+      }
+      return { ...access,pairedTargets: targets.map(({ id,generation }) => ({ id,generation })) };
     }),
     async pair(actor,body,commandId = randomUUID()) {
       const input = parseContract('PairingClaimInput',body);
@@ -159,6 +241,17 @@ export function createTargetWorkerService(db: Kysely<DatabaseSchema>,verifyBindi
       });
     },
   };
+}
+/** Better Auth stores consented scopes as a JSON array; older rows may hold one space-separated string. */
+function scopeList(value: unknown): string[] {
+  const source = Array.isArray(value) ? value : typeof value === 'string' ? value.split(/[,\s]+/u) : [];
+  return [...new Set(source.filter((item): item is string => typeof item === 'string' && item.length>0 && item.length<=128))];
+}
+/** The registered client name, else the host of a CIMD client URL, else the client ID itself. */
+function agentDisplayName(name: string | null,clientId: string): string {
+  const trimmed = (name ?? '').trim();
+  if (trimmed) return [...trimmed].slice(0,200).join('');
+  try { return new URL(clientId).hostname || clientId.slice(0,200); } catch { return clientId.slice(0,200); }
 }
 function codeMatches(code: string,hash: string): boolean {
   const actual = Buffer.from(claimTokenHash(code)),expected = Buffer.from(hash);
