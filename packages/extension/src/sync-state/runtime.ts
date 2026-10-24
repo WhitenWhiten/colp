@@ -58,6 +58,10 @@ export function createSyncStoreRuntime(options: StoreOptions = {}): SyncStoreRun
       throw stableError(error);
     }
     connection.onversionchange = () => { connection?.close(); connection = undefined; };
+    // W2A-05: the browser may close the connection under us (site data cleared, profile storage lost);
+    // forget it so the next call reopens instead of failing on a dead handle until the worker restarts.
+    const opened = connection;
+    connection.onclose = () => { if (connection === opened) { connection = undefined; durableCache.clear(); } };
     if (structuralProblems(connection).length) diagnosticReadOnly = true;
     else await pageV15Backfill({ open: async () => connection! });
     return connection;
