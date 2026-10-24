@@ -8,6 +8,8 @@ import { SyncStateError, type QueueOperation, type SyncScope, type UnknownRecord
 
 const prefix = (key: string) => `push-rejection:${key}:`;
 const range = (key: string) => IDBKeyRange.bound([key, prefix(key)], [key, `${prefix(key)}\uffff`]);
+/** The durable fact that one consumed upload was refused by the server. */
+export const consumedRejectionFactId = (key: string, opId: string): string => `${prefix(key)}${opId}`;
 /** Written in the receipt transaction. Consumed failures are display/subject holds, never lane owners. */
 export function putConsumedRejection(tx: IDBTransaction, row: QueueOperation): void {
   if (row.status !== 'terminal' || row.recovery?.resultStatus !== 'rejected') return;

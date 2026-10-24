@@ -448,8 +448,13 @@ export type SyncAttentionTerminalCode = 'metadata_sync_disabled' | 'replica_rebu
   | 'deletion_identity_unproven' | 'legacy_resolution_sequence_collision' | 'mapping_identity_collision'
   | 'create_ambiguous' | 'create_evidence_missing'
   | 'create_placement_parent_deleted' | 'create_placement_unproven' | 'pull_issue_ceiling' | 'sync_issue_ceiling';
-/** What a person can do about one item from this device (`known.sync.issue.act`). */
-export type SyncIssueLocalAction = 'retry' | 'release' | 'dismiss';
+/**
+ * What a person can do about one item from this device (`known.sync.issue.act`):
+ * `retry` puts a held or blocked upload through its checks again; `dismiss`
+ * closes the item and keeps this browser's version.
+ */
+export type SyncIssueLocalAction = 'retry' | 'dismiss';
+export type { SyncIssueActionRequest, SyncIssueActionResponse } from './sync-issue-action-types.js';
 /** Browser-local diagnostics. Native identities stay on this device. */
 export interface SyncIssueDiagnostic {
   /** What the Sync center may ask for this item (`retry`); the same list the health report carries. */
@@ -469,6 +474,8 @@ export interface PublicSyncAttention {
   readonly rebuildAvailable?: boolean;
   readonly rebuildUnavailableReason?: string;
   readonly retryAvailable?: boolean;
+  /** Close to the point where sync stops for too many open items (`sync-issue-ceiling.ts`). */
+  readonly issueCeiling?: { readonly open: number; readonly limit: number };
   readonly retryAt?: number;
   readonly retryAutomatic?: boolean;
   /** The engine paused after repeated errors and resumes by itself at `retryAt`: a cooldown, not a stop. */

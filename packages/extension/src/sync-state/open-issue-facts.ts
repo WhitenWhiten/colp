@@ -56,7 +56,14 @@ export function blockedPullIssue(page: UnknownRecord, events: readonly UnknownRe
  * the tail, or a delete of a node the server had already deleted. History,
  * not an open issue, and a hole the lane realigns over.
  */
-export const SETTLED_REJECTION_CODES: ReadonlySet<string> = new Set(['recaptured', 'target_already_deleted']);
+export const SETTLED_REJECTION_CODES: ReadonlySet<string> = new Set(['recaptured', 'target_already_deleted', 'dismissed']);
+/** A person closed the item and kept this browser's version: the change is history, not an open issue. */
+export const DISMISSED_REJECTION_CODE = 'dismissed';
+/**
+ * The changes whose refusal can be dismissed. A create leaves a provisional identity behind that only a
+ * fresh capture retires, and a delete would silently drop the user's intent, so both stay open.
+ */
+export const DISMISSIBLE_OPERATION_TYPES: ReadonlySet<string> = new Set(['update_node_content', 'move_node']);
 export function isSettledRejection(row: { readonly status?: string; readonly recovery?: { readonly code?: string } }): boolean {
   return row.status === 'rejected' && SETTLED_REJECTION_CODES.has(row.recovery?.code ?? '');
 }

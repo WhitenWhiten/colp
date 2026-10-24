@@ -38,6 +38,7 @@ import { createMappingRepository } from './sync-state/mapping-repository.js';
 import { createMountRepository } from './sync-state/mount-repository.js';
 import { createPullRepository } from './sync-state/pull-repository.js';
 import { createPullIssueRepository } from './sync-state/pull-issue-repository.js';
+import { createIssueActionsRepository } from './sync-state/issue-actions-repository.js';
 import { createQueueRepository } from './sync-state/queue-repository.js';
 import { createQueueSetAsideRepository } from './sync-state/queue-set-aside-repository.js';
 import { createRecoveryRepository } from './sync-state/recovery-repository.js';
@@ -66,7 +67,7 @@ export function createSyncStateStore(options: StoreOptions = {}) {
     ...createDeleteMemberRepository(ctx), ...createLocalPlacementRecoveryRepository(ctx), ...createPullNativeDeferralRepository(ctx),
     open: ctx.open, close: ctx.close, ...createClassificationRepository(ctx),
     ...createNativeMutationRepository(ctx),
-    ...createQueueBatchRepository(ctx), ...createPullIssueRepository(ctx), ...advanced, ...remoteDelete, ...batch, ...facts, ...createReorderRepository(ctx),
+    ...createQueueBatchRepository(ctx), ...createPullIssueRepository(ctx), ...createIssueActionsRepository(ctx), ...advanced, ...remoteDelete, ...batch, ...facts, ...createReorderRepository(ctx),
     registerScope: scope.registerScope, getScope: scope.getScope,
     putMapping: mapping.putMapping, deleteMapping: mapping.deleteMapping, listMappings: mapping.listMappings,
     getMappingByNativeId: mapping.getMappingByNativeId, getMappingByColpId: mapping.getMappingByColpId,

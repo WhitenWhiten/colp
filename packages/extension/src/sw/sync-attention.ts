@@ -1,6 +1,8 @@
 import { readReplicaRepairCapability } from '../replica-repair-capability.js';
 import { isSettledRejection } from '../sync-state/open-issue-facts.js';
-import { snapshotSyncIssues, localIssueId } from '../sync-issue-snapshot.js';
+import { snapshotSyncIssues, localIssueId, pullIssueId } from '../sync-issue-snapshot.js';
+import { issueCeilingWarning } from '../sync-issue-ceiling.js';
+import { pullLocalActions, pushLocalActions } from '../sync-issue-local-actions.js';
 import { withResolvedTitles } from '../sync-issue-titles.js';
 import { readOpenSyncIssues, type OpenSyncIssues } from '../sync-issues.js';
 /** Shared attention facts and action capabilities. Reading may restore derived issue
@@ -75,7 +77,11 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
         && localIssueId(row) === issue.issueId);
       const operation = open.queue.find(row => row.opId === issue.opId);
       const merge = open.bootstrap.find(row => row.issueId === issue.issueId);
-      return { ...issue, ...(AUTOMATIC_ISSUE_CODES.has(issue.code) ? { recovery: 'automatic' as const } : {}),
+      const remote = issue.direction === 'pull' && issue.nodeId
+        ? open.pull.find(row => row.nodeId === issue.nodeId && pullIssueId(row.nodeId) === issue.issueId) : undefined;
+      // What this device can do about the item: the card shows exactly these buttons (K5).
+      const localActions = operation ? pushLocalActions(operation) : remote ? pullLocalActions(remote) : [];
+      return { ...issue, ...(localActions.length ? { localActions } : {}), ...(AUTOMATIC_ISSUE_CODES.has(issue.code) ? { recovery: 'automatic' as const } : {}),
         ...(operation?.recovery?.expectedSequence ? { dependencySequence: operation.recovery.expectedSequence } : {}), ...(merge ? { reportId: merge.reportId, itemId: merge.itemId, recovery: 'decision' as const } : {}), ...(local ? { eventId: local.eventId, dependencyOpId: local.dependencyOpId,
         dependencyEventId: local.dependencyEventId, rootCause: local.rootCause, attempts: local.attempts,
         recovery: local.recovery } : {}) };
@@ -94,6 +100,7 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
       ...(watch?.lastSyncedAt ? { lastSyncedAt: watch.lastSyncedAt } : {}),
       ...queue,
       issueCount: open.total + (stalled ? 1 : 0), issues, rebuildAvailable: capability.rebuildAvailable,
+      ...(issueCeilingWarning(open.operationalTotal) ? { issueCeiling: issueCeilingWarning(open.operationalTotal)! } : {}),
       ...(capability.reason ? { rebuildUnavailableReason: capability.reason } : {}),
       retryAvailable: Boolean(stalled) || open.queue.some(row => row.recovery?.code === 'sequence_blocked' && row.attempt !== undefined),
       // A wait for a parent folder ends when the parent arrives; only the others wait for a person.

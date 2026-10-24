@@ -33,24 +33,42 @@ export interface ReplicaHealthIssue {
   readonly lastSeenAt: string;
   readonly actions: readonly 'retry'[];
 }
+type QueueIssueRow = Pick<QueueOperation, 'status' | 'opId' | 'attempt' | 'recovery'>;
+
+/** The code an upload that did not go through reports under: its conflict, its recorded reason, or what kind of refusal it was. */
+export function queueIssueCode(row: QueueIssueRow): string {
+  const conflict = row.status === 'blocked' && row.recovery?.code === 'conflict_pending';
+  const fallback = row.status === 'set_aside' ? 'set_aside' : 'push_rejected';
+  return conflict ? 'conflict_pending' : row.recovery?.code ? reportCode(row.recovery.code, fallback) : fallback;
+}
+
+/**
+ * Whether the item can go through its checks again, from the Sync center and from this browser's own Status card.
+ * A change held for a decision about its own placement or identity, or for a local failure
+ * the classifier has no entry for, goes through the same checks again from a fresh capture.
+ * A change waiting on another one is released by that one, and a record that cannot be
+ * stored or a rebuild-class problem is not cured by capturing it again.
+ */
+export function queueIssueRetryable(row: QueueIssueRow, code: string): boolean {
+  const policy = classifySyncFailure(code);
+  return row.status === 'blocked' && code === 'sequence_blocked' && row.attempt !== undefined || row.status === 'set_aside' && OPAQUE.test(row.opId)
+    && (policy?.exit === 'decide' || policy === undefined && !DEPENDENT_HOLDS.has(code));
+}
+
+/** The shared display id of an upload issue and of a pull issue: the same on the card, in the report and in an action. */
+export const queueIssueId = (row: Pick<QueueOperation, 'opId'>, code: string): string => issueId(['push', code, row.opId]);
+export const pullIssueId = (nodeId: string): string => issueId(['pull', 'node', nodeId]);
+
 /** Uploads the server refused, held for a conflict, or set aside for another problem, one issue each. */
 export function replicaIssuesFromQueue(rows: readonly QueueOperation[]): ReplicaHealthIssue[] {
   return rows.flatMap((row) => {
     if (!isOpenQueueIssue(row)) return [];
-    const conflict = row.status === 'blocked' && row.recovery?.code === 'conflict_pending';
-    const fallback = row.status === 'set_aside' ? 'set_aside' : 'push_rejected';
-    const code = conflict ? 'conflict_pending' : row.recovery?.code ? reportCode(row.recovery.code, fallback) : fallback;
+    const code = queueIssueCode(row);
     const at = instant(row.payload.occurredAt);
     const nodeId = serverNodeId(row.payload.targetId);
     const title = titleOf(row.payload);
-    // A change held for a decision about its own placement or identity, or for a local failure
-    // the classifier has no entry for, goes through the same checks again from a fresh capture.
-    // A change waiting on another one is released by that one, and a record that cannot be
-    // stored or a rebuild-class problem is not cured by capturing it again.
-    const policy = classifySyncFailure(code);
-    const retry = row.status === 'blocked' && code === 'sequence_blocked' && row.attempt !== undefined || row.status === 'set_aside' && OPAQUE.test(row.opId)
-      && (policy?.exit === 'decide' || policy === undefined && !DEPENDENT_HOLDS.has(code));
-    return [{ issueId: issueId(['push', code, row.opId]), code, direction: 'push' as const,
+    const retry = queueIssueRetryable(row, code);
+    return [{ issueId: queueIssueId(row, code), code, direction: 'push' as const,
       ...(nodeId ? { nodeId } : {}), ...(OPAQUE.test(row.opId) ? { opId: row.opId } : {}),
       ...(title ? { title } : {}), count: Math.max(1, row.retry.attempt), firstSeenAt: at, lastSeenAt: row.attempt?.startedAt ? safeTime(row.attempt.startedAt) : at, actions: retry ? ['retry' as const] : [] }];
   });
@@ -62,7 +80,7 @@ export function replicaIssuesFromPull(rows: readonly PullIssueRecord[]): Replica
     const nodeId = serverNodeId(row.nodeId);
     if (!nodeId) return [];
     const title = typeof row.title === 'string' ? bounded(row.title) : undefined;
-    return [{ issueId: issueId(['pull', 'node', nodeId]), code: reportCode(row.code), direction: 'pull' as const, nodeId,
+    return [{ issueId: pullIssueId(nodeId), code: reportCode(row.code), direction: 'pull' as const, nodeId,
       ...(title ? { title } : {}), count: Math.max(1, row.count), firstSeenAt: safeTime(row.firstSeenAt),
       lastSeenAt: safeTime(row.lastSeenAt), actions: [] }];
   });

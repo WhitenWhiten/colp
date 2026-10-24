@@ -67,11 +67,13 @@ import { handleImportRequest } from './sw/import.js';
 import { handleIngressDiagnosticsRequest, type IngressDiagnosticsDeps } from './sw/ingress-diagnostics.js';
 import { handleSyncAttentionRequest, type SyncAttentionDeps } from './sw/sync-attention.js';
 import { handleSyncProgressRequest } from './sw/sync-progress.js';
+import { handleSyncIssueAction } from './sw/sync-issue-actions.js';
+import { syncIssueActionDeps } from './sw/sync-issue-actions-runtime.js';
 import { validBatchRequest, validConnectivityRequest, validFaviconRequest, validFirstRunRequest, validImportRequest,
   validIngressDiagnosticsRequest,
   validBookmarkPreferencesRequest, validNativeSaveRequest, validNativeWaitRequest, validRemoteDeleteRequest, validRequest, validRootRequest,
   validSaveStatusRequest, validScopeCommandRequest, validSender, validSyncAttentionRequest, validSyncEngineRequest, validSyncRetryRequest,
-  validSyncProgressRequest,
+  validSyncProgressRequest, validSyncIssueActionRequest,
   validSyncStateEvidenceRequest } from './sw/messages.js';
 import { handleRootRequest, resumeBookmarksAfterPermissionGrant } from './sw/roots.js';
 import { ensurePeriodicAlarm } from './sw/reconcile-alarm.js';
@@ -348,6 +350,12 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     const wake = scheduleSyncEngineWake('manual');
     void wake.catch((error) => logBackgroundFailure('message.sync-engine-wake', error));
     void settleManualRetry(wake, safeError).then(respond);
+    return true;
+  }
+  if (validSyncIssueActionRequest(message)) {
+    // Try again / Dismiss on named items: the Status tab only; queue changes run in the engine lane.
+    if (!trustedLifecyclePage(sender, chrome.runtime.id)) return false;
+    void handleSyncIssueAction(syncIssueActionDeps, message).then(respond, error => respond({ ok: false, error: safeError(error) }));
     return true;
   }
   if (validSyncEngineRequest(message)) {

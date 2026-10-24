@@ -4,6 +4,7 @@ import { createQueueRecapture } from '../queue-recapture.js';
 import { configuredPersonalSyncPolicy } from '../personal-sync-fetch.js';
 import type { SyncScope } from '../sync-state-store.js';
 import { runSyncEngine } from './engine.js';
+import { queueRetryKind, retryQueueIssue } from './issue-retry.js';
 import type { AuthorityContext } from '../authority-fence.js';
 import { REPLICA_HEALTH_ATTENTION_HEARTBEAT_MS, sendReplicaDisconnectReport, sendReplicaHealthReport,
   type ReplicaCommandRunner, type ReplicaHealthReporterDeps } from './replica-health-report.js';
@@ -44,6 +45,8 @@ async function send(force: boolean) {
     if (digestJson({ ...await currentSyncScope() }) !== digestJson({ ...scope })) throw new Error('stale_ref');
   };
   const policy = configuredPersonalSyncPolicy();
+  // A remote item whose bookmark is here by now needs nothing: it must not be reported as a problem.
+  await syncState.closeLandedPullIssues(scope).catch(() => 0);
   const report = (forced: boolean) => sendReplicaHealthReport({
     ...reporterDeps(scope),
     mode: async () => policy ? (await policy.read(scope)).mode : undefined,
@@ -102,15 +105,12 @@ function commandRunner(scope: SyncScope, assertCurrent: () => Promise<void>): Re
     },
     async issue(_action, issue) {
       const row = issue.opId ? await syncState.getQueueByOpId(scope, issue.opId) : null;
-      if (row?.status === 'blocked' && row.recovery?.code === 'sequence_blocked') {
-        await assertCurrent(); await syncState.retrySequenceBlocked(scope, row.opId);
-        await retry(); return { outcome: 'done', code: 'exact_retry_requested' };
-      }
-      if (row?.status !== 'set_aside') return { outcome: 'failed', code: 'issue_gone' };
+      if (!row || !queueRetryKind(row)) return { outcome: 'failed', code: 'issue_gone' };
       await assertCurrent();
-      await syncState.releaseSetAsideQueue(scope, [row.sequence],
+      // The same thing the Status card's Try again does for the item.
+      const code = await retryQueueIssue(syncState, scope, row,
         createQueueRecapture({ store: syncState, scope, api: chrome.bookmarks, permission: hasBookmarkPermission }));
-      await retry(); return { outcome: 'done', code: 'recapture_completed' };
+      await retry(); return { outcome: 'done', code };
     },
   };
 }
