@@ -1,6 +1,7 @@
 import { readReplicaRepairCapability } from '../replica-repair-capability.js';
 import { isSettledRejection } from '../sync-state/open-issue-facts.js';
 import { snapshotSyncIssues, localIssueId } from '../sync-issue-snapshot.js';
+import { withResolvedTitles } from '../sync-issue-titles.js';
 import { readOpenSyncIssues, type OpenSyncIssues } from '../sync-issues.js';
 /** Shared attention facts and action capabilities. Reading may restore derived issue
  * projections from historical receipts; it never wakes the engine or touches native data. */
@@ -11,7 +12,7 @@ import type { SyncAttentionResponse } from '../types.js';
 import type { createSyncStateStore, QueueOperation, SyncScope } from '../sync-state-store.js';
 
 export type SyncAttentionStore = NativeWaitStore & Pick<ReturnType<typeof createSyncStateStore>,
-  'getEngineState' | 'listQueue'> & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'listConsumedQueueIssues' | 'listBootstrapRuns' | 'listMappings' | 'listPullIssues' | 'listLocalIssues' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'>>;
+  'getEngineState' | 'listQueue'> & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'listConsumedQueueIssues' | 'listBootstrapRuns' | 'listMappings' | 'getMappingByColpId' | 'listPullIssues' | 'listLocalIssues' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'>>;
 
 export interface SyncAttentionDeps {
   readonly scope: () => Promise<SyncScope>;
@@ -45,7 +46,9 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
     const capability = await readReplicaRepairCapability(deps.store, scope, open);
     const waits = open.waits;
     const { stalled, ...queue } = await queueFacts(deps.store, scope, open);
-    const issues = snapshotSyncIssues(open).map(issue => {
+    // A move or delete names its target by id; the mapping still knows what it was called.
+    const named = await withResolvedTitles(snapshotSyncIssues(open), scope, deps.store.getMappingByColpId?.bind(deps.store));
+    const issues = named.map(issue => {
       const local = open.local.find(row => issue.direction === 'local' && row.code === issue.code
         && localIssueId(row) === issue.issueId);
       const operation = open.queue.find(row => row.opId === issue.opId);

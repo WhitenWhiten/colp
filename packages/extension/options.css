@@ -476,7 +476,10 @@ body[data-first-run="syncing"] .folder-foot { display: none; }
 #sync-center > .page-foot-links { margin-top: calc(-1 * var(--space-2)); }
 .sync-attention-settings { display: grid; gap: var(--space-3); }
 .sync-attention-settings .inline-alert { margin: 0; }
-.native-wait-list:empty, #remote-delete-pending-list:empty { display: none; }
+.native-wait-list:empty, #remote-delete-pending-list:empty, .sync-issue-list:empty { display: none; }
+.sync-issue-item .favicon-tile { flex: none; }
+.sync-issue-title { overflow-wrap: anywhere; }
+#sync-attention-settings-issues-more { margin: 0; }
 .native-wait-settings.native-wait-highlight .native-wait-list { border-color: var(--ink); box-shadow: var(--shadow-ring); }
 .native-wait-item .favicon-tile, .remote-delete-pending-item .favicon-tile { flex: none; }
 .native-wait-target { overflow-wrap: anywhere; }

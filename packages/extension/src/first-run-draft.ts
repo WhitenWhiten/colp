@@ -227,6 +227,14 @@ export function confirmFailureCopy(response: FirstRunOrScopeResponse): string {
   return t('firstRun_couldNotStartSync', 'Could not start sync. Try again in a moment.');
 }
 
+/** A failed keep/upload decision on a merge item says what failed; "could not start sync" is for the start button. */
+export function decisionFailureCopy(response: FirstRunOrScopeResponse): string {
+  if (response.ok) return '';
+  if (response.error === 'bootstrap_confirmation_stale') return confirmFailureCopy(response);
+  if (response.error === 'request_invalid') return t('firstRun_decisionItemGone', 'This item is no longer in the list. Reload the list and try again.');
+  return t('firstRun_decisionFailed', 'Could not save your decision ($1). Try again in a moment.', response.error);
+}
+
 export function popupFirstRunStatus(input: {
   readonly connected: boolean; readonly firstRun: FirstRunScopeState | undefined;
   readonly deferredDraft: boolean;

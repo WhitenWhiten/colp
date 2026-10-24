@@ -1,5 +1,6 @@
 import { readHealthReceipt } from './replica-health-receipt.js';
 import { snapshotSyncIssues, issueId, serverNodeId, titleOf, instant, type ReplicaHealthIssue } from '../sync-issue-snapshot.js';
+import { withResolvedTitles } from '../sync-issue-titles.js';
 export { replicaIssuesFromQueue, replicaIssuesFromPull, replicaIssuesFromLocal, replicaIssuesFromWaits, type ReplicaHealthIssue } from '../sync-issue-snapshot.js';
 import { readOpenSyncIssues } from '../sync-issues.js';
 import { createHealthDelivery } from './replica-health-delivery.js';
@@ -25,7 +26,8 @@ import { digestJson } from '../bookmark-event-codec.js';
 import type { StorageArea } from '../credential-store.js';
 import type { PersonalSyncMode } from '../personal-sync-policy.js';
 import type { LocalIssueRecord, PullIssueRecord, QueueOperation, SyncScope } from '../sync-state-store.js';
-import { refreshesReplicaIntegrity, needsReplicaRebuild, persistentLocalSyncFailure } from '../sync-failure-class.js';
+import { refreshesReplicaIntegrity } from '../sync-failure-class.js';
+import { problemOffersRetry } from '../sync-problem-catalog.js';
 import type { PublicSyncAttention } from '../types.js';
 import { handleSyncAttentionRequest, readStalledUpload, type SyncAttentionStore } from './sync-attention.js';
 
@@ -89,8 +91,9 @@ export function projectReplicaHealth(input: {
   if (input.attention.retryAutomatic === false || input.attention.terminal
       || input.attention.recoveryFrozen && refreshesReplicaIntegrity(input.attention.lastError ?? input.attention.recoveryCode)) {
     const code = [input.attention.terminalCode, input.attention.lastError].find((value) => value && CODE.test(value));
-    // A retry is a manual wake; it cannot end a stop whose only way out is a rebuild or a fix.
-    const actions: ReplicaAction[] = needsReplicaRebuild(code) || persistentLocalSyncFailure(code) ? [] : ['retry'];
+    // A retry is a manual wake: a cheap probe worth offering for everything except a state that waits for
+    // a Reset or a decision. The extension's own card follows the same rule (`problemOffersRetry`).
+    const actions: ReplicaAction[] = problemOffersRetry(code) ? ['retry'] : [];
     // Local rebuild uses receipt guards; a negotiated server fence also makes
     // uncertain uploads recoverable without replaying them.
     if (canRebuild) actions.push('rebuild');
@@ -274,7 +277,7 @@ async function readProjection(deps: ReplicaHealthReporterDeps): Promise<ReplicaH
   const response = await handleSyncAttentionRequest({ scope: async () => deps.scope, store: deps.store, openIssues: open,
     ...(deps.rebuildPending ? { rebuildPending: deps.rebuildPending } : {}) });
   if (response.ok !== true) throw new Error('scope_unavailable');
-  const issues = snapshotSyncIssues(open);
+  const issues = await withResolvedTitles(snapshotSyncIssues(open), deps.scope, deps.store.getMappingByColpId?.bind(deps.store));
   const stalled = await readStalledUpload(deps.store, deps.scope);
   if (stalled) issues.push(stalledUploadIssue(stalled.row, stalled.code, deps.now()));
   const mode = await deps.mode();

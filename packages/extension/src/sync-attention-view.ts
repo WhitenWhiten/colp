@@ -1,0 +1,285 @@
+import { formatMoment, localized, t, tn } from './i18n.js';
+/**
+ * S7 / B2 (SR-09 popup · SR-11 · SR-04/SR-13): what the Status card says about a
+ * paused, recovering or terminally frozen replica, as pure functions (no DOM),
+ * so the wording and the decisions behind it are testable and shared with the
+ * service worker.
+ *
+ * Three facts drive every render, and all three are already durable:
+ *   - a native wait / parked pull event (SR-09): while a wait is open the engine
+ *     parks inbound Pull+Ack (`durable-sync-engine.ts` pull loop) and Push still
+ *     runs first, so the popup may say "Incoming sync is paused, uploads are
+ *     not affected" (inboundPauseCopy) and nothing more;
+ *   - a conflict barrier (SR-11): the href is the backend's own `conflictHref`
+ *     from `known.remoteDelete.policy.get` — never a hard-coded domain, and no
+ *     href means no link;
+ *   - a terminal freeze (SR-04/SR-13, A-10): `payload_too_large` or an unproven
+ *     identity stops every future wake before any network work, so the copy must
+ *     explain "Sync on this device has stopped" and offer a real exit instead
+ *     of leaving the user with the bare `Needs attention` label.
+ *
+ * `syncAttentionTerminalCode` is the single terminal predicate: it reuses
+ * `holdsUnprovenIdentity` (the engine's own gate) so the UI and the scheduler
+ * cannot drift apart. Words come from the problem catalog
+ * (`sync-problem-catalog.ts`), so a code is described the same way on every
+ * surface and a code nobody wrote words for still reads as a sentence.
+ */
+import { holdsUnprovenIdentity, needsReplicaRebuild } from './sync-failure-class.js';
+import { syncIssueRows, type SyncIssueRow } from './sync-issue-rows.js';
+import { describeSyncProblem, problemOffersRetry } from './sync-problem-catalog.js';
+import type {
+  PublicSyncAttention, RemoteDeleteResponse, SyncAttentionTerminalCode,
+} from './types.js';
+
+export let SYNC_ATTENTION_CONFLICT_LABEL: string, SYNC_ATTENTION_CENTER_LABEL: string, SYNC_ATTENTION_COPY_DIAGNOSTICS_LABEL: string, SYNC_ATTENTION_COPIED_COPY: string, SYNC_ATTENTION_COPY_FAILED_COPY: string;
+localized(() => {
+  SYNC_ATTENTION_CONFLICT_LABEL = t('firstRun_reviewConflictsSyncCenter', 'Review conflicts in Sync center on the web');
+  SYNC_ATTENTION_CENTER_LABEL = t('sync_openSyncCenterWeb', 'Open Sync center on the web');
+  SYNC_ATTENTION_COPY_DIAGNOSTICS_LABEL = t('common_copyDiagnostics', 'Copy diagnostics');
+  SYNC_ATTENTION_COPIED_COPY = t('sync_detailsCopied', 'Details copied.');
+  SYNC_ATTENTION_COPY_FAILED_COPY = t('sync_couldNotCopyDetails', 'Could not copy the details. Try again.');
+});
+/**
+ * SR-15: the MV3 alarm floor (`Math.max(30_000, delay)` in `sw/engine.ts`) is
+ * the real cadence of every freeze/park re-check, so waiting copy states the
+ * lower bound; backoff and browser scheduling may make it longer.
+ */
+export let SYNC_MINIMUM_CYCLE_COPY: string;
+localized(() => {
+  SYNC_MINIMUM_CYCLE_COPY = t('sync_noMoreOftenThan30', 'no more often than every 30 seconds');
+});
+
+export interface SyncAttentionInput {
+  readonly issueCount?: number;
+  readonly issues?: PublicSyncAttention['issues'];
+  readonly rebuildAvailable?: boolean;
+  readonly rebuildUnavailableReason?: string;
+  readonly waitCount?: number;
+  readonly retryAt?: number;
+  readonly retryAutomatic?: boolean;
+  readonly nativeWaitPending?: boolean;
+  readonly remoteDeletePendingCount?: number;
+  readonly phase?: string;
+  readonly recoveryFrozen?: boolean;
+  readonly queueProjection?: 'idle' | 'syncing' | 'conflict' | 'rejected';
+  readonly conflictPending?: boolean;
+  readonly rejectedPending?: boolean;
+  readonly lastError?: string;
+  readonly recoveryCode?: string;
+  /** Backend-provided Sync Center URL. Absent means "render no link". */
+  readonly conflictHref?: string;
+  /** The surface shows no Reset button of its own (first-run setup); the Status tab has it. */
+  readonly resetInStatus?: boolean;
+}
+
+export interface SyncAttentionLink {
+  readonly show: boolean;
+  readonly href?: string;
+  readonly label: string;
+}
+
+export interface SyncAttentionView {
+  readonly recovery: { readonly show: boolean; readonly copy: string; readonly report: string;
+    /** "Retry sync" is worth offering for this state (the Sync center follows the same rule). */
+    readonly retry: boolean; readonly syncCenter: SyncAttentionLink };
+  /** Every item that could not sync, one row each (a window of the first rows plus how many more). */
+  readonly issues: { readonly show: boolean; readonly rows: readonly SyncIssueRow[]; readonly more: number };
+  readonly pause: { readonly show: boolean; readonly nativeWait: boolean;
+    readonly remoteDeletePending: boolean; readonly copy: string };
+  readonly conflict: SyncAttentionLink;
+  readonly rejected: { readonly show: boolean; readonly copy: string };
+  readonly terminal: {
+    readonly show: boolean;
+    readonly code?: SyncAttentionTerminalCode;
+    readonly copy: string;
+    readonly report: string;
+    /** A frozen identity is re-checked by a wake; a state that waits for a Reset is not. */
+    readonly retry: boolean;
+    readonly syncCenter: SyncAttentionLink;
+    readonly copyDiagnosticsLabel: string;
+  };
+}
+
+/**
+ * The engine's terminal gate is `recoveryFrozen && (holdsUnprovenIdentity ||
+ * lastError === 'payload_too_large')`; `freezeScopeRecovery` records the same
+ * code as `scope.metadata.recoveryCode`. Checking both fields means a freeze
+ * stays visible even if only one of the two rows survived.
+ */
+export function syncAttentionTerminalCode(lastError: string | undefined,
+  recoveryCode: string | undefined): SyncAttentionTerminalCode | undefined {
+  for (const code of [recoveryCode, lastError]) {
+    if (code === 'payload_too_large' || code === 'replica_rebuild_pending') return code;
+    if (needsReplicaRebuild(code)) return code as SyncAttentionTerminalCode;
+    if (holdsUnprovenIdentity(code)) return code as SyncAttentionTerminalCode;
+  }
+  return undefined;
+}
+
+export function isTerminalSyncAttention(input: SyncAttentionInput): boolean {
+  return syncAttentionTerminalCode(input.lastError, input.recoveryCode) !== undefined;
+}
+
+/** SR-09: the exact blast radius of a park — inbound stops, uploads do not. */
+export function inboundPauseCopy(input: SyncAttentionInput): string {
+  const parts = [t('sync_inboundPausedPlain', 'Items awaiting a decision and their related changes are held. Other incoming changes and uploads continue.')];
+  const waits = Math.max(0, Math.trunc(input.waitCount ?? 0));
+  if (waits > 0) {
+    parts.push(tn('sync_inboundWaitsPlain', waits, '$1 cloud item is waiting for your decision.', '$1 cloud items are waiting for your decision.'));
+  }
+  const deletions = Math.max(0, Math.trunc(input.remoteDeletePendingCount ?? 0));
+  if (deletions > 0) {
+    parts.push(tn('sync_inboundDeletionsPlain', deletions, '$1 cloud deletion is waiting for your decision.', '$1 cloud deletions are waiting for your decision.'));
+  }
+  parts.push(t('sync_inboundRecheckPlain', 'Sync checks again on its own, $1.', SYNC_MINIMUM_CYCLE_COPY));
+  return parts.join(' ');
+}
+
+/** Rejected uploads are items in the list under the card, so the line points there, not at an unrelated page. */
+export function rejectedWorkCopy(): string {
+  return t('sync_rejectedWorkListed', 'A change could not be synced and will not retry automatically. Other items keep syncing. The items below say which.');
+}
+
+/**
+ * Whether the Reset button is on the card of this state. One decision for the
+ * words ("reset sync on this device") and for the button, so the copy never
+ * promises a control that is not there.
+ */
+export function resetOnCard(input: SyncAttentionInput, terminal: boolean): boolean {
+  return input.rebuildAvailable === true && (terminal || input.recoveryFrozen !== true);
+}
+
+export function terminalFreezeReasonCopy(code: SyncAttentionTerminalCode, input: SyncAttentionInput = {}): string {
+  return describeSyncProblem(code, { resetOffered: resetOnCard(input, true),
+    ...(input.resetInStatus ? { resetInStatus: true } : {}),
+    ...(input.rebuildUnavailableReason ? { resetUnavailableReason: input.rebuildUnavailableReason } : {}),
+    ...(input.retryAt !== undefined ? { retryAt: input.retryAt } : {}),
+    ...(input.retryAutomatic !== undefined ? { retryAutomatic: input.retryAutomatic } : {}) }).sentence;
+}
+
+/** Copy the displayed structured issue snapshot even when the engine has no error. */
+export function terminalFreezeReport(input: SyncAttentionInput, syncCenterHref?: string): string {
+  const code = syncAttentionTerminalCode(input.lastError, input.recoveryCode);
+  return [input.retryAutomatic === false || code ? 'Know-N sync diagnostics (sync on this device has stopped)'
+    : 'Know-N sync diagnostics (recovery)',
+  `recoveryCode: ${input.recoveryCode ?? '(not recorded)'}`,
+  `lastError: ${input.lastError ?? '(not recorded)'}`,
+  `issueCount: ${input.issueCount ?? input.issues?.length ?? 0}`,
+  ...(input.issues ?? []).map(issue => `issue: ${JSON.stringify(issue)}`),
+  `enginePhase: ${input.phase ?? '(unknown)'}`,
+  `rebuildAvailable: ${input.rebuildAvailable ?? '(unknown)'}`,
+  `rebuildUnavailableReason: ${input.rebuildUnavailableReason ?? '(none)'}`,
+  `automaticRetry: ${input.retryAutomatic ?? '(unknown)'}`,
+  `retryAt: ${input.retryAt ?? '(not scheduled)'}`,
+  `terminalCode: ${code ?? '(not recorded)'}`,
+  ...(syncCenterHref ? [`syncCenter: ${syncCenterHref}`] : [])].join('\n');
+}
+
+/** A Sync Center link renders only when the backend handed over an http(s) URL. */
+export function syncCenterHref(value: string | undefined): string | undefined {
+  if (typeof value !== 'string' || value.length === 0) return undefined;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? parsed.href : undefined;
+  } catch { return undefined; }
+}
+
+export function describeSyncAttention(input: SyncAttentionInput): SyncAttentionView {
+  const nativeWait = input.nativeWaitPending === true || Math.max(0, Math.trunc(input.waitCount ?? 0)) > 0;
+  const remoteDeletePending = Math.max(0, Math.trunc(input.remoteDeletePendingCount ?? 0)) > 0;
+  const code = syncAttentionTerminalCode(input.lastError, input.recoveryCode);
+  const href = syncCenterHref(input.conflictHref);
+  const conflict = (input.conflictPending === true || input.queueProjection === 'conflict') && href !== undefined;
+  const recovery = code === undefined && (input.recoveryFrozen === true || Boolean(input.lastError) || (input.issueCount ?? 0) > 0);
+  const automatic = input.issues?.filter(issue => issue.recovery === 'automatic').length ?? 0;
+  const decisions = Math.max(0, (input.issueCount ?? 0) - automatic);
+  const issueCopy = [decisions ? tn('sync_itemsNeedAttention', decisions, '$1 item needs attention.', '$1 items need attention.') : '',
+    automatic ? tn('sync_itemsRecoveringAutomatically', automatic, '$1 item is waiting for automatic recovery.', '$1 items are waiting for automatic recovery.') : ''].filter(Boolean).join(' ');
+  const { rows, more } = syncIssueRows(input.issues);
+  const problem = recoveryProblem(input);
+  return {
+    recovery: { show: recovery, copy: (input.issueCount ?? 0) > 0 && !input.lastError ? issueCopy : recoveryFailureCopy(input, issueCopy),
+      report: terminalFreezeReport(input, href), retry: problem === undefined || problem.offersRetry,
+      syncCenter: { show: recovery && href !== undefined && (input.issueCount ?? 0) > 0, ...(href ? { href } : {}),
+        label: SYNC_ATTENTION_CENTER_LABEL } },
+    issues: { show: rows.length > 0, rows, more },
+    pause: { show: nativeWait || remoteDeletePending, nativeWait, remoteDeletePending,
+      copy: inboundPauseCopy(input) },
+    conflict: { show: conflict, ...(conflict && href ? { href } : {}), label: SYNC_ATTENTION_CONFLICT_LABEL },
+    rejected: { show: code === undefined && input.rejectedPending === true, copy: rejectedWorkCopy() },
+    terminal: {
+      show: code !== undefined,
+      ...(code ? { code } : {}),
+      copy: code ? terminalFreezeReasonCopy(code, input) : '',
+      report: terminalFreezeReport(input, href),
+      retry: code !== undefined && problemOffersRetry(code),
+      // This is only the server status link. The separate local rebuild button
+      // previews and archives the old scope before re-registering the replica.
+      syncCenter: { show: code !== undefined && href !== undefined,
+        ...(href ? { href } : {}), label: SYNC_ATTENTION_CENTER_LABEL },
+      copyDiagnosticsLabel: SYNC_ATTENTION_COPY_DIAGNOSTICS_LABEL,
+    },
+  };
+}
+
+function recoveryProblem(input: SyncAttentionInput) {
+  const code = input.lastError ?? input.recoveryCode;
+  return code === undefined ? undefined : describeSyncProblem(code, problemContext(input));
+}
+
+function problemContext(input: SyncAttentionInput) {
+  return { resetOffered: resetOnCard(input, false),
+    ...(input.rebuildUnavailableReason ? { resetUnavailableReason: input.rebuildUnavailableReason } : {}),
+    ...(input.retryAt !== undefined ? { retryAt: input.retryAt } : {}),
+    ...(input.retryAutomatic !== undefined ? { retryAutomatic: input.retryAutomatic } : {}) };
+}
+
+/**
+ * The recovery card's sentence: the problem catalog's words for the code the
+ * engine recorded, then the count of items, so a state is never "something
+ * went wrong" and an item is never only a raw code.
+ */
+export function recoveryFailureCopy(input: SyncAttentionInput, itemCopy = ''): string {
+  const code = input.lastError ?? input.recoveryCode;
+  if (code === undefined) {
+    // Recovering without a recorded error is ordinary: a Snapshot or a frozen page is being worked through.
+    if (input.retryAutomatic === false) {
+      return [t('sync_recoveryStopped', 'Sync could not finish on this device. Retry sync or copy details to investigate.'), itemCopy].filter(Boolean).join(' ');
+    }
+    const copy = t('sync_recoveryRetrying', 'Sync is recovering on this device. It will retry automatically.');
+    return [input.retryAt && input.retryAt > Date.now()
+      ? `${copy} ${t('sync_recoveryNextAttempt', 'Next attempt: $1.', formatMoment(input.retryAt, 'time'))}` : copy, itemCopy].filter(Boolean).join(' ');
+  }
+  return [describeSyncProblem(code, problemContext(input)).sentence, itemCopy].filter(Boolean).join(' ');
+}
+
+/** Facts from `known.sync.attention.get` plus the backend conflict href from `known.remoteDelete.policy.get`. */
+export function syncAttentionInput(attention: PublicSyncAttention | undefined,
+  policy: RemoteDeleteResponse | undefined): SyncAttentionInput {
+  const ok = policy?.ok === true ? policy : undefined;
+  return {
+    issueCount: attention?.issueCount, issues: attention?.issues, rebuildAvailable: attention?.rebuildAvailable, rebuildUnavailableReason: attention?.rebuildUnavailableReason,
+    waitCount: attention?.waitCount ?? 0,
+    retryAt: attention?.retryAt, retryAutomatic: attention?.retryAutomatic,
+    nativeWaitPending: attention?.nativeWaitPending === true,
+    remoteDeletePendingCount: ok?.pendingCount ?? 0,
+    ...(attention?.phase ? { phase: attention.phase } : {}),
+    recoveryFrozen: attention?.recoveryFrozen === true,
+    ...(attention?.queueProjection ? { queueProjection: attention.queueProjection } : {}),
+    conflictPending: attention?.conflictPending === true || ok?.conflictPending === true,
+    rejectedPending: attention?.rejectedPending === true,
+    ...(attention?.lastError ? { lastError: attention.lastError } : {}),
+    ...(attention?.recoveryCode ? { recoveryCode: attention.recoveryCode } : {}),
+    ...(ok && syncCenterHref(ok.conflictHref) ? { conflictHref: ok.conflictHref } : {}),
+  };
+}
+
+/**
+ * SR-09 names `known.nativeWait.list` as the wait signal, so the popup keeps
+ * that read as its fallback: a listed wait raises the pause line even when the
+ * aggregate is unavailable. It can only add a wait, never clear one.
+ */
+export function withNativeWaitFallback(input: SyncAttentionInput, waitCount: number): SyncAttentionInput {
+  if (waitCount <= 0 || input.nativeWaitPending === true || (input.waitCount ?? 0) > 0) return input;
+  return { ...input, waitCount, nativeWaitPending: true };
+}

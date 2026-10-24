@@ -8,6 +8,18 @@ import type { LocalIssueRecord, PullIssueRecord, QueueOperation } from './sync-s
 import type { OpenSyncIssues } from './sync-issues.js';
 const OPAQUE = /^[A-Za-z0-9._~-]{1,128}$/u;
 const CODE = /^[a-z][a-z0-9_]{0,63}$/u;
+/**
+ * A code as the report carries it. The server accepts one lowercase word of
+ * letters, digits and underscores, and rejects the whole report for anything
+ * else, so a code with a detail (`apply_failed:bookmark_api_error`) keeps its
+ * words with the separator replaced instead of being dropped or poisoning the
+ * report.
+ */
+export function reportCode(code: string, fallback = 'unknown_issue'): string {
+  if (CODE.test(code)) return code;
+  const cleaned = code.toLowerCase().replace(/[^a-z0-9_]+/gu, '_').replace(/^[^a-z]+/u, '').replace(/_+$/u, '').slice(0, 64);
+  return CODE.test(cleaned) ? cleaned : fallback;
+}
 const PROVISIONAL = /^(?:pending-|local-|mount:)/u;
 export interface ReplicaHealthIssue {
   readonly issueId: string;
@@ -27,7 +39,7 @@ export function replicaIssuesFromQueue(rows: readonly QueueOperation[]): Replica
     if (!isOpenQueueIssue(row)) return [];
     const conflict = row.status === 'blocked' && row.recovery?.code === 'conflict_pending';
     const fallback = row.status === 'set_aside' ? 'set_aside' : 'push_rejected';
-    const code = conflict ? 'conflict_pending' : CODE.test(row.recovery?.code ?? '') ? row.recovery!.code : fallback;
+    const code = conflict ? 'conflict_pending' : row.recovery?.code ? reportCode(row.recovery.code, fallback) : fallback;
     const at = instant(row.payload.occurredAt);
     const nodeId = serverNodeId(row.payload.targetId);
     const title = titleOf(row.payload);
@@ -48,9 +60,9 @@ export function replicaIssuesFromQueue(rows: readonly QueueOperation[]): Replica
 export function replicaIssuesFromPull(rows: readonly PullIssueRecord[]): ReplicaHealthIssue[] {
   return rows.flatMap((row) => {
     const nodeId = serverNodeId(row.nodeId);
-    if (!nodeId || !CODE.test(row.code)) return [];
+    if (!nodeId) return [];
     const title = typeof row.title === 'string' ? bounded(row.title) : undefined;
-    return [{ issueId: issueId(['pull', 'node', nodeId]), code: row.code, direction: 'pull' as const, nodeId,
+    return [{ issueId: issueId(['pull', 'node', nodeId]), code: reportCode(row.code), direction: 'pull' as const, nodeId,
       ...(title ? { title } : {}), count: Math.max(1, row.count), firstSeenAt: safeTime(row.firstSeenAt),
       lastSeenAt: safeTime(row.lastSeenAt), actions: [] }];
   });
@@ -59,9 +71,8 @@ export function replicaIssuesFromPull(rows: readonly PullIssueRecord[]): Replica
 /** Browser changes that could not be tied to the library. Browser ids never leave the browser. */
 export function replicaIssuesFromLocal(rows: readonly LocalIssueRecord[]): ReplicaHealthIssue[] {
   return rows.flatMap((row) => {
-    if (!CODE.test(row.code)) return [];
     const title = typeof row.title === 'string' ? bounded(row.title) : undefined;
-    return [{ issueId: localIssueId(row), code: row.code, direction: 'local' as const,
+    return [{ issueId: localIssueId(row), code: reportCode(row.code), direction: 'local' as const,
       ...(title ? { title } : {}), count: Math.max(1, row.count), firstSeenAt: safeTime(row.firstSeenAt),
       lastSeenAt: safeTime(row.lastSeenAt), actions: [] }];
   });
@@ -109,14 +120,14 @@ export function titleOf(operation: QueueOperation['payload']): string | undefine
 export function snapshotSyncIssues(open: OpenSyncIssues): ReplicaHealthIssue[] {
   return [...replicaIssuesFromQueue(open.queue), ...replicaIssuesFromPull(open.pull),
     ...replicaIssuesFromLocal(open.local), ...replicaIssuesFromWaits(open.waits),
-    ...open.bootstrap.map(row => ({ issueId: row.issueId, direction: 'local' as const, code: row.code,
+    ...open.bootstrap.map(row => ({ issueId: row.issueId, direction: 'local' as const, code: reportCode(row.code),
       ...(row.nodeId && serverNodeId(row.nodeId) ? { nodeId: row.nodeId } : {}), ...(row.title ? { title: row.title } : {}),
       count: 1, firstSeenAt: safeTime(row.at), lastSeenAt: safeTime(row.at), actions: [] })),
     ...open.deletes.map(row => ({ issueId: issueId(['delete', row.decisionId]), direction: 'pull' as const,
       code: 'remote_delete_confirmation_required', nodeId: row.targetId, title: bounded(row.title), count: 1,
       firstSeenAt: new Date(row.updatedAt).toISOString(), lastSeenAt: new Date(row.updatedAt).toISOString(), actions: [] })),
     ...open.replica.map(row => ({ issueId: issueId(['replica', row.pageId]), direction: 'pull' as const,
-      code: row.code, count: 1, firstSeenAt: new Date(row.at).toISOString(), lastSeenAt: new Date(row.at).toISOString(), actions: [] }))];
+      code: reportCode(row.code, 'pull_page_blocked'), count: 1, firstSeenAt: new Date(row.at).toISOString(), lastSeenAt: new Date(row.at).toISOString(), actions: [] }))];
 }
 
 function safeTime(value: number): string { return new Date(Number.isFinite(value) && Math.abs(value) <= 8.64e15 ? value : 0).toISOString(); }

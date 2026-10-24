@@ -442,8 +442,14 @@ export type SyncAttentionTerminalCode = 'metadata_sync_disabled' | 'replica_rebu
   | 'deletion_identity_unproven' | 'legacy_resolution_sequence_collision' | 'mapping_identity_collision'
   | 'create_ambiguous' | 'create_evidence_missing'
   | 'create_placement_parent_deleted' | 'create_placement_unproven' | 'pull_issue_ceiling' | 'sync_issue_ceiling';
+/** What a person can do about one item from this device (`known.sync.issue.act`). */
+export type SyncIssueLocalAction = 'retry' | 'release' | 'dismiss';
 /** Browser-local diagnostics. Native identities stay on this device. */
 export interface SyncIssueDiagnostic {
+  /** What the Sync center may ask for this item (`retry`); the same list the health report carries. */
+  readonly actions?: readonly string[];
+  /** What this device offers for the item right now. */
+  readonly localActions?: readonly SyncIssueLocalAction[];
   readonly direction: 'pull' | 'push' | 'local'; readonly code: string; readonly title?: string;
   readonly reportId?: string; readonly itemId?: string;
   readonly issueId?: string; readonly nodeId?: string; readonly opId?: string; readonly eventId?: string;

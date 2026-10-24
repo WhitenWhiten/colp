@@ -2,6 +2,7 @@ import { attentionItemCopy } from './first-run-draft.js';
 import { syncCenterHref } from './sync-attention-ui.js';
 import type { PublicAttentionItem } from './types.js';
 import { t } from './i18n.js';
+import { mergeResolutionFailureCopy } from './sync-issue-copy.js';
 
 export function renderAttentionItems(
   list: HTMLElement, items: readonly PublicAttentionItem[], onKeepBoth: (itemId: string, decision?: 'keep_both' | 'keep_local', evidenceDigest?: string) => void,
@@ -25,7 +26,7 @@ export function renderAttentionItems(
       action.disabled = item.resolutionPending === true || !item.evidenceDigest;
       action.addEventListener('click', () => onKeepBoth(item.itemId, 'keep_local', item.evidenceDigest));
       row.append(action);
-      if (item.resolutionError) { const failure = document.createElement('span'); failure.textContent = item.resolutionError; row.append(failure); }
+      if (item.resolutionError) { const failure = document.createElement('span'); failure.textContent = mergeResolutionFailureCopy(item.resolutionError); row.append(failure); }
     }
     list.append(row);
   }
