@@ -230,6 +230,9 @@ export async function requireSyncScope(): Promise<SyncScope> {
 }
 
 export async function bindingForRequest(expectedGeneration: number) {
+  // W2B-P3-1: the memo holds only while storage still holds the binding it names. A sign-out for another account
+  // (or a configuration change) removes the binding behind its back, and a request must not use the removed one.
+  if (sw.bindingPromise && !await memoNamesStoredBinding(sw.bindingPromise)) sw.bindingPromise = undefined;
   if (!sw.bindingPromise) sw.bindingPromise = store.getOrCreateBinding(expectedGeneration);
   try {
     return await sw.bindingPromise;
@@ -237,6 +240,13 @@ export async function bindingForRequest(expectedGeneration: number) {
     sw.bindingPromise = undefined;
     throw error;
   }
+}
+
+async function memoNamesStoredBinding(memo: Promise<StoredAuthBinding>): Promise<boolean> {
+  try {
+    const held = await memo, stored = await store.loadBinding();
+    return stored?.replicaId === held.replicaId && stored.generation === held.generation;
+  } catch { return false; }
 }
 
 export async function retireLegacyScopeForRemount(options: {
@@ -316,6 +326,7 @@ async function pushSessionAuthorityExclusive(forceRefresh = false, observedSessi
           && error.retryAfterMilliseconds !== undefined) {
         sw.sessionRetryNotBefore = Date.now() + error.retryAfterMilliseconds;
       }
+      if (!effectiveForce) await recheckRefusedCredential(auth, error);
       if (!prior) { await clearSessionIfGeneration(context.generation); throw error; }
       try { session = await retryStaleReplicaSession(prior, error, async () => createSyncSession({
         endpoints: await endpoints(), credential, replicaProof: await loadBoundReplicaReportProof(), request: await sessionRequest(context.generation, (await endpoints()).maxBatchOperations ?? 1), origin: extensionOrigin(),
@@ -337,6 +348,17 @@ async function pushSessionAuthorityExclusive(forceRefresh = false, observedSessi
     await recordClockSkew(syncState, await ensureSyncScope(config, credential, session, context.generation), session);
   }
   return { credential, session };
+}
+
+/**
+ * W2B-P1-2: a 401 from the Session route says the server no longer accepts this credential, although its cookie and
+ * stored expiry still look fine (a web sign-out, a password change, an administrator). Ask the identity server once.
+ * When it agrees, this signs out and keeps the replica; retrying a dead credential used to go on until it expired.
+ */
+async function recheckRefusedCredential(auth: ReturnType<typeof createRuntimeAuth>, error: unknown): Promise<void> {
+  if (!(error instanceof SessionRequestError) || error.code !== 'credential_revoked') return;
+  try { await auth.ensureFreshCredential(true); }
+  catch (check) { if (safeError(check) === 'authentication_required') throw check; }
 }
 
 /**

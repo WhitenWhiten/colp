@@ -114,7 +114,9 @@ function controller(dependencies: Dependencies) {
         const stillCurrent = (await dependencies.store.fence.read()).generation === expectedGeneration;
         if (stillCurrent) {
           if (safeCode(error) === 'authentication_required') {
-            await dependencies.store.clearAuthority();
+            // The server no longer knows this credential (W2B-P1-1). Only the secrets go: the replica binding
+            // and the account pin stay, so signing in again resumes the same replica, scope and queue.
+            await dependencies.store.clearCredentialKeepingReplica();
             await dependencies.store.markSignOutReason('authentication_required');
           } else await dependencies.store.clearSession();
         }
@@ -295,6 +297,7 @@ async function restoreCredentialFromCookie(
     // Throws when the authority is fenced, which is the point: a revoked authority
     // must not be silently restored.
     await dependencies.store.saveCredential(next, expectedGeneration);
+    await dependencies.store.clearSignOutReason();
     if (session.cookieValue !== cookieValue) {
       await writeHostCookie(dependencies, session.cookieValue, Date.parse(session.session.expiresAt));
     }
