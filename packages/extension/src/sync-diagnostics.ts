@@ -1,4 +1,4 @@
-import { holdsUnprovenIdentity, needsReplicaRebuild } from './sync-failure-class.js';
+import { syncStopState } from './sync-stop-state.js';
 import { bootstrapAttentionPhase, publicAttentionSummary } from './bootstrap/attention-report.js';
 import type { SyncScope, createSyncStateStore } from './sync-state-store.js';
 
@@ -22,13 +22,18 @@ export async function collectSyncDiagnostics(store: Store, scope: SyncScope) {
       after = rows.at(-1)!.sequence;
     }
   }
-  const code = engine?.lastError;
-  const terminal = engine?.recoveryFrozen === true && (code === 'payload_too_large'
-    || holdsUnprovenIdentity(code) || needsReplicaRebuild(code));
+  // The same reading of "has sync stopped" as the Status card, the chip and the report (sync-stop-state.ts).
+  const stop = syncStopState({ ...(engine?.lastError ? { lastError: engine.lastError } : {}),
+    ...(typeof recorded?.metadata?.recoveryCode === 'string' ? { recoveryCode: recorded.metadata.recoveryCode } : {}),
+    ...(engine?.phase ? { phase: engine.phase } : {}), ...(engine?.circuitBreaker ? { breaker: engine.circuitBreaker } : {}) });
   return {
     engine: { phase: engine?.phase ?? 'idle', errorCode: engine?.lastError ?? null,
       recoveryFrozen: engine?.recoveryFrozen === true, authorityRefreshRequired: engine?.authorityRefreshRequired === true,
-      retryAutomatic: engine?.phase !== 'error' && !terminal, retryAt: engine?.notBefore || null },
+      retryAutomatic: engine?.phase !== 'error' && stop?.kind !== 'terminal', retryAt: engine?.notBefore || null,
+      // terminal | stopped | stalled | cooling: which way out the stop has (null: not stopped).
+      stop: stop?.kind ?? null },
+    // A breaker that tripped is why sync paused after repeated errors; its deadline is `retryAt` above.
+    breaker: { trips: engine?.circuitBreaker?.trips ?? 0, deadline: engine?.circuitBreaker?.retryAt ?? null },
     firstRun: { state: recorded?.firstRun ?? 'none', phase: run ? bootstrapAttentionPhase(run) : 'draft', retryReason: run?.retryReason ?? null,
       pendingReviews: run?.attention ? publicAttentionSummary(run.attention).pendingCount : 0 },
     recovery: { staged: recovery !== null, complete: recovery?.complete ?? false,

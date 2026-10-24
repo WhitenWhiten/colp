@@ -1,4 +1,5 @@
 import { authErrorCopy } from './auth-error-copy.js';
+import { SignedInSetupError } from './login-outcome.js';
 import { dismissToast, showToast } from './toast.js';
 import { t } from './i18n.js';
 
@@ -167,7 +168,7 @@ export function bindLoginForm(handlers: LoginFormHandlers): { setCloudEnabled(en
       // detail a bug report needs.
       console.warn('Know-N sign-in failed:', code ?? 'unknown');
       failed = code;
-      showError(authErrorCopy(code, 'attempt'), suspectFields(kind, code));
+      showError(authErrorCopy(code, error instanceof SignedInSetupError ? 'setup' : 'attempt'), suspectFields(kind, code));
     } finally {
       busy = null;
       refresh();

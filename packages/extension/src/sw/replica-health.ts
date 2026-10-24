@@ -2,15 +2,18 @@ import { digestJson } from '../bookmark-event-codec.js';
 import { runReplicaRebuildCommand } from '../replica-rebuild.js';
 import { createQueueRecapture } from '../queue-recapture.js';
 import { configuredPersonalSyncPolicy } from '../personal-sync-fetch.js';
+import { lastKnownClientClockSkew } from '../session-clock.js';
 import type { SyncScope } from '../sync-state-store.js';
 import { runSyncEngine } from './engine.js';
+import { queueRetryKind, retryQueueIssue } from './issue-retry.js';
 import { requestExplicitSyncRetry } from './explicit-retry.js';
 import type { AuthorityContext } from '../authority-fence.js';
-import { REPLICA_HEALTH_ATTENTION_HEARTBEAT_MS, sendReplicaHealthReport,
-  type ReplicaCommandRunner } from './replica-health-report.js';
+import { REPLICA_HEALTH_ATTENTION_HEARTBEAT_MS, sendReplicaDisconnectReport, sendReplicaHealthReport,
+  type ReplicaCommandRunner, type ReplicaHealthReporterDeps } from './replica-health-report.js';
 import { extensionOrigin, hasBookmarkPermission, store, syncState, workCoordinator } from './runtime.js';
 import { replicaRebuilder } from './scope-rebuild.js';
 import { createRuntimeAuth, currentSyncScope, loadConfig, restoredSyncScope } from './scope.js';
+import { syncWatchdog } from './sync-watchdog-runtime.js';
 import { guardWakeStep, isWakeWait, workerWakeFailureLog } from './wake-failure.js';
 
 /** The heartbeat that still reports when no engine pass runs, e.g. after a terminal stop. */
@@ -47,20 +50,39 @@ async function send(force: boolean) {
     if (digestJson({ ...await currentSyncScope() }) !== digestJson({ ...scope })) throw new Error('stale_ref');
   };
   const policy = configuredPersonalSyncPolicy();
+  // A remote item whose bookmark is here by now needs nothing: it must not be reported as a problem.
+  await syncState.closeLandedPullIssues(scope).catch(() => 0);
   const report = (forced: boolean) => sendReplicaHealthReport({
-    scope, store: syncState,
+    ...reporterDeps(scope),
     mode: async () => policy ? (await policy.read(scope)).mode : undefined,
-    rebuildPending: () => replicaRebuilder().hasPending(),
+    assertCommandCurrent: assertCurrent, commands: commandRunner(scope, assertCurrent), force: forced,
+  });
+  // Commands ran: report again so the Sync center sees their results and the state they left.
+  if (await report(force) === 'ran') await report(true);
+}
+
+function reporterDeps(scope: SyncScope): Omit<ReplicaHealthReporterDeps, 'mode'> {
+  return {
+    scope, store: syncState,
+    rebuildPending: () => replicaRebuilder().hasPending(), bookmarkPermission: hasBookmarkPermission, watchdog: syncWatchdog,
+    clockSkew: lastKnownClientClockSkew,
     // A credential refresh at most; never a Sync Session, which renews lease and cursors.
     credential: async () => createRuntimeAuth(await loadConfig()).ensureFreshCredential(),
     replicaProof: scope => store.loadReplicaReportProof(scope),
     fetch: (input, init) => fetch(input, init),
     storage: chrome.storage.local, origin: extensionOrigin(),
     extensionVersion: chrome.runtime.getManifest().version, now: Date.now,
-    assertCommandCurrent: assertCurrent, commands: commandRunner(scope, assertCurrent), force: forced,
-  });
-  // Commands ran: report again so the Sync center sees their results and the state they left.
-  if (await report(force) === 'ran') await report(true);
+  };
+}
+
+/**
+ * Best effort and bounded: tell the Sync center this browser is leaving, while its replica still exists.
+ * The disconnect never waits long for a server that does not answer.
+ */
+export async function reportReplicaDisconnected(scope: SyncScope): Promise<void> {
+  try {
+    await sendReplicaDisconnectReport({ ...reporterDeps(scope), mode: async () => 'disconnected', requestTimeoutMilliseconds: 4_000 });
+  } catch { /* A report that cannot be sent never blocks the user's own choice. */ }
 }
 
 /**
@@ -90,15 +112,12 @@ function commandRunner(scope: SyncScope, assertCurrent: () => Promise<void>): Re
     },
     async issue(_action, issue) {
       const row = issue.opId ? await syncState.getQueueByOpId(scope, issue.opId) : null;
-      if (row?.status === 'blocked' && row.recovery?.code === 'sequence_blocked') {
-        await assertCurrent(); await syncState.retrySequenceBlocked(scope, row.opId);
-        await retry(); return { outcome: 'done', code: 'exact_retry_requested' };
-      }
-      if (row?.status !== 'set_aside') return { outcome: 'failed', code: 'issue_gone' };
+      if (!row || !queueRetryKind(row)) return { outcome: 'failed', code: 'issue_gone' };
       await assertCurrent();
-      await syncState.releaseSetAsideQueue(scope, [row.sequence],
+      // The same thing the Status card's Try again does for the item.
+      const code = await retryQueueIssue(syncState, scope, row,
         createQueueRecapture({ store: syncState, scope, api: chrome.bookmarks, permission: hasBookmarkPermission }));
-      await retry(); return { outcome: 'done', code: 'recapture_completed' };
+      await retry(); return { outcome: 'done', code };
     },
   };
 }

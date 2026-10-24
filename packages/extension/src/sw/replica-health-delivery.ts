@@ -12,6 +12,12 @@ const identity = (scope: SyncScope) => JSON.stringify([scope.serverOrigin, scope
 const sameOwner = (left: SyncScope, right: SyncScope) => left.serverOrigin === right.serverOrigin
   && left.serverId === right.serverId && left.accountId === right.accountId && left.browserProfileId === right.browserProfileId;
 
+/** What the reporter last kept for one scope (its last send, failures included), read without touching the journal. */
+export async function readHealthRecord(storage: Pick<StorageArea, 'get'>, scope: SyncScope): Promise<unknown> {
+  const journal = (await storage.get(HEALTH_STORAGE_KEY))[HEALTH_STORAGE_KEY] as Journal | undefined;
+  return journal?.version === 2 ? journal.records[identity(scope)]?.value : undefined;
+}
+
 /** Scope-separated reports and immutable final deliveries survive worker and replica replacement. */
 export async function createHealthDelivery(input: { scope: SyncScope; storage: Pick<StorageArea, 'get' | 'set'>;
   now: () => number; post: (body: Record<string, unknown>, scope: SyncScope) => Promise<Response>;

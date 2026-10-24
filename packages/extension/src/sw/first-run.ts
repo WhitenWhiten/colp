@@ -22,7 +22,7 @@ import { currentSyncScope, restoredSyncScope, retireLegacyScopeForRemount } from
 import { readRootFolders, sameDiscovered } from './roots.js';
 import { nativeChromeFacts } from './native-chrome.js';
 import { readSnapshotAuthority, advancedFirstRunStatus, handleAdvancedFirstRunConfirm, handleAdvancedFirstRunPreview } from './advanced-first-run.js';
-import { syncAttentionTerminalCode } from '../sync-attention-ui.js';
+import { syncAttentionTerminalCode } from '../sync-stop-state.js';
 import { readRebuildIdentityHints } from '../replica-rebuild-identity.js';
 
 const PREVIEW_TTL_MS = 30 * 60 * 1000;

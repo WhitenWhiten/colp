@@ -5,7 +5,7 @@ import {
   FIRST_RUN_NEEDS_ATTENTION, FIRST_RUN_PERMISSION_ACTION, FIRST_RUN_PERMISSION_HINT, FIRST_RUN_RANGE_HEADING,
   FIRST_RUN_START, FIRST_RUN_SYNCING, FIRST_RUN_UNSYNCED, FIRST_RUN_VIEW_ATTENTION,
   applyPreviewToDraft, attentionStatusCopy, buildFirstRunConfirm, canStartFirstSync, collectPreviewSelection,
-  confirmFailureCopy, draftPicksFromView, firstRunOnboardingActive, folderCountCopy,
+  confirmFailureCopy, decisionFailureCopy, draftPicksFromView, firstRunOnboardingActive, folderCountCopy,
   folderMetaCopy, onlyManagedRoots, popupFirstRunStatus, projectFirstRunSurface, readFirstRunDraft,
   restoreDraftSelection, writeFirstRunDraft, type FirstRunDraft,
 } from './first-run-draft.js';
@@ -252,7 +252,7 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
       const terminal = syncAttentionTerminalCode(response.error, undefined);
       if (terminal || response.error === 'bootstrap_upload_rejected') {
         clearStatusPoll();
-        showHandshakeCopy(terminal ? terminalFreezeReasonCopy(terminal) : rejectedWorkCopy(), 'warning');
+        showHandshakeCopy(terminal ? terminalFreezeReasonCopy(terminal, { resetInStatus: true }) : rejectedWorkCopy(), 'warning');
         return;
       }
       // An unavailable status is not evidence that setup has never completed.
@@ -332,7 +332,7 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
     if (!observation.attention) { await openAttention(); return; }
     const response = await firstRunMessage({ kind: 'known.firstRun.attention.decide', reportId: observation.attention.reportId, itemId, decision, ...(evidenceDigest ? { evidenceDigest } : {}),
     });
-    if (!response.ok) { say(confirmFailureCopy(response)); return; }
+    if (!response.ok) { say(decisionFailureCopy(response)); return; }
     if ('attention' in response && response.attention) observation = observeFirstRunResponse(response, observation);
     await openAttention(attentionCursor);
   }

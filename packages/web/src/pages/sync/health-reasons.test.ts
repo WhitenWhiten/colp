@@ -40,6 +40,36 @@ test('a pulled change that collides with an existing mapping names the rebuild e
   expect(stopReason('mapping_identity_conflict')).toBe('its copy of your library needs a rebuild.')
 })
 
+test('a retry that ran is not a cure: the note says what the browser reports since (C-17a)', () => {
+  const done = { action: 'retry', state: 'done', resultCode: 'retry_completed', issueId: null, completedAt: '2026-10-24T10:00:00.000Z' } as never
+  expect(commandNote(done, 'Chrome')).toBe('Chrome tried again. Its next report shows whether that fixed it.')
+  expect(commandNote(done, 'Chrome', { state: 'stopped', reportedAt: '2026-10-24T09:59:00.000Z' }))
+    .toBe('Chrome tried again. Its next report shows whether that fixed it.')
+  expect(commandNote(done, 'Chrome', { state: 'stopped', reportedAt: '2026-10-24T10:00:00.000Z' }))
+    .toBe('Chrome tried again, but it still reports a problem.')
+  expect(commandNote(done, 'Chrome', { state: 'syncing', reportedAt: '2026-10-24T10:01:00.000Z' }))
+    .toBe('Chrome tried again, and it now reports that sync is running.')
+  const item = { action: 'retry', state: 'done', resultCode: 'recapture_completed', issueId: 'issue', completedAt: '2026-10-24T10:00:00.000Z' } as never
+  expect(commandNote(item, 'Chrome')).toBe('Chrome tried this item again. Its next report shows whether that fixed it.')
+})
+
+test('a request that failed says why in plain words, with the code only when it is new to us (C-12)', () => {
+  const failed = (resultCode: string) => ({ action: 'rebuild', state: 'failed', resultCode, issueId: null }) as never
+  expect(commandNote(failed('upload_outcome_unsettled'), 'Chrome')).toContain('Reset sync didn’t work: a change that browser sent has no confirmed result yet')
+  expect(commandNote(failed('rebuild_failed'), 'Chrome')).toContain('the reset didn’t finish')
+  expect(commandNote(failed('brand_new_failure'), 'Chrome')).toBe('Reset sync didn’t work: the browser couldn’t carry it out (brand_new_failure).')
+  expect(commandNote({ action: 'retry', state: 'failed', resultCode: null, issueId: null } as never, 'Chrome')).toBe('Retry didn’t work.')
+})
+
+test('a request waiting on a browser that has been quiet for hours does not promise five minutes (C-17d)', () => {
+  const pending = { action: 'retry', state: 'pending', resultCode: null, issueId: null } as never
+  const recent = { state: 'syncing' as const, reportedAt: new Date(Date.now() - 10 * 60_000).toISOString() }
+  expect(commandNote(pending, 'Chrome', recent)).toBe('Retry sent. It runs when Chrome next checks in, usually within five minutes while it’s open.')
+  const quiet = { state: 'syncing' as const, reportedAt: new Date(Date.now() - 3 * 24 * 60 * 60_000).toISOString() }
+  expect(commandNote(pending, 'Chrome', quiet)).toMatch(/^Retry sent\. Chrome hasn’t checked in since .+, so it runs once that browser is open and online again\.$/u)
+  expect(commandNote(pending, 'Chrome')).toContain('usually within five minutes')
+})
+
 test('a subtree delete held because the folder changed elsewhere says Retry deletes it anyway', () => {
   const base = { issueId: 'i', direction: 'push' as const, count: 1, firstSeenAt: 'now', lastSeenAt: 'now', actions: ['retry' as const] }
   expect(issueSummary({ ...base, code: 'delete_subtree_changed' })).toContain('Retry deletes it anyway')

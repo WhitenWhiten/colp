@@ -15,7 +15,8 @@ test('an unfrozen Pull issue is visible and repairable through local Status with
     assert.equal(attention.attention.issueCount, 1);
     assert.equal(attention.attention.rebuildAvailable, true);
     const view = describeSyncAttention(syncAttentionInput(attention.attention, undefined));
-    assert.equal(view.recovery.show, true); assert.match(view.recovery.copy, /Needs repair/);
+    assert.equal(view.recovery.show, true); assert.match(view.recovery.copy, /1 item needs attention\./);
+    assert.equal(view.issues.rows.length, 1, 'the item is a row of its own, not a paragraph');
     assert.deepEqual(await f.rebuilder.handle(f.request), { ok: true, result: 'setup_required' });
     assert.notEqual((await f.credentials.loadBinding())?.replicaId, f.scope.replicaId);
     assert.ok((await f.store.exportArchive(f.scope)).diagnostics);

@@ -60,7 +60,8 @@ describe('replica health projection', () => {
     // A retry is a manual wake; Rebuild needs the same frozen engine as the extension's Reset button.
     assert.deepEqual(stopped('recovery_identity_unproven', true), ['retry', 'rebuild']);
     assert.deepEqual(stopped('pull_apply_target_missing', true), ['rebuild']);
-    assert.deepEqual(stopped('record_too_large', false), []);
+    // C-14: an exit-`stop` code gets the same cheap probe the extension's card offers (its sentence says it may stop again).
+    assert.deepEqual(stopped('record_too_large', false), ['retry']);
     assert.deepEqual(projectReplicaHealth({ mode: 'target-unavailable', attention: calm, issues: [] }).actions, []);
     const held = (code: string) => row({ status: 'set_aside', recovery: { code } });
     assert.deepEqual(replicaIssuesFromQueue([held('create_placement_unproven'), held('recovery_identity_unproven'),

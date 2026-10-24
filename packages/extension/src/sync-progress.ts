@@ -8,6 +8,8 @@ const PREPARING_PHASES = new Set(['confirmed', 'scanning', 'matching']);
 export interface SyncProgressFacts {
   readonly issueCount?: number;
   readonly retryAutomatic?: boolean;
+  /** The engine paused after repeated errors and resumes by itself. */
+  readonly coolingDown?: boolean;
   readonly firstRun: 'none' | 'deferred' | 'running' | 'completed';
   /** Phase of the newest bootstrap run, if any. */
   readonly runPhase?: string;
@@ -45,6 +47,7 @@ export function projectSyncProgress(facts: SyncProgressFacts): PublicSyncProgres
   return {
     ...((facts.issueCount ?? 0) > 0 ? { issueCount: facts.issueCount } : {}),
     ...(facts.retryAutomatic === false ? { retryAutomatic: false } : {}),
+    ...(facts.coolingDown === true ? { coolingDown: true } : {}),
     stage: preparing ? 'preparing' : left > 0 || facts.liveWork || facts.unsettled || (facts.issueCount ?? 0) > 0
       || facts.firstRun === 'running' || facts.runPhase === 'syncing' ? 'syncing' : 'done',
     firstSync: facts.firstRun === 'running',

@@ -1,265 +1,33 @@
-import { formatMoment, localized, t, tn } from './i18n.js';
+import { t } from './i18n.js';
+import { createIcon } from './icons.js';
+import { button, el } from './library-dom.js';
 import { bindReplicaRebuildButton } from './replica-rebuild-ui.js';
-/**
- * S7 / B2 (SR-09 popup · SR-11 · SR-04/SR-13): the user-facing exits around a
- * paused or terminally frozen replica.
- *
- * Three facts drive every render, and all three are already durable:
- *   - a native wait / parked pull event (SR-09): while a wait is open the engine
- *     parks inbound Pull+Ack (`durable-sync-engine.ts` pull loop) and Push still
- *     runs first, so the popup may say "Incoming sync is paused, uploads are
- *     not affected" (inboundPauseCopy) and nothing more;
- *   - a conflict barrier (SR-11): the href is the backend's own `conflictHref`
- *     from `known.remoteDelete.policy.get` — never a hard-coded domain, and no
- *     href means no link;
- *   - a terminal freeze (SR-04/SR-13, A-10): `payload_too_large` or an unproven
- *     identity stops every future wake before any network work, so the copy must
- *     explain "Sync on this device has stopped" and offer a real exit instead
- *     of leaving the user with the bare `Needs attention` label.
- *
- * `syncAttentionTerminalCode` is the single terminal predicate: it reuses
- * `holdsUnprovenIdentity` (the engine's own gate) so the UI and the scheduler
- * cannot drift apart. The binders are shared by popup and options; every string
- * is produced by an exported pure function so the contract is testable without
- * a DOM.
- */
-import { refreshesReplicaIntegrity, holdsUnprovenIdentity, needsReplicaRebuild } from './sync-failure-class.js';
+import { requestServerOriginPermission } from './server-origin-permission.js';
+import { bindStorageResetButton } from './sync-storage-reset-ui.js';
+import {
+  SYNC_ATTENTION_CENTER_LABEL, SYNC_ATTENTION_COPIED_COPY, SYNC_ATTENTION_COPY_DIAGNOSTICS_LABEL, SYNC_ATTENTION_COPY_FAILED_COPY,
+  SYNC_ATTENTION_FOLDERS_LABEL, SYNC_ISSUE_ACTION_LIMIT, describeSyncAttention, issueActionOutcomeCopy, retryOutcomeCopy, syncAttentionInput,
+  syncRetryReading, withNativeWaitFallback, type SyncAttentionView,
+} from './sync-attention-view.js';
+import type { SyncIssueRow } from './sync-issue-rows.js';
 import type {
-  NativeWaitResponse, PublicSyncAttention, RemoteDeleteResponse, SyncAttentionResponse, SyncAttentionTerminalCode,
+  NativeWaitResponse, PublicSyncAttention, RemoteDeleteResponse, SyncAttentionResponse, SyncIssueActionRequest, SyncIssueActionResponse,
+  SyncIssueLocalAction, SyncRetryResponse,
 } from './types.js';
 
-export const SYNC_ATTENTION_OPTIONS_HOST = 'sync-attention-settings';
-export let SYNC_ATTENTION_CONFLICT_LABEL: string, SYNC_ATTENTION_CENTER_LABEL: string, SYNC_ATTENTION_COPY_DIAGNOSTICS_LABEL: string, SYNC_ATTENTION_COPIED_COPY: string, SYNC_ATTENTION_COPY_FAILED_COPY: string;
-localized(() => {
-  SYNC_ATTENTION_CONFLICT_LABEL = t('firstRun_reviewConflictsSyncCenter', 'Review conflicts in Sync center on the web');
-  SYNC_ATTENTION_CENTER_LABEL = t('sync_openSyncCenterWeb', 'Open Sync center on the web');
-  SYNC_ATTENTION_COPY_DIAGNOSTICS_LABEL = t('common_copyDiagnostics', 'Copy diagnostics');
-  SYNC_ATTENTION_COPIED_COPY = t('sync_detailsCopied', 'Details copied.');
-  SYNC_ATTENTION_COPY_FAILED_COPY = t('sync_couldNotCopyDetails', 'Could not copy the details. Try again.');
-});
 /**
- * SR-15: the MV3 alarm floor (`Math.max(30_000, delay)` in `sw/engine.ts`) is
- * the real cadence of every freeze/park re-check, so waiting copy states the
- * lower bound; backoff and browser scheduling may make it longer.
+ * The binder for the Status card (options) and its popup twin. Everything it
+ * says comes from `sync-attention-view.ts` (pure, tested without a DOM); this
+ * file only reads the facts, paints them and wires the buttons. The pure API is
+ * re-exported so importers keep one module to read.
  */
-export let SYNC_MINIMUM_CYCLE_COPY: string;
-localized(() => {
-  SYNC_MINIMUM_CYCLE_COPY = t('sync_noMoreOftenThan30', 'no more often than every 30 seconds');
-});
+export * from './sync-attention-view.js';
+
+export const SYNC_ATTENTION_OPTIONS_HOST = 'sync-attention-settings';
 
 const REFRESH_MS = 8_000;
-
-export interface SyncAttentionInput {
-  readonly issueCount?: number;
-  readonly issues?: PublicSyncAttention['issues'];
-  readonly rebuildAvailable?: boolean;
-  readonly rebuildUnavailableReason?: string;
-  readonly waitCount?: number;
-  readonly retryAt?: number;
-  readonly retryAutomatic?: boolean;
-  readonly nativeWaitPending?: boolean;
-  readonly remoteDeletePendingCount?: number;
-  readonly phase?: string;
-  readonly recoveryFrozen?: boolean;
-  readonly queueProjection?: 'idle' | 'syncing' | 'conflict' | 'rejected';
-  readonly conflictPending?: boolean;
-  readonly rejectedPending?: boolean;
-  readonly lastError?: string;
-  readonly recoveryCode?: string;
-  /** Backend-provided Sync Center URL. Absent means "render no link". */
-  readonly conflictHref?: string;
-}
-
-export interface SyncAttentionLink {
-  readonly show: boolean;
-  readonly href?: string;
-  readonly label: string;
-}
-
-export interface SyncAttentionView {
-  readonly recovery: { readonly show: boolean; readonly copy: string; readonly report: string };
-  readonly pause: { readonly show: boolean; readonly nativeWait: boolean;
-    readonly remoteDeletePending: boolean; readonly copy: string };
-  readonly conflict: SyncAttentionLink;
-  readonly rejected: { readonly show: boolean; readonly copy: string };
-  readonly terminal: {
-    readonly show: boolean;
-    readonly code?: SyncAttentionTerminalCode;
-    readonly copy: string;
-    readonly report: string;
-    readonly syncCenter: SyncAttentionLink;
-    readonly copyDiagnosticsLabel: string;
-  };
-}
-
-/**
- * The engine's terminal gate is `recoveryFrozen && (holdsUnprovenIdentity ||
- * lastError === 'payload_too_large')`; `freezeScopeRecovery` records the same
- * code as `scope.metadata.recoveryCode`. Checking both fields means a freeze
- * stays visible even if only one of the two rows survived.
- */
-export function syncAttentionTerminalCode(lastError: string | undefined,
-  recoveryCode: string | undefined): SyncAttentionTerminalCode | undefined {
-  for (const code of [recoveryCode, lastError]) {
-    if (code === 'payload_too_large' || code === 'replica_rebuild_pending') return code;
-    if (needsReplicaRebuild(code)) return code as SyncAttentionTerminalCode;
-    if (holdsUnprovenIdentity(code)) return code as SyncAttentionTerminalCode;
-  }
-  return undefined;
-}
-
-export function isTerminalSyncAttention(input: SyncAttentionInput): boolean {
-  return syncAttentionTerminalCode(input.lastError, input.recoveryCode) !== undefined;
-}
-
-/** SR-09: the exact blast radius of a park — inbound stops, uploads do not. */
-export function inboundPauseCopy(input: SyncAttentionInput): string {
-  const parts = [t('sync_inboundPausedPlain', 'Items awaiting a decision and their related changes are held. Other incoming changes and uploads continue.')];
-  const waits = Math.max(0, Math.trunc(input.waitCount ?? 0));
-  if (waits > 0) {
-    parts.push(tn('sync_inboundWaitsPlain', waits, '$1 cloud item is waiting for your decision.', '$1 cloud items are waiting for your decision.'));
-  }
-  const deletions = Math.max(0, Math.trunc(input.remoteDeletePendingCount ?? 0));
-  if (deletions > 0) {
-    parts.push(tn('sync_inboundDeletionsPlain', deletions, '$1 cloud deletion is waiting for your decision.', '$1 cloud deletions are waiting for your decision.'));
-  }
-  parts.push(t('sync_inboundRecheckPlain', 'Sync checks again on its own, $1.', SYNC_MINIMUM_CYCLE_COPY));
-  return parts.join(' ');
-}
-
-export function rejectedWorkCopy(): string {
-  return t('sync_syncOperationRejectedServer', 'A change could not be synced and will not retry automatically. Other items will keep syncing. Open Not included in sync for details.');
-}
-
-export function terminalFreezeReasonCopy(code: SyncAttentionTerminalCode): string {
-  if (code === 'metadata_sync_disabled') {
-    return t('sync_metadataConsentStopped', 'A queued change contains browser metadata that you have not allowed to sync. Reset sync on this device to set aside queued changes and review the merge again. Your bookmarks and local metadata are preserved.');
-  }
-  if (code === 'create_placement_parent_deleted' || code === 'create_placement_unproven') {
-    return t('sync_syncDeviceHasStopped', 'Sync on this device has stopped: the saved bookmark’s original folder or position cannot be confirmed. Its save location needs review.');
-  }
-  if (code === 'legacy_resolution_sequence_collision' || code === 'mapping_identity_collision') {
-    return t('sync_syncDeviceStoppedBecause', 'Sync on this device stopped because of an internal mismatch. Your bookmarks are safe. Reset sync on this device to continue.');
-  }
-  if (code === 'replica_rebuild_pending') {
-    return t('sync_syncResetIsntFinished', "The sync reset isn't finished. Your bookmarks are safe. Try again to finish it.");
-  }
-  if (code === 'payload_too_large') {
-    return t('sync_syncDeviceHasStopped2', 'Sync on this device has stopped: the transfer size exceeds supported limits. Retrying will not change the result.');
-  }
-  if (code === 'pull_issue_ceiling' || code === 'sync_issue_ceiling') {
-    return t('sync_tooManyItemsSetAside', 'Sync on this device has stopped: it set aside too many items to keep syncing safely. The bookmarks in your library are safe. Reset sync on this device to continue.');
-  }
-  if (needsReplicaRebuild(code)) {
-    return t('sync_syncDeviceHasStopped3', 'Sync on this device has stopped because some bookmarks on this device are missing. The bookmarks in your library are safe. Reset sync on this device to continue.');
-  }
-  if (code === 'deletion_identity_unproven') {
-    return t('sync_syncDeviceHasStopped4', 'Sync on this device has stopped: this device cannot verify the bookmark to delete matches the cloud item.');
-  }
-  return t('sync_syncDeviceHasStopped5', 'Sync on this device has stopped: this device cannot verify local bookmarks match cloud items.');
-}
-
-/** Copy the displayed structured issue snapshot even when the engine has no error. */
-export function terminalFreezeReport(input: SyncAttentionInput, syncCenterHref?: string): string {
-  const code = syncAttentionTerminalCode(input.lastError, input.recoveryCode);
-  return [input.retryAutomatic === false || code ? 'Know-N sync diagnostics (sync on this device has stopped)'
-    : 'Know-N sync diagnostics (recovery)',
-    `recoveryCode: ${input.recoveryCode ?? '(not recorded)'}`,
-    `lastError: ${input.lastError ?? '(not recorded)'}`,
-    `issueCount: ${input.issueCount ?? input.issues?.length ?? 0}`,
-    ...(input.issues ?? []).map(issue => `issue: ${JSON.stringify(issue)}`),
-    `enginePhase: ${input.phase ?? '(unknown)'}`,
-    `rebuildAvailable: ${input.rebuildAvailable ?? '(unknown)'}`,
-    `rebuildUnavailableReason: ${input.rebuildUnavailableReason ?? '(none)'}`,
-    `automaticRetry: ${input.retryAutomatic ?? '(unknown)'}`,
-    `retryAt: ${input.retryAt ?? '(not scheduled)'}`,
-    `terminalCode: ${code ?? '(not recorded)'}`,
-    ...(syncCenterHref ? [`syncCenter: ${syncCenterHref}`] : [])].join('\n');
-}
-
-/** A Sync Center link renders only when the backend handed over an http(s) URL. */
-export function syncCenterHref(value: string | undefined): string | undefined {
-  if (typeof value !== 'string' || value.length === 0) return undefined;
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? parsed.href : undefined;
-  } catch { return undefined; }
-}
-
-export function describeSyncAttention(input: SyncAttentionInput): SyncAttentionView {
-  const nativeWait = input.nativeWaitPending === true || Math.max(0, Math.trunc(input.waitCount ?? 0)) > 0;
-  const remoteDeletePending = Math.max(0, Math.trunc(input.remoteDeletePendingCount ?? 0)) > 0;
-  const code = syncAttentionTerminalCode(input.lastError, input.recoveryCode);
-  const href = syncCenterHref(input.conflictHref);
-  const conflict = (input.conflictPending === true || input.queueProjection === 'conflict') && href !== undefined;
-  const recovery = code === undefined && (input.recoveryFrozen === true || Boolean(input.lastError) || (input.issueCount ?? 0) > 0);
-  const automatic = input.issues?.filter(issue => issue.recovery === 'automatic').length ?? 0;
-  const decisions = Math.max(0, (input.issueCount ?? 0) - automatic);
-  const issueCopy = [decisions ? tn('sync_itemsNeedAttention', decisions, '$1 item needs attention.', '$1 items need attention.') : '',
-    automatic ? tn('sync_itemsRecoveringAutomatically', automatic, '$1 item is waiting for automatic recovery.', '$1 items are waiting for automatic recovery.') : '',
-    input.issues?.map(issue => [issue.title, issue.code].filter(Boolean).join(': ')).join('; ') ?? ''].filter(Boolean).join(' ');
-  return {
-    recovery: { show: recovery, copy: (input.issueCount ?? 0) > 0 ?
-      issueCopy : recoveryFailureCopy(input), report: terminalFreezeReport(input, href) },
-    pause: { show: nativeWait || remoteDeletePending, nativeWait, remoteDeletePending,
-      copy: inboundPauseCopy(input) },
-    conflict: { show: conflict, ...(conflict && href ? { href } : {}), label: SYNC_ATTENTION_CONFLICT_LABEL },
-    rejected: { show: code === undefined && input.rejectedPending === true, copy: rejectedWorkCopy() },
-    terminal: {
-      show: code !== undefined,
-      ...(code ? { code } : {}),
-      copy: code ? terminalFreezeReasonCopy(code) : '',
-      report: terminalFreezeReport(input, href),
-      // This is only the server status link. The separate local rebuild button
-      // previews and archives the old scope before re-registering the replica.
-      syncCenter: { show: code !== undefined && href !== undefined,
-        ...(href ? { href } : {}), label: SYNC_ATTENTION_CENTER_LABEL },
-      copyDiagnosticsLabel: SYNC_ATTENTION_COPY_DIAGNOSTICS_LABEL,
-    },
-  };
-}
-
-export function recoveryFailureCopy(input: SyncAttentionInput): string {
-  if (input.retryAutomatic === false) {
-    const copy = t('sync_recoveryStopped', 'Sync could not finish on this device. Retry sync or copy details to investigate.');
-    const code = input.lastError ?? input.recoveryCode;
-    return refreshesReplicaIntegrity(code) ? `${copy} (${code})` : copy;
-  }
-  const copy = t('sync_recoveryRetrying', 'Sync is recovering on this device. It will retry automatically.');
-  return input.retryAt && input.retryAt > Date.now()
-    ? `${copy} ${t('sync_recoveryNextAttempt', 'Next attempt: $1.', formatMoment(input.retryAt, 'time'))}` : copy;
-}
-
-/** Facts from `known.sync.attention.get` plus the backend conflict href from `known.remoteDelete.policy.get`. */
-export function syncAttentionInput(attention: PublicSyncAttention | undefined,
-  policy: RemoteDeleteResponse | undefined): SyncAttentionInput {
-  const ok = policy?.ok === true ? policy : undefined;
-  return {
-    issueCount: attention?.issueCount, issues: attention?.issues, rebuildAvailable: attention?.rebuildAvailable, rebuildUnavailableReason: attention?.rebuildUnavailableReason,
-    waitCount: attention?.waitCount ?? 0,
-    retryAt: attention?.retryAt, retryAutomatic: attention?.retryAutomatic,
-    nativeWaitPending: attention?.nativeWaitPending === true,
-    remoteDeletePendingCount: ok?.pendingCount ?? 0,
-    ...(attention?.phase ? { phase: attention.phase } : {}),
-    recoveryFrozen: attention?.recoveryFrozen === true,
-    ...(attention?.queueProjection ? { queueProjection: attention.queueProjection } : {}),
-    conflictPending: attention?.conflictPending === true || ok?.conflictPending === true,
-    rejectedPending: attention?.rejectedPending === true,
-    ...(attention?.lastError ? { lastError: attention.lastError } : {}),
-    ...(attention?.recoveryCode ? { recoveryCode: attention.recoveryCode } : {}),
-    ...(ok && syncCenterHref(ok.conflictHref) ? { conflictHref: ok.conflictHref } : {}),
-  };
-}
-
-/**
- * SR-09 names `known.nativeWait.list` as the wait signal, so the popup keeps
- * that read as its fallback: a listed wait raises the pause line even when the
- * aggregate is unavailable. It can only add a wait, never clear one.
- */
-export function withNativeWaitFallback(input: SyncAttentionInput, waitCount: number): SyncAttentionInput {
-  if (waitCount <= 0 || input.nativeWaitPending === true || (input.waitCount ?? 0) > 0) return input;
-  return { ...input, waitCount, nativeWaitPending: true };
-}
+/** Retry answers after its pass (up to 20 s in the worker), so its reply is waited for longer than a read. */
+const RETRY_REPLY_MS = 24_000;
 
 interface AttentionNodes {
   readonly host: HTMLElement;
@@ -268,10 +36,25 @@ interface AttentionNodes {
   readonly conflictLink: HTMLAnchorElement | null;
   readonly rejected: HTMLElement | null;
   readonly terminal: HTMLElement | null;
+  /** "Reset sync on this device" in the terminal alert, "Cancel pending reset" beside it, "Reset local sync data" in the recovery alert. */
+  readonly rebuild: HTMLButtonElement | null;
+  readonly rebuildCancel: HTMLButtonElement | null;
+  readonly storageReset: HTMLButtonElement | null;
+  /** "Allow access" in the recovery alert: asks the browser to let this extension reach the server again. */
+  readonly siteAccess: HTMLButtonElement | null;
   readonly recovery: HTMLElement | null;
   readonly recoveryCopy: HTMLElement | null;
   readonly retry: HTMLButtonElement | null;
+  readonly terminalRetry: HTMLButtonElement | null;
   readonly recoveryDiagnostics: HTMLButtonElement | null;
+  readonly recoverySyncCenter: HTMLAnchorElement | null;
+  readonly recoveryFolders: HTMLAnchorElement | null;
+  readonly unreadable: HTMLElement | null;
+  readonly notes: HTMLElement | null;
+  readonly issues: HTMLElement | null;
+  readonly issuesMore: HTMLElement | null;
+  readonly issuesHint: HTMLElement | null;
+  readonly issuesBulk: HTMLElement | null;
   readonly terminalCopy: HTMLElement | null;
   readonly syncCenter: HTMLAnchorElement | null;
   readonly copyDiagnostics: HTMLButtonElement | null;
@@ -286,7 +69,9 @@ export function bindSyncAttentionSettings(): void {
 function bindSyncAttention(hostId: string, syncPaneOnly: boolean): void {
   const host = document.getElementById(hostId);
   if (!host) return;
-  bindReplicaRebuildButton(hostId);
+  // The Reset buttons read the card again when a state they were offered for changes.
+  bindReplicaRebuildButton(hostId, { onChanged: () => refresh() });
+  bindStorageResetButton(hostId, () => refresh());
   const nodes: AttentionNodes = {
     host,
     pause: document.getElementById(`${hostId}-pause`),
@@ -294,10 +79,23 @@ function bindSyncAttention(hostId: string, syncPaneOnly: boolean): void {
     conflictLink: document.getElementById(`${hostId}-conflict-link`) as HTMLAnchorElement | null,
     rejected: document.getElementById(`${hostId}-rejected`),
     terminal: document.getElementById(`${hostId}-terminal`),
+    rebuild: document.getElementById(`${hostId}-rebuild`) as HTMLButtonElement | null,
+    rebuildCancel: document.getElementById(`${hostId}-rebuild-cancel`) as HTMLButtonElement | null,
+    storageReset: document.getElementById(`${hostId}-storage-reset`) as HTMLButtonElement | null,
+    siteAccess: document.getElementById(`${hostId}-site-access`) as HTMLButtonElement | null,
     recovery: document.getElementById(`${hostId}-recovery`),
     recoveryCopy: document.getElementById(`${hostId}-recovery-copy`),
     retry: document.getElementById(`${hostId}-retry`) as HTMLButtonElement | null,
+    terminalRetry: document.getElementById(`${hostId}-terminal-retry`) as HTMLButtonElement | null,
     recoveryDiagnostics: document.getElementById(`${hostId}-recovery-diagnostics`) as HTMLButtonElement | null,
+    recoverySyncCenter: document.getElementById(`${hostId}-recovery-sync-center`) as HTMLAnchorElement | null,
+    recoveryFolders: document.getElementById(`${hostId}-recovery-folders`) as HTMLAnchorElement | null,
+    unreadable: document.getElementById(`${hostId}-unreadable`),
+    notes: document.getElementById(`${hostId}-notes`),
+    issues: document.getElementById(`${hostId}-issues`),
+    issuesMore: document.getElementById(`${hostId}-issues-more`),
+    issuesHint: document.getElementById(`${hostId}-issues-hint`),
+    issuesBulk: document.getElementById(`${hostId}-issues-bulk`),
     terminalCopy: document.getElementById(`${hostId}-terminal-copy`),
     syncCenter: document.getElementById(`${hostId}-sync-center`) as HTMLAnchorElement | null,
     copyDiagnostics: document.getElementById(`${hostId}-copy-diagnostics`) as HTMLButtonElement | null,
@@ -305,39 +103,65 @@ function bindSyncAttention(hostId: string, syncPaneOnly: boolean): void {
   };
   let report = '';
   nodes.recoveryDiagnostics?.addEventListener('click', () => { void copyDiagnostics(nodes, report); });
-  nodes.retry?.addEventListener('click', () => {
-    if (!nodes.retry) return;
-    nodes.retry.disabled = true;
-    void send<{ readonly ok: boolean }>({ kind: 'known.sync.engine.retry' }).then(result => {
-      showFeedback(nodes.feedback, result?.ok
-        ? t('sync_recoveryRetryRequested', 'Sync retry requested.')
-        : t('sync_recoveryRetryFailed', 'Could not retry sync. Copy details to investigate.'));
-    }).finally(() => { if (nodes.retry) nodes.retry.disabled = false; });
-  });
+  nodes.siteAccess?.addEventListener('click', () => allowSiteAccess(nodes, () => refresh()));
+  for (const button of [nodes.retry, nodes.terminalRetry]) {
+    button?.addEventListener('click', () => {
+      button.disabled = true;
+      showFeedback(nodes.feedback, t('sync_retryRunning', 'Retrying sync…'));
+      void retrySync(nodes).finally(() => { button.disabled = false; });
+    });
+  }
+  /** Retry answers after its pass; the status is read again, so the card says whether anything changed. */
+  async function retrySync(target: AttentionNodes): Promise<void> {
+    const result = await send<SyncRetryResponse>({ kind: 'known.sync.engine.retry' }, RETRY_REPLY_MS);
+    if (!result?.ok) {
+      showFeedback(target.feedback, t('sync_recoveryRetryFailed', 'Could not retry sync. Copy details to investigate.')
+        + (result?.ok === false ? ` (${result.error})` : ''));
+      return;
+    }
+    showFeedback(target.feedback, retryOutcomeCopy(result.settled, syncRetryReading(await refresh())));
+  }
+  /** Try again or Dismiss on named items; the card is read again, then says what happened. */
+  async function actOnIssues(action: SyncIssueLocalAction, ids: readonly string[]): Promise<void> {
+    showFeedback(nodes.feedback, t('syncIssue_actionWorking', 'Working…'));
+    const request: SyncIssueActionRequest = { kind: 'known.sync.issue.act', action, issueIds: ids.slice(0, SYNC_ISSUE_ACTION_LIMIT) };
+    const result = await send<SyncIssueActionResponse>(request, RETRY_REPLY_MS);
+    await refresh();
+    showFeedback(nodes.feedback, issueActionOutcomeCopy(action, result, ids.length));
+  }
   if (nodes.syncCenter) nodes.syncCenter.textContent = SYNC_ATTENTION_CENTER_LABEL;
+  if (nodes.recoverySyncCenter) nodes.recoverySyncCenter.textContent = SYNC_ATTENTION_CENTER_LABEL;
+  if (nodes.recoveryFolders) nodes.recoveryFolders.textContent = SYNC_ATTENTION_FOLDERS_LABEL;
   if (nodes.copyDiagnostics) {
     if (nodes.copyDiagnostics.dataset.keepLabel === undefined) nodes.copyDiagnostics.textContent = SYNC_ATTENTION_COPY_DIAGNOSTICS_LABEL;
     nodes.copyDiagnostics.addEventListener('click', () => { void copyDiagnostics(nodes, report); });
   }
 
-  const refresh = async (): Promise<void> => {
-    const [attention, policy] = await Promise.all([readAttention(), readRemoteDeletePolicy()]);
+  let painted = false;
+  /** Reads, paints, and returns what was read (`undefined`: it could not be read). */
+  const refresh = async (): Promise<PublicSyncAttention | undefined> => {
+    const [read, policy] = await Promise.all([readAttention(), readRemoteDeletePolicy()]);
+    const { attention } = read;
+    // A read that fails is not an empty card: keep what the last good reading showed, and say it may be out of date.
+    if (attention === undefined && read.error !== 'not_connected') { paintUnreadable(nodes, read.error ?? 'status_unreachable', painted); return undefined; }
+    paintUnreadable(nodes, undefined, painted);
+    painted = true;
     const facts = syncAttentionInput(attention, policy);
     const view = describeSyncAttention(attention
       ? facts : withNativeWaitFallback(facts, await readNativeWaitCount()));
     report = view.terminal.show ? view.terminal.report : view.recovery.report;
-    paintSyncAttention(nodes, view);
-    const terminalRepair = document.getElementById(`${hostId}-rebuild`);
-    if (terminalRepair) terminalRepair.hidden = attention?.rebuildAvailable !== true;
+    paintSyncAttention(nodes, view, actOnIssues);
+    // Outside a terminal card the Reset has a button of its own under the card, shown exactly when a Reset is possible.
     let repair = document.getElementById(`${hostId}-issue-repair`);
     if (!repair) {
       repair = document.createElement('div'); repair.id = `${hostId}-issue-repair`;
       const button = document.createElement('button'); button.type = 'button'; button.className = 'btn btn-danger-ghost btn-sm';
       button.id = `${repair.id}-rebuild`;
       const feedback = document.createElement('p'); feedback.id = `${repair.id}-feedback`; feedback.hidden = true;
-      repair.append(button, feedback); nodes.host.append(repair); bindReplicaRebuildButton(repair.id);
+      repair.append(button, feedback); nodes.host.append(repair); bindReplicaRebuildButton(repair.id, { onChanged: () => refresh() });
     }
-    repair.hidden = attention?.rebuildAvailable !== true || attention.recoveryFrozen === true;
+    repair.hidden = !view.reset.show || view.terminal.show;
+    return attention;
   };
   void refresh();
   setInterval(() => {
@@ -350,13 +174,24 @@ function bindSyncAttention(hostId: string, syncPaneOnly: boolean): void {
   }
 }
 
-function paintSyncAttention(nodes: AttentionNodes, view: SyncAttentionView): void {
+type IssueAct = (action: SyncIssueLocalAction, ids: readonly string[]) => Promise<void>;
+
+function paintSyncAttention(nodes: AttentionNodes, view: SyncAttentionView, act: IssueAct): void {
   // The card is only as tall as what it can show: a line this page has no node for does not hold it open.
   nodes.host.hidden = !((view.pause.show && nodes.pause) || (view.rejected.show && nodes.rejected)
     || (view.conflict.show && nodes.conflict) || (view.terminal.show && nodes.terminal)
-    || (view.recovery.show && nodes.recovery));
+    || (view.recovery.show && nodes.recovery) || (view.issues.show && nodes.issues) || (view.notes.show && nodes.notes));
   if (nodes.recovery) nodes.recovery.hidden = !view.recovery.show;
   setLine(nodes.recoveryCopy, view.recovery.show, view.recovery.copy);
+  if (nodes.retry) nodes.retry.hidden = !view.recovery.retry;
+  paintLink(nodes.recoverySyncCenter, view.recovery.syncCenter);
+  paintLink(nodes.recoveryFolders, view.recovery.folders);
+  if (nodes.siteAccess) {
+    nodes.siteAccess.hidden = !view.recovery.siteAccess.show;
+    nodes.siteAccess.dataset.origin = view.recovery.siteAccess.origin ?? '';
+  }
+  paintIssues(nodes, view, act);
+  paintNotes(nodes, view);
   setLine(nodes.pause, view.pause.show, view.pause.copy);
   setLine(nodes.rejected, view.rejected.show, view.rejected.copy);
   if (nodes.conflict) nodes.conflict.hidden = !view.conflict.show;
@@ -365,13 +200,12 @@ function paintSyncAttention(nodes: AttentionNodes, view: SyncAttentionView): voi
     nodes.conflictLink.textContent = view.conflict.label;
   }
   if (nodes.terminal) nodes.terminal.hidden = !view.terminal.show;
+  if (nodes.rebuild) nodes.rebuild.hidden = !view.reset.show;
+  if (nodes.rebuildCancel) nodes.rebuildCancel.hidden = !view.reset.cancel;
+  if (nodes.storageReset) nodes.storageReset.hidden = !view.storage.resetLocalData;
+  if (nodes.terminalRetry) nodes.terminalRetry.hidden = !view.terminal.retry;
   if (nodes.terminalCopy) nodes.terminalCopy.textContent = view.terminal.show ? view.terminal.copy : '';
-  if (nodes.syncCenter) {
-    nodes.syncCenter.hidden = !view.terminal.syncCenter.show;
-    if (view.terminal.syncCenter.show && view.terminal.syncCenter.href) {
-      nodes.syncCenter.href = view.terminal.syncCenter.href;
-    } else nodes.syncCenter.removeAttribute('href');
-  }
+  paintLink(nodes.syncCenter, view.terminal.syncCenter);
   if (nodes.feedback) nodes.feedback.hidden = !view.terminal.show && !view.recovery.show;
   // SR-09: a listed wait keeps the SR-01 deep link reachable. Revealing can only
   // help — the popup's own reflectNativeWaitLink never hides a pending wait.
@@ -379,6 +213,128 @@ function paintSyncAttention(nodes: AttentionNodes, view: SyncAttentionView): voi
     const link = document.getElementById('open-native-wait');
     if (link) link.hidden = false;
   }
+}
+
+/** The status could not be read: say so beside whatever was last read, instead of blanking the card. */
+function paintUnreadable(nodes: AttentionNodes, code: string | undefined, kept = false): void {
+  if (!nodes.unreadable) return;
+  nodes.unreadable.hidden = code === undefined;
+  if (code === undefined) return;
+  nodes.unreadable.textContent = kept
+    ? t('sync_statusUnreadable', 'Couldn’t read sync status ($1). What is shown may be out of date.', code)
+    : t('sync_statusUnreadableFirst', 'Couldn’t read sync status ($1). Try again in a moment.', code);
+  nodes.host.hidden = false;
+}
+
+function paintLink(node: HTMLAnchorElement | null, link: { readonly show: boolean; readonly href?: string }): void {
+  if (!node) return;
+  node.hidden = !link.show;
+  if (link.show && link.href) node.href = link.href; else node.removeAttribute('href');
+}
+
+/** Lines beside the card that are not about one item: what the server may not know, and so on. */
+function paintNotes(nodes: AttentionNodes, view: SyncAttentionView): void {
+  if (!nodes.notes) return;
+  nodes.notes.hidden = !view.notes.show;
+  nodes.notes.replaceChildren(...view.notes.lines.map(line => el('p', line, 'set-row-hint')));
+}
+
+/** What the rows on screen were built from: a repaint that would change nothing leaves them alone, so keyboard focus on a button survives the refresh. */
+const rowsSignature = new WeakMap<HTMLElement, string>();
+
+/** One row per item that could not sync: its name, why, and what can be done about it. */
+function paintIssues(nodes: AttentionNodes, view: SyncAttentionView, act: IssueAct): void {
+  if (!nodes.issues) return;
+  nodes.issues.hidden = !view.issues.show;
+  const signature = JSON.stringify(view.issues.rows.map(row => [row.key, row.title, row.summary, row.seen, row.actions, row.code]));
+  if (rowsSignature.get(nodes.issues) !== signature) {
+    rowsSignature.set(nodes.issues, signature);
+    nodes.issues.replaceChildren(...view.issues.rows.map(row => renderIssueRow(row, act)));
+  }
+  if (nodes.issuesHint) {
+    nodes.issuesHint.hidden = !view.issues.show || view.issues.hint === '';
+    nodes.issuesHint.textContent = view.issues.hint;
+  }
+  if (nodes.issuesMore) {
+    nodes.issuesMore.hidden = view.issues.more === 0;
+    nodes.issuesMore.textContent = view.issues.more === 0 ? ''
+      : t('syncIssue_more', 'and $1 more. Copy details lists all of them.', view.issues.more);
+  }
+  paintBulk(nodes, view, act);
+}
+
+/** What the bulk buttons were built for: the same items keep the same buttons, so a half-made choice survives a refresh. */
+const bulkSignature = new WeakMap<HTMLElement, string>();
+
+/** Every item of a kind at once, for the flood the window cannot show: Try again for all, or Dismiss all after a second press. */
+function paintBulk(nodes: AttentionNodes, view: SyncAttentionView, act: IssueAct): void {
+  const host = nodes.issuesBulk;
+  if (!host) return;
+  const { retry, dismiss } = view.issues.bulk;
+  host.hidden = !view.issues.show || retry.length < 2 && dismiss.length < 2;
+  const signature = `${retry.join(',')}|${dismiss.join(',')}`;
+  if (bulkSignature.get(host) === signature) return;
+  bulkSignature.set(host, signature);
+  const buttons: HTMLElement[] = [];
+  if (retry.length >= 2) {
+    buttons.push(actionButton(t('syncIssue_retryAll', 'Try again for all $1', retry.length), 'btn btn-secondary btn-sm', 'retry',
+      () => act('retry', retry)));
+  }
+  if (dismiss.length >= 2) {
+    // Many items at once: the first press asks, the second does it.
+    buttons.push(actionButton(t('syncIssue_dismissAll', 'Dismiss all $1', dismiss.length), 'btn btn-ghost btn-sm', 'dismiss',
+      () => act('dismiss', dismiss), t('syncIssue_dismissAllConfirm', 'Dismiss all $1? This browser keeps its versions.', dismiss.length)));
+  }
+  host.replaceChildren(...buttons);
+}
+
+/**
+ * A button that does one thing to named items. With a `question`, the first press only asks it (the label becomes
+ * the question) and the second does it; a pause puts the label back.
+ */
+function actionButton(label: string, className: string, action: SyncIssueLocalAction, run: () => Promise<void>,
+  question?: string): HTMLButtonElement {
+  const node = button(label, className);
+  node.dataset.syncIssueAction = action;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  node.addEventListener('click', () => {
+    if (question !== undefined && node.dataset.armed !== 'true') {
+      node.dataset.armed = 'true'; node.textContent = question;
+      timer = setTimeout(() => { delete node.dataset.armed; node.textContent = label; }, 6_000);
+      return;
+    }
+    if (timer) clearTimeout(timer);
+    delete node.dataset.armed; node.textContent = label; node.disabled = true;
+    void run().finally(() => { node.disabled = false; });
+  });
+  return node;
+}
+
+function renderIssueRow(row: SyncIssueRow, act: IssueAct): HTMLElement {
+  const item = el('li', undefined, 'set-row sync-issue-item');
+  item.dataset.syncIssue = row.key; item.dataset.code = row.code;
+  const tile = el('span', undefined, 'favicon-tile'); tile.append(createIcon('bookmark', 16));
+  const text = el('div', undefined, 'set-row-text');
+  const hint = el('p', `${row.directionLabel} · ${row.summary}`, 'set-row-hint');
+  hint.title = row.code;
+  text.append(el('p', row.title, 'set-row-title sync-issue-title'), hint);
+  if (row.seen) text.append(el('p', row.seen, 'set-row-hint'));
+  item.append(tile, text);
+  if (row.issueId && row.actions.length) {
+    const id = row.issueId;
+    const control = el('div', undefined, 'set-row-control');
+    for (const action of row.actions) {
+      const node = actionButton(action === 'retry' ? t('syncIssue_tryAgain', 'Try again') : t('common_dismiss', 'Dismiss'),
+        action === 'retry' ? 'btn btn-secondary btn-sm' : 'btn btn-ghost btn-sm', action, () => act(action, [id]));
+      // Several rows say the same word: the name of the item tells a screen reader which one this button is for.
+      node.setAttribute('aria-label', action === 'retry' ? t('syncIssue_tryAgainFor', 'Try again: $1', row.title)
+        : t('syncIssue_dismissFor', 'Dismiss: $1', row.title));
+      if (action === 'dismiss') node.title = t('syncIssue_dismissTitle', 'Closes this item and keeps this browser’s version. Nothing is deleted.');
+      control.append(node);
+    }
+    item.append(control);
+  }
+  return item;
 }
 
 async function copyDiagnostics(nodes: AttentionNodes, report: string): Promise<void> {
@@ -400,9 +356,27 @@ function showFeedback(node: HTMLElement | null, text: string): void {
   node.textContent = text;
 }
 
-async function readAttention(): Promise<PublicSyncAttention | undefined> {
+/**
+ * The browser's own prompt to let this extension reach the server again. It has to start in the click, so nothing is
+ * awaited before it. Granting wakes sync at once (the worker listens for exactly that grant), so nothing else is pressed.
+ */
+function allowSiteAccess(nodes: AttentionNodes, afterwards: () => Promise<unknown>): void {
+  const button = nodes.siteAccess; const origin = button?.dataset.origin;
+  if (!button || !origin) return;
+  let grant: Promise<boolean>;
+  try { grant = requestServerOriginPermission(origin); } catch { grant = Promise.resolve(false); }
+  button.disabled = true;
+  void grant.catch(() => false).then(granted => {
+    showFeedback(nodes.feedback, granted ? t('sync_siteAccessAllowed', 'Access allowed. Sync is trying again.')
+      : t('sync_siteAccessDenied', 'Access was not allowed, so sync still cannot reach the server.'));
+    return afterwards();
+  }).finally(() => { button.disabled = false; });
+}
+
+async function readAttention(): Promise<{ readonly attention?: PublicSyncAttention; readonly error?: string }> {
   const response = await send<SyncAttentionResponse>({ kind: 'known.sync.attention.get' });
-  return response?.ok === true ? response.attention : undefined;
+  if (response?.ok === true) return { attention: response.attention };
+  return { error: response?.ok === false ? response.error : 'status_unreachable' };
 }
 
 /** SR-09's own signal, used only when the aggregate is unavailable. */
@@ -416,10 +390,10 @@ async function readRemoteDeletePolicy(): Promise<RemoteDeleteResponse | undefine
 }
 
 /** Bounded like `remote-delete-ui.ts`: a sleeping worker never leaves the panel blank forever. */
-async function send<T>(message: { readonly kind: string }): Promise<T | undefined> {
+async function send<T>(message: { readonly kind: string }, waitMilliseconds = 8_000): Promise<T | undefined> {
   try {
     const pending = chrome.runtime.sendMessage(message) as Promise<T>;
-    const timeout = new Promise<undefined>((resolve) => { setTimeout(() => resolve(undefined), 8_000); });
+    const timeout = new Promise<undefined>((resolve) => { setTimeout(() => resolve(undefined), waitMilliseconds); });
     return await Promise.race([pending, timeout]);
   } catch { return undefined; }
 }

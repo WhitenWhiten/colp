@@ -1,4 +1,5 @@
 import { stalledUploadHead } from './engine-public-stability.js';
+import { problemResetCannotHelp } from './sync-problem-families.js';
 import { readOpenSyncIssues, type OpenSyncIssues, type SyncIssueStore } from './sync-issues.js';
 import type { createSyncStateStore, SyncScope, QueueOperation } from './sync-state-store.js';
 
@@ -65,7 +66,9 @@ export async function readReplicaRepairCapability(store: Store, scope: SyncScope
   const fenced = unsettled || unreadableSent;
   // An unknown native side effect is settled through its own wait decision, which is its way out.
   const blocked = nativeUnknown ? 'native_outcome_unsettled' : required && fenced && !online ? 'offline' : undefined;
+  // A refusal a new copy would meet again (the server's size limit, a version mismatch): a Reset only archives work.
+  const futile = required && blocked === undefined && problemResetCannotHelp(state?.lastError);
   return { state, queuedOperations: live.length, rebuildMode: fenced ? 'server_fenced' : 'local',
-    rebuildAvailable: required && blocked === undefined, ...(blocked ? { rebuildBlockedReason: blocked } : {}),
-    reason: blocked ?? (required ? undefined : 'rebuild_not_required') };
+    rebuildAvailable: required && blocked === undefined && !futile, ...(blocked ? { rebuildBlockedReason: blocked } : {}),
+    reason: blocked ?? (futile ? 'rebuild_cannot_help' : required ? undefined : 'rebuild_not_required') };
 }

@@ -28,7 +28,8 @@ test('idle-renewal denials stop after five across worker restarts, report, and r
     fetch: async (_url, init) => { reports.push(JSON.parse(String(init?.body)));
       return json(200, { accepted: true, replicaId: scope.replicaId, revision: reports.at(-1).revision, commands: [] }); },
   }), 'sent');
-  assert.equal(reports[0].state, 'stopped');
+  // C-06: a breaker pause resumes by itself, so the Sync center is told a pause (degraded), not a stop.
+  assert.equal(reports[0].state, 'degraded');
   assert.equal(reports[0].code, 'recovery_capability_premature');
   assert.ok(reports[0].actions.includes('retry'));
   assert.equal(f.sessionForces.length, calls);

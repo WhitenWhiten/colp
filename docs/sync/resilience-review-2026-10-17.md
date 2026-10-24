@@ -612,8 +612,9 @@ device's ordinary delete a permanent item.
     (`03-sync.md` §13.1, `09-problem-registry.md` §3, schema `subtreeObservationSummary`;
     `subtreeMemberIdsDigest()`/`subtreeObservationSummary()` in `@know-n/colp`).
   - Server: `evaluateCanonicalNodeDelete` attaches those facts
-    (`sync-stale-delete-facts.ts`); `sync-push-routes` drops `currentSubtree` when the pinned
-    `@know-n/colp` predates it, never a 500. `tests/unit/sync/sync-push-http.test.ts`,
+    (`sync-stale-delete-facts.ts`); `sync-push-routes` first dropped `currentSubtree` while the
+    pinned `@know-n/colp` predated it, never a 500 (the pin has moved since, see Limits).
+    `tests/unit/sync/sync-push-http.test.ts`,
     `tests/support/sync-data-safety-cases.ts` (PostgreSQL, 1 case).
   - Extension: a single delete is rebased on the named revision and sent again on the same
     sequence (deletion dominates, §10.2). A subtree delete is rebased the same way when the
@@ -651,7 +652,11 @@ subtree-observation test (3); server push HTTP/delete units (28) and the DS-04 P
 passed in a Testcontainers Postgres; typecheck in node, server, extension and web; changed-file
 lint, source-size, i18n and `git diff --check`. No browser E2E or long-lived service.
 
-Limits: `currentSubtree` reaches the wire only once `@know-n/colp` 0.2.2 is published and the
-server pin moves (until then every stale subtree delete becomes the decide item); a device cannot
+Limits: `currentSubtree` now reaches the wire. The server pins `@know-n/colp` 0.2.2 (the vendored
+tarball, moved in `9366587a`, 2026-10-23) and `sync-push-routes` passes the facts through without
+the old drop guard, so a stale subtree delete whose member-ID digest matches is rebased and sent
+again; only one that does not match (or a folder deleted by an older server) is still the decide
+item. When this round was written the facts were dropped and every stale subtree delete became the
+decide item. A device cannot
 yet take in a bookmark moved out of a folder it deleted; the member-ID list is bounded, a larger
 folder's deeper members still become items; second-device bootstrap (03 §5.3) was not reviewed.

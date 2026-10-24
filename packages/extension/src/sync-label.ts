@@ -1,5 +1,5 @@
 import { popupFirstRunStatus, readFirstRunDraft } from './first-run-draft.js';
-import { projectSyncStatus, type SyncStatus } from './sync-status.js';
+import { attentionStatusKind, projectSyncStatus, type SyncStatus } from './sync-status.js';
 import type { FirstRunDurablePhase, FirstRunOrScopeResponse, FirstRunScopeState, PublicAttentionSummary, SyncAttentionResponse } from './types.js';
 
 /**
@@ -40,14 +40,11 @@ export async function signedInSyncStatus(): Promise<SyncStatus> {
   try {
     const response = await chrome.runtime.sendMessage({ kind: 'known.sync.attention.get' }) as SyncAttentionResponse;
     if (response.ok) {
-      const facts = response.attention;
-      if (facts.conflictPending) return projectSyncStatus('review-conflicts');
-      if ((facts.issueCount ?? 0) > 0 || facts.terminal
-          || facts.retryAutomatic === false || facts.rejectedPending || facts.nativeWaitPending) {
-        return projectSyncStatus('action-required');
-      }
-    } else if (response.error === 'state_unavailable') engine = undefined;
-  } catch { engine = undefined; }
+      const kind = attentionStatusKind(response.attention);
+      if (kind) return projectSyncStatus(kind);
+    // The stores could not be read: say so, instead of reading the missing engine as "Syncing" forever.
+    } else if (response.error === 'state_unavailable') return projectSyncStatus('status-unavailable');
+  } catch { return projectSyncStatus('status-unavailable'); }
   return projectSyncStatus(popupFirstRunStatus({
     connected: true, firstRun, deferredDraft: draft?.deferred === true, phase, attention, engine,
   }));

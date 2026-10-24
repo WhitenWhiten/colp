@@ -42,6 +42,8 @@ export interface LocalIssueRecord {
 /** The title is often the problem itself (too long to store), so the row keeps only its start. */
 export const PULL_ISSUE_TITLE_MAX = 200;
 const prefix = (key: string) => `pull-issue:${key}:`;
+/** The durable row of one set-aside remote item. */
+export const pullIssueFactId = (key: string, nodeId: string): string => `${prefix(key)}${nodeId}`;
 /** States an event can fail in before its browser call changed anything. */
 const SET_ASIDE_STATES = new Set(['staged', 'intent_prepared']);
 const localPrefix = (key: string) => `local-issue:${key}:`;
