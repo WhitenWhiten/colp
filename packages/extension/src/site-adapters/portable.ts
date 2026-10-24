@@ -35,8 +35,8 @@ export function parsePortableSources(value: unknown): PortableSources {
   }
   return structuredClone(result);
 }
-async function all<T>(db: SourceDatabase, store: 'connections' | 'mounts' | 'representations' | 'folderReservations' | 'meta') {
-  const values = await db.transaction([store], 'readonly', tx => cursorPage<T>(tx.objectStore(store), null, 100001));
+async function all<T>(db: SourceDatabase, store: 'connections' | 'mounts' | 'representations' | 'folderReservations' | 'meta', range: IDBKeyRange | null = null) {
+  const values = await db.transaction([store], 'readonly', tx => cursorPage<T>(tx.objectStore(store), range, 100001));
   if (values.length > 100000) throw new Error('sourceBackupLimit'); return values;
 }
 /** Foreign native IDs are source references only. Executable plans, generations and grants never travel. */
@@ -54,7 +54,7 @@ export async function exportPortableSources(db: SourceDatabase, nativeSourceIds:
         purpose: r.purpose, nativeSourceId: sourceRef(r.native.nativeId), state: r.state })) });
   }
   // A second backup must also preserve associations still awaiting review after the first restore.
-  const inert = (await all<unknown>(db, 'meta')).filter((v): v is RestoredSources => !!v && typeof v === 'object' && 'data' in v && 'nativeIds' in v && 'reviewed' in v && (v as RestoredSources).state === 'disabled');
+  const inert = (await all<unknown>(db, 'meta', IDBKeyRange.bound('restoredSources:', 'restoredSources:\uffff'))).filter((v): v is RestoredSources => !!v && typeof v === 'object' && 'data' in v && 'nativeIds' in v && 'reviewed' in v && (v as RestoredSources).state === 'disabled');
   for (const restore of inert) for (const c of restore.data.connections) {
     const blocked = restore.reviewed.includes(sourceKey(c.ref, '__blocked__'));
     const pending = c.mounts.filter(m => blocked || !restore.reviewed.includes(sourceKey(c.ref, m.ref)));

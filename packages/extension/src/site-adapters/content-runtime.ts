@@ -1,4 +1,4 @@
-import { contentBindingKey } from './content-identity.js';
+import { contentBindingKey, listContentBindings } from './content-identity.js';
 import { legacySite, type SiteDefinition } from './registry.js';
 import { readConnectionAuthority } from './ledger.js';
 import { installCaptureContentBindings, assertCaptureContent } from '../capture/content-binding.js';
@@ -13,7 +13,6 @@ import { representationKey } from './reservations.js';
 import { object, literal, str } from './schema.js';
 import { captureStore } from '../sw/capture.js';
 import { currentCaptureScope, nativeCaptureLocation } from '../sw/capture-native.js';
-import { cursorPage } from '../sync-state/idb.js';
 import { assertSourceRebound, assertRestoredItemAvailable } from './portable.js';
 interface ManagedMove { nativeId: string; dateAdded: number; title: string; from: string; to: string; at: number; state: 'submitted' | 'confirmed' }
 export async function isManagedContentMove(id: string, to: string, from: string) {
@@ -35,7 +34,7 @@ const accountAdoptSchema = object({ kind: literal('known.siteAdapters.content.ad
 export const validContentRequest = (v: unknown) => adoptSchema(v) || listSchema(v) || accountAdoptSchema(v);
 export async function handleContentRequest(raw: unknown, definition: SiteDefinition = legacySite) {
   if (listSchema(raw)) {
-    const rows = await siteLedger.db.transaction(['contentBindings'], 'readonly', tx => cursorPage<ContentBindingRow>(tx.objectStore('contentBindings'), null, 1001));
+    const rows = await listContentBindings(siteLedger.db, definition);
     const authority = await siteLedger.db.read<import('./ledger-types.js').SourceAuthority>('authorities', definition.adapterId);
     return { ok: true, connectionId: authority?.enabled ? authority.connectionId : null, truncated: rows.length > 1000 || rows.filter(b => !b.supersededBy).length > 50,
       bindings: rows.filter(b => !b.supersededBy && b.content.siteKey === definition.siteKey && b.content.identityVersion === definition.identityVersion).slice(0, 50).map(b => ({ id: b.id, itemId: b.content.itemId, title: b.title, state: b.state, connectionId: b.connectionId, native: !!b.native })) };

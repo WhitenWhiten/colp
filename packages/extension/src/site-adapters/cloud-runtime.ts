@@ -6,7 +6,6 @@ import { cloudEdgeUnseen, cloudProgress } from './cloud-progress.js';
 import { createSourceCloudClient, assertCloudReceipt, type CloudScope, type CloudEdge, type CloudLease, type CloudReceipt } from './cloud-client.js';
 import { siteLedger } from './source-runtime.js';
 import { get, put, rows, sourceDigest, sourceKey } from './source-db.js';
-import { cursorPage } from '../sync-state/idb.js';
 import { currentSyncScope, loadConfig } from '../sw/scope.js';
 import { store, syncState } from '../sw/runtime.js';
 import { colpCredentialHeaders } from '../auth-client.js';
@@ -182,7 +181,7 @@ async function handleCloudManagement(raw: unknown) {
     if (r.kind.endsWith('.preview')) {
       if (c.pending) { const p = await db.read<Plan>('meta', planKey(c.pending)); if (p && p.state !== 'committed') throw new Error('sourceCloudRecoverFirst'); }
       const renewed = await api.call<{ lease: CloudLease }>('renew', { sourceAccount: s.scope.sourceAccount, lease: c.lease }); c.lease = renewed.lease;
-      const flat = await currentFlat(), entries = await db.transaction(['memberships'], 'readonly', tx => cursorPage<LedgerEdge>(tx.objectStore('memberships'), null, 50001));
+      const flat = await currentFlat(), entries = await db.transaction(['memberships'], 'readonly', tx => rows<LedgerEdge>(tx, 'memberships', s.authority.connectionId));
       if (entries.length > 50000) throw new Error('sourceCloudCapacity');
       const edges: CloudEdge[] = [], ordinals: Record<string, number> = {}; let after = c.after; let omissions = 0, remaining = false;
       for (const e of entries.sort((a, b) => sourceKey(a.connectionId, a.itemId, a.collectionId) < sourceKey(b.connectionId, b.itemId, b.collectionId) ? -1 : 1)) {

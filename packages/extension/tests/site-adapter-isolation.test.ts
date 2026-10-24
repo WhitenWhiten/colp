@@ -9,7 +9,7 @@ import { type createSourceLayout } from '../src/site-adapters/layout.js';
 import { createReadScheduler } from '../src/site-adapters/read-scheduler.js';
 import { MemoryStorageArea } from '../src/credential-store.js';
 import { installationKey } from '../src/site-adapters/installation.js';
-import { contentBindingKey } from '../src/site-adapters/content-identity.js';
+import { contentBindingKey, listContentBindings } from '../src/site-adapters/content-identity.js';
 import { parsePortableSources, restorePortableSources, assertSourceRebound } from '../src/site-adapters/portable.js';
 import { video } from './fixtures/site-adapters/bilibili.js';
 
@@ -67,4 +67,14 @@ test('portable v2 preserves unfamiliar identities inertly and does not gate the 
   await restorePortableSources(db, 'backup', backup, new Map());
   await expect(assertSourceRebound(db, a.connectionId!)).resolves.toBeUndefined();
   expect(await db.read('meta', 'restoredSources:backup')).toMatchObject({ state: 'disabled', data: backup }); await db.close();
+});
+
+test('a full page of another identity cannot hide this site from the association inspector', async () => {
+  const db = createSourceDatabase(new IDBFactory());
+  const content = { siteKey: legacySite.siteKey, identityVersion: 1, itemId: video.id };
+  await db.transaction(['contentBindings'], 'readwrite', async tx => {
+    for (let n = 0; n < 1001; n++) { const foreign = { ...content, siteKey: 'aaa-other-namespace' }; tx.objectStore('contentBindings').put({ id: String(n), content: foreign }, contentBindingKey(foreign, String(n))); }
+    tx.objectStore('contentBindings').put({ id: 'selected', content }, contentBindingKey(content, 'selected'));
+  });
+  expect((await listContentBindings(db, content)).map(b => b.id)).toEqual(['selected']); await db.close();
 });
