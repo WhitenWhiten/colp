@@ -3,6 +3,7 @@ import 'fake-indexeddb/auto';
 import { describe, test } from 'vitest';
 import { queueStatusProjection } from '../src/engine-public-stability.js';
 import { freezeScopeRecovery } from '../src/pull-recovery-freeze.js';
+import { STOP_PROBE_DELAYS_MS } from '../src/sync-circuit-breaker.js';
 import {
   abortFailure, ack, json, networkFailure, problem, emptyPullPage, recoverySnapshot,
   scope, seedLegacySpc2Bootstrap, setup, snapshot,
@@ -309,7 +310,10 @@ describe('P3-33 durable extension sync lifecycle', () => {
       const state = (await fixture.store.getEngineState(scope))!;
       assert.equal(fixture.pullRequests.length, 2, label); assert.equal(state.phase, expectedPhase, label);
       assert.equal(state.lastError, expectedError, label);
-      if (expectedPhase === 'error') assert.equal(state.notBefore, 0, 'corrupt protocol data is a reported stop');
+      if (expectedPhase === 'error') {
+        // A reported stop, probed again after the first slow-probe delay (A-F5) instead of never.
+        assert.equal(state.notBefore, fixture.clock.now + STOP_PROBE_DELAYS_MS[0], 'corrupt protocol data is a reported stop');
+      }
       else assert.ok(state.notBefore > fixture.clock.now, label);
       assert.equal(state.connectivityConfirmationRevision, undefined, label);
       if (label === 'rate limit') assert.ok(state.notBefore >= fixture.clock.now + 17_000);

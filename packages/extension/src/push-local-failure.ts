@@ -27,3 +27,26 @@ export async function holdRepeatedLocalFailure(input: {
   try { await input.store.setAsideClaimedPush(input.scope, queue.sequence, input.ownerId, fence, reason); return true; }
   catch { return false; /* the row keeps its retry and the next drain tries the hold again */ }
 }
+
+/**
+ * A-F7: an upload policy (a subscribed folder, the bootstrap boundary) that refuses a change
+ * after this drain bound its attempt but before any byte left. The attempt owns no server
+ * sequence, so its bound bytes are dropped (same payload, digest and key) and the failure is
+ * counted like any other never-sent one: kept as a retry, then held as one item after
+ * LOCAL_FAILURE_HOLD_ATTEMPTS identical refusals. The caller only offers rows whose attempt it
+ * bound itself in this drain; an attempt from an earlier drain may have been received and is never
+ * dropped. Returns the attempt-less row, or undefined when the failure is a pause or an authority
+ * problem (those stay retries) or the attempt could not be dropped.
+ */
+export async function dropUnsentAttempt(input: {
+  readonly store: Pick<ReturnType<typeof createSyncStateStore>, 'rebaseClaimedPush'>;
+  readonly scope: SyncScope; readonly ownerId: string;
+}, queue: QueueOperation, fence: number, reason: string): Promise<QueueOperation | undefined> {
+  const policy = classifySyncFailure(reason);
+  if (queue.attempt === undefined || policy?.class === 'transient' || policy?.class === 'authority') return undefined;
+  try {
+    return await input.store.rebaseClaimedPush(input.scope, queue.sequence, input.ownerId, fence, {
+      payload: queue.payload, digest: queue.digest, idempotencyKey: queue.idempotencyKey,
+      baseRevision: queue.baseRevision });
+  } catch { return undefined; /* the attempt stays bound and the failure stays a plain retry */ }
+}

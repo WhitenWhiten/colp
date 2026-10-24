@@ -128,6 +128,10 @@ describe('schema v15 native-result and live-work contract', () => {
         expiresAt: 20_000 + index,
       });
     }
+    // A database created by this version has nothing to backfill (W2A-12); model one that predates v15.
+    const predating = (await store.open()).transaction(STORES.metadata, 'readwrite');
+    predating.objectStore(STORES.metadata).put({ key: 'v15-backfill', status: 'unknown' });
+    await transactionComplete(predating);
     const first = await pageV15Backfill(store, 2);
     assert.equal(first.written, 2);
     assert.equal(first.done, false);

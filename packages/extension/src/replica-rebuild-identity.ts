@@ -9,6 +9,21 @@ export const REPLICA_REBUILD_IDENTITY = 'known.sync.replica-rebuild-identity.v1'
 const OWNER = ['environment', 'serverId', 'serverOrigin', 'accountId', 'browserProfileId', 'collectionId'] as const;
 const sameOwner = (a: SyncScope, b: SyncScope) => OWNER.every(key => a[key] === b[key]);
 
+/**
+ * B-13 (RB-07): the advanced first run pairs bookmarks by the same archived identities as the standard one.
+ * A hint is kept only when both sides still have the node, as the same kind, and it does not collide with
+ * a pairing the new replica already has; the plan rejects collisions and kind mismatches outright.
+ */
+export function withRebuildIdentityHints(stored: readonly MappingFact[], hints: readonly MappingFact[],
+  local: readonly { readonly nativeId: string; readonly kind: string }[],
+  remote: readonly { readonly nodeId: string; readonly kind: string }[], rootNodeId: string | null): MappingFact[] {
+  const natives = new Set(stored.map(row => row.nativeId)); const nodes = new Set(stored.map(row => row.colpId));
+  const localKinds = new Map(local.map(row => [row.nativeId, row.kind]));
+  const remoteKinds = new Map(remote.map(row => [row.nodeId, row.kind]));
+  return [...stored, ...hints.filter(row => row.colpId !== rootNodeId && !natives.has(row.nativeId) && !nodes.has(row.colpId)
+    && localKinds.has(row.nativeId) && localKinds.get(row.nativeId) === remoteKinds.get(row.colpId))];
+}
+
 /** Archived identity is evidence for a fresh merge, never authority to replay old work. */
 export async function readRebuildIdentityHints(input: {
   readonly scope: SyncScope;

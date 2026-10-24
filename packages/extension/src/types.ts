@@ -457,12 +457,28 @@ export interface SyncIssueDiagnostic {
   readonly count?: number; readonly firstSeenAt?: string | number; readonly lastSeenAt?: string | number;
   readonly dependencyOpId?: string; readonly dependencyEventId?: string; readonly dependencySequence?: number;
   readonly rootCause?: string; readonly attempts?: number; readonly recovery?: 'automatic' | 'decision';
+  /** Rule E: the engine step that failed (`sync_step_failed` only). */
+  readonly stage?: string;
 }
 export interface PublicSyncAttention {
   readonly issueCount?: number;
   readonly issues?: readonly SyncIssueDiagnostic[];
   readonly rebuildAvailable?: boolean;
   readonly rebuildUnavailableReason?: string;
+  /** K3: `server_fenced` retires the old replica on the server first (an upload may already be there); it needs a connection. */
+  readonly rebuildMode?: 'local' | 'server_fenced';
+  /** K3: set only when a Reset is needed but cannot be done now (`offline`, `native_outcome_unsettled`). */
+  readonly rebuildBlockedReason?: string;
+  /** W2A-02: a Reset that was confirmed but has not finished can be given up (nothing is archived yet). */
+  readonly rebuildCancelAvailable?: boolean;
+  /**
+   * W2A-01: the sync database cannot be used (`lastError` names why: `future_schema`, `diagnostic_read_only`,
+   * `upgrade_failed`, `storage_unavailable`, `quota_exceeded`, ...). Only then is the rest of this snapshot
+   * a synthetic one: no queue, issues or engine state can be read.
+   */
+  readonly storageState?: 'newer_version' | 'read_only' | 'upgrade_failed' | 'unavailable';
+  /** W2A-01: a confirmed "Reset local sync data" (`known.sync.storage.reset.preview` / `.confirm`) can recover it. */
+  readonly storageResetAvailable?: boolean;
   readonly retryAvailable?: boolean;
   readonly retryAt?: number;
   readonly retryAutomatic?: boolean;

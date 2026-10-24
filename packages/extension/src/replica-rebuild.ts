@@ -7,34 +7,47 @@ import type { SyncScope, createSyncStateStore } from './sync-state-store.js';
 
 export const REPLICA_REBUILD_JOURNAL = 'known.sync.replica-rebuild.v1';
 export type ReplicaRebuildRequest = { readonly kind: 'known.scope.rebuild.preview' }
+  | { readonly kind: 'known.scope.rebuild.cancel'; readonly userGesture: true }
   | { readonly kind: 'known.scope.rebuild.confirm'; readonly userGesture: true;
     readonly replicaId: string; readonly generation: number; readonly revision: number; readonly targetFence: string };
 export interface ReplicaRebuildPreview {
   readonly replicaId: string; readonly generation: number; readonly revision: number; readonly queuedOperations: number;
   readonly targetFence: string; readonly scope: SyncScope;
+  /** K3: `server_fenced` retires the old replica on the server before archiving it; needs a connection. */
+  readonly mode?: 'local' | 'server_fenced';
 }
 export type ReplicaRebuildResponse = { readonly ok: true; readonly preview: ReplicaRebuildPreview }
-  | { readonly ok: true; readonly result: 'setup_required' }
+  | { readonly ok: true; readonly result: 'setup_required' | 'cancelled' }
   | { readonly ok: false; readonly code: string };
 interface RebuildJournal {
   readonly scope: SyncScope; readonly authorityGeneration: number;
   readonly nextBinding: StoredAuthBinding; readonly preview: ReplicaRebuildPreview;
 }
+/** How the old replica was taken off the server: just now, or it already was. */
+export type ReplicaFenceOutcome = 'fenced' | 'already_retired';
 export interface ReplicaRebuildDeps {
   readonly store: Pick<ReturnType<typeof createSyncStateStore>, 'getScope' | 'getEngineState' | 'listQueue'
     | 'retireScope' | 'exportScope' | 'exportArchive'> & Partial<Pick<ReturnType<typeof createSyncStateStore>,
-      'getQueueReceipt' | 'listPullIssues' | 'listLocalIssues' | 'listApplyIntents' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'>>;
+      'getQueueReceipt' | 'listPullIssues' | 'listLocalIssues' | 'listApplyIntents' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'
+      | 'listUnreadableQueue'>>;
   readonly credentials: ReturnType<typeof createCredentialStore>;
   readonly journal: StorageArea;
   currentScope(): Promise<SyncScope>;
   ensureScope(): Promise<SyncScope>;
   resetRuntime(): void;
+  /**
+   * Retires the old replica on the server so no late upload can commit after it is archived (K3, B-13).
+   * Throws a stable code (`offline`, `fence_refused`, ...) when it cannot. Absent: only a Reset that does
+   * not need the fence is possible.
+   */
+  fence?(scope: SyncScope): Promise<ReplicaFenceOutcome>;
 }
 
 export function validReplicaRebuildRequest(value: unknown): value is ReplicaRebuildRequest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const row = value as Record<string, unknown>; const keys = Object.keys(row);
   if (row.kind === 'known.scope.rebuild.preview') return keys.length === 1;
+  if (row.kind === 'known.scope.rebuild.cancel') return keys.length === 2 && row.userGesture === true;
   return row.kind === 'known.scope.rebuild.confirm' && row.userGesture === true
     && keys.length === 6 && keys.every(key => ['kind', 'userGesture', 'replicaId', 'generation', 'revision', 'targetFence'].includes(key))
     && typeof row.targetFence === 'string' && /^sha256:[a-f0-9]{64}$/u.test(row.targetFence)
@@ -58,6 +71,8 @@ export function createReplicaRebuilder(deps: ReplicaRebuildDeps) {
     // Its temporary absence does not revoke the owner's confirmed reset.
     return value;
   }
+  /** The old scope is already archived: the reset can no longer be cancelled, only finished. */
+  const archived = (scope: SyncScope) => deps.store.exportArchive(scope).then(() => true, () => false);
   async function inspect(serverRetiredScope?: SyncScope): Promise<{ scope: SyncScope; preview: ReplicaRebuildPreview }> {
     const scope = await deps.currentScope();
     const credential = await deps.credentials.loadCredential();
@@ -68,15 +83,16 @@ export function createReplicaRebuilder(deps: ReplicaRebuildDeps) {
     // prevents the normal diagnostics/queue validators from reading the scope.
     // Never delete that evidence merely to get past its failed validation.
     const capability = serverRetiredScope ? undefined : await readReplicaRepairCapability(deps.store, scope);
-    if (capability && !capability.rebuildAvailable) throw new Error(capability.reason ?? 'action_unavailable');
-    const archive = serverRetiredScope ? await deps.store.exportScope(scope) : undefined;
+    if (capability && !capability.rebuildAvailable) throw new Error(capability.rebuildBlockedReason ?? capability.reason ?? 'action_unavailable');
+    const archive = serverRetiredScope || capability?.unreadable ? await deps.store.exportScope(scope).catch(() => undefined) : undefined;
     const rawEngine = archive?.engine;
     const revision = capability?.state?.revision ?? (rawEngine && typeof rawEngine === 'object' && 'revision' in rawEngine
       ? rawEngine.revision : undefined);
-    const queuedOperations = capability?.queuedOperations ?? archive?.queue.length ?? 0;
+    const queuedOperations = capability?.unreadable ? archive?.queue.length ?? 0 : capability?.queuedOperations ?? archive?.queue.length ?? 0;
     return { scope, preview: { replicaId: scope.replicaId, generation: scope.generation,
       revision: Number.isSafeInteger(revision) && Number(revision) >= 0 ? Number(revision) : 0,
-      queuedOperations, scope, targetFence: digestJson({ scope: { ...scope }, authority: authority.generation }) } };
+      queuedOperations, scope, targetFence: digestJson({ scope: { ...scope }, authority: authority.generation }),
+      mode: serverRetiredScope ? 'server_fenced' : capability?.rebuildMode ?? 'local' } };
   }
   async function resume(): Promise<boolean> {
     const plan = await pending(); if (!plan) return false;
@@ -107,8 +123,16 @@ export function createReplicaRebuilder(deps: ReplicaRebuildDeps) {
     await deps.journal.remove(REPLICA_REBUILD_JOURNAL);
     return true;
   }
+  /** W2A-02: a reset that cannot finish and has changed nothing yet can be given up; once archived it can only finish. */
+  async function cancel(): Promise<ReplicaRebuildResponse> {
+    const plan = await pending();
+    if (plan && await archived(plan.scope)) throw new Error('rebuild_not_cancellable');
+    if (plan) await deps.journal.remove(REPLICA_REBUILD_JOURNAL);
+    return { ok: true, result: 'cancelled' };
+  }
   async function handle(message: ReplicaRebuildRequest, serverRetiredScope?: SyncScope): Promise<ReplicaRebuildResponse> {
     try {
+      if (message.kind === 'known.scope.rebuild.cancel') return await cancel();
       const existing = await pending();
       if (message.kind === 'known.scope.rebuild.preview') {
         return { ok: true, preview: existing?.preview ?? (await inspect(serverRetiredScope)).preview };
@@ -121,20 +145,39 @@ export function createReplicaRebuilder(deps: ReplicaRebuildDeps) {
         const authority = await deps.credentials.fence.capture();
         const binding = await deps.credentials.loadBinding();
         if (binding?.replicaId !== inspected.scope.replicaId) throw new Error('stale_ref');
+        await fenceOldReplica(inspected, serverRetiredScope);
         await deps.journal.set({ [REPLICA_REBUILD_JOURNAL]: { ...inspected, authorityGeneration: authority.generation,
           nextBinding: { ...binding, replicaId: `replica-${crypto.randomUUID()}`, generation: '1' } } satisfies RebuildJournal });
       }
-      await resume(); return { ok: true, result: 'setup_required' };
+      try { await resume(); } catch (error) {
+        // W2A-02: a reset that failed before anything was archived leaves no journal behind to stop every wake.
+        if (!existing && !await archived(inspected.scope)) await deps.journal.remove(REPLICA_REBUILD_JOURNAL);
+        throw error;
+      }
+      return { ok: true, result: 'setup_required' };
     } catch (error) {
       const code = error instanceof Error ? error.message : '';
       return { ok: false, code: /^[a-z][a-z0-9_:-]{0,63}$/u.test(code) ? code : 'rebuild_failed' };
     }
   }
+  /**
+   * K3 / B-13: the old replica leaves the server before it is archived. Required when an upload may
+   * already be there; otherwise best effort, so a replaced replica does not linger active on the server.
+   */
+  async function fenceOldReplica(inspected: { scope: SyncScope; preview: ReplicaRebuildPreview }, serverRetiredScope?: SyncScope) {
+    if (serverRetiredScope) return; // the server fenced it already (owner-confirmed Reset in the Sync center)
+    const required = inspected.preview.mode === 'server_fenced';
+    if (!deps.fence) { if (required) throw new Error('fence_unavailable'); return; }
+    try { await deps.fence(inspected.scope); }
+    catch (error) { if (required) throw error; }
+  }
   return { handle: (message: ReplicaRebuildRequest) => handle(message), resume,
     // Only the authenticated health-command runner supplies this server fence.
     // It is deliberately absent from the runtime message/request schema.
     rebuildServerRetired: (scope: SyncScope) => runReplicaRebuildCommand(message => handle(message, scope), scope),
-    hasPending: async () => Boolean(await pending()) };
+    hasPending: async () => Boolean(await pending()),
+    /** A pending reset can be given up only while nothing has been archived. */
+    canCancelPending: async () => { const plan = await pending(); return plan !== undefined && !await archived(plan.scope); } };
 }
 
 /** The same checked preview/confirm path serves a web command and local Status. */

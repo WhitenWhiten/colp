@@ -1,4 +1,5 @@
 import { compactNativeEventDetails, compactNativePayload } from './compacted-native-facts.js';
+import { isDamagedRowError } from './sync-state/history-retention-io.js';
 export const COMPACTION_BATCH = 200;
 export const COMPACTED_MARK = Object.freeze({ compacted: true as const });
 
@@ -49,6 +50,8 @@ export interface CompactReport {
   readonly compactedEvents: number;
   readonly summaries: readonly CompactSummary[];
   readonly pruned?: import('./sync-state/history-retention.js').HistoryRetentionReport;
+  /** W2A-12: rows the compaction could not interpret; it stopped at the first one and left it in place. */
+  readonly damagedRows?: number;
 }
 
 export interface CompactStoreNames {
@@ -140,12 +143,20 @@ export async function compactScopeTransaction(
   let eventThrough = prior?.eventThroughOrdinal ?? 0;
   let compactedQueue = 0;
   let compactedEvents = 0;
+  let damagedRows = 0;
+  // W2A-12: a row the compaction cannot interpret ends the walk there, exactly like a row that is not yet
+  // eligible, instead of failing (and rolling back) the whole pass every time. Nothing behind it is compacted
+  // until it is gone, but the reclamation that follows (`pruneSyncHistory`) steps over it and goes on.
+  const stepOverDamagedRow = (visit: (value: unknown) => Promise<boolean | void>) => async (value: unknown) => {
+    try { return await visit(value); }
+    catch (error) { if (!isDamagedRowError(error)) throw error; damagedRows += 1; return false; }
+  };
 
   const terminalRange = IDBKeyRange.bound(
     [key, 'terminal', queueThrough + 1],
     [key, 'terminal', Number.MAX_SAFE_INTEGER],
   );
-  await iterateIndex(queueStore.index(input.indexes.queueByStatus), terminalRange, async (value) => {
+  await iterateIndex(queueStore.index(input.indexes.queueByStatus), terminalRange, stepOverDamagedRow(async (value) => {
     if (compactedQueue >= input.batch) return false;
     const queued = value as CompactableQueueRow;
     const hasReceipt = await receiptExists(receipts, key, queued);
@@ -170,13 +181,13 @@ export async function compactScopeTransaction(
     queueThrough = queued.sequence;
     compactedQueue += 1;
     return undefined;
-  });
+  }));
 
   const processedRange = IDBKeyRange.bound(
     [key, 'processed', eventThrough + 1],
     [key, 'processed', Number.MAX_SAFE_INTEGER],
   );
-  await iterateIndex(events.index(input.indexes.eventByStatus), processedRange, async (value) => {
+  await iterateIndex(events.index(input.indexes.eventByStatus), processedRange, stepOverDamagedRow(async (value) => {
     if (compactedEvents >= input.batch) return false;
     const event = value as CompactableEventRow;
     const queued = event.opId === null
@@ -202,7 +213,7 @@ export async function compactScopeTransaction(
     eventThrough = event.ordinal;
     compactedEvents += 1;
     return undefined;
-  });
+  }));
 
   const watermark: CompactionWatermark = {
     ...prior,
@@ -214,7 +225,7 @@ export async function compactScopeTransaction(
   };
   watermarks.put(watermark);
   injectFault(input.fault, 'after_watermark', tx);
-  return { watermark, compactedQueue, compactedEvents, summaries: written };
+  return { watermark, compactedQueue, compactedEvents, summaries: written, ...(damagedRows ? { damagedRows } : {}) };
 }
 
 function injectFault(actual: CompactFault | undefined, expected: CompactFault, tx: IDBTransaction): void {

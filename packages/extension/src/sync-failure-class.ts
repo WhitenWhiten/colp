@@ -97,6 +97,29 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   push_session_refresh_failed: entry('authority', 'refresh'),
   push_network_failed: entry('transient', 'retry'),
   push_batch_prefix_pending: entry('transient', 'retry'),
+  // A hook or endpoint discovery that failed before the request left, or a server that cannot
+  // answer right now: neither is the change's fault, so neither holds it or reports it as stalled.
+  push_dispatch_failed: entry('transient', 'retry'),
+  push_server_unavailable: entry('transient', 'retry'),
+  push_attempt_missing: entry('transient', 'retry'),
+  // W2C: replacing a sent change's attempt after an authentication denial would have changed its bytes. The
+  // change may be on the server, so it stays bound; the lane waits and the stalled-upload report names it.
+  push_attempt_operation_changed: entry('replica', 'stop'),
+  // One change leaves the lane as an item: the network kept refusing its request (A-F2), or an
+  // upload policy / local check refused it again and again (A-F7). The rest of the lane goes on.
+  push_request_refused: entry('item', 'decide'),
+  push_attempt_bind_failed: entry('item', 'decide'),
+  push_media_type_invalid: entry('item', 'decide'),
+  subscription_upload_excluded: entry('item', 'decide'),
+  bootstrap_upload_excluded: entry('item', 'decide'),
+  bootstrap_boundary_unavailable: entry('item', 'decide'),
+  // The server's answer to a sent change cannot be read or settled: the same bytes get the same
+  // answer, so the head is reported as a stalled upload instead of being retried unseen.
+  push_response_invalid: entry('replica', 'stop'),
+  push_response_unrecognized: entry('replica', 'stop'),
+  push_problem_invalid: entry('replica', 'stop'),
+  push_problem_status_mismatch: entry('replica', 'stop'),
+  push_result_processing_failed: entry('replica', 'stop'),
 
   recovery_identity_unproven: entry('item', 'decide', FREEZES),
   deletion_identity_unproven: entry('item', 'decide', FREEZES),
@@ -239,7 +262,9 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   constraint: entry('replica', 'stop'),
   corruption_detected: entry('replica', 'stop'),
   cursor_evidence_unbound: entry('replica', 'stop'),
-  delete_journal_invalid: entry('replica', 'stop', FREEZES),
+  // W2C-19: a damaged delete journal cannot be cured by a recovery (which would also discard live captures),
+  // so it stops like every other unreadable record instead of also asking for a freeze.
+  delete_journal_invalid: entry('replica', 'stop'),
   deletion_mapping_missing: entry('item', 'refresh', SETS_ASIDE),
   diagnostic_read_only: entry('replica', 'stop'),
   digest_mismatch: entry('replica', 'stop'),
@@ -268,6 +293,8 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   import_recovery_invalid: entry('replica', 'stop'),
   import_source_invalid: entry('replica', 'stop'),
   import_state_invalid: entry('replica', 'stop'),
+  // W2A-05: an IndexedDB exception that has no better name. The browser's storage failed this once; the next try may work.
+  indexeddb_failure: entry('transient', 'retry'),
   indexeddb_unavailable: entry('transient', 'retry'),
   ingress_diagnostic_invalid: entry('replica', 'stop'),
   ingress_diagnostic_scan_exceeded: entry('replica', 'stop'),
@@ -359,8 +386,14 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   push_batch_response_unknown: entry('transient', 'retry'),
   push_batch_timeout: entry('transient', 'retry'),
   push_request_invalid: entry('replica', 'stop'),
+  // Rule C: a saved upload that cannot be read. One that was never sent leaves the lane as an item;
+  // one the server may own keeps the push lane waiting (Pull and Ack carry on) until Reset.
+  queue_head_unreadable: entry('replica', 'stop'),
+  // The legacy first-sync move waits for uploads that are still on their way; they leave the line on their own.
+  queue_not_drained: entry('transient', 'retry'),
   queue_not_found: entry('replica', 'stop'),
   queue_recovery_frozen: entry('transient', 'retry'),
+  queue_row_unreadable: entry('item', 'decide'),
   queue_state_invalid: entry('replica', 'stop'),
   quota_exceeded: entry('transient', 'retry'),
   range_dependency_pending: entry('transient', 'retry'),
@@ -397,6 +430,8 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   root_status_invalid: entry('replica', 'stop'),
   scope_mismatch: entry('authority', 'refresh', FREEZES),
   scope_not_found: entry('replica', 'stop'),
+  // A Retry that needs sync to be running: the scope is not active (reset, recovery) or its folders are not ready.
+  scope_not_writable: entry('transient', 'retry'),
   scope_retired: entry('replica', 'stop'),
   selected_roots_invalid: entry('replica', 'stop'),
   separator_conversion_blocked: entry('replica', 'stop'),
@@ -430,7 +465,15 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   snapshot_session_scope_mismatch: entry('replica', 'refresh', FREEZES),
   stale_fence: entry('transient', 'retry'),
   stale_ref: entry('transient', 'retry'),
+  // W2A-05: the browser's storage cannot be used right now (backing store failed, connection closed, site data
+  // blocked) and a try later may work; a record the store refuses (not cloneable, bad key) never will.
+  // W2A-10: an upgrade of the database is held back by another connection that does not close; it passes when that one does.
+  storage_blocked: entry('transient', 'retry'),
+  storage_record_rejected: entry('replica', 'stop'),
+  storage_unavailable: entry('transient', 'retry'),
   sync_paused: entry('transient', 'retry'),
+  // Rule E: a step of the engine wake keeps failing; the next wake tries it again (the cause is `rootCause`).
+  sync_step_failed: entry('transient', 'retry'),
   target_mapping_missing: entry('item', 'refresh', SETS_ASIDE),
   transaction_aborted: entry('transient', 'retry'),
   unknown_or_missing_field: entry('replica', 'stop'),
@@ -531,4 +574,14 @@ export function holdsInboundPull(code: string | undefined): boolean {
 export function refreshesReplicaIntegrity(code: string | undefined): boolean {
   const policy = classifySyncFailure(code);
   return policy?.class === 'replica' && policy.exit === 'refresh';
+}
+
+/**
+ * A Pull-time integrity stop keeps its Session `active`, so authority refresh never re-runs the
+ * pull and Retry used to be a no-op. A user's Retry re-requests from the durable cursor once.
+ * Snapshot-time stops (`snapshot_*`) keep the Session in `snapshotRequired`, so their refresh
+ * already re-runs the recovery.
+ */
+export function repullsOnExplicitRetry(code: string | undefined): boolean {
+  return code !== undefined && refreshesReplicaIntegrity(code) && !code.startsWith('snapshot_');
 }

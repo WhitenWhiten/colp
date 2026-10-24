@@ -1,6 +1,7 @@
 import { readBoundedJson } from './json-response.js';
 import { authorityCodeForStatus, classifyHttpStatus, statusFailure } from './sync-transport-failure.js';
-import { SERVER_VERSION_MISMATCH, SyncFailureError, type SyncFailureCode } from './sync-failure-class.js';
+import { storageErrorCode } from './storage-error-code.js';
+import { SERVER_VERSION_MISMATCH, SYNC_FAILURE_TABLE, SyncFailureError, type SyncFailureCode } from './sync-failure-class.js';
 
 const MAX_BACKOFF_MS = 5 * 60_000;
 /** Placeholders callers pass when the response named no code; a status that implies an authority denial replaces them. */
@@ -42,21 +43,35 @@ export async function responseProblemCode(response: Response, fallback: string, 
   } catch { return fallback; }
 }
 
+/** A transport failure says so in the message; prose that merely mentions "fetch" or "network" is a local defect. */
+const TRANSPORT_MESSAGE = /failed to fetch|fetch failed|networkerror|network request failed|^load failed$|network connection was lost|internet connection appears to be offline|net::err_|signal is aborted|user aborted a request|operation was aborted/iu;
+const TRANSPORT_CODE = /^(?:offline|aborted?|network_[a-z0-9_]*)$/u;
+const CODE = /^[a-z][a-z0-9_]{0,63}$/u;
+/** A registered code may carry a colon (`mapping_missing:subtree_root`); it is the code, not a prefix of one. */
+const registered = (code: string) => Object.hasOwn(SYNC_FAILURE_TABLE, code);
+
 export function stableError(error: unknown) { const code = error && typeof error === 'object' && 'code' in error
     ? (error as { readonly code?: unknown }).code : undefined;
-  if (typeof code === 'string' && /^[a-z][a-z0-9_]{0,63}$/u.test(code)) return code;
+  if (typeof code === 'string') {
+    // A repository wraps a DOM exception as a SyncStateError whose code is its name; name it by what it means.
+    const stored = storageErrorCode(code);
+    if (stored) return stored;
+    if (CODE.test(code) || registered(code)) return code;
+  }
   if (!(error instanceof Error)) return 'sync_failed';
   if (error.name === 'AbortError') {
     return typeof DOMException !== 'undefined' && error instanceof DOMException
       && !/transaction/i.test(error.message) ? 'network_unavailable' : 'transaction_aborted';
   }
+  // A request that timed out (AbortSignal.timeout) is connectivity, not a defect.
+  if (error.name === 'TimeoutError' || error.name === 'NetworkError') return 'network_unavailable';
+  const stored = storageErrorCode(error.name);
+  if (stored) return stored;
   if (/transaction/i.test(error.message) && /abort/i.test(error.message)) return 'transaction_aborted';
-  // F036: only a transport-signature message makes a TypeError a network
-  // failure ('Failed to fetch', 'fetch failed', 'NetworkError...',
-  // 'Load failed'). A bare TypeError is a local defect and falls through to
-  // the name-based classification instead of masking as connectivity.
-  if (/network|offline|fetch|abort|load failed/iu.test(error.message)) return 'network_unavailable';
-  if (/^[a-z][a-z0-9_]{0,63}$/u.test(error.message)) return error.message;
+  // F036: only a transport-signature message makes an error a network failure; a bare TypeError, or
+  // prose that happens to mention "fetch", is a local defect and falls through to the name-based classification.
+  if (TRANSPORT_MESSAGE.test(error.message) || TRANSPORT_CODE.test(error.message)) return 'network_unavailable';
+  if (CODE.test(error.message) || registered(error.message)) return error.message;
   const prefix = /^([a-z][a-z0-9_]{0,63}):/u.exec(error.message)?.[1];
   if (prefix) return prefix;
   const named = error.name !== 'Error' && /^([A-Z][A-Za-z0-9]{0,55})Error$/u.exec(error.name)?.[1]

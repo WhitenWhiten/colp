@@ -4,7 +4,7 @@ import {
   type JsonObject, type QueueOperation, type SyncScope, type UnknownRecord,
 } from './types.js';
 import { boundedString, canonicalJson, clone, safeInteger, validateJson } from './codec.js';
-import { cursorPage, requestValue, requireActiveScope, runTransaction, scopeRowsRange, transactionDone } from './idb.js';
+import { cursorPage, cursorPageDescending, requestValue, requireActiveScope, runTransaction, scopeRowsRange, transactionDone } from './idb.js';
 import { INDEXES, STORES } from './schema.js';
 import { scopeKey, validateScope } from './scope-key.js';
 import { validateQueueRecord } from './queue-validate.js';
@@ -47,8 +47,12 @@ export function createEngineRepository(ctx: SyncStoreRuntime) {
 
   async function listImportPlans(input: SyncScope): Promise<ImportPlanRecord[]> {
     const key = scopeKey(validateScope(input)); const db = await open(); const tx = db.transaction(STORES.importPlans, 'readonly');
-    const completion = transactionDone(tx); const values = await cursorPage<ImportPlanRecord>(tx.objectStore(STORES.importPlans),
-      scopeRowsRange(key), 100); await completion; return values.map((value) => clone(validateImportPlan(key, value, maxRecordBytes)));
+    // W2A-08: the 100 most recently updated plans, not the first 100 by id (plans are never deleted, so a live
+    // import would drop out of an id-ordered window). Handed back in id order, as before.
+    const completion = transactionDone(tx); const values = await cursorPageDescending<ImportPlanRecord>(
+      tx.objectStore(STORES.importPlans).index(INDEXES.importPlanByUpdated), scopeRowsRange(key), 100); await completion;
+    return values.map((value) => clone(validateImportPlan(key, value, maxRecordBytes)))
+      .sort((left, right) => left.planId < right.planId ? -1 : left.planId > right.planId ? 1 : 0);
   }
 
   async function listImportNodes(input: SyncScope, planId: string): Promise<ImportNodeRecord[]> {

@@ -81,7 +81,8 @@ describe('registered sync failure policies', () => {
     assert.equal(persistentLocalSyncFailure('record_too_large'), true);
     assert.equal(classifySyncFailure('delete_journal_invalid')?.class, 'replica');
     assert.equal(persistentLocalSyncFailure('delete_journal_invalid'), true);
-    assert.equal(freezesPullApply('delete_journal_invalid'), true);
+    // W2C-19: a stop never also freezes (a freeze starts a recovery that cannot repair this record).
+    assert.equal(freezesPullApply('delete_journal_invalid'), false);
     assert.equal(holdsInboundPull('network_unavailable'), false);
     assert.equal(holdsInboundPull(undefined), false);
     assert.equal(classifySyncFailure('engine_revision_stale')?.class, 'transient');
