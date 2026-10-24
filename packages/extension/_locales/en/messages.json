@@ -6575,6 +6575,9 @@
   "shell_whereBookmarksGo": {
     "message": "Where bookmarks go"
   },
+  "site_adapter_saveAndClassify": {
+    "message": "Save and classify"
+  },
   "subscription_acceptedShare": {
     "message": "Don't see a shared collection? Accept the invitation on the Know-N website first."
   },

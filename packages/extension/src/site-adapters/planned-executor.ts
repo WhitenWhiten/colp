@@ -1,5 +1,5 @@
+import { readConnectionAuthority } from './ledger.js';
 import type { NativeBinding, SavePlan, SaveEffect, SourceFolderReservation, Representation, ImportApproval, ImportPreview } from './contracts.js';
-import type { SourceAuthority } from './ledger-types.js';
 import type { ItemReservation } from './reservations.js';
 import { representationKey } from './reservations.js';
 import { get, put, sourceKey, sourceDigest, type SourceDatabase } from './source-db.js';
@@ -35,7 +35,7 @@ export function createPlannedSaveExecutor(db: SourceDatabase, ports: PlannedExec
   }
   async function authorize(planId: string, effectId: string) {
     const { row, plan, effect } = await load(planId, effectId);
-    const a = await db.read<SourceAuthority>('authorities', 'bundled.bilibili');
+    const a = await readConnectionAuthority(db, plan.connectionId);
     if (row.state !== 'approved' || !a?.enabled || a.connectionId !== plan.connectionId || a.installationGeneration !== plan.installationGeneration
       || (a.installationGeneration !== plan.collectorGeneration) || a.sourceSessionGeneration !== plan.sourceSessionGeneration) throw new Error('sourceAuthorizationChanged');
     if (plan.purpose !== 'sourceArchive' || plan.classification !== 'disabled') throw new Error('semanticExecutionUnavailable');

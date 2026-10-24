@@ -1,12 +1,7 @@
-import type { ReadFailure } from '../contracts.js';
 import { LIMITS as L } from '../limits.js';
 import { decimal } from './identity.js';
-export class SiteReadError extends Error {
-  constructor(readonly failure: ReadFailure) { super(failure.code); }
-}
-export function fail(code: ReadFailure['code'], retryAfterMs?: number): never {
-  throw new SiteReadError({ code, ...(retryAfterMs === undefined ? {} : { retryAfterMs }) });
-};
+import { fail } from '../read-errors.js';
+export { SiteReadError, abortableSleep, fail } from '../read-errors.js';
 export type Operation = { kind: 'video'; bvid: string } | { kind: 'account' } | { kind: 'collections'; accountId: string }
   | { kind: 'ids'; collectionId: string; page: number } | { kind: 'details'; ids: readonly { id: string; type: number }[] };
 export function operationUrl(op: Operation): string {
@@ -95,12 +90,4 @@ export function createPageHttp(deps: { fetch: typeof fetch; now(): number; sleep
     }
     return fail('network');
   };
-}
-export function abortableSleep(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (signal.aborted) { reject(new SiteReadError({ code: 'cancelled' })); return; }
-    const done = () => { clearTimeout(timer); signal.removeEventListener('abort', abort); resolve(); };
-    const abort = () => { clearTimeout(timer); signal.removeEventListener('abort', abort); reject(new SiteReadError({ code: 'cancelled' })); };
-    const timer = setTimeout(done, ms); signal.addEventListener('abort', abort, { once: true });
-  });
 }

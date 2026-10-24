@@ -1,7 +1,7 @@
 import type { SiteObservation } from './contracts.js';
 export interface SourceAuthority { enabled: boolean; installationGeneration: number; sourceSessionGeneration: number;
   connectionId: string | null; accountId: string | null; negativeReadback: boolean }
-export interface SourceConnection { id: string; siteKey: 'bilibili'; accountId: string; identityVersion: 1 }
+export interface SourceConnection { id: string; siteKey: string; accountId: string; identityVersion: number }
 /** Constructed only by the host from a verified lease; never page input. */
 export interface SourceContext { connectionId: string; installationGeneration: number; sourceSessionGeneration: number;
   communityOrigin?: import('./community-state.js').CommunityOrigin;

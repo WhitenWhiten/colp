@@ -44,7 +44,7 @@ test('bundled inspector scopes worlds, reconnects routes and fences revocation w
     }), { timeout: 15000 }).toBe('ok');
     const first = (await readState()).leases[0]!;
     expect(await site.evaluate(() => ({ runtime: typeof (globalThis as any).chrome?.runtime?.sendMessage,
-      slot: (globalThis as any).__knownSiteAdapterV1 }))).toEqual({ runtime: 'undefined', slot: undefined });
+      slot: (globalThis as any)['__knownSiteAdapterV1:bundled.bilibili'] }))).toEqual({ runtime: 'undefined', slot: undefined });
     await site.evaluate(async () => {
       const hints: unknown[] = []; (globalThis as any).fixtureHints = hints;
       window.addEventListener('known-bilibili-favorite-hint', e => hints.push((e as CustomEvent).detail));
@@ -117,7 +117,7 @@ test('bundled inspector scopes worlds, reconnects routes and fences revocation w
     const cleanup = await page.evaluate(async () => {
       const tabs = await chrome.tabs.query({ url: ['https://www.bilibili.com/*'] });
       return chrome.scripting.executeScript({ target: { tabId: tabs[0]!.id! }, world: 'ISOLATED', func: () =>
-        Object.hasOwn(globalThis, '__knownSiteAdapterV1') });
+        Object.hasOwn(globalThis, '__knownSiteAdapterV1:bundled.bilibili') });
     });
     expect(cleanup[0]?.result).toBe(false);
     expect(await page.evaluate(() => chrome.permissions.contains({ permissions: ['bookmarks'] }))).toBe(false);

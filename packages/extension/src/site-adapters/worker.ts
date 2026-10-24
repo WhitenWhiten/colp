@@ -216,7 +216,7 @@ export function installSiteAdapters() {
   chrome.runtime.onMessage.addListener((raw, sender, respond) => {
     const d = raw as { kind?: string; request?: unknown; enabled?: boolean; accountId?: string } | null;
     if (d?.kind === 'known.siteAdapters.activation') {
-      if (!object({ kind: literal('known.siteAdapters.activation') })(raw)) return false;
+      if (!object({ kind: literal('known.siteAdapters.activation'), adapterId: v => v === undefined || v === BILIBILI.adapterId })(raw)) return false;
       void (async () => {
         await trustedStorage(); if (!await senderCurrent(sender)) return { status: 'unavailable', retryAfterMs: 500 };
         const id = crypto.randomUUID();
@@ -266,7 +266,7 @@ export function installSiteAdapters() {
           if (tab.id !== undefined && !tab.incognito) await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'MAIN',
             func: () => { window.dispatchEvent(new Event('known-site-probe-stop')); } }).catch(() => undefined);
           if (tab.id !== undefined && !tab.incognito) await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'ISOLATED',
-            func: () => { window.dispatchEvent(new Event('known-site-adapter-stop')); } }).catch(() => undefined);
+            func: () => { window.dispatchEvent(new Event('known-site-adapter-stop')); window.dispatchEvent(new Event('known-site-adapter-stop:bundled.bilibili'));  } }).catch(() => undefined);
         }
         await reconcile(); if (d!.enabled) await injectOpen();
       }

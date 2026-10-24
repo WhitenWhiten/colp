@@ -1,15 +1,26 @@
 import { requestValue } from '../sync-state/idb.js';
 import type { MembershipReadQuery, MembershipReadResult, PageResult, SiteObservation } from './contracts.js';
 import { validMembershipResult, validObservation, validPageResult } from './schemas.js';
-import { validBilibiliMessage } from './bilibili/wire.js';
+import { legacySite, type SiteDefinition } from './registry.js';
 import { createSourceDatabase, get, put, sourceDigest, sourceKey, type SourceDatabase } from './source-db.js';
 import type { ImportRead, LedgerAdmission, LedgerEdge, ObservationRow, SourceAuthority, SourceConnection, SourceContext, SourceImportRun, SourceReceipt } from './ledger-types.js';
 import { mergeEdge, mergeEntity, mergeObservation } from './ledger-merge.js';
 import { LIMITS } from './limits.js';
-const AUTHORITY = 'bundled.bilibili';
+export async function authorityForConnection(tx: IDBTransaction, connectionId: string): Promise<SourceAuthority | undefined> {
+  return new Promise((resolve, reject) => {
+    const request = tx.objectStore('authorities').openCursor();
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => { const c = request.result;
+      if (!c) { resolve(undefined); return; }
+      if ((c.value as SourceAuthority).connectionId === connectionId) { resolve(c.value as SourceAuthority); return; }
+      c.continue();
+    };
+  });
+}
+export const readConnectionAuthority = (db: SourceDatabase, connectionId: string) => db.transaction(['authorities'], 'readonly', tx => authorityForConnection(tx, connectionId));
 const facts = ['meta', 'authorities', 'documentLeases', 'observations', 'receipts', 'readRequests', 'items', 'collections', 'memberships'] as const;
 export async function requireSourceAuthority(tx: IDBTransaction, context: SourceContext): Promise<SourceAuthority> {
-  const a = await get<SourceAuthority>(tx, 'authorities', AUTHORITY);
+  const a = await authorityForConnection(tx, context.connectionId);
   if (!a?.enabled || a.connectionId !== context.connectionId || a.installationGeneration !== context.installationGeneration
       || a.sourceSessionGeneration !== context.sourceSessionGeneration) throw new Error('staleContext');
   const lease = await get<{ context: SourceContext; expiresAt: number; active: boolean }>(tx, 'documentLeases', context.documentId);
@@ -39,10 +50,11 @@ export async function settleSourceObservation(db: SourceDatabase, id: string, re
 }
 const rejected = (e: unknown): LedgerAdmission => ({ status: 'rejected', reason: e instanceof Error
   && ['staleContext', 'conflict', 'capacity'].includes(e.message) ? e.message as 'staleContext' | 'conflict' | 'capacity' : 'invalid' });
-export function createSourceLedger(db: SourceDatabase = createSourceDatabase(), options: { now?: () => number; random?: () => string; beforeCommit?: (tx: IDBTransaction) => void } = {}) {
+export function createSourceLedger(db: SourceDatabase = createSourceDatabase(), options: { now?: () => number; random?: () => string; beforeCommit?: (tx: IDBTransaction) => void } = {}, definition: SiteDefinition = legacySite) {
+  const AUTHORITY = definition.adapterId;
   const now = options.now ?? Date.now, random = options.random ?? (() => crypto.randomUUID());
   return {
-    db,
+    db, definition,
     async setAuthority(input: Omit<SourceAuthority, 'connectionId'>): Promise<SourceAuthority> {
       return db.transaction(['authorities', 'connections'], 'readwrite', async tx => {
         const previous = await get<SourceAuthority>(tx, 'authorities', AUTHORITY);
@@ -51,9 +63,16 @@ export function createSourceLedger(db: SourceDatabase = createSourceDatabase(), 
           && (input.accountId !== previous.accountId || input.enabled !== previous.enabled)) throw new Error('conflict');
         let connectionId: string | null = null;
         if (input.accountId) {
-          const key = sourceKey('bilibili', input.accountId);
+          const key = sourceKey(definition.siteKey, definition.identityVersion, input.accountId);
           let connection = await get<SourceConnection>(tx, 'connections', key);
-          if (!connection) { connection = { id: random(), siteKey: 'bilibili', accountId: input.accountId, identityVersion: 1 }; put(tx, 'connections', key, connection); }
+          const legacyKey = sourceKey(definition.siteKey, input.accountId);
+          if (!connection) {
+            const previous = await get<SourceConnection>(tx, 'connections', legacyKey);
+            if (previous?.siteKey === definition.siteKey && previous.identityVersion === definition.identityVersion) {
+              connection = previous; put(tx, 'connections', key, previous); tx.objectStore('connections').delete(legacyKey);
+            }
+          }
+          if (!connection) { connection = { id: random(), siteKey: definition.siteKey, accountId: input.accountId, identityVersion: definition.identityVersion }; put(tx, 'connections', key, connection); }
           connectionId = connection.id;
         }
         const result = { ...input, connectionId }; put(tx, 'authorities', AUTHORITY, result); return result;
@@ -61,7 +80,7 @@ export function createSourceLedger(db: SourceDatabase = createSourceDatabase(), 
     },
     async bindLease(context: SourceContext, expiresAt: number) {
       return db.transaction(['authorities', 'documentLeases'], 'readwrite', async tx => {
-        const a = await get<SourceAuthority>(tx, 'authorities', AUTHORITY);
+        const a = await authorityForConnection(tx, context.connectionId);
         if (!a?.enabled || a.connectionId !== context.connectionId || a.installationGeneration !== context.installationGeneration
           || a.sourceSessionGeneration !== context.sourceSessionGeneration || expiresAt <= now()) throw new Error('staleContext');
         put(tx, 'documentLeases', context.documentId, { context, expiresAt, active: true });
@@ -84,7 +103,7 @@ export function createSourceLedger(db: SourceDatabase = createSourceDatabase(), 
       });
     },
     async acceptObservation(context: SourceContext, requestId: string, observation: SiteObservation, commit?: (tx: IDBTransaction, receiptId: string) => Promise<void>): Promise<LedgerAdmission> {
-      if (!validObservation(observation) || !validBilibiliMessage({ protocolVersion: 1, requestId, leaseId: context.leaseId, capability: 'host-validated', operation: 'emit', data: observation })) return { status: 'rejected', reason: 'invalid' };
+      if (!validObservation(observation) || !definition.validateMessage({ protocolVersion: 1, requestId, leaseId: context.leaseId, capability: 'host-validated', operation: 'emit', data: observation })) return { status: 'rejected', reason: 'invalid' };
       const key = sourceKey(AUTHORITY, context.installationGeneration, context.documentId, requestId), digest = sourceDigest({ operation: 'emit', observation });
       try { return await db.transaction(facts, 'readwrite', async tx => {
         await requireSourceAuthority(tx, context);
@@ -95,7 +114,7 @@ export function createSourceLedger(db: SourceDatabase = createSourceDatabase(), 
         }
         await capacity(tx, 'observations', LIMITS.pendingObservations); await capacity(tx, 'receipts', 100000);
         const receipt = { id: random(), digest, ordinal: await ordinal(tx) };
-        const row: ObservationRow = { id: receipt.id, ordinal: receipt.ordinal, context, observation, state: 'pending', acceptedAt: now(), adapterVersion: '1.0.0',
+        const row: ObservationRow = { id: receipt.id, ordinal: receipt.ordinal, context, observation, state: 'pending', acceptedAt: now(), adapterVersion: definition.version,
           cause: observation.type === 'favorite.confirmed' || observation.type === 'favorite.uncertain' ? 'siteFavorite' : 'reconcile' };
         put(tx, 'observations', receipt.id, row); put(tx, 'receipts', key, receipt);
         await mergeObservation(tx, context, observation, receipt.ordinal, receipt.id);
@@ -138,7 +157,7 @@ export function createSourceLedger(db: SourceDatabase = createSourceDatabase(), 
         await capacity(tx, 'receipts', 100000);
         const receipt: SourceReceipt = { id: random(), digest, ordinal: await ordinal(tx) };
         if (result.status === 'ok') {
-          if (!validBilibiliMessage({ protocolVersion: 1, requestId, leaseId: context.leaseId, capability: 'host-validated', operation: 'page.result', readSessionId: run.id, pageRequestId: requestId, result })) throw new Error('invalid');
+          if (!definition.validateMessage({ protocolVersion: 1, requestId, leaseId: context.leaseId, capability: 'host-validated', operation: 'page.result', readSessionId: run.id, pageRequestId: requestId, result })) throw new Error('invalid');
           const cursorKey = sourceKey(result.kind, result.kind === 'items' ? result.collectionId : null, result.page.nextCursor);
           if (result.page.nextCursor && (result.page.nextCursor === request.query.cursor || run.seenCursors.includes(cursorKey))) throw new Error('invalid');
           if (result.kind === 'collections') for (const c of result.page.items) await mergeEntity(tx, 'collections', context.connectionId, c, receipt.ordinal, run.baselineOrdinal);

@@ -251,6 +251,9 @@ export interface AcceptedObservation {
  * This interface restricts host powers, not all behavior of arbitrary JS.
  */
 export interface AdapterContext {
+  readonly accountId: string;
+  readonly deadlineAt: number;
+  hint(hint: MembershipHint): Promise<AdmissionReply>;
   document: Document;
   signal: AbortSignal;
   /** Immutable for this context; route changes abort it and create another. */
@@ -279,6 +282,8 @@ export interface AdapterContext {
 }
 
 export interface ReadContext {
+  readonly accountId: string;
+  readonly deadlineAt: number;
   document: Document;
   signal: AbortSignal;
   /** Opaque, host-issued task binding; not an adapter-selected account. */
@@ -352,13 +357,14 @@ export interface MembershipReadRequest {
 export interface SiteAdapter {
   /** Called before bootstrap and after account/route invalidation.
    * Any page-side account read must be fixed/bounded; no lease-bound host reader yet. */
-  detectSource(context: { document: Document; signal: AbortSignal }): Promise<SourceIdentityClaim>;
+  detectSource(context: { document: Document; signal: AbortSignal; deadlineAt: number }): Promise<SourceIdentityClaim>;
   start(context: AdapterContext): Promise<void | Cleanup>;
   resolveItem?(context: AdapterContext, url: string): Promise<ItemResolutionResult>;
   readItem?(context: AdapterContext, itemId: Id): Promise<SiteItem | null>;
   readMemberships?(context: ReadContext, query: MembershipReadQuery): Promise<MembershipReadResult>;
   readCollectionsPage?(context: ReadContext, cursor: string | null): Promise<SourcePage<SiteCollection>>;
   readItemsPage?(context: ReadContext, collectionId: Id, cursor: string | null): Promise<SourcePage<CollectionItem>>;
+  clear?(): void;
   importResume?: 'stableCursor' | 'restartAndDeduplicate';
 }
 

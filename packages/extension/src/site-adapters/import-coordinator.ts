@@ -1,8 +1,9 @@
+import { authorityForConnection, readConnectionAuthority } from './ledger.js';
 import { releaseUnsubmittedReservations } from './reservations.js';
 import { createLane } from '../automation/lane.js';
 import { cursorPage } from '../sync-state/idb.js';
 import type { AdapterMessage, BrowserRuleSnapshot, HostCommand, ImportApproval, ImportPreview, SavePlan, SourceFolderReservation } from './contracts.js';
-import type { ImportRead, SourceAuthority, SourceContext, SourceImportRun } from './ledger-types.js';
+import type { ImportRead, SourceContext, SourceImportRun } from './ledger-types.js';
 import type { createSourceLedger } from './ledger.js';
 import { requireSourceAuthority } from './ledger.js';
 import { get, put, rows, sourceDigest, sourceKey, sourcePrefixRange } from './source-db.js';
@@ -41,7 +42,7 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
   const load = async (id?: string) => { const active = id ?? await db.read<string>('meta', ACTIVE); return active ? db.read<ImportJob>('meta', key(active)) : undefined; };
   const save = (job: ImportJob) => db.transaction(['meta'], 'readwrite', async tx => { put(tx, 'meta', key(job.id), job); });
   async function authority(job: ImportJob, tx?: IDBTransaction) {
-    const a = tx ? await get<SourceAuthority>(tx, 'authorities', 'bundled.bilibili') : await db.read<SourceAuthority>('authorities', 'bundled.bilibili');
+    const a = tx ? await authorityForConnection(tx, job.context.connectionId) : await readConnectionAuthority(db, job.context.connectionId);
     if (!a?.enabled || a.connectionId !== job.context.connectionId || a.installationGeneration !== job.context.installationGeneration
       || a.sourceSessionGeneration !== job.context.sourceSessionGeneration) throw new Error('sourceAuthorizationChanged');
   }
