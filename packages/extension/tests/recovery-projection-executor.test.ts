@@ -421,11 +421,14 @@ test('an observed create identity missing from its parent cannot become a ghost 
   await store.replaceProjectionIntents(scope, [{ intentId: 'create:child', kind: 'create', colpId: 'child', order: 1,
     suppression: 'create-child', generation: 1, state: 'executing', observedNativeId: '2', parentNativeId: '1' }]);
   const chrome = fakeChrome([{ id: '1', title: 'Root' }]);
-  await assert.rejects(() => executeProjectionIntents({ scope, store, api: chrome.api, selectedRootNativeId: '1',
-    seedMappings: [root, lifecycleMapping('recovery:child', 'child', 'root')] }), /snapshot_native_projection_ambiguous/);
-  assert.equal(await store.getMappingByColpId(scope, 'child'), null);
+  // B-04: shown for that one bookmark instead of aborting the projection; the id Chrome no longer shows is never mapped.
+  await executeProjectionIntents({ scope, store, api: chrome.api, selectedRootNativeId: '1',
+    seedMappings: [root, lifecycleMapping('recovery:child', 'child', 'root')] });
+  assert.match((await store.getMappingByColpId(scope, 'child'))?.nativeId ?? 'recovery:none', /^recovery:/u);
+  assert.equal(await store.getMappingByNativeId(scope, '2'), null);
   assert.equal(chrome.creates, 0);
   assert.equal((await store.listProjectionIntents(scope))[0]?.state, 'ambiguous');
+  assert.deepEqual((await store.listLocalIssues(scope)).map((row) => row.code), ['snapshot_native_projection_ambiguous']);
 });
 
 test('a replayed delete intent removes its seed and durable mapping before becoming terminal', async () => {

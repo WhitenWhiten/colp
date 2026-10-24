@@ -16,10 +16,25 @@ export function mappedSubtreeDeleteSource(rootId: string, mappings: readonly Map
 export function captureSubtreeDeletion(rootId: string, mappings: readonly MappingInput[]) {
   const members = capturedSubtreeMembers(rootId, mappings);
   const memberIds = members.map(row => row.colpId);
+  const parentIds = memberParentIds(mappings, memberIds);
   return members.some(row => /^(pending-|local-)/u.test(row.colpId) || row.revision.startsWith('local-'))
-    ? { observation: members as JsonObject[], source: undefined, memberIdsDigest: undefined, memberIds }
+    ? { observation: members as JsonObject[], source: undefined, memberIdsDigest: undefined, memberIds, parentIds }
     : { observation: undefined, source: subtreeDeleteSource(rootId, members.map(row => ({ id: row.colpId, revision: row.revision }))),
-      memberIdsDigest: subtreeMemberIdsDigest(rootId, memberIds), memberIds };
+      memberIdsDigest: subtreeMemberIdsDigest(rootId, memberIds), memberIds, parentIds };
+}
+
+/** B-14: the members a remote change can name as a parent (folders, and anything with a member under it), in capture order. */
+function memberParentIds(mappings: readonly MappingInput[], memberIds: readonly string[]): string[] {
+  const members = new Set(memberIds);
+  const byNative = new Map(mappings.map(row => [row.nativeId, row.colpId]));
+  const parents = new Set<string>();
+  for (const row of mappings) {
+    if (!members.has(row.colpId)) continue;
+    if (row.nodeKind === 'folder') parents.add(row.colpId);
+    const parent = row.parentColpId ?? (row.parentNativeId ? byNative.get(row.parentNativeId) : undefined);
+    if (parent && members.has(parent)) parents.add(parent);
+  }
+  return memberIds.filter(id => parents.has(id));
 }
 
 function capturedSubtreeMembers(rootId: string, mappings: readonly MappingInput[]) {

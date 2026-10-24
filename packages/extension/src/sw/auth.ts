@@ -94,19 +94,23 @@ export async function handle(message: AuthExtensionRequest, _context: AuthorityC
   }
   if (message.kind !== 'known.auth.login') throw new Error('request_invalid');
   const previous = await store.loadCredential();
+  // W2B-P1-3: after a restart or an involuntary sign-out no credential is in memory, but the identity pin still names
+  // the account this browser last served. Read it before signing in, which pins the new account.
+  const earlier = previous ?? await store.loadExpectedIdentity();
   if (previous?.subject && configuredPersonalSyncPolicy()) await suspendPersonalSyncForLogout();
   if (previous?.subject) await prepareSubscriptionLogout(previous.subject, previous.serverOrigin);
   const login = await auth.login(message);
   void wakeSubscriptions('startup');
   if (login.status !== 'connected') return { ok: false, state: login, error: login.errorCode ?? 'authentication_failed' };
   const credential: StoredCredential = await auth.ensureFreshCredential();
-  if (previous?.subject && (previous.subject !== credential.subject || previous.serverOrigin !== credential.serverOrigin)) {
+  const earlierAccount = earlier?.subject ? { serverOrigin: earlier.serverOrigin, accountId: earlier.subject } : undefined;
+  if (earlierAccount && (earlierAccount.accountId !== credential.subject || earlierAccount.serverOrigin !== credential.serverOrigin)) {
     if (typeof globalThis.chrome?.storage?.local?.remove === 'function') await chrome.storage.local.remove([COLLECTION_BINDING, LIBRARY_STATE]);
-    if (configuredPersonalSyncPolicy()) { await store.clearBinding(); sw.bindingPromise = undefined; }
-  }
-  // Signing in as someone else is a sign-out for the earlier account's automation data too (AW-72).
-  if (previous?.subject && (previous.subject !== credential.subject || previous.serverOrigin !== credential.serverOrigin)) {
-    await clearAccountAutomation({ serverOrigin: previous.serverOrigin, accountId: previous.subject })
+    // The credential store ended the binding when it pinned the new account; forget the memo of it too.
+    if (configuredPersonalSyncPolicy()) await store.clearBinding();
+    sw.bindingPromise = undefined;
+    // Signing in as someone else is a sign-out for the earlier account's automation data too (AW-72).
+    await clearAccountAutomation(earlierAccount)
       .catch((error) => logBackgroundFailure('auth.clear-previous-account-automation', error));
   }
   if (credential.subject) await retryActivityAfterSignIn({ serverOrigin: credential.serverOrigin, accountId: credential.subject })

@@ -3,8 +3,10 @@ import { holdRefusedRequest, repeatsDenial, REQUEST_REFUSED_ATTEMPTS } from './p
 import { isSequenceReuseCode } from './sequence-reuse-settlement.js';
 import type { QueueOperation, SyncScope, createSyncStateStore } from './sync-state-store.js';
 import type { StoredSession } from './types.js';
+import { serverNow } from './session-clock.js';
 
-export function assertPushSession(session: StoredSession, scope: SyncScope, current: number) {
+export function assertPushSession(session: StoredSession, scope: SyncScope, localNow: number) {
+  const current = serverNow(session, localNow); // expiry is server time (W2B-P0-1)
   if (session.scope !== 'collection' || session.collection.collectionId !== scope.collectionId
       || session.replicaLease.state !== 'active'
       || Date.parse(session.expiresAt) <= current || Date.parse(session.replicaLease.expiresAt) <= current) {

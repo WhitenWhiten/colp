@@ -1,6 +1,14 @@
 import { pendingNativeOrPullFacts } from './native-repair.js';
 import { cursorIsConfirmed } from './sync-state/cursor-confirmation.js';
 import type { EngineOptions } from './durable-sync-engine-types.js';
+import { serverNow } from './session-clock.js';
+import type { StoredSession } from './types.js';
+
+/** True when the Session's server-time expiry is within `marginMilliseconds` of now on this computer's clock. */
+export function sessionExpiresWithin(session: Pick<StoredSession, 'expiresAt' | 'clientClockSkewMilliseconds'>,
+  localNow: number, marginMilliseconds = 0): boolean {
+  return Date.parse(session.expiresAt) <= serverNow(session, localNow) + marginMilliseconds;
+}
 
 /** Adopt a renewed token only at a fully acknowledged local boundary. Pending
  * Acks and browser effects retain their original authority and exact bytes. */
@@ -8,7 +16,7 @@ export async function readEngineSessionAuthority(options: Pick<EngineOptions, 's
   forceRefresh = false) {
   const authority = await options.sessions.get(forceRefresh); const session = authority.session;
   if (session.acceptedProtocolVersion !== '0.2' || session.collection.collectionId !== options.scope.collectionId
-      || Date.parse(session.expiresAt) <= now()) throw new Error('session_invalid');
+      || sessionExpiresWithin(session, now())) throw new Error('session_invalid');
   const prior = await options.store.getEngineState(options.scope);
   if (!prior?.sessionId || prior.sessionId === session.sessionId || session.snapshotRequired
       || prior.recoveryFrozen || prior.authorityRefreshRequired) return authority;

@@ -6,6 +6,8 @@ import { colpCredentialHeaders } from './auth-client.js';
 import { downloadAuthoritativeEffectPages } from './effect-page-download.js';
 import { sessionTransportBudget } from './colp-transport-budget-browser.js';
 import { readBoundedJson } from './json-response.js';
+import { statusFailure } from './sync-transport-failure.js';
+import { schemaRejection } from './durable-sync-engine-errors.js';
 import { syncPullV02 } from './generated/pull-effect-validators.js';
 import { withPullFreeze } from './pull-recovery-freeze.js';
 import { assertUniqueEvents, byteLength, digest, plainJson, record, validateEffectPages,
@@ -42,10 +44,11 @@ export function createPullPageStager(options: PullApplierOptions, now: () => num
     const response = await (options.fetch ?? fetch)(endpoint, {
       redirect: 'error', cache: 'no-store', credentials: 'omit', headers,
     });
-    if (!response.ok) throw new SyncFailureError('pull_failed');
+    if (!response.ok) throw statusFailure(response, { other: 'pull_failed' }, Date.now());
     const pullBytes = sessionTransportBudget(options.session).pullResponseBytes;
     const body = await readBoundedJson(response, pullBytes, 'pull_page_invalid') as Record<string, unknown>;
-    if (!syncPullV02(body) || !Array.isArray(body.events)) throw new SyncFailureError('pull_page_invalid');
+    if (!syncPullV02(body)) throw schemaRejection(syncPullV02, 'pull_page_invalid');
+    if (!Array.isArray(body.events)) throw new SyncFailureError('pull_page_invalid');
     const validatedEvents = body.events.map((candidate) => validatePullEvent(candidate as SyncPullEventV02));
     assertUniqueEvents(validatedEvents);
     if (validatedEvents.some((candidate) => candidate.kind === 'operation'
@@ -75,7 +78,8 @@ export function createPullPageStager(options: PullApplierOptions, now: () => num
     if (!record(raw)) throw new SyncFailureError('pull_page_invalid');
     let suppliedPages = Array.isArray(raw.effectPages) ? raw.effectPages : [];
     const response = Object.fromEntries(Object.entries(raw).filter(([key]) => key !== 'effectPages'));
-    if (!syncPullV02(response) || byteLength(response) > sessionTransportBudget(options.session).pullResponseBytes) {
+    if (!syncPullV02(response)) throw schemaRejection(syncPullV02, 'pull_page_invalid');
+    if (byteLength(response) > sessionTransportBudget(options.session).pullResponseBytes) {
       throw new SyncFailureError('pull_page_invalid');
     }
     const pull = response as unknown as SyncPullV02;

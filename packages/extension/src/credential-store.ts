@@ -46,6 +46,10 @@ export function createCredentialStore(storage: StorageArea, now: () => number = 
       const current = await fence.assertWritable(expectedGeneration);
       const generation = expectedGeneration ?? current.generation;
       const identity = accountIdentity(value);
+      // W2B-P1-3: a replica binding belongs to the account and server it was minted for. The server's replica id is
+      // global, so another account inheriting it is refused for good. The pin is the memory of that account, and it
+      // outlives the credential (a browser restart or an involuntary sign-out empties the secret area).
+      if (identity && await pinnedToOtherAccount(storage, identity)) await storage.remove([BINDING, SESSION]);
       await storage.set({ [CREDENTIAL]: stamp(value, generation),
         ...(identity ? { [EXPECTED_IDENTITY]: stamp(identity, generation) } : {}) });
       await reclaimIfFenced(storage, fence, CREDENTIAL, generation);
@@ -68,6 +72,10 @@ export function createCredentialStore(storage: StorageArea, now: () => number = 
       return unstamp(await read<Stamped<AccountIdentity>>(storage, EXPECTED_IDENTITY), await fence.read());
     },
     clearCredential: () => storage.remove(CREDENTIAL),
+    // W2B-P1-1: the server no longer accepts this credential. The secrets go; the replica binding and the account
+    // pin stay, so signing in again as the same account resumes the same replica, scope and queue. Only an explicit
+    // sign-out (`clearAuthority`) or another account/server (`saveCredential`) ends the binding.
+    clearCredentialKeepingReplica: () => storage.remove([TRANSACTION, CREDENTIAL, SESSION]),
     async saveSession(value: StoredSession, expectedGeneration?: number): Promise<void> {
       const current = await fence.assertWritable(expectedGeneration);
       const generation = expectedGeneration ?? current.generation;
@@ -175,6 +183,12 @@ export function createCredentialStore(storage: StorageArea, now: () => number = 
   });
 }
 async function read<T>(storage: StorageArea, key: string): Promise<T | null> { return ((await storage.get(key))[key] as T | undefined) ?? null; }
+
+/** The pinned account differs from `identity` by account or server. Read regardless of authority generation: the pin is non-secret. */
+async function pinnedToOtherAccount(storage: StorageArea, identity: AccountIdentity): Promise<boolean> {
+  const pinned = await read<Pick<AccountIdentity, 'subject' | 'serverOrigin'>>(storage, EXPECTED_IDENTITY);
+  return pinned !== null && (pinned.subject !== identity.subject || pinned.serverOrigin !== identity.serverOrigin);
+}
 function array(value: string | string[]): string[] { return typeof value === 'string' ? [value] : value; }
 
 type Stamped<T> = T & { readonly authorityGeneration?: number };

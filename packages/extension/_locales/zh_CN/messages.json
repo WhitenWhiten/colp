@@ -123,6 +123,18 @@
     "message": "请检查服务器地址并允许访问，然后再登录。",
     "description": "Check the server address and allow access before signing in."
   },
+  "auth_serverUnavailableTryAgain": {
+    "message": "服务器暂时无法响应，请稍后再试。",
+    "description": "The server could not answer just now. Try again in a moment."
+  },
+  "auth_serverVersionMismatch": {
+    "message": "此版本的 Know-N 与服务器不匹配。请更新扩展，或请服务器管理员检查其版本。",
+    "description": "This version of Know-N and the server do not match. Update the extension, or ask whoever runs the server to check its version."
+  },
+  "auth_sessionExpiredSignAgain": {
+    "message": "你的登录已过期，请重新登录。",
+    "description": "Your session expired. Sign in again."
+  },
   "auth_showPassword": {
     "message": "显示密码",
     "description": "Show password"
@@ -186,6 +198,70 @@
   "automation_accountRulesSignIn": {
     "message": "登录 COLP 服务器后，也能使用你保存在那里的规则。它们在每台设备上生效，并先于此浏览器的规则运行。",
     "description": "Sign in to a COLP server to also use the rules you keep there. They work on every device, and run before this browser’s."
+  },
+  "automation_activityAdded_one": {
+    "message": "$2 向 $3 添加了 $1 个书签",
+    "description": "$2 added $1 bookmark to $3"
+  },
+  "automation_activityAdded_other": {
+    "message": "$2 向 $3 添加了 $1 个书签",
+    "description": "$2 added $1 bookmarks to $3"
+  },
+  "automation_activityAgent": {
+    "message": "某个智能体",
+    "description": "An agent"
+  },
+  "automation_activityAttention": {
+    "message": "$1 需要你做出决定",
+    "description": "$1 needs your decision"
+  },
+  "automation_activityDigests_one": {
+    "message": "$1 篇新摘要",
+    "description": "$1 new digest"
+  },
+  "automation_activityDigests_other": {
+    "message": "$1 篇新摘要",
+    "description": "$1 new digests"
+  },
+  "automation_activityEmptyHint": {
+    "message": "智能体添加书签或规则完成工作后，你会在这里看到。",
+    "description": "When an agent adds bookmarks or a rule finishes work, you’ll see it here."
+  },
+  "automation_activityEmptyTitle": {
+    "message": "暂无动态",
+    "description": "No activity yet"
+  },
+  "automation_activityFailed": {
+    "message": "$1 失败了",
+    "description": "$1 failed"
+  },
+  "automation_activityFinished": {
+    "message": "$1 已完成",
+    "description": "$1 finished"
+  },
+  "automation_activityLede": {
+    "message": "智能体添加的新书签、完成的工作，以及等你决定的事项。",
+    "description": "New bookmarks from your agents, finished work, and decisions waiting for you."
+  },
+  "automation_activityLibrary": {
+    "message": "你的书签库",
+    "description": "your library"
+  },
+  "automation_activityMoreFolders_other": {
+    "message": "$2，以及另外 $1 个文件夹",
+    "description": "$2 and $1 more folders"
+  },
+  "automation_activityOpen": {
+    "message": "打开",
+    "description": "Open"
+  },
+  "automation_activityPartial": {
+    "message": "$1 已部分完成",
+    "description": "$1 partly finished"
+  },
+  "automation_activityRule": {
+    "message": "某条规则",
+    "description": "A rule"
   },
   "automation_addCondition": {
     "message": "添加条件",
@@ -990,6 +1066,14 @@
   "automation_needBookmarks": {
     "message": "Know-N 需要访问你的书签，才能把网页放进文件夹。",
     "description": "Know-N needs access to your bookmarks to file pages into a folder."
+  },
+  "automation_newActivity_one": {
+    "message": "智能体带来 $1 条新动态",
+    "description": "$1 new from your agents"
+  },
+  "automation_newActivity_other": {
+    "message": "智能体带来 $1 条新动态",
+    "description": "$1 new from your agents"
   },
   "automation_newDigests_one": {
     "message": "$1 份新摘要",
@@ -2694,6 +2778,10 @@
   "automation_subscriptionUse": {
     "message": "使用此订阅",
     "description": "Use this subscription"
+  },
+  "automation_tabActivity": {
+    "message": "动态",
+    "description": "Activity"
   },
   "automation_tabBrowser": {
     "message": "此浏览器",
@@ -10254,81 +10342,5 @@
   "welcome_title": {
     "message": "欢迎使用 Know-N",
     "description": "Welcome to Know-N"
-  },
-  "automation_activityAdded_one": {
-    "message": "$2 向 $3 添加了 $1 个书签",
-    "description": "$2 added $1 bookmark to $3"
-  },
-  "automation_activityAdded_other": {
-    "message": "$2 向 $3 添加了 $1 个书签",
-    "description": "$2 added $1 bookmarks to $3"
-  },
-  "automation_activityAgent": {
-    "message": "某个智能体",
-    "description": "An agent"
-  },
-  "automation_activityAttention": {
-    "message": "$1 需要你做出决定",
-    "description": "$1 needs your decision"
-  },
-  "automation_activityDigests_one": {
-    "message": "$1 篇新摘要",
-    "description": "$1 new digest"
-  },
-  "automation_activityDigests_other": {
-    "message": "$1 篇新摘要",
-    "description": "$1 new digests"
-  },
-  "automation_activityEmptyHint": {
-    "message": "智能体添加书签或规则完成工作后，你会在这里看到。",
-    "description": "When an agent adds bookmarks or a rule finishes work, you’ll see it here."
-  },
-  "automation_activityEmptyTitle": {
-    "message": "暂无动态",
-    "description": "No activity yet"
-  },
-  "automation_activityFailed": {
-    "message": "$1 失败了",
-    "description": "$1 failed"
-  },
-  "automation_activityFinished": {
-    "message": "$1 已完成",
-    "description": "$1 finished"
-  },
-  "automation_activityLede": {
-    "message": "智能体添加的新书签、完成的工作，以及等你决定的事项。",
-    "description": "New bookmarks from your agents, finished work, and decisions waiting for you."
-  },
-  "automation_activityLibrary": {
-    "message": "你的书签库",
-    "description": "your library"
-  },
-  "automation_activityMoreFolders_other": {
-    "message": "$2，以及另外 $1 个文件夹",
-    "description": "$2 and $1 more folders"
-  },
-  "automation_activityOpen": {
-    "message": "打开",
-    "description": "Open"
-  },
-  "automation_activityPartial": {
-    "message": "$1 已部分完成",
-    "description": "$1 partly finished"
-  },
-  "automation_activityRule": {
-    "message": "某条规则",
-    "description": "A rule"
-  },
-  "automation_newActivity_one": {
-    "message": "智能体带来 $1 条新动态",
-    "description": "$1 new from your agents"
-  },
-  "automation_newActivity_other": {
-    "message": "智能体带来 $1 条新动态",
-    "description": "$1 new from your agents"
-  },
-  "automation_tabActivity": {
-    "message": "动态",
-    "description": "Activity"
   }
 }

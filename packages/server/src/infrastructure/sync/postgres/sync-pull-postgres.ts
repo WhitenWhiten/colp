@@ -21,7 +21,7 @@ import {
 } from '../../../modules/sync/index.js';
 import type { DatabaseSchema } from '../../database/runtime.js';
 import { createUnitOfWork, type DatabaseTransaction } from '../../database/unit-of-work.js';
-import { resolvePullResponseBudget } from '../sync-transport-budget.js';
+import { resolveEffectAggregateBudget, resolvePullResponseBudget } from '../sync-transport-budget.js';
 import { readSyncPullStreamCut, type SyncPullStreamRow as StreamRow } from './sync-operation-payload-reader.js';
 import {
   type PullAuthority,
@@ -208,9 +208,10 @@ export function createPostgresSyncPullReadPort(
           const sessionBinding = await transaction.selectFrom('sync_sessions').select('binding_json')
             .where('session_id', '=', input.sessionId).executeTakeFirst();
           const pullBudget = resolvePullResponseBudget(sessionBinding?.binding_json, options.responseBudgetBytes);
+          const effectBudget = resolveEffectAggregateBudget(sessionBinding?.binding_json);
           let visibleCount: number;
           try {
-            visibleCount = byteAwareEventCount(candidateEvents, pullBudget);
+            visibleCount = byteAwareEventCount(candidateEvents, pullBudget, effectBudget);
           } catch (error) {
             if (!(error instanceof SyncPullReadError) || error.code !== 'payload_too_large') throw error;
             // F013: the stream head alone exceeds the negotiated page budget, so
@@ -270,18 +271,44 @@ export function createPostgresSyncPullReadPort(
   });
 }
 
+/** One subtree member in an effect page: a 36-character id, its quotes and comma, and a margin for longer ids. */
+const EFFECT_MEMBER_BYTES = 44;
+/** The envelope of one effect page (ids, counts and two digests) around its members, with a margin. */
+const EFFECT_PAGE_ENVELOPE_BYTES = 320;
+
+/** What the client will download for this event on top of its body: the member pages of a paged subtree deletion. */
+function effectPageBytes(event: SyncPullEvent | SyncPullEventV02): number {
+  const effect = (event as { readonly effect?: { readonly kind?: string;
+    readonly effectRef?: { readonly pageCount?: number; readonly memberCount?: number } } }).effect;
+  const ref = effect?.kind === 'subtree_deleted' ? effect.effectRef : undefined;
+  if (!ref || !Number.isSafeInteger(ref.memberCount) || !Number.isSafeInteger(ref.pageCount)) return 0;
+  return ref.memberCount! * EFFECT_MEMBER_BYTES + ref.pageCount! * EFFECT_PAGE_ENVELOPE_BYTES;
+}
+
+/**
+ * How many of `events` one page can carry. `budget` is the page body; `effectBudget` is the session's cap on the body
+ * plus the effect pages the client then downloads for it (B-15): several large deletions arrive on separate pages,
+ * and a deletion that cannot fit even alone escalates like an oversized head event (the caller sends the replica to
+ * Snapshot recovery, whose state already carries the deletion).
+ */
 export function byteAwareEventCount(
   events: readonly (SyncPullEvent | SyncPullEventV02)[],
   budget = Number.MAX_SAFE_INTEGER,
+  effectBudget = Number.MAX_SAFE_INTEGER,
 ): number {
   if (!Number.isSafeInteger(budget) || budget < 1) fail('integrity_failure');
+  if (!Number.isSafeInteger(effectBudget) || effectBudget < 1) fail('integrity_failure');
   let bytes = 1_024;
+  let effectBytes = 0;
   let count = 0;
   for (const event of events) {
     const eventBytes = Buffer.byteLength(JSON.stringify(event), 'utf8') + 1;
-    if (count > 0 && bytes + eventBytes > budget) break;
-    if (bytes + eventBytes > budget) fail('payload_too_large');
+    const pagedBytes = effectPageBytes(event);
+    const over = bytes + eventBytes > budget || bytes + eventBytes + effectBytes + pagedBytes > effectBudget;
+    if (count > 0 && over) break;
+    if (over) fail('payload_too_large');
     bytes += eventBytes;
+    effectBytes += pagedBytes;
     count += 1;
   }
   return count;

@@ -7,7 +7,7 @@ import { readBoundedJson } from './json-response.js';
 import { syncSnapshotV02 } from './generated/pull-effect-validators.js';
 import type { AckIntentRecord, JsonObject, MappingInput } from './sync-state-store.js';
 import type { DurableSyncSnapshot, EngineOptions } from './durable-sync-engine-types.js';
-import { snapshotFailure } from './durable-sync-engine-errors.js';
+import { schemaRejection, snapshotFailure } from './durable-sync-engine-errors.js';
 import { discardExpiredRecoveryStaging, freezeScopeRecovery, isCursorExpiryCode,
   shouldFreezePullApply } from './pull-recovery-freeze.js';
 import { assertCompleteSnapshotStaging } from './snapshot-staging-assert.js';
@@ -117,6 +117,11 @@ async function recoverSnapshotPages(
       if (response.status !== 200 || !jsonContentType(response)) {
         if (response.status === 429) throw httpOrSnapshotFailure(response, now());
         if (response.status === 413) {
+          // B-02: the server builds the whole Snapshot while it answers the first
+          // page, so a 413 there is its aggregate size limit. No page size changes
+          // that, and a Reset needs the same Snapshot: stop with a code that says so
+          // instead of halving seven times and offering a Reset that cannot help.
+          if (pageCursor === null) throw new SyncFailureError('snapshot_too_large');
           // F013: the negotiated page budget cannot carry `pageLimit` Nodes at
           // this position — halve the page and rebuild the staged chain from
           // page 0 (a signed page cursor pins its limit, so a smaller page
@@ -155,7 +160,7 @@ async function recoverSnapshotPages(
       }
       const document = await readBoundedJson(response, sessionTransportBudget(authority.session).snapshotPageBytes,
         'snapshot_invalid', { timeoutMilliseconds: options.requestTimeoutMilliseconds });
-      if (!syncSnapshotV02(document)) throw new SyncFailureError('snapshot_invalid');
+      if (!syncSnapshotV02(document)) throw schemaRejection(syncSnapshotV02, 'snapshot_invalid');
       const snapshot = document as DurableSyncSnapshot;
       if (recoveryAuthority && snapshot.page.hasMore && snapshot.recoveryCapability !== undefined) {
         throw new SyncFailureError('recovery_capability_premature');
