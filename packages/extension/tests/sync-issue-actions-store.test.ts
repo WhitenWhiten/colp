@@ -139,7 +139,7 @@ describe('remote items this browser set aside', () => {
     const f = await withIssue();
     try {
       const issue = (await f.store.listPullIssues(pullScope))[0]!;
-      assert.deepEqual(pullLocalActions(issue), ['dismiss']);
+      assert.deepEqual(pullLocalActions(issue), ['retry', 'dismiss']);
       assert.equal((await readOpenSyncIssues(f.store, pullScope)).total, 1);
 
       assert.deepEqual(await f.store.dismissPullIssues(pullScope, [issue.nodeId]), { closed: [issue.nodeId], refused: [] });

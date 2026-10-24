@@ -81,7 +81,7 @@ describe('the actions an item is given', () => {
     } finally { f.store.close(); }
   });
 
-  test('a remote item this browser set aside can be dismissed', async () => {
+  test('a remote item this browser set aside can be tried again or dismissed', async () => {
     const f = await setupPull({ useRealPullApplier: true });
     try {
       f.pullResponses.push(pullJson(200, pullEventsPage([pullFixtures.createEvent({ kind: 'Bookmark', sequence: 11,
@@ -90,7 +90,7 @@ describe('the actions an item is given', () => {
       await f.engine.wake('manual');
       const { issues } = await attention(f.store, pullScope);
       assert.equal(issues?.length, 1);
-      assert.deepEqual(issues![0]!.localActions, ['dismiss']);
+      assert.deepEqual(issues![0]!.localActions, ['retry', 'dismiss']);
     } finally { f.store.close(); }
   });
 });

@@ -390,12 +390,23 @@ export function issueActionOutcomeCopy(action: SyncIssueLocalAction, response: S
   if (response === undefined) return t('syncIssue_actionNoReply', 'Sync did not answer. Try again in a moment.');
   if (!response.ok) return t('syncIssue_actionError', 'Could not do that ($1). The items stay as they were.', response.error);
   const more = requested > SYNC_ISSUE_ACTION_LIMIT ? ` ${t('syncIssue_actionMore', 'More items are left. Press again for the rest.')}` : '';
-  if (response.done === 0 && response.failed === 0) {
+  const settled = response.superseded ?? 0; const stays = response.unavailable ?? 0; const remote = response.remote ?? 0;
+  if (response.done === 0 && response.failed === 0 && settled === 0 && stays === 0) {
     return `${t('syncIssue_actionNothing', 'Nothing changed: the item is gone or no longer offers this.')}${more}`;
   }
-  const done = response.done === 0 ? '' : action === 'retry'
-    ? tn('syncIssue_actionRetried', response.done, 'Tried again. $1 item is back in the upload queue.', 'Tried again. $1 items are back in the upload queue.')
-    : tn('syncIssue_actionDismissed', response.done, 'Dismissed $1 item. This browser keeps its version.', 'Dismissed $1 items. This browser keeps its versions.');
+  const uploads = response.done - remote;
+  const done = [uploads <= 0 ? '' : action === 'retry'
+    ? tn('syncIssue_actionRetried', uploads, 'Tried again. $1 item is back in the upload queue.', 'Tried again. $1 items are back in the upload queue.')
+    : tn('syncIssue_actionDismissed', uploads, 'Dismissed $1 item. This browser keeps its version.', 'Dismissed $1 items. This browser keeps its versions.'),
+  // A remote item is applied by the pass that was just started; it is not listed again until that pass has run.
+  remote <= 0 ? '' : tn('syncIssue_actionRetriedRemote', remote,
+    'Trying again. $1 item from your library goes back to the next sync pass.', 'Trying again. $1 items from your library go back to the next sync pass.'),
+  settled <= 0 ? '' : tn('syncIssue_actionSettled', settled, 'Nothing left to do for $1 item. It has been settled since.',
+    'Nothing left to do for $1 items. They have been settled since.'),
+  stays <= 0 ? '' : tn('syncIssue_actionUnavailable', stays,
+    'Sync cannot try $1 item again from here. If it stays, dismiss it to keep this browser’s version, or reset sync on this device.',
+    'Sync cannot try $1 items again from here. If they stay, dismiss them to keep this browser’s versions, or reset sync on this device.')]
+    .filter(Boolean).join(' ');
   const failed = response.failed === 0 ? ''
     // Sync is not running (a reset or a recovery is in progress, or the folders are not ready): nothing is wrong with the items.
     : response.code === 'scope_not_writable' ? t('syncIssue_actionNotReady', 'Sync is not ready to try again yet. Try again in a moment; the items stay as they were.')

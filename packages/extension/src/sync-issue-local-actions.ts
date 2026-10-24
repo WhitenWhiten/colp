@@ -30,10 +30,12 @@ export function pushLocalActions(row: PushIssueRow): readonly SyncIssueLocalActi
 }
 
 /**
- * A remote item this browser set aside can be dismissed: the issue closes, later changes to it apply again, and
- * this browser keeps the version it has. A hold that a conflict decision settles is not dismissed from here.
- * Taking the library's version instead is not offered per item (see `known.sync.issue.act`).
+ * A remote item this browser set aside can be tried again or dismissed. Try again (D3) puts the held change from
+ * your library back for the ordinary apply pass and takes the library's version (`pull-item-retry.ts`); it answers
+ * for itself when that is not possible from here. Dismiss closes the issue, later changes to it apply again, and
+ * this browser keeps the version it has. A hold that a conflict decision settles is neither: that decision is made
+ * in the Sync center.
  */
 export function pullLocalActions(row: Pick<PullIssueRecord, 'conflictOpIds'>): readonly SyncIssueLocalAction[] {
-  return row.conflictOpIds?.length ? [] : ['dismiss'];
+  return row.conflictOpIds?.length ? [] : ['retry', 'dismiss'];
 }

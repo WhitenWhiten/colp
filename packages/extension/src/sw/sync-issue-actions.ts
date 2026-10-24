@@ -1,3 +1,4 @@
+import { retrySetAsidePullItems } from '../pull-item-retry.js';
 import { reasonCode } from '../push-error-code.js';
 import type { RecaptureQueueRow } from '../queue-recapture.js';
 import { pullLocalActions, pushLocalActions } from '../sync-issue-local-actions.js';
@@ -7,8 +8,8 @@ import type { createSyncStateStore, QueueOperation, SyncScope } from '../sync-st
 import type { SyncIssueActionRequest, SyncIssueActionResponse } from '../types.js';
 import { retryQueueIssue } from './issue-retry.js';
 
-type Store = SyncIssueStore & Pick<ReturnType<typeof createSyncStateStore>, 'retrySequenceBlocked' | 'releaseSetAsideQueue'
-  | 'dismissQueueIssues' | 'dismissPullIssues' | 'closeLandedPullIssues'>;
+/** The whole store: Try again for a remote item hands it to the pull layer's own entry point (`pull-item-retry.ts`). */
+type Store = ReturnType<typeof createSyncStateStore> & SyncIssueStore;
 
 export interface SyncIssueActionDeps {
   readonly scope: () => Promise<SyncScope>;
@@ -25,6 +26,10 @@ export interface SyncIssueActionDeps {
  * Try again and Dismiss on the Status card (K5). The items are named by the display ids the card shows, never
  * by a storage key, and every one is checked again against what is open now: an item that is gone, or whose
  * kind does not offer the action, is skipped and counted, never forced.
+ *
+ * Try again for a remote item (D3) puts its held change from the library back for the engine's next apply pass,
+ * which this starts; the item is not listed until that pass has run, and then it is gone or back with its new
+ * reason. The pull layer decides each one: `retried`, `superseded` (nothing left to do) or `unavailable`.
  */
 export async function handleSyncIssueAction(deps: SyncIssueActionDeps, request: SyncIssueActionRequest): Promise<SyncIssueActionResponse> {
   let scope: SyncScope;
@@ -49,15 +54,23 @@ export async function handleSyncIssueAction(deps: SyncIssueActionDeps, request: 
         skipped: skipped + (uploads?.refused.length ?? 0) + (remote?.refused.length ?? 0), failed: 0 };
     }
     let done = 0; let failed = 0; let code: string | undefined;
+    let remote = 0; let superseded = 0; let unavailable = 0;
     const recapture = deps.recapture(scope);
     await deps.run(async () => {
       for (const row of rows) {
         try { await retryQueueIssue(deps.store, scope, row, recapture); done += 1; }
         catch (error) { failed += 1; code ??= reasonCode(error, 'retry_failed'); }
       }
+      if (nodes.length === 0) return;
+      try {
+        for (const answer of (await retrySetAsidePullItems({ store: deps.store, scope }, nodes)).values()) {
+          if (answer === 'retried') { done += 1; remote += 1; } else if (answer === 'superseded') superseded += 1; else unavailable += 1;
+        }
+      } catch (error) { failed += nodes.length; code ??= reasonCode(error, 'retry_failed'); }
     });
     // The pass runs on its own; the card does not wait for it.
     if (done > 0) void Promise.resolve(deps.wake()).catch(() => undefined);
-    return { ok: true, done, skipped, failed, ...(code ? { code } : {}), ...(done > 0 ? { woke: true } : {}) };
+    return { ok: true, done, skipped, failed, ...(code ? { code } : {}), ...(done > 0 ? { woke: true } : {}),
+      ...(remote > 0 ? { remote } : {}), ...(superseded > 0 ? { superseded } : {}), ...(unavailable > 0 ? { unavailable } : {}) };
   } catch (error) { return { ok: false, error: reasonCode(error, 'state_unavailable') }; }
 }
