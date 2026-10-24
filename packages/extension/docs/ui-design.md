@@ -26,12 +26,13 @@ the kit (with a note here) rather than writing a one-off rule next to the featur
 6. **User language.** No percentages, sample sizes, sequence numbers, IDs, time zones, server URLs
    or raw error codes outside Help & diagnostics. Never interpolate an error code into a sentence.
    Map known codes to copy and give unknown ones a generic sentence plus "Copy details". Use
-   sentence case, and no italics or all-caps labels. One exception: when a sync request fails in a
-   way the page has no words for (an unreadable status, a refused reset, a failed item action,
-   a code this version doesn't know), the Sync center's Status card may close the sentence with the
-   code in brackets. The sentence comes first, says what happened and what to do, and stands
-   alone; the code is only what a person quotes to support. Never a bare code, and never in the
-   popup. Separately, "Bookmarks not included in sync" names one live bookmark (its title, or its
+   sentence case, and no italics or all-caps labels. One exception: on the Sync center's Status
+   card a sentence about sync that does not mend itself (a stop, a wait for the person, an item
+   that needs a decision, a refused reset, a failed item action, a code this version has no words
+   for) closes with its code in brackets. The sentence comes first, says what happened and what to
+   do, and stands alone; the code is only what a person quotes to support. A calm retry that mends
+   itself carries no code. Never a bare code, and never in the popup. Separately, "Bookmarks not
+   included in sync" names one live bookmark (its title, or its
    host when it has none) under each reason that cannot be synced: content the person recognizes,
    read when the list is opened, shown on that list only, and never put into Copy details, the Help
    diagnostic or a health report.
