@@ -7592,11 +7592,20 @@
   "syncProblem_nextResetInStatus": {
     "message": "Open Sync, then Status, and press Reset sync on this device to continue. Your bookmarks stay; changes that have not synced yet are set aside and not retried."
   },
+  "syncProblem_nextRetryingSoon": {
+    "message": "It paused after repeated errors and tries again shortly. Retry sync tries now."
+  },
   "syncProblem_nextSignIn": {
     "message": "Sign in again from Account and sync resumes."
   },
+  "syncProblem_nextStalled": {
+    "message": "Retry sync tries again now. If it stays this way, copy details to investigate; your bookmarks are not affected."
+  },
   "syncProblem_nextTooLarge": {
     "message": "Copy details and send them to whoever runs your Know-N server."
+  },
+  "syncProblem_notCompleting": {
+    "message": "Sync has not finished a pass in over an hour, and nothing says why."
   },
   "syncProblem_offline": {
     "message": "Sync can't reach the server right now."
@@ -7631,6 +7640,9 @@
   "syncProblem_signIn": {
     "message": "Your sign-in no longer works for sync."
   },
+  "syncProblem_stalled": {
+    "message": "Sync has stopped making progress and has not said why."
+  },
   "syncProblem_stopDownload": {
     "message": "Sync on this device stopped because its record of changes from your library failed an internal check."
   },
@@ -7645,6 +7657,9 @@
   },
   "syncProblem_stopUpload": {
     "message": "Sync on this device stopped because its record of changes waiting to upload failed an internal check."
+  },
+  "syncProblem_stuck": {
+    "message": "The oldest change waiting to upload has not moved for a while."
   },
   "syncProblem_syncFailed": {
     "message": "Sync failed for a reason it did not record."
@@ -7666,6 +7681,12 @@
   },
   "syncProgress_canClose": {
     "message": "You can close this page. Sync carries on in the background while the browser is open, and picks up where it left off after a restart."
+  },
+  "syncProgress_cooling": {
+    "message": "Sync paused after repeated errors and tries again on its own. Open Status to see when."
+  },
+  "syncProgress_coolingTitle": {
+    "message": "Sync will retry"
   },
   "syncProgress_details": {
     "message": "Details"
@@ -7712,6 +7733,15 @@
   "syncProgress_pausedTitle": {
     "message": "Sync paused"
   },
+  "syncProgress_permission": {
+    "message": "Sync needs permission to read and change your bookmarks. Allow it in the Folders tab."
+  },
+  "syncProgress_permissionDetail": {
+    "message": "Nothing syncs while this extension can’t read or change your bookmarks."
+  },
+  "syncProgress_permissionTitle": {
+    "message": "Bookmark access needed"
+  },
   "syncProgress_preparingDetail": {
     "message": "Comparing this browser’s bookmarks with your library. Large libraries take a minute."
   },
@@ -7739,8 +7769,14 @@
   "syncProgress_short": {
     "message": "Syncing $1 of $2"
   },
+  "syncProgress_stalled": {
+    "message": "Sync hasn’t completed a pass in a while. Open Status to see more."
+  },
   "syncProgress_stopped": {
     "message": "Sync on this device has stopped. Open Status to review the problem."
+  },
+  "syncProgress_stuck": {
+    "message": "Sync is stuck. Open Status to see where."
   },
   "syncProgress_title": {
     "message": "Syncing bookmarks"
@@ -7853,6 +7889,9 @@
   "sync_foldersSyncing_other": {
     "message": "$2 of $1 folders sync"
   },
+  "sync_healthNotSent": {
+    "message": "This browser couldn’t send its status to the server since $1 ($2). The Sync center on the web may show old information."
+  },
   "sync_htmlFile": {
     "message": "HTML bookmarks file"
   },
@@ -7940,6 +7979,9 @@
   "sync_inboundWaitsPlain_other": {
     "message": "$1 cloud items are waiting for your decision."
   },
+  "sync_ingressUnknownReason": {
+    "message": "Left out of sync for a reason this version doesn’t describe ($1)"
+  },
   "sync_insideNoKnowNSyncFolder": {
     "message": "Inside a folder excluded from sync"
   },
@@ -7979,6 +8021,9 @@
   "sync_keptWithParent": {
     "message": "This folder stays on this browser with its parent."
   },
+  "sync_lastSynced": {
+    "message": "Last synced $1."
+  },
   "sync_latest": {
     "message": "$1 · Latest: $2"
   },
@@ -8015,6 +8060,9 @@
   "sync_onlyWebAddressesHttp": {
     "message": "Only web addresses (http or https) can sync"
   },
+  "sync_openFoldersTab": {
+    "message": "Open Folders"
+  },
   "sync_openSyncCenterWeb": {
     "message": "Open Sync center on the web"
   },
@@ -8026,6 +8074,9 @@
   },
   "sync_otherBookmarks": {
     "message": "Other bookmarks"
+  },
+  "sync_permissionRequired": {
+    "message": "Bookmark access needed"
   },
   "sync_personalBoundary": {
     "message": "This browser’s bookmarks stay in sync with your library. Pausing or disconnecting never removes bookmarks from this browser."
@@ -8123,9 +8174,6 @@
   "sync_recoveryRetryFailed": {
     "message": "Could not retry sync. Copy details to investigate."
   },
-  "sync_recoveryRetryRequested": {
-    "message": "Sync retry requested."
-  },
   "sync_recoveryRetrying": {
     "message": "Sync is recovering on this device. It will retry automatically."
   },
@@ -8144,8 +8192,23 @@
   "sync_retryFailed": {
     "message": "Retry failed items"
   },
+  "sync_retryRunning": {
+    "message": "Retrying sync…"
+  },
+  "sync_retryStillFailing": {
+    "message": "Retried, but sync still reports a problem ($1). Copy details to investigate."
+  },
+  "sync_retryStillRunning": {
+    "message": "Retry is still running. This card updates when it finishes."
+  },
   "sync_retrySync": {
     "message": "Retry sync"
+  },
+  "sync_retryUnreadable": {
+    "message": "Retried, but the status could not be read afterwards."
+  },
+  "sync_retryWorked": {
+    "message": "Retried. Sync is running again."
   },
   "sync_review": {
     "message": "Review"
@@ -8168,11 +8231,26 @@
   "sync_someSiblingBookmarksExcluded": {
     "message": "Some sibling bookmarks are excluded, so the order change was not fully uploaded"
   },
+  "sync_stalled": {
+    "message": "Sync hasn’t completed in a while"
+  },
+  "sync_statusUnavailable": {
+    "message": "Can’t read sync status"
+  },
+  "sync_statusUnreadable": {
+    "message": "Couldn’t read sync status ($1). What is shown may be out of date."
+  },
+  "sync_statusUnreadableFirst": {
+    "message": "Couldn’t read sync status ($1). Try again in a moment."
+  },
   "sync_stayLocal": {
     "message": "This browser only"
   },
   "sync_stopSyncing": {
     "message": "Stop syncing"
+  },
+  "sync_stuck": {
+    "message": "Sync is stuck"
   },
   "sync_syncAll": {
     "message": "Sync all"
@@ -8233,6 +8311,15 @@
   },
   "sync_waitingNetwork": {
     "message": "Waiting for network"
+  },
+  "sync_watchdogNoPass": {
+    "message": "Sync has not finished a pass since $1, and nothing says why."
+  },
+  "sync_watchdogStuck": {
+    "message": "Sync is stuck: the oldest change waiting to upload has not moved since $1."
+  },
+  "sync_watchdogStuckAt": {
+    "message": "Sync is stuck at “$1”: this upload has not moved since $2."
   },
   "sync_whenDeletedElsewhere": {
     "message": "When a bookmark is deleted on another device"
