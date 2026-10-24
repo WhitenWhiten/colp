@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+import { up as upgradeAttention, down as downgradeAttention } from '../../../migrations/202611020400_activity_resolved_attention.js';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
@@ -101,6 +102,43 @@ describeWithPostgres('activity lifecycle transitions', () => {
     const results = await Promise.all([1, 2].map(() => store.markRead(f.owner.accountId, { ids: [item.id] }, commandId)));
     expect(results).toEqual([{ readCount: 1, unreadCount: 0 }, { readCount: 1, unreadCount: 0 }]);
     expect((await summary()).latest?.revision).toBe(String(BigInt(item.revision) + 1n));
+  });
+
+  test('cancelling a run clears attention and a late job transition cannot recreate it', async () => {
+    const run = await newRun(), approval = await job(run, 'approve');
+    await sql`UPDATE automation_jobs SET state='awaitingApproval' WHERE id=${approval}`.execute(f.db);
+    expect((await summary()).unreadCount).toBe(1);
+    await f.uow.execute({ accountId: f.owner.accountId, subjectId: f.owner.subjectId }, ports => ports.runs.cancel(run));
+    expect(await summary()).toMatchObject({ latest: null, unreadCount: 0 });
+    await sql`UPDATE automation_jobs SET state='committing' WHERE id=${approval}`.execute(f.db);
+    await sql`UPDATE automation_jobs SET state='awaitingApproval' WHERE id=${approval}`.execute(f.db);
+    expect((await summary()).latest).toBeNull();
+  });
+
+  test('resolved approvals disappear only after the last outstanding approval, and retry clears review', async () => {
+    const run = await newRun(), first = await job(run, 'first'), second = await job(run, 'second');
+    await sql`UPDATE automation_jobs SET state='awaitingApproval' WHERE run_id=${run}`.execute(f.db);
+    await sql`UPDATE automation_jobs SET state='succeeded' WHERE id=${first}`.execute(f.db);
+    expect((await summary()).latest?.run?.attention).toBe('awaitingApproval');
+    await sql`UPDATE automation_jobs SET state='succeeded' WHERE id=${second}`.execute(f.db);
+    expect((await summary()).latest).toBeNull();
+    await sql`UPDATE automation_runs SET state='review' WHERE id=${run}`.execute(f.db);
+    expect((await summary()).latest?.run?.attention).toBe('review');
+    await sql`UPDATE automation_runs SET state='running' WHERE id=${run}`.execute(f.db);
+    expect((await summary()).latest).toBeNull();
+    await sql`UPDATE automation_runs SET state='completed' WHERE id=${run}`.execute(f.db);
+    expect((await summary()).latest?.kind).toBe('run_completed');
+  });
+
+  test('the upgrade removes stale attention created before the fix', async () => {
+    await downgradeAttention(f.db);
+    try {
+      const run = await newRun(), approval = await job(run, 'legacy');
+      await sql`UPDATE automation_jobs SET state='awaitingApproval' WHERE id=${approval}`.execute(f.db);
+      await sql`UPDATE automation_runs SET state='cancelled' WHERE id=${run}`.execute(f.db);
+      expect((await summary()).latest?.run?.attention).toBe('awaitingApproval');
+    } finally { await upgradeAttention(f.db); }
+    expect(await summary()).toMatchObject({ latest: null, unreadCount: 0 });
   });
 
 });

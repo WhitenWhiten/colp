@@ -23,6 +23,8 @@ an expired receipt returns 410 without applying the read again.
 Unread agent additions aggregate by owner, verified agent client, and collection for at most 24 hours.
 Samples, folder names, agent names, and collection names are read from current server records.
 Run completion, partial success, failure, review, and approval attention update one activity item per run.
+Cancelled runs and resolved approval requests are removed from the inbox; restarting a run clears its obsolete outcome
+unless an approval is still pending. New final outcomes create a fresh notification.
 Placement-only runs and manual selection parents do not create activity.
 
 Activity read state is shared across the web and extension. Reading run outputs also clears that run's
