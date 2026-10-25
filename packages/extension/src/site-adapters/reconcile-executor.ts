@@ -123,7 +123,12 @@ export async function prepareReconcileCommand(run: ReconcileRun, op: ReconcileOp
     if (!canonicalId) throw new Error('sourceBindingNeedsReview');
     const expected = (await client.call<{ node: ManagedNode | null }>('managed.node', { collectionId: sync.collectionId, nodeId: canonicalId })).node;
     if (!expected) throw new Error('sourceBindingNeedsReview');
-    if (candidate && (expected.title !== candidate.title || !sameNativeContentValue('url', candidate.url, expected.url))) throw new Error('sourceSyncPending');
+    if (candidate) {
+      const sourceParent = await syncState.getMappingByNativeId(sync, candidate.parentId);
+      if (!sourceParent || sourceParent.quarantine) throw new Error('sourceSyncPending');
+      if (expected.deleted || expected.parentId !== sourceParent.colpId || expected.title !== candidate.title
+        || !sameNativeContentValue('url', candidate.url, expected.url)) throw new Error('source_reconcile_conflict');
+    }
     const parentMapping = await syncState.getMappingByNativeId(sync, parent.nativeId); if (!parentMapping || parentMapping.quarantine) throw new Error('sourceSyncPending');
     if (choice === 'adopt') {
       const command = await managedSaves.prepareForSlot({ commandId: op.id, ownerId: run.id, connectionId: run.preview.context.connectionId, kind: 'bookmark', parent,
@@ -133,6 +138,8 @@ export async function prepareReconcileCommand(run: ReconcileRun, op: ReconcileOp
       command.managed!.command.adopt = { nodeId: expected.nodeId, revision: expected.revision }; return { mode: 'adopt', command };
     }
     const currentRole = role ? (await client.call<{ binding: { controlRevision?: number } | null }>('managed.lookup', { collectionId: sync.collectionId, slot: role })).binding : null;
+    const shared = row.representation?.shared ?? row.folder?.shared;
+    if (shared && (shared.nodeId !== expected.nodeId || (shared.controlRevision ?? 0) !== (currentRole?.controlRevision ?? 0))) throw new Error('source_association_changed');
     return { mode: 'cloud', library, undo: false, input: { commandId: op.id, collectionId: sync.collectionId, replicaId: sync.replicaId,
       action: choice === 'updateTitle' ? 'rename' : choice === 'restore' || choice === 'useLocation' ? 'restore' : 'move', expected, slot: role,
       parentId: parentMapping.colpId, title: choice === 'updateTitle' ? row.source!.title : expected.title, retire: choice === 'archive', ...(role ? { associationRevision: currentRole?.controlRevision ?? 0 } : {}) } };
