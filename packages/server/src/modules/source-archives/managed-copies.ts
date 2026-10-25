@@ -89,7 +89,7 @@ export function parseManagedSave(raw: unknown): ManagedSaveCommand {
     ...raw && typeof raw === 'object' && Object.hasOwn(raw, 'adopt') ? ['adopt'] : []]);
   for (const k of ['commandId', 'replicaId', 'collectionId', 'parentId', 'parentRevision']) text(c[k]);
   if (!/^[A-Za-z0-9][A-Za-z0-9:_-]{0,127}$/.test(String(c.commandId)) || ['constructor', 'prototype'].includes(String(c.commandId))) fail('invalid_managed_command');
-  text(c.title, 512);
+  if (typeof c.title !== 'string' || c.title.length > 512 || /[\u0000-\u001f]/u.test(c.title)) fail('invalid_managed_command');
   const kind = (c.slot as { kind?: unknown } | null)?.kind;
   if (kind === 'bookmark') {
     const slot = object(c.slot, ['kind', 'copy']); parseManagedCopy(slot.copy);

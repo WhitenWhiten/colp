@@ -6,7 +6,7 @@ export interface ManagedReconcileCommand {
   associationRevision?: number;
 }
 export interface ManagedReconcileReceipt { commandId: string; digest: string; before: ManagedNode; after: ManagedNode; slot: ManagedSlot | null; retire: boolean;
-  previousState?: 'active' | 'detached' | 'suppressed'; previousLifecycle?: 'current' | 'retired'; controlRevision?: number; afterState?: 'active' | 'suppressed' }
+  previousState?: 'active' | 'detached' | 'suppressed'; previousLifecycle?: 'current' | 'retired'; controlRevision?: number; afterState?: 'active' | 'suppressed'; keepPhysical?: boolean }
 export interface ReconcileState { edits?: Record<string, ManagedReconcileReceipt> }
 export interface ManagedReconcilePorts {
   read(collectionId: string, nodeId: string): Promise<ManagedNode | null>;
@@ -84,6 +84,7 @@ export async function undoManagedReconcile(state: ManagedSaveState & ReconcileSt
     parentId: original.before.parentId, title: original.before.title, retire: false };
   const after = metadataOnly ? current : await ports.mutate(command, !!original.before.deleted);
   if (role && state.bindings[role]) state.bindings[role] = { ...state.bindings[role]!, node: after, state: original.previousState ?? (original.before.deleted ? 'suppressed' : 'active'), lifecycle: original.previousLifecycle ?? 'current', controlRevision: (original.controlRevision ?? 0) + 1 };
-  const receipt = { commandId: input.commandId, digest, before: current, after, slot: original.slot, retire: false, ...(role ? { controlRevision: (original.controlRevision ?? 0) + 1 } : {}) };
+  const receipt = { commandId: input.commandId, digest, before: current, after, slot: original.slot, retire: false,
+    keepPhysical: aliases.some(([key]) => key !== role), ...(role ? { controlRevision: (original.controlRevision ?? 0) + 1 } : {}) };
   edits[input.commandId] = receipt; return receipt;
 }

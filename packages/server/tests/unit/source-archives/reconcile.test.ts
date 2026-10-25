@@ -35,7 +35,18 @@ test('undo is receipted and never overwrites a later user edit', async () => {
 });
 test('malformed commands never become persistent receipt keys', () => {
   expect(parseManagedReconcile(command)).toEqual(command);
+  expect(parseManagedReconcile({ ...command, title: '', expected: { ...node, title: '' } })).toMatchObject({ title: '', expected: { title: '' } });
   expect(() => parseManagedReconcile({ ...command, commandId: '__proto__' })).toThrow('invalid_managed_command');
+});
+test('undoing a metadata restoration preserves the physical node needed by another role', async () => {
+  const f = fixture(), semantic = { kind: 'bookmark' as const, copy: { purpose: 'semantic' as const, content: { site: 'fixture.posts', identityVersion: 1, itemId: 'post', accountId: null } } };
+  f.state.bindings[managedSlotKey('library', command.slot!)]!.state = 'suppressed';
+  f.state.bindings[managedSlotKey('library', semantic)] = { collectionId: 'library', slot: semantic, node, state: 'active' };
+  await reconcileManagedCopy(f.state, { ...command, action: 'restore', parentId: node.parentId, retire: false }, f.ports);
+  expect(await undoManagedReconcile(f.state, { commandId: 'undo-shared', collectionId: 'library', replicaId: 'replica', original: command.commandId }, f.ports))
+    .toMatchObject({ after: node, keepPhysical: true });
+  expect(f.ports.mutate).not.toHaveBeenCalled();
+  expect(f.state.bindings[managedSlotKey('library', semantic)]?.state).toBe('active');
 });
 test('a late offline deletion cannot override a newer explicit restoration', async () => {
   const f = fixture(), key = managedSlotKey('library', command.slot!);
