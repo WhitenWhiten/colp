@@ -18,7 +18,7 @@ export async function grantOptionalBookmarks(page: Page, buttonName: string | Lo
       const permissionInteraction = process.platform === 'win32'
         ? allowWindowsPermission(activationTitle)
         : process.platform === 'linux'
-          ? grantBookmarksPermissionX11(page, windows, attempt)
+          ? grantBookmarksPermissionX11(page, windows, attempt, permission)
           : pressPermissionKeys(page, attempt);
       const [clicked, interaction] = await Promise.allSettled([click, permissionInteraction]);
       if (clicked.status === 'rejected') throw clicked.reason;
@@ -96,6 +96,7 @@ async function grantBookmarksPermissionX11(
   page: Page,
   ids: readonly string[],
   attempt: number,
+  permission: { permissions?: string[]; origins?: string[] },
 ): Promise<void> {
   // The Chromium extension-permission bubble only accepts keyboard input when its browser
   // window holds X focus; CDP key events do not reach it on every Linux configuration.
@@ -105,6 +106,9 @@ async function grantBookmarksPermissionX11(
     await page.bringToFront();
     // Let the permission bubble appear before steering keyboard focus to it.
     await new Promise((resolve) => setTimeout(resolve, 900));
+    // Remembered consent can advance a form without showing a native prompt.
+    // Return would then submit the next page step instead of granting access.
+    if (await page.evaluate(value => chrome.permissions.contains(value), permission)) return;
     for (const id of ids) {
       // windowfocus uses XSetInputFocus directly, so it works without a window manager.
       await execFileAsync('xdotool', ['windowfocus', '--sync', id], { timeout: 3_000 });

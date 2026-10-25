@@ -11,6 +11,28 @@ vi.mock('node:child_process', async (importOriginal) => ({
 
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
+test.skipIf(process.platform !== 'linux')('remembered consent does not send native keys into the next page step', async () => {
+  let granted = false;
+  const keys: string[] = [];
+  mocks.execFileAsync.mockImplementation(async (_command: string, args: string[]) => {
+    if (args[0] === 'key') keys.push(args[1]!);
+    return { stdout: '101\n', stderr: '' };
+  });
+  vi.stubGlobal('document', { title: 'Options' });
+  vi.stubGlobal('chrome', {
+    permissions: { contains: async () => granted },
+    runtime: { sendMessage: async () => ({ ok: true }) },
+  });
+  const page = {
+    title: async () => 'Options',
+    bringToFront: async () => undefined,
+    evaluate: async (fn: (value: unknown) => unknown, value: unknown) => fn(value),
+  } as unknown as Page;
+  const button = { click: async () => { granted = true; } } as unknown as Locator;
+  await grantOptionalBookmarks(page, button, 'Remembered permission');
+  expect(keys, 'there is no native permission prompt to accept').toEqual([]);
+});
+
 test.skipIf(process.platform !== 'linux').each([true, false])('retries permission with a native prompt still pending: %s, preserving the page dialog', async (unanswered) => {
   let pending = false, granted = false, attempts = 0, dialogOpen = true;
   const dom = new Window();
