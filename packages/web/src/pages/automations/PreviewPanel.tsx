@@ -48,7 +48,7 @@ export function PreviewPanel({
       <section className="automation-preview" aria-labelledby="automation-preview-heading" data-state="empty">
         <h2 id="automation-preview-heading" className="automation-panel-title">Preview</h2>
         <p className="automation-preview-lede">
-          See what this rule would do to your recent bookmarks in {where} before you turn it on. A preview changes nothing.
+          Try it on your recent bookmarks in {where}. A preview changes nothing.
         </p>
         <button type="button" className="btn btn-secondary btn-sm" disabled={disabled || busy} onClick={onPreview}>
           {busy ? 'Previewing…' : 'Preview'}

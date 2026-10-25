@@ -512,7 +512,7 @@ export function RuleEditor() {
         title={title}
         documentTitle={creating ? 'New rule' : `Edit ${title}`}
         lede={creating
-          ? 'Say which bookmarks this is for and where they go. You preview it on your own bookmarks before it does anything.'
+          ? 'Say which bookmarks this is for and where they go.'
           : editing?.desiredState === 'enabled'
             ? 'Preview a change, then apply it. Saving without a preview pauses the rule until you turn it on again.'
             : 'Change the rule, preview it, then turn it on.'}
@@ -653,10 +653,7 @@ export function RuleEditor() {
                 {tree.state.status === 'ready' && folderList.length === 0 && (
                   <p className="field-hint">Your library has no folders yet. Create one there first.</p>
                 )}
-                <p className="field-hint">
-                  The rule follows the folder itself, so renaming or moving it later keeps the rule working.
-                  It applies to bookmarks saved anywhere in your library.
-                </p>
+                <p className="field-hint">Renaming or moving the folder later keeps the rule working.</p>
               </li>}
 
               {(taskTypes.length > 0 || workerRule) && (
