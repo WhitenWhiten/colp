@@ -4,6 +4,33 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-25
+
+This minor package release includes the changes since 0.2.1 and replaces the
+unpublished `0.2.2-automation-client-id.1` build. Protocol 0.1/0.2 negotiation,
+the seven exported Profiles and the Requirements Digest are retained. The
+Schemas add the optional Sync recovery contracts described below.
+
+### Node.js package
+
+- Add optional replica health reports, issue actions and command results,
+  including negotiated `replicaRetired` rebuild commands, to the COLP 0.2 types
+  and Schema. Add `Problem.currentSubtree`, `SubtreeObservationSummary`,
+  `subtreeMemberIdsDigest` and `subtreeObservationSummary` for safe subtree-delete
+  reconciliation. Share browser folder-role definitions across hosts.
+- Harden Sync Push deletion dependencies, replica lifecycle transitions,
+  concurrent session creation and tombstone handling. Reuse budgeted immutable
+  Pull snapshots and authoritative child views without weakening validation.
+- Extend the experimental Automation contracts with agent setup, exact-bookmark
+  run selection and tasks-only runs. Accept authenticated HTTPS OAuth client
+  identities for CIMD connection profiles without normalizing their spelling.
+- Reject private/local literal MCP webhook destinations, compare OAuth refresh
+  tokens in constant time and keep redirect-loop diagnostics free of query data.
+  Bound request-body allocations under fragmented input streams.
+- Reuse proven immutable JSON snapshots and byte counts across Schema,
+  Publication and Sync validation; separate MCP Change Plan responsibilities
+  and unify transaction cleanup. Update dependency security fixes.
+
 ### Conformance runner
 
 - Probes `406 unsupported_version` with an unsupported `Collection-Protocol-Version` on the Directory URL (PUB-0041).
