@@ -3,7 +3,7 @@ import { siteLedger } from './source-runtime.js';
 import { currentFlat, nativeFolderLookup } from '../sw/automation-browser.js';
 import { sourceAutomationsPaused } from '../sw/automation.js';
 import { captureDeviceId } from '../sw/capture-history.js';
-import { assertPlannedNative } from '../sw/planned-capture.js';
+import { assertSourceRoot } from '../sw/planned-capture.js';
 import { installSourcePlanAuthorization } from './planned-runtime.js';
 import { contentBindings, isManagedContentMove } from './content-runtime.js';
 import { captureStore } from '../sw/capture.js';
@@ -15,7 +15,7 @@ import { assertCommunityArchive } from './community-authority.js';
 export const sourceLayout = createSourceLayout(siteLedger.db, {
   authorizeCommunity: assertCommunityArchive,
   rules: currentFlat, paused: sourceAutomationsPaused, deviceId: captureDeviceId,
-  lookup: nativeFolderLookup, assertRoot: assertPlannedNative,
+  lookup: nativeFolderLookup, assertRoot: async binding => { await assertSourceRoot(binding); },
   sourceCopies: input => contentBindings.sourceDecision(input),
   beforeExclusion: assertNoCloudDestinationWork,
 });

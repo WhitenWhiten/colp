@@ -167,7 +167,7 @@ export interface RealStack {
   setSyncOffline(offline: boolean): void;
   /** Change only the isolated test collection's availability for lifecycle acceptance. */
   setFixtureCollectionUnavailable(unavailable: boolean): Promise<void>;
-  forceFixtureReplicaRecovery(): Promise<void>;
+  forceFixtureReplicaRecovery(replicaId?: string): Promise<void>;
   observations(replicaId?: string): Promise<Record<string, unknown>>;
   canonicalSiblingOrder(parentId: string): Promise<ReadonlyArray<{
     readonly id: string; readonly parentId: string; readonly positionToken: string;
@@ -350,7 +350,8 @@ export async function startRealStack(options: {readonly classification?:boolean;
       type: 'about:blank', title: 'Injected authority denial', status: 409, code: 'need_authority' });
   });
   app.addHook('onSend', async (request, _reply, payload) => {
-    if (sourceFault === 'lost-response' && request.url === '/colp/v0.1/sync/source-archives' && (request.body as { action?: string } | null)?.action === 'commit') { request.raw.socket.destroy(); }
+    if (sourceFault === 'lost-response' && request.url === '/colp/v0.1/sync/source-archives'
+      && ['commit', 'managed.save'].includes((request.body as { action?: string } | null)?.action ?? '')) { request.raw.socket.destroy(); }
     if (!request.url.startsWith('/colp/v0.1/sync/replica-health')) return payload;
     const body = request.body as { commandResults?: unknown[] } | undefined;
     if (loseHealthResult && body?.commandResults?.length) {
@@ -1013,11 +1014,11 @@ export async function startRealStack(options: {readonly classification?:boolean;
         'update sync_extension_credentials set revoked_at=current_timestamp where revoked_at is null');
     },
     setPushFault(value) { pushFault = value; },
-    async forceFixtureReplicaRecovery() {
+    async forceFixtureReplicaRecovery(replicaId = REPLICA_ID) {
       await isolated.runtime.pool.query(`UPDATE sync_replicas SET status='recovery_required',
         lifecycle_revision=lifecycle_revision+1,
         wire_json=jsonb_set(wire_json,'{status}','"recovery_required"'::jsonb,true)
-        WHERE replica_id=$1`, [REPLICA_ID]);
+        WHERE replica_id=$1`, [replicaId]);
     },
     async seedCanonicalFixture(nestedBookmark = false) {
       const authority = await getAuxiliaryAuthority();

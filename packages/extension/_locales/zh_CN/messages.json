@@ -12483,12 +12483,20 @@
     "message": "这里只显示当前来源会话中已观察到的收藏夹。发现更多收藏夹后，请刷新。",
     "description": "Only collections observed in the current source session are shown. Refresh after observing more collections."
   },
-  "sites_syncedRootRequiresCloud": {
-    "message": "此目录位于 Know-N 云同步范围内。如需本地同步，请选择该范围外的目录；如需云归档，请前往 COLP Server 审核后保存。",
-    "description": "This folder is in your Know-N sync range. Choose a folder outside that range for local syncing, or use COLP Server for reviewed cloud archiving."
+  "sites_refreshSyncedPreview": {
+    "message": "此目录现在已加入同步。请重新生成导入预览后再保存。",
+    "description": "This folder now participates in sync. Make the import preview again before saving."
   },
-  "sites_openCloudArchive": {
-    "message": "前往 COLP Server 云归档",
-    "description": "Open COLP Server archive"
+  "sites_syncServerUpgrade": {
+    "message": "请更新 COLP Server，以支持将网站收藏保存到同步目录。",
+    "description": "Update COLP Server to support saving website collections into synced folders."
+  },
+  "sites_waitingForBookmarkSync": {
+    "message": "正在等待书签同步…",
+    "description": "Waiting for bookmark sync…"
+  },
+  "sites_waitingForBookmarkSyncHint": {
+    "message": "已保留你批准的导入。同步连接和目录就绪后会继续。",
+    "description": "Your approved import is kept. It will continue when the sync connection and folder are ready."
   }
 }

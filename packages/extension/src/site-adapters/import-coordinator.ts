@@ -305,7 +305,11 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
         await ledger.issuePage({ id, runId: job.id, context: source.context, deadlineAt, query });
         await save({ ...job, outstanding: id });
         ports.send(source.context, { operation: 'readPage', leaseId: source.context.leaseId, readSessionId: job.id, pageRequestId: id, deadlineAt, query }); ports.alarm(deadlineAt + LIMITS.spacingMs);
-      } catch (e) { await save({ ...job, phase: job.phase === 'scanning' ? 'paused' : 'attention', coverage: job.phase === 'scanning' ? 'partial' : job.coverage,
+      } catch (e) {
+        if (job.phase === 'approved' && e instanceof Error && e.message === 'sourceSyncPending') {
+          await save({ ...job, reason: 'sourceSyncPending' }); ports.alarm(Date.now() + 3000); return;
+        }
+        await save({ ...job, phase: job.phase === 'scanning' ? 'paused' : 'attention', coverage: job.phase === 'scanning' ? 'partial' : job.coverage,
         reason: e instanceof Error ? e.message : 'unavailable' }); }
     }),
   };

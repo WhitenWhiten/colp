@@ -12,6 +12,7 @@ import { effectDigest, persistSavePlan } from './planned-executor.js';
 import { cursorPage } from '../sync-state/idb.js';
 import { withDestinationPolicyBoundary } from '../classification-destination-boundary.js';
 import { assertSourceRebound, assertRestoredItemAvailable } from './portable.js';
+import { sameNativeContentValue } from '../native-event-correlation.js';
 
 export interface SourcePolicyRecord { connectionId: string; enabled: boolean; liveArchive: boolean; admittedAfterOrdinal?: number; policy: SavePolicy }
 export interface SourceMount extends MountBinding { state: 'active' | 'detached' | 'suppressed' }
@@ -73,7 +74,7 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
     if (!folder.native) return;
     const node = await ports.lookup(folder.native.nativeId);
     // Local edits own the folder; source renames never overwrite its creation receipt.
-    if (!node || node.url || node.dateAdded !== folder.native.dateAdded || node.title !== folder.title
+    if (!node || node.url || node.dateAdded !== folder.native.dateAdded || node.title !== (folder.nativeTitle ?? folder.title)
       || folder.parent.kind !== 'native' || node.parentId !== folder.parent.binding.nativeId) throw new Error('folderManuallyChanged');
   }
   async function evaluate(edge: SiteRuleEdge, item: SiteItem) {
@@ -134,7 +135,7 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
           const folder = await db.read<SourceFolderReservation>('folderReservations', sourceKey(m.id, input.collectionId));
           if (folder?.native && node?.parentId !== folder.native.nativeId) throw new Error('copyPolicyMigrationRequired');
         }
-        if (existing.state === 'active' && (!node || node.dateAdded !== existing.native.dateAdded || node.url !== (existing.lastWritten?.url ?? facts.item.url)
+        if (existing.state === 'active' && (!node || node.dateAdded !== existing.native.dateAdded || !sameNativeContentValue('url', node.url, existing.lastWritten?.url ?? facts.item.url)
           || existing.lastWritten && (node.title !== existing.lastWritten.title || node.parentId !== existing.lastWritten.parentId))) {
           await reservations.manualChange(representation, node && node.dateAdded === existing.native.dateAdded ? 'detached' : 'suppressed');
           return { status: 'suppressed', representation: await db.read<Representation>('representations', representationKey(representation)) } as const;
@@ -217,17 +218,27 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
     /** Browser events retain historical associations. Deletions suppress; edits detach. */
     async nativeChanged(nativeIds: readonly string[], deleted: boolean) {
       const ids = new Set(nativeIds);
+      const observed = new Map(await Promise.all([...ids].map(async id => [id, await ports.lookup(id)] as const)));
+      const unchanged = (binding: NativeBinding, title: string, parentId: string, url?: string) => {
+        const node = observed.get(binding.nativeId);
+        return !deleted && node?.dateAdded === binding.dateAdded && node.title === title && node.parentId === parentId
+          && sameNativeContentValue('url', node.url, url);
+      };
       await db.transaction(['representations', 'folderReservations', 'mounts', 'contentBindings'], 'readwrite', async tx => {
         const bindings = await cursorPage<import('./content-bindings.js').ContentBindingRow>(tx.objectStore('contentBindings'), null, 100001);
-        for (const b of bindings) if (b.native && ids.has(b.native.nativeId)) put(tx, 'contentBindings', contentBindingKey(b.content, b.id), { ...b, state: deleted ? 'suppressed' : 'detached' });
+        for (const b of bindings) if (b.native && ids.has(b.native.nativeId) && !unchanged(b.native, b.title, b.parentId, b.url))
+          put(tx, 'contentBindings', contentBindingKey(b.content, b.id), { ...b, state: deleted ? 'suppressed' : 'detached' });
         for (const store of ['representations', 'folderReservations', 'mounts'] as const) {
           const rows = await cursorPage<Representation | SourceFolderReservation | SourceMount>(tx.objectStore(store), null, 100001);
           for (const row of rows) {
             if ('rootRuleId' in row) {
               if (deleted && ids.has(row.root.nativeId)) put(tx, store, keyForMount(row.connectionId, row.rootRuleId), { ...row, state: 'suppressed' });
             } else if ('manualRevision' in row) {
-              if (ids.has(row.native.nativeId)) put(tx, store, representationKey(row), { ...row, state: deleted ? 'suppressed' : 'detached', manualRevision: row.manualRevision + 1 });
-            } else if (row.native && ids.has(row.native.nativeId)) put(tx, store, sourceKey(row.mountId, row.collectionId), { ...row, state: 'blocked' });
+              if (ids.has(row.native.nativeId) && (!row.lastWritten || !unchanged(row.native, row.lastWritten.title, row.lastWritten.parentId, row.lastWritten.url)))
+                put(tx, store, representationKey(row), { ...row, state: deleted ? 'suppressed' : 'detached', manualRevision: row.manualRevision + 1 });
+            } else if (row.native && ids.has(row.native.nativeId) && (row.parent.kind !== 'native'
+              || !unchanged(row.native, row.nativeTitle ?? row.title, row.parent.binding.nativeId)))
+              put(tx, store, sourceKey(row.mountId, row.collectionId), { ...row, state: 'blocked' });
           }
         }
       });

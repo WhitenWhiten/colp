@@ -13,7 +13,7 @@ import type { createReadScheduler } from './read-scheduler.js';
 import { executePlannedSave } from './planned-runtime.js';
 import { currentFlat, browserRuleStore } from '../sw/automation-browser.js';
 import { captureDeviceId } from '../sw/capture-history.js';
-import { assertPlannedNative } from '../sw/planned-capture.js';
+import { assertSourceRoot } from '../sw/planned-capture.js';
 import type { SourcePolicyRecord } from './layout.js';
 import { createLane } from '../automation/lane.js';
 import { sourceAutomationsPaused } from '../sw/automation.js';
@@ -75,7 +75,7 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
         if (!node || node.url || !node.dateAdded) throw new Error('bindingUnavailable');
         const binding: NativeBinding<'folder'> = { bindingId: crypto.randomUUID(), nativeId: node.id, kind: 'folder', dateAdded: node.dateAdded,
           deviceId: await captureDeviceId(), proof: { kind: 'explicitAdoption', id: crypto.randomUUID() } };
-        await assertPlannedNative(binding);
+        await assertSourceRoot(binding);
         const catalog = features.collections ? await ports.catalog() : await observedCatalog(ledger, source.context), selected = catalog.filter(c => input.collectionIds.includes(c.id));
         if (selected.length !== input.collectionIds.length) throw new Error('refreshCatalogRequired');
         if (input.primarySourceCollectionId && !input.collectionIds.includes(input.primarySourceCollectionId)) throw new Error('invalidPrimaryCollection');

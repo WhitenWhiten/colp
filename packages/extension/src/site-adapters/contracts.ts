@@ -484,6 +484,8 @@ export interface SourceFolderReservation {
   state: 'reserved' | 'submitted' | 'unknown' | 'confirmed' | 'blocked';
   /** Required when confirmed; unknown blocks every consumer, including new ones. */
   native: NativeBinding<'folder'> | null;
+  /** A shared folder may retain its original name after the website renames it. */
+  nativeTitle?: string;
 }
 
 /** Persist with the plan; execution still checks that consumer's current approval. */

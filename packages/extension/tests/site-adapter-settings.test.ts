@@ -9,7 +9,7 @@ vi.mock('../src/site-adapters/community-settings.js', () => ({}));
 const element = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id)! as T;
 const details = () => JSON.parse(element('status').textContent!);
 const selected = () => document.querySelector<HTMLInputElement>('#archive-collections input')!;
-async function mount(error = 'sourceCloudUnsupported') {
+async function mount(error?: string) {
   vi.resetModules();
   window.location.href = 'https://extension.test/site-adapters.html#sync';
   document.body.innerHTML = readFileSync('site-adapters.html', 'utf8').match(/<body[^>]*>([\s\S]*)<\/body>/u)![1]!
@@ -19,7 +19,7 @@ async function mount(error = 'sourceCloudUnsupported') {
     archive: { config: null as { state: string; root: { nativeId: string }; collectionIds: string[]; live: boolean } | null, import: null } };
   const sendMessage = vi.fn(async (message: { kind: string; rootNativeId?: string; collectionIds?: string[] }) => {
     if (message.kind === 'known.siteAdapters.archive.configure') {
-      if (message.rootNativeId === 'synced') return { error };
+      if (message.rootNativeId === 'synced' && error) return { error };
       state.archive.config = { state: 'active', root: { nativeId: message.rootNativeId! }, collectionIds: message.collectionIds!, live: true };
     }
     if (message.kind === 'known.siteAdapters.cloud.configureRule') return { configured: true };
@@ -47,15 +47,13 @@ function pick(id: string) {
 }
 afterEach(() => { vi.unstubAllGlobals(); document.body.replaceChildren(); });
 
-test('a synced root refusal survives status refresh and leads to cloud setup with the chosen scope intact', async () => {
-  const f = await mount();
+test('a refused action survives status refresh with the chosen scope intact', async () => {
+  const f = await mount('permissionRequired');
   element('configure-archive').click();
   await vi.waitFor(() => expect(details().lastActionError).toMatchObject({
-    operation: 'known.siteAdapters.archive.configure', error: 'sourceCloudUnsupported', at: expect.any(Number),
+    operation: 'known.siteAdapters.archive.configure', error: 'permissionRequired', at: expect.any(Number),
   }));
-  expect(document.querySelector('.toast-message')?.textContent).toContain('Know-N sync range');
-  expect(element('archive-cloud-help').hidden).toBe(false);
-  expect(element('create-root').hidden).toBe(false);
+  expect(document.querySelector('.toast-message')?.textContent).toContain('needs access');
   const failure = details().lastActionError;
   element('refresh').click();
   await vi.waitFor(() => expect(details().lastActionError).toEqual(failure));
@@ -65,23 +63,21 @@ test('a synced root refusal survives status refresh and leads to cloud setup wit
   expect(selected().checked).toBe(true);
   expect(f.sendMessage.mock.calls.some(([r]) => r.kind === 'known.siteAdapters.import.start')).toBe(false);
   expect(f.create).not.toHaveBeenCalled();
-  const link = document.querySelector<HTMLAnchorElement>('#archive-cloud-help a')!;
-  expect(link.hash).toBe('#cloud'); link.click();
-  await vi.waitFor(() => expect(element('panel-cloud').hidden).toBe(false));
-  expect(f.sendMessage.mock.calls.some(([r]) => r.kind.startsWith('known.siteAdapters.cloud.'))).toBe(false);
-  element('cloud-rule').click();
-  await vi.waitFor(() => expect(f.sendMessage).toHaveBeenCalledWith({ kind: 'known.siteAdapters.cloud.configureRule',
-    rootNativeId: 'synced', collectionIds: ['83459231'], adapterId: 'bundled.bilibili' }));
 });
 
-test('choosing a local root after refusal hides the cloud guidance and starts the existing import flow', async () => {
-  const f = await mount();
+test('choosing a local root after refusal clears the error and starts the existing import flow', async () => {
+  const f = await mount('permissionRequired');
   element('configure-archive').click();
-  await vi.waitFor(() => expect(element('archive-cloud-help').hidden).toBe(false));
+  await vi.waitFor(() => expect(details().lastActionError?.error).toBe('permissionRequired'));
   pick('local');
-  expect(element('archive-cloud-help').hidden).toBe(true);
   element('configure-archive').click();
   await vi.waitFor(() => expect(f.sendMessage).toHaveBeenCalledWith({ kind: 'known.siteAdapters.import.start', adapterId: 'bundled.bilibili' }));
   expect(details()).not.toHaveProperty('lastActionError');
   expect(details().archive.config).toMatchObject({ state: 'active', root: { nativeId: 'local' }, collectionIds: ['83459231'] });
+});
+test('a synced root follows the same configure and preview import flow without a separate cloud setup', async () => {
+  const f = await mount(); element('configure-archive').click();
+  await vi.waitFor(() => expect(f.sendMessage).toHaveBeenCalledWith({ kind: 'known.siteAdapters.import.start', adapterId: 'bundled.bilibili' }));
+  expect(details().archive.config).toMatchObject({ state: 'active', root: { nativeId: 'synced' } });
+  expect(f.sendMessage.mock.calls.some(([r]) => r.kind.startsWith('known.siteAdapters.cloud.'))).toBe(false);
 });

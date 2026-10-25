@@ -7046,9 +7046,6 @@
   "sites_openAndSignIn": {
     "message": "Open $1 and sign in"
   },
-  "sites_openCloudArchive": {
-    "message": "Open COLP Server archive"
-  },
   "sites_openSignedInHint": {
     "message": "Know-N finds your account in an open $1 tab."
   },
@@ -7189,6 +7186,9 @@
   },
   "sites_refreshStatus": {
     "message": "Refresh status"
+  },
+  "sites_refreshSyncedPreview": {
+    "message": "This folder now participates in sync. Make the import preview again before saving."
   },
   "sites_removePackage": {
     "message": "Remove package"
@@ -7337,8 +7337,8 @@
   "sites_stoppedTab": {
     "message": "The $1 tab closed or moved to another page. $2"
   },
-  "sites_syncedRootRequiresCloud": {
-    "message": "This folder is in your Know-N sync range. Choose a folder outside that range for local syncing, or use COLP Server for reviewed cloud archiving."
+  "sites_syncServerUpgrade": {
+    "message": "Update COLP Server to support saving website collections into synced folders."
   },
   "sites_syncingInto_one": {
     "message": "Syncing $1 collection into $2."
@@ -7393,6 +7393,12 @@
   },
   "sites_userScriptsHint": {
     "message": "Chromium 149+ only. In Extensions → Know-N → Details, enable Allow User Scripts, reload the extension, and reopen Site adapters. Chrome 121–148 is unsupported for this runtime."
+  },
+  "sites_waitingForBookmarkSync": {
+    "message": "Waiting for bookmark sync…"
+  },
+  "sites_waitingForBookmarkSyncHint": {
+    "message": "Your approved import is kept. It will continue when the sync connection and folder are ready."
   },
   "subscription_acceptedShare": {
     "message": "Don't see a shared collection? Accept the invitation on the Know-N website first."

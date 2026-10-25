@@ -87,19 +87,19 @@ export function createPlannedSaveExecutor(db: SourceDatabase, ports: PlannedExec
     if (all?.payloadDigest !== effect.folderReservationDigest) throw new Error('folderPayloadChanged');
     if (all?.state !== 'confirmed' || !all.native) throw new Error('dependencyUnknown'); return all.native;
   }
-  async function finish(plan: SavePlan, effect: SaveEffect, outbox: SourceOutbox, native: NativeBinding, folder?: SourceFolderReservation) {
+  async function finish(plan: SavePlan, effect: SaveEffect, outbox: SourceOutbox, native: NativeBinding, folder?: SourceFolderReservation, written?: { title: string; parentId: string; url?: string }) {
     if (native.kind !== outbox.command.kind || native.deviceId !== outbox.command.deviceId || native.dateAdded === null) throw new Error('unprovenReceipt');
     await db.transaction(['outbox', 'effects', 'folderReservations', 'representations', 'itemReservations'], 'readwrite', async tx => {
       const current = await get<SourceOutbox>(tx, 'outbox', outbox.command.commandId);
       if (!current || current.digest !== outbox.digest || current.native && current.native.bindingId !== native.bindingId) throw new Error('conflict');
       if (folder) { const key = sourceKey(folder.mountId, folder.collectionId), latest = await get<SourceFolderReservation>(tx, 'folderReservations', key);
         if (!latest || latest.payloadDigest !== folder.payloadDigest) throw new Error('conflict');
-        put(tx, 'folderReservations', key, { ...latest, state: latest.state === 'blocked' ? 'blocked' : 'confirmed', native }); }
+        put(tx, 'folderReservations', key, { ...latest, state: latest.state === 'blocked' ? 'blocked' : 'confirmed', native, ...(written ? { nativeTitle: written.title } : {}) }); }
       else if (effect.kind === 'createBookmark') {
         const key = representationKey(effect.representation), existing = await get<Representation>(tx, 'representations', key);
         if (existing && existing.native.bindingId !== native.bindingId) throw new Error('representationConflict');
         put(tx, 'representations', key, existing ?? { ...effect.representation, native, state: 'active', manualRevision: 0,
-          lastWritten: { title: outbox.command.title, parentId: outbox.command.parent.nativeId, url: outbox.command.bookmark!.url } });
+          lastWritten: written ?? { title: outbox.command.title, parentId: outbox.command.parent.nativeId, url: outbox.command.bookmark!.url } });
         const reserved = await get<ItemReservation>(tx, 'itemReservations', key);
         if (reserved) put(tx, 'itemReservations', key, { ...reserved, state: 'confirmed' });
       }
@@ -130,17 +130,19 @@ export function createPlannedSaveExecutor(db: SourceDatabase, ports: PlannedExec
       if (outbox.native) return finish(plan, effect, outbox, outbox.native, who.folder);
       // Recover existing commands before checking current approval; revoked work may have late receipts.
       const recovered = await ports.recover(outbox.command, outbox.digest);
-      if (recovered?.status === 'confirmed') return finish(plan, effect, outbox, recovered.native, who.folder);
+      if (recovered?.status === 'confirmed') return finish(plan, effect, outbox, recovered.native, who.folder, recovered.written);
+      if (recovered) return recovered;
     }
     await authorize(planId, effectId);
     if (!outbox) {
       const binding = await parent(effect, who.folder); await ports.assertNative(binding);
       const observation = plan.trigger.kind === 'observation' ? await db.read<{ cause: string }>('observations', plan.trigger.observationId) : undefined;
-      const command: PlannedNativeCommand = { commandId: who.commandId, kind: who.folder ? 'folder' : 'bookmark', ownerId: who.folder?.id ?? sourceKey(plan.id, effectId),
+      let command: PlannedNativeCommand = { commandId: who.commandId, kind: who.folder ? 'folder' : 'bookmark', ownerId: who.folder?.id ?? sourceKey(plan.id, effectId),
         logicalDigest: who.logicalDigest, connectionId: plan.connectionId, parent: binding,
         title: who.folder?.title ?? (effect.kind === 'createBookmark' ? effect.item.title : ''), deviceId: await ports.deviceId(),
         ...(effect.kind === 'createBookmark' ? { bookmark: { planId, effectId, representation: effect.representation, url: effect.item.url, scope: await ports.scope(),
           source: plan.trigger.kind === 'import' ? 'site-import' as const : observation?.cause === 'siteFavorite' ? 'site-favorite' as const : 'site-reconcile' as const } } : {}) };
+      if (ports.prepare) command = await ports.prepare(command, plan, effect);
       outbox = { command, digest: sourceDigest(command), state: 'reserved' };
       await db.transaction(['outbox'], 'readwrite', async tx => {
         const old = await get<SourceOutbox>(tx, 'outbox', who.commandId);
@@ -157,7 +159,7 @@ export function createPlannedSaveExecutor(db: SourceDatabase, ports: PlannedExec
     });
     await ports.beforeSubmit?.(command);
     const result = await ports.execute(command, outbox.digest, () => authorize(planId, effectId));
-    if (result.status === 'confirmed') { await ports.beforeSourceCommit?.(command); return finish(plan, effect, outbox, result.native, who.folder); }
+    if (result.status === 'confirmed') { await ports.beforeSourceCommit?.(command); return finish(plan, effect, outbox, result.native, who.folder, result.written); }
     await db.transaction(['outbox', 'effects', 'folderReservations', 'itemReservations'], 'readwrite', async tx => {
       const row = await get<SourceOutbox>(tx, 'outbox', command.commandId); if (!row || row.digest !== outbox!.digest) throw new Error('conflict');
       put(tx, 'outbox', command.commandId, { ...row, state: 'unknown' });

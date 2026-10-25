@@ -7,6 +7,8 @@ export interface SiteDefinition {
   negativeReadback: boolean;
   /** Missing means document-local. Account-wide reads must be explicitly qualified. */
   readScope?: 'document' | 'account';
+  /** Missing means account-local content. Site-wide IDs must be explicitly qualified. */
+  contentIdScope?: 'site' | 'account';
   readPolicy?: Partial<import('./read-policy.js').SiteReadPolicy>;
   community?: { connectOrigins: readonly string[] };
   importResume: 'stableCursor' | 'restartAndDeduplicate';

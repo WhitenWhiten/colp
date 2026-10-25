@@ -2,7 +2,7 @@ import type { SiteDefinition } from '../registry-types.js';
 import { BILIBILI, decimal, validBilibiliItem, resolveAvUrl, resolveBvUrl, itemId, aidFromItem } from './identity.js';
 import { validBilibiliMessage } from './wire.js';
 export const bilibiliDefinition: SiteDefinition = Object.freeze<SiteDefinition>({
-  ...BILIBILI, label: 'Bilibili', readScope: 'account', negativeReadback: false, importResume: 'restartAndDeduplicate',
+  ...BILIBILI, label: 'Bilibili', readScope: 'account', contentIdScope: 'site', negativeReadback: false, importResume: 'restartAndDeduplicate',
   capabilities: ['observeFavorites', 'resolveItem', 'readMemberships', 'enumerateCollections', 'enumerateItems'],
   community: { connectOrigins: ['https://api.bilibili.com'] },
   scripts: { adapter: 'site-adapter.js', probe: 'site-probe.js' },

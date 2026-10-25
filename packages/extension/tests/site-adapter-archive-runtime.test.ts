@@ -14,7 +14,7 @@ vi.mock('../src/site-adapters/source-runtime.js', () => ({ siteLedger: {} }));
 vi.mock('../src/site-adapters/planned-runtime.js', () => ({ executePlannedSave: async () => ({ status: 'confirmed' }) }));
 vi.mock('../src/site-adapters/layout-runtime.js', () => ({ sourceLayout: { bindRoot: async () => ({ root: { nativeId: 'root' } }), configureMount: async () => {}, configure: async () => {} } }));
 vi.mock('../src/sw/capture-history.js', () => ({ captureDeviceId: async () => 'device' }));
-vi.mock('../src/sw/planned-capture.js', () => ({ assertPlannedNative: async () => {} }));
+vi.mock('../src/sw/planned-capture.js', () => ({ assertPlannedNative: async () => {}, assertSourceRoot: async () => ({ inRange: false }) }));
 vi.mock('../src/sw/automation.js', () => ({ sourceAutomationsPaused: async () => false }));
 vi.mock('../src/sw/automation-browser.js', () => ({ currentFlat: async () => ({}), browserRuleStore: () => ({ saveRule: async (input: { draft: RuleDraft }) => { mocks.draft = input.draft; return { ok: true, rule: { id: 'rule' } }; } }) }));
 afterEach(() => vi.unstubAllGlobals());

@@ -12,13 +12,16 @@ import { hasBookmarkPermission, workCoordinator } from './runtime.js';
 import { sourceDigest } from '../site-adapters/source-db.js';
 import type { NativeBinding } from '../site-adapters/contracts.js';
 import type { PlannedNativeCommand, PlannedNativeResult } from '../site-adapters/planned-types.js';
-export async function assertPlannedNative(binding: NativeBinding<'folder'>) {
+export async function assertSourceRoot(binding: NativeBinding<'folder'>) {
   if (!await hasBookmarkPermission()) throw new Error('permissionRequired');
   if (binding.kind !== 'folder' || !binding.dateAdded || binding.deviceId !== await captureDeviceId()) throw new Error('nativeIdentityUnproven');
   const scope = await currentCaptureScope(), target = await captureTarget(scope, binding.nativeId);
   const node = (await chrome.bookmarks.get(binding.nativeId))[0];
   if (!node || node.url || node.dateAdded !== binding.dateAdded || !binding.proof.id) throw new Error('nativeIdentityChanged');
-  if (target.inRange) throw new Error('sourceCloudUnsupported'); // positive account layout belongs to SA-10
+  return target;
+}
+export async function assertPlannedNative(binding: NativeBinding<'folder'>) {
+  if ((await assertSourceRoot(binding)).inRange) throw new Error('sourceCloudUnsupported');
 }
 async function bookmarkResult(task: CaptureTask, command: PlannedNativeCommand): Promise<PlannedNativeResult> {
   if (task.save !== 'local-saved' || !task.nativeId || !task.nativeDateAdded) return { status: 'unknown', reason: 'nativeOutcomeUnknown' };

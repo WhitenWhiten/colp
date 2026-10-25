@@ -7,7 +7,8 @@ import type { StoredSavePlan } from './planned-types.js';
 import { installPlannedCaptureGuard, plannedNativeFault } from '../capture/planned.js';
 import { currentCaptureScope } from '../sw/capture-native.js';
 import { captureDeviceId } from '../sw/capture-history.js';
-import { acknowledgePlannedNative, assertPlannedNative, executePlannedNative, recoverPlannedNative } from '../sw/planned-capture.js';
+import { acknowledgePlannedNative, assertPlannedNative, assertSourceRoot, executePlannedNative, recoverPlannedNative } from '../sw/planned-capture.js';
+import { managedSaves } from './managed-runtime.js';
 let scheduleRecovery = (at: number) => chrome.alarms.create(SITE_RECOVERY_ALARM, { when: at });
 export function installSourceRecoveryScheduler(schedule: typeof scheduleRecovery) { scheduleRecovery = schedule; }
 let policyAuthorize: (plan: SavePlan, effect: SaveEffect) => Promise<void> = async () => { throw new Error('sourcePolicyUnavailable'); };
@@ -17,7 +18,10 @@ export const plannedSaveExecutor = createPlannedSaveExecutor(siteLedger.db, {
   scope: currentCaptureScope, deviceId: captureDeviceId, authorize: (plan, effect) => policyAuthorize(plan, effect),
   beforeSubmit: c => plannedNativeFault('beforeNativeSubmit', c.commandId),
   beforeSourceCommit: c => plannedNativeFault('afterNativeReceipt', c.commandId),
-  assertNative: assertPlannedNative, execute: executePlannedNative, recover: recoverPlannedNative, acknowledge: acknowledgePlannedNative,
+  assertNative: async binding => { await assertSourceRoot(binding); }, prepare: managedSaves.prepare,
+  execute: (command, digest, authorize) => command.managed ? managedSaves.execute(command, authorize) : executePlannedNative(command, digest, authorize),
+  recover: (command, digest) => command.managed ? managedSaves.recover(command) : recoverPlannedNative(command, digest),
+  acknowledge: (command, digest) => command.managed ? Promise.resolve() : acknowledgePlannedNative(command, digest),
 });
 export function installPlannedSaveRuntime() {
   installPlannedCaptureGuard(async task => {

@@ -53,7 +53,8 @@ function errorCopy(code: string | undefined) {
     case 'rateLimited': return t('sites_rateLimited', '$1 asked Know-N to slow down. Try again in a few minutes.', site);
     case 'ruleRejected': return t('sites_ruleRejected', 'This browser’s rules couldn’t take the archive rule. Check Automations, then try again.');
     case 'sourceAutomationPaused': return t('sites_automationsPaused', 'Automations are paused in this browser. Resume them, then try again.');
-    case 'sourceCloudUnsupported': return t('sites_syncedRootRequiresCloud', 'This folder is in your Know-N sync range. Choose a folder outside that range for local syncing, or use COLP Server for reviewed cloud archiving.');
+    case 'sourceCloudUnsupported': return t('sites_refreshSyncedPreview', 'This folder now participates in sync. Make the import preview again before saving.');
+    case 'sourceSyncUpgradeRequired': return t('sites_syncServerUpgrade', 'Update COLP Server to support saving website collections into synced folders.');
     default: return t('sites_actionFailed', 'That didn’t work. The details are in Recovery › Technical details.');
   }
 }
@@ -67,7 +68,7 @@ function statusAlert(s: SiteStatus) {
 }
 
 let status: SiteStatus = {};
-let lastActionError: { operation: string; error: string; at: number } | undefined, cloudRoot = '';
+let lastActionError: { operation: string; error: string; at: number } | undefined;
 let refreshTimer: ReturnType<typeof setTimeout> | undefined, inspectionRetry: ReturnType<typeof setTimeout> | undefined;
 /** The worker answers with the full status; a message nothing answers comes back as a refusal, never as silence. */
 async function request(message: unknown): Promise<SiteStatus> {
@@ -78,14 +79,12 @@ async function refresh() { return apply(await request({ kind: 'known.siteAdapter
 async function act(message: unknown, done?: () => void): Promise<boolean> {
   clearTimeout(refreshTimer);
   const result = await request(message);
-  const action = message as { kind: string; rootNativeId?: string };
+  const action = message as { kind: string };
   if (result.error) {
     lastActionError = { operation: action.kind, error: result.error, at: Date.now() };
-    if (action.kind === 'known.siteAdapters.archive.configure' && result.error === 'sourceCloudUnsupported') cloudRoot = action.rootNativeId ?? '';
     showToast(errorCopy(result.error), 'error', { announce: true }); await refresh(); return false;
   }
   if (lastActionError?.operation === action.kind) lastActionError = undefined;
-  if (action.kind === 'known.siteAdapters.archive.configure') cloudRoot = '';
   done?.(); apply(result); return true;
 }
 function apply(result: SiteStatus) {
@@ -264,14 +263,12 @@ button('create-root').addEventListener('click', () => { void (async () => {
 function paintForm() {
   const config = status.archive?.config ?? null, active = config?.state === 'active', connected = !!status.connected && !status.candidateAccount;
   const configure = button('configure-archive');
-  const needsCloud = !!cloudRoot && rootValue() === cloudRoot;
-  $('archive-cloud-help').hidden = !needsCloud;
   configure.textContent = !config || config.state === 'pending' ? t('sites_startSyncing', 'Start syncing') : config.state === 'disabled' ? t('sites_resumeSyncing', 'Resume syncing') : t('sites_saveChanges', 'Save changes');
   configure.className = active ? 'btn btn-secondary btn-sm' : 'btn btn-primary btn-sm';
   offer(configure, features.archive && connected && (!active || dirty));
   configure.disabled = configure.hidden || !!status.catalog?.reading;
   offer(button('disable-archive'), active);
-  button('create-root').hidden = !picker || !!rootValue() && !needsCloud;
+  button('create-root').hidden = !picker || !!rootValue();
   const rootName = picker?.pill.querySelector('.folder-pill-name')?.textContent || t('sites_theChosenRoot', 'the chosen root');
   text('archive-summary', dirty && config ? t('sites_unsavedChanges', 'You have changes to save.')
     : !config ? t('sites_notSyncing', 'Not syncing yet.')
@@ -319,7 +316,7 @@ function paintImport(job: ImportStatus | null) {
     : job.phase === 'paused' ? t('sites_readingStopped', 'Reading stopped early')
     : job.phase === 'preview' ? nothing ? t('sites_nothingNew', 'Nothing new to add') : tn('sites_readyToAdd', c!.createBookmarks, 'Ready to add $1 bookmark', 'Ready to add $1 bookmarks')
     : job.phase === 'attention' ? t('sites_phaseAttention', 'Needs review')
-    : job.phase === 'approved' ? t('sites_addingBookmarks', 'Adding bookmarks…')
+    : job.phase === 'approved' ? job.reason === 'sourceSyncPending' ? t('sites_waitingForBookmarkSync', 'Waiting for bookmark sync…') : t('sites_addingBookmarks', 'Adding bookmarks…')
     : job.phase === 'cancelled' ? t('sites_phaseCancelled', 'Import cancelled') : t('sites_importDone', 'Existing favorites are in'));
   text('import-summary', !job ? t('sites_checkExistingHint', 'Look for favorites saved before syncing started. You see the list before anything is added.')
     : job.phase === 'scanning' ? tn('sites_scanningFound', job.edgeCount, 'Found $1 favorite so far. Nothing is added until you approve the list.', 'Found $1 favorites so far. Nothing is added until you approve the list.')
@@ -329,7 +326,7 @@ function paintImport(job: ImportStatus | null) {
       ...c!.reuseBookmarks ? [tn('sites_listSaved', c!.reuseBookmarks, '$1 already saved', '$1 already saved')] : [],
       ...job.omissions ? [tn('sites_listUnreadable', job.omissions, '$1 couldn’t be read', '$1 couldn’t be read')] : [],
       ...p!.coverage !== 'complete' ? [t('sites_listPartial', 'some collections weren’t read to the end')] : []].join(' · ') || t('sites_listNoChanges', 'Nothing else changes.')
-    : job.phase === 'approved' ? t('sites_addingInto', 'Adding them to your folder. You can leave this page.')
+    : job.phase === 'approved' ? job.reason === 'sourceSyncPending' ? t('sites_waitingForBookmarkSyncHint', 'Your approved import is kept. It will continue when the sync connection and folder are ready.') : t('sites_addingInto', 'Adding them to your folder. You can leave this page.')
     : job.phase === 'cancelled' ? t('sites_cancelledHint', 'Nothing more was added.')
     : c ? tn('sites_addedCount', c.createBookmarks, 'Added $1 bookmark. New favorites keep syncing.', 'Added $1 bookmarks. New favorites keep syncing.') : t('sites_doneHint', 'New favorites keep syncing.'));
   const badge = $('import-badge'); badge.hidden = !waiting || !c?.review;

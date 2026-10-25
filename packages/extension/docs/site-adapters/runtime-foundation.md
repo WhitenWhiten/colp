@@ -12,6 +12,10 @@ Allowing both purposes does not itself authorize classification. Automatic seman
 
 Implementation is delivered as separate validated commits: portable identity; shared creation and recovery; normal save/import routing; semantic scheduling; user-edit/suppression handling; migration and configuration fences; browser acceptance.
 
+The ordinary archive configuration/import path now accepts synced roots. Its durable executor records the destination library and exact shared command before dispatch. The server commits canonical creation and its portable-copy receipt together. Browser recovery queries that original receipt and waits for ordinary Sync projection; it never submits a competing native create. Temporary replica/session recovery and offline work remain approved and pending. Local-only destinations retain the existing native kernel. This path uses the host registry for site extraction and identity scope; the shared save protocol does not need site-specific backend registration.
+
+Focused Chromium/xvfb with the real PostgreSQL/COLP stack covers the normal settings configuration, preview with zero writes, lost-response recovery, two collection-specific source copies and a second browser reusing those exact canonical copies. Automatic semantic jobs and legacy association adoption are separate follow-up changes.
+
 Implemented October 24, 2026 following the foundation review. Bilibili remains the only implemented adapter. Isolation tests cover metadata and persisted records. Additional contract regression tests use a test-only DOM/post adapter with nonnumeric IDs, negative readback and stable cursors; it is not registered or shipped as a supported site. Site capabilities still require their own evidence before activation.
 
 ## Runtime and registration
