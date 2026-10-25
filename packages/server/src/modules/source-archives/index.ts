@@ -1,15 +1,14 @@
 import { sourceSiteIdentities, sourceSiteIdentity, legacySourceIdentity } from './site-registry.js';
 export { sourceConnectionKey } from './site-registry.js';
-import { createHash } from 'node:crypto';
+import { SourceArchiveError, object, text, integer, digest } from './codec.js';
+export { SourceArchiveError, object, text, integer, digest, sourceHash } from './codec.js';
+export * from './managed-copies.js';
 export const SOURCE_ARCHIVE_PATH = '/colp/v0.1/sync/source-archives';
 export const SOURCE_ARCHIVE_PROFILE = Object.freeze({
   sites: sourceSiteIdentities.map(s => ({ site: s.site, identityVersion: s.identityVersion })),
-  version: 1, sourceAdmission: 1, sourceFinalEffects: 1, sourceAuthorityLease: 1,
+  version: 1, sourceAdmission: 1, sourceFinalEffects: 1, sourceAuthorityLease: 1, managedCopies: 1,
   classification: false, classificationDestinationPolicy: false, copies: ['sourceAndSemantic'], maxEdges: 20, leaseMs: 120_000,
 });
-export class SourceArchiveError extends Error {
-  constructor(readonly code: string, readonly status = 409) { super(code); }
-}
 export interface SourceArchiveActor { accountId: string; subjectId: string; credentialId: string; credentialIssuer: string }
 export interface SourceArchiveApplication {
   execute(actor: SourceArchiveActor, body: unknown): Promise<unknown>;
@@ -25,23 +24,6 @@ export interface SourceLease { replicaId: string; epoch: number; token: string; 
 export interface SourceFinalEffect { itemId: string; collectionId: string; ruleId: string; nodeId: string; finalParentId: string; resourceRevision: string; operationId: string | null; disposition: 'created' | 'reused' }
 export interface SourceCanonicalMutation { kind: 'folder' | 'bookmark'; nodeId: string; parentId: string; operationId: string; resourceRevision: string; contentRevision: string; commitOrdinal: string }
 export interface SourceFinalReceipt { version: 1; planId: string; digest: string; epoch: number; collectionId: string; classification: 'disabled'; effects: SourceFinalEffect[]; effectDigest: string; mutations: SourceCanonicalMutation[]; mutationsDigest: string }
-export function sourceHash(value: unknown): string {
-  const normalize = (v: unknown): unknown => Array.isArray(v) ? v.map(normalize) : v && typeof v === 'object'
-    ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([k, val]) => [k, normalize(val)])) : v;
-  return `sha256:${createHash('sha256').update(JSON.stringify(normalize(value))).digest('hex')}`;
-}
-export function object(v: unknown, keys: readonly string[]): Record<string, unknown> {
-  if (!v || typeof v !== 'object' || Array.isArray(v) || Object.keys(v).length !== keys.length || keys.some(k => !Object.hasOwn(v, k))) throw new SourceArchiveError('invalid_source_document', 422);
-  return v as Record<string, unknown>;
-}
-export function text(v: unknown, max = 256): string {
-  if (typeof v !== 'string' || !v.length || v.length > max || /[\u0000-\u001f]/u.test(v)) throw new SourceArchiveError('invalid_source_document', 422);
-  return v;
-}
-export function integer(v: unknown, min = 1): number {
-  if (!Number.isSafeInteger(v) || Number(v) < min) throw new SourceArchiveError('invalid_source_document', 422); return Number(v);
-}
-export function digest(v: unknown): string { const s = text(v); if (!/^sha256:[a-f0-9]{64}$/.test(s)) throw new SourceArchiveError('invalid_source_digest', 422); return s; }
 export function parseSourceScope(v: unknown): SourceScope {
   const s = object(v, ['site', 'identityVersion', 'sourceAccount', 'collectionId', 'roots', 'policy', 'rulesDigest', 'bindingDigest']);
   const identity = sourceSiteIdentity(s.site, s.identityVersion);

@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest';
 import { managedCopyKey, managedFolderKey, managedLibraryKey, validManagedCopy, type ManagedCopy } from '../src/site-adapters/copy-identity.js';
+import { managedCopyKey as serverCopyKey, managedSlotKey } from '../../server/src/modules/source-archives/managed-copies.js';
 const content = { site: 'fixture.posts', identityVersion: 1, itemId: 'post:one', accountId: null };
 const source = (collection = 'saved'): Extract<ManagedCopy, { purpose: 'sourceArchive' }> => ({ content, purpose: 'sourceArchive', sourceAccount: 'reader', sourceCollectionId: collection });
 test('each source collection has its own copy while semantic content is shared across source memberships', () => {
@@ -25,4 +26,12 @@ test('private content requires the matching source account and transport details
     expect(validManagedCopy({ ...source(), ...extra })).toBe(false);
   }
   expect(() => managedCopyKey('library', { ...source(), sourceCollectionId: '' })).toThrow('invalidManagedCopy');
+});
+test('all sites use identical portable keys in the browser and the sync service', () => {
+  for (const copy of [source(), { content, purpose: 'semantic' as const }, { ...source(), content: { ...content, accountId: 'reader' } }]) {
+    expect(managedCopyKey('library', copy)).toBe(serverCopyKey('library', copy));
+  }
+  expect(managedFolderKey('library', source())).toBe(managedSlotKey('library', { kind: 'folder', source: {
+    site: content.site, identityVersion: content.identityVersion, sourceAccount: 'reader', sourceCollectionId: 'saved',
+  } }));
 });

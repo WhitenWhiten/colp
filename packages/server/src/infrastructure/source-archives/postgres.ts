@@ -6,12 +6,14 @@ import { lockActiveSyncReplicasForCollection } from '../database/lock-order.js';
 import { assertLibraryDestination, createCanonicalMutationApplication } from '../../modules/collections/index.js';
 import { createPostgresCanonicalMutationPorts } from '../collections/canonical-mutation-postgres-ports.js';
 import { createPostgresNodeWritePort, createPostgresCollectionWritePort } from '../collections/repositories.js';
+import { managedSavePorts } from './managed-copies.js';
+import { parseManagedSave, saveManagedCopy, recoverManagedCopy, type ManagedSaveState } from '../../modules/source-archives/index.js';
 import { SOURCE_ARCHIVE_PROFILE, SourceArchiveError, object, text, integer, digest, sourceHash, parseSourceScope, parseSourceEdges, sourceInput, sourceConnectionKey,
   type SourceArchiveActor, type SourceArchiveApplication, type SourceScope, type SourceEdge, type SourceLease, type SourceFinalEffect, type SourceFinalReceipt, type SourceCanonicalMutation } from '../../modules/source-archives/index.js';
 interface Connection { epoch: number; scope: SourceScope; lease: SourceLease | null }
 interface Plan { sourceAccount: string; scope: SourceScope; epoch: number; digest: string; edges: SourceEdge[]; createdAt: number; receipt?: SourceFinalReceipt; cancelled?: boolean }
 interface Binding { nodeId: string; parentId: string; title: string; url: string | null; revision: string }
-interface State { version: 1; connections: Record<string, Connection>; plans: Record<string, Plan>; folders: Record<string, Binding>; copies: Record<string, Binding>; cancellations: Record<string, string> }
+interface State { version: 1; connections: Record<string, Connection>; plans: Record<string, Plan>; folders: Record<string, Binding>; copies: Record<string, Binding>; cancellations: Record<string, string>; managed?: ManagedSaveState }
 const empty = (): State => ({ version: 1, connections: {}, plans: {}, folders: {}, copies: {}, cancellations: {} });
 function reject(code: string, status = 409): never { throw new SourceArchiveError(code, status); }
 const key = (...parts: unknown[]) => JSON.stringify(parts);
@@ -28,7 +30,7 @@ export function createPostgresSourceArchives(db: Kysely<DatabaseSchema>, testHoo
     return uow.execute(async ({ transaction: tx }) => {
       // Session → account → private receipt row → replica gate → replicas → collection.
       // Holding the authority rows through commit fences concurrent credential/replica revocation.
-      if (['configure', 'renew', 'preview', 'commit'].includes(action)) {
+      if (['configure', 'renew', 'preview', 'commit', 'managed.save'].includes(action)) {
         const sessions = await tx.selectFrom('sync_sessions').select('session_id').where('account_id', '=', actor.accountId)
           .where('credential_id', '=', actor.credentialId).where('credential_issuer', '=', actor.credentialIssuer)
           .where('status', '=', 'active').where('expires_at', '>', new Date()).orderBy('session_id').forShare().execute();
@@ -44,6 +46,24 @@ export function createPostgresSourceArchives(db: Kysely<DatabaseSchema>, testHoo
       const now = async () => Number((await sql<{ at: string }>`SELECT extract(epoch FROM clock_timestamp()) * 1000 AS at`.execute(tx)).rows[0]!.at);
       const start = await now();
       const run = async (): Promise<unknown> => {
+        if (action === 'managed.save') {
+          const command = parseManagedSave(body.input);
+          await assertReplica(tx, actor, command.replicaId, command.collectionId);
+          const managed = state.managed ??= { bindings: {}, receipts: {} };
+          return saveManagedCopy(managed, command, managedSavePorts(tx, actor.subjectId, actor.accountId));
+        }
+        if (action === 'managed.recover') {
+          const i = object(body.input, ['commandId', 'digest']);
+          return { receipt: recoverManagedCopy(state.managed ?? { bindings: {}, receipts: {} }, text(i.commandId), digest(i.digest)) };
+        }
+        if (action === 'managed.list') {
+          const i = object(body.input, ['collectionId', 'after']); text(i.collectionId);
+          if (i.after !== null) text(i.after, 4096);
+          const bindings = Object.entries(state.managed?.bindings ?? {}).filter(([key, b]) => b.collectionId === i.collectionId && (i.after === null || key > String(i.after)))
+            .sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
+          const page = bindings.slice(0, 100);
+          return { bindings: page.map(([key, value]) => ({ key, ...value })), nextCursor: bindings.length > page.length ? page.at(-1)![0] : null };
+        }
         if (action === 'status') { object(body.input, []); return { profile: SOURCE_ARCHIVE_PROFILE, connections: Object.values(state.connections).map(c => ({ sourceAccount: c.scope.sourceAccount, site: c.scope.site, identityVersion: c.scope.identityVersion, epoch: c.epoch, scope: c.scope, lease: c.lease ? { replicaId: c.lease.replicaId, expiresAt: c.lease.expiresAt } : null })) }; }
         if (action === 'configure') {
           const i = object(body.input, ['scope', 'replicaId', 'expectedEpoch', 'approvalDigest']);
