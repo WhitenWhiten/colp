@@ -12482,5 +12482,13 @@
   "sites_observedCatalogHint": {
     "message": "这里只显示当前来源会话中已观察到的收藏夹。发现更多收藏夹后，请刷新。",
     "description": "Only collections observed in the current source session are shown. Refresh after observing more collections."
+  },
+  "sites_syncedRootRequiresCloud": {
+    "message": "此目录位于 Know-N 云同步范围内。如需本地同步，请选择该范围外的目录；如需云归档，请前往 COLP Server 审核后保存。",
+    "description": "This folder is in your Know-N sync range. Choose a folder outside that range for local syncing, or use COLP Server for reviewed cloud archiving."
+  },
+  "sites_openCloudArchive": {
+    "message": "前往 COLP Server 云归档",
+    "description": "Open COLP Server archive"
   }
 }

@@ -53,6 +53,7 @@ function errorCopy(code: string | undefined) {
     case 'rateLimited': return t('sites_rateLimited', '$1 asked Know-N to slow down. Try again in a few minutes.', site);
     case 'ruleRejected': return t('sites_ruleRejected', 'This browser’s rules couldn’t take the archive rule. Check Automations, then try again.');
     case 'sourceAutomationPaused': return t('sites_automationsPaused', 'Automations are paused in this browser. Resume them, then try again.');
+    case 'sourceCloudUnsupported': return t('sites_syncedRootRequiresCloud', 'This folder is in your Know-N sync range. Choose a folder outside that range for local syncing, or use COLP Server for reviewed cloud archiving.');
     default: return t('sites_actionFailed', 'That didn’t work. The details are in Recovery › Technical details.');
   }
 }
@@ -66,6 +67,7 @@ function statusAlert(s: SiteStatus) {
 }
 
 let status: SiteStatus = {};
+let lastActionError: { operation: string; error: string; at: number } | undefined, cloudRoot = '';
 let refreshTimer: ReturnType<typeof setTimeout> | undefined, inspectionRetry: ReturnType<typeof setTimeout> | undefined;
 /** The worker answers with the full status; a message nothing answers comes back as a refusal, never as silence. */
 async function request(message: unknown): Promise<SiteStatus> {
@@ -76,12 +78,19 @@ async function refresh() { return apply(await request({ kind: 'known.siteAdapter
 async function act(message: unknown, done?: () => void): Promise<boolean> {
   clearTimeout(refreshTimer);
   const result = await request(message);
-  if (result.error) { showToast(errorCopy(result.error), 'error', { announce: true }); await refresh(); return false; }
+  const action = message as { kind: string; rootNativeId?: string };
+  if (result.error) {
+    lastActionError = { operation: action.kind, error: result.error, at: Date.now() };
+    if (action.kind === 'known.siteAdapters.archive.configure' && result.error === 'sourceCloudUnsupported') cloudRoot = action.rootNativeId ?? '';
+    showToast(errorCopy(result.error), 'error', { announce: true }); await refresh(); return false;
+  }
+  if (lastActionError?.operation === action.kind) lastActionError = undefined;
+  if (action.kind === 'known.siteAdapters.archive.configure') cloudRoot = '';
   done?.(); apply(result); return true;
 }
 function apply(result: SiteStatus) {
   clearTimeout(refreshTimer);
-  $('status').textContent = JSON.stringify(result, null, 2);
+  $('status').textContent = JSON.stringify({ ...result, ...(lastActionError ? { lastActionError } : {}) }, null, 2);
   showAlert(statusAlert(result)); paintSiteNav(selectedSite.adapterId, result);
   if (result.error) return result;
   status = result; paint(); schedule(); return result;
@@ -255,12 +264,14 @@ button('create-root').addEventListener('click', () => { void (async () => {
 function paintForm() {
   const config = status.archive?.config ?? null, active = config?.state === 'active', connected = !!status.connected && !status.candidateAccount;
   const configure = button('configure-archive');
+  const needsCloud = !!cloudRoot && rootValue() === cloudRoot;
+  $('archive-cloud-help').hidden = !needsCloud;
   configure.textContent = !config || config.state === 'pending' ? t('sites_startSyncing', 'Start syncing') : config.state === 'disabled' ? t('sites_resumeSyncing', 'Resume syncing') : t('sites_saveChanges', 'Save changes');
   configure.className = active ? 'btn btn-secondary btn-sm' : 'btn btn-primary btn-sm';
   offer(configure, features.archive && connected && (!active || dirty));
   configure.disabled = configure.hidden || !!status.catalog?.reading;
   offer(button('disable-archive'), active);
-  button('create-root').hidden = !picker || !!rootValue();
+  button('create-root').hidden = !picker || !!rootValue() && !needsCloud;
   const rootName = picker?.pill.querySelector('.folder-pill-name')?.textContent || t('sites_theChosenRoot', 'the chosen root');
   text('archive-summary', dirty && config ? t('sites_unsavedChanges', 'You have changes to save.')
     : !config ? t('sites_notSyncing', 'Not syncing yet.')

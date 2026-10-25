@@ -7046,6 +7046,9 @@
   "sites_openAndSignIn": {
     "message": "Open $1 and sign in"
   },
+  "sites_openCloudArchive": {
+    "message": "Open COLP Server archive"
+  },
   "sites_openSignedInHint": {
     "message": "Know-N finds your account in an open $1 tab."
   },
@@ -7333,6 +7336,9 @@
   },
   "sites_stoppedTab": {
     "message": "The $1 tab closed or moved to another page. $2"
+  },
+  "sites_syncedRootRequiresCloud": {
+    "message": "This folder is in your Know-N sync range. Choose a folder outside that range for local syncing, or use COLP Server for reviewed cloud archiving."
   },
   "sites_syncingInto_one": {
     "message": "Syncing $1 collection into $2."
