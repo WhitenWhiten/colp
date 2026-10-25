@@ -22,12 +22,20 @@ export interface ReconcileRunPorts {
 }
 export function createReconcileRuns(db: SourceDatabase, ports: ReconcileRunPorts) {
   const lane = createLane(), records = createReconcileRecords(db), save = records.save;
+  async function finish(run: ReconcileRun, op: ReconcileOperation, undo: boolean) {
+    // Retain the exact result before updating associations or acknowledging the native executor.
+    await save(run);
+    await ports.finish(run, op, undo);
+    op.state = undo ? 'undone' : 'completed'; op.undoPending = false; op.reason = null;
+    await save(run);
+  }
   async function advance(run: ReconcileRun, op: ReconcileOperation, undo = false) {
     try {
+      if (undo ? op.undoReceipt : op.receipt) { await finish(run, op, undo); return; }
       const command = undo ? op.undoCommand : op.command;
       if (command) {
         const found = await ports.execute(run, op, true, undo);
-        if (found) { if (undo) op.undoReceipt = found.receipt; else op.receipt = found.receipt; await ports.finish(run, op, undo); op.state = undo ? 'undone' : 'completed'; op.undoPending = false; op.reason = null; await save(run); return; }
+        if (found) { if (undo) op.undoReceipt = found.receipt; else op.receipt = found.receipt; await finish(run, op, undo); return; }
       }
       await ports.authorize(run, undo);
       if (!command) {
@@ -36,7 +44,7 @@ export function createReconcileRuns(db: SourceDatabase, ports: ReconcileRunPorts
       }
       const result = await ports.execute(run, op, false, undo);
       if (!result) throw new Error('sourceSyncPending'); if (undo) op.undoReceipt = result.receipt; else op.receipt = result.receipt;
-      await ports.finish(run, op, undo); op.state = undo ? 'undone' : 'completed'; op.undoPending = false; op.reason = null;
+      await finish(run, op, undo); return;
     } catch (e) { op.reason = e instanceof Error ? e.message : 'sourceReconcileUnavailable'; op.state = op.reason === 'sourceSyncPending' ? 'pending' : 'attention'; }
     await save(run);
   }
@@ -66,9 +74,10 @@ export function createReconcileRuns(db: SourceDatabase, ports: ReconcileRunPorts
         if (budget <= 0) { ports.schedule(); break; }
       }
       for (const run of runs) if (run.state === 'cancelled') for (const op of run.operations) if (['pending', 'attention'].includes(op.state) && op.command && budget-- > 0) {
-        try { const result = await ports.execute(run, op, true, !!op.undoPending); if (result) {
+        try { const receipt = op.undoPending ? op.undoReceipt : op.receipt;
+          const result = receipt ? { receipt } : await ports.execute(run, op, true, !!op.undoPending); if (result) {
           if (op.undoPending) op.undoReceipt = result.receipt; else op.receipt = result.receipt;
-          await ports.finish(run, op, !!op.undoPending); op.state = op.undoPending ? 'undone' : 'completed'; op.undoPending = false; await save(run);
+          await finish(run, op, !!op.undoPending);
         } } catch (e) { op.reason = e instanceof Error ? e.message : 'sourceReconcileUnavailable'; await save(run); }
       }
       if (runs.length === 10 && budget <= 0) ports.schedule();

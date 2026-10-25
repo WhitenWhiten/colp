@@ -28,7 +28,7 @@ type Command = { mode: 'cloud'; library: ManagedLibrary; input: ManagedReconcile
   | { mode: 'create'; command: PlannedNativeCommand }
   | { mode: 'native'; native: NativeBinding; target?: NativeBinding<'folder'>; origin?: NativeBinding<'folder'>;
     before: { title: string; parentId: string; url: string | null }; after: { title: string; parentId: string; url: string | null } | null; id: string };
-export interface ReconcileReceipt { native?: NativeBinding; written?: { title: string; parentId: string; url?: string }; cloud?: ManagedReconcileReceipt; before?: Command; annotationRevision?: number }
+export interface ReconcileReceipt { native?: NativeBinding; written?: { title: string; parentId: string; url?: string }; cloud?: ManagedReconcileReceipt; before?: Command; annotationRevision?: number; subtreeDigest?: string }
 async function nativeNode(native: NativeBinding) {
   const node = (await chrome.bookmarks.get(native.nativeId).catch(() => []))[0];
   if (!node || node.dateAdded !== native.dateAdded || native.deviceId !== await captureDeviceId()) throw new Error('source_reconcile_conflict'); return node;
@@ -75,6 +75,10 @@ export async function assertReconcileUndoState(run: ReconcileRun, op: ReconcileO
   if (node.title !== expected.title || node.parentId !== expected.parentId || !sameNativeContentValue('url', node.url ?? null, expected.url ?? null)) throw new Error('source_reconcile_conflict');
   const annotations = createBookmarkAnnotationStore(), row = await annotations.get(node).finally(() => annotations.close());
   if ((row?.version ?? 0) !== (receipt.annotationRevision ?? 0)) throw new Error('source_reconcile_conflict');
+  if (receipt.native.kind === 'folder') {
+    const tree = (await chrome.bookmarks.getSubTree(receipt.native.nativeId))[0];
+    if (!tree || !receipt.subtreeDigest || reconcileTreeDigest(tree) !== receipt.subtreeDigest) throw new Error('source_reconcile_conflict');
+  }
   await assertUndoNativeOwnership(run, op, receipt.native);
 }
 export async function prepareReconcileCommand(run: ReconcileRun, op: ReconcileOperation, parent: NativeBinding<'folder'>, undo: boolean): Promise<Command> {

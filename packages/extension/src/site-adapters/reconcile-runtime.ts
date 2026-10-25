@@ -19,6 +19,8 @@ import type { PlannedNativeCommand } from './planned-types.js';
 import { managedReference } from './managed-changes.js';
 import { managedDestinations } from './managed-destinations.js';
 import { scheduleNativeFoldersFirst } from '../sw/bookmark-folders-first.js';
+import { sameNativeContentValue } from '../native-event-correlation.js';
+import { reconcileTreeDigest } from './reconcile-inventory.js';
 const schedule = () => { chrome.alarms.create(SITE_RECOVERY_ALARM, { when: Date.now() + 1000 }); };
 async function authorize(run: ReconcileRun, undo = false) {
   if (undo) { await assertCaptureOwner(run.scope); return; } await assertCaptureScope(run.scope);
@@ -92,6 +94,18 @@ export const reconciliationRuns = createReconcileRuns(siteLedger.db, {
     await assertCaptureOwner(run.scope);
     const receipt = (undo ? op.undoReceipt : op.receipt) as ReconcileReceipt;
     const row = op.difference, old = row.representation;
+    if (receipt.native && receipt.written) {
+      const node = (await chrome.bookmarks.get(receipt.native.nativeId))[0], written = receipt.written;
+      if (!node || receipt.native.deviceId !== await captureDeviceId() || node.dateAdded !== receipt.native.dateAdded
+        || node.title !== written.title || node.parentId !== written.parentId
+        || !sameNativeContentValue('url', node.url ?? null, written.url ?? null)) throw new Error('source_reconcile_conflict');
+      if (receipt.native.kind === 'folder') {
+        const tree = (await chrome.bookmarks.getSubTree(node.id))[0], original = op.receipt as ReconcileReceipt;
+        const before = undo ? original.written : row.expected, digest = undo ? original.subtreeDigest : row.expected?.subtreeDigest;
+        if (!tree || !before || !digest || reconcileTreeDigest({ ...tree, title: before.title, parentId: before.parentId }) !== digest) throw new Error('source_reconcile_conflict');
+        receipt.subtreeDigest = reconcileTreeDigest(tree);
+      }
+    }
     if (!undo && receipt.native) {
       const node = (await chrome.bookmarks.get(receipt.native.nativeId))[0], annotations = createBookmarkAnnotationStore();
       try {

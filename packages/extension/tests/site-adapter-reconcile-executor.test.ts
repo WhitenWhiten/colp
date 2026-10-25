@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type { ReconcileRun, ReconcileOperation } from '../src/site-adapters/reconcile-run.js';
 import type { ManagedNode } from '../src/site-adapters/managed-client.js';
 
-const mocks = vi.hoisted(() => ({ inventory: vi.fn(), mapping: vi.fn(), call: vi.fn(), get: vi.fn() }));
+const mocks = vi.hoisted(() => ({ inventory: vi.fn(), mapping: vi.fn(), call: vi.fn(), get: vi.fn(), treeDigest: vi.fn() }));
 vi.mock('../src/site-adapters/source-runtime.js', () => ({ siteLedger: { db: {} } }));
 vi.mock('../src/site-adapters/content-identity.js', () => ({ readSourceConnection: async () => ({ siteKey: 'fixture.posts', identityVersion: 1, accountId: 'reader' }) }));
 vi.mock('../src/site-adapters/registry.js', () => ({ identityDefinition: () => ({ contentIdScope: 'site' }) }));
@@ -13,10 +13,10 @@ vi.mock('../src/sw/capture-history.js', () => ({ captureDeviceId: async () => 'd
 vi.mock('../src/sw/planned-capture.js', () => ({ assertSourceRoot: async () => ({ inRange: true }), executePlannedNative: vi.fn(), recoverPlannedNative: vi.fn() }));
 vi.mock('../src/site-adapters/reconcile-projection.js', () => ({ restoreReconcileProjection: vi.fn() }));
 vi.mock('../src/bookmark-annotation-store.js', () => ({ createBookmarkAnnotationStore: () => ({ get: async () => null, close() {} }) }));
-vi.mock('../src/site-adapters/reconcile-inventory.js', () => ({ reconcileInventory: mocks.inventory, reconcileTreeDigest: vi.fn() }));
+vi.mock('../src/site-adapters/reconcile-inventory.js', () => ({ reconcileInventory: mocks.inventory, reconcileTreeDigest: mocks.treeDigest }));
 vi.mock('../src/sw/capture-native.js', () => ({ assertCaptureOwner: vi.fn() }));
 vi.mock('../src/sw/engine.js', () => ({ scheduleSyncEngineWake: vi.fn() }));
-import { prepareReconcileCommand } from '../src/site-adapters/reconcile-executor.js';
+import { prepareReconcileCommand, assertReconcileUndoState } from '../src/site-adapters/reconcile-executor.js';
 
 const parent = { nativeId: 'folder', kind: 'folder' as const, bindingId: 'proof', deviceId: 'device', dateAdded: 1, proof: { kind: 'explicitAdoption' as const, id: 'proof' } };
 const candidate = { native: { ...parent, nativeId: 'bookmark', kind: 'bookmark' as const }, title: 'Original', url: 'https://posts.test/one', parentId: 'folder', pinned: false, protected: false };
@@ -57,4 +57,12 @@ test.each(['move', 'delete'] as const)('a remote %s not yet projected locally ca
 test('a newer association decision on another device invalidates the frozen choice', async () => {
   revision = 1;
   await expect(prepareReconcileCommand(run, op, parent, false)).rejects.toThrow('source_association_changed');
+});
+test('undo of a folder move rejects edits to its descendants after the original operation', async () => {
+  mocks.get.mockResolvedValue([{ id: 'folder', dateAdded: 1, title: 'Folder', parentId: 'personal' }]);
+  mocks.treeDigest.mockReturnValue('changed-descendants');
+  vi.stubGlobal('chrome', { bookmarks: { get: mocks.get, getSubTree: async () => [{ id: 'folder', children: [] }] } });
+  await expect(assertReconcileUndoState(run, { ...op, receipt: {
+    native: parent, written: { title: 'Folder', parentId: 'personal' }, subtreeDigest: 'original-descendants', annotationRevision: 0,
+  } })).rejects.toThrow('source_reconcile_conflict');
 });

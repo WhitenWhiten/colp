@@ -89,3 +89,25 @@ test('history is paged independently of the wake queue and completed checks do n
     expect((await f.runs.status(preview.id))?.state).toBe('completed');
   } finally { await f.db.close(); }
 });
+test.each([false, true])('the original receipt is durable before finalization and survives finalization failure (undo: %s)', async undo => {
+  const f = await fixture();
+  try {
+    await f.approve();
+    if (undo) await f.runs.wake();
+    const op = (await f.runs.status(preview.id))!.operations[0]!;
+    vi.mocked(f.ports.execute).mockClear();
+    vi.mocked(f.ports.finish).mockImplementationOnce(async () => {
+      const stored = (await f.runs.status(preview.id))!.operations[0]!;
+      expect(undo ? stored.undoReceipt : stored.receipt).toEqual({ id: 'receipt' });
+      throw new Error('associationStorageUnavailable');
+    });
+    if (undo) await f.runs.undo(preview.id, op.id); else await f.runs.wake();
+    expect((await f.runs.status(preview.id))?.operations[0]?.state).toBe('attention');
+    // Reconstruct the worker. Native evidence may already have been acknowledged and removed.
+    const recovered = createReconcileRuns(f.db, f.ports);
+    vi.mocked(f.ports.execute).mockRejectedValue(new Error('receiptAlreadyAcknowledged'));
+    await recovered.retry(preview.id); await recovered.wake();
+    expect(f.ports.execute).toHaveBeenCalledOnce();
+    expect((await recovered.status(preview.id))?.operations[0]?.state).toBe(undo ? 'undone' : 'completed');
+  } finally { await f.db.close(); }
+});
