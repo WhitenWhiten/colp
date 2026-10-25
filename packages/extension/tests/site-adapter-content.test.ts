@@ -5,6 +5,9 @@ import { createContentBindings, contentIdentityFromUrl } from '../src/site-adapt
 import { createSourceDatabase, put } from '../src/site-adapters/source-db.js';
 import { createSourceLedger } from '../src/site-adapters/ledger.js';
 import { createSourceReservations } from '../src/site-adapters/reservations.js';
+import { createCaptureCoordinator } from '../src/capture/coordinator.js';
+import { createCaptureStore } from '../src/capture/store.js';
+import { task, location } from './fixtures/capture.js';
 import type { NativeBinding, SavePolicy, RepresentationKey } from '../src/site-adapters/contracts.js';
 const policies = ['sourceAndSemantic', 'singlePreferSemantic', 'singleKeepExisting'] as const;
 const native: NativeBinding<'bookmark'> = { nativeId: 'native', dateAdded: 10, deviceId: 'device', bindingId: 'proof', kind: 'bookmark', proof: { kind: 'writeReceipt', id: 'receipt' } };
@@ -45,6 +48,52 @@ for (const copies of policies) {
     await expect(f.bindings.prepare({ ...request, commandId: 'other' })).rejects.toThrow('semantic_save_pending'); await f.db.close();
   });
 }
+test.each(['reserved', 'submitted', 'unknown'] as const)('source state %s does not strand the independent semantic save before its source receipt commits', async state => {
+  const f = await fixture('sourceAndSemantic'), reservations = createSourceReservations(f.db);
+  await reservations.reserveItem(f.representation, { url: node.url }, 'sourceAndSemantic', 'source-command');
+  if (state !== 'reserved') await reservations.setItemState(f.representation, 'reserved', 'submitted');
+  if (state === 'unknown') await reservations.setItemState(f.representation, 'submitted', 'unknown');
+  const binding = await f.bindings.prepare(request), store = createCaptureStore(new IDBFactory());
+  let creates = 0;
+  const sourceLocation = { ...location, nativeId: native.nativeId, url: node.url };
+  const coordinator = createCaptureCoordinator({ store, now: () => 20, assertCurrent: async () => {},
+    // The browser exposes the source bookmark before the source executor commits its representation.
+    existence: async () => ({ kind: 'local', exact: [sourceLocation], similar: [],
+      coverage: { local: 'complete', cloud: 'not-checked', collectionIds: [], checkedAt: 20, stale: false } }),
+    create: async (_task, reserved) => { creates++; await reserved('semantic-intent');
+      return { nativeId: 'semantic-copy', nativeDateAdded: 10, location: { ...sourceLocation, nativeId: 'semantic-copy' }, sync: 'local-only' }; },
+    receipt: async () => null,
+    acknowledge: async saved => { await f.bindings.acknowledge(binding, { ...native, nativeId: saved.nativeId! }, node); },
+  });
+  try {
+    await coordinator.start({ ...task, url: node.url, saveAnother: binding.forceAnother ?? false });
+    expect(await coordinator.resume(task.scope, task.captureId)).toMatchObject({ disposition: 'new', save: 'local-saved', nativeId: 'semantic-copy' });
+    expect(creates).toBe(1);
+    await reservations.bindRepresentation({ ...f.representation, native, state: 'active', manualRevision: 0, lastWritten: node });
+    expect((await f.bindings.forIntent(request.captureIntentId))?.native?.nativeId).toBe('semantic-copy');
+  } finally { await store.close(); await f.db.close(); }
+});
+
+test.each(['singlePreferSemantic', 'singleKeepExisting'] as const)('a pending source copy remains a dependency under %s', async policy => {
+  const f = await fixture(policy);
+  try {
+    await createSourceReservations(f.db).reserveItem(f.representation, { url: node.url }, policy, 'source-command');
+    await expect(f.bindings.prepare(request)).rejects.toThrow('source_save_pending');
+  } finally { await f.db.close(); }
+});
+
+test.each([false, true])('the both-locations policy preserves duplicate checks without a live source reservation (blocked: %s)', async blocked => {
+  const f = await fixture('sourceAndSemantic');
+  try {
+    if (blocked) {
+      const reservations = createSourceReservations(f.db);
+      await reservations.reserveItem(f.representation, { url: node.url }, 'sourceAndSemantic', 'source-command');
+      await reservations.setItemState(f.representation, 'reserved', 'blocked');
+    }
+    expect((await f.bindings.prepare(request)).forceAnother).toBe(false);
+  } finally { await f.db.close(); }
+});
+
 test('content normalization is account-independent; unsupported short links never alias an equal URL', () => {
   expect(contentIdentityFromUrl('https://www.bilibili.com/video/av1/?tracking=value')).toEqual({ siteKey: 'bilibili', identityVersion: 1, itemId: request.itemId });
   expect(contentIdentityFromUrl('https://b23.tv/ambiguous')).toBeNull(); expect(contentIdentityFromUrl('https://evil.test/video/av1')).toBeNull();

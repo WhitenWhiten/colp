@@ -52,15 +52,15 @@ export function createContentBindings(db: SourceDatabase, assertNative: (native:
         if (policy && policy.copies !== 'sourceAndSemantic' && copies.length > 1) throw new Error('multiple_copies_need_review');
         const reuse = semantic ?? (policy && policy.copies !== 'sourceAndSemantic' ? copies[0] : undefined);
         const native = reuse?.native ?? old?.native ?? null;
-        if (!native && connectionId) {
-          const pending = await rows<ItemReservation>(tx, 'itemReservations', connectionId, input.itemId);
-          if (pending.some(r => r.representation.purpose === 'semantic' || policy?.copies !== 'sourceAndSemantic')) throw new Error('source_save_pending');
-        }
+        const pending = !native && connectionId ? await rows<ItemReservation>(tx, 'itemReservations', connectionId, input.itemId) : [];
+        if (pending.some(r => r.representation.purpose === 'semantic' || policy?.copies !== 'sourceAndSemantic')) throw new Error('source_save_pending');
+        // A source bookmark can already exist while its representation receipt is still committing.
+        const sourceCopy = copies.length > 0 || pending.some(r => r.representation.purpose === 'sourceArchive' && r.state !== 'blocked');
         const mode = !native ? 'create' : semantic || old?.native ? 'reuse' : policy?.copies === 'singlePreferSemantic' ? 'reclassify' : 'suggest';
         const id = crypto.randomUUID();
         const binding: ContentBindingRow = { id, intentPending: mode === 'reclassify' && input.automatic, requestDigest, ...(connectionId && a ? { sourceGeneration: [a.installationGeneration, a.sourceSessionGeneration] as const } : {}), content: identity,
           captureIntentId: input.captureIntentId, commandId: input.commandId, purpose: 'semantic', connectionId, native, state: native ? 'active' : 'pending', mode,
-          forceAnother: !native && copies.length > 0 && policy?.copies === 'sourceAndSemantic', policyRevision: policy?.revision ?? null, title: reuse?.lastWritten?.title ?? old?.title ?? input.title, url: old?.url ?? reuse?.lastWritten?.url ?? (reuse ? definition.itemUrl(input.itemId) ?? input.url : input.url),
+          forceAnother: !native && sourceCopy && policy?.copies === 'sourceAndSemantic', policyRevision: policy?.revision ?? null, title: reuse?.lastWritten?.title ?? old?.title ?? input.title, url: old?.url ?? reuse?.lastWritten?.url ?? (reuse ? definition.itemUrl(input.itemId) ?? input.url : input.url),
           parentId: reuse?.lastWritten?.parentId ?? old?.parentId ?? input.parentId, ...(reuse ? { reuse } : {}) };
         // Reuse one content binding, preserving its original creation receipt separately from this semantic intent.
         if (old) put(tx, 'contentBindings', contentKey(identity, old.id), { ...old, supersededBy: id });

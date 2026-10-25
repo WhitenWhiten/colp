@@ -4,6 +4,10 @@ All notable changes to the Know-N browser extension are documented here. The for
 
 ## [Unreleased]
 
+### Fixed
+
+- Saving a page while its site archive is still finishing now completes when both source and semantic copies are enabled, instead of getting stuck as unsubmitted.
+
 ## [0.1.0-rc.1] - 2026-10-24
 
 
