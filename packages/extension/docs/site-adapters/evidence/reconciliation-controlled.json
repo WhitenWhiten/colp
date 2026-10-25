@@ -1,0 +1,47 @@
+{
+  "date": "2026-10-25",
+  "scope": "Shared website-adapter reconciliation foundation; Bilibili remains the only shipping adapter",
+  "commits": [
+    "913bba16", "85ab44e0", "8f4555a3", "fd7d696e", "f849d3ce",
+    "6cb6070d", "13566c7e", "2568c396", "855148ff"
+  ],
+  "unit": {
+    "extension": { "files": 14, "tests": 110, "passed": true },
+    "server": { "files": 2, "tests": 21, "passed": true }
+  },
+  "browser": {
+    "runner": "Linux, forced xvfb, Playwright 1.61.1",
+    "siteAndModelResponses": "controlled fixtures; no new live Bilibili mutation or real provider request",
+    "database": "disposable PostgreSQL 16.4",
+    "finalRuns": [
+      {
+        "file": "e2e/mv3-site-adapter-reconcile.spec.ts",
+        "passed": 1,
+        "coverage": ["recheck", "preserved native identities and custom order", "pins and custom titles", "unverified missing items", "candidate adoption without duplication", "explicit restore with retained pin placement", "personal move and undo", "collection move within root and continued additions", "historical undo after later checks"]
+      },
+      {
+        "file": "e2e/mv3-site-adapter-reconcile-server.spec.ts",
+        "passed": 1,
+        "coverage": ["actual canonical move and replay", "rename and undo", "suppressed association restoration", "retained tombstone restoration and undo", "ordinary Sync effects", "active replicas retained"]
+      },
+      {
+        "file": "e2e/mv3-site-adapter-shared-sync.spec.ts",
+        "passed": 1,
+        "coverage": ["two actual browser profiles and server", "source and independent semantic copies", "lost response recovery", "provider retry", "second device reuse without another model call", "second full collection read", "personal move through ordinary Sync and undo", "cross-device semantic deletion suppression"]
+      }
+    ],
+    "historicalFailures": "Earlier iterations exposed lease renewal/start-path wiring, missing canonical effect publication and undo tombstone persistence. Those failed iterations are not counted as passing runs."
+  },
+  "checks": ["extension and server TypeScript", "focused ESLint", "server import boundaries", "extension source-size", "i18n catalog", "git diff --check", "development and production builds", "production release verifier"],
+  "production": {
+    "files": 41,
+    "sourceMaps": false,
+    "secretScan": "passed",
+    "sha256": {
+      "service-worker.js": "ef8265a4c1125b8bf4647bbdb619e5c6afdd0c83432ae674568de6523faa732a",
+      "site-settings.js": "2a1a30dfa1a95441255f7bb065691ae37777d6b0d01892f4fad8d306304f868a"
+    }
+  },
+  "limits": ["Bilibili best-effort absence stays unverified", "no reverse writes to websites", "repeated-entry lists unqualified", "missing folders or changed content identities require review", "cloud titles retain existing canonical validation"],
+  "cleanup": "Test wrappers remove disposable schemas, servers, browser profiles, xvfb and PostgreSQL containers; no push or deployment."
+}
