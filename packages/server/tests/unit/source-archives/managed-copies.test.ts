@@ -1,5 +1,5 @@
 import { expect, test, vi } from 'vitest';
-import { parseManagedSave, saveManagedCopy, recoverManagedCopy, managedSlotKey, sourceHash, claimManagedSemantic, releaseManagedSemantic, observeManagedCopy, markManagedChange,
+import { parseManagedSave, saveManagedCopy, recoverManagedCopy, managedSlotKey, sourceHash, claimManagedSemantic, releaseManagedSemantic, observeManagedCopy, markManagedChange, relocateManagedCopy,
   type ManagedSaveCommand, type ManagedSaveState, type ManagedNode } from '../../../src/modules/source-archives/index.js';
 const command = (id = 'command-1'): ManagedSaveCommand => ({ commandId: id, replicaId: 'device-a', collectionId: 'library', parentId: 'folder', parentRevision: 'r1',
   slot: { kind: 'bookmark', copy: { content: { site: 'fixture.posts', identityVersion: 1, itemId: 'post:one', accountId: null }, purpose: 'sourceArchive', sourceAccount: 'reader', sourceCollectionId: 'saved' } },
@@ -17,6 +17,27 @@ test('a local opt-out suppresses shared reconstruction even when the canonical b
   markManagedChange(f.state, c.collectionId, c.slot, saved.node.nodeId, 'detached');
   expect((await saveManagedCopy(f.state, { ...c, commandId: 'new-device' }, f.ports)).disposition).toBe('suppressed');
   expect(f.nodes.has(saved.node.nodeId)).toBe(true); expect(f.ports.create).toHaveBeenCalledTimes(1);
+});
+test('a proven host move refreshes all aliases; a late move never revives a deleted copy', async () => {
+  const f = fixture(), c = command(), saved = await saveManagedCopy(f.state, c, f.ports);
+  if (c.slot.kind !== 'bookmark') throw new Error('fixture');
+  const semantic = { kind: 'bookmark' as const, copy: { purpose: 'semantic' as const, content: c.slot.copy.content } };
+  await saveManagedCopy(f.state, { ...c, commandId: 'adopt-semantic', slot: semantic, adopt: { nodeId: saved.node.nodeId, revision: saved.node.revision } }, f.ports);
+  const moved = { ...saved.node, parentId: 'topic-folder', revision: 'r3' }; f.nodes.set(saved.node.nodeId, moved);
+  await observeManagedCopy(f.state, c.collectionId, semantic, f.ports);
+  const expected = { nodeId: moved.nodeId, from: saved.node.parentId, to: moved.parentId, title: moved.title, url: moved.url, revision: moved.revision };
+  await relocateManagedCopy(f.state, c.collectionId, semantic, expected, f.ports);
+  expect(Object.values(f.state.bindings).every(b => b.state === 'active' && b.node.parentId === 'topic-folder')).toBe(true);
+  markManagedChange(f.state, c.collectionId, semantic, moved.nodeId, 'suppressed');
+  await expect(relocateManagedCopy(f.state, c.collectionId, semantic, expected, f.ports)).rejects.toThrow('source_copy_adoption_conflict');
+  expect(Object.values(f.state.bindings).every(b => b.state === 'suppressed')).toBe(true); expect(f.ports.create).toHaveBeenCalledTimes(1);
+});
+test('an identity version change requires migration instead of creating another copy', async () => {
+  const f = fixture(), c = command(); await saveManagedCopy(f.state, c, f.ports);
+  if (c.slot.kind !== 'bookmark') throw new Error('fixture');
+  await expect(saveManagedCopy(f.state, { ...c, commandId: 'new-version', slot: { kind: 'bookmark', copy: { ...c.slot.copy,
+    content: { ...c.slot.copy.content, identityVersion: 2 } } } }, f.ports)).rejects.toThrow('source_identity_migration_required');
+  expect(f.ports.create).toHaveBeenCalledTimes(1);
 });
 test('another replica reuses the same source copy and an immutable receipt recovers a lost reply', async () => {
   const f = fixture(), a = command(), first = await saveManagedCopy(f.state, a, f.ports);

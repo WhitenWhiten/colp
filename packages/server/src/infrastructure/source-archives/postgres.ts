@@ -7,7 +7,7 @@ import { assertLibraryDestination, createCanonicalMutationApplication } from '..
 import { createPostgresCanonicalMutationPorts } from '../collections/canonical-mutation-postgres-ports.js';
 import { createPostgresNodeWritePort, createPostgresCollectionWritePort } from '../collections/repositories.js';
 import { managedSavePorts, lockManagedLibrary } from './managed-copies.js';
-import { parseManagedSave, parseManagedCopy, parseManagedSlot, markManagedChange, saveManagedCopy, recoverManagedCopy, observeManagedCopy, claimManagedSemantic, releaseManagedSemantic, type ManagedSaveState } from '../../modules/source-archives/index.js';
+import { parseManagedSave, parseManagedCopy, parseManagedSlot, markManagedChange, relocateManagedCopy, adoptLegacyManagedCopy, saveManagedCopy, recoverManagedCopy, observeManagedCopy, claimManagedSemantic, releaseManagedSemantic, type ManagedSaveState } from '../../modules/source-archives/index.js';
 import { SOURCE_ARCHIVE_PROFILE, SourceArchiveError, object, text, integer, digest, sourceHash, parseSourceScope, parseSourceEdges, sourceInput, sourceConnectionKey,
   type SourceArchiveActor, type SourceArchiveApplication, type SourceScope, type SourceEdge, type SourceLease, type SourceFinalEffect, type SourceFinalReceipt, type SourceCanonicalMutation } from '../../modules/source-archives/index.js';
 interface Connection { epoch: number; scope: SourceScope; lease: SourceLease | null }
@@ -46,6 +46,15 @@ export function createPostgresSourceArchives(db: Kysely<DatabaseSchema>, testHoo
       const now = async () => Number((await sql<{ at: string }>`SELECT extract(epoch FROM clock_timestamp()) * 1000 AS at`.execute(tx)).rows[0]!.at);
       const start = await now();
       const run = async (): Promise<unknown> => {
+        if (action === 'managed.relocate') {
+          const input = object(body.input, ['collectionId', 'slot', 'expected']), collectionId = text(input.collectionId);
+          const expected = object(input.expected, ['nodeId', 'from', 'to', 'title', 'url', 'revision']);
+          for (const field of ['nodeId', 'from', 'to', 'title', 'revision']) text(expected[field]);
+          if (expected.url !== null) text(expected.url, 8192);
+          await lockManagedLibrary(tx, actor.subjectId, collectionId);
+          return { binding: await relocateManagedCopy(state.managed ??= { bindings: {}, receipts: {} }, collectionId, parseManagedSlot(input.slot),
+            expected as unknown as Parameters<typeof relocateManagedCopy>[3], managedSavePorts(tx, actor.subjectId, actor.accountId)) };
+        }
         if (action === 'managed.manual') {
           const input = object(body.input, ['collectionId', 'slot', 'nodeId', 'state']), collectionId = text(input.collectionId);
           if (input.state !== 'detached' && input.state !== 'suppressed') reject('invalid_managed_copy', 422);
@@ -53,13 +62,16 @@ export function createPostgresSourceArchives(db: Kysely<DatabaseSchema>, testHoo
           return { binding: markManagedChange(state.managed ??= { bindings: {}, receipts: {} }, collectionId, parseManagedSlot(input.slot), text(input.nodeId), input.state) };
         }
         if (action === 'managed.lookup' || action === 'managed.semantic.claim' || action === 'managed.semantic.release') {
-          const i = object(body.input, action === 'managed.lookup' ? ['collectionId', 'copy']
+          const bySlot = action === 'managed.lookup' && body.input && typeof body.input === 'object' && Object.hasOwn(body.input, 'slot');
+          const i = object(body.input, action === 'managed.lookup' ? ['collectionId', bySlot ? 'slot' : 'copy']
             : action === 'managed.semantic.claim' ? ['collectionId', 'copy', 'ownerId', 'replicaId'] : ['collectionId', 'copy', 'claim']);
-          const collectionId = text(i.collectionId), copy = parseManagedCopy(i.copy);
+          const collectionId = text(i.collectionId), slot = bySlot ? parseManagedSlot(i.slot) : { kind: 'bookmark' as const, copy: parseManagedCopy(i.copy) };
           await lockManagedLibrary(tx, actor.subjectId, collectionId);
           const managed = state.managed ??= { bindings: {}, receipts: {} };
-          const binding = await observeManagedCopy(managed, collectionId, { kind: 'bookmark', copy }, managedSavePorts(tx, actor.subjectId, actor.accountId));
+          const binding = await observeManagedCopy(managed, collectionId, slot, managedSavePorts(tx, actor.subjectId, actor.accountId));
           if (action === 'managed.lookup') return { binding };
+          if (slot.kind !== 'bookmark') return reject('invalid_managed_copy', 422);
+          const copy = slot.copy;
           if (action === 'managed.semantic.claim') {
             await assertReplica(tx, actor, text(i.replicaId), collectionId);
             return claimManagedSemantic(managed, collectionId, copy, text(i.ownerId));
@@ -72,6 +84,7 @@ export function createPostgresSourceArchives(db: Kysely<DatabaseSchema>, testHoo
           const command = parseManagedSave(body.input);
           await assertReplica(tx, actor, command.replicaId, command.collectionId);
           const managed = state.managed ??= { bindings: {}, receipts: {} };
+          adoptLegacyManagedCopy(managed, state, command);
           return saveManagedCopy(managed, command, managedSavePorts(tx, actor.subjectId, actor.accountId));
         }
         if (action === 'managed.recover') {
@@ -144,6 +157,9 @@ export function createPostgresSourceArchives(db: Kysely<DatabaseSchema>, testHoo
         }
         if (!previous || sourceConnectionKey(previous.scope) !== connectionKey || previous.sourceAccount !== sourceAccount || previous.digest !== digest(i.digest)) reject('source_command_reused');
         if (previous.receipt) return previous.receipt;
+        if (Object.values(state.managed?.bindings ?? {}).some(binding => binding.collectionId === c.scope.collectionId && (
+          binding.slot.kind === 'folder' ? binding.slot.source.site === c.scope.site && binding.slot.source.sourceAccount === c.scope.sourceAccount
+            : binding.slot.copy.content.site === c.scope.site && binding.slot.copy.purpose === 'sourceArchive' && binding.slot.copy.sourceAccount === c.scope.sourceAccount))) reject('source_managed_copy_review_required');
         if (previous.cancelled) reject('source_plan_cancelled');
         if (previous.epoch !== c.epoch || sourceHash(previous.scope) !== sourceHash(c.scope) || previous.createdAt + 600_000 <= start) reject('source_plan_stale');
         await lockScope(tx, actor, c.scope);

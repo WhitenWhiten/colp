@@ -3,6 +3,7 @@ export { sourceConnectionKey } from './site-registry.js';
 import { SourceArchiveError, object, text, integer, digest } from './codec.js';
 export { SourceArchiveError, object, text, integer, digest, sourceHash } from './codec.js';
 export * from './managed-copies.js';
+export * from './managed-legacy.js';
 export const SOURCE_ARCHIVE_PATH = '/colp/v0.1/sync/source-archives';
 export const SOURCE_ARCHIVE_PROFILE = Object.freeze({
   sites: sourceSiteIdentities.map(s => ({ site: s.site, identityVersion: s.identityVersion })),

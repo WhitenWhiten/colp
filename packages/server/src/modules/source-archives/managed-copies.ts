@@ -41,7 +41,21 @@ export function parseManagedSlot(raw: unknown): ManagedSlot {
 export function markManagedChange(state: ManagedSaveState, collectionId: string, slot: ManagedSlot, nodeId: string, status: 'detached' | 'suppressed') {
   const key = managedSlotKey(collectionId, slot), binding = own(state.bindings, key);
   if (!binding || binding.node.nodeId !== nodeId) return fail('source_copy_adoption_conflict');
-  state.bindings[key] = { ...binding, state: binding.state === 'suppressed' ? 'suppressed' : status };
+  for (const [alias, value] of Object.entries(state.bindings)) if (value.collectionId === collectionId && value.node.nodeId === nodeId)
+    state.bindings[alias] = { ...value, state: value.state === 'suppressed' ? 'suppressed' : status };
+  return state.bindings[key];
+}
+/** Complete an explicitly authorized host move after ordinary Sync has committed its exact result. */
+export async function relocateManagedCopy(state: ManagedSaveState, collectionId: string, slot: ManagedSlot,
+  expected: { nodeId: string; from: string; to: string; title: string; url: string | null; revision: string }, ports: Pick<ManagedSavePorts, 'read'>) {
+  const key = managedSlotKey(collectionId, slot), binding = own(state.bindings, key);
+  if (!binding || binding.node.nodeId !== expected.nodeId || binding.state === 'suppressed') return fail('source_copy_adoption_conflict');
+  const node = await ports.read(collectionId, expected.nodeId);
+  if (!node || node.deleted || node.parentId !== expected.to || node.title !== expected.title || node.url !== expected.url || node.revision !== expected.revision)
+    return fail('source_representation_needs_review');
+  for (const [alias, value] of Object.entries(state.bindings)) if (value.collectionId === collectionId && value.node.nodeId === node.nodeId
+    && value.state !== 'suppressed' && value.node.title === expected.title && value.node.url === expected.url
+    && [expected.from, expected.to].includes(value.node.parentId)) state.bindings[alias] = { ...value, node, state: 'active' };
   return state.bindings[key];
 }
 export function parseManagedCopy(raw: unknown): ManagedCopy {
@@ -101,6 +115,13 @@ export async function saveManagedCopy(state: ManagedSaveState, command: ManagedS
   }
   await ports.assertTarget(command);
   const key = managedSlotKey(command.collectionId, command.slot), binding = own(state.bindings, key);
+  const identity = command.slot.kind === 'folder' ? { site: command.slot.source.site, version: command.slot.source.identityVersion, account: command.slot.source.sourceAccount }
+    : { site: command.slot.copy.content.site, version: command.slot.copy.content.identityVersion, account: command.slot.copy.purpose === 'sourceArchive' ? command.slot.copy.sourceAccount : command.slot.copy.content.accountId };
+  if (!binding && Object.values(state.bindings).some(b => {
+    const previous = b.slot.kind === 'folder' ? { site: b.slot.source.site, version: b.slot.source.identityVersion, account: b.slot.source.sourceAccount }
+      : { site: b.slot.copy.content.site, version: b.slot.copy.content.identityVersion, account: b.slot.copy.purpose === 'sourceArchive' ? b.slot.copy.sourceAccount : b.slot.copy.content.accountId };
+    return b.collectionId === command.collectionId && previous.site === identity.site && previous.account === identity.account && previous.version !== identity.version;
+  })) fail('source_identity_migration_required');
   if (Object.keys(state.receipts).length >= 50000 || !binding && Object.keys(state.bindings).length >= 50000) fail('source_capacity');
   let node: ManagedNode, disposition: ManagedSaveReceipt['disposition'];
   if (binding) {
