@@ -1020,6 +1020,45 @@ body[data-first-run="syncing"] .folder-foot { display: none; }
 .tabs-foot { position: sticky; bottom: var(--space-3); z-index: var(--z-sticky); border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--surface-raised); box-shadow: var(--shadow-float); }
 .tabs-count { margin: 0; color: var(--muted); font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
 
+/* ------------------------------------------------------- site adapters page */
+
+/* site-adapters.html: the options pane rhythm in one 46rem column on the paper, as Save tabs has it.
+   Groups of rows in white cards; settings.ts hides an action that can't run yet instead of greying it. */
+.sites-main { max-width: 46rem; margin: 0 auto; padding: var(--space-5) var(--space-4) var(--space-10); }
+.sites-back { margin: 0 0 var(--space-3) calc(-1 * var(--hair-55)); color: var(--muted); }
+.sites-back:hover { color: var(--ink); }
+.sites-main > .inline-alert { margin-bottom: var(--space-5); }
+.sites-main .set-row-hint { overflow-wrap: anywhere; }
+/* Rows here can hold several steps: they wrap onto a second line rather than run out of the card on a narrow window. */
+.sites-main :is(.set-row-control, .card-foot) { flex-wrap: wrap; }
+.sites-main .set-row-control .select-quiet { max-width: min(18rem, 100%); }
+@media (max-width: 56rem) { .sites-main .set-row-control { justify-content: flex-start; } }
+/* Rows the page adds (associations, restored backups, packages) follow the card's rows under a hairline. */
+.sites-rows:empty { display: none; }
+.sites-rows > .set-row { border-top: 1px solid var(--line); }
+.sites-rows--lead > .set-row:first-child { border-top: 0; }
+.sites-rows .set-row-control { flex-wrap: wrap; }
+.sites-rows:not(:empty) + .sites-packages-empty { display: none; }
+.sites-packages-empty { border-bottom: 1px solid var(--line); }
+/* Collections: the list fills its row; before the first read, a dashed note says how to fill it. */
+.sites-listbox { display: block; }
+.sites-listbox > .listbox-quiet:empty { display: none; }
+.sites-listbox-empty { margin: 0; padding: var(--space-4); border: 1px dashed var(--line-heavy); border-radius: var(--radius); color: var(--muted); font-size: var(--text-xs); text-align: center; }
+.listbox-quiet:not(:empty) + .sites-listbox-empty { display: none; }
+/* A card foot of steps: the leading ghost step at the start, the rest at the end; nothing to do, no foot. */
+.sites-actions { flex-wrap: wrap; }
+.sites-actions:not(:has(> .btn:not([hidden]))) { display: none; }
+.sites-omissions { padding: 0 var(--space-4) var(--space-3); }
+.sites-omissions > summary { color: var(--muted); font-size: var(--text-xs); }
+.sites-omissions ul { margin: var(--space-2) 0 0; padding-left: var(--space-5); color: var(--ink-3); font-size: var(--text-xs); line-height: var(--leading-body); }
+.sites-package-digest { font-family: var(--font-mono); }
+.sites-rows .set-row-hint[data-tone="danger"] { color: var(--danger); }
+/* The worker's last reply under a group, open while there is one; the full status stays folded at the foot. */
+.sites-response:has(> .code-panel:empty) { display: none; }
+:is(.sites-response, .sites-technical) > summary { width: max-content; color: var(--muted); font-size: var(--text-xs); }
+:is(.sites-response, .sites-technical) > .code-panel { margin-top: var(--space-2); }
+.sites-technical { margin-top: var(--space-2); }
+
 .manager-selection-count { align-self: center; line-height: 2rem; padding: 0 var(--space-2); border-left: 1px solid var(--line-strong); color: var(--ink-2); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
 
 /* ------------------------------------------------------- settings density */
@@ -1094,9 +1133,9 @@ body[data-state="signed_out"] .side-id .avatar { background: var(--paper-2); col
 .page-foot-links svg { width: 0.75rem; height: 0.75rem; }
 .back-link { display: inline-flex; align-items: center; gap: var(--hair-30); color: var(--muted); font-size: var(--text-sm); font-weight: var(--weight-medium); text-decoration: none; }
 .back-link:hover { color: var(--ink); }
-.main .btn.btn-sm { padding-inline: var(--hair-85); }
-.main .btn-secondary:disabled { background: transparent; border-color: var(--line-strong); color: var(--faint); }
-.main .btn-ghost:disabled { background: transparent; border-color: transparent; color: var(--faint); }
+:is(.main, .sites-main) .btn.btn-sm { padding-inline: var(--hair-85); }
+:is(.main, .sites-main) .btn-secondary:disabled { background: transparent; border-color: var(--line-strong); color: var(--faint); }
+:is(.main, .sites-main) .btn-ghost:disabled { background: transparent; border-color: transparent; color: var(--faint); }
 .main > .inline-alert, .session-stage > .inline-alert, .main-inner > .inline-alert { margin-bottom: var(--space-5); }
 .main > .inline-alert { max-width: 46rem; margin-inline: auto; }
 .first-run-alert[data-tone="warning"] > .first-run-alert-info, .first-run-alert:not([data-tone="warning"]) > .first-run-alert-warning { display: none; }

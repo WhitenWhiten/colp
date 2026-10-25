@@ -55,7 +55,7 @@ export async function initializeCapturePopup(shell?: ResultShell): Promise<boole
     adoption.replaceChildren();
     if (next.contentIntent && !next.nativeId && next.disposition === 'existing') for (const copy of next.existence?.exact ?? []) {
       if (!copy.nativeId || !copy.writable) continue;
-      const button = document.createElement('button'); button.type = 'button'; button.textContent = `Adopt this copy: ${copy.path.join(' / ')}`;
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'btn btn-secondary btn-sm'; button.textContent = t('capture_adoptThisCopy', 'Adopt this copy: $1', copy.path.join(' / '));
       button.onclick = () => { void request({ kind: 'known.siteAdapters.content.adopt', captureId: next.captureId, nativeId: copy.nativeId }).then(r => { if (r.task) show(r.task); }); };
       adoption.append(button);
     }

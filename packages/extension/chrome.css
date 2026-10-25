@@ -524,6 +524,54 @@ button.chip:hover { border-color: var(--line-heavy); background: var(--paper); c
 .select-quiet:hover { border-color: var(--line-heavy); }
 .select-quiet:focus-visible { outline: none; border-color: var(--ink); box-shadow: var(--shadow-ring); }
 
+/* -------------------------------------------------------- quiet listbox
+   A real <select multiple> on a settings row: rows on a white field, a picked row on paper-2
+   with an ink check. Chrome paints its own blue over a focused selection's background-color
+   but not over a background-image, so the picked fill is a gradient. */
+.listbox-quiet {
+  display: block; width: 100%; min-width: 0; margin: 0; padding: var(--hair-30);
+  border: 1px solid var(--line-strong); border-radius: var(--radius);
+  background: var(--surface-raised); color: var(--ink); font-size: var(--text-sm);
+  overflow-y: auto; scrollbar-width: thin;
+  transition: border-color var(--duration-fast) var(--ease-quart);
+}
+.listbox-quiet:hover { border-color: var(--line-heavy); }
+.listbox-quiet:focus-visible { outline: none; border-color: var(--ink); box-shadow: var(--shadow-ring); }
+.listbox-quiet option {
+  padding: var(--hair-45) var(--space-6) var(--hair-45) var(--hair-65); border-radius: var(--radius-xs);
+  color: var(--ink-2); line-height: var(--leading-ui);
+}
+.listbox-quiet option:hover { background: var(--paper); }
+.listbox-quiet option:checked {
+  background: var(--listbox-check) no-repeat right var(--hair-65) center / 0.85rem auto, linear-gradient(var(--paper-2), var(--paper-2));
+  color: var(--ink); font-weight: var(--weight-medium);
+}
+:root { --listbox-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23111' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E"); }
+
+/* ----------------------------------------------------------- code panel
+   Read-only machine output (a package to review, a server's reply): monospace on the sunken
+   surface, scrolling past 18rem. An empty panel takes no room. */
+.code-panel {
+  max-height: 18rem; min-width: 0; margin: 0; overflow: auto; padding: var(--space-3);
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--surface-sunken); color: var(--ink-2);
+  font-family: var(--font-mono); font-size: var(--text-xs); line-height: var(--leading-relaxed);
+  white-space: pre-wrap; overflow-wrap: anywhere; scrollbar-width: thin;
+}
+.code-panel:empty { display: none; }
+
+/* ----------------------------------------------------------- file field
+   input[type=file]: the browser's chooser wears the small outlined button; the file name
+   follows in muted text. */
+.file-quiet { max-width: 100%; color: var(--muted); font-size: var(--text-sm); cursor: pointer; }
+.file-quiet::file-selector-button {
+  min-height: 2rem; margin-right: var(--space-3); padding: 0 var(--hair-85);
+  border: 1px solid var(--line-heavy); border-radius: var(--radius); background: transparent; color: var(--ink-2);
+  font: inherit; font-size: var(--text-xs); font-weight: var(--weight-medium); cursor: pointer;
+  transition: border-color var(--duration-state) var(--ease-quart), background var(--duration-state) var(--ease-quart), color var(--duration-state) var(--ease-quart);
+}
+.file-quiet:hover::file-selector-button { border-color: var(--ink); background: var(--surface); color: var(--ink); }
+
 /* Segmented control on a settings row: the shared .view-switch at button height. */
 .view-switch.view-switch--compact button { min-height: 1.75rem; padding: 0 var(--hair-65); font-size: var(--text-xs); }
 

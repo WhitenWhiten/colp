@@ -44,7 +44,7 @@ await build({ entryPoints: { 'service-worker': resolve(root, 'src/service-worker
   'bookmark-privacy': resolve(root, 'src/bookmark-privacy.ts'),
   'bookmark-event-queue': resolve(root, 'src/bookmark-event-queue.ts'),
   'bookmark-import-plan': resolve(root, 'src/bookmark-import-plan.ts'),
-  'import-preview': resolve(root, 'src/import-preview.ts'), 'site-settings': resolve(root, 'src/site-adapters/settings.ts') },
+  'import-preview': resolve(root, 'src/import-preview.ts'), 'site-settings': resolve(root, 'src/entry/site-adapters.ts') },
   bundle: true, format: 'esm', platform: 'browser', target: 'chrome121', outdir: output, plugins: [automationAjvPlugin(root), siteEvidenceBoundary], sourcemap: environment === 'production' ? false : 'external',
   // Evidence RPC (fault injection, state export) may only exist in non-production
   // builds and the e2e fixture; every real production deployment must be 'false'.

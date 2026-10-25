@@ -55,6 +55,9 @@ Spacing uses `--space-*` and `--hair-*` tokens only. Groups are `--space-6` apar
 | `.inline-alert[data-tone]` | Notice with a coloured 2px rule and icon on a neutral fill, plus an optional ghost action. Goes at the top of its page or group. |
 | `.toggle[role=switch]` | Boolean setting (the web's `.toggle`). Use `aria-checked`. Replaces checkboxes in settings. |
 | `.select-quiet` | Auto-width select on a settings row. |
+| `.listbox-quiet` | A real `<select multiple>` on a stacked settings row: white field, picked rows on paper-2 with an ink check. |
+| `.code-panel` | Read-only machine output (a package to review, a server's reply): monospace on the sunken surface, scrolls past 18rem, takes no room when empty. |
+| `.file-quiet` | File input: the chooser is the small outlined button, the file name follows in muted text. |
 | `.view-switch` / `--compact` | Segmented control (tabs inside a page, Top/Bottom). |
 | `.disclosure` | The only expander: a chevron that turns down. |
 | `.set-group` > `.set-group-head` + `.set-card` > `.set-row` | Settings: group title on paper, rows in one card. `.set-row-text` holds `.set-row-title` and `.set-row-hint`; `.set-row-control` sits at the right. |
@@ -149,6 +152,16 @@ bar whose items wrap onto a second line, so every destination stays visible.
 | `#general` | Language, permissions, export / backup / restore |
 | `#account`, `#account/credits` | Identity, credits summary, sign out; credit activity table |
 | `#help` | Diagnostics (the only place for internals) |
+
+**Site adapters** (`site-adapters.html`, linked from the sidebar's Settings group) is its own page, like Save tabs:
+one `46rem` column on the paper with a Settings back link, then the pane grammar (`.set-group`, `.set-card`,
+`.set-row`). Connection, Collections, Archive, Import, Content associations, Recovery, COLP Server archive and
+community packages are each a group. A step that cannot run yet is hidden rather than greyed (the import steps,
+Next collection page, the approvals), so each card shows only what can happen next, and an approval is the only
+primary button on screen while it is offered. Archive switches are `.toggle`. The worker's raw reply sits in a
+`.code-panel` under its group ("Last response", open after a step the user took); the full status stays folded in
+Technical details at the foot. Its copy is in the catalog (`sites_*`); lines that name the site take it as `$1`, and a
+language change reloads the page, as it does the options page.
 
 **Automations › Rules in this browser (AW-68).** The Owner's own rules, made here and kept only here;
 they need no account and run after the account's rules:

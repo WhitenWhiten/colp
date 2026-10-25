@@ -216,6 +216,10 @@ img, svg { display: block; }
 .existence-path { display: flex; align-items: center; gap: var(--hair-30); color: var(--muted); font-size: var(--text-xs); text-decoration: none; overflow-wrap: anywhere; }
 .existence-path svg { flex: none; width: 0.8rem; height: 0.8rem; }
 .existence-path:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
+/* A copy a site adapter can adopt (capture/popup.ts): small outlined buttons on the same line as the locations; a long path wraps. */
+#capture-content-adoption { display: grid; justify-items: start; gap: var(--hair-30); margin-left: calc(3.25rem + var(--space-3)); }
+#capture-content-adoption:empty { display: none; }
+#capture-content-adoption .btn { max-width: 100%; padding-block: var(--hair-40); line-height: var(--leading-body); text-align: left; white-space: normal; overflow-wrap: anywhere; }
 
 /* One quiet status line under the fields; tone only for errors. */
 .pp-note { margin: 0; color: var(--muted); font-size: var(--text-xs); line-height: var(--leading-body); }

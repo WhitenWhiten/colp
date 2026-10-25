@@ -1,35 +1,273 @@
-<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Site adapters</title><link rel="stylesheet" href="options.css"></head>
-<body><main class="main-inner"><h1>Site adapters</h1><p>Connect Bilibili, inspect its collections, and choose a local archive root. Source archives use no AI. Negative membership readback is unavailable; removals retain existing archives.</p>
-<p id="capability-summary" role="status"></p><button id="enable" type="button">Enable Bilibili inspector</button> <button id="disable" type="button">Disable</button> <button id="refresh" type="button">Refresh status</button>
-<p><button id="read-catalog" type="button">Inspect collections</button> <button id="next-catalog" type="button" disabled>Next collection page</button> <button id="read-item" type="button">Resolve current video</button> <button id="retry-confirmation" type="button">Retry paused confirmation reads</button></p><fieldset><legend>Archive selected collections</legend>
-<p><button id="grant-archive" type="button">Choose a local bookmark root</button> <select id="archive-root" aria-label="Archive root"><option value="">Choose a root</option></select></p>
-<label>Collections <select id="archive-collections" aria-label="Archive collections" multiple size="6"></select></label>
-<p><label><input id="archive-live" type="checkbox"> Archive newly observed positive memberships in these collections</label></p>
-<p><label>Copies <select id="archive-copies"><option value="sourceAndSemantic">Keep source and semantic copies</option><option value="singlePreferSemantic">One copy, prefer semantic location</option><option value="singleKeepExisting">One copy, preserve existing location</option></select></label></p>
-<p><label>Primary collection for a new single source copy <select id="archive-primary"><option value="">Ask when multiple collections apply</option></select></label></p>
-<p><label><input id="archive-ai" type="checkbox"> Allow AI destinations inside this source root</label></p>
-<p><button id="configure-archive" type="button">Save archive settings</button> <button id="disable-archive" type="button">Pause archives</button></p>
-</fieldset><fieldset><legend>Import with a preview</legend>
-<p>Scanning and previewing create no bookmarks. Only the exact approved preview may write. Restarting a scan repeats discovery and deduplicates accepted items.</p>
-<button id="start-import" type="button">Scan selected collections</button> <button id="freeze-import" type="button" disabled>Stop and build preview</button> <button id="resume-import" type="button" disabled>Restart scan and deduplicate</button>
-<p id="import-summary" role="status">No import started.</p>
-<button id="approve-import" type="button" disabled>Approve this preview</button> <button id="cancel-import" type="button" disabled>Cancel import</button>
-</fieldset><fieldset><legend>Content associations</legend><p>Changing accounts never takes over an existing association automatically. Review the connected account before adopting a proven copy.</p><button id="read-bindings" type="button">Review saved content associations</button><div id="content-bindings"></div></fieldset>
-<fieldset><legend>Recovery and restored backups</legend><p>Unknown writes retain their original command and block replacement creates. Recovery retries the existing command under its original authorization. Manual changes and missing proof require review.</p>
-<button id="repair-status" type="button">Inspect recovery records</button> <button id="repair-recover" type="button">Recover existing commands</button> <button id="repair-export" type="button">Export private diagnostic</button>
-<p>This diagnostic contains private source data and local command receipts. Keep it private. It is read only and cannot be imported as executable work. Future database versions are exported without downgrading.</p>
-<p>JSON bookmark backups restore source connections disabled. Select the matching account and the restored root above with live archiving off, then preview rebinding below. Only exact imported native mappings can be adopted; missing or changed copies remain blocked.</p><div id="repair-records"></div><pre id="repair-summary" role="status"></pre></fieldset>
-<fieldset><legend>COLP Server archive</legend><p>Save selected source collections to your connected COLP account. Select a synced root and collections above, then add a source rule and review its scope. Earlier rules keep their priority. Each batch saves at most 20 confirmed memberships and needs its own preview and approval. Scans and previews create no cloud bookmarks.</p>
-<p>Keep source and semantic copies is the supported cloud copy policy. Single-copy policies require local coordination and cannot be sent to this server profile. Backend classification is unavailable. Source archives request no AI or tags. Existing local archives stay in their folders; this does not migrate them.</p>
-<p><button id="cloud-rule" type="button">Add selected root as a COLP source rule</button> <button id="cloud-status-button" type="button">Refresh COLP status</button></p>
-<p><button id="cloud-review" type="button">Review account and source scope</button> <button id="cloud-approve" type="button" disabled>Approve this device's scope</button> <button id="cloud-revoke" type="button">Revoke device authority</button></p>
-<p><button id="cloud-preview" type="button">Preview next batch</button> <button id="cloud-commit" type="button" disabled>Approve this exact batch</button> <button id="cloud-recover" type="button">Recover original command</button> <button id="cloud-cancel" type="button">Cancel prepared batch</button></p>
-<p>A second device must review the source account and canonical roots separately. Revoke the current device or wait for its two-minute lease to expire before transferring authority. Sync downloads the canonical results using its usual recovery path. If a result is uncertain, recover its original command before preparing another batch.</p><pre id="cloud-status" role="status"></pre></fieldset>
-<fieldset><legend>Advanced: separately installed packages</legend><p id="community-risk"></p><p>Only self-contained Bilibili v1 favorite-hint packages are supported. Files are inspected as inert data. Publisher identity and signatures are unverified; packages cannot claim official status. Install and every update require review. New and replaced packages start disabled, without archive or model authority.</p>
-<label>Package JSON <input id="community-file" type="file" accept="application/json,.json"></label>
-<pre id="community-preview"></pre><label><input id="community-ack" type="checkbox"> I trust this code/author and accept the page-access risk described above.</label>
-<button id="community-install" type="button" disabled>Install reviewed bytes (disabled)</button>
-<p><button id="community-grant" type="button">Allow community API and Bilibili access</button> <button id="community-refresh" type="button">Refresh packages</button></p>
-<p>Chromium 149+ only. In Extensions → Know-N → Details, enable Allow User Scripts, reload the extension, and reopen Site adapters. Chrome 121–148 is unsupported for this runtime. Enabling a package starts inspector mode; archive hints require a separate preview/approval of the current connected account, selected collections and local root. Hints are confirmed by the bundled reader before any archive plan. No package may call bookmarks, models or arbitrary background reads.</p>
-<div id="community-packages"></div><pre id="community-status" role="status"></pre></fieldset>
-<p id="connection"></p><button id="confirm" type="button" hidden>Connect this account</button><pre id="status" role="status"></pre><a href="options.html">Back to settings</a></main><script type="module" src="site-settings.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title data-i18n="sites_pageTitle">Site adapters · Know-N</title><link rel="stylesheet" href="options.css"></head>
+<body>
+<!-- One 46rem settings column on the paper, like Save tabs: groups of rows in white cards (docs/ui-design.md).
+     Actions that cannot run in the current state are hidden rather than greyed; src/site-adapters/settings.ts paints the rows. -->
+<main class="sites-main">
+  <a id="sites-back" class="btn btn-ghost btn-sm sites-back" href="options.html"><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="arrow-left"></svg><span data-i18n="common_settings">Settings</span></a>
+  <header class="page-head">
+    <div class="page-head-copy">
+      <h1 data-i18n="shell_siteAdapters">Site adapters</h1>
+      <p id="sites-lede">Connect Bilibili, inspect its collections, and choose a local archive root. Source archives use no AI. Negative membership readback is unavailable; removals retain existing archives.</p>
+    </div>
+    <div class="page-head-actions">
+      <span id="adapter-picker" hidden></span>
+      <button id="refresh" class="btn btn-secondary btn-sm" type="button"><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="refresh"></svg><span data-i18n="sites_refreshStatus">Refresh status</span></button>
+    </div>
+  </header>
+  <div id="site-alert" class="inline-alert" data-tone="warning" hidden>
+    <svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="alert"></svg>
+    <p id="site-alert-text" role="status"></p>
+  </div>
+
+  <section class="set-group" aria-labelledby="sites-connection-heading">
+    <div class="set-group-head"><h2 id="sites-connection-heading" data-i18n="sites_connection">Connection</h2>
+      <p id="capability-summary" data-i18n="sites_capabilities">Positive observation only; human-action proof, negative readback, short links and cloud archives are unavailable.</p></div>
+    <div class="set-card">
+      <div class="set-row">
+        <div class="set-row-text"><p id="inspector-title" class="set-row-title">Bilibili inspector</p>
+          <p id="inspector-hint" class="set-row-hint">Reads the Bilibili pages you open. Needs Chrome 149 or later and access to the site.</p></div>
+        <div class="set-row-control">
+          <span class="set-row-value"><span id="inspector-dot" class="set-dot" data-tone="off" aria-hidden="true"></span><span id="inspector-state" data-i18n="sites_off">Off</span></span>
+          <button id="enable" class="btn btn-secondary btn-sm" type="button" aria-label="Enable Bilibili inspector" data-i18n="sites_enable">Enable</button>
+          <button id="disable" class="btn btn-ghost btn-sm" type="button" aria-label="Disable Bilibili inspector" hidden data-i18n="sites_disable">Disable</button>
+        </div>
+      </div>
+      <div class="set-row">
+        <div class="set-row-text"><p class="set-row-title" data-i18n="common_account">Account</p>
+          <p id="connection" class="set-row-hint">Turn on the inspector, then open Bilibili while signed in.</p></div>
+        <div class="set-row-control">
+          <span id="account-value" class="set-row-value" hidden><span class="set-dot" aria-hidden="true"></span><span data-i18n="sites_connected">Connected</span></span>
+          <button id="confirm" class="btn btn-primary btn-sm" type="button" hidden data-i18n="sites_connectAccount">Connect this account</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="set-group" aria-labelledby="sites-collections-heading">
+    <div class="set-group-head"><h2 id="sites-collections-heading" data-i18n="sites_collections">Collections</h2>
+      <p id="sites-collections-lede">Read your collections and the current video from an open Bilibili tab.</p></div>
+    <div class="set-card">
+      <div class="set-row">
+        <div class="set-row-text"><p class="set-row-title" data-i18n="sites_yourCollections">Your collections</p><p id="catalog-summary" class="set-row-hint" data-i18n="sites_notReadYet">Not read yet.</p></div>
+        <div class="set-row-control">
+          <button id="next-catalog" class="btn btn-ghost btn-sm" type="button" disabled hidden data-i18n="sites_nextCollectionPage">Next collection page</button>
+          <button id="read-catalog" class="btn btn-secondary btn-sm" type="button" data-i18n="sites_inspectCollections">Inspect collections</button>
+        </div>
+      </div>
+      <div class="set-row">
+        <div class="set-row-text"><p class="set-row-title" data-i18n="sites_currentVideo">Current video</p><p id="item-summary" class="set-row-hint" data-i18n="sites_findCurrentVideo">Find the video open in the active tab.</p></div>
+        <div class="set-row-control"><button id="read-item" class="btn btn-secondary btn-sm" type="button" data-i18n="sites_resolveCurrentVideo">Resolve current video</button></div>
+      </div>
+      <div class="set-row">
+        <div class="set-row-text"><p class="set-row-title" data-i18n="sites_confirmationReads">Confirmation reads</p><p id="confirmation-summary" class="set-row-hint" data-i18n="sites_noneWaiting">None waiting.</p></div>
+        <div class="set-row-control"><button id="retry-confirmation" class="btn btn-ghost btn-sm" type="button" data-i18n="sites_retryConfirmations">Retry paused confirmation reads</button></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="set-group" aria-labelledby="sites-archive-heading">
+    <div class="set-group-head"><h2 id="sites-archive-heading" data-i18n="sites_archiveHeading">Archive selected collections</h2>
+      <p data-i18n="sites_archiveLede">Keep the collections you pick as bookmarks in a folder on this browser.</p></div>
+    <div id="archive-hold" class="inline-alert" data-tone="warning" hidden>
+      <svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="alert"></svg>
+      <p data-i18n="sites_archiveHold">This archive needs review before it writes again. Inspect the recovery records below.</p>
+    </div>
+    <div class="set-card">
+      <div class="set-row">
+        <div class="set-row-text"><label class="set-row-title" for="archive-root" data-i18n="sites_archiveRoot">Archive root</label>
+          <p id="archive-root-hint" class="set-row-hint" data-i18n="sites_archiveRootHint">The bookmark folder that holds the archive.</p></div>
+        <div class="set-row-control">
+          <select id="archive-root" class="select-quiet" aria-label="Archive root" data-i18n-aria-label="sites_archiveRoot"><option value="" data-i18n="sites_chooseRoot">Choose a root</option></select>
+          <button id="grant-archive" class="btn btn-secondary btn-sm" type="button" data-i18n="common_allowBookmarkAccess">Allow bookmark access</button>
+        </div>
+      </div>
+      <div class="set-row set-row--stack">
+        <div class="set-row-text"><label class="set-row-title" for="archive-collections" data-i18n="sites_collections">Collections</label>
+          <p class="set-row-hint" data-i18n="sites_multiSelectHint">Hold Ctrl or ⌘ to pick more than one.</p></div>
+        <div class="set-row-control sites-listbox">
+          <select id="archive-collections" class="listbox-quiet" aria-label="Archive collections" data-i18n-aria-label="sites_archiveCollections" multiple size="6"></select>
+          <p class="sites-listbox-empty" data-i18n="sites_listboxEmpty">Inspect collections to list them here.</p>
+        </div>
+      </div>
+      <div class="set-row">
+        <div class="set-row-text"><p id="archive-live-title" class="set-row-title" data-i18n="sites_liveArchiving">Live archiving</p>
+          <p class="set-row-hint" data-i18n="sites_liveArchivingHint">Archive newly observed positive memberships in these collections.</p></div>
+        <div class="set-row-control"><button id="archive-live" class="toggle" type="button" role="switch" aria-checked="false" aria-labelledby="archive-live-title"></button></div>
+      </div>
+      <div class="set-row">
+        <div class="set-row-text"><label class="set-row-title" for="archive-copies" data-i18n="sites_copies">Copies</label></div>
+        <div class="set-row-control"><select id="archive-copies" class="select-quiet"><option value="sourceAndSemantic" data-i18n="sites_copiesBoth">Keep source and semantic copies</option><option value="singlePreferSemantic" data-i18n="sites_copiesPreferSemantic">One copy, prefer semantic location</option><option value="singleKeepExisting" data-i18n="sites_copiesKeepExisting">One copy, preserve existing location</option></select></div>
+      </div>
+      <div id="archive-primary-row" class="set-sub" hidden>
+        <div class="set-row">
+          <div class="set-row-text"><label class="set-row-title" for="archive-primary" data-i18n="sites_primaryCollection">Primary collection</label>
+            <p class="set-row-hint" data-i18n="sites_primaryCollectionHint">Where a new single source copy goes.</p></div>
+          <div class="set-row-control"><select id="archive-primary" class="select-quiet"><option value="" data-i18n="sites_askPrimary">Ask when multiple collections apply</option></select></div>
+        </div>
+      </div>
+      <div class="set-row">
+        <div class="set-row-text"><p id="archive-ai-title" class="set-row-title" data-i18n="sites_aiDestinations">AI destinations</p>
+          <p class="set-row-hint" data-i18n="sites_aiDestinationsHint">Allow AI destinations inside this source root.</p></div>
+        <div class="set-row-control"><button id="archive-ai" class="toggle" type="button" role="switch" aria-checked="false" aria-labelledby="archive-ai-title"></button></div>
+      </div>
+      <div class="card-foot confirm-actions">
+        <p id="archive-summary" class="grow" data-i18n="sites_notArchiving">Not archiving yet.</p>
+        <button id="disable-archive" class="btn btn-ghost btn-sm" type="button" hidden data-i18n="sites_pauseArchives">Pause archives</button>
+        <button id="configure-archive" class="btn btn-secondary btn-sm" type="button" data-i18n="sites_saveArchive">Save archive settings</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="set-group" aria-labelledby="sites-import-heading">
+    <div class="set-group-head"><h2 id="sites-import-heading" data-i18n="sites_importHeading">Import with a preview</h2>
+      <p data-i18n="sites_importLede">Scanning and previewing create no bookmarks. Only the exact approved preview may write. Restarting a scan repeats discovery and deduplicates accepted items.</p></div>
+    <div class="set-card">
+      <div class="set-row">
+        <div class="set-row-text"><p id="import-state" class="set-row-title" data-i18n="sites_noImport">No import started</p>
+          <p id="import-summary" class="set-row-hint" role="status" data-i18n="sites_importFirst">Save archive settings, then scan the selected collections.</p></div>
+        <div class="set-row-control"><span id="import-badge" class="badge" hidden></span></div>
+      </div>
+      <details id="import-omissions" class="disclosure sites-omissions" hidden><summary data-i18n="sites_omittedItems">Omitted items</summary><ul id="import-omission-list"></ul></details>
+      <div class="card-foot confirm-actions sites-actions">
+        <button id="cancel-import" class="btn btn-ghost btn-sm" type="button" disabled hidden data-i18n="sites_cancelImport">Cancel import</button>
+        <span class="grow"></span>
+        <button id="resume-import" class="btn btn-ghost btn-sm" type="button" disabled hidden data-i18n="sites_restartScan">Restart scan and deduplicate</button>
+        <button id="freeze-import" class="btn btn-secondary btn-sm" type="button" disabled hidden data-i18n="sites_buildPreview">Stop and build preview</button>
+        <button id="start-import" class="btn btn-secondary btn-sm" type="button" disabled hidden data-i18n="sites_scanSelected">Scan selected collections</button>
+        <button id="approve-import" class="btn btn-primary btn-sm" type="button" disabled hidden data-i18n="sites_approvePreview">Approve this preview</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="set-group" aria-labelledby="sites-content-heading">
+    <div class="set-group-head"><h2 id="sites-content-heading" data-i18n="sites_contentHeading">Content associations</h2>
+      <p data-i18n="sites_contentLede">Changing accounts never takes over an existing association automatically. Review the connected account before adopting a proven copy.</p></div>
+    <div class="set-card">
+      <div class="set-row">
+        <div class="set-row-text"><p class="set-row-title" data-i18n="sites_savedAssociations">Saved associations</p><p id="content-summary" class="set-row-hint" data-i18n="sites_contentHint">Review which account each saved copy belongs to.</p></div>
+        <div class="set-row-control"><button id="read-bindings" class="btn btn-secondary btn-sm" type="button" data-i18n="sites_review">Review</button></div>
+      </div>
+      <div id="content-bindings" class="sites-rows"></div>
+    </div>
+  </section>
+
+  <section class="set-group" aria-labelledby="sites-repair-heading">
+    <div class="set-group-head"><h2 id="sites-repair-heading" data-i18n="sites_repairHeading">Recovery and restored backups</h2>
+      <p data-i18n="sites_repairLede">Unknown writes retain their original command and block replacement creates. Recovery retries the existing command under its original authorization. Manual changes and missing proof require review.</p></div>
+    <div class="set-card">
+      <div class="set-row">
+        <div class="set-row-text"><p class="set-row-title" data-i18n="sites_recoveryRecords">Recovery records</p><p id="repair-hint" class="set-row-hint" data-i18n="sites_repairHint">Inspect to find writes that need recovery or review.</p></div>
+        <div class="set-row-control">
+          <button id="repair-recover" class="btn btn-ghost btn-sm" type="button" data-i18n="sites_recoverCommands">Recover existing commands</button>
+          <button id="repair-status" class="btn btn-secondary btn-sm" type="button" data-i18n="sites_inspectRecords">Inspect recovery records</button>
+        </div>
+      </div>
+      <div class="set-row">
+        <div class="set-row-text"><p class="set-row-title" data-i18n="sites_restoredBackups">Restored backups</p>
+          <p class="set-row-hint" data-i18n="sites_restoredBackupsHint">JSON bookmark backups restore source connections disabled. Select the matching account and the restored root above with live archiving off, then preview rebinding below. Only exact imported native mappings can be adopted; missing or changed copies remain blocked.</p></div>
+      </div>
+      <div id="repair-records" class="sites-rows"></div>
+      <div class="set-row">
+        <div class="set-row-text"><p class="set-row-title" data-i18n="sites_privateDiagnostic">Private diagnostic</p>
+          <p class="set-row-hint" data-i18n="sites_privateDiagnosticHint">This diagnostic contains private source data and local command receipts. Keep it private. It is read only and cannot be imported as executable work. Future database versions are exported without downgrading.</p></div>
+        <div class="set-row-control"><button id="repair-export" class="btn btn-secondary btn-sm" type="button"><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="download"></svg><span data-i18n="sites_exportDiagnostic">Export private diagnostic</span></button></div>
+      </div>
+    </div>
+    <p id="repair-feedback" class="feedback" role="status" hidden></p>
+    <details class="disclosure sites-response" open><summary data-i18n="sites_lastResponse">Last response</summary><pre id="repair-summary" class="code-panel"></pre></details>
+  </section>
+
+  <section class="set-group" aria-labelledby="sites-cloud-heading">
+    <div class="set-group-head"><h2 id="sites-cloud-heading" data-i18n="sites_cloudHeading">COLP Server archive</h2>
+      <p data-i18n="sites_cloudLede">Save selected source collections to your connected COLP account. Scans and previews create no cloud bookmarks. Existing local archives stay in their folders; this does not migrate them.</p></div>
+    <div class="set-card">
+      <div class="set-row">
+        <div class="set-row-text"><p class="set-row-title" data-i18n="sites_sourceRule">Source rule</p>
+          <p class="set-row-hint" data-i18n="sites_sourceRuleHint">Select a synced root and collections above, then add a source rule and review its scope. Earlier rules keep their priority.</p></div>
+        <div class="set-row-control"><button id="cloud-rule" class="btn btn-secondary btn-sm" type="button" data-i18n="sites_addSourceRule">Add selected root as a COLP source rule</button></div>
+      </div>
+      <div class="set-row set-row--stack">
+        <div class="set-row-text"><p class="set-row-title" data-i18n="sites_deviceScope">This device's scope</p>
+          <p class="set-row-hint" data-i18n="sites_deviceScopeHint">A second device must review the source account and canonical roots separately. Revoke the current device or wait for its two-minute lease to expire before transferring authority.</p></div>
+        <div class="set-row-control">
+          <button id="cloud-review" class="btn btn-secondary btn-sm" type="button" data-i18n="sites_reviewScope">Review account and source scope</button>
+          <button id="cloud-approve" class="btn btn-primary btn-sm" type="button" disabled hidden data-i18n="sites_approveScope">Approve this device's scope</button>
+          <button id="cloud-revoke" class="btn btn-ghost btn-sm" type="button" data-i18n="sites_revokeDevice">Revoke device authority</button>
+        </div>
+      </div>
+      <div class="set-row set-row--stack">
+        <div class="set-row-text"><p class="set-row-title" data-i18n="sites_batches">Batches</p>
+          <p class="set-row-hint" data-i18n="sites_batchesHint">Each batch saves at most 20 confirmed memberships and needs its own preview and approval. Sync downloads the canonical results using its usual recovery path. If a result is uncertain, recover its original command before preparing another batch.</p></div>
+        <div class="set-row-control">
+          <button id="cloud-preview" class="btn btn-secondary btn-sm" type="button" data-i18n="sites_previewBatch">Preview next batch</button>
+          <button id="cloud-commit" class="btn btn-primary btn-sm" type="button" disabled hidden data-i18n="sites_approveBatch">Approve this exact batch</button>
+          <button id="cloud-recover" class="btn btn-ghost btn-sm" type="button" data-i18n="sites_recoverCommand">Recover original command</button>
+          <button id="cloud-cancel" class="btn btn-ghost btn-sm" type="button" data-i18n="sites_cancelBatch">Cancel prepared batch</button>
+        </div>
+      </div>
+      <div class="set-row">
+        <div class="set-row-text"><p class="set-row-title" data-i18n="sites_copyPolicy">Copy policy</p>
+          <p class="set-row-hint" data-i18n="sites_copyPolicyHint">Keep source and semantic copies is the supported cloud copy policy. Single-copy policies require local coordination and cannot be sent to this server profile. Backend classification is unavailable. Source archives request no AI or tags.</p></div>
+      </div>
+      <div class="card-foot">
+        <p class="grow" data-i18n="sites_cloudStatusNote">Status comes from your COLP Server.</p>
+        <button id="cloud-status-button" class="btn btn-ghost btn-sm" type="button"><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="refresh"></svg><span data-i18n="sites_refreshCloud">Refresh COLP status</span></button>
+      </div>
+    </div>
+    <details class="disclosure sites-response" open><summary data-i18n="sites_lastResponse">Last response</summary><pre id="cloud-status" class="code-panel"></pre></details>
+  </section>
+
+  <section class="set-group" aria-labelledby="sites-community-heading">
+    <div class="set-group-head"><h2 id="sites-community-heading" data-i18n="sites_communityHeading">Advanced: separately installed packages</h2>
+      <p data-i18n="sites_communityLede">Only self-contained Bilibili v1 favorite-hint packages are supported.</p></div>
+    <div class="inline-alert" data-tone="warning">
+      <svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="alert"></svg>
+      <p id="community-risk"></p>
+    </div>
+    <div class="set-card">
+      <div class="set-row">
+        <div class="set-row-text"><p class="set-row-title" data-i18n="sites_userScripts">User scripts</p>
+          <p class="set-row-hint" data-i18n="sites_userScriptsHint">Chromium 149+ only. In Extensions → Know-N → Details, enable Allow User Scripts, reload the extension, and reopen Site adapters. Chrome 121–148 is unsupported for this runtime.</p></div>
+        <div class="set-row-control">
+          <span class="set-row-value"><span id="community-dot" class="set-dot" data-tone="off" aria-hidden="true"></span><span id="community-available" data-i18n="sites_off">Off</span></span>
+          <button id="community-grant" class="btn btn-secondary btn-sm" type="button" data-i18n="sites_allowCommunity">Allow community API and Bilibili access</button>
+        </div>
+      </div>
+      <div class="set-row set-row--stack">
+        <div class="set-row-text"><label class="set-row-title" for="community-file" data-i18n="sites_packageJson">Package JSON</label>
+          <p class="set-row-hint" data-i18n="sites_packageHint">Files are inspected as inert data. Publisher identity and signatures are unverified; packages cannot claim official status. Install and every update require review. New and replaced packages start disabled, without archive or model authority.</p></div>
+        <div class="set-row-control"><input id="community-file" class="file-quiet" type="file" accept="application/json,.json"></div>
+      </div>
+      <div id="community-review" class="set-row set-row--stack" hidden>
+        <div class="set-row-text"><p class="set-row-title" data-i18n="sites_reviewPackage">Review this package</p></div>
+        <pre id="community-preview" class="code-panel"></pre>
+        <label class="check-line"><input id="community-ack" type="checkbox"><span data-i18n="sites_communityAck">I trust this code/author and accept the page-access risk described above.</span></label>
+      </div>
+      <div id="community-install-bar" class="card-foot confirm-actions" hidden>
+        <button id="community-install" class="btn btn-primary btn-sm" type="button" disabled data-i18n="sites_installReviewed">Install reviewed bytes (disabled)</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="set-group" aria-labelledby="sites-packages-heading">
+    <div class="set-group-head"><h2 id="sites-packages-heading" data-i18n="sites_installedPackages">Installed packages</h2>
+      <p data-i18n="sites_installedLede">Enabling a package starts inspector mode; archive hints require a separate preview/approval of the current connected account, selected collections and local root. Hints are confirmed by the bundled reader before any archive plan. No package may call bookmarks, models or arbitrary background reads.</p></div>
+    <div class="set-card">
+      <div id="community-packages" class="sites-rows sites-rows--lead"></div>
+      <div class="empty sites-packages-empty">
+        <span class="empty-icon" aria-hidden="true"><svg width="18" height="18" aria-hidden="true" focusable="false" data-icon="code"></svg></span>
+        <p class="empty-title" data-i18n="sites_noPackages">No packages installed</p>
+        <p class="empty-hint" data-i18n="sites_noPackagesHint">Choose a package JSON above to review it.</p>
+      </div>
+      <div class="card-foot">
+        <span class="grow"></span>
+        <button id="community-refresh" class="btn btn-ghost btn-sm" type="button"><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="refresh"></svg><span data-i18n="sites_refreshPackages">Refresh packages</span></button>
+      </div>
+    </div>
+    <details class="disclosure sites-response"><summary data-i18n="sites_lastResponse">Last response</summary><pre id="community-status" class="code-panel"></pre></details>
+  </section>
+
+  <details class="disclosure sites-technical"><summary data-i18n="sites_technicalDetails">Technical details</summary><pre id="status" class="code-panel"></pre></details>
+</main><script type="module" src="site-settings.js"></script></body></html>

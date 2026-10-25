@@ -19,7 +19,7 @@ import { parse } from 'parse5';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const TRANSLATIONS = ['zh_CN'];
-const PAGES = ['popup.html', 'options.html', 'capture-tabs.html'];
+const PAGES = ['popup.html', 'options.html', 'capture-tabs.html', 'site-adapters.html'];
 const ATTRIBUTES = ['aria-label', 'title', 'placeholder', 'alt', 'data-tip'];
 const KEY = /^[a-z][A-Za-z0-9_]*$/u;
 

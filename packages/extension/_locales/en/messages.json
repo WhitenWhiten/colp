@@ -2369,6 +2369,9 @@
   "capture_activeAccountCollectionChanged": {
     "message": "The account or library changed. Refresh settings."
   },
+  "capture_adoptThisCopy": {
+    "message": "Adopt this copy: $1"
+  },
   "capture_allCloudDevices": {
     "message": "All cloud devices"
   },
@@ -6488,6 +6491,9 @@
   "shell_signedInAccount": {
     "message": "Signed-in account"
   },
+  "shell_siteAdapters": {
+    "message": "Site adapters"
+  },
   "shell_sourceKnowNHint": {
     "message": "Needs an account. Uses credits and learns from your synced library."
   },
@@ -6577,6 +6583,627 @@
   },
   "site_adapter_saveAndClassify": {
     "message": "Save and classify"
+  },
+  "sites_addSourceRule": {
+    "message": "Add selected root as a COLP source rule"
+  },
+  "sites_adoptCopy": {
+    "message": "Adopt this copy into the connected account"
+  },
+  "sites_adoptProven": {
+    "message": "Adopt these proven copies (no native writes)"
+  },
+  "sites_aiDestinations": {
+    "message": "AI destinations"
+  },
+  "sites_aiDestinationsHint": {
+    "message": "Allow AI destinations inside this source root."
+  },
+  "sites_allowCommunity": {
+    "message": "Allow community API and Bilibili access"
+  },
+  "sites_allowHints": {
+    "message": "Allow verified hints for exactly this archive scope"
+  },
+  "sites_allowToChoose": {
+    "message": "Allow bookmark access to choose a folder."
+  },
+  "sites_approveBatch": {
+    "message": "Approve this exact batch"
+  },
+  "sites_approvePreview": {
+    "message": "Approve this preview"
+  },
+  "sites_approveRollback": {
+    "message": "Approve rollback (disabled)"
+  },
+  "sites_approveScope": {
+    "message": "Approve this device's scope"
+  },
+  "sites_archiveCollections": {
+    "message": "Archive collections"
+  },
+  "sites_archiveHeading": {
+    "message": "Archive selected collections"
+  },
+  "sites_archiveHold": {
+    "message": "This archive needs review before it writes again. Inspect the recovery records below."
+  },
+  "sites_archiveLede": {
+    "message": "Keep the collections you pick as bookmarks in a folder on this browser."
+  },
+  "sites_archivePaused": {
+    "message": "Archives are paused."
+  },
+  "sites_archivePending": {
+    "message": "Saved. Waiting for the archive root."
+  },
+  "sites_archiveRoot": {
+    "message": "Archive root"
+  },
+  "sites_archiveRootHint": {
+    "message": "The bookmark folder that holds the archive."
+  },
+  "sites_archiveScoped": {
+    "message": "Archive scoped"
+  },
+  "sites_archiveUnavailable": {
+    "message": "Archive unavailable"
+  },
+  "sites_archivingInto_one": {
+    "message": "Archiving $1 collection into $2."
+  },
+  "sites_archivingInto_other": {
+    "message": "Archiving $1 collections into $2."
+  },
+  "sites_askPrimary": {
+    "message": "Ask when multiple collections apply"
+  },
+  "sites_associationCount_one": {
+    "message": "$1 saved association."
+  },
+  "sites_associationCount_other": {
+    "message": "$1 saved associations."
+  },
+  "sites_associationsTruncated": {
+    "message": "Only the first saved associations are shown; remaining records are retained."
+  },
+  "sites_associationsUnreadable": {
+    "message": "Couldn’t read saved associations."
+  },
+  "sites_available": {
+    "message": "Available"
+  },
+  "sites_batches": {
+    "message": "Batches"
+  },
+  "sites_batchesHint": {
+    "message": "Each batch saves at most 20 confirmed memberships and needs its own preview and approval. Sync downloads the canonical results using its usual recovery path. If a result is uncertain, recover its original command before preparing another batch."
+  },
+  "sites_buildPreview": {
+    "message": "Stop and build preview"
+  },
+  "sites_cancelBatch": {
+    "message": "Cancel prepared batch"
+  },
+  "sites_cancelImport": {
+    "message": "Cancel import"
+  },
+  "sites_capabilities": {
+    "message": "Positive observation only; human-action proof, negative readback, short links and cloud archives are unavailable."
+  },
+  "sites_chooseRoot": {
+    "message": "Choose a root"
+  },
+  "sites_chromeMinimum": {
+    "message": "Site adapters need Chrome $1 or later."
+  },
+  "sites_chromeVersion": {
+    "message": "Site adapters need Chrome $1 or later; this is Chrome $2."
+  },
+  "sites_cloudHeading": {
+    "message": "COLP Server archive"
+  },
+  "sites_cloudLede": {
+    "message": "Save selected source collections to your connected COLP account. Scans and previews create no cloud bookmarks. Existing local archives stay in their folders; this does not migrate them."
+  },
+  "sites_cloudStatusNote": {
+    "message": "Status comes from your COLP Server."
+  },
+  "sites_collections": {
+    "message": "Collections"
+  },
+  "sites_collectionsLede": {
+    "message": "Read your collections and the current video from an open $1 tab."
+  },
+  "sites_collectionsReadMore_one": {
+    "message": "$1 collection read; more are available."
+  },
+  "sites_collectionsReadMore_other": {
+    "message": "$1 collections read; more are available."
+  },
+  "sites_collectionsRead_one": {
+    "message": "$1 collection read."
+  },
+  "sites_collectionsRead_other": {
+    "message": "$1 collections read."
+  },
+  "sites_communityAck": {
+    "message": "I trust this code/author and accept the page-access risk described above."
+  },
+  "sites_communityHeading": {
+    "message": "Advanced: separately installed packages"
+  },
+  "sites_communityLede": {
+    "message": "Only self-contained Bilibili v1 favorite-hint packages are supported."
+  },
+  "sites_communityRisk": {
+    "message": "This code can read and alter authorized site pages, make requests using the site session, and expose visible private content. Install only code and authors you trust. You are responsible for this choice. Inspector mode blocks host writes, but does not make unknown page code safe."
+  },
+  "sites_confirmationReads": {
+    "message": "Confirmation reads"
+  },
+  "sites_connectAccount": {
+    "message": "Connect this account"
+  },
+  "sites_connected": {
+    "message": "Connected"
+  },
+  "sites_connection": {
+    "message": "Connection"
+  },
+  "sites_contentHeading": {
+    "message": "Content associations"
+  },
+  "sites_contentHint": {
+    "message": "Review which account each saved copy belongs to."
+  },
+  "sites_contentLede": {
+    "message": "Changing accounts never takes over an existing association automatically. Review the connected account before adopting a proven copy."
+  },
+  "sites_copies": {
+    "message": "Copies"
+  },
+  "sites_copiesBoth": {
+    "message": "Keep source and semantic copies"
+  },
+  "sites_copiesKeepExisting": {
+    "message": "One copy, preserve existing location"
+  },
+  "sites_copiesPreferSemantic": {
+    "message": "One copy, prefer semantic location"
+  },
+  "sites_copyPolicy": {
+    "message": "Copy policy"
+  },
+  "sites_copyPolicyHint": {
+    "message": "Keep source and semantic copies is the supported cloud copy policy. Single-copy policies require local coordination and cannot be sent to this server profile. Backend classification is unavailable. Source archives request no AI or tags."
+  },
+  "sites_currentVideo": {
+    "message": "Current video"
+  },
+  "sites_detectedAccount": {
+    "message": "Detected account $1. Confirm the account you want to connect."
+  },
+  "sites_deviceScope": {
+    "message": "This device's scope"
+  },
+  "sites_deviceScopeHint": {
+    "message": "A second device must review the source account and canonical roots separately. Revoke the current device or wait for its two-minute lease to expire before transferring authority."
+  },
+  "sites_diagnosticExported": {
+    "message": "Private diagnostic exported. Existing work and database schema were preserved."
+  },
+  "sites_disable": {
+    "message": "Disable"
+  },
+  "sites_disableInspector": {
+    "message": "Disable $1 inspector"
+  },
+  "sites_disablePackage": {
+    "message": "Disable package"
+  },
+  "sites_disabledUntilReviewed": {
+    "message": "Disabled until reviewed."
+  },
+  "sites_enable": {
+    "message": "Enable"
+  },
+  "sites_enableInspector": {
+    "message": "Enable $1 inspector"
+  },
+  "sites_enablePackage": {
+    "message": "Enable inspector"
+  },
+  "sites_exportDiagnostic": {
+    "message": "Export private diagnostic"
+  },
+  "sites_findCurrentVideo": {
+    "message": "Find the video open in the active tab."
+  },
+  "sites_foundThisVideo": {
+    "message": "Found this video."
+  },
+  "sites_foundVideo": {
+    "message": "Found “$1”."
+  },
+  "sites_importFirst": {
+    "message": "Save archive settings, then scan the selected collections."
+  },
+  "sites_importHeading": {
+    "message": "Import with a preview"
+  },
+  "sites_importLede": {
+    "message": "Scanning and previewing create no bookmarks. Only the exact approved preview may write. Restarting a scan repeats discovery and deduplicates accepted items."
+  },
+  "sites_inspectCollections": {
+    "message": "Inspect collections"
+  },
+  "sites_inspectRecords": {
+    "message": "Inspect recovery records"
+  },
+  "sites_inspectorHint": {
+    "message": "Reads the $1 pages you open. Needs Chrome 149 or later and access to the site."
+  },
+  "sites_inspectorTitle": {
+    "message": "$1 inspector"
+  },
+  "sites_installReviewed": {
+    "message": "Install reviewed bytes (disabled)"
+  },
+  "sites_installedLede": {
+    "message": "Enabling a package starts inspector mode; archive hints require a separate preview/approval of the current connected account, selected collections and local root. Hints are confirmed by the bundled reader before any archive plan. No package may call bookmarks, models or arbitrary background reads."
+  },
+  "sites_installedPackages": {
+    "message": "Installed packages"
+  },
+  "sites_itemPlans": {
+    "message": "Item plans confirmed: $1."
+  },
+  "sites_keepBlocked": {
+    "message": "Keep these restored items and collections blocked"
+  },
+  "sites_knownOmissions_one": {
+    "message": "$1 known omission or read failure."
+  },
+  "sites_knownOmissions_other": {
+    "message": "$1 known omissions or read failures."
+  },
+  "sites_lastResponse": {
+    "message": "Last response"
+  },
+  "sites_lede": {
+    "message": "Connect $1, inspect its collections, and choose a local archive root. Source archives use no AI. Negative membership readback is unavailable; removals retain existing archives."
+  },
+  "sites_listboxEmpty": {
+    "message": "Inspect collections to list them here."
+  },
+  "sites_liveArchiving": {
+    "message": "Live archiving"
+  },
+  "sites_liveArchivingHint": {
+    "message": "Archive newly observed positive memberships in these collections."
+  },
+  "sites_multiSelectHint": {
+    "message": "Hold Ctrl or ⌘ to pick more than one."
+  },
+  "sites_needsSiteAccess": {
+    "message": "Needs site access"
+  },
+  "sites_newerChrome": {
+    "message": "Site adapters need a newer version of Chrome."
+  },
+  "sites_nextCollectionPage": {
+    "message": "Next collection page"
+  },
+  "sites_noAssociations": {
+    "message": "No saved associations yet."
+  },
+  "sites_noImport": {
+    "message": "No import started"
+  },
+  "sites_noPackages": {
+    "message": "No packages installed"
+  },
+  "sites_noPackagesHint": {
+    "message": "Choose a package JSON above to review it."
+  },
+  "sites_noRecords": {
+    "message": "No records need recovery."
+  },
+  "sites_noRootCandidate": {
+    "message": "No root candidate."
+  },
+  "sites_noVideo": {
+    "message": "No single video was found in the active tab."
+  },
+  "sites_noWritesYet": {
+    "message": "No import writes yet."
+  },
+  "sites_noneWaiting": {
+    "message": "None waiting."
+  },
+  "sites_notArchiving": {
+    "message": "Not archiving yet."
+  },
+  "sites_notReadYet": {
+    "message": "Not read yet."
+  },
+  "sites_off": {
+    "message": "Off"
+  },
+  "sites_omittedItems": {
+    "message": "Omitted items"
+  },
+  "sites_on": {
+    "message": "On"
+  },
+  "sites_openSignedIn": {
+    "message": "Open $1 while signed in, then refresh status."
+  },
+  "sites_openToRead": {
+    "message": "Open $1 to read your collections."
+  },
+  "sites_packageDisabled": {
+    "message": "Disabled"
+  },
+  "sites_packageEnabled": {
+    "message": "Enabled"
+  },
+  "sites_packageHint": {
+    "message": "Files are inspected as inert data. Publisher identity and signatures are unverified; packages cannot claim official status. Install and every update require review. New and replaced packages start disabled, without archive or model authority."
+  },
+  "sites_packageJson": {
+    "message": "Package JSON"
+  },
+  "sites_packageVersion": {
+    "message": "Version $1"
+  },
+  "sites_pageTitle": {
+    "message": "Site adapters · Know-N"
+  },
+  "sites_pauseArchives": {
+    "message": "Pause archives"
+  },
+  "sites_paused": {
+    "message": "Paused."
+  },
+  "sites_pausedAlert": {
+    "message": "Site adapters are paused. Recovery inspection and export remain available."
+  },
+  "sites_phaseApproved": {
+    "message": "Importing"
+  },
+  "sites_phaseAttention": {
+    "message": "Needs review"
+  },
+  "sites_phaseCancelled": {
+    "message": "Import cancelled"
+  },
+  "sites_phaseCompleted": {
+    "message": "Import complete"
+  },
+  "sites_phaseOther": {
+    "message": "Import"
+  },
+  "sites_phasePaused": {
+    "message": "Scan stopped"
+  },
+  "sites_phasePreparing": {
+    "message": "Preparing the import"
+  },
+  "sites_phasePreview": {
+    "message": "Preview ready"
+  },
+  "sites_phaseScanning": {
+    "message": "Scanning"
+  },
+  "sites_previewBatch": {
+    "message": "Preview next batch"
+  },
+  "sites_previewComplete": {
+    "message": "Complete preview."
+  },
+  "sites_previewCounts": {
+    "message": "New folders: $1 · New bookmarks: $2 · Existing copies: $3 · To review: $4."
+  },
+  "sites_previewPartial": {
+    "message": "Partial preview."
+  },
+  "sites_previewRebinding": {
+    "message": "Preview account and root rebinding"
+  },
+  "sites_previewScope": {
+    "message": "Preview current archive scope for this package"
+  },
+  "sites_primaryCollection": {
+    "message": "Primary collection"
+  },
+  "sites_primaryCollectionHint": {
+    "message": "Where a new single source copy goes."
+  },
+  "sites_privateDiagnostic": {
+    "message": "Private diagnostic"
+  },
+  "sites_privateDiagnosticHint": {
+    "message": "This diagnostic contains private source data and local command receipts. Keep it private. It is read only and cannot be imported as executable work. Future database versions are exported without downgrading."
+  },
+  "sites_readingTabs_one": {
+    "message": "Reading $1 open $2 tab."
+  },
+  "sites_readingTabs_other": {
+    "message": "Reading $1 open $2 tabs."
+  },
+  "sites_readsWaiting_one": {
+    "message": "$1 read waiting."
+  },
+  "sites_readsWaiting_other": {
+    "message": "$1 reads waiting."
+  },
+  "sites_recordsNeedRecovery_one": {
+    "message": "$1 record needs recovery or review."
+  },
+  "sites_recordsNeedRecovery_other": {
+    "message": "$1 records need recovery or review."
+  },
+  "sites_recoverCommand": {
+    "message": "Recover original command"
+  },
+  "sites_recoverCommands": {
+    "message": "Recover existing commands"
+  },
+  "sites_recoveryRecords": {
+    "message": "Recovery records"
+  },
+  "sites_refreshCloud": {
+    "message": "Refresh COLP status"
+  },
+  "sites_refreshPackages": {
+    "message": "Refresh packages"
+  },
+  "sites_refreshPreview": {
+    "message": "Refresh preview"
+  },
+  "sites_refreshStatus": {
+    "message": "Refresh status"
+  },
+  "sites_reloadFolders": {
+    "message": "Reload folders"
+  },
+  "sites_removePackage": {
+    "message": "Remove package"
+  },
+  "sites_repairHeading": {
+    "message": "Recovery and restored backups"
+  },
+  "sites_repairHint": {
+    "message": "Inspect to find writes that need recovery or review."
+  },
+  "sites_repairLede": {
+    "message": "Unknown writes retain their original command and block replacement creates. Recovery retries the existing command under its original authorization. Manual changes and missing proof require review."
+  },
+  "sites_repairUnreadable": {
+    "message": "Couldn’t read recovery records. The last response is below."
+  },
+  "sites_resolveCurrentVideo": {
+    "message": "Resolve current video"
+  },
+  "sites_restartScan": {
+    "message": "Restart scan and deduplicate"
+  },
+  "sites_restoredAccount": {
+    "message": "Restored account $1"
+  },
+  "sites_restoredBackups": {
+    "message": "Restored backups"
+  },
+  "sites_restoredBackupsHint": {
+    "message": "JSON bookmark backups restore source connections disabled. Select the matching account and the restored root above with live archiving off, then preview rebinding below. Only exact imported native mappings can be adopted; missing or changed copies remain blocked."
+  },
+  "sites_restoredBlockedHint": {
+    "message": "Unresolved restored copies can remain blocked while unrelated new work continues."
+  },
+  "sites_retryConfirmations": {
+    "message": "Retry paused confirmation reads"
+  },
+  "sites_review": {
+    "message": "Review"
+  },
+  "sites_reviewBlocked": {
+    "message": "Review keeping this restored scope blocked"
+  },
+  "sites_reviewPackage": {
+    "message": "Review this package"
+  },
+  "sites_reviewRollback": {
+    "message": "Review rollback to $1"
+  },
+  "sites_reviewScope": {
+    "message": "Review account and source scope"
+  },
+  "sites_reviewed": {
+    "message": "Reviewed"
+  },
+  "sites_reviewedSentence": {
+    "message": "Reviewed."
+  },
+  "sites_revokeDevice": {
+    "message": "Revoke device authority"
+  },
+  "sites_rootCandidate": {
+    "message": "Root candidate: $1."
+  },
+  "sites_saveArchive": {
+    "message": "Save archive settings"
+  },
+  "sites_savedAssociations": {
+    "message": "Saved associations"
+  },
+  "sites_savedWithConnected": {
+    "message": "Saved with the connected account."
+  },
+  "sites_savedWithOther": {
+    "message": "Saved with another account."
+  },
+  "sites_scanCounts": {
+    "message": "Memberships collected: $1 · Pages: $2."
+  },
+  "sites_scanCountsOmissions": {
+    "message": "Memberships collected: $1 · Pages: $2 · Omissions: $3."
+  },
+  "sites_scanFinished": {
+    "message": "The scan finished; build the preview to review it."
+  },
+  "sites_scanSelected": {
+    "message": "Scan selected collections"
+  },
+  "sites_scanStopped": {
+    "message": "The scan stopped early; restart it, or build a preview from what was found."
+  },
+  "sites_site": {
+    "message": "Site"
+  },
+  "sites_siteAccessRequired": {
+    "message": "Site access is required."
+  },
+  "sites_siteAccessUnavailable": {
+    "message": "Site access is unavailable."
+  },
+  "sites_siteAdapter": {
+    "message": "Site adapter"
+  },
+  "sites_sourceRule": {
+    "message": "Source rule"
+  },
+  "sites_sourceRuleHint": {
+    "message": "Select a synced root and collections above, then add a source rule and review its scope. Earlier rules keep their priority."
+  },
+  "sites_technicalDetails": {
+    "message": "Technical details"
+  },
+  "sites_theChosenRoot": {
+    "message": "the chosen root"
+  },
+  "sites_toReview_one": {
+    "message": "$1 to review"
+  },
+  "sites_toReview_other": {
+    "message": "$1 to review"
+  },
+  "sites_turnOnThenOpen": {
+    "message": "Turn on the inspector, then open $1 while signed in."
+  },
+  "sites_unscannedUnknown": {
+    "message": "Unscanned remainder is unknown."
+  },
+  "sites_userScripts": {
+    "message": "User scripts"
+  },
+  "sites_userScriptsHint": {
+    "message": "Chromium 149+ only. In Extensions → Know-N → Details, enable Allow User Scripts, reload the extension, and reopen Site adapters. Chrome 121–148 is unsupported for this runtime."
+  },
+  "sites_yourCollections": {
+    "message": "Your collections"
   },
   "subscription_acceptedShare": {
     "message": "Don't see a shared collection? Accept the invitation on the Know-N website first."

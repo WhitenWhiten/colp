@@ -10350,5 +10350,805 @@
   "site_adapter_saveAndClassify": {
     "message": "保存并分类",
     "description": "Save and classify"
+  },
+  "shell_siteAdapters": {
+    "message": "站点适配器",
+    "description": "Site adapters"
+  },
+  "capture_adoptThisCopy": {
+    "message": "采用此副本：$1",
+    "description": "Adopt this copy: $1"
+  },
+  "sites_addSourceRule": {
+    "message": "将所选根目录添加为 COLP 来源规则",
+    "description": "Add selected root as a COLP source rule"
+  },
+  "sites_adoptCopy": {
+    "message": "将此副本采用到已连接的账号",
+    "description": "Adopt this copy into the connected account"
+  },
+  "sites_adoptProven": {
+    "message": "采用这些已证实的副本（不写入本机书签）",
+    "description": "Adopt these proven copies (no native writes)"
+  },
+  "sites_aiDestinations": {
+    "message": "AI 目标位置",
+    "description": "AI destinations"
+  },
+  "sites_aiDestinationsHint": {
+    "message": "允许在此来源根目录内使用 AI 目标位置。",
+    "description": "Allow AI destinations inside this source root."
+  },
+  "sites_allowCommunity": {
+    "message": "允许社区 API 和 Bilibili 访问",
+    "description": "Allow community API and Bilibili access"
+  },
+  "sites_allowHints": {
+    "message": "仅允许针对此归档范围的已验证提示",
+    "description": "Allow verified hints for exactly this archive scope"
+  },
+  "sites_allowToChoose": {
+    "message": "允许访问书签后才能选择文件夹。",
+    "description": "Allow bookmark access to choose a folder."
+  },
+  "sites_approveBatch": {
+    "message": "批准此批次",
+    "description": "Approve this exact batch"
+  },
+  "sites_approvePreview": {
+    "message": "批准此预览",
+    "description": "Approve this preview"
+  },
+  "sites_approveRollback": {
+    "message": "批准回滚（回滚后停用）",
+    "description": "Approve rollback (disabled)"
+  },
+  "sites_approveScope": {
+    "message": "批准此设备的范围",
+    "description": "Approve this device's scope"
+  },
+  "sites_archiveCollections": {
+    "message": "要归档的收藏夹",
+    "description": "Archive collections"
+  },
+  "sites_archiveHeading": {
+    "message": "归档所选收藏夹",
+    "description": "Archive selected collections"
+  },
+  "sites_archiveHold": {
+    "message": "此归档需要审查后才能再次写入。请检查下方的恢复记录。",
+    "description": "This archive needs review before it writes again. Inspect the recovery records below."
+  },
+  "sites_archiveLede": {
+    "message": "将你选择的收藏夹作为书签保存在此浏览器的一个文件夹中。",
+    "description": "Keep the collections you pick as bookmarks in a folder on this browser."
+  },
+  "sites_archivePaused": {
+    "message": "归档已暂停。",
+    "description": "Archives are paused."
+  },
+  "sites_archivePending": {
+    "message": "已保存。正在等待归档根目录。",
+    "description": "Saved. Waiting for the archive root."
+  },
+  "sites_archiveRoot": {
+    "message": "归档根目录",
+    "description": "Archive root"
+  },
+  "sites_archiveRootHint": {
+    "message": "存放归档的书签文件夹。",
+    "description": "The bookmark folder that holds the archive."
+  },
+  "sites_archiveScoped": {
+    "message": "已限定归档范围",
+    "description": "Archive scoped"
+  },
+  "sites_archiveUnavailable": {
+    "message": "无法归档",
+    "description": "Archive unavailable"
+  },
+  "sites_archivingInto_other": {
+    "message": "正在将 $1 个收藏夹归档到 $2。",
+    "description": "Archiving $1 collections into $2."
+  },
+  "sites_askPrimary": {
+    "message": "适用多个收藏夹时询问",
+    "description": "Ask when multiple collections apply"
+  },
+  "sites_associationCount_other": {
+    "message": "$1 个已保存的关联。",
+    "description": "$1 saved associations."
+  },
+  "sites_associationsTruncated": {
+    "message": "仅显示前面的已保存关联；其余记录会保留。",
+    "description": "Only the first saved associations are shown; remaining records are retained."
+  },
+  "sites_associationsUnreadable": {
+    "message": "无法读取已保存的关联。",
+    "description": "Couldn’t read saved associations."
+  },
+  "sites_available": {
+    "message": "可用",
+    "description": "Available"
+  },
+  "sites_batches": {
+    "message": "批次",
+    "description": "Batches"
+  },
+  "sites_batchesHint": {
+    "message": "每个批次最多保存 20 条已确认的收藏记录，并且需要单独预览和批准。同步会通过常规的恢复流程下载规范结果。如果结果不确定，请先恢复其原始命令，再准备下一个批次。",
+    "description": "Each batch saves at most 20 confirmed memberships and needs its own preview and approval. Sync downloads the canonical results using its usual recovery path. If a result is uncertain, recover its original command before preparing another batch."
+  },
+  "sites_buildPreview": {
+    "message": "停止并生成预览",
+    "description": "Stop and build preview"
+  },
+  "sites_cancelBatch": {
+    "message": "取消已准备的批次",
+    "description": "Cancel prepared batch"
+  },
+  "sites_cancelImport": {
+    "message": "取消导入",
+    "description": "Cancel import"
+  },
+  "sites_capabilities": {
+    "message": "仅观察新增的收藏；人工操作证明、移除回读、短链接和云端归档均不可用。",
+    "description": "Positive observation only; human-action proof, negative readback, short links and cloud archives are unavailable."
+  },
+  "sites_chooseRoot": {
+    "message": "选择根目录",
+    "description": "Choose a root"
+  },
+  "sites_chromeMinimum": {
+    "message": "站点适配器需要 Chrome $1 或更高版本。",
+    "description": "Site adapters need Chrome $1 or later."
+  },
+  "sites_chromeVersion": {
+    "message": "站点适配器需要 Chrome $1 或更高版本；当前为 Chrome $2。",
+    "description": "Site adapters need Chrome $1 or later; this is Chrome $2."
+  },
+  "sites_cloudHeading": {
+    "message": "COLP 服务器归档",
+    "description": "COLP Server archive"
+  },
+  "sites_cloudLede": {
+    "message": "将所选来源收藏夹保存到你已连接的 COLP 账号。扫描和预览不会创建云端书签。现有的本地归档会留在原文件夹中，不会被迁移。",
+    "description": "Save selected source collections to your connected COLP account. Scans and previews create no cloud bookmarks. Existing local archives stay in their folders; this does not migrate them."
+  },
+  "sites_cloudStatusNote": {
+    "message": "状态来自你的 COLP 服务器。",
+    "description": "Status comes from your COLP Server."
+  },
+  "sites_collections": {
+    "message": "收藏夹",
+    "description": "Collections"
+  },
+  "sites_collectionsLede": {
+    "message": "从打开的 $1 标签页读取你的收藏夹和当前视频。",
+    "description": "Read your collections and the current video from an open $1 tab."
+  },
+  "sites_collectionsReadMore_other": {
+    "message": "已读取 $1 个收藏夹；还有更多。",
+    "description": "$1 collections read; more are available."
+  },
+  "sites_collectionsRead_other": {
+    "message": "已读取 $1 个收藏夹。",
+    "description": "$1 collections read."
+  },
+  "sites_communityAck": {
+    "message": "我信任此代码及其作者，并接受上述页面访问风险。",
+    "description": "I trust this code/author and accept the page-access risk described above."
+  },
+  "sites_communityHeading": {
+    "message": "高级：单独安装的包",
+    "description": "Advanced: separately installed packages"
+  },
+  "sites_communityLede": {
+    "message": "仅支持独立的 Bilibili v1 收藏提示包。",
+    "description": "Only self-contained Bilibili v1 favorite-hint packages are supported."
+  },
+  "sites_communityRisk": {
+    "message": "此代码可以读取和修改已授权的网站页面，使用网站会话发出请求，并暴露可见的私密内容。请只安装你信任的代码和作者。你需要对此选择负责。检查模式会阻止宿主写入，但不能让未知的页面代码变得安全。",
+    "description": "This code can read and alter authorized site pages, make requests using the site session, and expose visible private content. Install only code and authors you trust. You are responsible for this choice. Inspector mode blocks host writes, but does not make unknown page code safe."
+  },
+  "sites_confirmationReads": {
+    "message": "确认读取",
+    "description": "Confirmation reads"
+  },
+  "sites_connectAccount": {
+    "message": "连接此账号",
+    "description": "Connect this account"
+  },
+  "sites_connected": {
+    "message": "已连接",
+    "description": "Connected"
+  },
+  "sites_connection": {
+    "message": "连接",
+    "description": "Connection"
+  },
+  "sites_contentHeading": {
+    "message": "内容关联",
+    "description": "Content associations"
+  },
+  "sites_contentHint": {
+    "message": "查看每个已保存副本属于哪个账号。",
+    "description": "Review which account each saved copy belongs to."
+  },
+  "sites_contentLede": {
+    "message": "切换账号时，绝不会自动接管现有关联。采用已证实的副本前，请先核对已连接的账号。",
+    "description": "Changing accounts never takes over an existing association automatically. Review the connected account before adopting a proven copy."
+  },
+  "sites_copies": {
+    "message": "副本",
+    "description": "Copies"
+  },
+  "sites_copiesBoth": {
+    "message": "保留来源副本和语义副本",
+    "description": "Keep source and semantic copies"
+  },
+  "sites_copiesKeepExisting": {
+    "message": "一个副本，保留现有位置",
+    "description": "One copy, preserve existing location"
+  },
+  "sites_copiesPreferSemantic": {
+    "message": "一个副本，优先语义位置",
+    "description": "One copy, prefer semantic location"
+  },
+  "sites_copyPolicy": {
+    "message": "副本策略",
+    "description": "Copy policy"
+  },
+  "sites_copyPolicyHint": {
+    "message": "云端支持的副本策略是“保留来源副本和语义副本”。单副本策略需要本地协调，无法发送到此服务器配置。后端分类不可用。来源归档不会请求 AI 或标签。",
+    "description": "Keep source and semantic copies is the supported cloud copy policy. Single-copy policies require local coordination and cannot be sent to this server profile. Backend classification is unavailable. Source archives request no AI or tags."
+  },
+  "sites_currentVideo": {
+    "message": "当前视频",
+    "description": "Current video"
+  },
+  "sites_detectedAccount": {
+    "message": "检测到账号 $1。请确认你要连接的账号。",
+    "description": "Detected account $1. Confirm the account you want to connect."
+  },
+  "sites_deviceScope": {
+    "message": "此设备的范围",
+    "description": "This device's scope"
+  },
+  "sites_deviceScopeHint": {
+    "message": "第二台设备必须单独审查来源账号和规范根目录。转移授权前，请撤销当前设备的授权，或等待其两分钟租约到期。",
+    "description": "A second device must review the source account and canonical roots separately. Revoke the current device or wait for its two-minute lease to expire before transferring authority."
+  },
+  "sites_diagnosticExported": {
+    "message": "已导出私密诊断信息。现有工作和数据库结构均已保留。",
+    "description": "Private diagnostic exported. Existing work and database schema were preserved."
+  },
+  "sites_disable": {
+    "message": "停用",
+    "description": "Disable"
+  },
+  "sites_disableInspector": {
+    "message": "停用 $1 检查器",
+    "description": "Disable $1 inspector"
+  },
+  "sites_disablePackage": {
+    "message": "停用包",
+    "description": "Disable package"
+  },
+  "sites_disabledUntilReviewed": {
+    "message": "审查前保持停用。",
+    "description": "Disabled until reviewed."
+  },
+  "sites_enable": {
+    "message": "启用",
+    "description": "Enable"
+  },
+  "sites_enableInspector": {
+    "message": "启用 $1 检查器",
+    "description": "Enable $1 inspector"
+  },
+  "sites_enablePackage": {
+    "message": "启用检查器",
+    "description": "Enable inspector"
+  },
+  "sites_exportDiagnostic": {
+    "message": "导出私密诊断信息",
+    "description": "Export private diagnostic"
+  },
+  "sites_findCurrentVideo": {
+    "message": "查找当前标签页中打开的视频。",
+    "description": "Find the video open in the active tab."
+  },
+  "sites_foundThisVideo": {
+    "message": "已找到此视频。",
+    "description": "Found this video."
+  },
+  "sites_foundVideo": {
+    "message": "已找到“$1”。",
+    "description": "Found “$1”."
+  },
+  "sites_importFirst": {
+    "message": "请先保存归档设置，再扫描所选收藏夹。",
+    "description": "Save archive settings, then scan the selected collections."
+  },
+  "sites_importHeading": {
+    "message": "预览后导入",
+    "description": "Import with a preview"
+  },
+  "sites_importLede": {
+    "message": "扫描和预览不会创建书签。只有经过批准的那份预览才能写入。重新扫描会重复发现过程，并对已接受的项目去重。",
+    "description": "Scanning and previewing create no bookmarks. Only the exact approved preview may write. Restarting a scan repeats discovery and deduplicates accepted items."
+  },
+  "sites_inspectCollections": {
+    "message": "检查收藏夹",
+    "description": "Inspect collections"
+  },
+  "sites_inspectRecords": {
+    "message": "检查恢复记录",
+    "description": "Inspect recovery records"
+  },
+  "sites_inspectorHint": {
+    "message": "读取你打开的 $1 页面。需要 Chrome 149 或更高版本，并允许访问该网站。",
+    "description": "Reads the $1 pages you open. Needs Chrome 149 or later and access to the site."
+  },
+  "sites_inspectorTitle": {
+    "message": "$1 检查器",
+    "description": "$1 inspector"
+  },
+  "sites_installReviewed": {
+    "message": "安装已审查的内容（安装后停用）",
+    "description": "Install reviewed bytes (disabled)"
+  },
+  "sites_installedLede": {
+    "message": "启用包会进入检查模式；归档提示需要针对当前连接的账号、所选收藏夹和本地根目录另行预览和批准。提示在生成任何归档计划之前都会由内置读取器确认。任何包都不能调用书签、模型或任意后台读取。",
+    "description": "Enabling a package starts inspector mode; archive hints require a separate preview/approval of the current connected account, selected collections and local root. Hints are confirmed by the bundled reader before any archive plan. No package may call bookmarks, models or arbitrary background reads."
+  },
+  "sites_installedPackages": {
+    "message": "已安装的包",
+    "description": "Installed packages"
+  },
+  "sites_itemPlans": {
+    "message": "已确认的项目计划：$1。",
+    "description": "Item plans confirmed: $1."
+  },
+  "sites_keepBlocked": {
+    "message": "保持这些还原的项目和收藏夹为阻止状态",
+    "description": "Keep these restored items and collections blocked"
+  },
+  "sites_knownOmissions_other": {
+    "message": "$1 个已知遗漏或读取失败。",
+    "description": "$1 known omissions or read failures."
+  },
+  "sites_lastResponse": {
+    "message": "最近一次响应",
+    "description": "Last response"
+  },
+  "sites_lede": {
+    "message": "连接 $1，检查其收藏夹，并选择本地归档根目录。来源归档不使用 AI。无法回读收藏的移除；移除收藏时会保留现有归档。",
+    "description": "Connect $1, inspect its collections, and choose a local archive root. Source archives use no AI. Negative membership readback is unavailable; removals retain existing archives."
+  },
+  "sites_listboxEmpty": {
+    "message": "检查收藏夹后会在此列出。",
+    "description": "Inspect collections to list them here."
+  },
+  "sites_liveArchiving": {
+    "message": "实时归档",
+    "description": "Live archiving"
+  },
+  "sites_liveArchivingHint": {
+    "message": "归档这些收藏夹中新观察到的新增收藏。",
+    "description": "Archive newly observed positive memberships in these collections."
+  },
+  "sites_multiSelectHint": {
+    "message": "按住 Ctrl 或 ⌘ 可选择多个。",
+    "description": "Hold Ctrl or ⌘ to pick more than one."
+  },
+  "sites_needsSiteAccess": {
+    "message": "需要网站访问权限",
+    "description": "Needs site access"
+  },
+  "sites_newerChrome": {
+    "message": "站点适配器需要更新版本的 Chrome。",
+    "description": "Site adapters need a newer version of Chrome."
+  },
+  "sites_nextCollectionPage": {
+    "message": "下一页收藏夹",
+    "description": "Next collection page"
+  },
+  "sites_noAssociations": {
+    "message": "还没有已保存的关联。",
+    "description": "No saved associations yet."
+  },
+  "sites_noImport": {
+    "message": "尚未开始导入",
+    "description": "No import started"
+  },
+  "sites_noPackages": {
+    "message": "未安装任何包",
+    "description": "No packages installed"
+  },
+  "sites_noPackagesHint": {
+    "message": "在上方选择包 JSON 进行审查。",
+    "description": "Choose a package JSON above to review it."
+  },
+  "sites_noRecords": {
+    "message": "没有需要恢复的记录。",
+    "description": "No records need recovery."
+  },
+  "sites_noRootCandidate": {
+    "message": "没有候选根目录。",
+    "description": "No root candidate."
+  },
+  "sites_noVideo": {
+    "message": "当前标签页中未找到唯一的视频。",
+    "description": "No single video was found in the active tab."
+  },
+  "sites_noWritesYet": {
+    "message": "尚未执行任何导入写入。",
+    "description": "No import writes yet."
+  },
+  "sites_noneWaiting": {
+    "message": "没有等待中的读取。",
+    "description": "None waiting."
+  },
+  "sites_notArchiving": {
+    "message": "尚未归档。",
+    "description": "Not archiving yet."
+  },
+  "sites_notReadYet": {
+    "message": "尚未读取。",
+    "description": "Not read yet."
+  },
+  "sites_off": {
+    "message": "关闭",
+    "description": "Off"
+  },
+  "sites_omittedItems": {
+    "message": "遗漏的项目",
+    "description": "Omitted items"
+  },
+  "sites_on": {
+    "message": "开启",
+    "description": "On"
+  },
+  "sites_openSignedIn": {
+    "message": "请在登录状态下打开 $1，然后刷新状态。",
+    "description": "Open $1 while signed in, then refresh status."
+  },
+  "sites_openToRead": {
+    "message": "打开 $1 以读取你的收藏夹。",
+    "description": "Open $1 to read your collections."
+  },
+  "sites_packageDisabled": {
+    "message": "已停用",
+    "description": "Disabled"
+  },
+  "sites_packageEnabled": {
+    "message": "已启用",
+    "description": "Enabled"
+  },
+  "sites_packageHint": {
+    "message": "文件会作为惰性数据检查。发布者身份和签名未经验证；包不能声称官方身份。安装和每次更新都需要审查。新安装和替换的包初始为停用状态，不具备归档或模型权限。",
+    "description": "Files are inspected as inert data. Publisher identity and signatures are unverified; packages cannot claim official status. Install and every update require review. New and replaced packages start disabled, without archive or model authority."
+  },
+  "sites_packageJson": {
+    "message": "包 JSON",
+    "description": "Package JSON"
+  },
+  "sites_packageVersion": {
+    "message": "版本 $1",
+    "description": "Version $1"
+  },
+  "sites_pageTitle": {
+    "message": "站点适配器 · Know-N",
+    "description": "Site adapters · Know-N"
+  },
+  "sites_pauseArchives": {
+    "message": "暂停归档",
+    "description": "Pause archives"
+  },
+  "sites_paused": {
+    "message": "已暂停。",
+    "description": "Paused."
+  },
+  "sites_pausedAlert": {
+    "message": "站点适配器已暂停。恢复检查和导出仍然可用。",
+    "description": "Site adapters are paused. Recovery inspection and export remain available."
+  },
+  "sites_phaseApproved": {
+    "message": "正在导入",
+    "description": "Importing"
+  },
+  "sites_phaseAttention": {
+    "message": "需要审查",
+    "description": "Needs review"
+  },
+  "sites_phaseCancelled": {
+    "message": "导入已取消",
+    "description": "Import cancelled"
+  },
+  "sites_phaseCompleted": {
+    "message": "导入完成",
+    "description": "Import complete"
+  },
+  "sites_phaseOther": {
+    "message": "导入",
+    "description": "Import"
+  },
+  "sites_phasePaused": {
+    "message": "扫描已停止",
+    "description": "Scan stopped"
+  },
+  "sites_phasePreparing": {
+    "message": "正在准备导入",
+    "description": "Preparing the import"
+  },
+  "sites_phasePreview": {
+    "message": "预览已就绪",
+    "description": "Preview ready"
+  },
+  "sites_phaseScanning": {
+    "message": "正在扫描",
+    "description": "Scanning"
+  },
+  "sites_previewBatch": {
+    "message": "预览下一批次",
+    "description": "Preview next batch"
+  },
+  "sites_previewComplete": {
+    "message": "完整预览。",
+    "description": "Complete preview."
+  },
+  "sites_previewCounts": {
+    "message": "新文件夹：$1 · 新书签：$2 · 现有副本：$3 · 待审查：$4。",
+    "description": "New folders: $1 · New bookmarks: $2 · Existing copies: $3 · To review: $4."
+  },
+  "sites_previewPartial": {
+    "message": "部分预览。",
+    "description": "Partial preview."
+  },
+  "sites_previewRebinding": {
+    "message": "预览账号和根目录重新绑定",
+    "description": "Preview account and root rebinding"
+  },
+  "sites_previewScope": {
+    "message": "预览此包当前的归档范围",
+    "description": "Preview current archive scope for this package"
+  },
+  "sites_primaryCollection": {
+    "message": "主收藏夹",
+    "description": "Primary collection"
+  },
+  "sites_primaryCollectionHint": {
+    "message": "新的单个来源副本存放的位置。",
+    "description": "Where a new single source copy goes."
+  },
+  "sites_privateDiagnostic": {
+    "message": "私密诊断信息",
+    "description": "Private diagnostic"
+  },
+  "sites_privateDiagnosticHint": {
+    "message": "此诊断信息包含私密的来源数据和本地命令回执，请妥善保管。它是只读的，不能作为可执行的工作导入。较新的数据库版本会按原样导出，不会降级。",
+    "description": "This diagnostic contains private source data and local command receipts. Keep it private. It is read only and cannot be imported as executable work. Future database versions are exported without downgrading."
+  },
+  "sites_readingTabs_other": {
+    "message": "正在读取 $1 个打开的 $2 标签页。",
+    "description": "Reading $1 open $2 tabs."
+  },
+  "sites_readsWaiting_other": {
+    "message": "$1 个读取正在等待。",
+    "description": "$1 reads waiting."
+  },
+  "sites_recordsNeedRecovery_other": {
+    "message": "$1 条记录需要恢复或审查。",
+    "description": "$1 records need recovery or review."
+  },
+  "sites_recoverCommand": {
+    "message": "恢复原始命令",
+    "description": "Recover original command"
+  },
+  "sites_recoverCommands": {
+    "message": "恢复现有命令",
+    "description": "Recover existing commands"
+  },
+  "sites_recoveryRecords": {
+    "message": "恢复记录",
+    "description": "Recovery records"
+  },
+  "sites_refreshCloud": {
+    "message": "刷新 COLP 状态",
+    "description": "Refresh COLP status"
+  },
+  "sites_refreshPackages": {
+    "message": "刷新包",
+    "description": "Refresh packages"
+  },
+  "sites_refreshPreview": {
+    "message": "刷新预览",
+    "description": "Refresh preview"
+  },
+  "sites_refreshStatus": {
+    "message": "刷新状态",
+    "description": "Refresh status"
+  },
+  "sites_reloadFolders": {
+    "message": "重新加载文件夹",
+    "description": "Reload folders"
+  },
+  "sites_removePackage": {
+    "message": "移除包",
+    "description": "Remove package"
+  },
+  "sites_repairHeading": {
+    "message": "恢复与还原的备份",
+    "description": "Recovery and restored backups"
+  },
+  "sites_repairHint": {
+    "message": "检查以找出需要恢复或审查的写入。",
+    "description": "Inspect to find writes that need recovery or review."
+  },
+  "sites_repairLede": {
+    "message": "结果未知的写入会保留其原始命令，并阻止替代创建。恢复会在原始授权下重试现有命令。手动更改和缺少证明的情况需要审查。",
+    "description": "Unknown writes retain their original command and block replacement creates. Recovery retries the existing command under its original authorization. Manual changes and missing proof require review."
+  },
+  "sites_repairUnreadable": {
+    "message": "无法读取恢复记录。最近一次响应见下方。",
+    "description": "Couldn’t read recovery records. The last response is below."
+  },
+  "sites_resolveCurrentVideo": {
+    "message": "识别当前视频",
+    "description": "Resolve current video"
+  },
+  "sites_restartScan": {
+    "message": "重新扫描并去重",
+    "description": "Restart scan and deduplicate"
+  },
+  "sites_restoredAccount": {
+    "message": "还原的账号 $1",
+    "description": "Restored account $1"
+  },
+  "sites_restoredBackups": {
+    "message": "还原的备份",
+    "description": "Restored backups"
+  },
+  "sites_restoredBackupsHint": {
+    "message": "JSON 书签备份还原后，来源连接处于停用状态。请在上方选择匹配的账号和还原的根目录，并关闭实时归档，然后在下方预览重新绑定。只有完全一致的导入本机映射才能被采用；缺失或已更改的副本会保持阻止。",
+    "description": "JSON bookmark backups restore source connections disabled. Select the matching account and the restored root above with live archiving off, then preview rebinding below. Only exact imported native mappings can be adopted; missing or changed copies remain blocked."
+  },
+  "sites_restoredBlockedHint": {
+    "message": "未解决的还原副本可以保持阻止状态，同时无关的新工作会继续进行。",
+    "description": "Unresolved restored copies can remain blocked while unrelated new work continues."
+  },
+  "sites_retryConfirmations": {
+    "message": "重试已暂停的确认读取",
+    "description": "Retry paused confirmation reads"
+  },
+  "sites_review": {
+    "message": "审查",
+    "description": "Review"
+  },
+  "sites_reviewBlocked": {
+    "message": "审查保持此还原范围的阻止状态",
+    "description": "Review keeping this restored scope blocked"
+  },
+  "sites_reviewPackage": {
+    "message": "审查此包",
+    "description": "Review this package"
+  },
+  "sites_reviewRollback": {
+    "message": "审查回滚到 $1",
+    "description": "Review rollback to $1"
+  },
+  "sites_reviewScope": {
+    "message": "审查账号和来源范围",
+    "description": "Review account and source scope"
+  },
+  "sites_reviewed": {
+    "message": "已审查",
+    "description": "Reviewed"
+  },
+  "sites_reviewedSentence": {
+    "message": "已审查。",
+    "description": "Reviewed."
+  },
+  "sites_revokeDevice": {
+    "message": "撤销设备授权",
+    "description": "Revoke device authority"
+  },
+  "sites_rootCandidate": {
+    "message": "候选根目录：$1。",
+    "description": "Root candidate: $1."
+  },
+  "sites_saveArchive": {
+    "message": "保存归档设置",
+    "description": "Save archive settings"
+  },
+  "sites_savedAssociations": {
+    "message": "已保存的关联",
+    "description": "Saved associations"
+  },
+  "sites_savedWithConnected": {
+    "message": "已用已连接的账号保存。",
+    "description": "Saved with the connected account."
+  },
+  "sites_savedWithOther": {
+    "message": "已用其他账号保存。",
+    "description": "Saved with another account."
+  },
+  "sites_scanCounts": {
+    "message": "已收集的收藏记录：$1 · 页数：$2。",
+    "description": "Memberships collected: $1 · Pages: $2."
+  },
+  "sites_scanCountsOmissions": {
+    "message": "已收集的收藏记录：$1 · 页数：$2 · 遗漏：$3。",
+    "description": "Memberships collected: $1 · Pages: $2 · Omissions: $3."
+  },
+  "sites_scanFinished": {
+    "message": "扫描已完成；请生成预览进行审查。",
+    "description": "The scan finished; build the preview to review it."
+  },
+  "sites_scanSelected": {
+    "message": "扫描所选收藏夹",
+    "description": "Scan selected collections"
+  },
+  "sites_scanStopped": {
+    "message": "扫描提前停止；请重新扫描，或根据已发现的内容生成预览。",
+    "description": "The scan stopped early; restart it, or build a preview from what was found."
+  },
+  "sites_site": {
+    "message": "站点",
+    "description": "Site"
+  },
+  "sites_siteAccessRequired": {
+    "message": "需要网站访问权限。",
+    "description": "Site access is required."
+  },
+  "sites_siteAccessUnavailable": {
+    "message": "无法获得网站访问权限。",
+    "description": "Site access is unavailable."
+  },
+  "sites_siteAdapter": {
+    "message": "站点适配器",
+    "description": "Site adapter"
+  },
+  "sites_sourceRule": {
+    "message": "来源规则",
+    "description": "Source rule"
+  },
+  "sites_sourceRuleHint": {
+    "message": "在上方选择已同步的根目录和收藏夹，然后添加来源规则并审查其范围。较早的规则保持原有优先级。",
+    "description": "Select a synced root and collections above, then add a source rule and review its scope. Earlier rules keep their priority."
+  },
+  "sites_technicalDetails": {
+    "message": "技术详情",
+    "description": "Technical details"
+  },
+  "sites_theChosenRoot": {
+    "message": "所选根目录",
+    "description": "the chosen root"
+  },
+  "sites_toReview_other": {
+    "message": "$1 项待审查",
+    "description": "$1 to review"
+  },
+  "sites_turnOnThenOpen": {
+    "message": "请开启检查器，然后在登录状态下打开 $1。",
+    "description": "Turn on the inspector, then open $1 while signed in."
+  },
+  "sites_unscannedUnknown": {
+    "message": "未扫描的剩余部分情况未知。",
+    "description": "Unscanned remainder is unknown."
+  },
+  "sites_userScripts": {
+    "message": "用户脚本",
+    "description": "User scripts"
+  },
+  "sites_userScriptsHint": {
+    "message": "仅支持 Chromium 149 及以上版本。在“扩展程序 → Know-N → 详情”中开启“允许用户脚本”，重新加载扩展程序，然后重新打开站点适配器。Chrome 121–148 不支持此运行环境。",
+    "description": "Chromium 149+ only. In Extensions → Know-N → Details, enable Allow User Scripts, reload the extension, and reopen Site adapters. Chrome 121–148 is unsupported for this runtime."
+  },
+  "sites_yourCollections": {
+    "message": "你的收藏夹",
+    "description": "Your collections"
   }
 }

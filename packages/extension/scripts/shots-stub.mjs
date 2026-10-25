@@ -27,6 +27,8 @@
 //     imp-active, imp-paused, imp-attn, imp-done                        an import is running / paused / needs attention / complete
 //     ingress     bookmarks are listed as not included in sync
 //     tabs-notabs, tabs-dupe, tabs-confirmed, tabs-long, tabs-many      Save tabs states (see the TABS block below)
+//   Site adapters page: site-candidate, site-on, site-scan, site-preview, site-unsupported, site-error, site-hold, site-repair,
+//     site-packages (see the SITES block below)
 //   Automations page: auto-paused, auto-expired, auto-none, auto-off (server has no automations), auto-rejected,
 //     auto-missing (a rule's folder is not mapped here), auto-empty (signed in, active, no rules),
 //     auto-server-offline (last runs read 3 h ago), auto-server-signin (no web sign-in), auto-server-empty (no runs yet),
@@ -276,11 +278,52 @@ export function installStub(messages) {
     windowId: 1, selection: 'all', tabsPermission: !has('tabs-notabs'), createdAt: now, confirmed: has('tabs-confirmed'),
     selectedIds: has('tabs-confirmed') ? items.filter((item) => item.captureId).map((item) => item.itemId) : [], saveAnotherIds: [], targetNativeId: has('tabs-confirmed') ? 'f-prog' : null, items }; };
 
+  // ---- SITES: the Site adapters page (site-adapters.html) -------------------------------------------------------------
+  //   site-candidate  the inspector is on and a signed-in Bilibili tab offers account 42   site-on  connected, collections read, archive saved
+  //   site-scan, site-preview  (connected) an import is scanning / its preview waits for approval
+  //   site-unsupported  Chrome 140 (adapters need 149+)   site-error  the status read fails   site-hold  the archive root needs review
+  //   site-repair  a restored backup and an unknown write wait for review   site-packages  two community packages, user scripts on
+  const siteOn = has('site-on', 'site-scan', 'site-preview', 'site-hold'), siteCandidate = has('site-candidate');
+  const siteCollections = [{ id: '101', title: 'Watch later' }, { id: '202', title: 'Music' }, { id: '305', title: 'Machine learning lectures' },
+    { id: '410', title: 'Cooking' }, { id: '512', title: 'Travel vlogs' }, { id: '613', title: 'Default collection' }];
+  const siteImport = () => has('site-preview') ? { id: 'job-1', phase: 'preview', edgeCount: 214, pages: 9, omissions: 2, coverage: 'complete', reason: null, nextEdge: 214, nextPlan: 0,
+    preview: { id: 'pv-1', revision: 1, digest: 'sha256:p', coverage: 'complete', counts: { createFolders: 3, createBookmarks: 198, reuseBookmarks: 14, review: 2 }, omissions: { samples: [], unscannedRemainder: false } } }
+    : has('site-scan') ? { id: 'job-1', phase: 'scanning', edgeCount: 86, pages: 4, omissions: 0, coverage: 'partial', reason: null, nextEdge: 86, nextPlan: 0, preview: null } : null;
+  const siteStatus = () => has('site-error') ? { error: 'sourceNeedsReview' } : {
+    enabled: siteOn || siteCandidate, generation: 3, connected: siteOn, candidateAccount: siteCandidate ? '42' : null, documents: siteOn ? 1 : 0,
+    mode: siteOn && !has('site-hold') ? 'localArchive' : 'inspector', writes: siteOn && !has('site-hold'), models: false, observation: 'degraded', negativeReadback: 'unavailable',
+    browser: has('site-unsupported') ? { minimum: 149, major: 140, supported: false } : { minimum: 149, major: 149, supported: true },
+    grants: { site: siteOn || siteCandidate, bookmarks: !has('noperm') }, archiveHold: has('site-hold') ? 'sourceNeedsReview' : null,
+    archive: { config: siteOn ? { root: { nativeId: 'f-research' }, collectionIds: ['101', '305'], live: true, state: 'active', copies: 'sourceAndSemantic', primarySourceCollectionId: null, aiDestination: 'excluded' } : null,
+      import: siteImport() },
+    adapterId: 'bundled.bilibili', confirmations: { pending: 0 },
+    inspection: siteOn ? { command: { deadlineAt: now - 1, pageRequestId: 'p1', query: { cursor: null } }, result: { status: 'ok', kind: 'collections', page: { items: siteCollections, nextCursor: null } } } : null };
+  const sitePackages = () => has('site-packages') ? [
+    { id: 'i-1', generation: 2, enabled: true, digest: 'sha256:9f2c41d07a6be3e8', manifest: { adapterId: 'community.bili-hints', version: '1.2.0' }, previous: [{ digest: 'sha256:51aa', version: '1.1.0' }], archive: { rootNativeId: 'f-research' }, documents: 1, lastReport: null, error: null },
+    { id: 'i-2', generation: 1, enabled: false, digest: 'sha256:0d7e88b2c1f4a9e6', manifest: { adapterId: 'community.watch-later', version: '0.3.1' }, previous: [], archive: null, documents: 0, lastReport: null, error: null }] : [];
+  const sites = (msg) => {
+    const kind = msg.kind;
+    if (kind === 'known.community.status') return { ok: true, available: has('site-packages'), unavailable: has('site-packages') ? null : 'userScriptsUnavailable', supportedMinimum: 149, installations: sitePackages() };
+    if (kind === 'known.community.preview') return { ok: true, preview: { digest: 'sha256:9f2c41d07a6be3e8', bytes: 2311, manifest: { apiVersion: 'known.site-adapter/v1', adapterId: 'community.bili-hints', version: '1.2.0' }, previous: null, publisherTrust: 'unverified' } };
+    if (kind.startsWith('known.community.')) return { ok: true };
+    if (kind === 'known.siteAdapters.content.list') return { ok: true, connectionId: 'conn-2', truncated: false, bindings: [
+      { id: 'b-1', itemId: 'video:BV1GJ411x7h7', title: 'Attention in transformers, visually explained', state: 'active', connectionId: 'conn-1', native: true },
+      { id: 'b-2', itemId: 'video:BV1xx411c7mD', title: 'Weeknight dumplings in 20 minutes', state: 'active', connectionId: 'conn-2', native: true }] };
+    if (kind === 'known.siteAdapters.repair.status' || kind === 'known.siteAdapters.repair.recover') return { ok: true, schemaVersion: 3, supportedSchema: true,
+      stores: [{ store: 'plans', records: 12 }], attention: has('site-repair') ? [{ store: 'plans', key: 'cmd-1', state: 'unknown', reason: 'Recover the original command; replacement creates are blocked.' }] : [],
+      lastAcceptedOrdinal: 412, pendingObservations: 0, truncated: false,
+      restored: has('site-repair') ? [{ id: 'r-1', state: 'disabled', connections: [{ ref: 'c-1', accountId: '42', retainedBlocked: false, mounts: [{ ref: 'm-1', rootCandidate: 'f-research', reviewed: false }], associations: 3 }] }] : [] };
+    if (kind === 'known.siteAdapters.repair.preview') return { ok: true, preview: { digest: 'sha256:r', review: [] } };
+    if (kind.startsWith('known.siteAdapters.cloud.')) return { configured: true, approved: false, state: 'idle' };
+    return siteStatus();
+  };
+
   // ---- background messages -------------------------------------------------------------------------------------
   const respond = async (msg) => {
     if (msg && msg.type === 'BOOKMARK_SUBSCRIPTIONS') return subs(msg.command ?? {});
     const kind = msg && msg.kind;
     if (errored && !isPopup && !['known.auth.status', 'known.capture.navigation.get', 'known.capture.navigation.set'].includes(kind)) return { ok: false, error: 'unavailable' };
+    if (typeof kind === 'string' && /^known\.(siteAdapters|community)\./u.test(kind)) return sites(msg);
     switch (kind) {
       case 'known.auth.status':
         if (signedOut) return { ok: true, state: { status: 'signed_out', environment: 'development', serverOrigin: origin } };

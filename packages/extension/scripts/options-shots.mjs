@@ -160,6 +160,7 @@ const STATES = [
 // ---- library pages: Bookmarks, History, Subscriptions, Sync, their dialogs and wizard steps -----------------------------
 const R = 'options.html';
 const importFile = { name: 'bookmarks_9_30_26.html', mimeType: 'text/html', buffer: Buffer.from('<DL><DT><A HREF="https://a.example">A</A></DL>') };
+const packageFile = { name: 'bili-hints.json', mimeType: 'application/json', buffer: Buffer.from('{"manifest":{}}') };
 const wait = (ms) => (page) => page.waitForTimeout(ms);
 const program = async (page) => { await page.click('.mgr-folder:has-text("Programming")'); await page.waitForTimeout(350); };
 const hoverRow = async (page) => { await page.hover('.mgr-row >> nth=0'); };
@@ -254,6 +255,14 @@ const LIBRARY = [
   ['tabs-search', 'capture-tabs.html', async (p) => { await p.fill('#tabs-search', 'attention'); await p.waitForTimeout(300); }],
   ['tabs-none', 'capture-tabs.html', async (p) => { await p.click('#tabs-invert'); await p.waitForTimeout(200); }],
   ['tabs-folder', 'capture-tabs.html', async (p) => { await p.selectOption('#tabs-target', { index: 2 }); await p.waitForTimeout(200); }],
+  // Site adapters: off, an account to confirm, connected with an archive, a scan, a preview, an unsupported browser, a failed read,
+  // a root on hold, no bookmark access, the review rows (associations, restored backups) and community packages.
+  ['sites-off', 'site-adapters.html'], ['sites-candidate', 'site-adapters.html?shot=site-candidate'], ['sites-on', 'site-adapters.html?shot=site-on'],
+  ['sites-scan', 'site-adapters.html?shot=site-scan'], ['sites-preview', 'site-adapters.html?shot=site-preview'],
+  ['sites-unsupported', 'site-adapters.html?shot=site-unsupported'], ['sites-error', 'site-adapters.html?shot=site-error'],
+  ['sites-hold', 'site-adapters.html?shot=site-hold'], ['sites-noperm', 'site-adapters.html?shot=noperm'],
+  ['sites-review', 'site-adapters.html?shot=site-on,site-repair', async (p) => { await p.click('#read-bindings'); await p.click('#repair-status'); await p.waitForTimeout(400); }],
+  ['sites-packages', 'site-adapters.html?shot=site-on,site-packages', async (p) => { await p.setInputFiles('#community-file', packageFile); await p.waitForTimeout(400); }],
   // Help: the ingress list ("Bookmarks not included in sync") with real rows
   ['help-ingress', `${R}?shot=ingress#help?category=sync`],
 ];
