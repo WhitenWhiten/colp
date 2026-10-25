@@ -95,7 +95,10 @@ test('source import freezes an exact partial preview, preserves live work and re
     await expect.poll(async () => { const j = (await status(page)).archive.import; return j.phase === 'paused' && j.reason === 'scanFinished'; }, { timeout: 30000 }).toBe(true);
     await waitQueue(page);
     // A lease close to expiry is renewed first and the read waits; ask again until it starts.
-    await expect.poll(async () => (await page.evaluate(cursor => chrome.runtime.sendMessage({ kind: 'known.siteAdapters.inspect', operation: 'items', collectionId: '202', cursor }), bCursor)).inspectionStatus?.status,
+    await expect.poll(async () => {
+      const response = await page.evaluate(cursor => chrome.runtime.sendMessage({ kind: 'known.siteAdapters.inspect', operation: 'items', collectionId: '202', cursor }), bCursor) as { inspectionStatus?: { status: string } };
+      return response.inspectionStatus?.status;
+    },
       { timeout: 30000, intervals: [1500] }).toBe('reading');
     await expect.poll(async () => (await status(page)).inspection?.result?.status, { timeout: 15000 }).toBe('ok');
     expect((await status(page)).inspection.result).toMatchObject({ kind: 'items', collectionId: '202' });

@@ -47,6 +47,10 @@ export async function grantOptionalBookmarks(page: Page, buttonName: string | Lo
         }, { timeout: 10_000 }).toBe(true);
         return;
       }
+      // A key can leave the native prompt open, keeping the server field disabled
+      // until permissions.request settles. Dismiss it before replaying the gesture.
+      if (process.platform === 'linux') await execFileAsync('xdotool', ['key', 'Escape'], { timeout: 3_000 });
+      else await page.keyboard.press('Escape');
     }
     throw new Error('bookmarks_permission_denied');
   } finally { await page.evaluate((title) => { document.title = title; }, originalTitle); }

@@ -1640,7 +1640,7 @@ kbd,
 }
 
 /* A phone keeps the name and the attribution on their one line. */
-@media (max-width: 479px) {
+@media (max-width: 540px) {
   .site-footer-inner--app .site-footer-brand > span:not(.site-footer-powered) { display: none; }
 }
 

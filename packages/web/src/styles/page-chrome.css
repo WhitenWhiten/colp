@@ -375,7 +375,7 @@
 
 /* A section empty is one quiet row in the dashed slot where its items will
    appear: the icon, the title with at most one short line under it, and the
-   action at the end. Below 40rem the action drops under the text. */
+   action at the end. Below 640px the action drops under the text. */
 .empty-state--slot {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -399,7 +399,7 @@
 .empty-state--slot > .empty-state-text { grid-area: text; max-width: none; font-size: var(--text-sm); }
 .empty-state--slot > .empty-state-actions { grid-area: action; justify-content: flex-end; margin: 0; }
 
-@media (max-width: 40rem) {
+@media (max-width: 639px) {
   .empty-state--slot {
     grid-template-columns: auto minmax(0, 1fr);
     grid-template-areas:
