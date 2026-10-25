@@ -49,11 +49,30 @@ export async function grantOptionalBookmarks(page: Page, buttonName: string | Lo
       }
       // A key can leave the native prompt open, keeping the server field disabled
       // until permissions.request settles. Dismiss it before replaying the gesture.
-      if (process.platform === 'linux') await execFileAsync('xdotool', ['key', 'Escape'], { timeout: 3_000 });
-      else await page.keyboard.press('Escape');
+      await dismissPermissionPrompt(page);
     }
     throw new Error('bookmarks_permission_denied');
   } finally { await page.evaluate((title) => { document.title = title; }, originalTitle); }
+}
+
+async function dismissPermissionPrompt(page: Page): Promise<void> {
+  // If the native prompt already settled, Escape reaches the page instead.
+  // Keep its subscription dialog open so the next attempt can click again.
+  const guard = await page.evaluateHandle(() => {
+    const stopEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault(); event.stopImmediatePropagation();
+    };
+    window.addEventListener('keydown', stopEscape, true);
+    return stopEscape;
+  });
+  try {
+    if (process.platform === 'linux') await execFileAsync('xdotool', ['key', 'Escape'], { timeout: 3_000 });
+    else await page.keyboard.press('Escape');
+  } finally {
+    await page.evaluate((stopEscape) => window.removeEventListener('keydown', stopEscape, true), guard);
+    await guard.dispose();
+  }
 }
 
 async function permissionWindowsX11(page: Page, activationTitle: string): Promise<string[]> {
