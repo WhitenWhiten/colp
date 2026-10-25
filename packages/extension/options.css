@@ -700,17 +700,6 @@ body[data-first-run="syncing"] .folder-foot { display: none; }
   cursor: pointer;
 }
 .diagnostics-technical > summary:hover { color: var(--ink); }
-.diagnostics-technical > summary::before, .subscription-disclosure > summary::before, .capture-more-filters > summary::before {
-  content: "";
-  width: 0.35rem;
-  height: 0.35rem;
-  margin-inline: 0.1rem 0.2rem;
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
-  transform: rotate(-45deg);
-  transition: transform var(--duration-fast) var(--ease-quart);
-}
-.diagnostics-technical[open] > summary::before, .subscription-disclosure[open] > summary::before, .capture-more-filters[open] > summary::before { transform: rotate(45deg); }
 .diagnostics-technical pre {
   margin: var(--space-2) 0 0;
   max-height: 18rem;

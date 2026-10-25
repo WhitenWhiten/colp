@@ -26,7 +26,7 @@ export function renderProjection(host: HTMLElement, preview: { descriptor: Snaps
   host.replaceChildren(counts);
   for (const skip of descriptor.skippedByReason) host.append(el('p', t('subscription_skippedReason', '$1 skipped: $2', skip.count, skip.reason), 'field-hint'));
   if (descriptor.editions.length) { const editions = el('ul', undefined, 'subscription-preview-editions'); for (const edition of descriptor.editions) editions.append(el('li', edition.title)); host.append(editions); }
-  const details = el('details', undefined, 'subscription-disclosure'); details.append(el('summary', t('subscription_treePreview', 'Show what will be added')));
+  const details = el('details', undefined, 'disclosure subscription-disclosure'); details.append(el('summary', t('subscription_treePreview', 'Show what will be added')));
   // A finite initial view keeps large snapshots usable; the complete snapshot is validated by the worker.
   const list = el('ul', undefined, 'subscription-preview-tree'), parents = new Map<string, HTMLUListElement>(); let rendered = 0;
   const more = el('button', t('subscription_showMore', 'Show more')); more.type = 'button'; more.className = 'btn btn-ghost';
