@@ -10,7 +10,7 @@ const extensionId = 'pplpnpegpnghcddhmpgkbfkdfadjiaen', origin = `chrome-extensi
 const status = (page: Page): Promise<any> => page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.siteAdapters.status' }));
 test.use({ trace: 'off' });
 test('source and automatic semantic copies share ordinary sync, retry independently and converge across devices', async () => {
-  test.setTimeout(300000);
+  test.setTimeout(360000);
   const directory = await mkdtemp(resolve(tmpdir(), 'colp-shared-site-')), extension = resolve(directory, 'extension');
   const contexts: BrowserContext[] = []; let stack: RealStack | undefined; let providerFails = true; const modelCalls = [0, 0];
   await cp(resolve(import.meta.dirname, '../dist/development'), extension, { recursive: true });
@@ -100,6 +100,33 @@ test('source and automatic semantic copies share ordinary sync, retry independen
     expect(nodes.filter(n => n.title === 'Shared A')).toHaveLength(1);
     expect(nodes.filter(n => n.title === 'Shared B')).toHaveLength(1);
     expect(nodes.filter(n => n.title === 'Shared source video')).toHaveLength(3);
+    const personal = await a.evaluate(async () => {
+      const folder = (await chrome.bookmarks.search({ title: 'Shared A' }))[0]!;
+      const node = await chrome.bookmarks.create({ parentId: folder.id, title: 'Personal during reconciliation', url: 'https://personal.test/keep' });
+      return { id: node.id, parent: folder.id };
+    });
+    await a.bringToFront();
+    const previousImport = (await status(a)).archive.import.id;
+    await a.locator('#refresh').click(); await a.locator('#start-import').click();
+    await expect.poll(async () => {
+      const ui = JSON.parse(await a.locator('#status').textContent() ?? '{}');
+      return ui.lastActionError?.error ?? ((await status(a)).archive.import.id !== previousImport ? 'started' : 'waiting');
+    }, { timeout: 20000 }).toBe('started');
+    await expect.poll(async () => (await status(a)).archive.import?.phase, { timeout: 90000 }).toBe('preview');
+    const difference = (await status(a)).archive.reconciliation.differences.find((d: any) => d.kind === 'personal' && d.native?.nativeId === personal.id);
+    expect(difference).toBeTruthy();
+    await expect.poll(() => a.locator('#reconcile-list select[data-difference-id]').evaluateAll((nodes, id) => nodes.some(n => (n as HTMLSelectElement).dataset.differenceId === id), difference.id)).toBe(true);
+    await a.locator('#reconcile-list select[data-difference-id]').evaluateAll((nodes, id) => {
+      const select = nodes.find(n => (n as HTMLSelectElement).dataset.differenceId === id) as HTMLSelectElement; select.value = 'move'; select.dispatchEvent(new Event('change'));
+    }, difference.id);
+    await a.locator('#reconcile-target').click(); await a.locator('#reconcile-target-slot [data-folder-id="2"]').click();
+    await a.locator('#approve-import').click();
+    await expect.poll(async () => (await status(a)).archive.reconciliationRun?.operations.map((op: any) => ({ state: op.state, reason: op.reason })), { timeout: 60000 }).toEqual([{ state: 'completed', reason: null }]);
+    expect(await a.evaluate(id => chrome.bookmarks.get(id), personal.id)).toMatchObject([{ parentId: '2' }]);
+    const reconciliation = (await status(a)).archive.reconciliationRun;
+    await a.evaluate(input => chrome.runtime.sendMessage(input), { kind: 'known.siteAdapters.reconcile.undo', id: reconciliation.id, operationId: reconciliation.operations[0].id });
+    await expect.poll(() => a.evaluate(async id => (await chrome.bookmarks.get(id))[0]?.parentId, personal.id), { timeout: 60000 }).toBe(personal.parent);
+    expect(modelCalls).toEqual([callsAfterRetry, 0]);
     const popup = await b.evaluate(async () => {
       const folder = (await chrome.bookmarks.search({ title: 'Semantic' }))[0]!;
       return chrome.runtime.sendMessage({ kind: 'known.capture.start', trigger: 'manual-popup', userGesture: true,
@@ -125,6 +152,7 @@ test('source and automatic semantic copies share ordinary sync, retry independen
     expect(modelCalls).toEqual([callsAfterRetry, 0]);
   } catch (error) {
     for (const context of contexts) for (const page of context.pages().filter(p => p.url().includes('site-adapters.html'))) {
+      console.log('shared-source-ui', await page.locator('#status').textContent());
       console.log('shared-source-state', JSON.stringify(await status(page)));
       console.log('shared-source-effects', JSON.stringify(await page.evaluate(async () => {
         const db = await new Promise<IDBDatabase>((resolve, reject) => { const r = indexedDB.open('known-site-adapters'); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });

@@ -165,7 +165,12 @@
           <div class="set-group-head"><h2 id="reconcile-heading" data-i18n="sites_reconcileHeading">Collection differences</h2>
             <p data-i18n="sites_reconcileHint">Order, pins, notes and tags are preserved. Unverified source absences and personal items stay where they are.</p></div>
           <div class="set-card"><p id="reconcile-summary" class="set-row" role="status"></p><div id="reconcile-list"></div>
-            <div class="card-foot"><button id="reconcile-more" class="btn btn-ghost btn-sm" type="button" hidden data-i18n="common_loadMore">Load more</button></div>
+            <div id="reconcile-target-slot" class="set-row"></div><p id="reconcile-result" class="set-row" role="status"></p>
+            <div class="card-foot"><button id="reconcile-more" class="btn btn-ghost btn-sm" type="button" hidden data-i18n="common_loadMore">Load more</button>
+              <button id="reconcile-apply" class="btn btn-secondary btn-sm" type="button" hidden data-i18n="sites_reconcileApply">Apply chosen changes</button>
+              <button id="reconcile-retry" class="btn btn-secondary btn-sm" type="button" hidden data-i18n="common_retry">Retry</button>
+              <button id="reconcile-cancel" class="btn btn-ghost btn-sm" type="button" hidden data-i18n="common_cancel">Cancel</button></div>
+            <div class="card-foot"><button id="reconcile-rescan" class="btn btn-ghost btn-sm" type="button" data-i18n="sites_reconcileRescan">Read and check again</button></div>
           </div>
         </section>
       </div>
@@ -211,6 +216,12 @@
 
       <!-- Recovery -->
       <div id="panel-recovery" class="sites-panel" role="tabpanel" aria-labelledby="tab-recovery" hidden>
+        <section class="set-group" aria-labelledby="reconcile-history-heading">
+          <div class="set-group-head"><h2 id="reconcile-history-heading" data-i18n="sites_reconcileHistory">Previous collection checks</h2>
+            <p data-i18n="sites_reconcileHistoryHint">Previous actions remain available for review and undo after you start another check.</p></div>
+          <button id="reconcile-history-load" class="btn btn-secondary btn-sm" type="button" data-i18n="common_refresh">Refresh</button>
+          <div id="reconcile-history-list" class="sites-rows"></div><div id="reconcile-history-detail" class="sites-rows"></div>
+        </section>
         <section class="set-group" aria-labelledby="sites-repair-heading">
           <div class="set-group-head"><h2 id="sites-repair-heading" data-i18n="sites_repairHeadingShort">Recovery</h2>
             <p data-i18n="sites_repairLedeShort">Writes whose result is unknown keep their original command and are retried under it. Manual changes and missing proof need review.</p></div>

@@ -12634,5 +12634,137 @@
   "sites_reconcileHint": {
     "message": "已有排序、置顶、备注和标签保持不变。未核实的来源变化和个人条目保留原地。",
     "description": "Order, pins, notes and tags are preserved. Unverified source absences and personal items stay where they are."
+  },
+  "sites_diffTitleOverride": {
+    "message": "保留你的自定义标题",
+    "description": "Your custom title is preserved"
+  },
+  "sites_diffFolderMoved": {
+    "message": "收藏夹目录已移动，暂停写入",
+    "description": "Collection folder moved; writes paused"
+  },
+  "sites_reconcileAccountChanged": {
+    "message": "账号或设置发生了变化，请重新核对后再继续。",
+    "description": "The account or settings changed. Recheck before continuing."
+  },
+  "sites_reconcileAdopt": {
+    "message": "关联已有书签",
+    "description": "Link the existing bookmark"
+  },
+  "sites_reconcileApply": {
+    "message": "执行选中的整理操作",
+    "description": "Apply chosen changes"
+  },
+  "sites_reconcileArchive": {
+    "message": "移到历史目录",
+    "description": "Move to history folder"
+  },
+  "sites_reconcileCandidate": {
+    "message": "选择已有书签",
+    "description": "Existing bookmark"
+  },
+  "sites_reconcileChanged": {
+    "message": "发现了新的改动，请重新核对这一项后再处理。",
+    "description": "A newer change was found. Recheck this item before changing it."
+  },
+  "sites_reconcileDestination": {
+    "message": "历史或个人条目的目标目录",
+    "description": "History or personal-item destination"
+  },
+  "sites_reconcileExceptions": {
+    "message": "已按本次读取结果核对；另有 $1 项待核实，$2 项例外保留原状。",
+    "description": "Checked against this read; $1 unverified items and $2 retained exceptions remain."
+  },
+  "sites_reconcileFailed": {
+    "message": "这一项需要核对，原记录及详情保留在恢复中。",
+    "description": "This item needs review. Its original record and details are kept in Recovery."
+  },
+  "sites_reconcileHistoryEmpty": {
+    "message": "请选择网站映射之外的专用空历史目录。",
+    "description": "Choose an empty dedicated history folder outside the website mappings."
+  },
+  "sites_reconcileKeep": {
+    "message": "保持现状",
+    "description": "Keep as is"
+  },
+  "sites_reconcileMove": {
+    "message": "移到所选目录",
+    "description": "Move to chosen folder"
+  },
+  "sites_reconcileOutside": {
+    "message": "请选择当前书签库内、所有网站映射之外的目录。",
+    "description": "Choose a folder in this library outside every website mapping."
+  },
+  "sites_reconcileProtected": {
+    "message": "这条书签还被其它用途使用，已保留原位。",
+    "description": "This bookmark is used elsewhere and has been kept in place."
+  },
+  "sites_reconcileRestore": {
+    "message": "恢复这份映射副本",
+    "description": "Restore this source copy"
+  },
+  "sites_reconcileResult": {
+    "message": "已执行 $1 项 · 需处理 $2 项 · 等待 $3 项",
+    "description": "$1 applied · $2 need attention · $3 waiting"
+  },
+  "sites_reconcileReturn": {
+    "message": "移回映射目录",
+    "description": "Return to mapped folder"
+  },
+  "sites_reconcileUndone": {
+    "message": "已撤销",
+    "description": "Undone"
+  },
+  "sites_reconcileUnknown": {
+    "message": "上次保存结果尚未确认，保留原操作记录，不会另建一份。",
+    "description": "The save result is not confirmed. Its original record is kept; no replacement is created."
+  },
+  "sites_reconcileUpdateTitle": {
+    "message": "使用网站标题",
+    "description": "Use source title"
+  },
+  "sites_reconcileUseLocation": {
+    "message": "继续使用这个位置",
+    "description": "Continue using this location"
+  },
+  "sites_reconcileWaiting": {
+    "message": "正在等待书签同步，原操作记录会保留。",
+    "description": "Waiting for bookmark sync; the original operation is kept."
+  },
+  "sites_reconcileRescan": {
+    "message": "重新读取并核对",
+    "description": "Read and check again"
+  },
+  "sites_reconcileApprove": {
+    "message": "同意保存并处理所选的 $1 项差异",
+    "description": "Approve saving and $1 chosen changes"
+  },
+  "sites_reconcileHistory": {
+    "message": "此前的收藏夹核对",
+    "description": "Previous collection checks"
+  },
+  "sites_reconcileHistoryHint": {
+    "message": "开始下一次核对后，仍可在这里查看、重试或撤销之前的处理。",
+    "description": "Previous actions remain available for review and undo after you start another check."
+  },
+  "sites_reconcileHistoryCounts": {
+    "message": "已处理 $1 项 · $2 项需要检查 · 已撤销 $3 项",
+    "description": "$1 applied · $2 need attention · $3 undone"
+  },
+  "sites_reconcileApplied": {
+    "message": "已处理",
+    "description": "Applied"
+  },
+  "sites_waitingShort": {
+    "message": "等待中",
+    "description": "Waiting"
+  },
+  "sites_needsReviewShort": {
+    "message": "需要检查",
+    "description": "Needs review"
+  },
+  "sites_reconcileUrlChanged": {
+    "message": "该书签的网址已被手动改动。先保留原位，等待检查。",
+    "description": "Its URL was changed locally. The bookmark is kept for review."
   }
 }

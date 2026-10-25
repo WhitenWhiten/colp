@@ -6860,6 +6860,9 @@
   "sites_diffDeleted": {
     "message": "Deleted locally; kept deleted"
   },
+  "sites_diffFolderMoved": {
+    "message": "Collection folder moved; writes paused"
+  },
   "sites_diffMoved": {
     "message": "Moved or changed locally"
   },
@@ -6877,6 +6880,9 @@
   },
   "sites_diffTitle": {
     "message": "Source title changed"
+  },
+  "sites_diffTitleOverride": {
+    "message": "Your custom title is preserved"
   },
   "sites_diffUnverified": {
     "message": "Source membership could not be verified"
@@ -7027,6 +7033,9 @@
   },
   "sites_needsAccessHint": {
     "message": "Allow access to $1 so Know-N can read your favorites."
+  },
+  "sites_needsReviewShort": {
+    "message": "Needs review"
   },
   "sites_newFolderNamed": {
     "message": "New folder “$1”"
@@ -7217,11 +7226,98 @@
   "sites_readyToAdd_other": {
     "message": "Ready to add $1 bookmarks"
   },
+  "sites_reconcileAccountChanged": {
+    "message": "The account or settings changed. Recheck before continuing."
+  },
+  "sites_reconcileAdopt": {
+    "message": "Link the existing bookmark"
+  },
+  "sites_reconcileApplied": {
+    "message": "Applied"
+  },
+  "sites_reconcileApply": {
+    "message": "Apply chosen changes"
+  },
+  "sites_reconcileApprove": {
+    "message": "Approve saving and $1 chosen changes"
+  },
+  "sites_reconcileArchive": {
+    "message": "Move to history folder"
+  },
+  "sites_reconcileCandidate": {
+    "message": "Existing bookmark"
+  },
+  "sites_reconcileChanged": {
+    "message": "A newer change was found. Recheck this item before changing it."
+  },
+  "sites_reconcileDestination": {
+    "message": "History or personal-item destination"
+  },
+  "sites_reconcileExceptions": {
+    "message": "Checked against this read; $1 unverified items and $2 retained exceptions remain."
+  },
+  "sites_reconcileFailed": {
+    "message": "This item needs review. Its original record and details are kept in Recovery."
+  },
   "sites_reconcileHeading": {
     "message": "Collection differences"
   },
   "sites_reconcileHint": {
     "message": "Order, pins, notes and tags are preserved. Unverified source absences and personal items stay where they are."
+  },
+  "sites_reconcileHistory": {
+    "message": "Previous collection checks"
+  },
+  "sites_reconcileHistoryCounts": {
+    "message": "$1 applied · $2 need attention · $3 undone"
+  },
+  "sites_reconcileHistoryEmpty": {
+    "message": "Choose an empty dedicated history folder outside the website mappings."
+  },
+  "sites_reconcileHistoryHint": {
+    "message": "Previous actions remain available for review and undo after you start another check."
+  },
+  "sites_reconcileKeep": {
+    "message": "Keep as is"
+  },
+  "sites_reconcileMove": {
+    "message": "Move to chosen folder"
+  },
+  "sites_reconcileOutside": {
+    "message": "Choose a folder in this library outside every website mapping."
+  },
+  "sites_reconcileProtected": {
+    "message": "This bookmark is used elsewhere and has been kept in place."
+  },
+  "sites_reconcileRescan": {
+    "message": "Read and check again"
+  },
+  "sites_reconcileRestore": {
+    "message": "Restore this source copy"
+  },
+  "sites_reconcileResult": {
+    "message": "$1 applied · $2 need attention · $3 waiting"
+  },
+  "sites_reconcileReturn": {
+    "message": "Return to mapped folder"
+  },
+  "sites_reconcileUndone": {
+    "message": "Undone"
+  },
+  "sites_reconcileUnknown": {
+    "message": "The save result is not confirmed. Its original record is kept; no replacement is created."
+  },
+  "sites_reconcileUpdateTitle": {
+    "message": "Use source title"
+  },
+  "sites_reconcileUrlChanged": {
+    "message": "Its URL was changed locally. The bookmark is kept for review."
+  },
+  "sites_reconcileUseLocation": {
+    "message": "Continue using this location"
+  },
+  "sites_reconcileWaiting": {
+    "message": "Waiting for bookmark sync; the original operation is kept."
   },
   "sites_recordsNeedRecovery_one": {
     "message": "$1 record needs recovery or review."
@@ -7501,6 +7597,9 @@
   },
   "sites_waitingForBookmarkSyncHint": {
     "message": "Your approved import is kept. It will continue when the sync connection and folder are ready."
+  },
+  "sites_waitingShort": {
+    "message": "Waiting"
   },
   "subscription_acceptedShare": {
     "message": "Don't see a shared collection? Accept the invitation on the Know-N website first."

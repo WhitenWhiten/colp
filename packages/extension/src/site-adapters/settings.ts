@@ -8,10 +8,12 @@ import { hydrateIcons } from '../icons.js';
 import { localizePage, onUiLanguageChanged, t, tn } from '../i18n.js';
 import { showToast } from '../toast.js';
 import './settings-recovery.js';
+import './settings-reconcile-history.js';
 import './community-settings.js';
 import './cloud-settings.js';
-import { paintReconciliation } from './settings-reconcile.js';
+import { paintReconciliation, installReconcileControls, reconcileSelections } from './settings-reconcile.js';
 import type { ReconcilePreview } from './reconcile-model.js';
+import type { ReconcileRun } from './reconcile-run.js';
 interface Collection { id: string; title: string }
 interface ImportStatus { id: string; phase: string; edgeCount: number; pages: number; omissions: number; coverage: string; reason: string | null; nextEdge: number; nextPlan: number;
   preview: { id: string; revision: number; digest: string; coverage: string; counts: { createFolders: number; createBookmarks: number; reuseBookmarks: number; review: number }; omissions?: { samples: readonly { id: string; reason: string }[]; unscannedRemainder: boolean } } | null }
@@ -23,7 +25,7 @@ interface SiteStatus { inspectionStatus?: { status: string; retryAfterMs?: numbe
   browser?: { minimum: number; major: number | null; supported: boolean }; grants?: { site: boolean; bookmarks: boolean };
   catalog?: { items: Collection[]; nextCursor: string | null; reading: boolean; current: boolean; failed: string | null } | null;
   inspection?: { command: { deadlineAt: number; operation?: string }; result?: { status: string; item?: { title?: string } } } | null;
-  archive?: { catalog?: Collection[]; config: ArchiveConfig | null; import: ImportStatus | null; semantic?: SemanticStatus | null; reconciliation?: ReconcilePreview | null } }
+  archive?: { catalog?: Collection[]; config: ArchiveConfig | null; import: ImportStatus | null; semantic?: SemanticStatus | null; reconciliation?: ReconcilePreview | null; reconciliationRun?: ReconcileRun | null } }
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.querySelector<T>(`#${id}`)!;
 const button = (id: string) => $<HTMLButtonElement>(id);
@@ -86,6 +88,7 @@ function statusAlert(s: SiteStatus) {
 }
 
 let status: SiteStatus = {};
+installReconcileControls(message => act(message), () => { if (lastImport) paintImport(lastImport); });
 let lastActionError: { operation: string; error: string; at: number } | undefined;
 let refreshTimer: ReturnType<typeof setTimeout> | undefined, inspectionRetry: ReturnType<typeof setTimeout> | undefined;
 /** The worker answers with the full status; a message nothing answers comes back as a refusal, never as silence. */
@@ -116,7 +119,8 @@ function apply(result: SiteStatus) {
 function schedule() {
   const job = status.archive?.import;
   const busy = job && ['scanning', 'preparing', 'approved'].includes(job.phase) || !!status.confirmations?.pending || !!status.catalog?.reading
-    || !!status.inspection && !status.inspection.result && status.inspection.command.deadlineAt > Date.now() || !!status.archive?.semantic?.pending;
+    || !!status.inspection && !status.inspection.result && status.inspection.command.deadlineAt > Date.now() || !!status.archive?.semantic?.pending
+    || !!status.archive?.reconciliationRun?.operations.some(op => op.state === 'pending');
   const waiting = !!status.enabled && (!status.connected || !status.documents);
   if (busy || waiting) refreshTimer = setTimeout(() => { if (document.visibilityState === 'visible') void refresh(); }, busy ? 500 : 2000);
 }
@@ -364,6 +368,8 @@ function paintImport(job: ImportStatus | null) {
   button('freeze-import').className = job?.phase === 'paused' ? 'btn btn-secondary btn-sm' : 'btn btn-ghost btn-sm';
   offer(button('approve-import'), job?.phase === 'preview' && !!p);
   button('approve-import').textContent = nothing ? t('sites_finish', 'Finish') : tn('sites_addBookmarks', c?.createBookmarks ?? 0, 'Add $1 bookmark', 'Add $1 bookmarks');
+  const selectedChanges = reconcileSelections().filter(d => d.choice !== 'keep').length;
+  if (selectedChanges) button('approve-import').textContent = t('sites_reconcileApprove', 'Approve saving and $1 chosen changes', selectedChanges);
   offer(button('cancel-import'), !!job && !['cancelled', 'completed'].includes(job.phase));
   // A finished scan becomes its list on its own; the list still waits for approval.
   if (job && scanDone && !autoFrozen.has(`${job.id}:${job.edgeCount}:${job.pages}`)) { autoFrozen.add(`${job.id}:${job.edgeCount}:${job.pages}`); void act({ kind: 'known.siteAdapters.import.freeze', jobId: job.id }); }
@@ -379,6 +385,8 @@ button('approve-import').addEventListener('click', () => { const job = lastImpor
     if (result.error === 'previewStale') { showToast(errorCopy('previewStale'), 'info', { announce: true }); await act({ kind: 'known.siteAdapters.import.freeze', jobId: job.id }); return; }
     if (result.error) { showToast(errorCopy(result.error), 'error', { announce: true }); await refresh(); return; }
     apply(result);
+    if (status.archive?.reconciliation && !status.archive.reconciliationRun) await act({ kind: 'known.siteAdapters.reconcile.apply',
+      importId: job.id, digest: status.archive.reconciliation.digest, decisions: reconcileSelections() });
   })(); });
 
 // ---- Recovery tab: the inspector rows
@@ -423,8 +431,9 @@ function paint() {
   step('step-import', config?.state !== 'active' && !job ? 'later' : job?.phase === 'completed' ? 'done' : 'current');
   $('archive-hold').hidden = !status.archiveHold;
   if (status.archiveHold) text('archive-hold', errorCopy(status.archiveHold));
-  paintConnection(); paintCollections(); paintForm(); paintImport(job); paintInspector(); paintSemantic();
-  paintReconciliation(status.archive?.reconciliation);
+  paintConnection(); paintCollections(); paintForm(); paintInspector(); paintSemantic();
+  paintReconciliation(status.archive?.reconciliation, status.archive?.reconciliationRun, job?.phase);
+  paintImport(job);
   renderSiteCapabilities(document, selectedSite, !!job, !!config);
   autoCatalog();
 }
