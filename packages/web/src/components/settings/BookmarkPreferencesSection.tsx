@@ -112,10 +112,10 @@ function AccountBookmarkPreferences({ accountId }: { accountId: string }) {
   const value = cache ? { ...cache.current.preferences, ...cache.pending?.patch } : null
   const disabled = busy || Boolean(cache?.conflict) || Boolean(cache?.pending)
   return <section className="settings-section" aria-label="Bookmark preferences">
-    <div className="settings-section-head"><h3 className="settings-toggle-label">Bookmarks</h3><p className="meta">These preferences sync to the browser extension. The extension saves a page only when you click it. Choose browser folders in the extension.</p></div>
+    <div className="settings-section-head"><h3 className="settings-toggle-label">Bookmarks</h3><p className="meta">These sync to the browser extension.</p></div>
     {value && <div className="settings-rows">
       <div className="toggle-row">
-        <div><strong id="pref-capture-mode">Toolbar button</strong><span className="meta">Manual opens a short form to check the title, folder, tags and note. Automatic saves in one click once you confirm it in the extension.</span></div>
+        <div><strong id="pref-capture-mode">Toolbar button</strong><span className="meta">Manual opens the save form first. Automatic saves in one click, once you confirm it in the extension.</span></div>
         <FilterRail<'manual' | 'automatic'> variant="segments" className="view-switch" selection="manual" label="Toolbar button" labelledBy="pref-capture-mode"
           value={value.captureMode ?? 'manual'} onChange={mode => void save({ captureMode: mode })}
           options={[{ value: 'manual', label: 'Manual', disabled }, { value: 'automatic', label: 'Automatic', disabled }]} />

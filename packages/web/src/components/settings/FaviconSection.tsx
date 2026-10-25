@@ -208,8 +208,7 @@ export function FaviconSection({ onDirtyChange, onJobStarted }: {
               </button>
             </div>
             <p className="meta">
-              Must contain exactly one {'{hostname}'} placeholder, e.g. https://favicone.com/{'{hostname}'}.
-              The template alone never enables online.
+              Put {'{hostname}'} once where the site's host goes. Saving it doesn't turn on Fetch online.
             </p>
           </div>
 
@@ -238,8 +237,7 @@ export function FaviconSection({ onDirtyChange, onJobStarted }: {
               <div>
                 <strong id="favicon-force-online-label">Force all icons online</strong>
                 <span className="meta" id="favicon-force-online-hint">
-                  Temporarily replace every icon (including uploaded) with the provider icon; turning it off restores
-                  the original images.
+                  Show the provider's icon on every bookmark, uploads included. Turning it off restores them.
                 </span>
               </div>
               <button
