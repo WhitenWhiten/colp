@@ -155,7 +155,7 @@ describe('Sync Core-used quality gate configuration [review:sync.core-used-gate]
 
     expect(syncCore?.needs).toBe('changes');
     expect(syncCore?.if).toBe(
-      "needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'",
+      "contains(fromJSON(needs.changes.outputs.jobs), 'sync-core-coverage')",
     );
     expect(syncCore?.['runs-on']).toBe('ubuntu-24.04');
     expect(

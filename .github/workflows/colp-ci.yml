@@ -1,8 +1,8 @@
 name: colp-ci
 
 # No trigger-level path filters: ci-gate is a required status check, so it must
-# report on every pull request. The changes job selects the jobs for all authors,
-# including dependency updates opened by Dependabot.
+# report on every pull request. The changes job selects affected jobs for all
+# authors, including Dependabot. Docs/release-only changes run just changes/gate.
 on:
   pull_request:
   push:
@@ -17,58 +17,35 @@ permissions:
 env:
   npm_config_audit: 'false'
 
-# Superseded pull request runs are cancelled. Pushes to main are not: a later
-# docs-only push would otherwise cancel the run that verifies earlier code.
+# Superseded PR runs share a group and are cancelled. Give every push/manual run
+# its own group: even with cancel-in-progress=false, a newer docs-only push can
+# replace a pending code run in a shared group and leave its changes untested.
 concurrency:
-  group: colp-ci-${{ github.ref }}
+  group: colp-ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   changes:
-    permissions:
-      contents: read
-      pull-requests: read
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
-      full: ${{ steps.scope.outputs.full }}
-      quality: ${{ steps.filter.outputs.quality }}
+      jobs: ${{ steps.scope.outputs.jobs }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - id: filter
-        if: github.event_name != 'workflow_dispatch'
-        # Reviewed: dorny/paths-filter is used only to map PR paths to job outputs.
-        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
-          filters: |
-            workflow:
-              - '.github/workflows/colp-ci.yml'
-            quality:
-              - 'packages/node/**'
-              - 'packages/conformance/**'
-              - 'packages/server/**'
-              - 'packages/web/**'
-              - 'packages/extension/**'
-              - 'deploy/**'
-              - '.github/workflows/colp-server-image.yml'
-              - '.github/workflows/colp-extension-release.yml'
-              - 'scripts/**'
-              - 'protocol/**'
-              - '.github/workflows/colp-ci.yml'
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - name: Validate CI selection and shared SDK pins without installing dependencies
+        run: node --test scripts/select-ci-jobs.test.mjs scripts/check-sdk-pins.test.mjs
       - id: scope
-        name: Select full verification scope
-        shell: bash
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" || "${{ steps.filter.outputs.workflow }}" == "true" ]]; then
-            full=true
-          else
-            full=false
-          fi
-          echo "full=$full" >> "$GITHUB_OUTPUT"
+        name: Select affected CI jobs
+        run: node scripts/select-ci-jobs.mjs
 
   static:
     needs: changes
-    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    if: contains(fromJSON(needs.changes.outputs.jobs), 'static')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -107,7 +84,7 @@ jobs:
 
   test:
     needs: changes
-    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    if: contains(fromJSON(needs.changes.outputs.jobs), 'test')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -129,7 +106,7 @@ jobs:
 
   publisher-coverage:
     needs: changes
-    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    if: contains(fromJSON(needs.changes.outputs.jobs), 'publisher-coverage')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -151,7 +128,7 @@ jobs:
 
   security-coverage:
     needs: changes
-    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    if: contains(fromJSON(needs.changes.outputs.jobs), 'security-coverage')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -173,7 +150,7 @@ jobs:
 
   sync-core-coverage:
     needs: changes
-    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    if: contains(fromJSON(needs.changes.outputs.jobs), 'sync-core-coverage')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -195,7 +172,7 @@ jobs:
 
   package:
     needs: changes
-    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    if: contains(fromJSON(needs.changes.outputs.jobs), 'package')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -249,7 +226,7 @@ jobs:
 
   dependency-audit:
     needs: changes
-    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    if: contains(fromJSON(needs.changes.outputs.jobs), 'dependency-audit')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -271,7 +248,7 @@ jobs:
 
   conformance:
     needs: changes
-    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    if: contains(fromJSON(needs.changes.outputs.jobs), 'conformance')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -298,7 +275,7 @@ jobs:
 
   server:
     needs: changes
-    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    if: contains(fromJSON(needs.changes.outputs.jobs), 'server')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -356,7 +333,7 @@ jobs:
   # runs for hours on one runner; six shards keep each job under the timeout.
   server-integration:
     needs: changes
-    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    if: contains(fromJSON(needs.changes.outputs.jobs), 'server-integration')
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
@@ -383,7 +360,7 @@ jobs:
 
   server-capabilities:
     needs: changes
-    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    if: contains(fromJSON(needs.changes.outputs.jobs), 'server-capabilities')
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
@@ -413,7 +390,7 @@ jobs:
 
   web-browser:
     needs: changes
-    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    if: contains(fromJSON(needs.changes.outputs.jobs), 'web-browser')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
@@ -438,7 +415,7 @@ jobs:
 
   web-acceptance:
     needs: changes
-    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    if: contains(fromJSON(needs.changes.outputs.jobs), 'web-acceptance')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -463,7 +440,7 @@ jobs:
 
   web:
     needs: changes
-    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    if: contains(fromJSON(needs.changes.outputs.jobs), 'web')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -498,7 +475,7 @@ jobs:
   # browser harness against packages/server, so every extension job installs both.
   extension:
     needs: changes
-    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    if: contains(fromJSON(needs.changes.outputs.jobs), 'extension')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -548,7 +525,7 @@ jobs:
 
   extension-browser:
     needs: changes
-    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    if: contains(fromJSON(needs.changes.outputs.jobs), 'extension-browser')
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
@@ -591,7 +568,7 @@ jobs:
 
   self-hosted-browser:
     needs: changes
-    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    if: contains(fromJSON(needs.changes.outputs.jobs), 'self-hosted-browser')
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -627,7 +604,7 @@ jobs:
 
   extension-coverage:
     needs: changes
-    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    if: contains(fromJSON(needs.changes.outputs.jobs), 'extension-coverage')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -654,7 +631,7 @@ jobs:
 
   extension-mv3:
     needs: changes
-    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    if: contains(fromJSON(needs.changes.outputs.jobs), 'extension-mv3')
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
@@ -699,7 +676,7 @@ jobs:
 
   extension-sync-real-stack:
     needs: changes
-    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    if: contains(fromJSON(needs.changes.outputs.jobs), 'extension-sync-real-stack')
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
@@ -744,7 +721,7 @@ jobs:
 
   extension-kns-09-release:
     needs: changes
-    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    if: contains(fromJSON(needs.changes.outputs.jobs), 'extension-kns-09-release')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -771,7 +748,7 @@ jobs:
 
   extension-kns-09-e2e:
     needs: changes
-    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    if: contains(fromJSON(needs.changes.outputs.jobs), 'extension-kns-09-e2e')
     runs-on: ubuntu-24.04
     timeout-minutes: 70
     steps:

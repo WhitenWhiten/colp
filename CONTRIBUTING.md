@@ -94,6 +94,36 @@ If you find that the prose and the schema disagree, treat it as a specification 
 - Follow the style of the surrounding code; the package compiles with TypeScript `strict` mode.
 - Update [CHANGELOG.md](CHANGELOG.md) under "Unreleased" for user-visible changes.
 
+### CI scope
+
+`colp-ci` runs on pull requests and pushes to `main`. The lightweight `changes` job
+selects affected jobs using [`scripts/select-ci-jobs.mjs`](scripts/select-ci-jobs.mjs).
+The required `ci-gate` always reports, including when all build/test jobs are skipped.
+
+| Changed files | Selected checks |
+|---|---|
+| Documentation, changelogs and reports | Only `changes` and `ci-gate` |
+| Package/lockfile root versions, extension manifest versions, server's generated release version | Only `changes` and `ci-gate`; dependency, permission or code changes still select checks |
+| Node SDK | SDK checks, coverage, package and conformance; apps install a separately pinned SDK |
+| Server | Server suites and extension/production Web integration checks |
+| Web | Web checks and cross-application browser tests |
+| Extension | Extension checks and server integration suites that import extension code |
+| Protocol/generated contracts, shared tooling or CI configuration | Their consumers; shared tooling and CI changes run the full suite |
+
+Cross-package fixtures and generated API types also select their consuming jobs.
+Protocol Markdown used by drift checks still runs `static`; machine-readable
+automation contracts under `docs/automation/design` retain their checks.
+Release tags continue to run the separate server-image and extension-release workflows.
+
+The selector compares every commit in a push and uses the merge base for a pull
+request. Renames/deletions are included. Unknown paths or unavailable Git history
+select the full suite. Use **Run workflow** for a manual full run. To inspect a
+local commit range without running tests:
+
+```bash
+node scripts/select-ci-jobs.mjs "$(git rev-parse BASE)" "$(git rev-parse HEAD)"
+```
+
 ## License
 
 By contributing, you agree that your contributions are licensed under the [Apache License 2.0](LICENSE).
