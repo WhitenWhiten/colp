@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { agentsApi, type AgentSummary } from '../../api/agentsClient'
 import type { AutomationAgentSetupResult, AutomationBindingSetInput, AutomationPairingGrant, AutomationRule, AutomationRuleDefinition, AutomationTarget } from '../../api/automationTypes'
 import { CommandBlock } from '../../components/CommandBlock'
+import { Icon } from '../../components/Icon'
 import { copyTextToClipboard } from '../../lib/clipboard'
 import { formatDateTime } from '../../lib/formatDate'
 import { originHint, readinessReason, useAutomationWorkers } from '../agents/automationWorkers'
@@ -180,16 +181,16 @@ export function AgentConnection({ definition, bindings, current, configurationKe
           ? <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void newRequest()}>Make a new connection request</button>
           : <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void copyTextToClipboard(request).then(() => setNotice('Copied. Paste it into your AI.')).catch(() => setNotice('Open the connection request below and copy it manually.'))}>Copy connection request</button>}
         {grant?.code && !selfPairing && <p className="field-hint">One use. Expires {formatDateTime(grant.expiresAt)}.</p>}
-        {(selfPairing || grant?.code || target.wakeReadiness === 'waitingForSubscription') && <details className="automation-disclosure"><summary>View connection request</summary><CommandBlock label="connection request" command={request} /></details>}
+        {(selfPairing || grant?.code || target.wakeReadiness === 'waitingForSubscription') && <details className="automation-disclosure"><summary><Icon name="chevron-right" className="automation-disclosure-chevron" />View connection request</summary><CommandBlock label="connection request" command={request} /></details>}
         <p className="field-hint">{selfPairing ? 'It must support background execution to keep running future tasks.' : 'A connected chat may need a new sign-in for task permission. It must support background execution to keep running future tasks.'}</p>
       </div>}
       {active && <p role="status">Paired. Run a test to check that this AI can execute tasks.</p>}
       {active && <><button type="button" className="btn btn-secondary btn-sm" onClick={() => void copyTextToClipboard(request).then(() => setNotice('Copied. Paste it into your AI after starting the test.')).catch(() => setNotice('Open the connection request and copy it manually.'))}>Copy task request</button>
-        <details className="automation-disclosure"><summary>View task request</summary><CommandBlock label="task request" command={request} /></details>
+        <details className="automation-disclosure"><summary><Icon name="chevron-right" className="automation-disclosure-chevron" />View task request</summary><CommandBlock label="task request" command={request} /></details>
         {target.wakeMode === 'poll' && <p className="field-hint">Future tasks need a recurring invocation in your AI host. COLP does not start that schedule.</p>}</>}
       {active && <AgentTest key={configurationKey} rule={prepared.rule} connected={active} onVerified={onVerified} />}
     </>}
     {notice && <p className="field-hint" role="status">{notice}</p>}
-    <details className="automation-disclosure"><summary>Developer connection</summary><p className="field-hint">For a script you run yourself. <Link to="/agents?connect=worker" target="_blank" rel="noreferrer">Open script setup</Link>.</p></details>
+    <details className="automation-disclosure"><summary><Icon name="chevron-right" className="automation-disclosure-chevron" />Developer connection</summary><p className="field-hint">For a script you run yourself. <Link to="/agents?connect=worker" target="_blank" rel="noreferrer">Open script setup</Link>.</p></details>
   </section>
 }

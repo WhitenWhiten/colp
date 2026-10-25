@@ -27,6 +27,12 @@
   border-top: 1px solid var(--line);
 }
 
+/* In the step's own column a disclosure lines up with the text above it;
+   the card-wide rows' inset would push it in a second time. */
+.automation-agent-connection .automation-disclosure > summary {
+  padding-inline: 0;
+}
+
 .automations-layout {
   display: grid;
   gap: var(--space-8);
