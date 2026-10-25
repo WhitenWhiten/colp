@@ -36,17 +36,17 @@ const RULES: ReadonlyArray<{ icon: 'lock' | 'check' | 'refresh'; title: string; 
   {
     icon: 'lock',
     title: 'Manual, by default',
-    body: 'A new agent proposes a plan. Nothing in your library changes until you approve it on Approvals.',
+    body: 'An agent proposes a plan; nothing changes until you approve it.',
   },
   {
     icon: 'check',
     title: 'Trusted, if you choose',
-    body: 'Moves apply right away. Deletes and publishing still wait for you, whatever the policy.',
+    body: 'Moves apply at once. Deletes and publishing still wait for you.',
   },
   {
     icon: 'refresh',
     title: 'Always reversible',
-    body: 'Every applied plan saves a version in your library’s Version history, and moves can be undone from Approvals.',
+    body: 'Each applied plan is saved in Version history; moves can be undone.',
   },
 ]
 

@@ -54,7 +54,7 @@ export function WriteApprovalsView({ data }: { data: WriteApprovalsData }) {
             : undefined}
           title={detailMode ? 'Approval' : 'Approvals'}
           documentTitle={detailMode ? 'Approval' : 'Approvals'}
-          lede="Changes your agents proposed. Nothing in your library changes until you approve; moves from trusted agents land here already applied, with Undo."
+          lede="Changes your agents proposed wait here for you. Trusted agents’ moves arrive applied, with Undo."
           actions={!invalidPlanId && !authPending && loadErrorKind !== 'unavailable' ? (
             <button
               type="button"
@@ -160,7 +160,7 @@ export function WriteApprovalsView({ data }: { data: WriteApprovalsData }) {
           <EmptyState
             icon="check"
             title="Nothing waiting for you"
-            description="When an agent proposes a change to your library, it waits here for your decision. Connect an agent to get started."
+            description="When an agent proposes a change to your library, it waits here for you."
             action={<Link to="/agents" className="btn btn-secondary btn-sm">Connect an agent</Link>}
           />
         )}

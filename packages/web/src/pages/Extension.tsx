@@ -29,7 +29,7 @@ function setupSteps(origin: string) {
   },
   {
     title: 'Start syncing',
-    body: 'Review the first sync. Every folder syncs with your library; untick any you want to keep on this browser only. Repeat in each browser; they converge within a minute.',
+    body: 'Review the first sync, and untick any folder you want to keep on this browser only. Repeat in each browser.',
   },
   ]
 }
@@ -54,7 +54,7 @@ export function Extension({ origin }: { origin?: string } = {}) {
           eyebrow="Tools"
           title="Connect a browser"
           documentTitle="Connect a browser"
-          lede="The Know-N browser extension keeps a browser’s bookmarks in sync with your library on this server. Any folder can stay on the browser only; conflicts are kept for you to resolve."
+          lede="The Know-N browser extension keeps a browser’s bookmarks in sync with your library on this server."
           actions={(
             <>
               {storeUrl && <a className="btn btn-primary btn-sm" href={storeUrl} target="_blank" rel="noopener noreferrer">Install extension</a>}
