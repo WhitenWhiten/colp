@@ -40,6 +40,20 @@ export function classifyLinkHealthDisplay(
   return { kind: 'broken', label: 'Broken' }
 }
 
+/** Why a check came back as it did, in a few words; null when the badge says it all. */
+export function healthReason(item: Pick<LinkHealthItem, 'status' | 'errorClass' | 'httpStatus'>): string | null {
+  const kind = classifyLinkHealthDisplay(item).kind
+  if (kind === 'check_failed') {
+    if (item.errorClass === 'timeout') return 'Timed out'
+    if (item.errorClass === 'dns') return 'Host not found'
+    if (item.errorClass === 'denied') return "This server isn't allowed to reach it"
+    return "Couldn't connect"
+  }
+  if (kind === 'broken' && item.errorClass === 'invalid_url') return 'Not a valid web address'
+  if ((kind === 'broken' || kind === 'remote_error') && item.httpStatus != null) return `The site returned ${item.httpStatus}`
+  return null
+}
+
 export function isCannotProbe(item: Pick<LinkHealthItem, 'status' | 'errorClass' | 'httpStatus'>): boolean {
   const kind = classifyLinkHealthDisplay(item).kind
   return kind === 'check_failed' || kind === 'remote_error'

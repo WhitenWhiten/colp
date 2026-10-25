@@ -7,6 +7,7 @@ import {
   HEALTH_STATUS_TONE,
   canReviewDuplicates,
   classifyLinkHealthDisplay,
+  healthReason,
   isCannotProbe,
 } from './classify'
 
@@ -41,6 +42,8 @@ export function HealthRow({
   onRetryCheck: (item: LinkHealthItem) => void
 }) {
   const display = classifyLinkHealthDisplay(item)
+  // A few words on why; the action column already offers the retry.
+  const reason = healthReason(item)
   const reviewed = item.duplicateRelationId != null && item.duplicateRelationEtag != null
   const candidate = item.duplicateOfNodeId != null
   const reviewable = canReviewDuplicates(item)
@@ -83,10 +86,8 @@ export function HealthRow({
           <p>Reviewed as a duplicate. Both bookmarks stay in your library.</p>
         ) : candidate ? (
           <p>Possible duplicate of another bookmark in your library</p>
-        ) : display.kind === 'check_failed' ? (
-          <p>The checker could not reach this link. Retry the check.</p>
-        ) : display.kind === 'remote_error' ? (
-          <p>The remote server returned {item.httpStatus ?? 'an error'}. Retry the check.</p>
+        ) : reason ? (
+          <p>{reason}</p>
         ) : null}
       </DataTableCell>
       <DataTableCell className="health-checked">

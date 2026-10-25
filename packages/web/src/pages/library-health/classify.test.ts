@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   canReviewDuplicates,
   classifyLinkHealthDisplay,
+  healthReason,
   isCannotProbe,
 } from './classify'
 
@@ -36,6 +37,18 @@ describe('link-health display classification', () => {
     const display = classifyLinkHealthDisplay({ status: 'broken' })
     expect(display.kind).toBe('check_failed')
     expect(isCannotProbe({ status: 'broken' })).toBe(true)
+  })
+
+  it('says why in a few words, and nothing when the badge says it all', () => {
+    expect(healthReason({ status: 'broken', errorClass: 'timeout' })).toBe('Timed out')
+    expect(healthReason({ status: 'broken', errorClass: 'dns' })).toBe('Host not found')
+    expect(healthReason({ status: 'broken', errorClass: 'denied' })).toBe("This server isn't allowed to reach it")
+    expect(healthReason({ status: 'broken', errorClass: 'http' })).toBe("Couldn't connect")
+    expect(healthReason({ status: 'broken', errorClass: 'invalid_url' })).toBe('Not a valid web address')
+    expect(healthReason({ status: 'broken', errorClass: 'http', httpStatus: 404 })).toBe('The site returned 404')
+    expect(healthReason({ status: 'broken', errorClass: 'http', httpStatus: 503 })).toBe('The site returned 503')
+    expect(healthReason({ status: 'healthy' })).toBeNull()
+    expect(healthReason({ status: 'pending' })).toBeNull()
   })
 
   it('hides review actions from viewers', () => {

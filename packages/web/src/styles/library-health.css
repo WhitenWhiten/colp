@@ -72,10 +72,6 @@
   min-width: 0;
 }
 
-.health-row {
-  min-height: 5.4rem;
-}
-
 .health-resource,
 .health-issue {
   min-width: 0;
@@ -160,7 +156,7 @@
 
 /* ≤899px the base layer hides the columnheader row; here the row re-grids
    to two columns — resource + action on the first line, issue and checked
-   date stacking under it. */
+   date stacking under it. The badge and its reason share one line. */
 @media (max-width: 899px) {
   .health-table .health-row {
     grid-template-columns: minmax(0, 1fr) auto;
@@ -168,30 +164,33 @@
   }
 
   .health-table .health-resource { grid-column: 1; }
-  .health-table .health-issue { grid-column: 1 / -1; }
   .health-table .health-checked { grid-column: 1; }
-  .health-table .health-action { grid-column: 2; grid-row: 1 / span 2; }
+  .health-table .health-action { grid-column: 2; grid-row: 1; }
+
+  .health-table .health-issue {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--hair-40) var(--space-2);
+  }
+
+  .health-table .health-issue p {
+    flex: 1 1 10rem;
+    min-width: 0;
+    margin: 0;
+  }
 }
 
+/* A phone gives the title the full width; the action moves down beside the
+   checked date instead of under it. */
 @media (max-width: 639px) {
   .health-toolbar {
     align-items: stretch;
   }
 
-  .health-table .health-row {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .health-table .health-resource,
-  .health-table .health-issue,
-  .health-table .health-checked,
-  .health-table .health-action {
-    grid-column: 1;
-  }
-
-  .health-table .health-action {
-    grid-row: auto;
-    text-align: left;
-  }
+  .health-table .health-resource { grid-column: 1 / -1; }
+  .health-table .health-checked { align-self: center; }
+  .health-table .health-action { grid-row: auto; }
 }
 }
