@@ -13,7 +13,8 @@
 #
 # Build context is the repository root: the server stage needs packages/server
 # plus the replica-health limit check inputs, and the web stage needs
-# packages/web plus packages/server/generated and the vendored @know-n/colp.
+# packages/web plus packages/server/generated. Every stage installs the same
+# exact registry version of @know-n/colp through its lockfile.
 #
 # deploy/compose.yaml mounts the named volume colp-web on /srv/web (Caddy
 # mounts the same volume read-only and serves it). That mount hides the image
@@ -27,8 +28,6 @@ WORKDIR /src/packages/web
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 COPY packages/web/package.json packages/web/package-lock.json packages/web/.npmrc ./
 COPY packages/web/vendor ./vendor
-# The web pins the server's vendored @know-n/colp (scripts/check-sdk-pins.mjs).
-COPY packages/server/vendor /src/packages/server/vendor
 RUN npm ci --ignore-scripts \
     && npm rebuild esbuild --ignore-scripts=false
 COPY packages/web/tsconfig.json packages/web/vite.config.ts packages/web/vitest.config.ts packages/web/index.html ./
@@ -46,7 +45,6 @@ FROM node:22.23.4-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc6
 # resolves the repo root from its own path.
 WORKDIR /src/packages/server
 COPY packages/server/package.json packages/server/package-lock.json ./
-COPY packages/server/vendor ./vendor
 # Lifecycle scripts stay off (repo .npmrc). esbuild still needs its install
 # script for the migrations bundle in `npm run build`. Same idea as Know-N's
 # devops/docker/backend.Dockerfile: migrations/*.ts use syntax Node's type
@@ -68,7 +66,6 @@ RUN npm run build \
 FROM node:22.23.4-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS runtime-deps
 WORKDIR /app
 COPY packages/server/runtime/package.json packages/server/runtime/package-lock.json ./
-COPY packages/server/vendor ./vendor
 # Native modules (@node-rs/argon2) ship prebuilt binaries, so
 # lifecycle scripts stay off. The runtime lock is a pruned subset of the dev
 # lock (CI runs `npm run runtime:manifest:check`); test tooling must be absent.

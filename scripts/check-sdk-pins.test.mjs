@@ -40,3 +40,15 @@ test('the repository consumers share one @know-n/colp build', () => {
     exists: (path) => existsSync(join(repository, path)),
   }), []);
 });
+
+test('published consumers must pin the current source version exactly', () => {
+  const published = (version, nodeVersion = '0.3.0') => tree({ nodeVersion,
+    pins: Object.fromEntries(SDK_CONSUMERS.map(root => [root, version])),
+    locks: Object.fromEntries(SDK_CONSUMERS.map(root => [root, {
+      version, resolved: `https://registry.npmjs.org/@know-n/colp/-/colp-${version}.tgz`, integrity: 'sha512-same',
+    }])),
+  });
+  assert.deepEqual(checkSdkPins(published('0.3.0')), []);
+  assert.match(checkSdkPins(published('0.2.1')).join('\n'), /not the current packages\/node version 0\.3\.0/u);
+  assert.match(checkSdkPins(published('^0.3.0')).join('\n'), /not the current packages\/node version/u);
+});

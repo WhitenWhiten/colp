@@ -1,11 +1,10 @@
 /**
  * The server, extension and web consume one @know-n/colp build.
  *
- * Until the current SDK is published they share the tarball the server
- * vendors (packages/server/scripts/refresh-automation-package.mjs refreshes
- * all three). The pin, the tarball and every lockfile entry must agree, and a
- * vendored tarball must be the version packages/node carries now. Conformance
- * links ../node directly and is not a consumer here.
+ * Published releases use one exact registry version. Unreleased SDK changes
+ * can share the server's vendored prerelease tarball. The pins and lockfile
+ * entries must match the version packages/node carries now and share one
+ * integrity. Conformance links ../node directly and is not a consumer here.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -32,6 +31,7 @@ export function checkSdkPins({ read, exists }) {
     if (typeof spec !== 'string') { errors.push(`${root}: no @know-n/colp dependency`); continue; }
     if (!locked) { errors.push(`${root}: package-lock.json has no node_modules/@know-n/colp`); continue; }
     if (!spec.startsWith('file:')) {
+      if (spec !== nodeVersion) errors.push(`${root}: pin ${spec} is not the current packages/node version ${nodeVersion}`);
       if (locked.version !== spec) errors.push(`${root}: locks ${locked.version} for pin ${spec}`);
       continue;
     }

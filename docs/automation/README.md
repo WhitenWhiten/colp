@@ -92,16 +92,19 @@ Product 1.95.0 adds dependency/incident read and revalidation operations, preser
 immutable 1.94.0 and 1.93.0 baselines. `/ready/features/automation` reports runtimeUnsupported
 independently of the usable configuration API and the server's general readiness.
 
-The server vendors `@know-n/colp` 0.2.2-automation-client-id.1 to include the CIMD
-connection-profile fix before a registry release. The extension and web pin the same
-tarball, so all three use one SDK build and its generated protocol types. Both server
-dependency locks, the extension and web locks and the Docker dependency stages use the
-checked-in tarball. To refresh unreleased shared-source changes,
+The server, server runtime, extension and web pin the published `@know-n/colp`
+0.3.0 package. Their lockfiles retain the same registry artifact and integrity,
+including the CIMD connection-profile and Sync recovery contracts. Docker stages
+install that registry package directly. `node scripts/check-sdk-pins.mjs` checks
+that all three application consumers match `packages/node` and share one artifact;
+the runtime manifest check keeps the server's production dependency lock aligned.
+For future unreleased shared-source changes, first select a unique prerelease
+version in `packages/node`, then
 `node packages/server/scripts/refresh-automation-package.mjs` packs a prerelease
-into `packages/server/vendor/` and updates all four locks; `node scripts/check-sdk-pins.mjs`
-(static CI job) fails if a pin, lock or tarball falls behind `packages/node`. Restore
-the registry dependency in all three packages and remove the vendor COPY steps when
-switching back to a published release.
+into `packages/server/vendor/` and updates all four locks. Such a vendored build
+also requires restoring its Docker COPY steps. Return all consumers to the exact
+registry release and remove those COPY steps after publication and artifact
+integrity verification.
 
 ## Guided AI connection
 

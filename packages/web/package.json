@@ -30,7 +30,7 @@
     "@fontsource-variable/instrument-sans": "^5.3.0",
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "@fontsource-variable/newsreader": "^5.3.0",
-    "@know-n/colp": "file:../server/vendor/know-n-colp-0.2.2-automation-client-id.1.tgz",
+    "@know-n/colp": "0.3.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.6.2"
