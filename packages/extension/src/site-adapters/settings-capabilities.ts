@@ -9,7 +9,7 @@ export function renderSiteCapabilities(document: Document, definition: SiteDefin
     if (!available) { button.hidden = true; button.disabled = true; }
     if (row) { const parent = button.closest<HTMLElement>('.set-row'); if (parent) parent.hidden = !available; }
   };
-  hideAction('read-catalog', features.collections); hideAction('next-catalog', features.collections);
+  hideAction('read-catalog', features.collections);
   hideAction('read-item', features.resolve, true); hideAction('retry-confirmation', features.confirmation, true);
   hideAction('archive-live', features.liveArchive, true); hideAction('configure-archive', features.archive); hideAction('grant-archive', features.archive);
   for (const id of ['start-import', 'resume-import', 'freeze-import', 'approve-import']) hideAction(id, features.import);

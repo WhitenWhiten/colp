@@ -51,7 +51,7 @@ test('both action orders follow all copy policies; a real toolbar semantic inten
     const site = await context.newPage(); await site.goto('https://www.bilibili.com/video/av1');
     await page.goto(`chrome-extension://${id}/site-adapters.html`); await page.locator('#enable').click();
     await expect.poll(async () => !!(await state(page)).candidateAccount).toBe(true); await page.locator('#refresh').click(); await page.locator('#confirm').click();
-    await expect.poll(async () => (await state(page)).documents).toBe(1); await page.locator('#read-catalog').click(); await expect(page.locator('#archive-collections option')).toHaveCount(1);
+    await expect.poll(async () => (await state(page)).documents).toBe(1); await expect(page.locator('#archive-collections input')).toHaveCount(1, { timeout: 30000 });
     async function configure(policy: string) {
       await expect.poll(async () => (await state(page)).documents).toBe(1);
       const previous = (await state(page)).inspection?.command?.pageRequestId;

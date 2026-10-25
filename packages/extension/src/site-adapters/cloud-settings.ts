@@ -18,7 +18,8 @@ for (const action of ['status', 'review', 'preview', 'recover', 'revoke', 'cance
 document.querySelector('#cloud-approve')!.addEventListener('click', () => { void call('approve', { digest: approval }).catch(e => { summary.textContent = String(e); }); });
 document.querySelector('#cloud-commit')!.addEventListener('click', () => { void call('commit', { digest: plan }).catch(e => { summary.textContent = String(e); }); });
 document.querySelector('#cloud-rule')!.addEventListener('click', () => {
-  const rootNativeId = document.querySelector<HTMLSelectElement>('#archive-root')!.value;
-  const collectionIds = Array.from(document.querySelector<HTMLSelectElement>('#archive-collections')!.selectedOptions).map(o => o.value);
+  // The rule uses what the Sync tab has chosen: its folder picker and the ticked collections.
+  const rootNativeId = document.querySelector<HTMLElement>('#archive-root')?.dataset.value ?? '';
+  const collectionIds = Array.from(document.querySelectorAll<HTMLInputElement>('#archive-collections input:checked')).map(o => o.value);
   void call('configureRule', { rootNativeId, collectionIds }).catch(e => { summary.textContent = String(e); });
 });

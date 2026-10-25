@@ -1,18 +1,75 @@
-import { bundledSites, legacySite, siteDefinition } from './registry.js';
-import { createIcon } from '../icons.js';
+import { bundledSites, legacySite, siteDefinition, type SiteDefinition } from './registry.js';
 import { t } from '../i18n.js';
 export const selectedSite = siteDefinition(new URL(location.href).searchParams.get('adapterId') ?? legacySite.adapterId);
 export const sendSiteMessage = (message: unknown) => chrome.runtime.sendMessage({ ...(message as Record<string, unknown>), adapterId: selectedSite.adapterId });
-/** The page head's "Site: …" pill; with one bundled site there is nothing to pick. */
-export function mountSiteSelector() {
-  const slot = document.querySelector<HTMLElement>('#adapter-picker'); if (!slot || bundledSites.length < 2) return;
-  const label = document.createElement('label'), value = document.createElement('strong'), select = document.createElement('select');
-  label.className = 'select-pill'; select.id = 'adapter-select'; select.setAttribute('aria-label', t('sites_siteAdapter', 'Site adapter'));
-  for (const site of bundledSites) select.append(new Option(site.label, site.adapterId));
-  select.value = selectedSite.adapterId; value.textContent = selectedSite.label;
-  select.onchange = () => { const url = new URL(location.href); url.searchParams.set('adapterId', select.value); location.assign(url.href); };
-  label.append(`${t('sites_site', 'Site')}: `, value, createIcon('chevron-down', 12), select); slot.replaceChildren(label); slot.hidden = false;
+
+/** What the sidebar says about a site, from its status reply. */
+export interface SiteNavStatus { enabled?: boolean; connected?: boolean; candidateAccount?: string | null; error?: string; archive?: { config?: { state: string } | null } }
+function navState(status: SiteNavStatus | undefined): { label: string; tone: 'on' | 'off' | 'warning' } {
+  if (!status || status.error) return { label: '', tone: 'off' };
+  if (status.archive?.config?.state === 'active') return { label: t('sites_navSyncing', 'Syncing'), tone: 'on' };
+  if (status.connected) return { label: t('sites_connected', 'Connected'), tone: 'on' };
+  if (status.candidateAccount) return { label: t('sites_navConnect', 'Connect account'), tone: 'warning' };
+  return { label: status.enabled ? t('sites_on', 'On') : t('sites_off', 'Off'), tone: 'off' };
 }
+const navItems = new Map<string, HTMLAnchorElement>();
+/** Paint one site's state line in the sidebar. */
+export function paintSiteNav(adapterId: string, status: SiteNavStatus | undefined) {
+  const item = navItems.get(adapterId); if (!item) return;
+  const state = navState(status), line = item.querySelector<HTMLElement>('.sites-nav-state')!, dot = item.querySelector<HTMLElement>('.set-dot')!;
+  line.lastElementChild!.textContent = state.label; dot.dataset.tone = state.tone; line.hidden = !state.label;
+}
+/** The sidebar's Sites list: every site this browser can read. Other sites ask for their own state once. */
+export function mountSiteNav() {
+  const list = document.querySelector<HTMLElement>('#site-list')!;
+  for (const site of bundledSites) {
+    const item = document.createElement('a'), mark = document.createElement('span'), text = document.createElement('span'), name = document.createElement('span'), state = document.createElement('span');
+    item.className = 'side-item sites-nav-item'; item.href = siteHref(site); item.dataset.adapterId = site.adapterId;
+    mark.className = 'sites-mark'; mark.setAttribute('aria-hidden', 'true'); mark.textContent = site.label.slice(0, 1).toLocaleUpperCase();
+    text.className = 'sites-nav-text'; name.className = 'sites-nav-name'; name.textContent = site.label;
+    state.className = 'sites-nav-state'; state.hidden = true; state.append(Object.assign(document.createElement('span'), { className: 'set-dot' }), document.createElement('span'));
+    text.append(name, state); item.append(mark, text); list.append(item); navItems.set(site.adapterId, item);
+    if (site.adapterId !== selectedSite.adapterId) void chrome.runtime.sendMessage({ kind: 'known.siteAdapters.status', adapterId: site.adapterId })
+      .then(r => paintSiteNav(site.adapterId, r as SiteNavStatus), () => undefined);
+  }
+}
+const siteHref = (site: SiteDefinition) => `site-adapters.html?adapterId=${encodeURIComponent(site.adapterId)}#sync`;
+
+export type SiteTab = 'sync' | 'cloud' | 'recovery';
+export interface SiteRoute { view: 'site' | 'packages'; tab: SiteTab }
+const TABS: readonly SiteTab[] = ['sync', 'cloud', 'recovery'];
+export function currentRoute(): SiteRoute {
+  const hash = location.hash.slice(1);
+  return hash === 'packages' ? { view: 'packages', tab: 'sync' } : { view: 'site', tab: TABS.includes(hash as SiteTab) ? hash as SiteTab : 'sync' };
+}
+const routeListeners: ((route: SiteRoute) => void)[] = [];
+export const onRoute = (listener: (route: SiteRoute) => void) => { routeListeners.push(listener); };
+/** One page, several views: the hash picks the site tab (#sync, #cloud, #recovery) or the Add-on packages view (#packages). */
+export function mountRoutes() {
+  const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>('.sites-tabs [role="tab"]'));
+  const paint = () => {
+    const route = currentRoute();
+    document.body.dataset.view = route.view; document.body.dataset.tab = route.tab;
+    document.querySelector<HTMLElement>('#view-site')!.hidden = route.view !== 'site';
+    document.querySelector<HTMLElement>('#view-packages')!.hidden = route.view !== 'packages';
+    for (const tab of tabs) { const on = tab.dataset.tab === route.tab; tab.setAttribute('aria-selected', String(on)); tab.tabIndex = on ? 0 : -1;
+      document.querySelector<HTMLElement>(`#${tab.getAttribute('aria-controls')}`)!.hidden = !on; }
+    for (const [id, item] of navItems) { if (route.view === 'site' && id === selectedSite.adapterId) item.setAttribute('aria-current', 'page'); else item.removeAttribute('aria-current'); }
+    const packages = document.querySelector<HTMLElement>('#nav-packages')!;
+    if (route.view === 'packages') packages.setAttribute('aria-current', 'page'); else packages.removeAttribute('aria-current');
+    for (const listener of routeListeners) listener(route);
+  };
+  for (const tab of tabs) tab.addEventListener('click', () => { showTab(tab.dataset.tab as SiteTab); });
+  // Arrow keys move along the tabs, as in any tablist.
+  document.querySelector('.sites-tabs')!.addEventListener('keydown', event => {
+    const key = (event as KeyboardEvent).key; if (key !== 'ArrowLeft' && key !== 'ArrowRight') return;
+    const at = TABS.indexOf(currentRoute().tab), next = TABS[(at + (key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length]!;
+    showTab(next); tabs.find(tab => tab.dataset.tab === next)?.focus();
+  });
+  addEventListener('hashchange', paint); paint();
+}
+export function showTab(tab: SiteTab) { if (location.hash !== `#${tab}`) location.hash = tab; }
+
 /** A kit button (docs/ui-design.md): secondary unless the step approves something. */
 export function siteButton(label: string, tone: 'primary' | 'secondary' | 'ghost' = 'secondary') {
   const button = document.createElement('button'); button.type = 'button'; button.className = `btn btn-${tone} btn-sm`; button.textContent = label; return button;

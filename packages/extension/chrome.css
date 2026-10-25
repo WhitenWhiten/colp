@@ -524,30 +524,6 @@ button.chip:hover { border-color: var(--line-heavy); background: var(--paper); c
 .select-quiet:hover { border-color: var(--line-heavy); }
 .select-quiet:focus-visible { outline: none; border-color: var(--ink); box-shadow: var(--shadow-ring); }
 
-/* -------------------------------------------------------- quiet listbox
-   A real <select multiple> on a settings row: rows on a white field, a picked row on paper-2
-   with an ink check. Chrome paints its own blue over a focused selection's background-color
-   but not over a background-image, so the picked fill is a gradient. */
-.listbox-quiet {
-  display: block; width: 100%; min-width: 0; margin: 0; padding: var(--hair-30);
-  border: 1px solid var(--line-strong); border-radius: var(--radius);
-  background: var(--surface-raised); color: var(--ink); font-size: var(--text-sm);
-  overflow-y: auto; scrollbar-width: thin;
-  transition: border-color var(--duration-fast) var(--ease-quart);
-}
-.listbox-quiet:hover { border-color: var(--line-heavy); }
-.listbox-quiet:focus-visible { outline: none; border-color: var(--ink); box-shadow: var(--shadow-ring); }
-.listbox-quiet option {
-  padding: var(--hair-45) var(--space-6) var(--hair-45) var(--hair-65); border-radius: var(--radius-xs);
-  color: var(--ink-2); line-height: var(--leading-ui);
-}
-.listbox-quiet option:hover { background: var(--paper); }
-.listbox-quiet option:checked {
-  background: var(--listbox-check) no-repeat right var(--hair-65) center / 0.85rem auto, linear-gradient(var(--paper-2), var(--paper-2));
-  color: var(--ink); font-weight: var(--weight-medium);
-}
-:root { --listbox-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23111' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E"); }
-
 /* ----------------------------------------------------------- code panel
    Read-only machine output (a package to review, a server's reply): monospace on the sunken
    surface, scrolling past 18rem. An empty panel takes no room. */

@@ -22,10 +22,13 @@ async function waitQueue(page: Page) {
   await expect.poll(() => page.evaluate(async () => { const s = (await chrome.storage.local.get('known.siteAdapters.readQueue.v1'))['known.siteAdapters.readQueue.v1'] as { active?: unknown; nextAt?: number } | undefined;
     return !s?.active && (s?.nextAt ?? 0) <= Date.now(); })).toBe(true);
 }
+/** The page reads the collections on its own, following every page of them. */
 async function loadCatalog(page: Page) {
-  await page.locator('#read-catalog').click(); await expect(page.locator('#archive-collections option')).toHaveCount(100);
-  await waitQueue(page); await page.locator('#next-catalog').click(); await expect(page.locator('#archive-collections option')).toHaveCount(200);
-  await waitQueue(page); await page.locator('#next-catalog').click(); await expect(page.locator('#archive-collections option')).toHaveCount(205);
+  await expect(page.locator('#archive-collections input')).toHaveCount(205, { timeout: 60000 });
+}
+async function pickFolder(page: Page, id: string) {
+  await page.locator('#archive-root').click(); await page.locator(`#archive-root-picker [data-folder-id="${id}"]`).click();
+  await expect(page.locator('#archive-root')).toHaveAttribute('data-value', id);
 }
 test('source import freezes an exact partial preview, preserves live work and resumes discovery without duplicate native copies', async () => {
   test.setTimeout(240000);
@@ -67,13 +70,15 @@ test('source import freezes an exact partial preview, preserves live work and re
     await expect.poll(async () => !!(await status(page)).candidateAccount).toBe(true);
     await page.locator('#refresh').click(); await page.locator('#confirm').click(); await expect.poll(async () => (await status(page)).documents).toBe(1);
     await loadCatalog(page);
-    await page.locator('#grant-archive').click(); await expect(page.locator(`#archive-root option[value="${root.id}"]`)).toHaveCount(1);
-    await page.locator('#archive-root').selectOption(root.id); await page.locator('#archive-collections').selectOption(['101', '202', '305']);
-    await page.locator('#archive-live').check(); await page.locator('#configure-archive').click();
+    await pickFolder(page, root.id);
+    for (const id of ['101', '202', '305']) await page.locator(`#archive-collections input[value="${id}"]`).check();
+    await expect(page.locator('#archive-live')).toHaveAttribute('aria-checked', 'true'); await page.locator('#configure-archive').click();
     await expect.poll(async () => (await status(page)).archive.config?.state).toBe('active');
     expect(await nativeCounts(page, root.id)).toEqual({ folders: 0, urls: [] });
     const initialLease = (await page.evaluate(async () => (await chrome.storage.local.get('known.siteAdapters.runtime.v1'))['known.siteAdapters.runtime.v1'] as { leases: { id: string; documentId: string }[] })).leases[0]!;
-    await page.locator('#start-import').click();
+    // Starting to sync starts the scan. The page turns a finished scan into its preview, so watch this one from Settings.
+    await expect.poll(async () => (await status(page)).archive.import?.phase).toBe('scanning');
+    await page.goto(`chrome-extension://${extensionId}/options.html#bookmarks`);
     await expect.poll(async () => { const j = (await status(page)).archive.import; return j?.stage === 'items' && j.collectionIndex >= 2; }, { timeout: 75000 }).toBe(true);
     expect(await nativeCounts(page, root.id)).toEqual({ folders: 0, urls: [] });
     await site.evaluate(() => fetch('https://api.bilibili.com/x/v3/fav/resource/deal', { method: 'POST', credentials: 'include', body: new URLSearchParams({ rid: '4', type: '2', add_media_ids: '202' }) }));
@@ -89,28 +94,34 @@ test('source import freezes an exact partial preview, preserves live work and re
       return s.leases.some(l => l.id !== initialLease.id && l.documentId === initialLease.documentId); }, { timeout: 75000 }).toBe(true);
     await expect.poll(async () => { const j = (await status(page)).archive.import; return j.phase === 'paused' && j.reason === 'scanFinished'; }, { timeout: 30000 }).toBe(true);
     await waitQueue(page);
-    await page.evaluate(cursor => chrome.runtime.sendMessage({ kind: 'known.siteAdapters.inspect', operation: 'items', collectionId: '202', cursor }), bCursor);
+    // A lease close to expiry is renewed first and the read waits; ask again until it starts.
+    await expect.poll(async () => (await page.evaluate(cursor => chrome.runtime.sendMessage({ kind: 'known.siteAdapters.inspect', operation: 'items', collectionId: '202', cursor }), bCursor)).inspectionStatus?.status,
+      { timeout: 30000, intervals: [1500] }).toBe('reading');
     await expect.poll(async () => (await status(page)).inspection?.result?.status, { timeout: 15000 }).toBe('ok');
     expect((await status(page)).inspection.result).toMatchObject({ kind: 'items', collectionId: '202' });
     // Lose the document cache and the worker after accepting pages: resume repeats discovery, retaining identities.
     await site.reload(); await stopWorker(context, page);
     await expect.poll(async () => (await status(page)).documents, { timeout: 30000 }).toBe(1);
     await expect.poll(async () => (await status(page)).archive.import?.phase, { timeout: 40000 }).toBe('paused');
-    await page.locator('#refresh').click(); await page.locator('#resume-import').click();
-    await expect.poll(async () => { const j = (await status(page)).archive.import; return j?.phase === 'paused' && j.reason === 'scanFinished'; }, { timeout: 90000 }).toBe(true);
-    await page.locator('#refresh').click(); await page.locator('#freeze-import').click();
-    await expect.poll(async () => (await status(page)).archive.import?.phase).toBe('preview');
+    // A scan that already finished shows as its preview on Site adapters, so restart this one from Settings.
+    const stopped = (await status(page)).archive.import;
+    expect(await page.evaluate(jobId => chrome.runtime.sendMessage({ kind: 'known.siteAdapters.import.resume', jobId }), stopped.id)).not.toHaveProperty('error');
+    await page.goto(`chrome-extension://${extensionId}/site-adapters.html`);
+    // The finished scan becomes its preview on its own.
+    await expect.poll(async () => (await status(page)).archive.import?.phase, { timeout: 90000 }).toBe('preview');
     const frozen = (await status(page)).archive.import;
     expect(frozen.edgeCount).toBe(4); expect(frozen.omissions).toBe(1); expect(frozen.preview.coverage).toBe('partial');
     expect(frozen.preview.counts).toMatchObject({ createFolders: 2, createBookmarks: 3, reuseBookmarks: 1, review: 0 });
     expect((await nativeCounts(page, root.id)).urls).toEqual(['https://www.bilibili.com/video/av4']);
-    await waitQueue(page); await loadCatalog(page);
+    // The collections read before the tab reloaded and the worker stopped still count: Save needs no second read.
+    await loadCatalog(page);
     await page.locator('#archive-live').uncheck(); await page.locator('#configure-archive').click();
     await expect.poll(async () => (await status(page)).archive.config?.live).toBe(false);
     expect(await page.evaluate(j => chrome.runtime.sendMessage({ kind: 'known.siteAdapters.import.approve', jobId: j.id,
       previewId: j.preview.id, revision: j.preview.revision, digest: j.preview.digest }), frozen)).toMatchObject({ error: 'previewStale' });
     expect((await nativeCounts(page, root.id)).urls).toEqual(['https://www.bilibili.com/video/av4']);
-    await page.locator('#freeze-import').click(); await expect.poll(async () => (await status(page)).archive.import?.phase).toBe('preview');
+    await page.locator('#freeze-import').click();
+    await expect.poll(async () => { const j = (await status(page)).archive.import; return j?.phase === 'preview' && j.preview?.digest !== frozen.preview.digest; }).toBe(true);
     await page.locator('#refresh').click(); await page.locator('#approve-import').click();
     await expect.poll(async () => (await status(page)).archive.import?.phase, { timeout: 20000 }).toBe('completed');
     const final = await nativeCounts(page, root.id); expect(final).toEqual({ folders: 3, urls: [1, 2, 3, 4].map(i => `https://www.bilibili.com/video/av${i}`) });

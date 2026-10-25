@@ -4,9 +4,18 @@ All notable changes to the Know-N browser extension are documented here. The for
 
 ## [Unreleased]
 
+### Changed
+
+- The Site adapters page has a sidebar of sites and Add-on packages, and Sync, COLP Server and Recovery tabs for each site. Sync has three steps: connect the account, choose collections and a folder, and bring in existing favorites.
+  - Collections are a checkbox list that the page reads on its own once the account is connected, page after page.
+  - The folder is chosen with the same folder picker as the rest of the extension, which can also make a folder named after the site.
+  - Start syncing also starts the scan of existing favorites, except for a restored archive that is still waiting for rebinding. A finished scan becomes its list on its own, and nothing is added until you approve it.
+  - A refused step says what to do in a toast instead of leaving the page unchanged.
+
 ### Fixed
 
 - Saving a page while its site archive is still finishing now completes when both source and semantic copies are enabled, instead of getting stuck as unsubmitted.
+- Saving site archive settings no longer fails after browsing on the site. The collections read for an account stay usable when the site's tab reloads or moves to another page.
 
 ## [0.1.0-rc.1] - 2026-10-24
 

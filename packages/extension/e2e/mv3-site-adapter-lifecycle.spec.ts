@@ -31,18 +31,19 @@ test('bundled inspector scopes worlds, reconnects routes and fences revocation w
       headers: { 'access-control-allow-origin': 'https://www.bilibili.com', 'access-control-allow-credentials': 'true' }, body: JSON.stringify({ code: 0, data: [{ id: 1, type: 2, title: 'Fixture', attr: 1 }] }) }));
     const site = await context.newPage(); await site.goto('https://www.bilibili.com/video/av1');
     await page.goto(`${extensionOrigin}/site-adapters.html`);
-    await grantOptionalBookmarks(page, 'Enable Bilibili inspector', 'Known adapter access', {
+    await grantOptionalBookmarks(page, page.locator('#enable'), 'Known adapter access', {
       permissions: ['scripting', 'webNavigation'], origins: ['https://www.bilibili.com/*'],
     });
     const readState = () => page.evaluate(async () => (await chrome.storage.local.get('known.siteAdapters.runtime.v1'))['known.siteAdapters.runtime.v1'] as { routes: Record<string, number>; generation: number; leases: { id: string; documentId: string; url: string; routeEpoch: number }[]; candidateAccount: string | null });
     await expect.poll(async () => (await readState()).candidateAccount, { timeout: 15000 }).toBe('42');
     await page.locator('#refresh').click(); await page.locator('#confirm').click();
     await expect.poll(async () => (await readState()).leases.length).toBe(1);
-    await page.locator('#read-catalog').click();
+    // The page reads the connected account's collections on its own.
     await expect.poll(async () => page.evaluate(async () => {
       const state = (await chrome.storage.local.get('known.siteAdapters.inspection.v1'))['known.siteAdapters.inspection.v1'] as { result?: { status: string } } | undefined;
       return state?.result?.status;
-    }), { timeout: 15000 }).toBe('ok');
+    }), { timeout: 30000 }).toBe('ok');
+    await expect(page.locator('#archive-collections input')).toHaveCount(1);
     const first = (await readState()).leases[0]!;
     expect(await site.evaluate(() => ({ runtime: typeof (globalThis as any).chrome?.runtime?.sendMessage,
       slot: (globalThis as any)['__knownSiteAdapterV1:bundled.bilibili'] }))).toEqual({ runtime: 'undefined', slot: undefined });
@@ -79,7 +80,7 @@ test('bundled inspector scopes worlds, reconnects routes and fences revocation w
       const q = (await chrome.storage.local.get('known.siteAdapters.readQueue.v1'))['known.siteAdapters.readQueue.v1'] as { nextAt: number; active: unknown };
       return !q.active && q.nextAt <= Date.now();
     })).toBe(true);
-    await page.locator('#read-item').click();
+    await page.locator('#tab-recovery').click(); await page.locator('#read-item').click();
     await expect.poll(() => page.evaluate(async () => {
       const s = (await chrome.storage.local.get('known.siteAdapters.inspection.v1'))['known.siteAdapters.inspection.v1'] as { result?: { status: string; item?: { id: string } } };
       return s.result?.item?.id;
@@ -131,7 +132,7 @@ test('bundled inspector scopes worlds, reconnects routes and fences revocation w
     });
     expect(observations).toEqual(['catalog.upsert', 'membership.observed', 'membership.observed', 'membership.observed']);
     const oldGeneration = (await readState()).generation;
-    await page.locator('#disable').click();
+    await page.locator('#tab-sync').click(); await page.locator('#disable').click();
     await expect.poll(async () => (await readState()).generation).toBeGreaterThan(oldGeneration);
     expect((await readState()).leases).toEqual([]);
     const scripts = await page.evaluate(() => chrome.scripting.getRegisteredContentScripts({ ids: ['known-site-adapter', 'known-site-probe'] }));

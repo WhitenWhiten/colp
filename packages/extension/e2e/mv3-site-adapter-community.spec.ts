@@ -58,9 +58,11 @@ test('named user-script packages stay inert until consent, isolate powers, confi
     await page.locator('#enable').click(); await expect.poll(() => page.evaluate(async () => !!(await chrome.runtime.sendMessage({ kind: 'known.siteAdapters.status' }) as any).candidateAccount)).toBe(true);
     await page.locator('#refresh').click(); await page.locator('#confirm').click();
     await expect.poll(() => page.evaluate(async () => (await chrome.runtime.sendMessage({ kind: 'known.siteAdapters.status' }) as any).documents)).toBe(1);
-    await page.locator('#read-catalog').click(); await expect(page.locator('#archive-collections option')).toHaveCount(2);
-    await page.selectOption('#archive-root', root); await page.selectOption('#archive-collections', ['101']); await page.locator('#archive-live').check(); await page.locator('#configure-archive').click();
-    await expect(page.locator('#status')).toContainText('"state": "active"');
+    // The page reads the collections on its own. Configure directly: the Sync tab's Start syncing would also start an import scan.
+    await expect(page.locator('#archive-collections input')).toHaveCount(2, { timeout: 30000 });
+    expect(await page.evaluate(rootNativeId => chrome.runtime.sendMessage({ kind: 'known.siteAdapters.archive.configure', rootNativeId, collectionIds: ['101'], live: true }), root)).not.toHaveProperty('error');
+    await expect.poll(() => page.evaluate(async () => (await chrome.runtime.sendMessage({ kind: 'known.siteAdapters.status' }) as any).archive.config?.state)).toBe('active');
+    await page.locator('#nav-packages').click();
     async function install(version: string) {
       const file = resolve(directory, `package-${version}.json`); await writeFile(file, bundle(version));
       await page.locator('#community-file').setInputFiles(file); await expect(page.locator('#community-preview')).toContainText(`"version": "${version}"`);

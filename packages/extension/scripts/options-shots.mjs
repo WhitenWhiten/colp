@@ -257,12 +257,17 @@ const LIBRARY = [
   ['tabs-folder', 'capture-tabs.html', async (p) => { await p.selectOption('#tabs-target', { index: 2 }); await p.waitForTimeout(200); }],
   // Site adapters: off, an account to confirm, connected with an archive, a scan, a preview, an unsupported browser, a failed read,
   // a root on hold, no bookmark access, the review rows (associations, restored backups) and community packages.
-  ['sites-off', 'site-adapters.html'], ['sites-candidate', 'site-adapters.html?shot=site-candidate'], ['sites-on', 'site-adapters.html?shot=site-on'],
+  ['sites-off', 'site-adapters.html'], ['sites-waiting', 'site-adapters.html?shot=site-waiting'], ['sites-candidate', 'site-adapters.html?shot=site-candidate'],
+  ['sites-choose', 'site-adapters.html?shot=site-choose'], ['sites-reading', 'site-adapters.html?shot=site-choose,site-reading'],
+  ['sites-many', 'site-adapters.html?shot=site-choose,site-many', async (p) => { await p.click('#select-all'); await p.click('#archive-root'); await p.waitForTimeout(300); }],
+  ['sites-notab', 'site-adapters.html?shot=site-on,site-notab'], ['sites-on', 'site-adapters.html?shot=site-on'],
+  ['sites-options', 'site-adapters.html?shot=site-on', open('#archive-options')],
   ['sites-scan', 'site-adapters.html?shot=site-scan'], ['sites-preview', 'site-adapters.html?shot=site-preview'],
   ['sites-unsupported', 'site-adapters.html?shot=site-unsupported'], ['sites-error', 'site-adapters.html?shot=site-error'],
   ['sites-hold', 'site-adapters.html?shot=site-hold'], ['sites-noperm', 'site-adapters.html?shot=noperm'],
-  ['sites-review', 'site-adapters.html?shot=site-on,site-repair', async (p) => { await p.click('#read-bindings'); await p.click('#repair-status'); await p.waitForTimeout(400); }],
-  ['sites-packages', 'site-adapters.html?shot=site-on,site-packages', async (p) => { await p.setInputFiles('#community-file', packageFile); await p.waitForTimeout(400); }],
+  ['sites-review', 'site-adapters.html?shot=site-on,site-repair#recovery', async (p) => { await p.click('#read-bindings'); await p.click('#repair-status'); await p.waitForTimeout(400); }],
+  ['sites-cloud', 'site-adapters.html?shot=site-on#cloud'],
+  ['sites-packages', 'site-adapters.html?shot=site-on,site-packages#packages', async (p) => { await p.setInputFiles('#community-file', packageFile); await p.waitForTimeout(400); }],
   // Help: the ingress list ("Bookmarks not included in sync") with real rows
   ['help-ingress', `${R}?shot=ingress#help?category=sync`],
 ];

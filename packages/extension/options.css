@@ -1030,29 +1030,81 @@ body[data-first-run="syncing"] .folder-foot { display: none; }
 
 /* ------------------------------------------------------- site adapters page */
 
-/* site-adapters.html: the options pane rhythm in one 46rem column on the paper, as Save tabs has it.
-   Groups of rows in white cards; settings.ts hides an action that can't run yet instead of greying it. */
-.sites-main { max-width: 46rem; margin: 0 auto; padding: var(--space-5) var(--space-4) var(--space-10); }
-.sites-back { margin: 0 0 var(--space-3) calc(-1 * var(--hair-55)); color: var(--muted); }
-.sites-back:hover { color: var(--ink); }
-.sites-main > .inline-alert { margin-bottom: var(--space-5); }
-.sites-main .set-row-hint { overflow-wrap: anywhere; }
+/* site-adapters.html: the options shell. The sidebar lists the sites (a letter mark, the name and its state) and Add-on
+   packages; the main column is one site, its page head, a segmented tab rail and the tab's groups. */
+.sites-mark { display: grid; place-items: center; flex: none; width: 1.5rem; height: 1.5rem; border-radius: var(--radius); background: var(--paper-2); color: var(--ink-2); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
+.side-item[aria-current="page"] .sites-mark { background: var(--ink); color: var(--surface-raised); }
+.sites-nav-item { min-height: 2.75rem; }
+.sites-nav-text { display: grid; min-width: 0; }
+.sites-nav-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sites-nav-state { display: flex; align-items: center; gap: var(--hair-30); color: var(--muted); font-size: var(--text-xs); font-weight: var(--weight-regular); }
+.sites-nav-state[hidden] { display: none; }
+.sites-tabs { margin: 0 0 var(--space-5); }
+.sites-view > .inline-alert { margin-bottom: var(--space-5); }
+.sites-view .set-row-hint { overflow-wrap: anywhere; }
 /* Rows here can hold several steps: they wrap onto a second line rather than run out of the card on a narrow window. */
-.sites-main :is(.set-row-control, .card-foot) { flex-wrap: wrap; }
-.sites-main .set-row-control .select-quiet { max-width: min(18rem, 100%); }
-@media (max-width: 56rem) { .sites-main .set-row-control { justify-content: flex-start; } }
+.sites-view :is(.set-row-control, .card-foot) { flex-wrap: wrap; }
+.sites-view .set-row-control .select-quiet { max-width: min(18rem, 100%); }
+@media (max-width: 56rem) {
+  .sites-view .set-row-control { justify-content: flex-start; }
+  .sites-nav-item { min-height: 2.125rem; }
+  .sites-nav-state, .sites-mark { display: none; }
+}
+
+/* Sync: numbered steps. A step that can't start yet keeps only its title and what it waits for; a finished one shows a check. */
+.sites-step-head { grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: var(--hair-65); }
+.sites-step-head > p { grid-column: 2; }
+.sites-step-n { display: grid; place-items: center; width: 1.375rem; height: 1.375rem; border-radius: 50%; background: var(--ink); color: var(--surface-raised); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
+.sites-step-n > svg { display: none; width: 0.75rem; height: 0.75rem; }
+.sites-step[data-step="done"] .sites-step-n { background: var(--success-soft); color: var(--success); }
+.sites-step[data-step="done"] .sites-step-n > span { display: none; }
+.sites-step[data-step="done"] .sites-step-n > svg { display: block; }
+.sites-step[data-step="later"] .sites-step-n { background: var(--paper-2); color: var(--muted); }
+.sites-step[data-step="later"] .sites-step-head > h2 { color: var(--muted); }
+.sites-step[data-step="later"] > :not(.sites-step-head) { display: none; }
+.sites-step:not([data-step="later"]) .sites-step-wait { display: none; }
+.sites-step > .inline-alert { margin: 0; }
+
+/* Collections: ticked rows in one boxed list that scrolls past about ten; before the first read, a dashed note says how to fill it. */
+.sites-collections { gap: var(--space-2); }
+.sites-collections-head { display: flex; align-items: center; gap: var(--space-4); min-width: 0; }
+.sites-collections-head > .set-row-control { margin-left: auto; }
+.sites-filter { max-width: none; }
+.sites-filter[hidden] { display: none; }
+.sites-collection-list { max-height: 22rem; overflow-y: auto; overscroll-behavior: contain; }
+.sites-collection-list:empty { display: none; }
+.sites-collection-list > .option-row[hidden] { display: none; }
+.sites-collections-empty { display: grid; justify-items: center; gap: var(--space-2); padding: var(--space-5) var(--space-4); border: 1px dashed var(--line-heavy); border-radius: var(--radius); text-align: center; }
+.sites-collections-empty[hidden] { display: none; }
+.sites-collections-empty > p { margin: 0; color: var(--muted); font-size: var(--text-xs); line-height: var(--leading-body); }
+.sites-view .field-error { font-size: var(--text-xs); }
+/* Save into: the name on the left, the folder pill on the right, and its panel opening under both (as in rule sets). */
+.sites-folder-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--space-2); }
+.sites-folder-row > .set-row-text { margin-right: var(--space-3); }
+.sites-folder-row > .set-row-control, .sites-folder-row .folder-picker { display: contents; }
+.sites-folder-row #create-root { grid-column: 2; grid-row: 1; }
+.sites-folder-row :is(.folder-pill, #grant-archive) { grid-column: 3; grid-row: 1; max-width: 18rem; }
+.sites-folder-row .folder-panel { grid-column: 1 / -1; grid-row: 2; }
+.sites-folder-row > .field-error { grid-column: 1 / -1; }
+/* Narrow: the pill under the name, its panel under the pill, then New folder. */
+@media (max-width: 540px) {
+  .sites-folder-row { grid-template-columns: minmax(0, 1fr); }
+  .sites-folder-row > .set-row-text { margin-right: 0; }
+  .sites-folder-row :is(.folder-pill, #grant-archive) { grid-column: 1; grid-row: 2; justify-self: start; max-width: 100%; }
+  .sites-folder-row .folder-panel { grid-row: 3; }
+  .sites-folder-row #create-root { grid-column: 1; grid-row: 4; justify-self: start; }
+}
+.sites-options { border-top: 1px solid var(--line); }
+.sites-options > summary { padding: var(--hair-85) var(--space-4); color: var(--muted); font-size: var(--text-sm); }
+.sites-options > .set-row, .sites-options > .set-sub { border-top: 1px solid var(--line); }
+.sites-progress { padding: 0 var(--space-4) var(--space-3); }
+
 /* Rows the page adds (associations, restored backups, packages) follow the card's rows under a hairline. */
 .sites-rows:empty { display: none; }
 .sites-rows > .set-row { border-top: 1px solid var(--line); }
 .sites-rows--lead > .set-row:first-child { border-top: 0; }
 .sites-rows .set-row-control { flex-wrap: wrap; }
 .sites-rows:not(:empty) + .sites-packages-empty { display: none; }
-.sites-packages-empty { border-bottom: 1px solid var(--line); }
-/* Collections: the list fills its row; before the first read, a dashed note says how to fill it. */
-.sites-listbox { display: block; }
-.sites-listbox > .listbox-quiet:empty { display: none; }
-.sites-listbox-empty { margin: 0; padding: var(--space-4); border: 1px dashed var(--line-heavy); border-radius: var(--radius); color: var(--muted); font-size: var(--text-xs); text-align: center; }
-.listbox-quiet:not(:empty) + .sites-listbox-empty { display: none; }
 /* A card foot of steps: the leading ghost step at the start, the rest at the end; nothing to do, no foot. */
 .sites-actions { flex-wrap: wrap; }
 .sites-actions:not(:has(> .btn:not([hidden]))) { display: none; }
@@ -1061,11 +1113,10 @@ body[data-first-run="syncing"] .folder-foot { display: none; }
 .sites-omissions ul { margin: var(--space-2) 0 0; padding-left: var(--space-5); color: var(--ink-3); font-size: var(--text-xs); line-height: var(--leading-body); }
 .sites-package-digest { font-family: var(--font-mono); }
 .sites-rows .set-row-hint[data-tone="danger"] { color: var(--danger); }
-/* The worker's last reply under a group, open while there is one; the full status stays folded at the foot. */
+/* The worker's last reply under a group, folded; the full status stays folded at the foot of Recovery. */
 .sites-response:has(> .code-panel:empty) { display: none; }
 :is(.sites-response, .sites-technical) > summary { width: max-content; color: var(--muted); font-size: var(--text-xs); }
 :is(.sites-response, .sites-technical) > .code-panel { margin-top: var(--space-2); }
-.sites-technical { margin-top: var(--space-2); }
 
 .manager-selection-count { align-self: center; line-height: 2rem; padding: 0 var(--space-2); border-left: 1px solid var(--line-strong); color: var(--ink-2); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
 
@@ -1141,9 +1192,9 @@ body[data-state="signed_out"] .side-id .avatar { background: var(--paper-2); col
 .page-foot-links svg { width: 0.75rem; height: 0.75rem; }
 .back-link { display: inline-flex; align-items: center; gap: var(--hair-30); color: var(--muted); font-size: var(--text-sm); font-weight: var(--weight-medium); text-decoration: none; }
 .back-link:hover { color: var(--ink); }
-:is(.main, .sites-main) .btn.btn-sm { padding-inline: var(--hair-85); }
-:is(.main, .sites-main) .btn-secondary:disabled { background: transparent; border-color: var(--line-strong); color: var(--faint); }
-:is(.main, .sites-main) .btn-ghost:disabled { background: transparent; border-color: transparent; color: var(--faint); }
+.main .btn.btn-sm { padding-inline: var(--hair-85); }
+.main .btn-secondary:disabled { background: transparent; border-color: var(--line-strong); color: var(--faint); }
+.main .btn-ghost:disabled { background: transparent; border-color: transparent; color: var(--faint); }
 .main > .inline-alert, .session-stage > .inline-alert, .main-inner > .inline-alert { margin-bottom: var(--space-5); }
 .main > .inline-alert { max-width: 46rem; margin-inline: auto; }
 .first-run-alert[data-tone="warning"] > .first-run-alert-info, .first-run-alert:not([data-tone="warning"]) > .first-run-alert-warning { display: none; }

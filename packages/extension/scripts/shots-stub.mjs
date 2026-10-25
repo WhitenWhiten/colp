@@ -283,18 +283,22 @@ export function installStub(messages) {
   //   site-scan, site-preview  (connected) an import is scanning / its preview waits for approval
   //   site-unsupported  Chrome 140 (adapters need 149+)   site-error  the status read fails   site-hold  the archive root needs review
   //   site-repair  a restored backup and an unknown write wait for review   site-packages  two community packages, user scripts on
-  const siteOn = has('site-on', 'site-scan', 'site-preview', 'site-hold'), siteCandidate = has('site-candidate');
+  //   site-waiting  on, no account yet   site-choose  connected, nothing chosen yet   site-reading  (with site-choose) collections still being read
+  //   site-many  (with site-choose) 40 collections, so the list scrolls and offers a filter   site-notab  (connected) no Bilibili tab open
+  const siteChoose = has('site-choose'), siteOn = has('site-on', 'site-scan', 'site-preview', 'site-hold') || siteChoose, siteCandidate = has('site-candidate'), siteWaiting = has('site-waiting');
   const siteCollections = [{ id: '101', title: 'Watch later' }, { id: '202', title: 'Music' }, { id: '305', title: 'Machine learning lectures' },
-    { id: '410', title: 'Cooking' }, { id: '512', title: 'Travel vlogs' }, { id: '613', title: 'Default collection' }];
+    { id: '410', title: 'Cooking' }, { id: '512', title: 'Travel vlogs' }, { id: '613', title: 'Default collection' },
+    ...has('site-many') ? Array.from({ length: 34 }, (_, i) => ({ id: String(700 + i), title: `Collection ${i + 1}` })) : []];
   const siteImport = () => has('site-preview') ? { id: 'job-1', phase: 'preview', edgeCount: 214, pages: 9, omissions: 2, coverage: 'complete', reason: null, nextEdge: 214, nextPlan: 0,
     preview: { id: 'pv-1', revision: 1, digest: 'sha256:p', coverage: 'complete', counts: { createFolders: 3, createBookmarks: 198, reuseBookmarks: 14, review: 2 }, omissions: { samples: [], unscannedRemainder: false } } }
     : has('site-scan') ? { id: 'job-1', phase: 'scanning', edgeCount: 86, pages: 4, omissions: 0, coverage: 'partial', reason: null, nextEdge: 86, nextPlan: 0, preview: null } : null;
   const siteStatus = () => has('site-error') ? { error: 'sourceNeedsReview' } : {
-    enabled: siteOn || siteCandidate, generation: 3, connected: siteOn, candidateAccount: siteCandidate ? '42' : null, documents: siteOn ? 1 : 0,
+    enabled: siteOn || siteCandidate || siteWaiting, generation: 3, connected: siteOn, accountId: siteOn ? '42' : null, candidateAccount: siteCandidate ? '42' : null, documents: siteOn && !has('site-notab') ? 1 : 0,
     mode: siteOn && !has('site-hold') ? 'localArchive' : 'inspector', writes: siteOn && !has('site-hold'), models: false, observation: 'degraded', negativeReadback: 'unavailable',
     browser: has('site-unsupported') ? { minimum: 149, major: 140, supported: false } : { minimum: 149, major: 149, supported: true },
-    grants: { site: siteOn || siteCandidate, bookmarks: !has('noperm') }, archiveHold: has('site-hold') ? 'sourceNeedsReview' : null,
-    archive: { config: siteOn ? { root: { nativeId: 'f-research' }, collectionIds: ['101', '305'], live: true, state: 'active', copies: 'sourceAndSemantic', primarySourceCollectionId: null, aiDestination: 'excluded' } : null,
+    grants: { site: siteOn || siteCandidate || siteWaiting, bookmarks: !has('noperm') }, archiveHold: has('site-hold') ? 'sourceNeedsReview' : null,
+    catalog: siteOn ? { items: has('site-reading') ? siteCollections.slice(0, 2) : siteCollections, nextCursor: has('site-reading') ? 'c2' : null, reading: has('site-reading'), current: true, failed: null } : null,
+    archive: { config: siteOn && !siteChoose ? { root: { nativeId: 'f-research' }, collectionIds: ['101', '305'], live: true, state: 'active', copies: 'sourceAndSemantic', primarySourceCollectionId: null, aiDestination: 'excluded' } : null,
       import: siteImport() },
     adapterId: 'bundled.bilibili', confirmations: { pending: 0 },
     inspection: siteOn ? { command: { deadlineAt: now - 1, pageRequestId: 'p1', query: { cursor: null } }, result: { status: 'ok', kind: 'collections', page: { items: siteCollections, nextCursor: null } } } : null };

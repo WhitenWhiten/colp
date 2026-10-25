@@ -79,7 +79,7 @@ test('planned native commands survive worker cuts or expose unknown without repl
     expect(['folderManuallyChanged', 'folderNeedsReview']).toContain(stopped.reason);
     expect(await page.evaluate(id => chrome.bookmarks.getChildren(id), layoutFolders[0]!.id)).toHaveLength(1);
     expect(modelCalls).toBe(0);
-    await page.locator('#repair-status').click();
+    await page.locator('#tab-recovery').click(); await page.locator('#repair-status').click();
     await expect(page.locator('#repair-summary')).toContainText('replacement creates are blocked');
     await expect(page.locator('#repair-summary')).toContainText('"state": "unknown"');
     await test.info().attach('source-planned-acceptance.json', { body: Buffer.from(JSON.stringify({ schemaVersion: 1, observedAt: new Date().toISOString(),

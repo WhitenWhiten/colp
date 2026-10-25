@@ -29,7 +29,7 @@ export function createSiteTransport(deps: TransportDeps, definition: SiteDefinit
   const fence = (s: TransportState) => { s.generation++; s.leases = []; s.routes = {}; };
   return {
     status: () => serial(async () => { const s = await deps.read(); return { enabled: s.enabled, generation: s.generation,
-      connected: s.accountId !== null && !s.sourceUnresolved, candidateAccount: s.candidateAccount, documents: s.leases.filter(l => l.expiresAt > deps.now()).length,
+      connected: s.accountId !== null && !s.sourceUnresolved, accountId: s.accountId, candidateAccount: s.candidateAccount, documents: s.leases.filter(l => l.expiresAt > deps.now()).length,
       mode: 'inspector', writes: false, models: false, observation: 'degraded', negativeReadback: definition.negativeReadback ? 'available' : 'unavailable' }; }),
     configure: (enabled: boolean) => serial(async () => { const s = await deps.read(); fence(s); s.enabled = enabled; await deps.write(s); }),
     confirm: (accountId: string) => serial(async () => {

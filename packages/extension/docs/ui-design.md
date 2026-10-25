@@ -64,7 +64,6 @@ Spacing uses `--space-*` and `--hair-*` tokens only. Groups are `--space-6` apar
 | `.inline-alert[data-tone]` | Notice with a coloured 2px rule and icon on a neutral fill, plus an optional ghost action. Goes at the top of its page or group. |
 | `.toggle[role=switch]` | Boolean setting (the web's `.toggle`). Use `aria-checked`. Replaces checkboxes in settings. |
 | `.select-quiet` | Auto-width select on a settings row. |
-| `.listbox-quiet` | A real `<select multiple>` on a stacked settings row: white field, picked rows on paper-2 with an ink check. |
 | `.code-panel` | Read-only machine output (a package to review, a server's reply): monospace on the sunken surface, scrolls past 18rem, takes no room when empty. |
 | `.file-quiet` | File input: the chooser is the small outlined button, the file name follows in muted text. |
 | `.view-switch` / `--compact` | Segmented control (tabs inside a page, Top/Bottom). |
@@ -162,15 +161,34 @@ bar whose items wrap onto a second line, so every destination stays visible.
 | `#account`, `#account/credits` | Identity, credits summary, sign out; credit activity table |
 | `#help` | Diagnostics (the only place for internals) |
 
-**Site adapters** (`site-adapters.html`, linked from the sidebar's Settings group) is its own page, like Save tabs:
-one `46rem` column on the paper with a Settings back link, then the pane grammar (`.set-group`, `.set-card`,
-`.set-row`). Connection, Collections, Archive, Import, Content associations, Recovery, COLP Server archive and
-community packages are each a group. A step that cannot run yet is hidden rather than greyed (the import steps,
-Next collection page, the approvals), so each card shows only what can happen next, and an approval is the only
-primary button on screen while it is offered. Archive switches are `.toggle`. The worker's raw reply sits in a
-`.code-panel` under its group ("Last response", open after a step the user took); the full status stays folded in
-Technical details at the foot. Its copy is in the catalog (`sites_*`); lines that name the site take it as `$1`, and a
-language change reloads the page, as it does the options page.
+**Site adapters** (`site-adapters.html`, linked from the sidebar's Settings group) is one page in the options shell.
+The sidebar holds a Settings back link, **Sites** (one item per bundled site: a letter mark, the name and its state, such as
+Off, Connected or Syncing; `?adapterId=` picks the site) and **More › Add-on packages**. No site is special; Bilibili is
+one item in that list. The main column is the `46rem` settings column: the site's name as the h1, a refresh icon, and a
+segmented tab rail (`#sync`, `#cloud`, `#recovery`; `#packages` is the Add-on packages view).
+
+- **Sync** is three numbered steps. A step that can't start yet shows only its title and what it waits for. A finished step
+  shows a check instead of its number, and its card stays editable.
+  1. *Connect your account*: Turn on (asks for site access), Open the site, Connect this account, then one Connected row
+     with Turn off.
+  2. *Choose what to sync*: the collections as ticked option rows in one boxed list. The page reads them on its own once
+     the account is connected and a tab is open, following every page. The list scrolls and gains a filter past eight
+     items; Select all / Clear all sits beside the refresh icon. Then *Save into*, the shared folder picker
+     (`library-folder-picker.ts`, as in rule sets) with a one-press New folder named after the site. Then *Keep syncing
+     new favorites* (on by default) and More options (copies, primary collection, AI destinations). The foot says what
+     is syncing and holds Start syncing, or Save changes once something has changed. A missing choice is a field error
+     under its field.
+  3. *Bring in existing favorites*: Start syncing also starts the scan, unless the archive is on hold. A finished scan
+     becomes its list on its own. Nothing is written until the person presses the list's one primary button, Add N
+     bookmarks. A list that changed in the meantime is made again, never approved in its place.
+- **COLP Server** and **Recovery** keep the reviewed cloud batches, recovery records, restored backups, the private
+  diagnostic, saved copies and the inspector rows. The worker's raw reply sits folded in a `.code-panel` ("Last
+  response"); the full status is in Recovery › Technical details.
+- Results and refusals are toasts. A refusal's code maps to a sentence, and a message nothing answers is a refusal, never
+  silence. The only inline notices are the page-level alert (an unsupported Chrome, a failed status read) and an archive
+  on hold.
+- Its copy is in the catalog (`sites_*`). Lines that name the site take it as `$1`. A language change reloads the page,
+  as it does the options page.
 
 **Automations › Rules in this browser (AW-68).** The Owner's own rules, made here and kept only here;
 they need no account and run after the account's rules:

@@ -11515,6 +11515,42 @@
     "message": "保存并分类",
     "description": "Save and classify"
   },
+  "sites_accessRequired": {
+    "message": "Know-N 需要先获得访问权限。请允许后重试。",
+    "description": "Know-N needs access first. Allow it, then try again."
+  },
+  "sites_accountNamed": {
+    "message": "$1 账号 $2",
+    "description": "$1 account $2"
+  },
+  "sites_actionFailed": {
+    "message": "操作未成功。详细信息在“恢复 › 技术详情”中。",
+    "description": "That didn’t work. The details are in Recovery › Technical details."
+  },
+  "sites_addBookmarks_other": {
+    "message": "添加 $1 个书签",
+    "description": "Add $1 bookmarks"
+  },
+  "sites_addOnPackages": {
+    "message": "附加包",
+    "description": "Add-on packages"
+  },
+  "sites_addRule": {
+    "message": "添加规则",
+    "description": "Add rule"
+  },
+  "sites_addedCount_other": {
+    "message": "已添加 $1 个书签。新收藏会继续同步。",
+    "description": "Added $1 bookmarks. New favorites keep syncing."
+  },
+  "sites_addingBookmarks": {
+    "message": "正在添加书签…",
+    "description": "Adding bookmarks…"
+  },
+  "sites_addingInto": {
+    "message": "正在把它们添加到你的文件夹。你可以离开此页面。",
+    "description": "Adding them to your folder. You can leave this page."
+  },
   "shell_siteAdapters": {
     "message": "站点适配器",
     "description": "Site adapters"
@@ -11522,10 +11558,6 @@
   "capture_adoptThisCopy": {
     "message": "采用此副本：$1",
     "description": "Adopt this copy: $1"
-  },
-  "sites_addSourceRule": {
-    "message": "将所选根目录添加为 COLP 来源规则",
-    "description": "Add selected root as a COLP source rule"
   },
   "sites_adoptCopy": {
     "message": "将此副本采用到已连接的账号",
@@ -11539,13 +11571,13 @@
     "message": "AI 目标位置",
     "description": "AI destinations"
   },
-  "sites_aiDestinationsHint": {
-    "message": "允许在此来源根目录内使用 AI 目标位置。",
-    "description": "Allow AI destinations inside this source root."
+  "sites_aiDestinationsHintShort": {
+    "message": "允许 AI 建议把其他保存内容归入这些文件夹。",
+    "description": "Let AI suggestions file other saves into these folders."
   },
-  "sites_allowCommunity": {
-    "message": "允许社区 API 和 Bilibili 访问",
-    "description": "Allow community API and Bilibili access"
+  "sites_allowAccess": {
+    "message": "允许访问",
+    "description": "Allow access"
   },
   "sites_allowHints": {
     "message": "仅允许针对此归档范围的已验证提示",
@@ -11555,9 +11587,13 @@
     "message": "允许访问书签后才能选择文件夹。",
     "description": "Allow bookmark access to choose a folder."
   },
-  "sites_approveBatch": {
+  "sites_approve": {
+    "message": "批准",
+    "description": "Approve"
+  },
+  "sites_approveBatchShort": {
     "message": "批准此批次",
-    "description": "Approve this exact batch"
+    "description": "Approve batch"
   },
   "sites_approvePreview": {
     "message": "批准此预览",
@@ -11567,41 +11603,13 @@
     "message": "批准回滚（回滚后停用）",
     "description": "Approve rollback (disabled)"
   },
-  "sites_approveScope": {
-    "message": "批准此设备的范围",
-    "description": "Approve this device's scope"
-  },
-  "sites_archiveCollections": {
-    "message": "要归档的收藏夹",
-    "description": "Archive collections"
-  },
-  "sites_archiveHeading": {
-    "message": "归档所选收藏夹",
-    "description": "Archive selected collections"
-  },
-  "sites_archiveHold": {
-    "message": "此归档需要审查后才能再次写入。请检查下方的恢复记录。",
-    "description": "This archive needs review before it writes again. Inspect the recovery records below."
-  },
-  "sites_archiveLede": {
-    "message": "将你选择的收藏夹作为书签保存在此浏览器的一个文件夹中。",
-    "description": "Keep the collections you pick as bookmarks in a folder on this browser."
-  },
-  "sites_archivePaused": {
-    "message": "归档已暂停。",
-    "description": "Archives are paused."
+  "sites_archiveHoldShort": {
+    "message": "此归档需要审查后才能再次保存。请打开“恢复”查看。",
+    "description": "This archive needs review before it saves again. Open Recovery to inspect it."
   },
   "sites_archivePending": {
     "message": "已保存。正在等待归档根目录。",
     "description": "Saved. Waiting for the archive root."
-  },
-  "sites_archiveRoot": {
-    "message": "归档根目录",
-    "description": "Archive root"
-  },
-  "sites_archiveRootHint": {
-    "message": "存放归档的书签文件夹。",
-    "description": "The bookmark folder that holds the archive."
   },
   "sites_archiveScoped": {
     "message": "已限定归档范围",
@@ -11610,10 +11618,6 @@
   "sites_archiveUnavailable": {
     "message": "无法归档",
     "description": "Archive unavailable"
-  },
-  "sites_archivingInto_other": {
-    "message": "正在将 $1 个收藏夹归档到 $2。",
-    "description": "Archiving $1 collections into $2."
   },
   "sites_askPrimary": {
     "message": "适用多个收藏夹时询问",
@@ -11631,6 +11635,10 @@
     "message": "无法读取已保存的关联。",
     "description": "Couldn’t read saved associations."
   },
+  "sites_automationsPaused": {
+    "message": "此浏览器中的自动化已暂停。请恢复后重试。",
+    "description": "Automations are paused in this browser. Resume them, then try again."
+  },
   "sites_available": {
     "message": "可用",
     "description": "Available"
@@ -11639,25 +11647,41 @@
     "message": "批次",
     "description": "Batches"
   },
-  "sites_batchesHint": {
-    "message": "每个批次最多保存 20 条已确认的收藏记录，并且需要单独预览和批准。同步会通过常规的恢复流程下载规范结果。如果结果不确定，请先恢复其原始命令，再准备下一个批次。",
-    "description": "Each batch saves at most 20 confirmed memberships and needs its own preview and approval. Sync downloads the canonical results using its usual recovery path. If a result is uncertain, recover its original command before preparing another batch."
+  "sites_batchesHintShort": {
+    "message": "每批最多 20 个已确认的收藏，每批都有自己的预览和批准。如果结果不确定，请先恢复它，再准备下一批。",
+    "description": "Up to 20 confirmed favorites per batch, each with its own preview and approval. If a result is uncertain, recover it before the next batch."
   },
-  "sites_buildPreview": {
-    "message": "停止并生成预览",
-    "description": "Stop and build preview"
+  "sites_cancelledHint": {
+    "message": "不会再添加任何内容。",
+    "description": "Nothing more was added."
   },
-  "sites_cancelBatch": {
-    "message": "取消已准备的批次",
-    "description": "Cancel prepared batch"
+  "sites_checkAgain": {
+    "message": "再次检查",
+    "description": "Check again"
   },
-  "sites_cancelImport": {
-    "message": "取消导入",
-    "description": "Cancel import"
+  "sites_checkExisting": {
+    "message": "检查已有收藏",
+    "description": "Check for existing favorites"
   },
-  "sites_chooseRoot": {
-    "message": "选择根目录",
-    "description": "Choose a root"
+  "sites_checkExistingHint": {
+    "message": "查找开始同步之前就已收藏的内容。添加任何内容之前，你会先看到列表。",
+    "description": "Look for favorites saved before syncing started. You see the list before anything is added."
+  },
+  "sites_chooseCollection": {
+    "message": "请至少选择一个收藏夹。",
+    "description": "Choose at least one collection."
+  },
+  "sites_chooseFolder": {
+    "message": "请选择一个文件夹。",
+    "description": "Choose a folder."
+  },
+  "sites_chosenCount_other": {
+    "message": "已选择 $1 个收藏夹。",
+    "description": "$1 collections chosen."
+  },
+  "sites_chosenOf": {
+    "message": "已选 $1 / $2",
+    "description": "$1 of $2 chosen"
   },
   "sites_chromeMinimum": {
     "message": "站点适配器需要 Chrome $1 或更高版本。",
@@ -11667,45 +11691,49 @@
     "message": "站点适配器需要 Chrome $1 或更高版本；当前为 Chrome $2。",
     "description": "Site adapters need Chrome $1 or later; this is Chrome $2."
   },
+  "sites_clearAll": {
+    "message": "全部取消",
+    "description": "Clear all"
+  },
+  "sites_cloudCopyNote": {
+    "message": "保留来源副本和语义副本。不请求 AI 或标签。",
+    "description": "Keeps source and semantic copies. No AI or tags are requested."
+  },
   "sites_cloudHeading": {
     "message": "COLP 服务器归档",
     "description": "COLP Server archive"
   },
-  "sites_cloudLede": {
-    "message": "将所选来源收藏夹保存到你已连接的 COLP 账号。扫描和预览不会创建云端书签。现有的本地归档会留在原文件夹中，不会被迁移。",
-    "description": "Save selected source collections to your connected COLP account. Scans and previews create no cloud bookmarks. Existing local archives stay in their folders; this does not migrate them."
-  },
-  "sites_cloudStatusNote": {
-    "message": "状态来自你的 COLP 服务器。",
-    "description": "Status comes from your COLP Server."
+  "sites_cloudLedeShort": {
+    "message": "把“同步”中选择的收藏夹分批审查后保存到你的 COLP 账号。本地归档保持原位。",
+    "description": "Save the collections chosen on Sync to your COLP account, in reviewed batches. Local archives stay where they are."
   },
   "sites_collections": {
     "message": "收藏夹",
     "description": "Collections"
   },
-  "sites_collectionsLede": {
-    "message": "从打开的 $1 标签页读取收藏夹和当前内容。",
-    "description": "Read your collections and the current item from an open $1 tab."
+  "sites_collectionsAppearHere": {
+    "message": "Know-N 读取后，你的收藏夹会显示在这里。",
+    "description": "Your collections appear here once Know-N reads them."
+  },
+  "sites_collectionsChanged": {
+    "message": "你的收藏夹有变化。请检查列表后重试。",
+    "description": "Your collections changed. Check the list, then try again."
   },
   "sites_collectionsReadMore_other": {
     "message": "已读取 $1 个收藏夹；还有更多。",
     "description": "$1 collections read; more are available."
   },
-  "sites_collectionsRead_other": {
-    "message": "已读取 $1 个收藏夹。",
-    "description": "$1 collections read."
+  "sites_collectionsUnreadable": {
+    "message": "无法读取你的收藏夹。请用上方的刷新按钮重试。",
+    "description": "Couldn’t read your collections. Try again with the refresh button above."
   },
   "sites_communityAck": {
     "message": "我信任此代码及其作者，并接受上述页面访问风险。",
     "description": "I trust this code/author and accept the page-access risk described above."
   },
-  "sites_communityHeading": {
-    "message": "高级：单独安装的包",
-    "description": "Advanced: separately installed packages"
-  },
-  "sites_communityLede": {
-    "message": "仅支持独立的 Bilibili v1 收藏提示包。",
-    "description": "Only self-contained Bilibili v1 favorite-hint packages are supported."
+  "sites_communityLedeShort": {
+    "message": "你自行安装、以用户脚本运行的站点代码。仅支持独立的 Bilibili v1 收藏提示包。",
+    "description": "Site code you install yourself, run as user scripts. Only self-contained Bilibili v1 favorite-hint packages are supported."
   },
   "sites_communityRisk": {
     "message": "此代码可以读取和修改已授权的网站页面，使用网站会话发出请求，并暴露可见的私密内容。请只安装你信任的代码和作者。你需要对此选择负责。检查模式会阻止宿主写入，但不能让未知的页面代码变得安全。",
@@ -11719,25 +11747,25 @@
     "message": "连接此账号",
     "description": "Connect this account"
   },
+  "sites_connectHint": {
+    "message": "连接此账号以同步它的收藏夹。",
+    "description": "Connect this account to sync its collections."
+  },
+  "sites_connectToList": {
+    "message": "连接你的账号后即可列出收藏夹。",
+    "description": "Connect your account to list your collections."
+  },
   "sites_connected": {
     "message": "已连接",
     "description": "Connected"
-  },
-  "sites_connection": {
-    "message": "连接",
-    "description": "Connection"
-  },
-  "sites_contentHeading": {
-    "message": "内容关联",
-    "description": "Content associations"
   },
   "sites_contentHint": {
     "message": "查看每个已保存副本属于哪个账号。",
     "description": "Review which account each saved copy belongs to."
   },
-  "sites_contentLede": {
-    "message": "切换账号时，绝不会自动接管现有关联。采用已证实的副本前，请先核对已连接的账号。",
-    "description": "Changing accounts never takes over an existing association automatically. Review the connected account before adopting a proven copy."
+  "sites_contentLedeShort": {
+    "message": "每个已保存副本属于哪个账号。新账号不会自动接管任何副本。",
+    "description": "Which account each saved copy belongs to. A new account never takes over a copy on its own."
   },
   "sites_copies": {
     "message": "副本",
@@ -11747,6 +11775,10 @@
     "message": "保留来源副本和语义副本",
     "description": "Keep source and semantic copies"
   },
+  "sites_copiesHint": {
+    "message": "当你也把视频保存到其他位置时如何处理。",
+    "description": "What happens when you also save a video somewhere else."
+  },
   "sites_copiesKeepExisting": {
     "message": "一个副本，保留现有位置",
     "description": "One copy, preserve existing location"
@@ -11754,18 +11786,6 @@
   "sites_copiesPreferSemantic": {
     "message": "一个副本，优先语义位置",
     "description": "One copy, prefer semantic location"
-  },
-  "sites_copyPolicy": {
-    "message": "副本策略",
-    "description": "Copy policy"
-  },
-  "sites_copyPolicyHint": {
-    "message": "云端支持的副本策略是“保留来源副本和语义副本”。单副本策略需要本地协调，无法发送到此服务器配置。后端分类不可用。来源归档不会请求 AI 或标签。",
-    "description": "Keep source and semantic copies is the supported cloud copy policy. Single-copy policies require local coordination and cannot be sent to this server profile. Backend classification is unavailable. Source archives request no AI or tags."
-  },
-  "sites_detectedAccount": {
-    "message": "检测到账号 $1。请确认你要连接的账号。",
-    "description": "Detected account $1. Confirm the account you want to connect."
   },
   "sites_deviceScope": {
     "message": "此设备的范围",
@@ -11779,14 +11799,6 @@
     "message": "已导出私密诊断信息。现有工作和数据库结构均已保留。",
     "description": "Private diagnostic exported. Existing work and database schema were preserved."
   },
-  "sites_disable": {
-    "message": "停用",
-    "description": "Disable"
-  },
-  "sites_disableInspector": {
-    "message": "停用 $1 检查器",
-    "description": "Disable $1 inspector"
-  },
   "sites_disablePackage": {
     "message": "停用包",
     "description": "Disable package"
@@ -11795,117 +11807,117 @@
     "message": "审查前保持停用。",
     "description": "Disabled until reviewed."
   },
-  "sites_enable": {
-    "message": "启用",
-    "description": "Enable"
-  },
-  "sites_enableInspector": {
-    "message": "启用 $1 检查器",
-    "description": "Enable $1 inspector"
+  "sites_doneHint": {
+    "message": "新收藏会继续同步。",
+    "description": "New favorites keep syncing."
   },
   "sites_enablePackage": {
     "message": "启用检查器",
     "description": "Enable inspector"
   },
-  "sites_exportDiagnostic": {
-    "message": "导出私密诊断信息",
-    "description": "Export private diagnostic"
-  },
-  "sites_importFirst": {
-    "message": "请先保存归档设置，再扫描所选收藏夹。",
-    "description": "Save archive settings, then scan the selected collections."
-  },
-  "sites_importHeading": {
-    "message": "预览后导入",
-    "description": "Import with a preview"
-  },
-  "sites_importLede": {
-    "message": "扫描和预览不会创建书签。只有经过批准的那份预览才能写入。重新扫描会重复发现过程，并对已接受的项目去重。",
-    "description": "Scanning and previewing create no bookmarks. Only the exact approved preview may write. Restarting a scan repeats discovery and deduplicates accepted items."
-  },
-  "sites_inspectCollections": {
-    "message": "检查收藏夹",
-    "description": "Inspect collections"
-  },
-  "sites_inspectRecords": {
-    "message": "检查恢复记录",
-    "description": "Inspect recovery records"
-  },
-  "sites_inspectorHint": {
-    "message": "读取你打开的 $1 页面。需要 Chrome 149 或更高版本，并允许访问该网站。",
-    "description": "Reads the $1 pages you open. Needs Chrome 149 or later and access to the site."
-  },
-  "sites_inspectorTitle": {
-    "message": "$1 检查器",
-    "description": "$1 inspector"
-  },
   "sites_installReviewed": {
     "message": "安装已审查的内容（安装后停用）",
     "description": "Install reviewed bytes (disabled)"
   },
-  "sites_installedLede": {
-    "message": "启用包会进入检查模式；归档提示需要针对当前连接的账号、所选收藏夹和本地根目录另行预览和批准。提示在生成任何归档计划之前都会由内置读取器确认。任何包都不能调用书签、模型或任意后台读取。",
-    "description": "Enabling a package starts inspector mode; archive hints require a separate preview/approval of the current connected account, selected collections and local root. Hints are confirmed by the bundled reader before any archive plan. No package may call bookmarks, models or arbitrary background reads."
+  "sites_installedLedeShort": {
+    "message": "包以检查模式启动。归档提示需要单独批准账号、收藏夹和文件夹，并且每条提示都由内置读取器确认。",
+    "description": "A package starts in inspector mode. Archive hints need their own approval of the account, collections and folder, and the bundled reader confirms every hint."
   },
   "sites_installedPackages": {
     "message": "已安装的包",
     "description": "Installed packages"
   },
-  "sites_itemPlans": {
-    "message": "已确认的项目计划：$1。",
-    "description": "Item plans confirmed: $1."
-  },
   "sites_keepBlocked": {
     "message": "保持这些还原的项目和收藏夹为阻止状态",
     "description": "Keep these restored items and collections blocked"
   },
-  "sites_knownOmissions_other": {
-    "message": "$1 个已知遗漏或读取失败。",
-    "description": "$1 known omissions or read failures."
+  "sites_keepSyncing": {
+    "message": "持续同步新收藏",
+    "description": "Keep syncing new favorites"
+  },
+  "sites_keepSyncingHint": {
+    "message": "你在 $1 上新加的收藏会随时保存到这里。",
+    "description": "Favorites you add on $1 are saved here as you add them."
+  },
+  "sites_knowNSettings": {
+    "message": "Know-N 设置",
+    "description": "Know-N settings"
   },
   "sites_lastResponse": {
     "message": "最近一次响应",
     "description": "Last response"
   },
-  "sites_ledeWithNegativeReadback": {
-    "message": "连接 $1、查看来源集合并选择本地归档根文件夹。来源归档不使用 AI。支持核验成员关系移除，已有归档仍会保留。",
-    "description": "Connect $1, inspect its collections, and choose a local archive root. Source archives use no AI. Membership removals can be verified; existing archives are retained."
+  "sites_ledeSync": {
+    "message": "把你的 $1 收藏保存为此浏览器中的书签。",
+    "description": "Keep your $1 favorites as bookmarks in this browser."
   },
-  "sites_lede": {
-    "message": "连接 $1，检查其收藏夹，并选择本地归档根目录。来源归档不使用 AI。无法回读收藏的移除；移除收藏时会保留现有归档。",
-    "description": "Connect $1, inspect its collections, and choose a local archive root. Source archives use no AI. Negative membership readback is unavailable; removals retain existing archives."
+  "sites_listFolders_other": {
+    "message": "$1 个新文件夹",
+    "description": "$1 new folders"
   },
-  "sites_listboxEmpty": {
-    "message": "检查收藏夹后会在此列出。",
-    "description": "Inspect collections to list them here."
+  "sites_listNoChanges": {
+    "message": "其他内容不变。",
+    "description": "Nothing else changes."
+  },
+  "sites_listPartial": {
+    "message": "部分收藏夹未读取完",
+    "description": "some collections weren’t read to the end"
+  },
+  "sites_listSaved_other": {
+    "message": "$1 个已保存",
+    "description": "$1 already saved"
+  },
+  "sites_listUnreadable_other": {
+    "message": "$1 个无法读取",
+    "description": "$1 couldn’t be read"
   },
   "sites_liveArchiving": {
     "message": "实时归档",
     "description": "Live archiving"
   },
-  "sites_liveArchivingHint": {
-    "message": "归档这些收藏夹中新观察到的新增收藏。",
-    "description": "Archive newly observed positive memberships in these collections."
+  "sites_makeListAgain": {
+    "message": "重新生成列表",
+    "description": "Make the list again"
   },
-  "sites_multiSelectHint": {
-    "message": "按住 Ctrl 或 ⌘ 可选择多个。",
-    "description": "Hold Ctrl or ⌘ to pick more than one."
+  "sites_more": {
+    "message": "更多",
+    "description": "More"
   },
-  "sites_needsSiteAccess": {
-    "message": "需要网站访问权限",
-    "description": "Needs site access"
+  "sites_moreOptions": {
+    "message": "更多选项",
+    "description": "More options"
+  },
+  "sites_navConnect": {
+    "message": "连接账号",
+    "description": "Connect account"
+  },
+  "sites_navSyncing": {
+    "message": "同步中",
+    "description": "Syncing"
+  },
+  "sites_needsAccess": {
+    "message": "$1 需要站点访问权限",
+    "description": "$1 needs site access"
+  },
+  "sites_needsAccessHint": {
+    "message": "允许访问 $1，Know-N 才能读取你的收藏。",
+    "description": "Allow access to $1 so Know-N can read your favorites."
+  },
+  "sites_newFolderNamed": {
+    "message": "新建文件夹“$1”",
+    "description": "New folder “$1”"
   },
   "sites_newerChrome": {
     "message": "站点适配器需要更新版本的 Chrome。",
     "description": "Site adapters need a newer version of Chrome."
   },
-  "sites_nextCollectionPage": {
-    "message": "下一页收藏夹",
-    "description": "Next collection page"
-  },
   "sites_noAssociations": {
     "message": "还没有已保存的关联。",
     "description": "No saved associations yet."
+  },
+  "sites_noCollections": {
+    "message": "你在 $1 上还没有收藏夹。",
+    "description": "You have no collections on $1 yet."
   },
   "sites_noImport": {
     "message": "尚未开始导入",
@@ -11915,9 +11927,9 @@
     "message": "未安装任何包",
     "description": "No packages installed"
   },
-  "sites_noPackagesHint": {
-    "message": "在上方选择包 JSON 进行审查。",
-    "description": "Choose a package JSON above to review it."
+  "sites_noPackagesHintBelow": {
+    "message": "在下方选择一个包文件以审查它。",
+    "description": "Choose a package file below to review it."
   },
   "sites_noRecords": {
     "message": "没有需要恢复的记录。",
@@ -11927,21 +11939,25 @@
     "message": "没有候选根目录。",
     "description": "No root candidate."
   },
-  "sites_noWritesYet": {
-    "message": "尚未执行任何导入写入。",
-    "description": "No import writes yet."
-  },
   "sites_noneWaiting": {
     "message": "没有等待中的读取。",
     "description": "None waiting."
   },
-  "sites_notArchiving": {
-    "message": "尚未归档。",
-    "description": "Not archiving yet."
-  },
   "sites_notReadYet": {
     "message": "尚未读取。",
     "description": "Not read yet."
+  },
+  "sites_notSyncing": {
+    "message": "尚未同步。",
+    "description": "Not syncing yet."
+  },
+  "sites_nothingImported": {
+    "message": "尚未导入任何内容",
+    "description": "Nothing brought in yet"
+  },
+  "sites_nothingNew": {
+    "message": "没有需要添加的新内容",
+    "description": "Nothing new to add"
   },
   "sites_off": {
     "message": "关闭",
@@ -11955,13 +11971,25 @@
     "message": "开启",
     "description": "On"
   },
-  "sites_openSignedIn": {
-    "message": "请在登录状态下打开 $1，然后刷新状态。",
-    "description": "Open $1 while signed in, then refresh status."
+  "sites_openAndSignIn": {
+    "message": "打开 $1 并登录",
+    "description": "Open $1 and sign in"
   },
-  "sites_openToRead": {
-    "message": "打开 $1 以读取你的收藏夹。",
-    "description": "Open $1 to read your collections."
+  "sites_openSignedInHint": {
+    "message": "Know-N 会在打开的 $1 标签页中找到你的账号。",
+    "description": "Know-N finds your account in an open $1 tab."
+  },
+  "sites_openSite": {
+    "message": "打开 $1",
+    "description": "Open $1"
+  },
+  "sites_openSiteFirst": {
+    "message": "请在标签页中打开 $1，然后重试。",
+    "description": "Open $1 in a tab, then try again."
+  },
+  "sites_openToList": {
+    "message": "在标签页中打开 $1 即可列出你的收藏夹。",
+    "description": "Open $1 in a tab to list your collections."
   },
   "sites_packageDisabled": {
     "message": "已停用",
@@ -11987,9 +12015,9 @@
     "message": "站点适配器 · Know-N",
     "description": "Site adapters · Know-N"
   },
-  "sites_pauseArchives": {
-    "message": "暂停归档",
-    "description": "Pause archives"
+  "sites_pauseSyncing": {
+    "message": "暂停同步",
+    "description": "Pause syncing"
   },
   "sites_paused": {
     "message": "已暂停。",
@@ -11999,10 +12027,6 @@
     "message": "站点适配器已暂停。恢复检查和导出仍然可用。",
     "description": "Site adapters are paused. Recovery inspection and export remain available."
   },
-  "sites_phaseApproved": {
-    "message": "正在导入",
-    "description": "Importing"
-  },
   "sites_phaseAttention": {
     "message": "需要审查",
     "description": "Needs review"
@@ -12011,45 +12035,21 @@
     "message": "导入已取消",
     "description": "Import cancelled"
   },
-  "sites_phaseCompleted": {
-    "message": "导入完成",
-    "description": "Import complete"
+  "sites_preparingFound_other": {
+    "message": "找到 $1 个收藏。",
+    "description": "Found $1 favorites."
   },
-  "sites_phaseOther": {
-    "message": "导入",
-    "description": "Import"
+  "sites_preparingList": {
+    "message": "正在生成列表…",
+    "description": "Making the list…"
   },
-  "sites_phasePaused": {
-    "message": "扫描已停止",
-    "description": "Scan stopped"
+  "sites_previewBatchShort": {
+    "message": "预览批次",
+    "description": "Preview batch"
   },
-  "sites_phasePreparing": {
-    "message": "正在准备导入",
-    "description": "Preparing the import"
-  },
-  "sites_phasePreview": {
-    "message": "预览已就绪",
-    "description": "Preview ready"
-  },
-  "sites_phaseScanning": {
-    "message": "正在扫描",
-    "description": "Scanning"
-  },
-  "sites_previewBatch": {
-    "message": "预览下一批次",
-    "description": "Preview next batch"
-  },
-  "sites_previewComplete": {
-    "message": "完整预览。",
-    "description": "Complete preview."
-  },
-  "sites_previewCounts": {
-    "message": "新文件夹：$1 · 新书签：$2 · 现有副本：$3 · 待审查：$4。",
-    "description": "New folders: $1 · New bookmarks: $2 · Existing copies: $3 · To review: $4."
-  },
-  "sites_previewPartial": {
-    "message": "部分预览。",
-    "description": "Partial preview."
+  "sites_previewChanged": {
+    "message": "列表生成后有内容变化。已重新生成，请在添加前再次检查。",
+    "description": "Something changed since the list was made. It has been made again; check it before adding."
   },
   "sites_previewRebinding": {
     "message": "预览账号和根目录重新绑定",
@@ -12067,13 +12067,41 @@
     "message": "新的单个来源副本存放的位置。",
     "description": "Where a new single source copy goes."
   },
+  "sites_primaryNotChosen": {
+    "message": "主收藏夹必须是你选择的收藏夹之一。",
+    "description": "The primary collection must be one of the collections you chose."
+  },
   "sites_privateDiagnostic": {
     "message": "私密诊断信息",
     "description": "Private diagnostic"
   },
-  "sites_privateDiagnosticHint": {
-    "message": "此诊断信息包含私密的来源数据和本地命令回执，请妥善保管。它是只读的，不能作为可执行的工作导入。较新的数据库版本会按原样导出，不会降级。",
-    "description": "This diagnostic contains private source data and local command receipts. Keep it private. It is read only and cannot be imported as executable work. Future database versions are exported without downgrading."
+  "sites_privateDiagnosticHintShort": {
+    "message": "包含私密来源数据和本地命令回执。请妥善保管。它是只读的，无法导入。",
+    "description": "Contains private source data and local command receipts. Keep it private. It is read only and can't be imported."
+  },
+  "sites_rateLimited": {
+    "message": "$1 要求 Know-N 放慢速度。请几分钟后重试。",
+    "description": "$1 asked Know-N to slow down. Try again in a few minutes."
+  },
+  "sites_readCollectionsAgain": {
+    "message": "重新读取收藏夹",
+    "description": "Read collections again"
+  },
+  "sites_readingCollections": {
+    "message": "正在读取你的收藏夹…",
+    "description": "Reading your collections…"
+  },
+  "sites_readingFavorites": {
+    "message": "正在读取你的收藏…",
+    "description": "Reading your favorites…"
+  },
+  "sites_readingSoFar_other": {
+    "message": "正在读取你的收藏夹… 已读取 $1 个。",
+    "description": "Reading your collections… $1 so far."
+  },
+  "sites_readingStopped": {
+    "message": "读取提前停止",
+    "description": "Reading stopped early"
   },
   "sites_readingTabs_other": {
     "message": "正在读取 $1 个打开的 $2 标签页。",
@@ -12083,17 +12111,17 @@
     "message": "$1 个读取正在等待。",
     "description": "$1 reads waiting."
   },
+  "sites_readyToAdd_other": {
+    "message": "可以添加 $1 个书签",
+    "description": "Ready to add $1 bookmarks"
+  },
   "sites_recordsNeedRecovery_other": {
     "message": "$1 条记录需要恢复或审查。",
     "description": "$1 records need recovery or review."
   },
-  "sites_recoverCommand": {
-    "message": "恢复原始命令",
-    "description": "Recover original command"
-  },
-  "sites_recoverCommands": {
-    "message": "恢复现有命令",
-    "description": "Recover existing commands"
+  "sites_recover": {
+    "message": "恢复",
+    "description": "Recover"
   },
   "sites_recoveryRecords": {
     "message": "恢复记录",
@@ -12107,41 +12135,29 @@
     "message": "刷新包",
     "description": "Refresh packages"
   },
-  "sites_refreshPreview": {
-    "message": "刷新预览",
-    "description": "Refresh preview"
-  },
   "sites_refreshStatus": {
     "message": "刷新状态",
     "description": "Refresh status"
-  },
-  "sites_reloadFolders": {
-    "message": "重新加载文件夹",
-    "description": "Reload folders"
   },
   "sites_removePackage": {
     "message": "移除包",
     "description": "Remove package"
   },
-  "sites_repairHeading": {
-    "message": "恢复与还原的备份",
-    "description": "Recovery and restored backups"
+  "sites_repairHeadingShort": {
+    "message": "恢复",
+    "description": "Recovery"
   },
   "sites_repairHint": {
     "message": "检查以找出需要恢复或审查的写入。",
     "description": "Inspect to find writes that need recovery or review."
   },
-  "sites_repairLede": {
-    "message": "结果未知的写入会保留其原始命令，并阻止替代创建。恢复会在原始授权下重试现有命令。手动更改和缺少证明的情况需要审查。",
-    "description": "Unknown writes retain their original command and block replacement creates. Recovery retries the existing command under its original authorization. Manual changes and missing proof require review."
+  "sites_repairLedeShort": {
+    "message": "结果未知的写入会保留原始命令，并在原授权下重试。手动更改和缺少证明的内容需要审查。",
+    "description": "Writes whose result is unknown keep their original command and are retried under it. Manual changes and missing proof need review."
   },
   "sites_repairUnreadable": {
     "message": "无法读取恢复记录。最近一次响应见下方。",
     "description": "Couldn’t read recovery records. The last response is below."
-  },
-  "sites_restartScan": {
-    "message": "重新扫描并去重",
-    "description": "Restart scan and deduplicate"
   },
   "sites_restoredAccount": {
     "message": "还原的账号 $1",
@@ -12151,17 +12167,21 @@
     "message": "还原的备份",
     "description": "Restored backups"
   },
-  "sites_restoredBackupsHint": {
-    "message": "JSON 书签备份还原后，来源连接处于停用状态。请在上方选择匹配的账号和还原的根目录，并关闭实时归档，然后在下方预览重新绑定。只有完全一致的导入本机映射才能被采用；缺失或已更改的副本会保持阻止。",
-    "description": "JSON bookmark backups restore source connections disabled. Select the matching account and the restored root above with live archiving off, then preview rebinding below. Only exact imported native mappings can be adopted; missing or changed copies remain blocked."
+  "sites_restoredBackupsHintShort": {
+    "message": "恢复的 JSON 备份会让来源连接以关闭状态回来。请连接同一账号，在“同步”中关闭“持续同步新收藏”并选择恢复的文件夹，然后在这里预览重新绑定。",
+    "description": "A restored JSON backup brings source connections back turned off. Connect the same account and choose the restored folder on Sync with Keep syncing off, then preview rebinding here."
   },
   "sites_restoredBlockedHint": {
     "message": "未解决的还原副本可以保持阻止状态，同时无关的新工作会继续进行。",
     "description": "Unresolved restored copies can remain blocked while unrelated new work continues."
   },
-  "sites_retryConfirmations": {
-    "message": "重试已暂停的确认读取",
-    "description": "Retry paused confirmation reads"
+  "sites_resumeSyncing": {
+    "message": "恢复同步",
+    "description": "Resume syncing"
+  },
+  "sites_retryPaused": {
+    "message": "重试已暂停的读取",
+    "description": "Retry paused reads"
   },
   "sites_review": {
     "message": "审查",
@@ -12171,6 +12191,10 @@
     "message": "审查保持此还原范围的阻止状态",
     "description": "Review keeping this restored scope blocked"
   },
+  "sites_reviewFound": {
+    "message": "查看已找到的内容",
+    "description": "Review what was found"
+  },
   "sites_reviewPackage": {
     "message": "审查此包",
     "description": "Review this package"
@@ -12178,10 +12202,6 @@
   "sites_reviewRollback": {
     "message": "审查回滚到 $1",
     "description": "Review rollback to $1"
-  },
-  "sites_reviewScope": {
-    "message": "审查账号和来源范围",
-    "description": "Review account and source scope"
   },
   "sites_reviewed": {
     "message": "已审查",
@@ -12191,21 +12211,37 @@
     "message": "已审查。",
     "description": "Reviewed."
   },
-  "sites_revokeDevice": {
-    "message": "撤销设备授权",
-    "description": "Revoke device authority"
+  "sites_revoke": {
+    "message": "撤销",
+    "description": "Revoke"
   },
   "sites_rootCandidate": {
     "message": "候选根目录：$1。",
     "description": "Root candidate: $1."
   },
-  "sites_saveArchive": {
-    "message": "保存归档设置",
-    "description": "Save archive settings"
+  "sites_ruleRejected": {
+    "message": "此浏览器的规则无法接受归档规则。请检查“自动化”后重试。",
+    "description": "This browser’s rules couldn’t take the archive rule. Check Automations, then try again."
+  },
+  "sites_saveChanges": {
+    "message": "保存更改",
+    "description": "Save changes"
+  },
+  "sites_saveInto": {
+    "message": "保存到",
+    "description": "Save into"
+  },
+  "sites_saveIntoHint": {
+    "message": "每个收藏夹会成为其中的一个文件夹。",
+    "description": "Each collection becomes a folder inside this one."
   },
   "sites_savedAssociations": {
     "message": "已保存的关联",
     "description": "Saved associations"
+  },
+  "sites_savedCopies": {
+    "message": "已保存的副本",
+    "description": "Saved copies"
   },
   "sites_savedWithConnected": {
     "message": "已用已连接的账号保存。",
@@ -12215,29 +12251,17 @@
     "message": "已用其他账号保存。",
     "description": "Saved with another account."
   },
-  "sites_scanCounts": {
-    "message": "已收集的收藏记录：$1 · 页数：$2。",
-    "description": "Memberships collected: $1 · Pages: $2."
+  "sites_scanningFound_other": {
+    "message": "目前找到 $1 个收藏。在你批准列表之前不会添加任何内容。",
+    "description": "Found $1 favorites so far. Nothing is added until you approve the list."
   },
-  "sites_scanCountsOmissions": {
-    "message": "已收集的收藏记录：$1 · 页数：$2 · 遗漏：$3。",
-    "description": "Memberships collected: $1 · Pages: $2 · Omissions: $3."
+  "sites_signedInAs": {
+    "message": "已以 $2 登录 $1",
+    "description": "Signed in to $1 as $2"
   },
-  "sites_scanFinished": {
-    "message": "扫描已完成；请生成预览进行审查。",
-    "description": "The scan finished; build the preview to review it."
-  },
-  "sites_scanSelected": {
-    "message": "扫描所选收藏夹",
-    "description": "Scan selected collections"
-  },
-  "sites_scanStopped": {
-    "message": "扫描提前停止；请重新扫描，或根据已发现的内容生成预览。",
-    "description": "The scan stopped early; restart it, or build a preview from what was found."
-  },
-  "sites_site": {
-    "message": "站点",
-    "description": "Site"
+  "sites_signedOut": {
+    "message": "你已退出 $1。请在那里登录后重试。",
+    "description": "You’re signed out of $1. Sign in there, then try again."
   },
   "sites_siteAccessRequired": {
     "message": "需要网站访问权限。",
@@ -12247,17 +12271,85 @@
     "message": "无法获得网站访问权限。",
     "description": "Site access is unavailable."
   },
-  "sites_siteAdapter": {
-    "message": "站点适配器",
-    "description": "Site adapter"
+  "sites_siteSections": {
+    "message": "站点分区",
+    "description": "Site sections"
+  },
+  "sites_sites": {
+    "message": "站点",
+    "description": "Sites"
   },
   "sites_sourceRule": {
     "message": "来源规则",
     "description": "Source rule"
   },
-  "sites_sourceRuleHint": {
-    "message": "在上方选择已同步的根目录和收藏夹，然后添加来源规则并审查其范围。较早的规则保持原有优先级。",
-    "description": "Select a synced root and collections above, then add a source rule and review its scope. Earlier rules keep their priority."
+  "sites_sourceRuleHintShort": {
+    "message": "使用“同步”中选择的文件夹和收藏夹。该文件夹必须已同步。较早的规则保持优先。",
+    "description": "Uses the folder and collections chosen on Sync. The folder must be synced. Earlier rules keep their priority."
+  },
+  "sites_startSyncing": {
+    "message": "开始同步",
+    "description": "Start syncing"
+  },
+  "sites_stepChoose": {
+    "message": "选择要同步的内容",
+    "description": "Choose what to sync"
+  },
+  "sites_stepChooseWait": {
+    "message": "请先连接你的账号。",
+    "description": "Connect your account first."
+  },
+  "sites_stepConnect": {
+    "message": "连接你的账号",
+    "description": "Connect your account"
+  },
+  "sites_stepImport": {
+    "message": "导入已有收藏",
+    "description": "Bring in existing favorites"
+  },
+  "sites_stepImportWait": {
+    "message": "开始同步后，Know-N 会列出收藏夹中已有的内容。在你批准列表之前不会添加任何内容。",
+    "description": "After you start syncing, Know-N lists what is already in your collections. Nothing is added until you approve the list."
+  },
+  "sites_stopAndReview": {
+    "message": "停止并查看",
+    "description": "Stop and review"
+  },
+  "sites_stoppedEarly": {
+    "message": "读取未完成就停止了。$1",
+    "description": "Reading stopped before the end. $1"
+  },
+  "sites_stoppedRate": {
+    "message": "$1 要求 Know-N 放慢速度。请几分钟后重试。$2",
+    "description": "$1 asked Know-N to slow down. Try again in a few minutes. $2"
+  },
+  "sites_stoppedSignedOut": {
+    "message": "你已退出 $1。请登录后重试。$2",
+    "description": "You’re signed out of $1. Sign in, then try again. $2"
+  },
+  "sites_stoppedTab": {
+    "message": "$1 标签页已关闭或转到了其他页面。$2",
+    "description": "The $1 tab closed or moved to another page. $2"
+  },
+  "sites_syncingInto_other": {
+    "message": "正在把 $1 个收藏夹同步到 $2。",
+    "description": "Syncing $1 collections into $2."
+  },
+  "sites_syncingPaused": {
+    "message": "同步已暂停。",
+    "description": "Syncing is paused."
+  },
+  "sites_tabCloud": {
+    "message": "COLP 服务器",
+    "description": "COLP Server"
+  },
+  "sites_tabRecovery": {
+    "message": "恢复",
+    "description": "Recovery"
+  },
+  "sites_tabSync": {
+    "message": "同步",
+    "description": "Sync"
   },
   "sites_technicalDetails": {
     "message": "技术详情",
@@ -12271,13 +12363,29 @@
     "message": "$1 项待审查",
     "description": "$1 to review"
   },
-  "sites_turnOnThenOpen": {
-    "message": "请开启检查器，然后在登录状态下打开 $1。",
-    "description": "Turn on the inspector, then open $1 while signed in."
+  "sites_tryAgain": {
+    "message": "重试",
+    "description": "Try again"
   },
-  "sites_unscannedUnknown": {
-    "message": "未扫描的剩余部分情况未知。",
-    "description": "Unscanned remainder is unknown."
+  "sites_turnOff": {
+    "message": "关闭",
+    "description": "Turn off"
+  },
+  "sites_turnOn": {
+    "message": "开启",
+    "description": "Turn on"
+  },
+  "sites_turnOnHint": {
+    "message": "Know-N 从你打开的 $1 标签页读取收藏。它从不更改 $1 上的任何内容。",
+    "description": "Know-N reads your favorites from the $1 tabs you open. It never changes anything on $1."
+  },
+  "sites_turnOnSite": {
+    "message": "开启 $1",
+    "description": "Turn on $1"
+  },
+  "sites_unsavedChanges": {
+    "message": "有尚未保存的更改。",
+    "description": "You have changes to save."
   },
   "sites_userScripts": {
     "message": "用户脚本",
@@ -12287,21 +12395,9 @@
     "message": "仅支持 Chromium 149 及以上版本。在“扩展程序 → Know-N → 详情”中开启“允许用户脚本”，重新加载扩展程序，然后重新打开站点适配器。Chrome 121–148 不支持此运行环境。",
     "description": "Chromium 149+ only. In Extensions → Know-N → Details, enable Allow User Scripts, reload the extension, and reopen Site adapters. Chrome 121–148 is unsupported for this runtime."
   },
-  "sites_yourCollections": {
-    "message": "你的收藏夹",
-    "description": "Your collections"
-  },
   "sites_availableFeatures": {
     "message": "可用功能：$1。",
     "description": "Available: $1."
-  },
-  "sites_collectionsObserved_one": {
-    "message": "已观察到 $1 个收藏夹。",
-    "description": "$1 collection observed."
-  },
-  "sites_collectionsObserved_other": {
-    "message": "已观察到 $1 个收藏夹。",
-    "description": "$1 collections observed."
   },
   "sites_currentItem": {
     "message": "当前内容",
@@ -12311,9 +12407,17 @@
     "message": "查找已连接来源标签页中打开的内容。",
     "description": "Find the item open in a connected source tab."
   },
-  "sites_resolveCurrentItem": {
-    "message": "解析当前内容",
-    "description": "Resolve current item"
+  "sites_finish": {
+    "message": "完成",
+    "description": "Finish"
+  },
+  "sites_folderGone": {
+    "message": "该文件夹已不存在。请选择其他文件夹。",
+    "description": "That folder is gone. Choose another one."
+  },
+  "sites_folderNotCreated": {
+    "message": "无法新建文件夹。请改为选择一个。",
+    "description": "Couldn’t make the folder. Choose one instead."
   },
   "sites_noItem": {
     "message": "未在所选来源标签页中找到明确的单项内容。",
@@ -12323,9 +12427,37 @@
     "message": "已找到这项内容。",
     "description": "Found this item."
   },
+  "sites_identify": {
+    "message": "识别",
+    "description": "Identify"
+  },
+  "sites_importDone": {
+    "message": "已有收藏已导入",
+    "description": "Existing favorites are in"
+  },
+  "sites_importRunning": {
+    "message": "已有导入正在进行。",
+    "description": "An import is already running."
+  },
+  "sites_inspect": {
+    "message": "检查",
+    "description": "Inspect"
+  },
+  "sites_inspector": {
+    "message": "检查器",
+    "description": "Inspector"
+  },
+  "sites_installPackage": {
+    "message": "安装包",
+    "description": "Install a package"
+  },
   "sites_foundItem": {
     "message": "已找到“$1”。",
     "description": "Found “$1”."
+  },
+  "sites_foundSoFar_other": {
+    "message": "找到 $1 个收藏。",
+    "description": "Found $1 favorites."
   },
   "sites_featureCatalog": {
     "message": "读取收藏夹",
@@ -12334,6 +12466,10 @@
   "sites_featureResolution": {
     "message": "识别内容",
     "description": "Identify content"
+  },
+  "sites_findCollection": {
+    "message": "查找收藏夹",
+    "description": "Find a collection"
   },
   "sites_featureImport": {
     "message": "预览后导入",
@@ -12346,6 +12482,10 @@
   "sites_noSourceActions": {
     "message": "暂无可用的来源操作。",
     "description": "No source actions are available."
+  },
+  "sites_noTabOpen": {
+    "message": "没有打开的 $1 标签页。需要读取收藏夹时请打开一个。",
+    "description": "No $1 tab is open. Open one when you want to read your collections."
   },
   "sites_observedCatalogHint": {
     "message": "这里只显示当前来源会话中已观察到的收藏夹。发现更多收藏夹后，请刷新。",
