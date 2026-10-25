@@ -4,7 +4,12 @@ All notable changes to the Know-N browser extension are documented here. The for
 
 ## [Unreleased]
 
+## [0.1.0-rc.2] - 2026-10-25
+
 ### Changed
+
+- Folder pickers show an expandable tree with recent subfolders, making the same folders easier to find when saving, managing bookmarks or configuring site adapters.
+- Settings, automation hints, Help and popup risk details use shorter labels, quieter empty states and consistent disclosure chevrons.
 
 - The Site adapters page has a sidebar of sites and Add-on packages, and Sync, COLP Server and Recovery tabs for each site. Sync has three steps: connect the account, choose collections and a folder, and bring in existing favorites.
   - Collections are a checkbox list that the page reads on its own once the account is connected, page after page.

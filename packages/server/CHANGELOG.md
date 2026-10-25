@@ -4,6 +4,25 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+## [0.1.0-rc.12] - 2026-10-25
+
+### Changed
+
+- The bundled web app uses an expandable folder tree with recent subfolders in its folder picker.
+- Settings sessions appear in one list. Bookmark and favicon settings, agent setup, automation rules, digests and approvals use shorter explanations and quieter empty states, with consistent disclosure chevrons.
+
+### Fixed
+
+- Link health checks explain each failure in plain words, and responsive layouts keep their intended breakpoints on narrow screens.
+
+### Upgrade notes
+
+From 0.1.0-rc.11, update the checkout and deployment files from this tag,
+set `COLP_IMAGE_TAG=0.1.0-rc.12`, and recreate the server. There are no new
+database migrations. The image includes the updated web app; install the
+`extension-v0.1.0-rc.2` ZIP separately for the folder picker, site-adapter and
+source archive save fixes.
+
 ## [0.1.0-rc.11] - 2026-10-24
 
 ### Added
