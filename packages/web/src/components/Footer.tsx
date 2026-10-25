@@ -14,7 +14,7 @@ export function Footer() {
       <div className="site-footer-inner site-footer-inner--app">
         <p className="site-footer-brand">
           <strong><BrandName /></strong>
-          <span>Bookmarks on this server.</span>
+          <span>Bookmarks on this server</span>
           <span className="site-footer-powered">powered by Know-N</span>
         </p>
         <nav aria-label="Footer">
