@@ -121,9 +121,11 @@
 /* ——— Status bar ———
    The one switch that stops everything, with what the account is doing
    right now. Paper surface; the glyph carries the state. */
+/* The switch stays at the end of the row at every width; a long paused
+   line wraps beside it instead of pushing it under the text. */
 .automations-status {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-3) var(--space-4);
   margin-bottom: var(--space-8);
@@ -134,19 +136,8 @@
   box-shadow: var(--shadow-xs);
 }
 
-.automations-status > .btn {
-  grid-column: 1 / -1;
-  justify-self: start;
-}
-
-@media (min-width: 640px) {
-  .automations-status {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-  }
-
-  .automations-status > .btn {
-    grid-column: auto;
-  }
+@media (max-width: 479px) {
+  .automations-status { gap: var(--space-3); padding: var(--space-3) var(--space-4); }
 }
 
 .automations-status-mark {
@@ -546,13 +537,18 @@
   }
 }
 
+/* Icon beside the promise, so each one reads as one item rather than a
+   stack of three. */
 .automations-promises li {
   display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-content: start;
-  gap: var(--space-2);
+  column-gap: var(--space-3);
+  row-gap: var(--hair-15);
 }
 
 .automations-promise-icon {
+  grid-row: span 2;
   display: grid;
   place-items: center;
   width: 2rem;

@@ -25,22 +25,22 @@ const HOW_IT_WORKS: ReadonlyArray<{ icon: IconName; title: string; body: string 
   {
     icon: 'check',
     title: 'Your choice wins',
-    body: 'Rules only file bookmarks saved without a folder. A folder you pick while saving is never overridden.',
+    body: 'A folder you pick while saving is never overridden.',
   },
   {
     icon: 'eye',
     title: 'Preview first',
-    body: 'A rule runs only after you preview it on your recent bookmarks and turn it on.',
+    body: 'A rule runs only after you preview it and turn it on.',
   },
   {
     icon: 'refresh',
     title: 'Undo one thing',
-    body: 'Each bookmark shows what a rule did to it, with Undo when that is safe.',
+    body: 'Each bookmark shows what a rule did, with Undo.',
   },
   {
     icon: 'pause',
     title: 'One switch stops everything',
-    body: 'Pause all stops every rule at once. Browsers follow within about five minutes.',
+    body: 'Pause all stops every rule; browsers follow within five minutes.',
   },
 ]
 
@@ -169,10 +169,9 @@ function StatusBar({
         {pause && paused && (
           <p className="automations-status-text" role="status" data-testid="automations-paused">{pausedLine(pause)}</p>
         )}
-        {pause && !paused && rules && (
-          <p className="automations-status-text">
-            {rules.length === 0 ? 'Make a rule to start filing bookmarks as you save them.' : `${ruleTally(rules)}.`}
-          </p>
+        {/* With no rules yet, the empty state below says what to do; the bar stays one line. */}
+        {pause && !paused && rules && rules.length > 0 && (
+          <p className="automations-status-text">{`${ruleTally(rules)}.`}</p>
         )}
       </div>
       <button
@@ -197,7 +196,7 @@ function FirstRule() {
         icon="bolt"
         data-testid="automations-empty"
         title="No rules yet"
-        description="A rule files bookmarks for you, such as “pages from arxiv.org go to Academic”. Start here, or choose Automate… on a folder in your library."
+        description="Such as “pages from arxiv.org go to Academic”. Start here, or choose Automate… on a folder."
         action={(
           <>
             <Link className="btn btn-primary btn-sm" to="/automations/new">New rule</Link>
@@ -376,7 +375,7 @@ export function AutomationsHome() {
         variant="workbench"
         title="Automations"
         documentTitle="Automations"
-        lede="Rules file the bookmarks you save into the right folder. Nothing runs until you preview a rule and turn it on."
+        lede="Rules file the bookmarks you save into the right folder."
         actions={(
           <Link className="btn btn-primary btn-sm" to="/automations/new">
             <Icon name="plus" />
