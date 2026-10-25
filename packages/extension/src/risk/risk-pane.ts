@@ -142,10 +142,10 @@ function modeField(mode: RiskMode, change: (mode: RiskMode) => void): HTMLElemen
     input.addEventListener('change', () => { if (input.checked) change(value); });
     return label;
   };
-  choices.append(option('off', t('risk_modeOff', 'Off'), t('risk_modeOffHint', 'No lists are checked and none are fetched by themselves.')),
-    option('onSave', t('risk_modeOnSave', 'When I save a page'), t('risk_modeOnSaveHint', 'The popup says when the page is on one of your lists. You can still save it.')),
+  choices.append(option('off', t('risk_modeOff', 'Off'), t('risk_modeOffHint', 'Nothing is checked or fetched.')),
+    option('onSave', t('risk_modeOnSave', 'When I save a page'), t('risk_modeOnSaveHint', 'The popup warns you; you can still save.')),
     option('onSaveAndBrowse', t('risk_modeBrowse', 'When I save, and while I browse'),
-      t('risk_modeBrowseHint', 'The Know-N button shows ! on a page from your lists. Asks to see the pages you open; they are checked here and sent nowhere.')));
+      t('risk_modeBrowseHint', 'The Know-N button shows ! on listed pages. Pages you open are checked here and sent nowhere.')));
   return choices;
 }
 
@@ -224,7 +224,7 @@ export function riskBody(state: RiskStateView, reload: () => void): HTMLElement[
   const head = el('div', undefined, 'set-row');
   const words = el('div', undefined, 'set-row-text');
   words.append(el('p', t('risk_lists', 'Lists'), 'set-row-title'),
-    el('p', t('risk_listsHint', 'Fetched to this browser and checked here. Each says who keeps it; where lists disagree, you see each one.'), 'set-row-hint'));
+    el('p', t('risk_listsHint', 'Fetched and checked in this browser. A page on no list gets no notice, good or bad.'), 'set-row-hint'));
   const controls = el('div', undefined, 'set-row-control');
   const subscribe = button(t('risk_subscribe', 'Subscribe to a list'), 'btn btn-secondary btn-sm', () => openRiskSubscribe(subscribe));
   subscribe.dataset.riskSubscribe = '';
@@ -251,8 +251,8 @@ export function createRiskPane(): RiskPane {
   section.id = 'automation-risk'; section.setAttribute('aria-labelledby', 'automation-risk-heading');
   const head = el('div', undefined, 'set-group-head');
   const title = el('h2', t('risk_title', 'Risk alerts')); title.id = 'automation-risk-heading';
-  head.append(title, el('p', t('risk_lede', 'Warns you when a page is on a risk list you subscribe to. It only warns: it never blocks a page or changes where a bookmark goes.'), 'detail'),
-    el('p', t('risk_absence', 'Absence from a list means nothing either way: a page on no list gets no notice, good or bad.'), 'detail risk-absence'));
+  // What absence from a list means is said once, beside the lists.
+  head.append(title, el('p', t('risk_lede', 'Warns when a page is on a risk list you subscribe to. It never blocks a page or moves a bookmark.'), 'detail'));
   const body = el('div', undefined, 'risk-body');
   section.append(head, body);
   let active = false, turn = 0, revealed = false;

@@ -196,12 +196,12 @@
     "description": "Your account’s rules"
   },
   "automation_accountRulesLede": {
-    "message": "它们在每台设备上生效，并先于此浏览器自己的规则。打开一条即可在网页上修改。",
-    "description": "They work on every device, before this browser’s own rules. Open one to change it on the web."
+    "message": "打开一条即可在网页上修改。",
+    "description": "Open one to change it on the web."
   },
   "automation_accountRulesSignIn": {
-    "message": "登录 COLP 服务器后，也能使用你保存在那里的规则。它们在每台设备上生效，并先于此浏览器的规则运行。",
-    "description": "Sign in to a COLP server to also use the rules you keep there. They work on every device, and run before this browser’s."
+    "message": "登录 COLP Server 后，也能使用你保存在那里的规则。",
+    "description": "Sign in to a COLP Server to also use the rules you keep there."
   },
   "automation_activityAdded_one": {
     "message": "$2 向 $3 添加了 $1 个书签",
@@ -548,8 +548,8 @@
     "description": "$1 subscriptions, fetched again once you allow their sites"
   },
   "automation_configHint": {
-    "message": "把此浏览器的规则、规则集及其使用的文件夹保存在一个文件中，或从另一个浏览器带过来。文件中不包含书签。",
-    "description": "Keep this browser’s rules, sets and the folders they use in a file, or bring them from another browser. Bookmarks aren’t in it."
+    "message": "把此浏览器的规则和规则集存到一个文件中，或从另一个浏览器带过来。",
+    "description": "Move this browser’s rules and sets to a file, or bring them from another browser."
   },
   "automation_configImport": {
     "message": "导入",
@@ -888,16 +888,16 @@
     "description": "This folder isn’t synced, so your other devices don’t have it. Choose a synced folder, or use the rule in this browser."
   },
   "automation_freshnessHint": {
-    "message": "此浏览器每 5 分钟检查一次。离线时会一直使用本地副本，直到 $1；你在网页上暂停后，下次检查时这里就会生效。",
-    "description": "This browser checks every 5 minutes. Offline, it keeps using its copy until $1, and a pause you make on the web reaches it at the next check."
+    "message": "离线时，此浏览器会一直使用本地副本，直到 $1。",
+    "description": "Offline, this browser keeps using its copy until $1."
   },
   "automation_freshnessHintNone": {
     "message": "此浏览器每 5 分钟检查一次规则。",
     "description": "This browser checks for rules every 5 minutes."
   },
   "automation_freshnessHintShort": {
-    "message": "此浏览器每 5 分钟检查一次。你在网页上暂停后，下次检查时这里就会生效。",
-    "description": "This browser checks every 5 minutes. A pause you make on the web reaches it at the next check."
+    "message": "此浏览器每 5 分钟检查一次。",
+    "description": "This browser checks every 5 minutes."
   },
   "automation_importSet": {
     "message": "导入规则集",
@@ -956,8 +956,8 @@
     "description": "Title contains"
   },
   "automation_ledeBrowser": {
-    "message": "规则会把你保存的网页放进合适的文件夹。此浏览器的规则无需账户；你账户的规则在每台设备上生效。",
-    "description": "Rules file the pages you save into the right folder. Rules in this browser need no account; your account’s rules work on every device."
+    "message": "规则会把你保存的网页放进合适的文件夹。",
+    "description": "Rules file the pages you save into the right folder."
   },
   "automation_listEditorHint": {
     "message": "只有此浏览器使用这条规则，在你账户的规则之后，用于你通过 Know-N 按钮或菜单保存的页面。规则从列表顶部开始依次尝试，第一条匹配的规则决定结果。保存时你自己选择的文件夹始终优先。",
@@ -968,12 +968,12 @@
     "description": "Rules in this browser, in the order they are tried"
   },
   "automation_listLede": {
-    "message": "从顶部开始依次尝试，第一条匹配的规则决定结果。它们会归档你通过 Know-N 按钮或菜单保存的页面（不包括浏览器的星标），即使离线、没有账户也可以。你自己选择的文件夹始终优先。",
-    "description": "Tried from the top, and the first that matches decides. They file pages you save with the Know-N button or menu, not the browser’s star, even offline and with no account. A folder you pick yourself always wins."
+    "message": "第一条匹配的规则决定结果，即使离线、没有账户也可以。适用于用 Know-N 保存的页面，不包括浏览器的星标。",
+    "description": "The first that matches decides, even offline and with no account. For pages you save with Know-N, not the browser’s star."
   },
   "automation_listLedeSignedIn": {
-    "message": "只有此浏览器使用它们，在你账户的规则之后，从列表顶部开始：第一条匹配的规则决定结果。适用于你通过 Know-N 按钮或菜单保存的页面，不包括浏览器的星标。你自己选择的文件夹始终优先。",
-    "description": "Only this browser uses them, after your account’s rules, from the top of the list: the first that matches decides. For pages you save with the Know-N button or menu, not the browser’s star. A folder you pick yourself always wins."
+    "message": "第一条匹配的规则决定结果。适用于用 Know-N 保存的页面，不包括浏览器的星标。",
+    "description": "The first that matches decides. For pages you save with Know-N, not the browser’s star."
   },
   "automation_listLimit": {
     "message": "此浏览器最多保存 200 条单独规则，总计 1,000 条。删除一条后才能再添加。",
@@ -1244,8 +1244,8 @@
     "description": "Pause all automations"
   },
   "automation_pauseHint": {
-    "message": "暂停和恢复都在网页上进行；此浏览器的规则也会一起暂停。此浏览器会在下次检查时跟上，最多 5 分钟。",
-    "description": "You pause and resume on the web; rules in this browser pause with them. This browser follows at its next check, within 5 minutes."
+    "message": "此浏览器的规则也会一起暂停，最多 5 分钟内生效。",
+    "description": "Rules in this browser pause too, within 5 minutes."
   },
   "automation_pauseOnWeb": {
     "message": "在网页上暂停",
@@ -1352,8 +1352,8 @@
     "description": "Couldn’t try this page. Try again."
   },
   "automation_previewHint": {
-    "message": "查看哪条规则会决定一个页面，以及它跳过或遮住了哪些规则。不会保存任何内容。",
-    "description": "See which rule would decide a page, and which rules it passes over or hides. Nothing is saved."
+    "message": "查看哪条规则会决定一个页面。不会保存任何内容。",
+    "description": "See which rule would decide a page. Nothing is saved."
   },
   "automation_previewKept": {
     "message": "由$1留在你保存的位置。",
@@ -7767,10 +7767,6 @@
     "message": "开始同步后，才能更改云端删除在此处的处理方式。",
     "description": "Start syncing to change how cloud deletions are applied here."
   },
-  "risk_absence": {
-    "message": "不在列表上不代表任何结论：不在任何列表上的页面不会收到提示，无论好坏。",
-    "description": "Absence from a list means nothing either way: a page on no list gets no notice, good or bad."
-  },
   "risk_addException": {
     "message": "添加例外",
     "description": "Add exception"
@@ -7904,8 +7900,8 @@
     "description": "a scam"
   },
   "risk_lede": {
-    "message": "当页面出现在你订阅的风险列表上时提醒你。只作提醒：不会拦截页面，也不会改变书签存放的位置。",
-    "description": "Warns you when a page is on a risk list you subscribe to. It only warns: it never blocks a page or changes where a bookmark goes."
+    "message": "当页面出现在你订阅的风险列表上时提醒你。它从不拦截页面，也不移动书签。",
+    "description": "Warns when a page is on a risk list you subscribe to. It never blocks a page or moves a bookmark."
   },
   "risk_limit": {
     "message": "这个浏览器最多保留 20 个风险列表。移除一个后再添加。",
@@ -7916,8 +7912,8 @@
     "description": "Lists"
   },
   "risk_listsHint": {
-    "message": "下载到这个浏览器并在本地检查。每个列表都注明维护者；列表意见不一致时，你会分别看到每一个。",
-    "description": "Fetched to this browser and checked here. Each says who keeps it; where lists disagree, you see each one."
+    "message": "在此浏览器中下载并检查。不在任何列表上的页面不会收到提示，无论好坏。",
+    "description": "Fetched and checked in this browser. A page on no list gets no notice, good or bad."
   },
   "risk_loadFailed": {
     "message": "无法读取这个浏览器中的风险提醒。重新加载页面再试。",
@@ -7944,8 +7940,8 @@
     "description": "When I save, and while I browse"
   },
   "risk_modeBrowseHint": {
-    "message": "页面在你的列表上时，Know-N 按钮显示 !。需要查看你打开的页面；页面只在本地检查，不会发送到任何地方。",
-    "description": "The Know-N button shows ! on a page from your lists. Asks to see the pages you open; they are checked here and sent nowhere."
+    "message": "列表上的页面会在 Know-N 按钮上显示 !。你打开的页面只在本地检查，不会发送到任何地方。",
+    "description": "The Know-N button shows ! on listed pages. Pages you open are checked here and sent nowhere."
   },
   "risk_modeLabel": {
     "message": "提醒方式",
@@ -7956,16 +7952,16 @@
     "description": "Off"
   },
   "risk_modeOffHint": {
-    "message": "不检查任何列表，也不会自动下载列表。",
-    "description": "No lists are checked and none are fetched by themselves."
+    "message": "不检查，也不下载任何列表。",
+    "description": "Nothing is checked or fetched."
   },
   "risk_modeOnSave": {
     "message": "保存页面时",
     "description": "When I save a page"
   },
   "risk_modeOnSaveHint": {
-    "message": "页面在你的某个列表上时，弹出窗口会告诉你。你仍然可以保存。",
-    "description": "The popup says when the page is on one of your lists. You can still save it."
+    "message": "弹出窗口会提醒你；你仍然可以保存。",
+    "description": "The popup warns you; you can still save."
   },
   "risk_modeTurnedOff": {
     "message": "风险提醒已关闭。",

@@ -72,7 +72,7 @@ test('a page on a subscribed risk list gets the notice in the popup, and saves a
     // Risk alerts: off until switched on; then a list, its site allowed in the Subscribe click.
     const risk = options.locator('#automation-risk');
     await expect(risk.locator('.risk-mode input[value="off"]')).toBeChecked();
-    await expect(risk).toContainText('Absence from a list means nothing either way');
+    await expect(risk).toContainText('A page on no list gets no notice, good or bad.');
     await risk.getByText('When I save a page', { exact: true }).click();
     await expect.poll(() => options.evaluate(async () => (await chrome.runtime.sendMessage({ kind: 'known.risk.state' }) as { state: { mode: string } }).state.mode))
       .toBe('onSave');

@@ -50,7 +50,7 @@ describe('Risk alerts in Options', () => {
   it('says absence from a list means nothing, and never calls a page safe (RS-17.2)', async () => {
     const pane = await render();
     expect(text(pane.querySelector('h2'))).toBe('Risk alerts');
-    expect(text(pane)).toContain('Absence from a list means nothing either way');
+    expect(text(pane)).toContain('A page on no list gets no notice, good or bad.');
     expect(text(pane)).not.toMatch(/\bsafe\b/iu);
     expect(pane.querySelector<HTMLInputElement>('.risk-mode input[value="onSave"]')!.checked).toBe(true);
   });

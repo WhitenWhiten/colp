@@ -135,7 +135,7 @@ export function configCard(): HTMLElement {
   const row = el('div', undefined, 'set-row');
   const words = el('div', undefined, 'set-row-text');
   words.append(el('p', t('automation_configTitle', 'Rules file'), 'set-row-title'),
-    el('p', t('automation_configHint', 'Keep this browser’s rules, sets and the folders they use in a file, or bring them from another browser. Bookmarks aren’t in it.'), 'set-row-hint'));
+    el('p', t('automation_configHint', 'Move this browser’s rules and sets to a file, or bring them from another browser.'), 'set-row-hint'));
   const controls = el('div', undefined, 'set-row-control');
   controls.append(exportButton, importButton, input);
   row.append(words, controls);

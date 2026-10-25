@@ -78,7 +78,7 @@ describe('the list on the page', () => {
     expect(text(row('s').querySelector('.list-row-meta'))).toBe('2 rules · Your set');
     expect(text(row('sub'))).toContain('This browser can’t read this subscription, so it files nothing.');
     expect(text(body.querySelector('#automation-browser-heading'))).toBe('Rules in this browser4');
-    expect(text(body.querySelector('.automation-browser .detail'))).toContain('Tried from the top, and the first that matches decides.');
+    expect(text(body.querySelector('.automation-browser .detail'))).toContain('The first that matches decides, even offline and with no account.');
   });
 
   it('dims what takes no part in saves: a rule in a switched-off set, the whole list switched off', async () => {

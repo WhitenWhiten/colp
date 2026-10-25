@@ -397,8 +397,8 @@ export function ruleListGroup(view: AutomationStateView, after: readonly HTMLEle
     ? t('automation_browserLedePaused', 'Paused with your account’s automations. They file pages again when you resume on the web.')
     : !list.enabled ? t('automation_listOffLede', 'Switched off: pages you save keep the folder you save them to.')
       : view.account === 'signedIn'
-        ? t('automation_listLedeSignedIn', 'Only this browser uses them, after your account’s rules, from the top of the list: the first that matches decides. For pages you save with the Know-N button or menu, not the browser’s star. A folder you pick yourself always wins.')
-        : t('automation_listLede', 'Tried from the top, and the first that matches decides. They file pages you save with the Know-N button or menu, not the browser’s star, even offline and with no account. A folder you pick yourself always wins.'), 'detail'));
+        ? t('automation_listLedeSignedIn', 'The first that matches decides. For pages you save with Know-N, not the browser’s star.')
+        : t('automation_listLede', 'The first that matches decides, even offline and with no account. For pages you save with Know-N, not the browser’s star.'), 'detail'));
   // Ways to add to the list on the left; Run once, which works on bookmarks already saved, on the right.
   const tools = el('div', undefined, 'automation-list-tools');
   const add = el('div', undefined, 'automation-list-add');

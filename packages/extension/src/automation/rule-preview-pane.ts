@@ -114,7 +114,7 @@ export function createRulePreview(): RulePreview {
   card.setAttribute('aria-labelledby', 'automation-preview-heading');
   const heading = el('h3', t('automation_previewTitle', 'Try a page')); heading.id = 'automation-preview-heading';
   const head = el('div', undefined, 'automation-preview-head');
-  head.append(heading, el('p', t('automation_previewHint', 'See which rule would decide a page, and which rules it passes over or hides. Nothing is saved.'), 'detail'));
+  head.append(heading, el('p', t('automation_previewHint', 'See which rule would decide a page. Nothing is saved.'), 'detail'));
   const form = el('form', undefined, 'automation-preview-form'); form.noValidate = true;
   const field = (label: string, input: HTMLInputElement) => {
     const wrap = el('div', undefined, 'form-field');

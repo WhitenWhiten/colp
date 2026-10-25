@@ -96,7 +96,7 @@ describe('Rules in this browser on the page', () => {
     expect(text(group.querySelector('.detail'))).toBe('Paused with your account’s automations. They file pages again when you resume on the web.');
     // Folder missing and Off say more than Paused; the switches still work.
     expect(Array.from(group.querySelectorAll('.automation-browser-rule')).map((row) => text(row.querySelector('.badge')))).toEqual(['Paused', 'Off', 'Folder missing']);
-    expect(text(body.querySelector('.automation-status'))).toContain('rules in this browser pause with them');
+    expect(text(body.querySelector('.automation-status'))).toContain('Rules in this browser pause too');
   });
 
   it('come after the account’s status and rules when signed in', async () => {

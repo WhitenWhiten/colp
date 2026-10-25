@@ -153,10 +153,10 @@
     "message": "Your account’s rules"
   },
   "automation_accountRulesLede": {
-    "message": "They work on every device, before this browser’s own rules. Open one to change it on the web."
+    "message": "Open one to change it on the web."
   },
   "automation_accountRulesSignIn": {
-    "message": "Sign in to a COLP server to also use the rules you keep there. They work on every device, and run before this browser’s."
+    "message": "Sign in to a COLP Server to also use the rules you keep there."
   },
   "automation_activityAdded_one": {
     "message": "$2 added $1 bookmark to $3"
@@ -432,7 +432,7 @@
     "message": "$1 subscriptions, fetched again once you allow their sites"
   },
   "automation_configHint": {
-    "message": "Keep this browser’s rules, sets and the folders they use in a file, or bring them from another browser. Bookmarks aren’t in it."
+    "message": "Move this browser’s rules and sets to a file, or bring them from another browser."
   },
   "automation_configImport": {
     "message": "Import"
@@ -702,13 +702,13 @@
     "message": "This folder isn’t synced, so your other devices don’t have it. Choose a synced folder, or use the rule in this browser."
   },
   "automation_freshnessHint": {
-    "message": "This browser checks every 5 minutes. Offline, it keeps using its copy until $1, and a pause you make on the web reaches it at the next check."
+    "message": "Offline, this browser keeps using its copy until $1."
   },
   "automation_freshnessHintNone": {
     "message": "This browser checks for rules every 5 minutes."
   },
   "automation_freshnessHintShort": {
-    "message": "This browser checks every 5 minutes. A pause you make on the web reaches it at the next check."
+    "message": "This browser checks every 5 minutes."
   },
   "automation_importSet": {
     "message": "Import set"
@@ -753,7 +753,7 @@
     "message": "Title contains"
   },
   "automation_ledeBrowser": {
-    "message": "Rules file the pages you save into the right folder. Rules in this browser need no account; your account’s rules work on every device."
+    "message": "Rules file the pages you save into the right folder."
   },
   "automation_listEditorHint": {
     "message": "Only this browser uses this rule, after your account’s rules, for pages you save with the Know-N button or menu. Rules are tried from the top of the list; the first that matches decides. A folder you pick when saving always wins."
@@ -762,10 +762,10 @@
     "message": "Rules in this browser, in the order they are tried"
   },
   "automation_listLede": {
-    "message": "Tried from the top, and the first that matches decides. They file pages you save with the Know-N button or menu, not the browser’s star, even offline and with no account. A folder you pick yourself always wins."
+    "message": "The first that matches decides, even offline and with no account. For pages you save with Know-N, not the browser’s star."
   },
   "automation_listLedeSignedIn": {
-    "message": "Only this browser uses them, after your account’s rules, from the top of the list: the first that matches decides. For pages you save with the Know-N button or menu, not the browser’s star. A folder you pick yourself always wins."
+    "message": "The first that matches decides. For pages you save with Know-N, not the browser’s star."
   },
   "automation_listLimit": {
     "message": "This browser keeps up to 200 rules on their own and 1,000 in all. Delete one to add another."
@@ -975,7 +975,7 @@
     "message": "Pause all automations"
   },
   "automation_pauseHint": {
-    "message": "You pause and resume on the web; rules in this browser pause with them. This browser follows at its next check, within 5 minutes."
+    "message": "Rules in this browser pause too, within 5 minutes."
   },
   "automation_pauseOnWeb": {
     "message": "Pause on the web"
@@ -1059,7 +1059,7 @@
     "message": "Couldn’t try this page. Try again."
   },
   "automation_previewHint": {
-    "message": "See which rule would decide a page, and which rules it passes over or hides. Nothing is saved."
+    "message": "See which rule would decide a page. Nothing is saved."
   },
   "automation_previewKept": {
     "message": "Stays where you save it, by $1."
@@ -6056,9 +6056,6 @@
   "remoteDelete_startSyncChangeHowCloud": {
     "message": "Start syncing to change how cloud deletions are applied here."
   },
-  "risk_absence": {
-    "message": "Absence from a list means nothing either way: a page on no list gets no notice, good or bad."
-  },
   "risk_addException": {
     "message": "Add exception"
   },
@@ -6162,7 +6159,7 @@
     "message": "a scam"
   },
   "risk_lede": {
-    "message": "Warns you when a page is on a risk list you subscribe to. It only warns: it never blocks a page or changes where a bookmark goes."
+    "message": "Warns when a page is on a risk list you subscribe to. It never blocks a page or moves a bookmark."
   },
   "risk_limit": {
     "message": "This browser keeps up to 20 risk lists. Remove one to add another."
@@ -6171,7 +6168,7 @@
     "message": "Lists"
   },
   "risk_listsHint": {
-    "message": "Fetched to this browser and checked here. Each says who keeps it; where lists disagree, you see each one."
+    "message": "Fetched and checked in this browser. A page on no list gets no notice, good or bad."
   },
   "risk_loadFailed": {
     "message": "Couldn’t read risk alerts in this browser. Reload the page to try again."
@@ -6192,7 +6189,7 @@
     "message": "When I save, and while I browse"
   },
   "risk_modeBrowseHint": {
-    "message": "The Know-N button shows ! on a page from your lists. Asks to see the pages you open; they are checked here and sent nowhere."
+    "message": "The Know-N button shows ! on listed pages. Pages you open are checked here and sent nowhere."
   },
   "risk_modeLabel": {
     "message": "Warn me"
@@ -6201,13 +6198,13 @@
     "message": "Off"
   },
   "risk_modeOffHint": {
-    "message": "No lists are checked and none are fetched by themselves."
+    "message": "Nothing is checked or fetched."
   },
   "risk_modeOnSave": {
     "message": "When I save a page"
   },
   "risk_modeOnSaveHint": {
-    "message": "The popup says when the page is on one of your lists. You can still save it."
+    "message": "The popup warns you; you can still save."
   },
   "risk_modeTurnedOff": {
     "message": "Risk alerts are off."

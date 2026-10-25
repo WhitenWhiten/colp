@@ -99,11 +99,13 @@ function freshness(view: AutomationStateView): HTMLElement {
     // The relative time keeps its exact-time tooltip wherever the translation puts it.
     line.append(...withSlot(t('automation_updatedAt', 'Updated $1.', SLOT), when(view.lastRefreshAt)), ' ');
   }
-  // Without rules here yet there is no copy to keep offline and no pause to pass on.
+  // Without rules here yet there is no copy to keep offline. How long the copy lasts offline is the line's
+  // tooltip: the hint above already says the rules work offline.
   line.append(view.state === 'none' ? t('automation_freshnessHintNone', 'This browser checks for rules every 5 minutes.')
-    : view.expiresAt && view.state !== 'expired'
-      ? t('automation_freshnessHint', 'This browser checks every 5 minutes. Offline, it keeps using its copy until $1, and a pause you make on the web reaches it at the next check.', formatMoment(view.expiresAt))
-      : t('automation_freshnessHintShort', 'This browser checks every 5 minutes. A pause you make on the web reaches it at the next check.'));
+    : t('automation_freshnessHintShort', 'This browser checks every 5 minutes.'));
+  if (view.state !== 'none' && view.state !== 'expired' && view.expiresAt) {
+    line.title = t('automation_freshnessHint', 'Offline, this browser keeps using its copy until $1.', formatMoment(view.expiresAt));
+  }
   return line;
 }
 
@@ -127,7 +129,7 @@ function statusCard(view: AutomationStateView, refresh: () => void, busy: boolea
   if (view.webUrl && !(view.state === 'none' && view.problem === 'unavailable')) {
     const paused = view.state === 'paused';
     card.append(row(paused ? t('automation_resumeAll', 'Resume automations') : t('automation_pauseAll', 'Pause all automations'),
-      t('automation_pauseHint', 'You pause and resume on the web; rules in this browser pause with them. This browser follows at its next check, within 5 minutes.'),
+      t('automation_pauseHint', 'Rules in this browser pause too, within 5 minutes.'),
       webLink(paused ? t('automation_resumeOnWeb', 'Resume on the web') : t('automation_pauseOnWeb', 'Pause on the web'), view.webUrl)));
   }
   return card;
@@ -212,7 +214,7 @@ function rulesGroup(view: AutomationStateView): HTMLElement {
   // from the page's one New rule button.
   return group('automation-rules-heading', heading, list, view.state === 'paused'
     ? t('automation_rulesPausedLede', 'Rules that file bookmarks come back here when you resume automations on the web.')
-    : t('automation_accountRulesLede', 'They work on every device, before this browser’s own rules. Open one to change it on the web.'));
+    : t('automation_accountRulesLede', 'Open one to change it on the web.'));
 }
 
 /** The rule that decided, with the set or subscription it came from as it was at the save (doc 17 RS-15). */
@@ -412,7 +414,7 @@ function accountCard(): HTMLElement {
   card.setAttribute('aria-label', t('automation_accountRules', 'Your account’s rules'));
   const signIn = el('a', t('common_signIn', 'Sign in'), 'btn btn-secondary btn-sm'); signIn.href = '#account';
   card.append(row(t('automation_accountRules', 'Your account’s rules'),
-    t('automation_accountRulesSignIn', 'Sign in to a COLP server to also use the rules you keep there. They work on every device, and run before this browser’s.'), signIn));
+    t('automation_accountRulesSignIn', 'Sign in to a COLP Server to also use the rules you keep there.'), signIn));
   return card;
 }
 
