@@ -183,7 +183,7 @@ export interface RealStack {
   seedPagedSubtree(memberCount?: number): Promise<{
     readonly effectId: string; readonly pageCount: number; readonly memberCount: number;
   }>;
-  seedCanonicalFixture(nestedBookmark?: boolean): Promise<CanonicalFixture>;
+  seedCanonicalFixture(nestedBookmark?: boolean, browserFolder?: boolean): Promise<CanonicalFixture>;
   concurrentlyUpdateCanonicalBookmark(fixture: CanonicalFixture): Promise<void>;
   /** Exercise the same canonical server-origin bulk writer used by MCP commits. */
   moveCanonicalBookmarks?(nodeIds: readonly string[], parentId: string): Promise<void>;
@@ -1025,26 +1025,27 @@ export async function startRealStack(options: {readonly classification?:boolean;
         wire_json=jsonb_set(wire_json,'{status}','"recovery_required"'::jsonb,true)
         WHERE replica_id=$1`, [replicaId]);
     },
-    async seedCanonicalFixture(nestedBookmark = false) {
+    async seedCanonicalFixture(nestedBookmark = false, browserFolder = false) {
       const authority = await getAuxiliaryAuthority();
+      const rootId = browserFolder ? 'p3-27-bookmarks-bar' : 'p3-27-root';
       const folderTitle = 'Authority folder'; const bookmarkTitle = 'Authority bookmark';
       const bookmarkUrl = 'https://example.test/p3-31/authority';
       const folder = await auxiliaryPush(authority, { type: 'create_node', baseRevision: null,
-        payload: { parentId: 'p3-27-root', node: { kind: 'folder', title: folderTitle } } });
+        payload: { parentId: rootId, node: { kind: 'folder', title: folderTitle } } });
       const bookmark = await auxiliaryPush(authority, { type: 'create_node', baseRevision: null,
-        payload: { parentId: nestedBookmark ? folder.targetId : 'p3-27-root', node: { kind: 'bookmark', title: bookmarkTitle, url: bookmarkUrl } } });
+        payload: { parentId: nestedBookmark ? folder.targetId : rootId, node: { kind: 'bookmark', title: bookmarkTitle, url: bookmarkUrl } } });
       const revisions = await isolated.runtime.pool.query(`select id,resource_revision,children_revision from nodes
         where collection_id=$1 and id=any($2::text[])`, [COLLECTION_ID,
-        ['p3-27-root', folder.targetId, bookmark.targetId]]);
+        [rootId, folder.targetId, bookmark.targetId]]);
       const byId = new Map(revisions.rows.map((row) => [String(row.id), row]));
       // Seeded native projections represent an established replica. Advance
       // its checkpoint through public Pull/Ack before the browser signs in.
       await acknowledgeCanonicalFixture();
-      const root = requiredCanonicalNode(byId, 'p3-27-root'); const folderNode = requiredCanonicalNode(byId, folder.targetId);
+      const root = requiredCanonicalNode(byId, rootId); const folderNode = requiredCanonicalNode(byId, folder.targetId);
       const bookmarkNode = requiredCanonicalNode(byId, bookmark.targetId);
-      return { rootId: 'p3-27-root', rootRevision: requiredChildrenRevision(root, 'p3-27-root'), rootResourceRevision: String(root.resource_revision),
+      return { rootId, rootRevision: requiredChildrenRevision(root, rootId), rootResourceRevision: String(root.resource_revision),
         folderId: folder.targetId, folderRevision: requiredChildrenRevision(folderNode, folder.targetId), folderResourceRevision: String(folderNode.resource_revision),
-        bookmarkId: bookmark.targetId, bookmarkRevision: String(bookmarkNode.resource_revision), bookmarkParentId: nestedBookmark ? folder.targetId : 'p3-27-root',
+        bookmarkId: bookmark.targetId, bookmarkRevision: String(bookmarkNode.resource_revision), bookmarkParentId: nestedBookmark ? folder.targetId : rootId,
         folderTitle, bookmarkTitle, bookmarkUrl };
     },
     async concurrentlyUpdateCanonicalBookmark(fixture) {

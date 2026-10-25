@@ -202,7 +202,8 @@ const moduleEdges = {
   governance: new Set(['commands', 'collections', 'reports', 'publication', 'access-policy']),
 };
 const infrastructureEdges = {
-  'source-archives': new Set(['database', 'collections']),
+  // Reconciliation commits canonical changes and their ordinary Sync effects atomically.
+  'source-archives': new Set(['database', 'collections', 'sync']),
   activity: new Set(['database', 'outbox', 'telemetry']),
   automation: new Set(['database', 'collections', 'access-policy', 'telemetry', 'outbox', 'egress']),
   // Transaction composition for browser projections and atomic follow exit.
