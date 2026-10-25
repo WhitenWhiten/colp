@@ -45,6 +45,13 @@ test('user deletion stays explicit; matching personal nodes become candidates ra
   expect(diff([node], [])).toMatchObject([{ kind: 'candidate', candidates: [node], choices: ['keep', 'adopt'] }]);
   expect(diff([{ ...node, url: 'https://else.test', protected: true }], [], [])).toMatchObject([{ kind: 'protected', choices: ['keep'] }]);
 });
+test('proven source removal cannot archive a changed URL, a moved copy or a copy without write evidence', () => {
+  expect(diff([{ ...node, url: 'https://personal.test/' }], [rep], [], true)[0]).toMatchObject({
+    kind: 'sourceRemoved', choices: ['keep'], reason: 'sourceIdentityChanged',
+  });
+  expect(diff([{ ...node, parentId: 'personal-folder' }], [rep], [], true)[0]!.choices).toEqual(['keep']);
+  expect(diff([node], [{ ...rep, lastWritten: undefined }], [], true)[0]!.choices).toEqual(['keep']);
+});
 test('source title updates do not overwrite personal titles, and changed native identities are never rebound', () => {
   expect(diff([node], [rep], [{ ...item, title: 'Updated source' }])).toMatchObject([{ kind: 'title' }]);
   expect(diff([{ ...node, title: 'My title' }], [rep], [{ ...item, title: 'Updated source' }])).toMatchObject([{ kind: 'titleOverride', title: 'My title' }]);

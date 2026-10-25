@@ -18,8 +18,11 @@ export function reconcileDifferences(input: { snapshot: ReconcileSnapshot; repre
     const data = { representation: r, ...(node ? { native: node.native, expected: node } : {}), ...(item ? { source: item } : {}) };
     if (!item) {
       const absent = snapshot.absence === 'proven' || input.negative?.(r.itemId);
+      const identityChanged = node && r.lastWritten && !sameNativeContentValue('url', node.url, r.lastWritten.url);
+      const canArchive = absent && node && !node.protected && !node.pinned && r.state === 'active'
+        && r.lastWritten && !identityChanged && node.parentId === input.collectionParentId && node.parentId === r.lastWritten.parentId;
       add(r.itemId, absent ? 'sourceRemoved' : 'unverified', node?.title ?? r.lastWritten?.title ?? r.itemId,
-        { ...data, choices: absent && node && !node.protected && !node.pinned && r.state === 'active' ? ['keep', 'archive'] : ['keep'], reason: absent ? undefined : snapshot.reason ?? 'sourceAbsenceUnverified' });
+        { ...data, choices: canArchive ? ['keep', 'archive'] : ['keep'], reason: identityChanged ? 'sourceIdentityChanged' : absent ? undefined : snapshot.reason ?? 'sourceAbsenceUnverified' });
     } else if (node && !sameNativeContentValue('url', node.url, r.lastWritten?.url ?? item.url)) add(r.itemId, 'moved', node.title, { ...data, choices: ['keep'], reason: 'sourceIdentityChanged' });
     else if (!node || r.state === 'suppressed') add(r.itemId, 'localDeleted', item.title, { ...data, choices: node?.protected ? ['keep'] : ['keep', 'restore'] });
     else if (node.parentId !== input.collectionParentId || r.state === 'detached') add(r.itemId, 'moved', node.title, {
