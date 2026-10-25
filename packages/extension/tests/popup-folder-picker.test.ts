@@ -61,7 +61,7 @@ function mountPicker(excluded: ReadonlySet<string> = new Set(), onChosen?: () =>
   const byId = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
   const picker = bindSaveFolderPicker({
     destToggle: byId('dest-toggle'), destPanel: byId('dest-panel'), folderCurrent: byId('folder-current'),
-    folderTree: byId('folder-tree'), folderNew: byId('folder-new'), folderNewName: byId('folder-new-name'), destSearch: byId('dest-search'),
+    folderTree: byId('folder-tree'), folderNew: byId('folder-new'), folderNewName: byId('folder-new-name'), destSearch: byId<HTMLInputElement>('dest-search'),
     persistDraft: () => undefined, setFeedback: () => undefined,
     excludedFolderIds: async () => excluded, ...(onChosen ? { onChosen } : {}),
   });
