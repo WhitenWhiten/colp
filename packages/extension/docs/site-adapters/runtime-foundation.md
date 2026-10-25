@@ -1,5 +1,17 @@
 # Reusable site adapter foundation
 
+## Shared saving contract (October 25, 2026)
+
+All adapters report source facts; the host owns copy policy, classification, bookmark creation and ordinary synchronization. A sync-range folder is a valid destination. The public workflow is one configuration and one import approval, independent of where synchronization executes the durable create.
+
+The portable managed-copy identity is defined in `src/site-adapters/copy-identity.ts`. Within a destination library, a source copy is identified by site/identity version/content, source account and source collection. Each selected collection gets its own copy. A semantic copy is shared by content within that library and never uses a source collection as its identity. Private/account-local content includes the account in content identity. Native IDs, device IDs, rule IDs, titles, URLs, mapping paths and adapter installation IDs are not portable identity. One source collection has one active mapping per library; changing its folder is migration, not a new identity.
+
+The saved-copy association and manual suppression must be shared across replicas. Authentication, page leases and executable native commands remain device-local. Sync-range creates require online coordination before native projection; offline work waits without creating competing copies. Unknown writes recover the original operation instead of issuing a replacement. User moves/edits preserve the bookmark and detach automatic placement; user deletion suppresses automatic reconstruction across devices. Source membership removal retains saved bookmarks. Partial reads never prove absence.
+
+Allowing both purposes does not itself authorize classification. Automatic semantic creation is an explicit setting, uses the existing local classifier, excludes every mapped subtree, and has separate progress/retry from source saving. A failed classification never rolls back or repeats a successful source save. Source configuration changes and account/library changes fence pending writes. Legacy associations are adopted only with proof; ambiguous copies, missing receipts and changed roots remain reviewable.
+
+Implementation is delivered as separate validated commits: portable identity; shared creation and recovery; normal save/import routing; semantic scheduling; user-edit/suppression handling; migration and configuration fences; browser acceptance.
+
 Implemented October 24, 2026 following the foundation review. Bilibili remains the only implemented adapter. Isolation tests cover metadata and persisted records. Additional contract regression tests use a test-only DOM/post adapter with nonnumeric IDs, negative readback and stable cursors; it is not registered or shipped as a supported site. Site capabilities still require their own evidence before activation.
 
 ## Runtime and registration
