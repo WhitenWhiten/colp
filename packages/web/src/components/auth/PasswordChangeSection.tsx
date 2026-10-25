@@ -208,8 +208,8 @@ export function PasswordChangeSection() {
                 onChange={(e) => setNewPassword(e.target.value)}
               />
             </div>
-            <p className="meta">Other signed-in devices will be signed out.</p>
             <div className="auth-action-row">
+              <p className="meta">Other signed-in devices will be signed out.</p>
               <button type="submit" className="btn btn-primary" disabled={busy}>
                 {busy ? 'Changing password…' : 'Change password'}
               </button>

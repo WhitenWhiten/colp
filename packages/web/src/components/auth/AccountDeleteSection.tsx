@@ -49,10 +49,7 @@ export function AccountDeleteSection() {
     <section className="settings-section settings-danger" data-testid="delete-account">
       <div className="settings-section-head">
         <h3 className="settings-toggle-label">Delete account</h3>
-        <p className="meta">
-          Permanently delete this account. This cannot be undone. Type DELETE to enable deletion,
-          then confirm with your password.
-        </p>
+        <p className="meta">Permanently delete this account. This can't be undone.</p>
       </div>
       <form className="stack settings-form gap-4" data-testid="delete-account-form" onSubmit={onSubmit}>
         <div className="field">

@@ -73,53 +73,47 @@ export function SessionSection() {
     <section className="settings-section">
       <div className="settings-section-head">
         <h3 className="settings-toggle-label">Sessions</h3>
-        <p className="meta">
-          This device's session. Sign it out here to require signing in again on this device.
-        </p>
+        <p className="meta">Devices signed in to this account.</p>
       </div>
-      <div className="auth-action-row">
-        <button
-          type="button"
-          className="btn btn-secondary"
-          data-testid="revoke-session"
-          disabled={busy || !user}
-          onClick={() => {
-            void signOutThisDevice()
-          }}
-        >
-          {pending ? 'Signing out this session…' : 'Sign out this session'}
-        </button>
-      </div>
+      {/* This device first, then the others. Every row signs its session out;
+          the device has to sign in again. */}
+      <ul className="security-list" aria-label="Sessions">
+        <li className="toggle-row">
+          <strong>This device</strong>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            data-testid="revoke-session"
+            disabled={busy || !user}
+            onClick={() => {
+              void signOutThisDevice()
+            }}
+          >
+            {pending ? 'Signing out…' : 'Sign out'}
+          </button>
+        </li>
+        {otherSessions.map((session) => (
+          <li key={session.id} className="toggle-row" data-testid="other-session">
+            <span>Last active {formatSessionTime(session.updatedAt)}</span>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              data-testid="revoke-other-session"
+              disabled={busy || !user}
+              onClick={() => {
+                void revokeOther(session.id)
+              }}
+            >
+              {revokingId === session.id ? 'Signing out…' : 'Sign out'}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {otherSessions.length === 0 && <p className="meta">No other devices are signed in.</p>}
       {pending && (
         <p className="auth-notice" role="status">
           Signing out this session…
         </p>
-      )}
-
-      <p className="meta">
-        Other devices signed in to this account. Revoke a session to sign that device out.
-      </p>
-      {otherSessions.length === 0 ? (
-        <p className="meta">No other devices are signed in.</p>
-      ) : (
-        <ul className="security-list" data-testid="other-sessions">
-          {otherSessions.map((session) => (
-            <li key={session.id} className="toggle-row" data-testid="other-session">
-              <span className="meta">Last active {formatSessionTime(session.updatedAt)}</span>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                data-testid="revoke-other-session"
-                disabled={busy || !user}
-                onClick={() => {
-                  void revokeOther(session.id)
-                }}
-              >
-                {revokingId === session.id ? 'Revoking…' : 'Revoke'}
-              </button>
-            </li>
-          ))}
-        </ul>
       )}
 
       {message && (

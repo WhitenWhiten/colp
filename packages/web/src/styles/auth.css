@@ -135,6 +135,13 @@
   flex: 0 0 auto;
 }
 
+/* A note on what the action does sits at the row's start, beside the button
+   rather than on a line of its own above it. */
+.auth-action-row > .meta {
+  flex: 1 1 12rem;
+  margin: 0;
+}
+
 /* Destructive actions sit below a rule so they are never mistaken for the
    section's primary control. */
 .auth-action-row--danger {
