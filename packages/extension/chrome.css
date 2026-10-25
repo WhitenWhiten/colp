@@ -22,7 +22,13 @@
   border: 0;
 }
 
-button, input, select, textarea { font: inherit; color: inherit; }
+/* Instrument Sans draws its space at 0.19–0.20em. Under the UI's negative tracking at 12–13px that rounds to
+   under 2px, so labels read as one word ("Signout", "Viewactivity"). The site's global.css adds the same
+   word-spacing on body; it touches spaces only, so CJK runs are unaffected. */
+body { word-spacing: 0.05em; }
+
+/* The UA sheet resets word-spacing on form controls; keep the body gap. */
+button, input, select, textarea { font: inherit; color: inherit; word-spacing: inherit; }
 button { cursor: pointer; border: none; background: none; padding: 0; }
 
 :focus-visible {
