@@ -3,6 +3,7 @@ import { requestValue, transactionDone } from '../sync-state/idb.js';
 import { captureScopeKey, captureOwnerKey, type CaptureScope, type CaptureTask } from './contracts.js';
 import { effectiveLocalFeedback, type CaptureFeedbackEvent } from './feedback.js';
 import { captureNeedsAttention } from './statistics.js';
+import { canonicalJson } from '../canonical-json.js';
 
 export interface PlannedCommandRecord { commandId: string; kind: 'bookmark' | 'folder'; digest: string; state: 'reserved' | 'submitted' | 'unknown' | 'confirmed';
   payload?: unknown; task?: CaptureTask; native?: import('../site-adapters/contracts.js').NativeBinding<'folder'>; acknowledged?: boolean }
@@ -12,6 +13,7 @@ const active = (task: CaptureTask) => task.disposition === 'new'
 const row = (task: CaptureTask): StoredTask => ({ ...task, scopeKey: captureScopeKey(task.scope), ownerKey: captureOwnerKey(task.scope),
   ...(active(task) && !task.saveAnother && !task.planned ? { activeKey: JSON.stringify([captureScopeKey(task.scope), task.url]) } : {}) });
 const dto = ({ scopeKey: _scopeKey, ownerKey: _ownerKey, activeKey: _activeKey, ...task }: StoredTask): CaptureTask => task;
+const managedDigest = (task: CaptureTask) => canonicalJson(task.contentIntent?.managed ?? null, () => { throw new Error('capture_command_reused'); });
 
 /** Separate product ledger, referencing existing native/COLP intents. It never stores sync operations. */
 export function createCaptureStore(factory: IDBFactory = indexedDB, onCommitted?: () => void) {
@@ -166,7 +168,8 @@ export function createCaptureStore(factory: IDBFactory = indexedDB, onCommitted?
         if (command) {
           const prior = await requestValue(tasks.get([value.scopeKey, command.captureId])) as StoredTask;
           if (!prior || prior.url !== task.url || prior.targetNativeId !== task.targetNativeId
-            || prior.saveAnother !== task.saveAnother) throw new Error('capture_command_reused');
+            || prior.saveAnother !== task.saveAnother
+            || managedDigest(prior) !== managedDigest(task)) throw new Error('capture_command_reused');
           return dto(prior);
         }
         const unknown = !task.saveAnother && !task.planned ? await requestValue(tasks.index('ownerSaveUrl').get([value.ownerKey, task.url, 'unknown'])) as StoredTask | undefined : undefined;

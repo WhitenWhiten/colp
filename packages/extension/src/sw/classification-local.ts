@@ -54,7 +54,7 @@ export function localClassificationPreview(message:LocalPreviewRequest,context:A
 
 /** Shared by the popup and automatic save: one provider call over native folders, spent once per command id. */
 export async function runLocalClassification(input:{readonly document:ClassificationPreviewRequest;readonly commandId:string;
-  readonly generation:number;readonly signal:AbortSignal;readonly excludeBookmarkId?:string; readonly assertCurrent?:()=>Promise<void>}){
+  readonly generation:number;readonly signal:AbortSignal;readonly excludeBookmarkId?:string; readonly excludedFolderIds?:readonly string[]; readonly assertCurrent?:()=>Promise<void>}){
   const credential=await localClassificationCredential();
   if(!credential)return {ok:false as const,error:'local_key_required'};
   if(busy)return {ok:false as const,error:'local_call_in_progress'};
@@ -65,7 +65,7 @@ export async function runLocalClassification(input:{readonly document:Classifica
     const tree=await chrome.bookmarks.getTree() as FolderTreeNode[];
     const descriptions=new Map<string,string|null>(synced?.descriptions??[]);
     for(const [id,description] of await readNativeFolderDescriptions(tree))descriptions.set(id,description);
-    const folders=nativeClassificationFolders(tree,{excluded:new Set([...await exclusionIds(),...policy.excluded]),excludeBookmarkId:input.excludeBookmarkId,descriptions});
+    const folders=nativeClassificationFolders(tree,{excluded:new Set([...await exclusionIds(),...policy.excluded,...input.excludedFolderIds??[]]),excludeBookmarkId:input.excludeBookmarkId,descriptions});
     const document=input.document;
     // A rule's placement asks for tags only (`folder:false`); nothing is sent when there are no tags to choose from.
     const folder=!('folder' in document.requested)||document.requested.folder!==false;

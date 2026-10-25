@@ -108,6 +108,11 @@
                   <p class="set-row-hint" data-i18n="sites_copiesHint">What happens when you also save a video somewhere else.</p></div>
                 <div class="set-row-control"><select id="archive-copies" class="select-quiet"><option value="sourceAndSemantic" data-i18n="sites_copiesBoth">Keep source and semantic copies</option><option value="singlePreferSemantic" data-i18n="sites_copiesPreferSemantic">One copy, prefer semantic location</option><option value="singleKeepExisting" data-i18n="sites_copiesKeepExisting">One copy, preserve existing location</option></select></div>
               </div>
+              <div id="archive-semantic-row" class="set-row">
+                <div class="set-row-text"><p id="archive-semantic-title" class="set-row-title" data-i18n="sites_autoSemantic">Also save one copy by topic</p>
+                  <p class="set-row-hint" data-i18n="sites_autoSemanticHint">Uses your configured AI to choose a folder outside all website mappings. Multiple collections share this copy. Classification can be retried separately.</p></div>
+                <div class="set-row-control"><button id="archive-semantic" class="toggle" type="button" role="switch" aria-checked="false" aria-labelledby="archive-semantic-title"></button></div>
+              </div>
               <div id="archive-primary-row" class="set-sub" hidden>
                 <div class="set-row">
                   <div class="set-row-text"><label class="set-row-title" for="archive-primary" data-i18n="sites_primaryCollection">Primary collection</label>
@@ -129,6 +134,10 @@
           </div>
         </section>
 
+        <section id="semantic-progress" class="set-group" hidden aria-labelledby="semantic-heading">
+          <div class="set-group-head"><h2 id="semantic-heading" data-i18n="sites_semanticCopies">Copies by topic</h2></div>
+          <div class="set-card"><p id="semantic-summary" class="set-row" role="status"></p><div id="semantic-jobs"></div></div>
+        </section>
         <section id="step-import" class="set-group sites-step" data-step="later" aria-labelledby="sites-import-heading">
           <div class="set-group-head sites-step-head"><span class="sites-step-n" aria-hidden="true"><span>3</span><svg width="12" height="12" aria-hidden="true" focusable="false" data-icon="check"></svg></span>
             <h2 id="sites-import-heading" data-i18n="sites_stepImport">Bring in existing favorites</h2>

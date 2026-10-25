@@ -11,6 +11,9 @@ export type ManagedCopy = { content: ManagedContent } & (
   | { purpose: 'semantic' }
 );
 export interface ManagedLibrary { serverOrigin: string; accountId: string; collectionId: string }
+export interface DestinationOwner { serverOrigin: string; accountId: string | null; collectionId: string | null }
+export const sameDestinationOwner = (a: DestinationOwner | null | undefined, b: DestinationOwner | null | undefined) => a === b
+  || !!a && !!b && a.serverOrigin === b.serverOrigin && a.accountId === b.accountId && a.collectionId === b.collectionId;
 const id = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && v.length <= 512 && !/[\u0000-\u001f]/u.test(v);
 export function validManagedContent(v: unknown): v is ManagedContent {
   if (!v || typeof v !== 'object') return false;

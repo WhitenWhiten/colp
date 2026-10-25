@@ -1,5 +1,5 @@
 import { createManagedSaves } from './managed-saves.js';
-import { createManagedCopyClient } from './managed-client.js';
+import { createManagedCopyClient, type ManagedBinding, type ManagedNode } from './managed-client.js';
 import type { ManagedLibrary } from './copy-identity.js';
 import { managedLibraryKey } from './copy-identity.js';
 import { siteLedger, SITE_RECOVERY_ALARM } from './source-runtime.js';
@@ -16,6 +16,29 @@ import { credentialGatedFetch } from '../server-origin-permission.js';
 import { scheduleSyncEngineWake } from '../sw/engine.js';
 import type { SourceFolderReservation } from './contracts.js';
 import { sameNativeContentValue } from '../native-event-correlation.js';
+export async function managedClientForLibrary(library: ManagedLibrary) {
+  await assertOwner(library); const config = await loadConfig(), credential = await store.loadCredential(), authority = await store.fence.read();
+  if (!credential || config.serverOrigin !== library.serverOrigin) throw new Error('sourceSyncOwnerChanged');
+  return createManagedCopyClient({ origin: library.serverOrigin, fetch: credentialGatedFetch(),
+    headers: async () => colpCredentialHeaders(credential.accessToken),
+    assertCurrent: async () => { await store.assertWritable(authority.generation); await assertOwner(library); } });
+}
+export async function projectManagedBinding(library: ManagedLibrary, binding: ManagedBinding, commandId: string) {
+  if (binding.state !== 'active') throw new Error(binding.state === 'suppressed' ? 'sourceCopySuppressed' : 'sourceCopyDetached');
+  return projectManagedNode(library, binding.node, binding.slot.kind, commandId);
+}
+async function projectManagedNode(library: ManagedLibrary, written: ManagedNode, kind: 'bookmark' | 'folder', commandId: string) {
+  const scope = await assertOwner(library), mapping = await syncState.getMappingByColpId(scope, written.nodeId);
+  if (!mapping) return null;
+  if (mapping.quarantine || mapping.nodeKind && mapping.nodeKind !== kind) throw new Error('sourceCopyDetached');
+  const node = (await chrome.bookmarks.get(mapping.nativeId).catch(() => []))[0];
+  if (!node?.dateAdded) return null;
+  const parent = node.parentId && await syncState.getMappingByNativeId(scope, node.parentId);
+  if (!parent || parent.colpId !== written.parentId || node.title !== written.title || !sameNativeContentValue('url', node.url ?? null, written.url)
+    || (node.url ? 'bookmark' : 'folder') !== kind) throw new Error('sourceCopyDetached');
+  return { native: { bindingId: commandId, deviceId: await captureDeviceId(), nativeId: node.id, kind, dateAdded: node.dateAdded,
+    proof: { kind: 'writeReceipt' as const, id: `managed:${written.nodeId}` } }, parentId: node.parentId! };
+}
 async function assertOwner(library: ManagedLibrary) {
   const scope = await currentSyncScope();
   if (managedLibraryKey(scope) !== managedLibraryKey(library)) throw new Error('sourceSyncOwnerChanged');
@@ -45,25 +68,9 @@ export const managedSaves = createManagedSaves(siteLedger.db, {
     return { kind: 'bookmark', copy: { purpose: 'sourceArchive', content: { site: source.site, identityVersion: source.identityVersion, itemId: effect.item.id,
       accountId: definition.contentIdScope === 'site' ? null : connection.accountId }, sourceAccount: connection.accountId, sourceCollectionId: effect.representation.sourceCollectionId } };
   },
-  async client(library) {
-    await assertOwner(library); const config = await loadConfig(), credential = await store.loadCredential(), authority = await store.fence.read();
-    if (!credential || config.serverOrigin !== library.serverOrigin) throw new Error('sourceSyncOwnerChanged');
-    return createManagedCopyClient({ origin: library.serverOrigin, fetch: credentialGatedFetch(),
-      headers: async () => colpCredentialHeaders(credential.accessToken),
-      assertCurrent: async () => { await store.assertWritable(authority.generation); await assertOwner(library); } });
-  },
+  client: managedClientForLibrary,
   async projection(destination, receipt) {
-    const scope = await assertOwner(destination.library);
-    const mapping = await syncState.getMappingByColpId(scope, receipt.node.nodeId);
-    if (!mapping) return null;
-    if (mapping.quarantine || mapping.nodeKind && mapping.nodeKind !== destination.command.slot.kind) throw new Error('sourceCopyDetached');
-    const node = (await chrome.bookmarks.get(mapping.nativeId).catch(() => []))[0];
-    if (!node?.dateAdded) return null;
-    const parent = node.parentId && await syncState.getMappingByNativeId(scope, node.parentId);
-    if (!parent || parent.colpId !== receipt.node.parentId || node.title !== receipt.node.title || !sameNativeContentValue('url', node.url ?? null, receipt.node.url)
-      || (node.url ? 'bookmark' : 'folder') !== destination.command.slot.kind) throw new Error('sourceCopyDetached');
-    return { bindingId: destination.command.commandId, deviceId: await captureDeviceId(), nativeId: node.id, kind: destination.command.slot.kind,
-      dateAdded: node.dateAdded, proof: { kind: 'writeReceipt', id: `managed:${receipt.node.nodeId}` } };
+    return projectManagedNode(destination.library, receipt.node, destination.command.slot.kind, destination.command.commandId);
   },
   wake() {
     chrome.alarms.create(SITE_RECOVERY_ALARM, { when: Date.now() + 30000 });

@@ -6701,6 +6701,12 @@
   "sites_associationsUnreadable": {
     "message": "Couldn’t read saved associations."
   },
+  "sites_autoSemantic": {
+    "message": "Also save one copy by topic"
+  },
+  "sites_autoSemanticHint": {
+    "message": "Uses your configured AI to choose a folder outside all website mappings. Multiple collections share this copy. Classification can be retried separately."
+  },
   "sites_automationsPaused": {
     "message": "Automations are paused in this browser. Resume them, then try again."
   },
@@ -6826,6 +6832,9 @@
   },
   "sites_currentItem": {
     "message": "Current item"
+  },
+  "sites_destinationChanged": {
+    "message": "The sync account or folder range changed. Check this folder and save the settings again."
   },
   "sites_deviceScope": {
     "message": "This device's scope"
@@ -6962,6 +6971,9 @@
   "sites_makeListAgain": {
     "message": "Make the list again"
   },
+  "sites_mappingMoveReview": {
+    "message": "This mapping already has saved bookmarks. Keep its current folder until those bookmarks can be moved together."
+  },
   "sites_more": {
     "message": "More"
   },
@@ -7057,6 +7069,9 @@
   },
   "sites_openToList": {
     "message": "Open $1 in a tab to list your collections."
+  },
+  "sites_ownerMigrationReview": {
+    "message": "This mapping already contains bookmarks from another sync account or range. Return to that account and range before continuing."
   },
   "sites_packageDisabled": {
     "message": "Disabled"
@@ -7279,6 +7294,42 @@
   },
   "sites_scanningFound_other": {
     "message": "Found $1 favorites so far. Nothing is added until you approve the list."
+  },
+  "sites_semanticChooseFolder": {
+    "message": "AI did not choose an available folder outside the website mappings. Check your folders and retry."
+  },
+  "sites_semanticCopies": {
+    "message": "Copies by topic"
+  },
+  "sites_semanticKeyRequired": {
+    "message": "Configure and enable your AI provider in Settings, then retry this copy."
+  },
+  "sites_semanticOtherDevice": {
+    "message": "Another browser is handling this copy. Taking over starts a new classification attempt."
+  },
+  "sites_semanticOutsideLibrary": {
+    "message": "AI chose a folder outside this sync library. Choose topic folders inside this library, then retry classification."
+  },
+  "sites_semanticPaused": {
+    "message": "Paused because the source account or settings changed."
+  },
+  "sites_semanticReview": {
+    "message": "This copy was changed or its old association needs review. Existing bookmarks are kept."
+  },
+  "sites_semanticSummary": {
+    "message": "$1 saved · $2 waiting · $3 need attention"
+  },
+  "sites_semanticSuppressed": {
+    "message": "This copy was deleted. It will stay deleted."
+  },
+  "sites_semanticTakeover": {
+    "message": "Take over and retry"
+  },
+  "sites_semanticUnknown": {
+    "message": "The classification result was not received. Retry explicitly to make a new attempt."
+  },
+  "sites_semanticWaiting": {
+    "message": "Waiting for the connection and bookmark sync."
   },
   "sites_signedInAs": {
     "message": "Signed in to $1 as $2"

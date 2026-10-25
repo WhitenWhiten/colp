@@ -9,6 +9,9 @@ import { AUTOMATION_CHANGED_KEY } from '../automation/messages.js';
 import { createSourceArchiveRuntime } from './archive-runtime.js';
 import { createConfirmationQueue } from './confirmation-queue.js';
 import { installSourceLayout } from './layout-runtime.js';
+import { semanticJobs, enqueueSourceSemantics, installSemanticRuntime } from './semantic-runtime.js';
+import { currentCaptureScope } from '../sw/capture-native.js';
+import { flushManagedChanges } from './managed-change-runtime.js';
 import { installSiteAdapterEvidence } from './evidence.js';
 import { installPlannedSaveRuntime, wakePlannedSaves, installSourceRecoveryScheduler } from './planned-runtime.js';
 import { siteLedger as sharedLedger, synchronizeSourceAuthority, sourceContext, SITE_RECOVERY_ALARM } from './source-runtime.js';
@@ -28,6 +31,7 @@ import { assertSourceRebound } from './portable.js';
 import { createCommunityRuntime, validCommunityManagement } from './community-runtime.js';
 import { assertCommunityArchive } from './community-authority.js';
 function createSiteHost(definition: SiteDefinition) {
+  const semanticRetry = object({ kind: literal('known.siteAdapters.semantic.retry'), jobId: str(128), reclassify: v => v === undefined || literal(true, false)(v) });
   const LIMITS = readLimits(definition);
   const siteLedger = createSourceLedger(sharedLedger.db, {}, definition);
   const { validCloudManagement, handleCloudManagement } = createCloudRuntime(definition);
@@ -159,6 +163,7 @@ function createSiteHost(definition: SiteDefinition) {
   const confirmations = createConfirmationQueue(siteLedger, reads, { source: origin => readableSiteSource(undefined, origin), send: sendSiteCommand, alarm: scheduleSourceWork,
     authorizeOrigin: async (context, collectionIds) => { if (context.communityOrigin) await assertCommunityArchive(context.communityOrigin, { connectionId: context.connectionId, collectionIds }); } });
   const archives = createSourceArchiveRuntime(reads, { source: currentSiteSource, readSource: origin => readableSiteSource(undefined, origin), send: sendSiteCommand, alarm: scheduleSourceWork,
+    scope: currentCaptureScope,
     prioritizeLive: () => confirmations.wake(),
     catalog: async () => {
       const source = await currentSiteSource(), cache = (await chrome.storage.local.get(CATALOG))[CATALOG] as CatalogCache | undefined;
@@ -170,8 +175,12 @@ function createSiteHost(definition: SiteDefinition) {
   function wakeSourceWork(): Promise<void> {
     if (working) { workWanted = true; return working; }
     return working = (async () => {
+      await flushManagedChanges().catch(() => undefined);
       if ((await read()).enabled) { await confirmations.wake(); await archives.live.wake(); }
       await archives.importer.wake(); await wakePlannedSaves();
+      const authority = await siteLedger.db.read<import('./ledger-types.js').SourceAuthority>('authorities', definition.adapterId);
+      if (authority?.connectionId && await enqueueSourceSemantics(authority.connectionId)) scheduleSourceWork(Date.now() + 100);
+      void semanticJobs.wake().catch(() => undefined);
     })().finally(() => { working = undefined; if (workWanted) { workWanted = false; scheduleSourceWork(Date.now() + 50); } });
   }
   function disconnectAll() { for (const [id, p] of ports) { try { p.postMessage({ operation: 'shutdown', leaseId: id }); p.disconnect(); } catch { /* gone */ } } ports.clear(); }
@@ -273,7 +282,7 @@ function createSiteHost(definition: SiteDefinition) {
       if (management(sender) && validCommunityManagement(raw)) {
         void community.management(raw).then(respond, e => respond({ ok: false, error: e instanceof Error ? e.message : 'communityUnavailable' })); return true;
       }
-      if (!management(sender) || !(statusSchema(raw) || enableSchema(raw) || confirmSchema(raw) || inspectSchema(raw) || retrySchema(raw) || archives.valid(raw))) return false;
+      if (!management(sender) || !(statusSchema(raw) || enableSchema(raw) || confirmSchema(raw) || inspectSchema(raw) || retrySchema(raw) || semanticRetry(raw) || archives.valid(raw))) return false;
       void (async () => {
         if (!browserSupport().supported && !statusSchema(raw) && !(enableSchema(raw) && !d!.enabled)) throw new Error('browserUnsupported');
         if (enableSchema(raw)) {
@@ -290,15 +299,22 @@ function createSiteHost(definition: SiteDefinition) {
         if (confirmSchema(raw)) { await siteTransport.confirm(d!.accountId!); await synchronizeSourceAuthority(await read(), siteLedger); disconnectAll(); await injectOpen(); }
         let archiveResult: unknown;
         if (archives.valid(raw)) archiveResult = await archives.handle(raw);
+        if (semanticRetry(raw)) {
+          const authority = await siteLedger.db.read<import('./ledger-types.js').SourceAuthority>('authorities', definition.adapterId);
+          if (!authority?.connectionId) throw new Error('semanticJobUnavailable');
+          const input = raw as { jobId: string; reclassify?: boolean };
+          await semanticJobs.retry(input.jobId, authority.connectionId, input.reclassify); scheduleSourceWork(Date.now() + 50);
+        }
         let inspectionStatus: unknown;
         if (retrySchema(raw)) await confirmations.retry();
         if (inspectSchema(raw)) {
           const q = raw as { operation: 'collections' | 'items' | 'resolve'; collectionId?: string; cursor?: string | null };
           inspectionStatus = await inspect(q.operation, q.collectionId, q.cursor);
         }
-        const archiveState = await archives.status();
+        const archiveStatus = await archives.status();
+        const archiveState = { ...archiveStatus, semantic: archiveStatus.config ? await semanticJobs.status(archiveStatus.config.connectionId) : null };
         const siteStatus = await siteTransport.status();
-        let archiveHold: string | null = null;
+        let archiveHold: string | null = archiveState.hold;
         if (archiveState.config) try { await assertSourceRebound(siteLedger.db, archiveState.config.connectionId); } catch (e) { archiveHold = e instanceof Error ? e.message : 'sourceNeedsReview'; }
         const writes = !archiveHold && browserSupport().supported && siteStatus.enabled && siteStatus.connected && archiveState.config?.state === 'active' && await chrome.permissions.contains({ permissions: ['bookmarks'] });
         return { ...siteStatus, browser: browserSupport(), grants: { site: await chrome.permissions.contains(grants), bookmarks: await chrome.permissions.contains({ permissions: ['bookmarks'] }) },
@@ -397,6 +413,7 @@ const community = createCommunityRuntime({ ready: () => hosts[0]!.ready(),
 });
 export function installSiteAdapters() {
   community.install(); installContentBindings(); installPlannedSaveRuntime(); installSourceLayout();
+  installSemanticRuntime();
   installSourceRecoveryScheduler(at => chrome.alarms.create(SITE_RECOVERY_ALARM, { when: at }));
   installContentResolver(async (url, tabId) => {
     for (const host of hosts) { const id = await host.resolve(url, tabId); if (id) return { siteKey: host.definition.siteKey, identityVersion: host.definition.identityVersion, itemId: id }; }

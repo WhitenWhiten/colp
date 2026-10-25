@@ -6,16 +6,18 @@ import type { FlatList } from '../automation/rule-list-flatten.js';
 import type { SiteRuleEdge } from '../automation/site-rule.js';
 import type { BrowserRuleSnapshot, MountBinding, NativeBinding, SaveEffect, SavePlan, SavePolicy, SiteCollection, SiteItem, SourceFolderReservation, Representation } from './contracts.js';
 import type { SourceContext, LedgerEdge } from './ledger-types.js';
-import { get, put, rows, sourceDigest, sourceKey, type SourceDatabase } from './source-db.js';
+import { get, put, rows, sourceDigest, sourceKey, sourcePrefixRange, type SourceDatabase } from './source-db.js';
 import { createSourceReservations, representationKey } from './reservations.js';
 import { effectDigest, persistSavePlan } from './planned-executor.js';
 import { cursorPage } from '../sync-state/idb.js';
 import { withDestinationPolicyBoundary } from '../classification-destination-boundary.js';
 import { assertSourceRebound, assertRestoredItemAvailable } from './portable.js';
 import { sameNativeContentValue } from '../native-event-correlation.js';
+import { sameDestinationOwner, type DestinationOwner } from './copy-identity.js';
+import { queueManagedChange } from './managed-changes.js';
 
-export interface SourcePolicyRecord { connectionId: string; enabled: boolean; liveArchive: boolean; admittedAfterOrdinal?: number; policy: SavePolicy }
-export interface SourceMount extends MountBinding { state: 'active' | 'detached' | 'suppressed' }
+export interface SourcePolicyRecord { connectionId: string; enabled: boolean; liveArchive: boolean; semantic?: 'manual' | 'automatic'; semanticOwner?: DestinationOwner; admittedAfterOrdinal?: number; policy: SavePolicy }
+export interface SourceMount extends MountBinding { state: 'active' | 'detached' | 'suppressed'; destination?: DestinationOwner | null }
 export interface LayoutNativeNode { id: string; title: string; parentId?: string; url?: string; dateAdded?: number }
 export interface LayoutPorts {
   authorizeCommunity?(origin: import('./community-state.js').CommunityOrigin, input: { connectionId: string; collectionIds: readonly string[]; rootNativeId: string }): Promise<void>;
@@ -24,6 +26,7 @@ export interface LayoutPorts {
   deviceId(): Promise<string>;
   lookup(id: string): Promise<LayoutNativeNode | null>;
   assertRoot(binding: NativeBinding<'folder'>): Promise<void>;
+  destination?(binding: NativeBinding<'folder'>): Promise<DestinationOwner | null>;
   beforeExclusion?(): Promise<void>;
   sourceCopies?(input: { connectionId: string; itemId: string; policy: SavePolicy; representation: import('./contracts.js').RepresentationKey }): Promise<
     { status: 'create' | 'dependency' } | { status: 'reuse'; representation: Representation }>;
@@ -53,16 +56,34 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
     if (mount.state !== 'active' || mount.root.nativeId !== actionRoot) throw new Error('mountMigrationRequired');
     if (mount.root.deviceId !== await ports.deviceId()) throw new Error('bindingNeedsRebind');
     await ports.assertRoot(mount.root);
+    if (ports.destination) {
+      const destination = await ports.destination(mount.root);
+      if (mount.destination === undefined && destination) throw new Error('sourceDestinationNeedsReview');
+      if (mount.destination !== undefined && !sameDestinationOwner(mount.destination, destination)) throw new Error('sourceDestinationChanged');
+    }
   }
-  async function mount(connectionId: string, ruleId: string, rootId: string) {
+  async function mount(connectionId: string, ruleId: string, rootId: string, approveDestination = false) {
     const key = keyForMount(connectionId, ruleId), old = await db.read<SourceMount>('mounts', key);
-    if (old) { await checkMount(old, rootId); return old; }
+    if (old) {
+      if (approveDestination && ports.destination) {
+        if (old.state !== 'active' || old.root.nativeId !== rootId) throw new Error('mountMigrationRequired');
+        await ports.assertRoot(old.root); const destination = await ports.destination(old.root);
+        if (!sameDestinationOwner(old.destination, destination)) {
+          if (old.destination !== undefined && (await db.transaction(['folderReservations'], 'readonly', tx => cursorPage(tx.objectStore('folderReservations'),
+            sourcePrefixRange(old.id), 1))).length) throw new Error('sourceDestinationMigrationRequired');
+          const next = { ...old, destination, revision: old.revision + 1 };
+          await db.transaction(['mounts'], 'readwrite', async tx => { put(tx, 'mounts', key, next); }); return next;
+        }
+      }
+      await checkMount(old, rootId); return old;
+    }
     const node = await ports.lookup(rootId);
     if (!node || node.url || !node.dateAdded) throw new Error('bindingUnavailable');
     const root: NativeBinding<'folder'> = { bindingId: crypto.randomUUID(), nativeId: rootId, kind: 'folder', deviceId: await ports.deviceId(),
       dateAdded: node.dateAdded, proof: { kind: 'explicitAdoption', id: `rule:${ruleId}` } };
     await ports.assertRoot(root);
-    const value: SourceMount = { id: identity({ connectionId, ruleId }), connectionId, rootRuleId: ruleId, root, revision: 1, aiDestination: 'excluded', state: 'active' };
+    const value: SourceMount = { id: identity({ connectionId, ruleId }), connectionId, rootRuleId: ruleId, root, revision: 1, aiDestination: 'excluded', state: 'active',
+      ...(ports.destination ? { destination: await ports.destination(root) } : {}) };
     return withDestinationPolicyBoundary(async () => { await ports.beforeExclusion?.(); return db.transaction(['mounts'], 'readwrite', async tx => {
       const existing = await get<SourceMount>(tx, 'mounts', key);
       if (existing) { if (existing.root.nativeId !== rootId || existing.root.dateAdded !== root.dateAdded) throw new Error('mountMigrationRequired'); return existing; }
@@ -86,6 +107,10 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
   return {
     /** Explicit configuration adopts an existing local root without creating native objects. */
     bindRoot: mount,
+    async validateRoot(connectionId: string, ruleId: string, rootId: string) {
+      const current = await db.read<SourceMount>('mounts', keyForMount(connectionId, ruleId));
+      if (!current) throw new Error('bindingNeedsRebind'); await checkMount(current, rootId);
+    },
     async configureMount(connectionId: string, ruleId: string, aiDestination: 'excluded' | 'allowed') {
       await withDestinationPolicyBoundary(async () => {
         const old = await db.read<SourceMount>('mounts', keyForMount(connectionId, ruleId));
@@ -224,21 +249,27 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
         return !deleted && node?.dateAdded === binding.dateAdded && node.title === title && node.parentId === parentId
           && sameNativeContentValue('url', node.url, url);
       };
-      await db.transaction(['representations', 'folderReservations', 'mounts', 'contentBindings'], 'readwrite', async tx => {
+      await db.transaction(['representations', 'folderReservations', 'mounts', 'contentBindings', 'meta'], 'readwrite', async tx => {
         const bindings = await cursorPage<import('./content-bindings.js').ContentBindingRow>(tx.objectStore('contentBindings'), null, 100001);
-        for (const b of bindings) if (b.native && ids.has(b.native.nativeId) && !unchanged(b.native, b.title, b.parentId, b.url))
+        for (const b of bindings) if (b.native && ids.has(b.native.nativeId) && !unchanged(b.native, b.title, b.parentId, b.url)) {
+          await queueManagedChange(tx, b.shared, deleted ? 'suppressed' : 'detached');
           put(tx, 'contentBindings', contentBindingKey(b.content, b.id), { ...b, state: deleted ? 'suppressed' : 'detached' });
+        }
         for (const store of ['representations', 'folderReservations', 'mounts'] as const) {
           const rows = await cursorPage<Representation | SourceFolderReservation | SourceMount>(tx.objectStore(store), null, 100001);
           for (const row of rows) {
             if ('rootRuleId' in row) {
               if (deleted && ids.has(row.root.nativeId)) put(tx, store, keyForMount(row.connectionId, row.rootRuleId), { ...row, state: 'suppressed' });
             } else if ('manualRevision' in row) {
-              if (ids.has(row.native.nativeId) && (!row.lastWritten || !unchanged(row.native, row.lastWritten.title, row.lastWritten.parentId, row.lastWritten.url)))
+              if (ids.has(row.native.nativeId) && (!row.lastWritten || !unchanged(row.native, row.lastWritten.title, row.lastWritten.parentId, row.lastWritten.url))) {
+                await queueManagedChange(tx, row.shared, deleted ? 'suppressed' : 'detached');
                 put(tx, store, representationKey(row), { ...row, state: deleted ? 'suppressed' : 'detached', manualRevision: row.manualRevision + 1 });
+              }
             } else if (row.native && ids.has(row.native.nativeId) && (row.parent.kind !== 'native'
-              || !unchanged(row.native, row.nativeTitle ?? row.title, row.parent.binding.nativeId)))
+              || !unchanged(row.native, row.nativeTitle ?? row.title, row.parent.binding.nativeId))) {
+              await queueManagedChange(tx, row.shared, deleted ? 'suppressed' : 'detached');
               put(tx, store, sourceKey(row.mountId, row.collectionId), { ...row, state: 'blocked' });
+            }
           }
         }
       });

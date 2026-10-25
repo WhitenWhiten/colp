@@ -15,10 +15,11 @@ export interface ManagedSaveReceipt {
   version: 1; commandId: string; digest: string; key: string; node: ManagedNode; disposition: 'created' | 'reused' | 'detached' | 'suppressed';
 }
 export interface ManagedDestination { library: ManagedLibrary; command: ManagedSaveCommand }
+export interface ManagedReference { library: ManagedLibrary; slot: ManagedSlot; nodeId: string }
 export interface ManagedBinding { slot: ManagedSlot; collectionId: string; node: ManagedNode; state: 'active' | 'detached' | 'suppressed' }
 export interface SemanticClaim { ownerId: string; revision: number }
 export type SemanticClaimResult = { status: 'saved'; binding: ManagedBinding } | { status: 'claimed'; claim: SemanticClaim } | { status: 'waiting'; claim: SemanticClaim };
-export type ManagedAction = 'managed.save' | 'managed.recover' | 'managed.list' | 'managed.lookup' | 'managed.semantic.claim' | 'managed.semantic.release';
+export type ManagedAction = 'managed.save' | 'managed.recover' | 'managed.list' | 'managed.lookup' | 'managed.manual' | 'managed.semantic.claim' | 'managed.semantic.release';
 export function createManagedCopyClient(ports: { origin: string; fetch: typeof fetch; headers(): Promise<Record<string, string>>; assertCurrent(): Promise<void> }) {
   const url = new URL(SOURCE_CLOUD_PATH, ports.origin);
   async function request(action?: string, input?: unknown) {

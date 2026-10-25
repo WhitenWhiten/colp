@@ -1,5 +1,5 @@
 import { createSourceLayout } from './layout.js';
-import { siteLedger } from './source-runtime.js';
+import { siteLedger, SITE_RECOVERY_ALARM } from './source-runtime.js';
 import { currentFlat, nativeFolderLookup } from '../sw/automation-browser.js';
 import { sourceAutomationsPaused } from '../sw/automation.js';
 import { captureDeviceId } from '../sw/capture-history.js';
@@ -11,33 +11,44 @@ import { currentCaptureScope } from '../sw/capture-native.js';
 import { workCoordinator } from '../sw/runtime.js';
 import { unsettledCloudDestination } from '../classification-destination-boundary.js';
 import { assertCommunityArchive } from './community-authority.js';
+import { installBookmarkOwnershipObserver } from '../bookmark-ownership.js';
 
 export const sourceLayout = createSourceLayout(siteLedger.db, {
   authorizeCommunity: assertCommunityArchive,
   rules: currentFlat, paused: sourceAutomationsPaused, deviceId: captureDeviceId,
   lookup: nativeFolderLookup, assertRoot: async binding => { await assertSourceRoot(binding); },
-  sourceCopies: input => contentBindings.sourceDecision(input),
+  destination: async binding => {
+    const target = await assertSourceRoot(binding), scope = await currentCaptureScope();
+    return target.inRange ? { serverOrigin: scope.serverOrigin, accountId: scope.accountId, collectionId: scope.collectionId } : null;
+  },
+  sourceCopies: async input => {
+    const { semanticContext, scopedSemanticBindings } = await import('./semantic-associations.js');
+    const { readSourceConnection } = await import('./content-identity.js');
+    const { identityDefinition } = await import('./registry.js');
+    const context = await semanticContext(), connection = await readSourceConnection(siteLedger.db, input.connectionId);
+    const definition = identityDefinition(connection.siteKey, connection.identityVersion);
+    const content = { siteKey: connection.siteKey, identityVersion: connection.identityVersion, itemId: input.itemId,
+      ...(definition.contentIdScope !== 'site' ? { accountId: connection.accountId } : {}) };
+    try { await scopedSemanticBindings(content, context.scope, context.scopeId); } catch (error) {
+      if (input.policy.copies !== 'sourceAndSemantic' || !(error instanceof Error) || error.message !== 'semanticBindingNeedsReview') throw error;
+    }
+    return contentBindings.sourceDecision({ ...input, scopeId: context.scopeId });
+  },
   beforeExclusion: assertNoCloudDestinationWork,
 });
 export function installSourceLayout() {
   installSourcePlanAuthorization((plan, effect) => sourceLayout.authorize(plan, effect));
-  let listening = false;
-  const listen = () => {
-    if (listening || !chrome.bookmarks) return;
-    listening = true;
-    chrome.bookmarks.onChanged.addListener(id => { void sourceLayout.nativeChanged([id], false).catch(() => undefined); });
-    chrome.bookmarks.onMoved.addListener((id, info) => { void (async () => {
-      if (!await isManagedContentMove(id, info.parentId, info.oldParentId)) await sourceLayout.nativeChanged([id], false);
-    })().catch(() => undefined); });
-    chrome.bookmarks.onRemoved.addListener((id, info) => {
-    const ids = [id];
-    const add = (n: chrome.bookmarks.BookmarkTreeNode) => { ids.push(n.id); for (const child of n.children ?? []) add(child); };
-    if (info.node) add(info.node);
-    void sourceLayout.nativeChanged(ids, true).catch(() => undefined);
-    });
-  };
-  listen();
-  chrome.permissions.onAdded.addListener(listen);
+  installBookmarkOwnershipObserver(async event => {
+    if (event.kind === 'moved' && await isManagedContentMove(event.nativeId, event.move.parentId, event.move.oldParentId)) return;
+    if (event.kind === 'changed' || event.kind === 'moved') await sourceLayout.nativeChanged([event.nativeId], false);
+    if (event.kind === 'removed') {
+      const ids = [event.nativeId];
+      const add = (n: { id: string; children?: readonly { id: string }[] }) => { ids.push(n.id); for (const child of n.children ?? []) add(child); };
+      if (event.removal.node) add(event.removal.node);
+      await sourceLayout.nativeChanged(ids, true);
+    }
+    chrome.alarms.create(SITE_RECOVERY_ALARM, { when: Date.now() + 1000 });
+  });
 }
 
 export async function assertNoCloudDestinationWork() {

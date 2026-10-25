@@ -81,3 +81,8 @@ test('a synced root follows the same configure and preview import flow without a
   expect(details().archive.config).toMatchObject({ state: 'active', root: { nativeId: 'synced' } });
   expect(f.sendMessage.mock.calls.some(([r]) => r.kind.startsWith('known.siteAdapters.cloud.'))).toBe(false);
 });
+test('keeping two copies does not implicitly enable AI; automatic semantic saving requires its own switch', async () => {
+  const f = await mount(); expect(element('archive-semantic').getAttribute('aria-checked')).toBe('false');
+  element('archive-semantic').click(); element('configure-archive').click();
+  await vi.waitFor(() => expect(f.sendMessage).toHaveBeenCalledWith(expect.objectContaining({ kind: 'known.siteAdapters.archive.configure', copies: 'sourceAndSemantic', semantic: 'automatic' })));
+});

@@ -3,6 +3,8 @@ import type { ContentIdentity } from './contracts.js';
 import type { SourceConnection } from './ledger-types.js';
 import { sourceKey, sourcePrefixRange, type SourceDatabase } from './source-db.js';
 export const contentBindingKey = (content: ContentIdentity, id: string) => sourceKey(content.siteKey, content.identityVersion, content.itemId, id);
+export const sameContentIdentity = (a: ContentIdentity, b: ContentIdentity) => a.siteKey === b.siteKey && a.identityVersion === b.identityVersion
+  && a.itemId === b.itemId && (a.accountId ?? null) === (b.accountId ?? null);
 export async function readSourceConnection(db: SourceDatabase, connectionId: string): Promise<SourceConnection> {
   const value = await db.transaction(['connections'], 'readonly', tx => new Promise<SourceConnection | undefined>((resolve, reject) => {
     const r = tx.objectStore('connections').index('id').get(connectionId); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error);

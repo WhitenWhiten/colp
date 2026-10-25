@@ -78,6 +78,14 @@ export async function createNativeCapture(task: CaptureTask, reserved: (intentId
   if (!await hasBookmarkPermission()) throw new Error('permission_required');
   await assertCaptureContent(task);
   await assertPlannedCaptureAuthority(task);
+  if (task.contentIntent?.managed) {
+    await reserved(`managed:${task.commandId}`);
+    const result = await (await import('../site-adapters/semantic-capture.js')).saveSemanticCapture(task, false);
+    if (!result) throw new Error('sourceSyncPending');
+    const receipt = { ...await receiptFor(result.nativeId, task.scope, result.savedAt), nativeDateAdded: result.savedAt };
+    await browserHistoryStore.remember({ ...task, savedAt: result.savedAt }, result.nativeId).catch(() => undefined);
+    await saved(receipt); return receipt;
+  }
   const placementStore = createBookmarkCreatePlacementStore({ retainForConsumer: true, retainUntilAcknowledged: !!task.planned });
   const sidecar = createFaviconSidecarStore();
   try {
@@ -105,6 +113,11 @@ export async function createNativeCapture(task: CaptureTask, reserved: (intentId
 
 export async function recoverNativeCapture(task: CaptureTask): Promise<CaptureReceipt | null> {
   if (!task.nativeIntentId) return null;
+  if (task.contentIntent?.managed) {
+    const result = await (await import('../site-adapters/semantic-capture.js')).saveSemanticCapture(task, true);
+    if (!result) return null;
+    return { ...await receiptFor(result.nativeId, task.scope, result.savedAt), nativeDateAdded: result.savedAt };
+  }
   const reservation = await createBookmarkCreatePlacementStore().get(task.nativeIntentId);
   const key = `${BOOKMARK_CREATE_RECEIPT_KEY_PREFIX}${task.nativeIntentId}`;
   const receipt = parseBookmarkCreatePlacementRecord((await chrome.storage.local.get(key))[key]);

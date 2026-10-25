@@ -13,6 +13,18 @@ const policies = ['sourceAndSemantic', 'singlePreferSemantic', 'singleKeepExisti
 const native: NativeBinding<'bookmark'> = { nativeId: 'native', dateAdded: 10, deviceId: 'device', bindingId: 'proof', kind: 'bookmark', proof: { kind: 'writeReceipt', id: 'receipt' } };
 const node = { title: 'Video', parentId: 'semantic', url: 'https://www.bilibili.com/video/av1' };
 const request = { itemId: 'video:av:1', commandId: 'command', captureIntentId: 'capture', ...node, automatic: true };
+test('semantic roles are scoped to their destination library and private source identity', async () => {
+  const f = await fixture('sourceAndSemantic');
+  try {
+    const saved = await f.bindings.prepare({ ...request, scopeId: 'library-a' }); await f.bindings.acknowledge(saved, native, node);
+    const reused = await f.bindings.prepare({ ...request, commandId: 'reuse', captureIntentId: 'reuse', scopeId: 'library-a' });
+    expect(reused.mode).toBe('reuse');
+    const separate = await f.bindings.prepare({ ...request, commandId: 'other-library', captureIntentId: 'other-library', scopeId: 'library-b' });
+    expect(separate.mode).toBe('create');
+    await expect(f.bindings.prepare({ ...request, commandId: 'private', captureIntentId: 'private', scopeId: 'library-a',
+      content: { siteKey: 'bilibili', identityVersion: 1, itemId: request.itemId, accountId: 'private-owner' } })).rejects.toThrow('content_identity_unresolved');
+  } finally { await f.db.close(); }
+});
 async function fixture(copies: SavePolicy['copies'], connected = true) {
   const db = createSourceDatabase(new IDBFactory()), ledger = createSourceLedger(db); let invalid = false;
   const bindings = createContentBindings(db, async b => { if (invalid || b.dateAdded !== 10) throw new Error('content_binding_needs_review'); });

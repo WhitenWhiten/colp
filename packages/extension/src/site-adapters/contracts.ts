@@ -48,6 +48,8 @@ export interface ContentIdentity {
   siteKey: string;
   identityVersion: number;
   itemId: Id;
+  /** Present for private/account-local IDs; absent for qualified site-wide content. */
+  accountId?: Id;
 }
 
 export type ItemResolutionResult =
@@ -445,6 +447,8 @@ export interface CaptureContentBinding {
   native: NativeBinding<'bookmark'> | null;
   /** null until adopted into a verified connection under the configured policy. */
   connectionId: Id | null;
+  scopeId?: string;
+  sourceConnections?: readonly string[];
 }
 
 export interface RepresentationKey {
@@ -455,10 +459,13 @@ export interface RepresentationKey {
   sourceCollectionId: Id | null;
   /** Stable ID, never a mapping revision. Null for semantic placement. */
   mountId: Id | null;
+  /** Semantic ownership belongs to a destination library/device, independently of website membership. */
+  scopeId?: string;
 }
 
 /** Source content identity does not depend on an installation or a URL lookup. */
 export interface Representation extends RepresentationKey {
+  shared?: import('./managed-client.js').ManagedReference;
   /** Retain the proven historical identity even when a node was deleted. */
   native: NativeBinding<'bookmark'>;
   manualRevision: number;
@@ -472,6 +479,7 @@ export type TargetFolder =
 
 /** Unique (mountId, collectionId); shared across items, tabs, imports and plans. */
 export interface SourceFolderReservation {
+  shared?: import('./managed-client.js').ManagedReference;
   id: Id;
   mountId: Id;
   collectionId: Id;

@@ -12498,5 +12498,73 @@
   "sites_waitingForBookmarkSyncHint": {
     "message": "已保留你批准的导入。同步连接和目录就绪后会继续。",
     "description": "Your approved import is kept. It will continue when the sync connection and folder are ready."
+  },
+  "sites_autoSemantic": {
+    "message": "按主题再存一份",
+    "description": "Also save one copy by topic"
+  },
+  "sites_autoSemanticHint": {
+    "message": "使用已配置的 AI，在所有网站映射目录之外选择目录。同一内容来自多个收藏夹时共用这一份；分类失败可单独重试。",
+    "description": "Uses your configured AI to choose a folder outside all website mappings. Multiple collections share this copy. Classification can be retried separately."
+  },
+  "sites_semanticCopies": {
+    "message": "按主题保存的副本",
+    "description": "Copies by topic"
+  },
+  "sites_semanticSummary": {
+    "message": "已保存 $1 · 等待中 $2 · 需处理 $3",
+    "description": "$1 saved · $2 waiting · $3 need attention"
+  },
+  "sites_destinationChanged": {
+    "message": "同步账号或目录范围发生了变化。请核对这个目录，然后重新保存设置。",
+    "description": "The sync account or folder range changed. Check this folder and save the settings again."
+  },
+  "sites_mappingMoveReview": {
+    "message": "此映射已有书签。请暂时保留原目录，待已有书签可以一起迁移时再修改。",
+    "description": "This mapping already has saved bookmarks. Keep its current folder until those bookmarks can be moved together."
+  },
+  "sites_semanticKeyRequired": {
+    "message": "请先在设置中配置并启用 AI 服务，然后重试这一份副本。",
+    "description": "Configure and enable your AI provider in Settings, then retry this copy."
+  },
+  "sites_semanticOtherDevice": {
+    "message": "另一个浏览器正在处理这一份副本。接管后会重新进行一次分类。",
+    "description": "Another browser is handling this copy. Taking over starts a new classification attempt."
+  },
+  "sites_semanticUnknown": {
+    "message": "没有收到分类结果。点击重试后，才会重新发起一次分类。",
+    "description": "The classification result was not received. Retry explicitly to make a new attempt."
+  },
+  "sites_semanticChooseFolder": {
+    "message": "AI 没有选出网站映射范围之外的可用目录。请检查目录后重试。",
+    "description": "AI did not choose an available folder outside the website mappings. Check your folders and retry."
+  },
+  "sites_semanticWaiting": {
+    "message": "正在等待连接和书签同步。",
+    "description": "Waiting for the connection and bookmark sync."
+  },
+  "sites_semanticSuppressed": {
+    "message": "这一份副本已被删除，不会自动重新创建。",
+    "description": "This copy was deleted. It will stay deleted."
+  },
+  "sites_semanticReview": {
+    "message": "这一份副本被修改过，或旧的关联需要核对。已有书签会保留。",
+    "description": "This copy was changed or its old association needs review. Existing bookmarks are kept."
+  },
+  "sites_semanticPaused": {
+    "message": "来源账号或设置发生变化，任务已暂停。",
+    "description": "Paused because the source account or settings changed."
+  },
+  "sites_semanticTakeover": {
+    "message": "接管并重试",
+    "description": "Take over and retry"
+  },
+  "sites_ownerMigrationReview": {
+    "message": "此映射中已有其它同步账号或目录范围内的书签。请切回原账号和目录范围后再继续。",
+    "description": "This mapping already contains bookmarks from another sync account or range. Return to that account and range before continuing."
+  },
+  "sites_semanticOutsideLibrary": {
+    "message": "AI 选中了当前同步范围之外的目录。请在同步范围内准备主题目录，再重新分类。",
+    "description": "AI chose a folder outside this sync library. Choose topic folders inside this library, then retry classification."
   }
 }

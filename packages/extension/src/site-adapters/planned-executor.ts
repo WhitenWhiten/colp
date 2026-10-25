@@ -4,6 +4,7 @@ import type { NativeBinding, SavePlan, SaveEffect, SourceFolderReservation, Repr
 import type { ItemReservation } from './reservations.js';
 import { representationKey } from './reservations.js';
 import { get, put, sourceKey, sourceDigest, type SourceDatabase } from './source-db.js';
+import { managedReference } from './managed-changes.js';
 import type { PlannedNativeCommand, PlannedNativeResult, PlannedExecutionPorts, SourceOutbox, StoredSavePlan } from './planned-types.js';
 export function effectDigest(effect: SaveEffect): string { const { payloadDigest: _digest, ...input } = effect; return sourceDigest(input); }
 export function planDigest(plan: SavePlan) { const { importApprovalId: _approval, ...input } = plan; return sourceDigest(input); }
@@ -89,17 +90,22 @@ export function createPlannedSaveExecutor(db: SourceDatabase, ports: PlannedExec
   }
   async function finish(plan: SavePlan, effect: SaveEffect, outbox: SourceOutbox, native: NativeBinding, folder?: SourceFolderReservation, written?: { title: string; parentId: string; url?: string }) {
     if (native.kind !== outbox.command.kind || native.deviceId !== outbox.command.deviceId || native.dateAdded === null) throw new Error('unprovenReceipt');
-    await db.transaction(['outbox', 'effects', 'folderReservations', 'representations', 'itemReservations'], 'readwrite', async tx => {
+    await db.transaction(['outbox', 'effects', 'folderReservations', 'representations', 'itemReservations', 'meta'], 'readwrite', async tx => {
       const current = await get<SourceOutbox>(tx, 'outbox', outbox.command.commandId);
       if (!current || current.digest !== outbox.digest || current.native && current.native.bindingId !== native.bindingId) throw new Error('conflict');
+      const shared = await managedReference(tx, outbox.command.managed);
       if (folder) { const key = sourceKey(folder.mountId, folder.collectionId), latest = await get<SourceFolderReservation>(tx, 'folderReservations', key);
         if (!latest || latest.payloadDigest !== folder.payloadDigest) throw new Error('conflict');
-        put(tx, 'folderReservations', key, { ...latest, state: latest.state === 'blocked' ? 'blocked' : 'confirmed', native, ...(written ? { nativeTitle: written.title } : {}) }); }
+        put(tx, 'folderReservations', key, { ...latest, ...(shared ? { shared } : {}), state: latest.state === 'blocked' ? 'blocked' : 'confirmed', native, ...(written ? { nativeTitle: written.title } : {}) }); }
       else if (effect.kind === 'createBookmark') {
         const key = representationKey(effect.representation), existing = await get<Representation>(tx, 'representations', key);
         if (existing && existing.native.bindingId !== native.bindingId) throw new Error('representationConflict');
-        put(tx, 'representations', key, existing ?? { ...effect.representation, native, state: 'active', manualRevision: 0,
+        put(tx, 'representations', key, existing ?? { ...effect.representation, native, ...(shared ? { shared } : {}), state: 'active', manualRevision: 0,
           lastWritten: written ?? { title: outbox.command.title, parentId: outbox.command.parent.nativeId, url: outbox.command.bookmark!.url } });
+        if (!existing && effect.representation.purpose === 'sourceArchive') {
+          const revisionKey = `semanticSourceRevision:${plan.connectionId}`;
+          put(tx, 'meta', revisionKey, (await get<number>(tx, 'meta', revisionKey) ?? 0) + 1);
+        }
         const reserved = await get<ItemReservation>(tx, 'itemReservations', key);
         if (reserved) put(tx, 'itemReservations', key, { ...reserved, state: 'confirmed' });
       }

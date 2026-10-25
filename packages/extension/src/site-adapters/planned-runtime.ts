@@ -9,6 +9,7 @@ import { currentCaptureScope } from '../sw/capture-native.js';
 import { captureDeviceId } from '../sw/capture-history.js';
 import { acknowledgePlannedNative, assertPlannedNative, assertSourceRoot, executePlannedNative, recoverPlannedNative } from '../sw/planned-capture.js';
 import { managedSaves } from './managed-runtime.js';
+import { assertSemanticSaveTask } from './semantic-authorization.js';
 let scheduleRecovery = (at: number) => chrome.alarms.create(SITE_RECOVERY_ALARM, { when: at });
 export function installSourceRecoveryScheduler(schedule: typeof scheduleRecovery) { scheduleRecovery = schedule; }
 let policyAuthorize: (plan: SavePlan, effect: SaveEffect) => Promise<void> = async () => { throw new Error('sourcePolicyUnavailable'); };
@@ -26,6 +27,7 @@ export const plannedSaveExecutor = createPlannedSaveExecutor(siteLedger.db, {
 export function installPlannedSaveRuntime() {
   installPlannedCaptureGuard(async task => {
     if (!task.planned) return;
+    if (task.planned.purpose === 'semantic') return assertSemanticSaveTask(task);
     await plannedSaveExecutor.authorize(task.planned.planId, task.planned.effectId);
     const outbox = await siteLedger.db.read<import('./planned-types.js').SourceOutbox>('outbox', task.commandId);
     if (!outbox || outbox.digest !== task.planned.resolvedDigest || sourceDigest(outbox.command) !== outbox.digest

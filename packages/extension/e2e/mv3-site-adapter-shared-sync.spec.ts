@@ -9,14 +9,14 @@ import { scopeFacts } from './kns-08-harness.js';
 const extensionId = 'pplpnpegpnghcddhmpgkbfkdfadjiaen', origin = `chrome-extension://${extensionId}`;
 const status = (page: Page): Promise<any> => page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.siteAdapters.status' }));
 test.use({ trace: 'off' });
-test('normal site import saves into synced folders, recovers a lost reply and reuses copies on a second device', async () => {
+test('source and automatic semantic copies share ordinary sync, retry independently and converge across devices', async () => {
   test.setTimeout(300000);
   const directory = await mkdtemp(resolve(tmpdir(), 'colp-shared-site-')), extension = resolve(directory, 'extension');
-  const contexts: BrowserContext[] = []; let stack: RealStack | undefined;
+  const contexts: BrowserContext[] = []; let stack: RealStack | undefined; let providerFails = true; const modelCalls = [0, 0];
   await cp(resolve(import.meta.dirname, '../dist/development'), extension, { recursive: true });
   await cp(resolve(import.meta.dirname, '../config/e2e-fixture.json'), resolve(extension, 'generated-config.json'));
   const manifest = JSON.parse(await readFile(resolve(extension, 'manifest.json'), 'utf8'));
-  manifest.host_permissions.push('https://known.example/*', 'https://identity.known.example/*');
+  manifest.host_permissions.push('https://known.example/*', 'https://identity.known.example/*', 'https://provider.test/*');
   await writeFile(resolve(extension, 'manifest.json'), JSON.stringify(manifest));
   try {
     stack = await startRealStack();
@@ -33,8 +33,17 @@ test('normal site import saves into synced folders, recovers a lost reply and re
       await context.route('https://api.bilibili.com/x/v3/fav/resource/ids*', r => r.fulfill({ headers: cors, contentType: 'application/json',
         body: new URL(r.request().url()).searchParams.get('pn') === '1' ? '{"code":0,"data":[{"id":1,"type":2}]}' : '{"code":0,"data":[]}' }));
       await context.route('https://api.bilibili.com/x/v3/fav/resource/infos*', r => r.fulfill({ headers: cors, contentType: 'application/json', body: '{"code":0,"data":[{"id":1,"type":2,"title":"Shared source video","attr":1}]}' }));
+      await context.route('https://provider.test/**', async r => {
+        modelCalls[index] = (modelCalls[index] ?? 0) + 1; const body = r.request().postDataJSON();
+        if (providerFails) return r.fulfill({ status: 503, body: '{}' });
+        const answers = Object.fromEntries(Object.entries(body.questions as Record<string, { type: string; criteria: Record<string, string> }>).map(([name, q]) => {
+          const keys = Object.keys(q.criteria), choice = keys.find(k => q.criteria[k]!.includes('Semantic')) ?? keys[0];
+          return [name, q.type === 'noul' ? { noul: 0.99 } : { choice, confidence: 1, probabilities: Object.fromEntries(keys.map(k => [k, k === choice ? 1 : 0])) }];
+        }));
+        return r.fulfill({ contentType: 'application/json', body: JSON.stringify({ model: 'controlled', answers }) });
+      });
       const { page } = await openExtensionOptions(context);
-      const grants = { permissions: ['bookmarks', 'scripting', 'webNavigation'], origins: ['https://www.bilibili.com/*'] };
+      const grants = { permissions: ['bookmarks', 'scripting', 'webNavigation'], origins: ['https://www.bilibili.com/*', 'https://provider.test/*'] };
       await page.evaluate(g => { const b = document.createElement('button'); b.id = 'grant-shared'; b.textContent = 'Grant shared source access'; b.onclick = () => { void chrome.permissions.request(g); }; document.body.prepend(b); }, grants);
       await grantOptionalBookmarks(page, page.locator('#grant-shared'), 'COLP shared source fixture', grants);
       await installFixtureReplicaBinding(page, stack!.extensionBindings[index]); await signInExtension(page, stack!.collectionId);
@@ -50,6 +59,11 @@ test('normal site import saves into synced folders, recovers a lost reply and re
         console.log('shared-source-facts', JSON.stringify(await scopeFacts(page, stack!, stack!.extensionBindings[index])));
         throw error;
       }
+      await page.evaluate(async first => {
+        if (first) await chrome.bookmarks.create({ parentId: '2', title: 'Semantic' });
+        await chrome.storage.local.set({ 'known.classification.local-enabled.v1': true,
+          'known.classification.local-key.v1': { version: 3, generation: 'controlled', presetId: 'custom', endpoint: 'https://provider.test/v1/systemone', model: 'controlled', secret: 'fixture', disclosed: true } });
+      }, index === 0);
       const site = await context.newPage(); await site.goto('https://www.bilibili.com/video/av1');
       await page.goto(`${origin}/site-adapters.html`); await page.locator('#enable').click();
       await expect.poll(async () => (await status(page)).candidateAccount).toBe('42');
@@ -57,6 +71,8 @@ test('normal site import saves into synced folders, recovers a lost reply and re
       await expect(page.locator('#archive-collections input')).toHaveCount(2, { timeout: 30000 });
       await page.locator('#select-all').click();
       await page.locator('#archive-root').click(); await page.locator('#archive-root-picker [data-folder-id="1"]').click();
+      await page.locator('#archive-options').evaluate(e => { (e as HTMLDetailsElement).open = true; });
+      await page.locator('#archive-semantic').click();
       await page.locator('#configure-archive').click();
       await expect.poll(async () => (await status(page)).archive.config?.state).toBe('active');
       await expect.poll(async () => { const s = await status(page); return { phase: s.archive.import?.phase, reason: s.archive.import?.reason }; }, { timeout: 90000 }).toMatchObject({ phase: 'preview' });
@@ -69,13 +85,21 @@ test('normal site import saves into synced folders, recovers a lost reply and re
     stack.setSourceArchiveFault!('none');
     await expect.poll(async () => { const s = await status(a); return { phase: s.archive.import?.phase, reason: s.archive.import?.reason }; }, { timeout: 120000 }).toMatchObject({ phase: 'completed' });
     expect(await a.evaluate(() => chrome.bookmarks.search({ title: 'Shared source video' }))).toHaveLength(2);
+    await expect.poll(async () => (await status(a)).archive.semantic?.attention, { timeout: 30000 }).toBe(1);
+    expect(modelCalls[0]).toBeGreaterThan(0); providerFails = false;
+    await a.locator('#refresh').click(); await a.locator('#semantic-jobs button').click();
+    await expect.poll(async () => (await status(a)).archive.semantic?.completed, { timeout: 90000 }).toBe(1);
+    expect(await a.evaluate(() => chrome.bookmarks.search({ title: 'Shared source video' }))).toHaveLength(3);
+    const callsAfterRetry = modelCalls[0];
     const b = await open(1); await b.locator('#approve-import').click();
     await expect.poll(async () => { const s = await status(b); return { phase: s.archive.import?.phase, reason: s.archive.import?.reason }; }, { timeout: 120000 }).toMatchObject({ phase: 'completed' });
-    expect(await b.evaluate(() => chrome.bookmarks.search({ title: 'Shared source video' }))).toHaveLength(2);
+    await expect.poll(async () => (await status(b)).archive.semantic?.completed, { timeout: 60000 }).toBe(1);
+    expect(await b.evaluate(() => chrome.bookmarks.search({ title: 'Shared source video' }))).toHaveLength(3);
+    expect(modelCalls).toEqual([callsAfterRetry, 0]);
     const nodes = (await stack.observations()).canonicalNodes as { title: string }[];
     expect(nodes.filter(n => n.title === 'Shared A')).toHaveLength(1);
     expect(nodes.filter(n => n.title === 'Shared B')).toHaveLength(1);
-    expect(nodes.filter(n => n.title === 'Shared source video')).toHaveLength(2);
+    expect(nodes.filter(n => n.title === 'Shared source video')).toHaveLength(3);
   } catch (error) {
     for (const context of contexts) for (const page of context.pages().filter(p => p.url().includes('site-adapters.html'))) {
       console.log('shared-source-state', JSON.stringify(await status(page)));

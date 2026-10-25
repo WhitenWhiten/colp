@@ -20,6 +20,7 @@ import { configuredPersonalSyncPolicy } from '../personal-sync-fetch.js';
 import { hasFreshPushQueueHead } from '../push-work-budget.js';
 import { collectAnnotationGarbage, retainRemovedAnnotations, restoreCreatedAnnotations } from './bookmark-annotations.js';
 import { observeCreatedBookmark, observeRemovedBookmark } from './automation-observed.js';
+import { observeBookmarkOwnership } from '../bookmark-ownership.js';
 
 export const bookmarkListenerLifecycle = createBookmarkListenerLifecycle({
   bookmarks: () => typeof chrome.bookmarks === 'undefined' ? undefined : chrome.bookmarks,
@@ -73,10 +74,16 @@ async function captureBookmarkEvent(event: BookmarkCaptureEvent): Promise<Bookma
     void observeCreatedBookmark(event.nativeId, event.node).catch(() => undefined);
     return outcome;
   }
-  if (event.kind === 'changed') return scheduleBookmarkEvent((queue) => queue.changed(event.nativeId, event.changes, 'callback'), true);
-  if (event.kind === 'moved') return scheduleBookmarkEvent((queue) => queue.moved(event.nativeId, event.move), true);
+  const ownership = async (work: (queue: ReturnType<typeof createBookmarkEventQueue>) => Promise<{ outcome: string }>) => {
+    let projection = false;
+    const result = await scheduleBookmarkEvent(async queue => { const outcome = await work(queue); projection = outcome.outcome === 'apply_intent_reserved'; return outcome; }, true);
+    if (!projection) await observeBookmarkOwnership(event);
+    return result;
+  };
+  if (event.kind === 'changed') return ownership(queue => queue.changed(event.nativeId, event.changes, 'callback'));
+  if (event.kind === 'moved') return ownership(queue => queue.moved(event.nativeId, event.move));
   if (event.kind === 'reordered') return scheduleBookmarkEvent((queue) => queue.reordered(event.nativeId, event.childIds), true);
-  return scheduleBookmarkEvent((queue) => queue.removed(event.nativeId, event.removal), true);
+  return ownership(queue => queue.removed(event.nativeId, event.removal));
 }
 
 /**

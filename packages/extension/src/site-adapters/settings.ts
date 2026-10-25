@@ -13,13 +13,15 @@ import './cloud-settings.js';
 interface Collection { id: string; title: string }
 interface ImportStatus { id: string; phase: string; edgeCount: number; pages: number; omissions: number; coverage: string; reason: string | null; nextEdge: number; nextPlan: number;
   preview: { id: string; revision: number; digest: string; coverage: string; counts: { createFolders: number; createBookmarks: number; reuseBookmarks: number; review: number }; omissions?: { samples: readonly { id: string; reason: string }[]; unscannedRemainder: boolean } } | null }
-interface ArchiveConfig { root: { nativeId: string }; collectionIds: readonly string[]; live: boolean; state: string; copies?: string; primarySourceCollectionId?: string | null; aiDestination?: string }
+interface ArchiveConfig { root: { nativeId: string }; collectionIds: readonly string[]; live: boolean; state: string; copies?: string; primarySourceCollectionId?: string | null; aiDestination?: string; semantic?: string }
+interface SemanticStatus { pending: number; attention: number; completed: number; suppressed: number;
+  jobs: { id: string; title: string; state: string; reason: string | null; takeover: boolean }[] }
 interface SiteStatus { inspectionStatus?: { status: string; retryAfterMs?: number }; enabled?: boolean; connected?: boolean; accountId?: string | null; documents?: number; candidateAccount?: string | null; error?: string;
   confirmations?: { pending: number; paused?: unknown }; archiveHold?: string | null;
   browser?: { minimum: number; major: number | null; supported: boolean }; grants?: { site: boolean; bookmarks: boolean };
   catalog?: { items: Collection[]; nextCursor: string | null; reading: boolean; current: boolean; failed: string | null } | null;
   inspection?: { command: { deadlineAt: number; operation?: string }; result?: { status: string; item?: { title?: string } } } | null;
-  archive?: { catalog?: Collection[]; config: ArchiveConfig | null; import: ImportStatus | null } }
+  archive?: { catalog?: Collection[]; config: ArchiveConfig | null; import: ImportStatus | null; semantic?: SemanticStatus | null } }
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.querySelector<T>(`#${id}`)!;
 const button = (id: string) => $<HTMLButtonElement>(id);
@@ -55,6 +57,18 @@ function errorCopy(code: string | undefined) {
     case 'sourceAutomationPaused': return t('sites_automationsPaused', 'Automations are paused in this browser. Resume them, then try again.');
     case 'sourceCloudUnsupported': return t('sites_refreshSyncedPreview', 'This folder now participates in sync. Make the import preview again before saving.');
     case 'sourceSyncUpgradeRequired': return t('sites_syncServerUpgrade', 'Update COLP Server to support saving website collections into synced folders.');
+    case 'sourceDestinationChanged': case 'sourceDestinationNeedsReview': return t('sites_destinationChanged', 'The sync account or folder range changed. Check this folder and save the settings again.');
+    case 'mountMigrationRequired': return t('sites_mappingMoveReview', 'This mapping already has saved bookmarks. Keep its current folder until those bookmarks can be moved together.');
+    case 'sourceDestinationMigrationRequired': return t('sites_ownerMigrationReview', 'This mapping already contains bookmarks from another sync account or range. Return to that account and range before continuing.');
+    case 'semanticDestinationOutsideLibrary': return t('sites_semanticOutsideLibrary', 'AI chose a folder outside this sync library. Choose topic folders inside this library, then retry classification.');
+    case 'local_key_required': return t('sites_semanticKeyRequired', 'Configure and enable your AI provider in Settings, then retry this copy.');
+    case 'semanticOtherDevice': return t('sites_semanticOtherDevice', 'Another browser is handling this copy. Taking over starts a new classification attempt.');
+    case 'semanticResultUnknown': case 'local_result_unavailable': return t('sites_semanticUnknown', 'The classification result was not received. Retry explicitly to make a new attempt.');
+    case 'semanticChooseFolder': case 'semanticDestinationMapped': return t('sites_semanticChooseFolder', 'AI did not choose an available folder outside the website mappings. Check your folders and retry.');
+    case 'semanticOffline': case 'sourceSyncPending': return t('sites_semanticWaiting', 'Waiting for the connection and bookmark sync.');
+    case 'sourceCopySuppressed': return t('sites_semanticSuppressed', 'This copy was deleted. It will stay deleted.');
+    case 'sourceCopyDetached': case 'semanticBindingNeedsReview': return t('sites_semanticReview', 'This copy was changed or its old association needs review. Existing bookmarks are kept.');
+    case 'semanticPaused': return t('sites_semanticPaused', 'Paused because the source account or settings changed.');
     default: return t('sites_actionFailed', 'That didn’t work. The details are in Recovery › Technical details.');
   }
 }
@@ -98,7 +112,7 @@ function apply(result: SiteStatus) {
 function schedule() {
   const job = status.archive?.import;
   const busy = job && ['scanning', 'preparing', 'approved'].includes(job.phase) || !!status.confirmations?.pending || !!status.catalog?.reading
-    || !!status.inspection && !status.inspection.result && status.inspection.command.deadlineAt > Date.now();
+    || !!status.inspection && !status.inspection.result && status.inspection.command.deadlineAt > Date.now() || !!status.archive?.semantic?.pending;
   const waiting = !!status.enabled && (!status.connected || !status.documents);
   if (busy || waiting) refreshTimer = setTimeout(() => { if (document.visibilityState === 'visible') void refresh(); }, busy ? 500 : 2000);
 }
@@ -153,9 +167,9 @@ const switchOn = (id: string) => button(id).getAttribute('aria-checked') === 'tr
 const setSwitch = (id: string, on: boolean) => button(id).setAttribute('aria-checked', String(on));
 const copies = $<HTMLSelectElement>('archive-copies'), primary = $<HTMLSelectElement>('archive-primary'), list = $('archive-collections'), filter = $<HTMLInputElement>('collection-filter');
 const edited = () => { dirty = true; paintForm(); };
-for (const id of ['archive-live', 'archive-ai']) button(id).addEventListener('click', () => { setSwitch(id, !switchOn(id)); edited(); });
+for (const id of ['archive-live', 'archive-ai', 'archive-semantic']) button(id).addEventListener('click', () => { setSwitch(id, !switchOn(id)); edited(); });
 // The primary collection only places a single source copy.
-const paintCopies = () => { $('archive-primary-row').hidden = copies.value === 'sourceAndSemantic'; };
+const paintCopies = () => { $('archive-primary-row').hidden = copies.value === 'sourceAndSemantic'; $('archive-semantic-row').hidden = copies.value !== 'sourceAndSemantic'; };
 copies.addEventListener('change', () => { paintCopies(); edited(); });
 primary.addEventListener('change', () => { primaryValue = primary.value; edited(); });
 const rootValue = () => picker?.value() ?? formRoot;
@@ -172,6 +186,7 @@ function loadConfig(config: ArchiveConfig | null) {
   copies.value = config?.copies ?? 'sourceAndSemantic'; paintCopies();
   primaryValue = config?.primarySourceCollectionId ?? ''; primary.value = primaryValue;
   setSwitch('archive-ai', config?.aiDestination === 'allowed');
+  setSwitch('archive-semantic', config?.semantic === 'automatic');
 }
 function paintCollections() {
   const items = catalogItems(), c = status.catalog, docs = status.documents ?? 0, connected = !!status.connected && !status.candidateAccount;
@@ -265,7 +280,7 @@ function paintForm() {
   const configure = button('configure-archive');
   configure.textContent = !config || config.state === 'pending' ? t('sites_startSyncing', 'Start syncing') : config.state === 'disabled' ? t('sites_resumeSyncing', 'Resume syncing') : t('sites_saveChanges', 'Save changes');
   configure.className = active ? 'btn btn-secondary btn-sm' : 'btn btn-primary btn-sm';
-  offer(configure, features.archive && connected && (!active || dirty));
+  offer(configure, features.archive && connected && (!active || dirty || !!status.archiveHold));
   configure.disabled = configure.hidden || !!status.catalog?.reading;
   offer(button('disable-archive'), active);
   button('create-root').hidden = !picker || !!rootValue();
@@ -285,6 +300,7 @@ button('configure-archive').addEventListener('click', () => {
   void (async () => {
     const saved = await act({ kind: 'known.siteAdapters.archive.configure', rootNativeId: root, collectionIds: ids, copies: copies.value,
       primarySourceCollectionId: ids.includes(primaryValue) ? primaryValue : null, aiDestination: switchOn('archive-ai') ? 'allowed' : 'excluded',
+      semantic: copies.value === 'sourceAndSemantic' && switchOn('archive-semantic') ? 'automatic' : 'manual',
       live: features.liveArchive && switchOn('archive-live') }, () => { dirty = false; });
     if (!saved) { paintForm(); return; }
     showToast(tn('sites_syncingInto', ids.length, 'Syncing $1 collection into $2.', 'Syncing $1 collections into $2.', picker?.pill.querySelector('.folder-pill-name')?.textContent ?? ''), 'ok');
@@ -374,6 +390,24 @@ function paintInspector() {
   text('confirmation-summary', waiting ? tn('sites_readsWaiting', waiting, '$1 read waiting.', '$1 reads waiting.')
     : status.confirmations?.paused ? t('sites_paused', 'Paused.') : t('sites_noneWaiting', 'None waiting.'));
 }
+function paintSemantic() {
+  const summary = status.archive?.semantic;
+  $('semantic-progress').hidden = !summary || !(summary.pending + summary.attention + summary.completed + summary.suppressed);
+  if (!summary) return;
+  text('semantic-summary', t('sites_semanticSummary', '$1 saved · $2 waiting · $3 need attention', summary.completed, summary.pending, summary.attention));
+  $('semantic-jobs').replaceChildren(...summary.jobs.map(job => {
+    const row = document.createElement('div'); row.className = 'set-row';
+    const body = document.createElement('div'); body.className = 'set-row-text';
+    const title = document.createElement('p'); title.className = 'set-row-title'; title.textContent = job.title;
+    const hint = document.createElement('p'); hint.className = 'set-row-hint'; hint.textContent = errorCopy(job.reason ?? 'sourceSyncPending'); body.append(title, hint); row.append(body);
+    if (job.state === 'attention' || job.takeover) {
+      const retry = document.createElement('button'); retry.className = 'btn btn-secondary btn-sm'; retry.type = 'button';
+      retry.textContent = job.takeover ? t('sites_semanticTakeover', 'Take over and retry') : t('common_retry', 'Retry');
+      retry.addEventListener('click', () => { retry.disabled = true; void act({ kind: 'known.siteAdapters.semantic.retry', jobId: job.id }); }); row.append(retry);
+    }
+    return row;
+  }));
+}
 
 const step = (id: string, state: 'current' | 'done' | 'later') => { $(id).dataset.step = state; };
 function paint() {
@@ -383,7 +417,8 @@ function paint() {
   step('step-choose', config?.state === 'active' ? 'done' : connected || config ? 'current' : 'later');
   step('step-import', config?.state !== 'active' && !job ? 'later' : job?.phase === 'completed' ? 'done' : 'current');
   $('archive-hold').hidden = !status.archiveHold;
-  paintConnection(); paintCollections(); paintForm(); paintImport(job); paintInspector();
+  if (status.archiveHold) text('archive-hold', errorCopy(status.archiveHold));
+  paintConnection(); paintCollections(); paintForm(); paintImport(job); paintInspector(); paintSemantic();
   renderSiteCapabilities(document, selectedSite, !!job, !!config);
   autoCatalog();
 }

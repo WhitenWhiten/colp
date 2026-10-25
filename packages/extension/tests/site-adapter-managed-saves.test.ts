@@ -27,7 +27,7 @@ async function fixture() {
   const managed = createManagedSaves(db, {
     destination: async () => ({ library, replicaId: 'replica', parentId: 'canonical-root', parentRevision: 'r1' }), slot: async () => slot,
     client: async () => client, wake,
-    projection: async () => projected ? { ...parent, bindingId: 'folder-command', nativeId: 'native-folder', proof: { kind: 'writeReceipt', id: 'managed:canonical-folder' } } : null,
+    projection: async () => projected ? { native: { ...parent, bindingId: 'folder-command', nativeId: 'native-folder', proof: { kind: 'writeReceipt', id: 'managed:canonical-folder' } }, parentId: 'root' } : null,
   });
   const raw: PlannedNativeCommand = { commandId: 'folder-command', kind: 'folder', ownerId: 'reservation', logicalDigest: 'digest', connectionId: 'local-connection', parent, title: 'Saved', deviceId: 'device' };
   const command = await managed.prepare(raw, {} as SavePlan, {} as SaveEffect);

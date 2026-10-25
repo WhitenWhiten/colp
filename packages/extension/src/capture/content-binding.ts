@@ -2,6 +2,8 @@ import type { CaptureTask } from './contracts.js';
 export interface CaptureContentIntent {
   bindingId: string; itemId: string; connectionId: string | null; mode: 'create' | 'reuse' | 'reclassify' | 'suggest';
   captureIntentId: string; forceAnother?: boolean; nativeId?: string; dateAdded?: number; title: string; url: string; parentId: string;
+  managed?: import('../site-adapters/managed-client.js').ManagedDestination;
+  managedParent?: import('../site-adapters/contracts.js').NativeBinding<'folder'>;
 }
 interface Hooks {
   prepare(input: { captureIntentId: string; commandId: string; source: CaptureTask['source']; tabId?: number; url: string; title: string; parentId: string; automatic: boolean }): Promise<CaptureContentIntent | null>;

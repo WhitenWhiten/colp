@@ -1,7 +1,8 @@
 import { assertPlanIntentActive, type SourcePlanIntent } from './plan-intents.js';
 import type { NativeBinding, Representation, RepresentationKey, SourceFolderReservation } from './contracts.js';
 import { get, put, rows, sourceDigest, sourceKey, type SourceDatabase } from './source-db.js';
-export const representationKey = (r: RepresentationKey) => sourceKey(r.connectionId, r.itemId, r.purpose, r.sourceCollectionId, r.mountId);
+export const representationKey = (r: RepresentationKey) => sourceKey(r.connectionId, r.itemId, r.purpose, r.sourceCollectionId, r.mountId,
+  ...r.purpose === 'semantic' && r.scopeId ? [r.scopeId] : []);
 export interface ItemReservation { id: string; representation: RepresentationKey; commandId: string; payloadDigest: string;
   state: 'reserved' | 'submitted' | 'unknown' | 'confirmed' | 'blocked' }
 const validTransition = (from: ItemReservation['state'], to: ItemReservation['state']) => from === to
