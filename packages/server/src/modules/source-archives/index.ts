@@ -6,7 +6,7 @@ export * from './managed-copies.js';
 export const SOURCE_ARCHIVE_PATH = '/colp/v0.1/sync/source-archives';
 export const SOURCE_ARCHIVE_PROFILE = Object.freeze({
   sites: sourceSiteIdentities.map(s => ({ site: s.site, identityVersion: s.identityVersion })),
-  version: 1, sourceAdmission: 1, sourceFinalEffects: 1, sourceAuthorityLease: 1, managedCopies: 1,
+  version: 1, sourceAdmission: 1, sourceFinalEffects: 1, sourceAuthorityLease: 1, managedCopies: 1, managedSemantic: 1,
   classification: false, classificationDestinationPolicy: false, copies: ['sourceAndSemantic'], maxEdges: 20, leaseMs: 120_000,
 });
 export interface SourceArchiveActor { accountId: string; subjectId: string; credentialId: string; credentialIssuer: string }

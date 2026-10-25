@@ -9,6 +9,8 @@ export type ManagedSlot = { kind: 'bookmark'; copy: ManagedCopy } | { kind: 'fol
 export interface ManagedSaveCommand {
   commandId: string; replicaId: string; collectionId: string;
   parentId: string; parentRevision: string; slot: ManagedSlot; title: string; url: string | null;
+  semanticClaim?: { ownerId: string; revision: number };
+  adopt?: { nodeId: string; revision: string };
 }
 export interface ManagedNode { nodeId: string; parentId: string; title: string; url: string | null; revision: string; deleted?: boolean }
 export interface ManagedSaveReceipt {
@@ -16,7 +18,8 @@ export interface ManagedSaveReceipt {
   disposition: 'created' | 'reused' | 'detached' | 'suppressed';
 }
 export interface ManagedBinding { slot: ManagedSlot; collectionId: string; node: ManagedNode; state: 'active' | 'detached' | 'suppressed' }
-export interface ManagedSaveState { bindings: Record<string, ManagedBinding>; receipts: Record<string, ManagedSaveReceipt> }
+export interface SemanticClaim { ownerId: string | null; revision: number }
+export interface ManagedSaveState { bindings: Record<string, ManagedBinding>; receipts: Record<string, ManagedSaveReceipt>; semanticClaims?: Record<string, SemanticClaim> }
 export interface ManagedSavePorts {
   /** Caller holds the authenticated session, account, replica and collection locks through commit. */
   assertTarget(command: ManagedSaveCommand): Promise<void>;
@@ -48,7 +51,9 @@ export function managedSlotKey(collectionId: string, slot: ManagedSlot): string 
   return JSON.stringify(['site-folder', 1, collectionId, s.site, s.identityVersion, s.sourceAccount, s.sourceCollectionId]);
 }
 export function parseManagedSave(raw: unknown): ManagedSaveCommand {
-  const c = object(raw, ['commandId', 'replicaId', 'collectionId', 'parentId', 'parentRevision', 'slot', 'title', 'url']);
+  const c = object(raw, ['commandId', 'replicaId', 'collectionId', 'parentId', 'parentRevision', 'slot', 'title', 'url',
+    ...raw && typeof raw === 'object' && Object.hasOwn(raw, 'semanticClaim') ? ['semanticClaim'] : [],
+    ...raw && typeof raw === 'object' && Object.hasOwn(raw, 'adopt') ? ['adopt'] : []]);
   for (const k of ['commandId', 'replicaId', 'collectionId', 'parentId', 'parentRevision']) text(c[k]);
   if (!/^[A-Za-z0-9][A-Za-z0-9:_-]{0,127}$/.test(String(c.commandId)) || ['constructor', 'prototype'].includes(String(c.commandId))) fail('invalid_managed_command');
   text(c.title, 512);
@@ -64,6 +69,11 @@ export function parseManagedSave(raw: unknown): ManagedSaveCommand {
     text(s.site, 512); integer(s.identityVersion); text(s.sourceAccount, 512); text(s.sourceCollectionId, 512);
     if (c.url !== null) fail('invalid_managed_url');
   } else fail('invalid_managed_copy');
+  if (c.semanticClaim !== undefined) {
+    const claim = object(c.semanticClaim, ['ownerId', 'revision']); text(claim.ownerId); integer(claim.revision);
+    if (kind !== 'bookmark' || (c.slot as { copy: ManagedCopy }).copy.purpose !== 'semantic') fail('invalid_managed_copy');
+  }
+  if (c.adopt !== undefined) { const adopt = object(c.adopt, ['nodeId', 'revision']); text(adopt.nodeId); text(adopt.revision); }
   return c as unknown as ManagedSaveCommand;
 }
 /** Run in the same transaction as canonical creation. The durable key is shared by all replicas. */
@@ -78,20 +88,58 @@ export async function saveManagedCopy(state: ManagedSaveState, command: ManagedS
   if (Object.keys(state.receipts).length >= 50000 || !binding && Object.keys(state.bindings).length >= 50000) fail('source_capacity');
   let node: ManagedNode, disposition: ManagedSaveReceipt['disposition'];
   if (binding) {
+    if (command.adopt && command.adopt.nodeId !== binding.node.nodeId) fail('source_copy_adoption_conflict');
     node = await ports.read(command.collectionId, binding.node.nodeId) ?? { ...binding.node, deleted: true };
     if (binding.state === 'suppressed' || node.deleted) disposition = 'suppressed';
     else if (binding.state === 'detached' || node.parentId !== binding.node.parentId || node.title !== binding.node.title
       || node.url !== binding.node.url) disposition = 'detached';
     else {
-      if (binding.node.parentId !== command.parentId) fail('source_mapping_migration_required');
+      if (binding.node.parentId !== command.parentId && !(command.slot.kind === 'bookmark' && command.slot.copy.purpose === 'semantic')) fail('source_mapping_migration_required');
       disposition = 'reused';
     }
-  } else { node = await ports.create(command); disposition = 'created'; }
+  } else {
+    if (command.slot.kind === 'bookmark' && command.slot.copy.purpose === 'semantic' && !command.adopt) {
+      const claim = own(state.semanticClaims ?? {}, key);
+      if (!claim?.ownerId || !command.semanticClaim || claim.ownerId !== command.semanticClaim.ownerId || claim.revision !== command.semanticClaim.revision) fail('source_semantic_claim_changed');
+    }
+    if (command.adopt) {
+      const existing = await ports.read(command.collectionId, command.adopt.nodeId);
+      if (!existing || existing.deleted || existing.revision !== command.adopt.revision || existing.parentId !== command.parentId
+        || existing.title !== command.title || existing.url !== command.url) return fail('source_copy_adoption_conflict');
+      node = existing; disposition = 'reused';
+    } else { node = await ports.create(command); disposition = 'created'; }
+  }
   const receipt: ManagedSaveReceipt = { version: 1, commandId: command.commandId, digest, key, node, disposition };
   state.bindings[key] = { slot: command.slot, collectionId: command.collectionId, node,
     state: disposition === 'suppressed' || disposition === 'detached' ? disposition : 'active' };
   state.receipts[command.commandId] = receipt;
   return receipt;
+}
+/** Refresh manual state from canonical data; read failures must propagate rather than imply deletion. */
+export async function observeManagedCopy(state: ManagedSaveState, collectionId: string, slot: ManagedSlot, ports: Pick<ManagedSavePorts, 'read'>): Promise<ManagedBinding | null> {
+  const key = managedSlotKey(collectionId, slot), binding = own(state.bindings, key); if (!binding) return null;
+  const node = await ports.read(collectionId, binding.node.nodeId);
+  const status = binding.state === 'suppressed' || !node || node.deleted ? 'suppressed'
+    : binding.state === 'detached' || node.parentId !== binding.node.parentId || node.title !== binding.node.title || node.url !== binding.node.url ? 'detached' : 'active';
+  const current = { ...binding, node: node ?? { ...binding.node, deleted: true }, state: status } satisfies ManagedBinding;
+  state.bindings[key] = current; return current;
+}
+/** A provider call has no automatic timeout takeover: an uncertain result requires an explicit retry. */
+export function claimManagedSemantic(state: ManagedSaveState, collectionId: string, copy: ManagedCopy, ownerId: string) {
+  if (copy.purpose !== 'semantic') fail('invalid_managed_copy');
+  const key = managedCopyKey(collectionId, copy), binding = own(state.bindings, key);
+  if (binding) return { status: 'saved' as const, binding };
+  const claims = state.semanticClaims ??= {}, old = own(claims, key);
+  if (!old && Object.keys(claims).length >= 50000) fail('source_capacity');
+  if (old?.ownerId && old.ownerId !== ownerId) return { status: 'waiting' as const };
+  if (!old?.ownerId) claims[key] = { ownerId, revision: (old?.revision ?? 0) + 1 };
+  return { status: 'claimed' as const, claim: claims[key]! };
+}
+export function releaseManagedSemantic(state: ManagedSaveState, collectionId: string, copy: ManagedCopy, claim: SemanticClaim) {
+  if (copy.purpose !== 'semantic') fail('invalid_managed_copy');
+  const claims = state.semanticClaims ??= {}, key = managedCopyKey(collectionId, copy), current = own(claims, key);
+  if (!current || current.ownerId !== claim.ownerId || current.revision !== claim.revision) return fail('source_semantic_claim_changed');
+  claims[key] = { ownerId: null, revision: current.revision + 1 };
 }
 export function recoverManagedCopy(state: ManagedSaveState, commandId: string, digest: string): ManagedSaveReceipt | null {
   const receipt = own(state.receipts, commandId);

@@ -6,8 +6,8 @@ import { lockActiveSyncReplicasForCollection } from '../database/lock-order.js';
 import { assertLibraryDestination, createCanonicalMutationApplication } from '../../modules/collections/index.js';
 import { createPostgresCanonicalMutationPorts } from '../collections/canonical-mutation-postgres-ports.js';
 import { createPostgresNodeWritePort, createPostgresCollectionWritePort } from '../collections/repositories.js';
-import { managedSavePorts } from './managed-copies.js';
-import { parseManagedSave, saveManagedCopy, recoverManagedCopy, type ManagedSaveState } from '../../modules/source-archives/index.js';
+import { managedSavePorts, lockManagedLibrary } from './managed-copies.js';
+import { parseManagedSave, parseManagedCopy, saveManagedCopy, recoverManagedCopy, observeManagedCopy, claimManagedSemantic, releaseManagedSemantic, type ManagedSaveState } from '../../modules/source-archives/index.js';
 import { SOURCE_ARCHIVE_PROFILE, SourceArchiveError, object, text, integer, digest, sourceHash, parseSourceScope, parseSourceEdges, sourceInput, sourceConnectionKey,
   type SourceArchiveActor, type SourceArchiveApplication, type SourceScope, type SourceEdge, type SourceLease, type SourceFinalEffect, type SourceFinalReceipt, type SourceCanonicalMutation } from '../../modules/source-archives/index.js';
 interface Connection { epoch: number; scope: SourceScope; lease: SourceLease | null }
@@ -30,7 +30,7 @@ export function createPostgresSourceArchives(db: Kysely<DatabaseSchema>, testHoo
     return uow.execute(async ({ transaction: tx }) => {
       // Session → account → private receipt row → replica gate → replicas → collection.
       // Holding the authority rows through commit fences concurrent credential/replica revocation.
-      if (['configure', 'renew', 'preview', 'commit', 'managed.save'].includes(action)) {
+      if (['configure', 'renew', 'preview', 'commit', 'managed.save', 'managed.semantic.claim'].includes(action)) {
         const sessions = await tx.selectFrom('sync_sessions').select('session_id').where('account_id', '=', actor.accountId)
           .where('credential_id', '=', actor.credentialId).where('credential_issuer', '=', actor.credentialIssuer)
           .where('status', '=', 'active').where('expires_at', '>', new Date()).orderBy('session_id').forShare().execute();
@@ -46,6 +46,22 @@ export function createPostgresSourceArchives(db: Kysely<DatabaseSchema>, testHoo
       const now = async () => Number((await sql<{ at: string }>`SELECT extract(epoch FROM clock_timestamp()) * 1000 AS at`.execute(tx)).rows[0]!.at);
       const start = await now();
       const run = async (): Promise<unknown> => {
+        if (action === 'managed.lookup' || action === 'managed.semantic.claim' || action === 'managed.semantic.release') {
+          const i = object(body.input, action === 'managed.lookup' ? ['collectionId', 'copy']
+            : action === 'managed.semantic.claim' ? ['collectionId', 'copy', 'ownerId', 'replicaId'] : ['collectionId', 'copy', 'claim']);
+          const collectionId = text(i.collectionId), copy = parseManagedCopy(i.copy);
+          await lockManagedLibrary(tx, actor.subjectId, collectionId);
+          const managed = state.managed ??= { bindings: {}, receipts: {} };
+          const binding = await observeManagedCopy(managed, collectionId, { kind: 'bookmark', copy }, managedSavePorts(tx, actor.subjectId, actor.accountId));
+          if (action === 'managed.lookup') return { binding };
+          if (action === 'managed.semantic.claim') {
+            await assertReplica(tx, actor, text(i.replicaId), collectionId);
+            return claimManagedSemantic(managed, collectionId, copy, text(i.ownerId));
+          }
+          const claim = object(i.claim, ['ownerId', 'revision']);
+          releaseManagedSemantic(managed, collectionId, copy, { ownerId: text(claim.ownerId), revision: integer(claim.revision) });
+          return { released: true };
+        }
         if (action === 'managed.save') {
           const command = parseManagedSave(body.input);
           await assertReplica(tx, actor, command.replicaId, command.collectionId);

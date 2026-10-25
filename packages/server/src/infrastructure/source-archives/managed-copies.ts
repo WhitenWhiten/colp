@@ -5,6 +5,12 @@ import { createPostgresNodeWritePort, createPostgresCollectionWritePort } from '
 import { lockActiveSyncReplicasForCollection } from '../database/lock-order.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { SourceArchiveError, type ManagedNode, type ManagedSavePorts } from '../../modules/source-archives/index.js';
+export async function lockManagedLibrary(tx: DatabaseTransaction, subjectId: string, collectionId: string) {
+  await lockActiveSyncReplicasForCollection(tx, collectionId);
+  const collection = await createPostgresCollectionWritePort(tx).lockForUpdate(collectionId);
+  if (!collection || collection.deletedAt || collection.ownerSubjectId !== subjectId) throw new SourceArchiveError('source_root_unavailable', 403);
+  return collection;
+}
 /** Called under the existing source account transaction; source strings are opaque authenticated user data. */
 export function managedSavePorts(tx: DatabaseTransaction, subjectId: string, accountId: string): ManagedSavePorts {
   const nodes = createPostgresNodeWritePort(tx);
@@ -13,8 +19,7 @@ export function managedSavePorts(tx: DatabaseTransaction, subjectId: string, acc
   }));
   return {
     async assertTarget(c) {
-      await lockActiveSyncReplicasForCollection(tx, c.collectionId);
-      const collection = await createPostgresCollectionWritePort(tx).lockForUpdate(c.collectionId);
+      const collection = await lockManagedLibrary(tx, subjectId, c.collectionId);
       const parent = await nodes.getNode(c.collectionId, c.parentId);
       if (!collection || collection.deletedAt || collection.ownerSubjectId !== subjectId || !parent || parent.deletedAt
         || parent.kind !== 'folder' || parent.resourceRevision !== c.parentRevision) throw new SourceArchiveError('source_root_changed');
