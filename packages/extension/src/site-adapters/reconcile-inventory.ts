@@ -6,6 +6,7 @@ import { captureDeviceId } from '../sw/capture-history.js';
 import { cursorPage } from '../sync-state/idb.js';
 import type { SourceDatabase } from './source-db.js';
 import { sourceDigest } from './source-db.js';
+import type { SourceMount } from './layout.js';
 export function reconcileTreeDigest(root: chrome.bookmarks.BookmarkTreeNode): string {
   const rows: unknown[] = [];
   const visit = (node: chrome.bookmarks.BookmarkTreeNode, depth = 0) => {
@@ -18,19 +19,22 @@ export interface ReconcileInventory { folders: SourceFolderReservation[]; repres
   movedFolders: { folder: SourceFolderReservation; node: ReconcileNode; withinRoot: boolean }[] }
 /** Inventory preserves exact native proof and treats every other copy purpose/connection as protected. */
 export async function reconcileInventory(db: SourceDatabase, connectionId: string, selected: readonly string[]): Promise<ReconcileInventory> {
-  const all = await db.transaction(['representations', 'folderReservations', 'contentBindings'], 'readonly', async tx => ({
+  const all = await db.transaction(['representations', 'folderReservations', 'contentBindings', 'mounts'], 'readonly', async tx => ({
     reps: await cursorPage<Representation>(tx.objectStore('representations'), null, 100001),
     folders: await cursorPage<SourceFolderReservation>(tx.objectStore('folderReservations'), null, 10001),
     content: await cursorPage<ContentBindingRow>(tx.objectStore('contentBindings'), null, 100001),
+    mounts: await cursorPage<SourceMount>(tx.objectStore('mounts'), null, 10001),
   }));
-  if (all.reps.length > 100000 || all.folders.length > 10000 || all.content.length > 100000) throw new Error('capacity');
+  if (all.reps.length > 100000 || all.folders.length > 10000 || all.content.length > 100000 || all.mounts.length > 10000) throw new Error('capacity');
   const representations = all.reps.filter(r => r.connectionId === connectionId && r.purpose === 'sourceArchive' && selected.includes(r.sourceCollectionId ?? ''));
   const mounts = new Set(representations.map(r => r.mountId));
   const config = await db.read<{ ruleId: string }>('meta', `archiveConfig:${connectionId}`);
   const mount = config && await db.read<{ id: string }>('mounts', JSON.stringify([connectionId, config.ruleId])); if (mount) mounts.add(mount.id);
   const folders = all.folders.filter(f => mounts.has(f.mountId) && selected.includes(f.collectionId));
-  const protectedIds = new Set([...all.reps.filter(r => !representations.includes(r)).map(r => r.native.nativeId),
-    ...all.content.filter(b => b.native && !b.supersededBy).map(b => b.native!.nativeId)]);
+  const selectedRepresentations = new Set(representations), selectedIds = new Set(representations.map(r => r.native.nativeId));
+  const managedFolderIds = new Set(all.folders.flatMap(f => f.native ? [f.native.nativeId] : []));
+  const protectedIds = new Set([...all.reps.filter(r => !selectedRepresentations.has(r)).map(r => r.native.nativeId),
+    ...all.content.filter(b => b.native && !b.supersededBy).map(b => b.native!.nativeId), ...all.mounts.map(m => m.root.nativeId)]);
   const tree = new Map<string, chrome.bookmarks.BookmarkTreeNode>(), roots = new Set(folders.flatMap(f => f.native ? [f.native.nativeId] : []));
   const visit = (node: chrome.bookmarks.BookmarkTreeNode, depth = 0) => {
     if (depth > 128 || tree.size >= 100000) throw new Error('capacity'); tree.set(node.id, node);
@@ -45,8 +49,8 @@ export async function reconcileInventory(db: SourceDatabase, connectionId: strin
   }
   const annotations = createBookmarkAnnotationStore();
   const pins = await annotations.getMany([...tree.values()]).finally(() => annotations.close()), deviceId = await captureDeviceId();
-  const hasProtected = (node: chrome.bookmarks.BookmarkTreeNode): boolean => protectedIds.has(node.id) || !!node.unmodifiable
-    || !!node.children?.some(hasProtected) || representations.some(r => r.native.nativeId === node.id);
+  const hasProtected = (node: chrome.bookmarks.BookmarkTreeNode): boolean => protectedIds.has(node.id) || managedFolderIds.has(node.id) || !!node.unmodifiable
+    || !!node.children?.some(hasProtected) || selectedIds.has(node.id);
   const nodes: ReconcileNode[] = [];
   for (const node of tree.values()) {
     if (roots.has(node.id)) continue;
@@ -55,7 +59,7 @@ export async function reconcileInventory(db: SourceDatabase, connectionId: strin
       title: node.title, url: node.url ?? null, parentId: node.parentId ?? '', pinned: pins.get(node.id)?.pinned === true,
       annotationRevision: pins.get(node.id)?.version ?? 0,
       ...(node.url === undefined ? { subtreeDigest: reconcileTreeDigest(node) } : {}),
-      protected: protectedIds.has(node.id) || !!node.unmodifiable || !!node.children?.some(hasProtected), children: node.children?.map(child => child.id) ?? [] });
+      protected: protectedIds.has(node.id) || managedFolderIds.has(node.id) || !!node.unmodifiable || !!node.children?.some(hasProtected), children: node.children?.map(child => child.id) ?? [] });
   }
   const movedFolders: ReconcileInventory['movedFolders'] = [];
   for (const folder of folders) {
@@ -66,7 +70,8 @@ export async function reconcileInventory(db: SourceDatabase, connectionId: strin
     let id = node.parentId, withinRoot = false; const seen = new Set<string>();
     while (id && !seen.has(id) && seen.size < 256) { if (id === root) { withinRoot = true; break; } seen.add(id); id = (await chrome.bookmarks.get(id))[0]?.parentId; }
     const foreign = new Set(all.reps.filter(r => r.connectionId !== connectionId || r.sourceCollectionId !== folder.collectionId || r.purpose !== 'sourceArchive').map(r => r.native.nativeId));
-    const protectedTree = (n: chrome.bookmarks.BookmarkTreeNode): boolean => !!n.unmodifiable || foreign.has(n.id) || protectedIds.has(n.id) || !!n.children?.some(protectedTree);
+    const protectedTree = (n: chrome.bookmarks.BookmarkTreeNode): boolean => !!n.unmodifiable || foreign.has(n.id) || protectedIds.has(n.id)
+      || n.id !== folder.native!.nativeId && managedFolderIds.has(n.id) || !!n.children?.some(protectedTree);
     movedFolders.push({ folder, withinRoot, node: { native: folder.native, title: node.title, url: null, parentId: node.parentId ?? '', pinned: pins.get(node.id)?.pinned === true,
       annotationRevision: pins.get(node.id)?.version ?? 0,
       subtreeDigest: reconcileTreeDigest(node),
