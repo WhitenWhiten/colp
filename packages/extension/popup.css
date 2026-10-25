@@ -253,6 +253,12 @@ body[data-capture-error] .pp-page, body[data-capture-error] #pp-fields { display
 .risk-notice-matches { display: grid; gap: var(--hair-40); padding: 0; list-style: none; color: var(--ink-2); font-size: var(--text-xs); line-height: var(--leading-body); overflow-wrap: anywhere; }
 /* Each list that names the page on its own line, set off by a hairline when there are several. */
 .risk-notice-matches > li + li { padding-top: var(--hair-40); border-top: 1px solid var(--line); }
+/* Each match leads with its list in ink, the verdict beside it; what it names, how fresh the list is and
+   its evidence follow on their own muted line. */
+.risk-notice-matches > li { display: grid; gap: var(--hair-15); min-width: 0; }
+.risk-match-head > strong { color: var(--ink); font-weight: var(--weight-medium); }
+.risk-match-meta { color: var(--muted); }
+.risk-match-sep { display: none; }
 .risk-notice-hint { color: var(--muted); font-size: var(--text-xs); }
 .risk-notice-link { color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-heavy); text-underline-offset: 2px; }
 .risk-notice-link:hover { text-decoration-color: currentColor; }

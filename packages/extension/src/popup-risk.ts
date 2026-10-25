@@ -24,12 +24,38 @@ const day = (value: string) => {
 
 /** One match in words: the list, its verdict, and what it names. */
 export function matchWords(match: RiskMatch): string {
-  const verdict = match.freshness === 'outOfDate' ? t('risk_matchUnknown', 'unknown, list out of date')
-    : match.expired && match.expires ? t('risk_matchExpired', 'listed as $1 until $2 (expired)', KIND_WORDS[match.kind](), day(match.expires))
-      : t('risk_matchKind', 'listed as $1 since $2', KIND_WORDS[match.kind](), day(match.since));
-  const scope = match.scope === 'host' ? t('risk_scopeHost', 'this host, $1', match.value)
-    : match.scope === 'domain' ? t('risk_scopeDomain', 'all of $1', match.value) : t('risk_scopePrefix', 'addresses starting $1', match.value);
-  return [`${match.listName}: ${verdict}`, scope, match.freshness === 'stale' ? t('risk_matchStale', 'list not updated for over a week') : ''].filter(Boolean).join(' · ');
+  return [`${match.listName}: ${verdict(match)}`, scopeWords(match), staleWords(match)].filter(Boolean).join(' · ');
+}
+
+const verdict = (match: RiskMatch) => match.freshness === 'outOfDate' ? t('risk_matchUnknown', 'unknown, list out of date')
+  : match.expired && match.expires ? t('risk_matchExpired', 'listed as $1 until $2 (expired)', KIND_WORDS[match.kind](), day(match.expires))
+    : t('risk_matchKind', 'listed as $1 since $2', KIND_WORDS[match.kind](), day(match.since));
+const scopeWords = (match: RiskMatch) => match.scope === 'host' ? t('risk_scopeHost', 'this host, $1', match.value)
+  : match.scope === 'domain' ? t('risk_scopeDomain', 'all of $1', match.value) : t('risk_scopePrefix', 'addresses starting $1', match.value);
+const staleWords = (match: RiskMatch) => match.freshness === 'stale' ? t('risk_matchStale', 'list not updated for over a week') : '';
+
+const span = (className: string, ...children: (Node | string)[]) => {
+  const node = document.createElement('span'); node.className = className; node.append(...children);
+  return node;
+};
+
+/**
+ * One match as two parts: the list and its verdict, then what it names, how fresh the list is and its
+ * evidence. The words still read as one sentence, as matchWords says it.
+ */
+function matchItem(match: RiskMatch): HTMLLIElement {
+  const item = document.createElement('li');
+  const name = document.createElement('strong'); name.textContent = match.listName;
+  const meta = span('risk-match-meta', span('risk-match-sep', ' · '), span('risk-match-scope', scopeWords(match)));
+  const stale = staleWords(match);
+  if (stale) meta.append(span('risk-match-extra', ` · ${stale}`));
+  if (match.evidenceUrl) {
+    const link = document.createElement('a'); link.href = match.evidenceUrl; link.target = '_blank'; link.rel = 'noreferrer'; link.className = 'risk-notice-link';
+    link.textContent = t('risk_evidence', 'Evidence');
+    meta.append(span('risk-match-extra', ' · ', link));
+  }
+  item.append(span('risk-match-head', name, `: ${verdict(match)}`), meta);
+  return item;
 }
 
 const button = (label: string, onClick: () => void, className = 'btn btn-secondary btn-sm') => {
@@ -83,15 +109,7 @@ export function bindPopupRisk(host: { readonly notice: HTMLElement; readonly pag
     const lists = new Set(check.matches.map((match) => match.listId)).size;
     title.textContent = tn('risk_noticeTitle', lists, 'This page is on a risk list you subscribe to', 'This page is on $1 risk lists you subscribe to');
     const items = document.createElement('ul'); items.className = 'risk-notice-matches';
-    for (const match of check.matches) {
-      const item = document.createElement('li'); item.textContent = matchWords(match);
-      if (match.evidenceUrl) {
-        const link = document.createElement('a'); link.href = match.evidenceUrl; link.target = '_blank'; link.rel = 'noreferrer'; link.className = 'risk-notice-link';
-        link.textContent = t('risk_evidence', 'Evidence');
-        item.append(' · ', link);
-      }
-      items.append(item);
-    }
+    items.append(...check.matches.map(matchItem));
     const hint = document.createElement('p'); hint.className = 'risk-notice-hint';
     hint.textContent = t('risk_noticeHint', 'You can still save it; the folder stays as it is.');
     const actions = document.createElement('div'); actions.className = 'risk-notice-actions';
