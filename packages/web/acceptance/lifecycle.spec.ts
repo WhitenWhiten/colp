@@ -53,7 +53,7 @@ test('owner lifecycle on the production self-hosted application', async ({ page,
   await test.step('preview HTML, import into the chosen folder, and skip a repeated import', async () => {
     await page.goto('/import')
     await page.getByLabel('Destination folder').click()
-    await page.locator(`[role="option"][data-folder-id="${folderId}"]`).click()
+    await page.locator(`[role="treeitem"][data-folder-id="${folderId}"]`).click()
     await page.getByLabel('Bookmarks HTML file').setInputFiles({ name: 'bookmarks.html', mimeType: 'text/html', buffer: Buffer.from(html) })
     await expect(page.getByText('Preview: 2 folders, 2 bookmarks.')).toBeVisible()
     await page.getByRole('button', { name: 'Confirm import' }).click()

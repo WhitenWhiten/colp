@@ -37,7 +37,7 @@ describe('extension popup capture UI', () => {
     assert.match(html, /<button id="save" class="btn btn-primary btn-save"[^>]*>Save<\/button>/);
     // Unsigned capture is the popup surface; sign-in lives on the Account page.
     assert.doesNotMatch(html, /Not signed in — saves stay on this device/);
-    assert.match(html, /id="folder-tree"[^>]*role="listbox"/);
+    assert.match(html, /id="folder-tree"[^>]*role="tree"/);
     // Native-first: the destination reads as a folder, the way the browser's star dialog does.
     assert.doesNotMatch(html.replace(/<!--[\s\S]*?-->/gu, ''), /[Cc]ollection/);
     assert.match(html, /id="dest-panel"[^>]*hidden|hidden[^>]*id="dest-panel"/);
@@ -108,8 +108,10 @@ describe('extension popup capture UI', () => {
     assert.match(chrome, /:focus-visible \{[^}]*outline:\s*1px solid var\(--ink\)/);
     assert.doesNotMatch(css, /outline:[^;]*var\(--accent\)/);
     assert.match(css, /prefers-reduced-motion/);
-    // Only the check mark is drawn from a data URI; user-visible captions go through i18n, never CSS `content` strings.
-    assert.equal((css.match(/data:image\/svg\+xml/gu) ?? []).length, 1);
+    // Only the check mark is drawn from a data URI (the shared folder tree in chrome.css); user-visible captions go
+    // through i18n, never CSS `content` strings.
+    assert.equal((css.match(/data:image\/svg\+xml/gu) ?? []).length, 0);
+    assert.match(chrome, /--check-mask: url\("data:image\/svg\+xml/);
     assert.doesNotMatch(css, /content: "[A-Za-z]/);
     // The folder pill is the folder control; the panel grows the popup instead of overlaying it.
     assert.match(css, /\.folder-panel \{[^}]*grid-column: 1 \/ -1;/);
@@ -121,11 +123,13 @@ describe('extension popup capture UI', () => {
     assert.doesNotMatch(css, /\.sync-chip|\.status-dot/);
     assert.match(css, /\.pp-avatar-btn \.avatar \{/);
     assert.match(css, /\.pp-status \{/);
-    // Only the folder list scrolls inside the panel; search and "New folder" stay pinned.
-    assert.match(css, /\.folder-list \{[^}]*max-height: 13\.5rem;[^}]*overflow-y: auto/);
-    // The selected folder carries a check, not an accent wash.
-    assert.match(css, /\.folder-opt\[aria-selected="true"\]::after \{/);
-    assert.doesNotMatch(css, /\.folder-opt\[aria-selected="true"\] \{[^}]*(background|--accent)/);
+    // Only the folder list scrolls inside the panel; search and "New folder" stay pinned. The tree is the kit's (chrome.css).
+    assert.match(chrome, /\.folder-list \{[^}]*max-height: 15rem;[^}]*overflow-y: auto/);
+    assert.doesNotMatch(css, /\.folder-list \{/);
+    // The selected folder carries a check, not an accent wash; a chevron folds each branch.
+    assert.match(chrome, /\.folder-opt\[aria-selected="true"\]::after \{/);
+    assert.doesNotMatch(chrome, /\.folder-opt\[aria-selected="true"\] \{[^}]*(background|--accent)/);
+    assert.match(chrome, /\.folder-opt\[aria-expanded="true"\] > \.folder-twisty svg \{ transform: rotate\(90deg\); \}/);
     // One note line, in the error tone only for errors.
     assert.match(css, /\.pp-note\[data-tone="error"\] \{ color: var\(--danger\); \}/);
     assert.doesNotMatch(css, /\.insert-position|\.credits-summary|\.sync-attention|\.folder-toggle|\.folder-picker|\.popup-meta/);
@@ -158,7 +162,8 @@ describe('extension popup capture UI', () => {
     // The save destination is resolved when the popup opens, so the folder
     // picker is available on the first save of a fresh install.
     assert.match(source, /primeSaveContext/);
-    assert.match(source, /setAttribute\('role', 'option'\)/);
+    assert.match(source, /createFolderTreeView/);
+    assert.match(await readEnglishSource(new URL('../src/folder-tree-view.ts', import.meta.url)), /setAttribute\('role', 'treeitem'\)/);
     assert.match(source, /paintFavicon/);
     assert.match(source, /urlInput\.value/);
     assert.match(source, /metaKey|ctrlKey/);

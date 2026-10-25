@@ -288,7 +288,7 @@ test('a saved capture keeps its folder, tags and note edits offline across brows
     await expect(page.locator('.detail-fields .tag-input .chip')).toContainText('Original tag');
     await expect(page.getByLabel('Note', { exact: true })).toHaveValue('Keep this note');
     await page.getByRole('button', { name: /^Folder: / }).click();
-    await page.getByRole('listbox', { name: 'Folder', exact: true }).locator(`[data-folder-id="${fixture.targetId}"]`).click();
+    await page.getByRole('tree', { name: 'Folder', exact: true }).locator(`[data-folder-id="${fixture.targetId}"]`).click();
     await page.getByLabel('Tags', { exact: true }).fill('Local tag');
     await page.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(page.locator('.detail-fields [role=status]')).toContainText('Saved.');

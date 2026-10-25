@@ -582,7 +582,7 @@ describe('LibraryDesk', () => {
     expect(parent.textContent).toBe('Later')
     act(() => parent.click())
     // The library root holds only folders, so there is no root option.
-    const options = [...document.querySelectorAll<HTMLButtonElement>('#lc-parent-panel [role="option"]')]
+    const options = [...document.querySelectorAll<HTMLButtonElement>('#lc-parent-panel [role="treeitem"]')]
     expect(options.map((option) => option.textContent)).toEqual(['Later'])
     act(() => options[0]!.click())
     expect(document.getElementById('lc-parent-panel')).toBeNull()
@@ -606,7 +606,7 @@ describe('LibraryDesk', () => {
     await waitForDom(domFinishedLoading)
     openBookmarkCompose()
     act(() => (document.getElementById('lc-parent') as HTMLButtonElement).click())
-    const options = [...document.querySelectorAll<HTMLButtonElement>('#lc-parent-panel [role="option"]')]
+    const options = [...document.querySelectorAll<HTMLButtonElement>('#lc-parent-panel [role="treeitem"]')]
     expect(options.map((option) => [option.textContent, option.style.getPropertyValue('--depth')]))
       .toEqual([['Reading queue', '0'], ['Later', '1']])
   })

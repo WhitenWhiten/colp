@@ -359,7 +359,8 @@ for (const width of widths) {
       console.log('shot', file, height);
     } catch (e) { console.log('FAIL', file, e.message.split('\n')[0]); }
   };
-  const pickerOpen = async (p) => { await p.click('#dest-toggle'); await p.waitForTimeout(500); };
+  // A popup with no folder yet opens its picker by itself; open it only when it is still closed.
+  const pickerOpen = async (p) => { if (await p.locator('#dest-panel').isHidden()) await p.click('#dest-toggle'); await p.waitForTimeout(500); };
   const suggest = async (p) => { await p.click('#folder-suggest'); await p.waitForTimeout(500); };
   // Manual capture
   await popup('manual', 'manual');
@@ -371,6 +372,11 @@ for (const width of widths) {
   await popup('manual-signedout', 'manual,signedout');
   await popup('picker', 'manual', pickerOpen);
   await popup('picker-new', 'manual', async (p) => { await pickerOpen(p); await p.click('#folder-new-open'); await p.keyboard.type('Reading'); });
+  // A nested tree folds past its first level; a recent folder opens onto its subfolders; a search lists paths.
+  await popup('picker-big', 'manual,bigtree', pickerOpen);
+  await popup('picker-recent-open', 'manual,bigtree', async (p) => { await pickerOpen(p); await p.click('[data-folder-group="recent"] [data-folder-id="f-prog"] .folder-twisty'); await p.waitForTimeout(200); });
+  await popup('picker-branch-open', 'manual,bigtree', async (p) => { await pickerOpen(p); await p.click('[data-folder-group="all"] [data-folder-id="f-research"] .folder-twisty'); await p.waitForTimeout(200); });
+  await popup('picker-search', 'manual,bigtree', async (p) => { await pickerOpen(p); await p.keyboard.type('py'); await p.waitForTimeout(200); });
   await popup('suggest', 'manual,suggest');
   await popup('suggesting', 'manual,suggest,suggesting', (p) => p.click('#folder-suggest'));
   await popup('suggested', 'manual,suggest', suggest);

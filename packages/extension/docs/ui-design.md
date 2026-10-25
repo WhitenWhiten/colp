@@ -100,6 +100,13 @@ footer   quiet ghost actions left · one primary right
   A folder one of the account's rules chose shows a muted "By rule" mark (fork icon, the rule named
   in its tooltip). The suggestion chip then reads "Suggest tags" and never offers a folder. Picking
   another folder removes the mark: the user's pick wins.
+- **Folder tree:** every folder choice (this panel, the options pickers, Move to) is the one tree in
+  `folder-tree-view.ts`, styled in `chrome.css`. A chevron folds each branch. A short tree opens fully;
+  a long one opens its top level, then the next level only while about twelve rows still fit, plus
+  the chosen folder's branch. Recent rows (popup) name their parents in a muted trail and open onto
+  their own subfolders in place. A search lists matches flat with their paths; Enter takes the first.
+  Keys follow the ARIA tree: ArrowRight opens then steps in, ArrowLeft folds then climbs, typing on a
+  row goes to the search.
 - **Rule line:** after a save, one line says what the rules did. A placement shows "Rule “…”" as
   the status meta in the manual popup, or a calm note in the automatic result. A rule that matched
   but could not act (folder missing here, out of date, rules disagree) uses the warning alert.

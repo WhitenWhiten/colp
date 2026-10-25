@@ -32,10 +32,10 @@ test.each(['initial tree', 'exclusions', 'after permission grant'])('%s load fai
   }
   await vi.waitFor(() => expect(buttonNamed('Try again')).toBeDefined());
   expect(dialog.textContent).toContain('Couldn’t read automations in this browser.');
-  expect(dialog.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]')?.disabled).toBe(true);
+  expect(dialog.querySelector<HTMLButtonElement>('[aria-haspopup="tree"]')?.disabled).toBe(true);
   buttonNamed('Try again')!.click();
   await vi.waitFor(() => expect(dialog.querySelectorAll('.folder-opt').length).toBe(1));
-  expect(dialog.querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]')?.disabled).toBe(false);
+  expect(dialog.querySelector<HTMLButtonElement>('[aria-haspopup="tree"]')?.disabled).toBe(false);
   expect(dialog.querySelector('.folder-list')?.textContent).toContain('Bar');
   expect(dialog.querySelector('.folder-list')?.textContent).not.toContain('Hidden subscription');
   expect(getTree).toHaveBeenCalledTimes(2);

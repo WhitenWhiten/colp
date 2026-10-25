@@ -58,7 +58,7 @@ test('a library with a synced Mobile root chooses every creation destination', a
   await expect(page.locator('#lc-parent')).toHaveAttribute('value', 'bar')
   await page.locator('#lc-title').fill('Research')
   await page.locator('#lc-parent').click()
-  await page.locator('#lc-parent-panel').getByRole('option', { name: 'Bookmarks bar', exact: true }).click()
+  await page.locator('#lc-parent-panel').getByRole('treeitem', { name: 'Bookmarks bar', exact: true }).click()
   await page.getByTestId('library-compose').getByRole('button', { name: 'Create folder', exact: true }).click()
   await expect.poll(() => writes.length).toBe(1)
   expect(writes[0]?.parentId).toBe('bar')

@@ -119,7 +119,7 @@ test('the popup saves a pinned bookmark at the end of the pinned section', async
     await popup.setViewportSize({ width: 380, height: 600 });
     // With no remembered folder the popup opens its own picker; a toggle click would race it closed.
     await expect(popup.locator('#dest-toggle')).toHaveAttribute('aria-expanded', 'true');
-    await popup.locator('#folder-tree').getByRole('option', { name: /^Pins/ }).click();
+    await popup.locator('#folder-tree').getByRole('treeitem', { name: /^Pins/ }).click();
     const toggle = popup.locator('#folder-pin');
     await expect(toggle).toBeVisible();
     await expect(toggle).not.toHaveAttribute('aria-disabled', 'true');
@@ -139,7 +139,7 @@ test('the popup saves a pinned bookmark at the end of the pinned section', async
     const second = await openPopupOver(context, tab);
     await second.setViewportSize({ width: 380, height: 600 });
     await expect(second.locator('#dest-toggle')).toHaveAttribute('aria-expanded', 'true');
-    await second.locator('#folder-tree').getByRole('option', { name: /^Pins/ }).first().click();
+    await second.locator('#folder-tree').getByRole('treeitem', { name: /^Pins/ }).first().click();
     await expect(second.locator('#folder-pin')).toHaveAttribute('aria-disabled', 'true');
     await second.locator('#folder-pin').click({ force: true });
     await expect(second.locator('#folder-pin-hint')).toContainText('New bookmarks go to the top of the folder');

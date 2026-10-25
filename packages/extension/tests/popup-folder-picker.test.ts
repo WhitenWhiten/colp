@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import 'fake-indexeddb/auto';
 import { afterEach, expect, test, vi } from 'vitest';
-import { bindDestUi } from '../src/popup-dest-ui.js';
 import { FOLDER_RECENTS } from '../src/folder-recents.js';
 import { FOLDER_DEFAULT_BINDING, FOLDER_ONCE_BINDING, type FolderTreeNode } from '../src/save-folder.js';
 import { bindSaveFolderPicker } from '../src/save-folder-ui.js';
@@ -62,7 +61,7 @@ function mountPicker(excluded: ReadonlySet<string> = new Set(), onChosen?: () =>
   const byId = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
   const picker = bindSaveFolderPicker({
     destToggle: byId('dest-toggle'), destPanel: byId('dest-panel'), folderCurrent: byId('folder-current'),
-    folderTree: byId('folder-tree'), folderNew: byId('folder-new'), folderNewName: byId('folder-new-name'),
+    folderTree: byId('folder-tree'), folderNew: byId('folder-new'), folderNewName: byId('folder-new-name'), destSearch: byId('dest-search'),
     persistDraft: () => undefined, setFeedback: () => undefined,
     excludedFolderIds: async () => excluded, ...(onChosen ? { onChosen } : {}),
   });
@@ -214,7 +213,9 @@ test('recent shortcuts remain available without overriding the explicit default'
   const recent = folderTree.querySelector('[data-folder-group="recent"]')!;
   expect(Array.from(recent.querySelectorAll<HTMLElement>('[data-folder-id]')).map((row) => row.dataset.folderId))
     .toEqual(['c', 'a']);
-  expect(folderTree.querySelector('#folder-group-recent')!.textContent).toBe('Recent');
+  expect(folderTree.querySelector('#folder-tree-group-recent')!.textContent).toBe('Recent');
+  // A recent row names its parents, so two folders with one name stay apart.
+  expect(recent.querySelector('[data-folder-id="c"] .folder-opt-trail')!.textContent).toBe('Other bookmarks');
   // One tab stop, on the chosen folder's first row.
   const stops = Array.from(folderTree.querySelectorAll<HTMLElement>('[data-folder-id]')).filter((row) => row.tabIndex === 0);
   expect(stops).toHaveLength(1);
@@ -285,19 +286,19 @@ test('a missing default opens the picker and never chooses a recent folder', asy
   expect(picker.isOpen()).toBe(true);
 });
 
-test('a search reads the whole tree once: the Recent group steps aside', async () => {
+test('a search lists matches flat with their paths, and the Recent group steps aside', async () => {
   stubChrome(wideTree, { [FOLDER_RECENTS]: { ids: ['c'] } });
-  const { picker, toggle, tree: folderTree, panel } = mountPicker();
-  bindDestUi({ destToggle: toggle, destPanel: panel, destSearch: document.getElementById('dest-search') as HTMLInputElement });
+  const { picker, tree: folderTree } = mountPicker();
   await picker.init('device', []);
   await picker.open();
   await vi.waitFor(() => expect(folderTree.querySelector('[data-folder-group="recent"]')).not.toBeNull());
   const search = document.getElementById('dest-search') as HTMLInputElement;
   search.value = 'cook';
   search.dispatchEvent(new Event('input'));
-  const visible = Array.from(folderTree.querySelectorAll<HTMLElement>('[data-folder-id]:not([hidden])'));
-  expect(visible.map((row) => row.closest('[data-folder-group]')?.getAttribute('data-folder-group'))).toEqual(['all']);
-  expect((folderTree.querySelector('[data-folder-group="recent"]') as HTMLElement).hidden).toBe(true);
+  expect(folderTree.querySelector('[data-folder-group]')).toBeNull();
+  const rows = Array.from(folderTree.querySelectorAll<HTMLElement>('[data-folder-id]'));
+  expect(rows.map((row) => row.dataset.folderId)).toEqual(['c']);
+  expect(rows[0]!.querySelector('.folder-opt-trail')!.textContent).toBe('Other bookmarks');
 });
 
 test('an out-of-range pick applies at once: no prompt, and the next save goes there', async () => {
@@ -329,39 +330,90 @@ test('with no live mounts the sync target is unknown, never local', async () => 
   expect(await picker.syncTarget()).toEqual({ kind: 'unknown' });
 });
 
-test('the destination filter matches anywhere in a folder name', () => {
-  document.body.innerHTML = `
-    <button id="toggle" type="button"></button>
-    <div id="panel"><input id="search">
-      <button type="button" data-folder-id="a" title="Alpha Research">Alpha Research</button>
-      <button type="button" data-folder-id="b" title="Beta">Beta</button>
-    </div>`;
-  const byId = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
-  bindDestUi({ destToggle: byId('toggle'), destPanel: byId('panel'), destSearch: byId('search') });
-  const search = byId<HTMLInputElement>('search');
+test('the search matches anywhere in a folder name, and Enter takes the first match', async () => {
+  stubChrome(wideTree, {});
+  const { picker, tree: folderTree, panel } = mountPicker();
+  await picker.init('device', []);
+  await picker.open();
+  const search = document.getElementById('dest-search') as HTMLInputElement;
   search.value = 'research';
   search.dispatchEvent(new Event('input'));
-  expect(document.querySelector<HTMLElement>('[data-folder-id="a"]')!.hidden).toBe(false);
-  expect(document.querySelector<HTMLElement>('[data-folder-id="b"]')!.hidden).toBe(true);
+  expect(Array.from(folderTree.querySelectorAll<HTMLElement>('[data-folder-id]')).map((row) => row.dataset.folderId)).toEqual(['a']);
+  const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+  search.dispatchEvent(enter);
+  expect(enter.defaultPrevented).toBe(true);
+  await vi.waitFor(() => expect(picker.chosenFolderId()).toBe('a'));
+  await vi.waitFor(() => expect(panel.hidden).toBe(true));
 });
 
-test('a filter that matches nothing says so', () => {
-  document.body.innerHTML = `
-    <button id="toggle" type="button"></button>
-    <div id="panel"><input id="search">
-      <button type="button" data-folder-id="a" title="Alpha Research">Alpha Research</button>
-    </div>`;
-  const byId = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
-  bindDestUi({ destToggle: byId('toggle'), destPanel: byId('panel'), destSearch: byId('search') });
-  const search = byId<HTMLInputElement>('search');
+test('a search that matches nothing says so, and clearing it brings the tree back', async () => {
+  stubChrome(wideTree, {});
+  const { picker, tree: folderTree } = mountPicker();
+  await picker.init('device', []);
+  await picker.open();
+  const search = document.getElementById('dest-search') as HTMLInputElement;
   search.value = 'zzz';
   search.dispatchEvent(new Event('input'));
-  const note = document.querySelector<HTMLElement>('[data-dest-empty]');
-  expect(note?.hidden).toBe(false);
-  expect(note?.textContent).toBe('No folders match.');
+  expect(folderTree.querySelector('.folder-empty')?.textContent).toBe('No folders match.');
+  expect(folderTree.querySelectorAll('[data-folder-id]')).toHaveLength(0);
   search.value = '';
   search.dispatchEvent(new Event('input'));
-  expect(note?.hidden).toBe(true);
+  expect(folderTree.querySelector('.folder-empty')).toBeNull();
+  expect(folderTree.querySelectorAll('[data-folder-id]')).toHaveLength(5);
+});
+
+/** A tree as people keep them: a top level of six folders, each with two subfolders. */
+const nestedTree: Node[] = [{ id: '0', title: '', children: [{
+  id: '1', title: 'Bookmarks bar', parentId: '0', children: ['p', 'q', 'r', 's', 't', 'u'].map((id) => ({
+    id, title: `Folder ${id}`, parentId: '1', children: [
+      { id: `${id}1`, title: `Sub ${id}1`, parentId: id, children: [] },
+      { id: `${id}2`, title: `Sub ${id}2`, parentId: id, children: [] },
+    ],
+  })),
+}] }];
+
+test('a long tree opens its first level and the chosen branch; a chevron or ArrowRight opens more', async () => {
+  stubChrome(nestedTree, { [FOLDER_DEFAULT_BINDING]: { collectionId: 'device', folderNativeId: 'r2' } });
+  const { picker, tree: folderTree } = mountPicker();
+  await picker.init('device', []);
+  await picker.open();
+  const ids = () => Array.from(folderTree.querySelectorAll<HTMLElement>('[data-folder-id]')).map((row) => row.dataset.folderId);
+  // Nineteen folders would not fit: the top level opens, the rest folds, except the branch holding the chosen folder.
+  expect(ids()).toEqual(['1', 'p', 'q', 'r', 'r1', 'r2', 's', 't', 'u']);
+  const row = (id: string) => folderTree.querySelector<HTMLButtonElement>(`[data-folder-id="${id}"]`)!;
+  expect(row('1').getAttribute('aria-expanded')).toBe('true');
+  expect(row('p').getAttribute('aria-expanded')).toBe('false');
+  expect(row('r1').hasAttribute('aria-expanded')).toBe(false);
+  expect(row('r1').getAttribute('aria-level')).toBe('3');
+  // The chevron opens a branch without picking it.
+  row('p').querySelector<HTMLElement>('.folder-twisty')!.click();
+  expect(ids()).toContain('p1');
+  expect(picker.chosenFolderId()).toBe('r2');
+  // ArrowRight opens, ArrowLeft folds and then climbs to the parent.
+  row('q').focus();
+  row('q').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+  expect(ids()).toContain('q1');
+  expect(document.activeElement).toBe(row('q'));
+  row('q').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+  expect(document.activeElement).toBe(row('q1'));
+  row('q1').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+  expect(document.activeElement).toBe(row('q'));
+  row('q').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+  expect(ids()).not.toContain('q1');
+});
+
+test('a recent folder opens onto its own subfolders in place', async () => {
+  stubChrome(nestedTree, { [FOLDER_RECENTS]: { ids: ['t'] } });
+  const { picker, tree: folderTree } = mountPicker();
+  await picker.init('device', []);
+  await picker.open();
+  const recent = () => folderTree.querySelector<HTMLElement>('[data-folder-group="recent"]')!;
+  const top = recent().querySelector<HTMLButtonElement>('[data-folder-id="t"]')!;
+  expect(top.getAttribute('aria-expanded')).toBe('false');
+  top.querySelector<HTMLElement>('.folder-twisty')!.click();
+  expect(Array.from(recent().querySelectorAll<HTMLElement>('[data-folder-id]')).map((row) => row.dataset.folderId)).toEqual(['t', 't1', 't2']);
+  recent().querySelector<HTMLButtonElement>('[data-folder-id="t2"]')!.click();
+  await vi.waitFor(() => expect(picker.chosenFolderId()).toBe('t2'));
 });
 
 /** The picker on the real popup markup: pill, parent, panel, search, listbox and the inline new-folder row. */
@@ -376,7 +428,6 @@ function mountShellPicker(options: { onPick?: (id: string) => void; remember?: b
     persistDraft: () => undefined, setFeedback: () => undefined, excludedFolderIds: async () => new Set<string>(),
     ...(options.onPick ? { onPick: options.onPick } : {}), ...(options.remember === undefined ? {} : { remember: options.remember }),
   });
-  bindDestUi({ destToggle: toggle, destPanel: shellById('dest-panel'), destSearch: shellById<HTMLInputElement>('dest-search') });
   return { picker, toggle, panel: shellById('dest-panel'), tree: shellById('folder-tree') };
 }
 
@@ -411,11 +462,11 @@ test('opening the panel focuses the search and the check mark follows the chosen
   expect(toggle.getAttribute('aria-expanded')).toBe('true');
   expect(document.activeElement).toBe(shellById('dest-search'));
   expect(Array.from(tree.querySelectorAll('[aria-selected="true"]')).map((row) => (row as HTMLElement).dataset.folderId)).toEqual(['b']);
-  expect(tree.getAttribute('role')).toBe('listbox');
-  expect(tree.querySelectorAll('[role="option"]').length).toBeGreaterThan(0);
+  expect(tree.getAttribute('role')).toBe('tree');
+  expect(tree.querySelectorAll('[role="treeitem"]').length).toBeGreaterThan(0);
 });
 
-test('ArrowDown from the search lands on the first folder, and arrows roam the listbox', async () => {
+test('ArrowDown from the search lands on the first folder, and arrows roam the tree', async () => {
   stubChrome(wideTree);
   const { picker, panel, tree } = mountShellPicker();
   await picker.init('device', []);

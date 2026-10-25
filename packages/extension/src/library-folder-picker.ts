@@ -2,6 +2,7 @@ import { createIcon } from './icons.js';
 import { t } from './i18n.js';
 import { el } from './library-dom.js';
 import { supportedBookmarkTree } from './bookmark-folder-policy.js';
+import { createFolderTreeView } from './folder-tree-view.js';
 
 /** A folder someone may choose: where it sits in the tree and whether choosing it is allowed. */
 export interface FolderChoice {
@@ -66,50 +67,29 @@ export function createFolderListbox(input: {
   readonly onPick: (choice: FolderChoice) => void;
   readonly onEscape?: () => void;
 }): FolderListbox {
-  let choices = [...input.choices], selected = input.selected ?? '';
+  let choices = [...input.choices];
   const panel = el('div', undefined, 'folder-panel');
   const search = el('label', undefined, 'folder-search');
   const filter = el('input'); filter.type = 'search'; filter.autocomplete = 'off';
   filter.placeholder = t('common_findFolder', 'Find folder'); filter.setAttribute('aria-label', t('common_findFolder', 'Find folder'));
   search.append(createIcon('search', 14), filter);
-  const list = el('div', undefined, 'folder-list'); list.setAttribute('role', 'listbox'); list.setAttribute('aria-label', input.label);
+  const list = el('div', undefined, 'folder-list');
   panel.append(search, list);
-
-  function paint(): void {
-    const needle = filter.value.trim().toLocaleLowerCase();
-    const shown = needle ? choices.filter((choice) => choice.path.join(' › ').toLocaleLowerCase().includes(needle)) : choices;
-    list.replaceChildren();
-    if (!shown.length) { list.append(el('p', t('common_noFolderMatches', 'No folders match.'), 'folder-dest-empty')); return; }
-    for (const choice of shown) {
-      const option = el('button', undefined, 'folder-opt');
-      option.type = 'button'; option.setAttribute('role', 'option'); option.dataset.folderId = choice.id;
-      option.setAttribute('aria-selected', String(choice.id === selected)); option.disabled = Boolean(choice.disabled);
-      option.style.setProperty('--depth', String(needle ? 0 : choice.depth));
-      option.append(createIcon('folder', 14), el('span', needle ? choice.path.join(' › ') : choice.title));
-      if (choice.note) option.append(el('span', choice.note, 'folder-opt-note'));
-      option.addEventListener('click', () => { input.onPick(choice); });
-      list.append(option);
-    }
-  }
-  filter.addEventListener('input', paint);
+  const tree = createFolderTreeView({ list, label: input.label, search: filter, onPick(id) {
+    const choice = choices.find((folder) => folder.id === id);
+    if (choice && !choice.disabled) input.onPick(choice);
+  } });
   panel.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && input.onEscape) { event.preventDefault(); event.stopPropagation(); input.onEscape(); return; }
-    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Home' && event.key !== 'End') return;
-    const options = Array.from(list.querySelectorAll<HTMLButtonElement>('.folder-opt:not(:disabled)'));
-    if (!options.length) return;
-    event.preventDefault();
-    const at = options.indexOf(document.activeElement as HTMLButtonElement);
-    const next = event.key === 'Home' ? 0 : event.key === 'End' ? options.length - 1
-      : event.key === 'ArrowDown' ? Math.min(options.length - 1, at + 1) : Math.max(0, at <= 0 ? 0 : at - 1);
-    options[next]?.focus();
+    if (event.key === 'Escape' && input.onEscape) { event.preventDefault(); event.stopPropagation(); input.onEscape(); }
   });
-  paint();
+  tree.setSelected(input.selected ?? '');
+  tree.setRows(choices);
   return {
     element: panel,
-    setChoices(next) { choices = [...next]; paint(); },
-    setSelected(id) { selected = id; paint(); },
-    focus() { (list.querySelector<HTMLElement>('[aria-selected="true"]:not(:disabled)') ?? list.querySelector<HTMLElement>('.folder-opt:not(:disabled)') ?? filter).focus(); },
-    reset() { filter.value = ''; paint(); },
+    setChoices(next) { choices = [...next]; tree.setRows(choices); },
+    setSelected(id) { tree.setSelected(id); },
+    focus() { if (!tree.focusRow()) filter.focus(); },
+    reset() { tree.reset(); },
   };
 }
 
@@ -140,7 +120,7 @@ export function createFolderPicker(input: {
   const id = `folder-picker-${crypto.randomUUID()}`;
   const root = el('div', undefined, 'folder-picker');
   const pill = el('button', undefined, 'folder-pill');
-  pill.type = 'button'; pill.setAttribute('aria-haspopup', 'listbox'); pill.setAttribute('aria-expanded', 'false'); pill.setAttribute('aria-controls', id);
+  pill.type = 'button'; pill.setAttribute('aria-haspopup', 'tree'); pill.setAttribute('aria-expanded', 'false'); pill.setAttribute('aria-controls', id);
   const listbox = createFolderListbox({ choices, selected, label: input.label,
     onPick(choice) { api.setValue(choice.id); api.close(); pill.focus(); input.onChange?.(choice); },
     onEscape() { api.close(); pill.focus(); } });

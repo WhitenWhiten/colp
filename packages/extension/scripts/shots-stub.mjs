@@ -46,7 +46,7 @@
 //     browser-sub-failed (the same, not ready: its first fetch got HTTP 503)
 //     risk (risk alerts on for saves: three lists — fresh, stale, not ready — and two exceptions; in the popup, a page two lists name),
 //     risk-browse (with risk: on while browsing too; doc 17 RW-15 – RW-17)
-//   Popup only: existing, suggest, suggesting, retrying, local, longtitle, longfolder, nofavicon, perm, attention, stuck,
+//   Popup only: existing, suggest, suggesting, retrying, local, longtitle, longfolder, bigtree (a nested folder tree), nofavicon, perm, attention, stuck,
 //   autoline, autonoline, autoboot, autolocal, autoattention, autowaiting, autoexisting (auto* = automatic card),
 //   digest (one new digest), digests-stale (two, last read 3 h ago),
 //   activity (7 new from the account's agents), activity-stale (the same, last read 3 h ago).
@@ -120,6 +120,13 @@ export function installStub(messages) {
   add('f-read', '1', 'Read later'); add('f-research', '1', 'Research');
   if (longPath) { add('f-long1', '1', 'Quarterly planning notes and reference material'); add('f-long2', 'f-long1', 'Engineering design reviews for the platform migration'); }
   add('f-misc', '2', 'Misc'); add('f-personal', '2', 'Personal');
+  // A tree as people keep them: nested past the first level, so the picker folds it.
+  if (has('bigtree')) {
+    add('f-rust', 'f-prog', 'Rust'); add('f-go', 'f-prog', 'Go'); add('f-py', 'f-prog', 'Python'); add('f-django', 'f-py', 'Django'); add('f-fastapi', 'f-py', 'FastAPI');
+    add('f-papers', 'f-research', 'Papers'); add('f-agents', 'f-research', 'AI agents'); add('f-ads', 'f-marketing', 'Ads');
+    add('f-design', '1', 'Design'); add('f-type', 'f-design', 'Typography'); add('f-insp', 'f-design', 'Inspiration');
+    add('f-recipes', '2', 'Recipes'); add('f-travel', '2', 'Travel'); add('f-japan', 'f-travel', 'Japan'); add('f-italy', 'f-travel', 'Italy');
+  }
   // Pre-save rules (AW-19): an arXiv page, and the folder its rule files into.
   const ruled = has('rule', 'ruleblocked', 'autorule', 'autoruleblocked');
   if (ruled) add('f-academic', '1', 'Academic');

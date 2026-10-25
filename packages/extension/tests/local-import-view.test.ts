@@ -31,9 +31,11 @@ test('a guest previews an HTML file and selects a personal browser folder before
   await vi.waitFor(() => expect(dialog.querySelector('#local-import-target')).not.toBeNull());
   dialog.querySelector<HTMLButtonElement>('#local-import-target')!.click();
   const choices = Array.from(dialog.querySelectorAll<HTMLButtonElement>('.folder-opt'));
-  expect(choices.filter((choice) => !choice.disabled).map((choice) => choice.dataset.folderId)).toContain('bar');
-  expect(choices.some((choice) => choice.dataset.folderId === 'subscription' && !choice.disabled)).toBe(false);
-  expect(choices.some((choice) => choice.dataset.folderId === 'managed' && !choice.disabled)).toBe(false);
+  // A folder that is not a choice stays listed (it can still open onto its subfolders) but reads aria-disabled.
+  const offered = (choice: HTMLButtonElement) => choice.getAttribute('aria-disabled') !== 'true';
+  expect(choices.filter(offered).map((choice) => choice.dataset.folderId)).toContain('bar');
+  expect(choices.some((choice) => choice.dataset.folderId === 'subscription' && offered(choice))).toBe(false);
+  expect(choices.some((choice) => choice.dataset.folderId === 'managed' && offered(choice))).toBe(false);
   expect(choices.some((choice) => ['workspace', 'project'].includes(choice.dataset.folderId ?? ''))).toBe(false);
 
   const file = dialog.querySelector<HTMLInputElement>('#local-import-file')!;

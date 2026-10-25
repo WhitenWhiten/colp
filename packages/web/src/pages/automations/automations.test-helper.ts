@@ -214,7 +214,7 @@ export function choose(element: HTMLSelectElement, value: string): void {
 /** A FolderPicker's rows as [title, depth], opening its panel first. */
 export function folderRows(id: string): string[][] {
   if (!document.getElementById(`${id}-panel`)) click(document.getElementById(id))
-  return [...document.querySelectorAll<HTMLButtonElement>(`#${id}-panel [role="option"]`)]
+  return [...document.querySelectorAll<HTMLButtonElement>(`#${id}-panel [role="treeitem"]`)]
     .map((row) => [row.textContent ?? '', row.style.getPropertyValue('--depth')])
 }
 

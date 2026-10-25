@@ -85,7 +85,7 @@ test('production MV3 bookmark manager performs real create, rename, move and key
     await row(page, source.id).getByRole('button', { name: 'More actions Manager renamed' }).click();
     await page.locator('.mgr-menu-item', { hasText: 'Move' }).click();
     await expect(page.getByRole('dialog', { name: 'Move to' })).toBeVisible();
-    await page.getByRole('dialog').getByRole('option', { name: 'Manager destination' }).click();
+    await page.getByRole('dialog').getByRole('treeitem', { name: 'Manager destination' }).click();
     await expect(page.locator('#manager-feedback')).toHaveText('Moved.');
     expect((await chromeBookmark(page, source.id)).parentId).toBe(destination.id);
   });

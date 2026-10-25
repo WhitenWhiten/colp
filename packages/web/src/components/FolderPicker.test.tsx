@@ -20,7 +20,7 @@ function Harness({ recentIds = [] }: { recentIds?: string[] }) {
 }
 
 const toggle = () => document.getElementById('pick') as HTMLButtonElement
-const options = () => [...document.querySelectorAll<HTMLButtonElement>('#pick-panel [role="option"]')]
+const options = () => [...document.querySelectorAll<HTMLButtonElement>('#pick-panel [role="treeitem"]')]
 const search = () => document.querySelector<HTMLInputElement>('#pick-panel input[type="search"]')!
 function type(value: string) {
   const input = search()
@@ -93,7 +93,15 @@ test('recent folders lead in their own group until a search starts', () => {
   act(() => toggle().click())
   const groups = [...document.querySelectorAll('#pick-panel [role="group"]')]
   expect(groups.map((group) => document.getElementById(group.getAttribute('aria-labelledby')!)?.textContent)).toEqual(['Recent', 'All folders'])
-  expect([...groups[0]!.querySelectorAll<HTMLButtonElement>('[role="option"]')].map((row) => row.dataset.folderId)).toEqual(['other', 'work'])
+  expect([...groups[0]!.querySelectorAll<HTMLButtonElement>('[role="treeitem"]')].map((row) => row.dataset.folderId)).toEqual(['other', 'work'])
+  // Each recent row names its parents; Work opens onto its own subfolder without the whole tree.
+  const work = groups[0]!.querySelector<HTMLButtonElement>('[data-folder-id="work"]')!
+  expect(work.textContent).toBe('WorkBookmarks bar')
+  expect(work.getAttribute('aria-expanded')).toBe('false')
+  act(() => work.querySelector<HTMLElement>('[data-twisty]')!.click())
+  expect(toggle().value).toBe('reading')
+  expect([...document.querySelectorAll<HTMLButtonElement>('#pick-panel [data-folder-group="recent"] [role="treeitem"]')]
+    .map((row) => row.dataset.folderId)).toEqual(['other', 'work', 'reading'])
   type('work')
   expect(document.querySelectorAll('#pick-panel [role="group"]')).toHaveLength(0)
   expect(options().map((row) => row.dataset.folderId)).toEqual(['work'])
@@ -104,4 +112,49 @@ test('a pointer press outside closes the panel', () => {
   act(() => toggle().click())
   act(() => { document.getElementById('outside')!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })) })
   expect(document.getElementById('pick-panel')).toBeNull()
+})
+
+/** Six top-level folders, each with two subfolders: nineteen rows would not fit the first screen. */
+const nested: FolderPickerOption[] = [
+  { id: 'bar', title: 'Bookmarks bar', depth: 0 },
+  ...['p', 'q', 'r', 's', 't', 'u'].flatMap((id) => [
+    { id, title: `Folder ${id}`, depth: 1 },
+    { id: `${id}1`, title: `Sub ${id}1`, depth: 2 },
+    { id: `${id}2`, title: `Sub ${id}2`, depth: 2 },
+  ]),
+]
+
+function Nested() {
+  const [value, setValue] = useState('r2')
+  return <FolderPicker id="pick" folders={nested} value={value} onChange={setValue} />
+}
+
+test('a long tree opens its first level and the chosen branch; the chevron and arrows open and fold', () => {
+  mountTree(<Nested />)
+  act(() => toggle().click())
+  const ids = () => options().map((row) => row.dataset.folderId)
+  expect(ids()).toEqual(['bar', 'p', 'q', 'r', 'r1', 'r2', 's', 't', 'u'])
+  const row = (id: string) => options().find((item) => item.dataset.folderId === id)!
+  expect(row('bar').getAttribute('aria-expanded')).toBe('true')
+  expect(row('p').getAttribute('aria-expanded')).toBe('false')
+  expect(row('r1').hasAttribute('aria-expanded')).toBe(false)
+  expect(row('r1').getAttribute('aria-level')).toBe('3')
+  // The chevron opens a branch without picking it.
+  act(() => row('p').querySelector<HTMLElement>('[data-twisty]')!.click())
+  expect(ids()).toContain('p1')
+  expect(toggle().value).toBe('r2')
+  // ArrowRight opens, then steps in; ArrowLeft climbs to the parent, then folds it.
+  act(() => row('q').focus())
+  key(row('q'), 'ArrowRight')
+  expect(ids()).toContain('q1')
+  key(row('q'), 'ArrowRight')
+  expect(document.activeElement).toBe(row('q1'))
+  key(row('q1'), 'ArrowLeft')
+  expect(document.activeElement).toBe(row('q'))
+  key(row('q'), 'ArrowLeft')
+  expect(ids()).not.toContain('q1')
+  // Typing on a row goes to the search.
+  key(row('q'), 's')
+  expect(document.activeElement).toBe(search())
+  expect(search().value).toBe('s')
 })

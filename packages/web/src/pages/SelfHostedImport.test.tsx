@@ -73,7 +73,7 @@ describe('SelfHostedImport', () => {
     mountTree(<MemoryRouter><SelfHostedImport /></MemoryRouter>)
     await flush()
     act(() => document.querySelector<HTMLButtonElement>('#import-folder')!.click())
-    const options = [...document.querySelectorAll<HTMLButtonElement>('#import-folder-panel [role="option"]')]
+    const options = [...document.querySelectorAll<HTMLButtonElement>('#import-folder-panel [role="treeitem"]')]
     expect(options.map((option) => [option.dataset.folderId, option.style.getPropertyValue('--depth')])).toEqual([['folder', '0'], ['nested', '1']])
     expect(options[1]!.title).toBe('Research › Papers')
   })

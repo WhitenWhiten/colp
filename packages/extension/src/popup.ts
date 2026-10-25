@@ -25,7 +25,7 @@ import { bindClearIconAction } from './clear-icon-ui.js';
 import { presentIconPolicyFeedback as iconPolicyFeedback } from './icon-policy-feedback.js';
 import { bindPopupCredits } from './popup-credits.js';
 import { bindPopupSavePosition } from './popup-save-position.js';
-import { bindDestUi, bindUrlDisplay } from './popup-dest-ui.js';
+import { bindUrlDisplay } from './popup-dest-ui.js';
 import { bindDeviceSave, canSaveNow, DEVICE_FOLDER_SCOPE, paintSaveGate, saveButtonLabel } from './popup-device-save.js';
 import { bindPopupHeader } from './popup-header.js';
 import { createPopupNote } from './popup-note.js';
@@ -97,7 +97,6 @@ const rule = bindPopupRule({ folders, fields, onChange: () => classification?.ru
 /* Risk alerts are asked for beside the rule, whatever it decides; they never touch the folder (doc 17 RS-18). */
 const risk = bindPopupRisk({ notice: element('risk-notice'), page: currentPage });
 urlInput.addEventListener('change', () => { void rule.refresh(); void risk.refresh(); });
-bindDestUi({ destToggle: element('dest-toggle') as HTMLButtonElement, destPanel: element('dest-panel'), destSearch: element('dest-search') as HTMLInputElement });
 const editExisting = bindEditExisting({ titleInput, tabTitle: () => tabTitle, save, remove: element('remove-bookmark') as HTMLButtonElement,
   folders, aiDestinationPolicyDigest: () => classification?.destinationPolicy(), commitFolder: () => folders.commit(selectedCollection()?.id ?? DEVICE_FOLDER_SCOPE), setFeedback, annotation: fields.annotation, pin });
 let library: Library | undefined;

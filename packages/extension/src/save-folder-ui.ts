@@ -2,10 +2,10 @@ import { exclusionIds, personalBookmarks } from './bookmark-subscriptions/guards
 import { commitSaveFolder, DEVICE_FOLDER_SCOPE, folderIsInSyncRange, readDefaultFolder,
   readOnceFolder, rememberSaveFolder, walkAncestorIds, type FolderTreeNode } from './save-folder.js';
 import { resolveFolderSyncTarget, type FolderSyncTarget } from './folder-sync-target.js';
-import { buildFolderRows, type FolderRow } from './folder-tree-model.js';
+import { buildFolderRows } from './folder-tree-model.js';
+import { createFolderTreeView, type FolderTreeRow } from './folder-tree-view.js';
 import { readFolderRecents } from './folder-recents.js';
 import { isUnsupportedBookmarkFolder } from './bookmark-folder-policy.js';
-import { createIcon } from './icons.js';
 import { t } from './i18n.js';
 
 export interface SaveFolderUiHost {
@@ -81,37 +81,20 @@ export function bindSaveFolderPicker(host: SaveFolderUiHost): {
   host.folderNew.addEventListener('submit', (event) => { event.preventDefault(); void createFolder(); });
   host.folderNewOpen?.addEventListener('click', () => { setCreating(true); });
   paintNewLabel();
-  /* Listbox keyboard model: arrows/Home/End roam the tree rows, Escape closes
-     the picker from anywhere inside it (including the new-folder input) and
-     returns focus to the toggle, per the ARIA disclosure/listbox pattern. */
+  /* The tree view owns the rows' keys (arrows, Home/End, open and fold, typing
+     to search). Escape closes the picker from anywhere inside it, including
+     the new-folder input, and returns focus to the toggle, per the ARIA
+     disclosure pattern. */
+  const tree = createFolderTreeView({ list: host.folderTree, label: host.folderTree.getAttribute('aria-label') || t('sync_folder', 'Folder'),
+    ...(host.destSearch ? { search: host.destSearch } : {}), onPick: (id) => { void pickFolder(id); } });
   host.destPanel.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      event.stopPropagation();
-      // The inline new-folder input steps back to its row first; the next Escape closes the picker.
-      if (host.folderCreate && !host.folderCreate.hidden) { setCreating(false); host.folderNewOpen?.focus(); return; }
-      closePicker();
-      host.destToggle.focus();
-      return;
-    }
-    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Home' && event.key !== 'End') return;
-    if (event.target === host.destSearch && (event.key === 'ArrowDown' || event.key === 'Home')) {
-      const first = host.folderTree.querySelector<HTMLButtonElement>('[data-folder-id]:not([hidden])');
-      if (first) { event.preventDefault(); first.focus(); }
-      return;
-    }
-    if (!host.folderTree.contains(event.target as Node)) return;
-    const options = Array.from(host.folderTree.querySelectorAll<HTMLButtonElement>('[data-folder-id]:not([hidden])'));
-    if (options.length === 0) return;
+    if (event.key !== 'Escape') return;
     event.preventDefault();
-    const focused = options.findIndex((item) => item === document.activeElement);
-    const selected = options.findIndex((item) => item.getAttribute('aria-selected') === 'true');
-    const from = focused >= 0 ? focused : Math.max(0, selected);
-    const nextIndex = event.key === 'ArrowDown' ? Math.min(options.length - 1, from + 1)
-      : event.key === 'ArrowUp' ? Math.max(0, from - 1)
-        : event.key === 'Home' ? 0
-          : options.length - 1;
-    options[nextIndex]?.focus();
+    event.stopPropagation();
+    // The inline new-folder input steps back to its row first; the next Escape closes the picker.
+    if (host.folderCreate && !host.folderCreate.hidden) { setCreating(false); host.folderNewOpen?.focus(); return; }
+    closePicker();
+    host.destToggle.focus();
   });
 
   return {
@@ -253,69 +236,31 @@ export function bindSaveFolderPicker(host: SaveFolderUiHost): {
 
   async function openPicker(): Promise<void> {
     await renderTree();
+    tree.reset();
     host.destPanel.hidden = false;
     host.destToggle.setAttribute('aria-expanded', 'true');
     setCreating(host.folderNewName.value !== '');
+    tree.reveal();
     host.destSearch?.focus({ preventScroll: true });
     host.destPanel.scrollIntoView?.({ block: 'nearest' });
   }
 
-  /* One listbox in the browser's own folder order. Recently used folders
-     lead in their own group, so the common pick is one click, as in the
-     native dialog; the filter hides that group while it searches. */
+  /* The browser's folders in its own order, through the shared tree view:
+     Recent first (each naming its parents, opening onto its subfolders),
+     then the tree, folded past its first level when it is long. */
   async function renderTree(): Promise<void> {
-    host.folderTree.replaceChildren();
-    let tree: chrome.bookmarks.BookmarkTreeNode[] = [];
-    try { tree = await chrome.bookmarks.getTree(); } catch { return; }
+    let nodes: chrome.bookmarks.BookmarkTreeNode[] = [];
+    try { nodes = await chrome.bookmarks.getTree(); } catch { return; }
     const excluded = await (host.excludedFolderIds ?? (() => exclusionIds(true)))()
       .catch(() => new Set<string>()); // The save guard still refuses a read-only folder.
-    const rows = buildFolderRows(tree as FolderTreeNode[], { mounts, excluded });
-    const byId = new Map(rows.map((row) => [row.id, row]));
-    const recent = (await readFolderRecents()).flatMap((id) => byId.get(id) ?? []);
-    if (recent.length > 0) {
-      host.folderTree.append(
-        group('recent', t('popup_recentFolders', 'Recent'), recent.map((row) => ({ ...row, depth: 0 }))),
-        group('all', t('popup_allFolders', 'All folders'), rows),
-      );
-    } else {
-      host.folderTree.append(...rows.map(option));
-    }
-    // Roving tabindex: the first row of the chosen folder is the one tab stop; arrows roam.
-    const options = Array.from(host.folderTree.querySelectorAll<HTMLButtonElement>('[data-folder-id]'));
-    const stop = options.find((item) => item.dataset.folderId === chosenId) ?? options[0];
-    if (stop) stop.tabIndex = 0;
-  }
-
-  function group(name: string, label: string, rows: readonly FolderRow[]): HTMLElement {
-    const wrap = document.createElement('div');
-    wrap.setAttribute('role', 'group');
-    wrap.dataset.folderGroup = name;
-    const heading = document.createElement('p');
-    heading.className = 'folder-group folder-group-label';
-    heading.id = `folder-group-${name}`;
-    heading.textContent = label;
-    wrap.setAttribute('aria-labelledby', heading.id);
-    wrap.append(heading, ...rows.map(option));
-    return wrap;
-  }
-
-  function option(folder: FolderRow): HTMLButtonElement {
-    const row = document.createElement('button');
-    row.type = 'button';
-    row.className = 'folder-opt';
-    row.setAttribute('role', 'option');
-    row.dataset.folderId = folder.id;
-    if (folder.synced) row.dataset.synced = '';
-    row.style.setProperty('--depth', String(folder.depth));
-    const label = document.createElement('span');
-    label.className = 'option-label';
-    label.textContent = folder.title;
-    row.title = folder.title;
-    row.append(createIcon('folder', 14), label);
-    row.setAttribute('aria-selected', folder.id === chosenId ? 'true' : 'false');
-    row.tabIndex = -1;
-    row.addEventListener('click', () => { void pickFolder(folder.id); });
-    return row;
+    const trail: string[] = [];
+    const rows: FolderTreeRow[] = buildFolderRows(nodes as FolderTreeNode[], { mounts, excluded }).map((row) => {
+      trail.length = row.depth;
+      trail.push(row.title);
+      return { ...row, path: [...trail] };
+    });
+    tree.setSelected(chosenId);
+    tree.setRows(rows, await readFolderRecents());
   }
 
   /* A pick always applies at once, whatever the sync range — like the
