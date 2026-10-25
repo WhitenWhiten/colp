@@ -137,7 +137,7 @@ export function Digests() {
         breadcrumb={<Breadcrumb items={[{ label: 'Automations', to: '/automations' }, { label: 'Digests' }]} />}
         title="Digests"
         documentTitle="Digests"
-        lede="What your rules wrote: digests, reviews and summaries, newest first. Opening one marks it read."
+        lede="Digests, reviews and summaries your rules wrote, newest first."
       />
 
       {state.status === 'loading' && state.runs.length === 0 && <RouteState kind="loading" loadingLabel="Loading digests…" />}
@@ -145,7 +145,7 @@ export function Digests() {
         <EmptyState
           icon="file"
           title={state.cursor ? 'No digests in your recent automation activity' : 'No digests yet'}
-          description="When a rule asks an agent to write a digest or a review, it shows up here to read."
+          description="When a rule writes a digest or a review, it shows up here."
           action={<Link className="btn btn-secondary btn-sm" to="/automations">See your rules</Link>}
         />
       )}

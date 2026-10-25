@@ -160,7 +160,6 @@ export function WriteApprovalsView({ data }: { data: WriteApprovalsData }) {
           <EmptyState
             icon="check"
             title="Nothing waiting for you"
-            description="When an agent proposes a change to your library, it waits here for you."
             action={<Link to="/agents" className="btn btn-secondary btn-sm">Connect an agent</Link>}
           />
         )}
