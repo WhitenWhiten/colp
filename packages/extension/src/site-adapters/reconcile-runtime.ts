@@ -116,9 +116,10 @@ export const reconciliationRuns = createReconcileRuns(siteLedger.db, {
       await siteLedger.db.transaction(['folderReservations'], 'readwrite', async tx => {
         const key = sourceKey(previous.mountId, previous.collectionId), latest = await get<SourceFolderReservation>(tx, 'folderReservations', key);
         if (!latest || latest.native?.nativeId !== previous.native?.nativeId || latest.native?.dateAdded !== previous.native?.dateAdded) throw new Error('source_reconcile_conflict');
-        const restored = { ...latest, state: undo ? previous.state : 'confirmed', nativeTitle: receipt.written!.title,
+        const restored = undo ? { ...previous } : { ...latest, state: 'confirmed', nativeTitle: receipt.written!.title,
           locationOverride: { nativeId: parentNode.id, dateAdded: parentNode.dateAdded!, deviceId: receipt.native!.deviceId, kind: 'folder', bindingId: op.id,
             proof: { kind: 'explicitAdoption', id: run.id } } };
+        if (restored.shared && receipt.cloud) restored.shared = { ...restored.shared, controlRevision: receipt.cloud.controlRevision ?? 0 };
         put(tx, 'folderReservations', key, restored);
       }); return;
     }
@@ -131,6 +132,11 @@ export const reconciliationRuns = createReconcileRuns(siteLedger.db, {
       const current = await get<Representation>(tx, 'representations', representationKey(role));
       if (current && old && current.manualRevision !== old.manualRevision) throw new Error('source_reconcile_conflict');
       const suppress = undo && (op.decision.choice === 'restore' || op.decision.choice === 'adopt');
+      if (undo && old && !suppress) {
+        put(tx, 'representations', representationKey(role), { ...old,
+          ...(old.shared && receipt.cloud ? { shared: { ...old.shared, controlRevision: receipt.cloud.controlRevision ?? 0 } } : {}) });
+        return;
+      }
       if (!receipt.native || !receipt.written || suppress) {
         if (current) put(tx, 'representations', representationKey(role), { ...current, state: suppress ? 'suppressed' : current.state,
           ...(current.shared && receipt.cloud ? { shared: { ...current.shared, controlRevision: receipt.cloud.controlRevision ?? 0 } } : {}) }); return;
