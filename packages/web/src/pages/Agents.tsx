@@ -378,7 +378,7 @@ export function Agents({
                   icon="compass"
                   className="empty-state--compact empty-state--slot"
                   title="No agents yet"
-                  description="Connect Claude Code or Codex below, or issue a key for a script. Each agent shows up here with its own approval policy."
+                  description="Connect Claude Code or Codex below, or issue a key for a script."
                 />
               )}
               {agents.length > 0 && (

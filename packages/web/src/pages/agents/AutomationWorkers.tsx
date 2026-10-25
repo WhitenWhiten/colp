@@ -709,7 +709,7 @@ export function AutomationWorkersSection({
           icon="bolt"
           className="empty-state--compact empty-state--slot"
           title={revoked > 0 ? 'No active workers' : 'No workers yet'}
-          description="Rules that only file bookmarks need no worker. Add one when a rule asks an agent to summarize or tag."
+          description="Only rules that summarize or tag need one."
         />
       )}
 

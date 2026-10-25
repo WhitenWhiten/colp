@@ -83,7 +83,7 @@ export function TrashSection({
       {!error && items.length === 0 && receiptList.length === 0 && noticeList.length === 0
         && !batchView && !emptyView && (
         <EmptyState className="empty-state--compact empty-state--slot sync-empty" icon="trash" title="No deleted items"
-          description={`Bookmarks deleted in a synced browser wait here. Restoring puts them back in your library, and your browsers get them on their next sync.`} />
+          description="Bookmarks deleted in a synced browser wait here, ready to restore." />
       )}
       {(receiptList.length > 0 || noticeList.length > 0 || batchView || emptyView) && (
         <div className="trash-receipt-list">

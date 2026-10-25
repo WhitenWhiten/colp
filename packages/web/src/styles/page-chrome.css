@@ -373,11 +373,43 @@
   height: 1.5rem;
 }
 
+/* A section empty is one quiet row in the dashed slot where its items will
+   appear: the icon, the title with at most one short line under it, and the
+   action at the end. Below 40rem the action drops under the text. */
 .empty-state--slot {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'icon title action'
+    'icon text action';
+  align-items: center;
+  column-gap: var(--space-3);
+  row-gap: var(--hair-15);
   width: 100%;
-  padding-block: var(--space-6);
+  padding: var(--space-3) var(--space-4);
   border: 1px dashed var(--line-strong);
   border-radius: var(--radius-lg);
+  text-align: left;
+}
+
+.empty-state--slot:not(:has(> .empty-state-text)) { grid-template-areas: 'icon title action'; }
+.empty-state--slot > .empty-state-icon { grid-area: icon; width: 2.25rem; height: 2.25rem; }
+.empty-state--slot > .empty-state-icon svg { width: 1.125rem; height: 1.125rem; }
+.empty-state.empty-state--slot > h3 { grid-area: title; font-size: var(--text-md); font-weight: var(--weight-semibold); letter-spacing: normal; }
+.empty-state--slot > .empty-state-text { grid-area: text; max-width: none; font-size: var(--text-sm); }
+.empty-state--slot > .empty-state-actions { grid-area: action; justify-content: flex-end; margin: 0; }
+
+@media (max-width: 40rem) {
+  .empty-state--slot {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      'icon title'
+      'icon text'
+      '. action';
+  }
+
+  .empty-state--slot:not(:has(> .empty-state-text)) { grid-template-areas: 'icon title' '. action'; }
+  .empty-state--slot > .empty-state-actions { justify-content: flex-start; margin-top: var(--space-2); }
 }
 
 /* Line-art icons and animated illustrations share one medallion so every

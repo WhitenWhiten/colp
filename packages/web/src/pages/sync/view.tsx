@@ -46,8 +46,8 @@ export function SyncView({ data, mutations, trashBatch }: {
           title="Sync center"
           documentTitle="Sync"
           lede={isLive('collaborators')
-            ? 'Every browser that syncs with this server, the changes that need your decision, and what was deleted. The extension syncs your library, not collections shared with you.'
-            : 'Every browser that syncs with this server, the changes that need your decision, and what was deleted.'}
+            ? 'Your synced browsers, the changes that need your decision, and deleted bookmarks. The extension syncs your library, not collections shared with you.'
+            : 'Your synced browsers, the changes that need your decision, and deleted bookmarks.'}
           actions={
             <button type="button" className="btn btn-secondary btn-sm" disabled={loading || refreshing || retireBusy || restoreBusy}
               onClick={() => void load('refresh')}>{refreshing ? 'Refreshing…' : 'Refresh'}</button>
@@ -103,7 +103,7 @@ export function SyncView({ data, mutations, trashBatch }: {
                 className="empty-state--compact empty-state--slot sync-empty"
                 icon="browser"
                 title="No browsers syncing yet"
-                description="Install the browser extension and connect it to this server. Its bookmarks then sync with your library, and the browser shows up here with its last sync."
+                description="Install the browser extension and connect it to this server."
                 action={<Link to="/extension" className="btn btn-primary btn-sm">Connect a browser</Link>}
               />
             )
@@ -159,7 +159,7 @@ export function SyncView({ data, mutations, trashBatch }: {
                 className="empty-state--compact empty-state--slot sync-empty"
                 icon="check"
                 title="No open conflicts"
-                description="When a bookmark changes in two places at once, you choose which version stays here."
+                description="A bookmark changed in two places at once waits here for your choice."
               />
             )
               : <div className="conflict-list">
