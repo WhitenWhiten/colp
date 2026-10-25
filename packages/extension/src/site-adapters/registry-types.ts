@@ -9,6 +9,8 @@ export interface SiteDefinition {
   readScope?: 'document' | 'account';
   /** Missing means account-local content. Site-wide IDs must be explicitly qualified. */
   contentIdScope?: 'site' | 'account';
+  /** Qualified enumeration semantics. EOF/best-effort pages alone never prove absence. */
+  collectionSnapshot?: 'positiveOnly' | 'pointInTime';
   readPolicy?: Partial<import('./read-policy.js').SiteReadPolicy>;
   community?: { connectOrigins: readonly string[] };
   importResume: 'stableCursor' | 'restartAndDeduplicate';
