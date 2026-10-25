@@ -196,6 +196,7 @@ test('duplicate bookmarks complete first sync and stay independent; legacy dupli
 test('web Retry executes in MV3; result loss and browser restart retain the real server receipt', async () => {
   test.setTimeout(240000); const stack = await startRealStack({ web: true });
   const profile = await mkdtemp(resolve(tmpdir(), 'colp-resilience-retry-')); let context: BrowserContext | undefined;
+  let releaseRetry = () => {};
   try {
     context = await launch(profile, stack); let { page, web } = await setupBrowser(context, stack);
     const replicaId = await currentReplica(page);
@@ -208,15 +209,24 @@ test('web Retry executes in MV3; result loss and browser restart retain the real
       return engine?.phase === 'error' && engine?.lastError === 'need_authority' && engine?.circuitBreaker?.retryAt !== undefined;
     }, { timeout: 75000, intervals: [1000] }).toBe(true);
     await evidence(page, 'reportReplicaHealthEvidence'); await refresh(web);
-    await expect.poll(async () => (await status(web)).replicas.find((r: any) => r.id === replicaId).health)
+    await expect.poll(async () => (await status(web)).replicas.find((r: any) => r.id === replicaId)?.health)
       .toMatchObject({ state: 'degraded', code: 'need_authority', actions: ['retry'] });
     await expect(web.locator('.replica-card').filter({ hasText: 'hit repeated errors and is waiting to try again' }))
       .toContainText('need_authority');
+    // Hold the POST until the first status read: a click can finish before the
+    // server records the command, so polling must tolerate an empty command list.
+    const retryReady = new Promise<void>(resolve => { releaseRetry = resolve; });
+    await web.route(`**/api/v1/sync/replicas/${replicaId}/commands`, async route => {
+      await retryReady; await route.continue();
+    }, { times: 1 });
     await web.getByRole('button', { name: 'Retry', exact: true }).click();
-    await expect.poll(async () => (await status(web)).replicas.find((r: any) => r.id === replicaId).health.commands[0].state).toBe('pending');
+    await expect.poll(async () => {
+      try { return (await status(web)).replicas.find((r: any) => r.id === replicaId)?.health?.commands[0]?.state; }
+      finally { releaseRetry(); }
+    }).toBe('pending');
     stack.resilience!.setPullDenial(false); stack.resilience!.loseResultResponse();
     await evidence(page, 'reportReplicaHealthEvidence');
-    await expect.poll(async () => (await status(web)).replicas.find((r: any) => r.id === replicaId).health.commands[0].state).toBe('done');
+    await expect.poll(async () => (await status(web)).replicas.find((r: any) => r.id === replicaId)?.health?.commands[0]?.state).toBe('done');
     await context.close(); context = await launch(profile, stack);
     page = (await openExtensionOptions(context)).page;
     await evidence(page, 'reportReplicaHealthEvidence');
@@ -226,7 +236,7 @@ test('web Retry executes in MV3; result loss and browser restart retain the real
     expect(replica.health.commands).toHaveLength(1);
     expect(replica.health.commands[0]).toMatchObject({ state: 'done', resultCode: 'retry_completed' });
     expect(replica.health.state).toBe('syncing');
-  } finally { stack.resilience?.releaseCommandResponse(); await context?.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
+  } finally { releaseRetry(); stack.resilience?.releaseCommandResponse(); await context?.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
 });
 
 test('pending deletion allows unrelated live sync; delayed web Rebuild recognizes a local reset, then a normal web Rebuild archives and reports setup', async () => {
@@ -268,7 +278,7 @@ test('pending deletion allows unrelated live sync; delayed web Rebuild recognize
     const replacement = await currentReplica(page); expect(replacement).not.toBe(original);
     stack.resilience!.releaseCommandResponse();
     await evidence(page, 'reportReplicaHealthEvidence');
-    await expect.poll(async () => (await status(web)).replicas.find((r: any) => r.id === original).health.commands[0].state).toBe('done');
+    await expect.poll(async () => (await status(web)).replicas.find((r: any) => r.id === original)?.health?.commands[0]?.state).toBe('done');
     const retired = (await status(web)).replicas.find((r: any) => r.id === original);
     expect(retired.status).toBe('retired');
     expect(retired.health.code).toBe('replica_rebuilt');
@@ -283,7 +293,7 @@ test('pending deletion allows unrelated live sync; delayed web Rebuild recognize
     { timeout: 45000 }).toBe(true);
     await pendingDelete(page, stack, String(independent.url));
     await webRebuild(web); await evidence(page, 'reportReplicaHealthEvidence');
-    await expect.poll(async () => (await status(web)).replicas.find((r: any) => r.id === replacement).health.commands[0].state).toBe('done');
+    await expect.poll(async () => (await status(web)).replicas.find((r: any) => r.id === replacement)?.health?.commands[0]?.state).toBe('done');
     const final = (await status(web)).replicas.find((r: any) => r.id === replacement);
     expect(final.health.code).toBe('replica_rebuilt');
     expect(await currentReplica(page)).not.toBe(replacement);
