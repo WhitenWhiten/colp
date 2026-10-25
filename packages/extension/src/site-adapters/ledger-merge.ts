@@ -1,12 +1,13 @@
+import { legacySite } from './registry.js';
 import type { SiteCollection, SiteItem, SiteObservation } from './contracts.js';
 import type { LedgerEdge, SourceContext } from './ledger-types.js';
 import { get, put, rows, sourceKey } from './source-db.js';
 export async function mergeEntity(tx: IDBTransaction, kind: 'items' | 'collections', connectionId: string,
-  entity: SiteItem | SiteCollection, ordinal: number, baseline?: number) {
+  entity: SiteItem | SiteCollection, ordinal: number, baseline?: number, context?: SourceContext) {
   const key = sourceKey(connectionId, entity.id);
   const current = await get<{ entity: typeof entity; ordinal: number }>(tx, kind, key);
   if (baseline !== undefined && current && current.ordinal > baseline) return;
-  put(tx, kind, key, { entity, ordinal });
+  put(tx, kind, key, { entity, ordinal, ...(kind === 'collections' && context ? { source: { installationId: context.installationId ?? legacySite.adapterId, installationGeneration: context.installationGeneration, sourceSessionGeneration: context.sourceSessionGeneration } } : {}) });
 }
 export async function mergeEdge(tx: IDBTransaction, ctx: SourceContext, itemId: string, collectionId: string,
   state: 'present' | 'absent', ordinal: number, observationId: string, baseline?: number) {
@@ -23,7 +24,7 @@ export async function mergeEdge(tx: IDBTransaction, ctx: SourceContext, itemId: 
 export async function mergeObservation(tx: IDBTransaction, ctx: SourceContext, o: SiteObservation, ordinal: number, observationId: string) {
   if (o.type === 'favorite.uncertain') return;
   if (o.type === 'catalog.upsert') {
-    for (const c of o.collections ?? []) await mergeEntity(tx, 'collections', ctx.connectionId, c, ordinal);
+    for (const c of o.collections ?? []) await mergeEntity(tx, 'collections', ctx.connectionId, c, ordinal, undefined, ctx);
     for (const i of o.items ?? []) await mergeEntity(tx, 'items', ctx.connectionId, i, ordinal);
     return;
   }

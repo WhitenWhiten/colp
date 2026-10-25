@@ -6,8 +6,8 @@ import { validHostCommand, validAdapterMessage } from './schemas.js';
 import { readLimits } from './read-policy.js';
 import type { SiteDefinition } from './registry-types.js';
 import { createPageContext } from './page-context.js';
-import type { AdapterMessage, BootstrapReply, HostCommand, ReadFailure, SourceIdentityClaim, SiteAdapter, AdmissionReply, SiteObservation, MembershipHint, CaptureControlRequest } from './contracts.js';
-export function startAdapterRuntime(definition: SiteDefinition, createAdapter: () => SiteAdapter) {
+import type { AdapterMessage, BootstrapReply, HostCommand, ReadFailure, SourceIdentityClaim, SiteAdapter, SiteAdapterFactory, AdmissionReply, SiteObservation, MembershipHint, CaptureControlRequest } from './contracts.js';
+export function startAdapterRuntime(definition: SiteDefinition, createAdapter: SiteAdapterFactory) {
   const LIMITS = readLimits(definition);
   // Retire the pre-registry runtime during an in-place extension upgrade.
   window.dispatchEvent(new Event('known-site-adapter-stop'));
@@ -15,7 +15,7 @@ export function startAdapterRuntime(definition: SiteDefinition, createAdapter: (
   const stopEvent = `known-site-adapter-stop:${definition.adapterId}`, routeEvent = `known-site-route:${definition.adapterId}`;
   const scope = globalThis as typeof globalThis & Record<string, { restart(): void; version?: number } | undefined>;
   if (matchesSiteUrl(definition, location.href) && window.top === window) {
-    if (scope[slot] && scope[slot].version !== 4) window.dispatchEvent(new Event(stopEvent));
+    if (scope[slot] && scope[slot].version !== 5) window.dispatchEvent(new Event(stopEvent));
     if (scope[slot]) scope[slot].restart();
     else {
       let controller: AbortController | null = null, port: chrome.runtime.Port | null = null, timer: ReturnType<typeof setTimeout> | undefined;
@@ -25,7 +25,7 @@ export function startAdapterRuntime(definition: SiteDefinition, createAdapter: (
       const reset = (preserve: boolean) => { removeHints(); removeHints = () => {}; epoch++; controller?.abort(); controller = null; const oldPort = port; port = null; oldPort?.disconnect(); clearTimeout(timer); if (!preserve) { reader?.clear?.(); reader = null; readerEpoch = undefined; } };
       const stop = () => reset(false);
       const begin = (preserve: boolean) => { reset(preserve); const current = epoch; controller = new AbortController(); const signal = controller.signal;
-        reader ??= createAdapter();
+        reader ??= createAdapter(Object.freeze({ readPolicy: LIMITS }));
         validateAdapterImplementation(definition, reader);
         const localReader = reader;
         void (async () => {
@@ -122,7 +122,7 @@ export function startAdapterRuntime(definition: SiteDefinition, createAdapter: (
         })().catch(() => { if (epoch === current) recover(); });
       };
       const recover = () => {
-        if (++failures > LIMITS.attempts) { deactivate(); return; }
+        if (++failures > LIMITS.commandAttempts) { deactivate(); return; }
         reset(false); timer = setTimeout(() => begin(false), LIMITS.spacingMs * failures);
       };
       const restart = () => { window.dispatchEvent(new Event(routeEvent)); begin(false); };
@@ -133,7 +133,7 @@ export function startAdapterRuntime(definition: SiteDefinition, createAdapter: (
         window.removeEventListener(stopEvent, deactivate);
         delete scope[slot];
       };
-      scope[slot] = { restart, version: 4 };
+      scope[slot] = { restart, version: 5 };
       window.addEventListener(stopEvent, deactivate);
       window.addEventListener('pagehide', stop); window.addEventListener('pageshow', restart);
       window.addEventListener('popstate', restart); window.addEventListener('hashchange', restart);

@@ -36,3 +36,25 @@ export function createPostsAdapter(page: SourcePage<SiteCollection> = { items: [
     importResume: 'stableCursor',
   };
 }
+
+/** Reads the supplied document, never a global document or fixed membership result. */
+export function createDomPostsAdapter(): SiteAdapter {
+  const visible = (document: Document, id?: string) => {
+    const node = Array.from(document.querySelectorAll<HTMLElement>('[data-post-id]')).find(n => !id || n.dataset.postId === id || n.dataset.url === id);
+    return node ? { ...post, id: node.dataset.postId!, title: node.dataset.title ?? '', url: node.dataset.url! } : null;
+  };
+  return {
+    detectSource: async ({ document }) => document.documentElement.dataset.account ? { state: 'signedIn', accountId: document.documentElement.dataset.account } : { state: 'signedOut' },
+    async start(ctx) { return ctx.dom.on(ctx.document, 'click', '[data-favorite]', () => {
+      const item = visible(ctx.document); if (item) void ctx.hint({ interactionId: crypto.randomUUID(), itemId: item.id, added: [saved.id], removed: [], code: 0 });
+    }); },
+    resolveItem: async (ctx, url) => { const item = visible(ctx.document, url); return item?.url === url ? { status: 'resolved', item } : { status: 'unresolved', reason: 'pageUnavailable' }; },
+    readMemberships: async (ctx, query) => ({ status: 'ok', itemId: query.itemId, edges: query.collectionIds.map(collectionId => {
+      const article = Array.from(ctx.document.querySelectorAll<HTMLElement>('[data-post-id]')).find(n => n.dataset.postId === query.itemId);
+      const edge = article && Array.from(article.querySelectorAll<HTMLElement>('[data-collection-id]')).find(n => n.dataset.collectionId === collectionId);
+      return edge && ['true', 'false'].includes(edge.dataset.present ?? '')
+        ? { collectionId, state: edge.dataset.present === 'true' ? 'present' : 'absent', evidence: { kind: 'refreshedDom', detector: 'fixture-dom' } }
+        : { collectionId, state: 'unknown', reason: 'notVisible' };
+    }) }),
+  };
+}

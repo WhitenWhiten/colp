@@ -1,3 +1,5 @@
+import { siteFeatures } from './capabilities.js';
+import { observedCatalog } from './observed-catalog.js';
 import { array, integer, jsonBytes, literal, object, str } from './schema.js';
 import { legacySite, type SiteDefinition } from './registry.js';
 import type { createSourceLedger } from './ledger.js';
@@ -28,14 +30,14 @@ interface ArchiveConfig { connectionId: string; ruleId: string; root: NativeBind
   copies?: import('./contracts.js').SavePolicy['copies']; primarySourceCollectionId?: string | null; aiDestination?: 'excluded' | 'allowed' }
 interface RuntimePorts {
   source(): Promise<{ context: SourceContext; expiresAt: number } | null>;
-  readSource(): Promise<{ context: SourceContext; expiresAt: number } | null>;
+  readSource(origin?: SourceContext): Promise<{ context: SourceContext; expiresAt: number } | null>;
   catalog(): Promise<readonly SiteCollection[]>;
   send(context: SourceContext, command: HostCommand): void;
   prioritizeLive(): Promise<void>;
   alarm(at: number): void;
 }
 export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadScheduler>, ports: RuntimePorts, ledger: ReturnType<typeof createSourceLedger> = siteLedger, definition: SiteDefinition = legacySite) {
-  const configureSchema = configureSchemaFor(definition);
+  const configureSchema = configureSchemaFor(definition), features = siteFeatures(definition);
   const db = ledger.db, configureLane = createLane();
   const configKey = (id: string) => `archiveConfig:${id}`;
   const live = createLiveSourcePlanner(db, sourceLayout, (delay = 100) => ports.alarm(Date.now() + delay), definition);
@@ -58,10 +60,15 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
   return {
     importer, live,
     valid: (v: unknown) => jsonBytes(v, 16384) && [configureSchema, disableSchema, startSchema, changeSchema, approveSchema].some(s => s(v)),
-    async status() { return { config: await config() ?? null, import: await importer.status() }; },
+    async status() {
+      const source = !features.collections && features.observe ? await ports.source() : null;
+      return { config: await config() ?? null, import: await importer.status(),
+        ...(!features.collections && features.observe ? { catalog: source ? await observedCatalog(ledger, source.context) : [], catalogCoverage: 'observedOnly' as const } : {}) };
+    },
     async handle(raw: unknown) {
       if (configureSchema(raw)) return configureLane(async () => {
         const input = raw as { rootNativeId: string; collectionIds: readonly string[]; live: boolean; copies?: import('./contracts.js').SavePolicy['copies']; primarySourceCollectionId?: string | null; aiDestination?: 'excluded' | 'allowed' }, source = await ports.source();
+        if (!features.archive || input.live && !features.liveArchive) throw new Error('unsupported');
         if (!source) throw new Error('pageUnavailable');
         if (!await chrome.permissions.contains({ permissions: ['bookmarks'] })) throw new Error('permissionRequired');
         const node = (await chrome.bookmarks.get(input.rootNativeId))[0];
@@ -69,7 +76,7 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
         const binding: NativeBinding<'folder'> = { bindingId: crypto.randomUUID(), nativeId: node.id, kind: 'folder', dateAdded: node.dateAdded,
           deviceId: await captureDeviceId(), proof: { kind: 'explicitAdoption', id: crypto.randomUUID() } };
         await assertPlannedNative(binding);
-        const catalog = await ports.catalog(), selected = catalog.filter(c => input.collectionIds.includes(c.id));
+        const catalog = features.collections ? await ports.catalog() : await observedCatalog(ledger, source.context), selected = catalog.filter(c => input.collectionIds.includes(c.id));
         if (selected.length !== input.collectionIds.length) throw new Error('refreshCatalogRequired');
         if (input.primarySourceCollectionId && !input.collectionIds.includes(input.primarySourceCollectionId)) throw new Error('invalidPrimaryCollection');
         const c = source.context, old = await db.read<ArchiveConfig>('meta', configKey(c.connectionId));
@@ -85,7 +92,7 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
         const mount = await sourceLayout.bindRoot(c.connectionId, saved.rule.id, node.id);
         await sourceLayout.configureMount(c.connectionId, saved.rule.id, input.aiDestination ?? 'excluded');
         for (let offset = 0; offset < selected.length; offset += 32) {
-          const receipt = await ledger.acceptObservation(c, crypto.randomUUID(), { type: 'catalog.upsert', collections: selected.slice(offset, offset + 32) });
+          const receipt = await ledger.acceptCatalog(c, crypto.randomUUID(), selected.slice(offset, offset + 32));
           if (receipt.status === 'rejected') throw new Error(receipt.reason);
         }
         const oldPolicy = await db.read<SourcePolicyRecord>('meta', `policy:${c.connectionId}`);
@@ -106,6 +113,7 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
         return { configured: false };
       });
       if (startSchema(raw)) {
+        if (!features.import) throw new Error('unsupported');
         const c = await config(); if (c?.state !== 'active') throw new Error('chooseArchiveRoot');
         return { importId: await importer.start(c.collectionIds) };
       }

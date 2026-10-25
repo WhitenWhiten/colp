@@ -1,3 +1,5 @@
+import { siteFeatures } from './capabilities.js';
+import { renderSiteCapabilities } from './settings-capabilities.js';
 import { selectedSite, sendSiteMessage, mountSiteSelector, siteButton, siteRow, offer } from './settings-client.js';
 import { hydrateIcons } from '../icons.js';
 import { localizePage, onUiLanguageChanged, t, tn } from '../i18n.js';
@@ -11,7 +13,7 @@ interface SiteStatus { inspectionStatus?: { status: string; retryAfterMs?: numbe
   confirmations?: { pending: number; paused?: unknown }; archiveHold?: string | null;
   browser?: { minimum: number; major: number | null; supported: boolean }; grants?: { site: boolean; bookmarks: boolean };
   inspection?: { command: { deadlineAt: number; operation?: string; pageRequestId?: string; query?: { cursor: string | null } }; result?: { status: string; kind?: string; item?: { title?: string }; page?: { items: { id: string; title: string }[]; nextCursor: string | null } } };
-  archive?: { config: { root: { nativeId: string }; collectionIds: readonly string[]; live: boolean; state: string; copies?: string; primarySourceCollectionId?: string | null; aiDestination?: string } | null; import: ImportStatus | null } }
+  archive?: { catalog?: { id: string; title: string }[]; catalogCoverage?: 'observedOnly'; config: { root: { nativeId: string }; collectionIds: readonly string[]; live: boolean; state: string; copies?: string; primarySourceCollectionId?: string | null; aiDestination?: string } | null; import: ImportStatus | null } }
 const root = document.querySelector<HTMLSelectElement>('#archive-root')!, collections = document.querySelector<HTMLSelectElement>('#archive-collections')!;
 let lastImport: ImportStatus | null = null, lastCatalog: string | undefined, lastConfig: string | undefined;
 let activeRoot = '', nextCatalog: string | null = null;
@@ -22,14 +24,16 @@ const button = (id: string) => document.querySelector<HTMLButtonElement>(`#${id}
 const text = (id: string, value: string) => { document.querySelector(`#${id}`)!.textContent = value; };
 // Static copy is marked data-i18n; the lines that name the site are filled here. A language change reloads the page, as the options page does.
 localizePage(); onUiLanguageChanged(() => location.reload());
-const siteName = selectedSite.label;
+const siteName = selectedSite.label, features = siteFeatures(selectedSite);
 text('sites-lede', selectedSite.negativeReadback
   ? t('sites_ledeWithNegativeReadback', 'Connect $1, inspect its collections, and choose a local archive root. Source archives use no AI. Membership removals can be verified; existing archives are retained.', siteName)
   : t('sites_lede', 'Connect $1, inspect its collections, and choose a local archive root. Source archives use no AI. Negative membership readback is unavailable; removals retain existing archives.', siteName));
 text('inspector-title', t('sites_inspectorTitle', '$1 inspector', siteName));
 text('inspector-hint', t('sites_inspectorHint', 'Reads the $1 pages you open. Needs Chrome 149 or later and access to the site.', siteName));
 text('connection', t('sites_turnOnThenOpen', 'Turn on the inspector, then open $1 while signed in.', siteName));
-text('sites-collections-lede', t('sites_collectionsLede', 'Read your collections and the current video from an open $1 tab.', siteName));
+text('sites-collections-lede', features.collections ? t('sites_collectionsLede', 'Read your collections and the current item from an open $1 tab.', siteName)
+  : t('sites_observedCatalogHint', 'Only collections observed in the current source session are shown. Refresh after observing more collections.'));
+renderSiteCapabilities(document, selectedSite);
 button('enable').setAttribute('aria-label', t('sites_enableInspector', 'Enable $1 inspector', siteName)); button('disable').setAttribute('aria-label', t('sites_disableInspector', 'Disable $1 inspector', siteName));
 // Back to the settings pane the page was opened from.
 if (document.referrer.startsWith(new URL('options.html', location.href).href)) document.querySelector<HTMLAnchorElement>('#sites-back')!.href = document.referrer;
@@ -80,12 +84,16 @@ function paintImport(job: ImportStatus | null) {
 }
 function renderArchive(result: SiteStatus) {
   const catalog = result.inspection;
-  if (catalog?.result?.status === 'ok' && catalog.result.kind === 'collections' && catalog.result.page && catalog.command.pageRequestId !== lastCatalog) {
-    lastCatalog = catalog.command.pageRequestId;
-    if (!catalog.command.query?.cursor) catalogItems.clear();
-    for (const c of catalog.result.page.items) catalogItems.set(c.id, c);
-    nextCatalog = catalog.result.page.nextCursor; offer(button('next-catalog'), !!nextCatalog);
-    text('catalog-summary', nextCatalog ? tn('sites_collectionsReadMore', catalogItems.size, '$1 collection read; more are available.', '$1 collections read; more are available.')
+  const observed = !features.collections ? result.archive?.catalog : undefined;
+  const page = observed ? { items: observed, nextCursor: null } : catalog?.result?.status === 'ok' && catalog.result.kind === 'collections' ? catalog.result.page : undefined;
+  const signature = observed ? `observed:${JSON.stringify(observed)}` : catalog?.command.pageRequestId;
+  if (page && signature !== lastCatalog) {
+    lastCatalog = signature;
+    if (observed || !catalog?.command.query?.cursor) catalogItems.clear();
+    for (const c of page.items) catalogItems.set(c.id, c);
+    nextCatalog = page.nextCursor; offer(button('next-catalog'), features.collections && !!nextCatalog);
+    text('catalog-summary', observed ? tn('sites_collectionsObserved', catalogItems.size, '$1 collection observed.', '$1 collections observed.')
+      : nextCatalog ? tn('sites_collectionsReadMore', catalogItems.size, '$1 collection read; more are available.', '$1 collections read; more are available.')
       : tn('sites_collectionsRead', catalogItems.size, '$1 collection read.', '$1 collections read.'));
 
     const primary = document.querySelector<HTMLSelectElement>('#archive-primary')!, chosenPrimary = primary.value;
@@ -95,23 +103,23 @@ function renderArchive(result: SiteStatus) {
       o.selected = collectionSelection.has(c.id); return o; }));
   }
   if (catalog?.command.operation === 'resolveItem' && catalog.result)
-    text('item-summary', catalog.result.status !== 'resolved' ? t('sites_noVideo', 'No single video was found in the active tab.')
-      : catalog.result.item?.title ? t('sites_foundVideo', 'Found “$1”.', catalog.result.item.title) : t('sites_foundThisVideo', 'Found this video.'));
+    text('item-summary', catalog.result.status !== 'resolved' ? t('sites_noItem', 'No single item was found in the selected source tab.')
+      : catalog.result.item?.title ? t('sites_foundItem', 'Found “$1”.', catalog.result.item.title) : t('sites_foundThisItem', 'Found this item.'));
   if (!result.archive) return;
   const { config, import: job } = result.archive; lastImport = job;
-  const signature = JSON.stringify(config);
-  if (signature !== lastConfig) { lastConfig = signature; collectionSelection.clear(); for (const id of config?.collectionIds ?? []) collectionSelection.add(id);
+  const configSignature = JSON.stringify(config);
+  if (configSignature !== lastConfig) { lastConfig = configSignature; collectionSelection.clear(); for (const id of config?.collectionIds ?? []) collectionSelection.add(id);
     for (const o of Array.from(collections.options)) o.selected = collectionSelection.has(o.value);
     activeRoot = config?.root.nativeId ?? '';
     if (Array.from(root.options).some(o => o.value === activeRoot)) root.value = activeRoot;
-    setSwitch('archive-live', config?.live ?? false);
+    setSwitch('archive-live', features.liveArchive && (config?.live ?? false));
     copies.value = config?.copies ?? 'sourceAndSemantic'; paintCopies();
     document.querySelector<HTMLSelectElement>('#archive-primary')!.value = config?.primarySourceCollectionId ?? '';
     setSwitch('archive-ai', config?.aiDestination === 'allowed');
   }
   lastArchive = config; paintArchiveSummary();
   offer(button('disable-archive'), config?.state === 'active');
-  offer(button('start-import'), config?.state === 'active' && (!job || ['cancelled', 'completed'].includes(job.phase)));
+  offer(button('start-import'), features.import && config?.state === 'active' && (!job || ['cancelled', 'completed'].includes(job.phase)));
   offer(button('freeze-import'), !!job && ['scanning', 'paused', 'preview', 'attention'].includes(job.phase));
   button('freeze-import').textContent = job?.phase === 'preview' || job?.phase === 'attention' ? t('sites_refreshPreview', 'Refresh preview') : t('sites_buildPreview', 'Stop and build preview');
   offer(button('resume-import'), job?.phase === 'paused');
@@ -131,7 +139,7 @@ async function loadRoots() {
   // Granted, the button only reloads the folder list.
   grant.className = allowed ? 'btn btn-ghost btn-sm' : 'btn btn-secondary btn-sm'; grant.textContent = allowed ? t('sites_reloadFolders', 'Reload folders') : t('common_allowBookmarkAccess', 'Allow bookmark access');
   root.disabled = !allowed; text('archive-root-hint', allowed ? t('sites_archiveRootHint', 'The bookmark folder that holds the archive.') : t('sites_allowToChoose', 'Allow bookmark access to choose a folder.'));
-  if (!allowed) return;
+  if (!allowed || !features.archive) return;
   const selected = root.value || activeRoot; const options: HTMLOptionElement[] = [];
   const walk = (nodes: readonly chrome.bookmarks.BookmarkTreeNode[], path: string[]) => {
     for (const node of nodes) { if (node.url) continue; const next = node.title ? [...path, node.title] : path;
@@ -173,6 +181,7 @@ async function send(message: unknown) {
   if (result.browser) button('enable').disabled = !result.browser.supported;
   paintConnection(result);
   renderArchive(result);
+  renderSiteCapabilities(document, selectedSite, !!result.archive?.import, !!result.archive?.config);
   if (result.archive?.import && ['scanning', 'preparing', 'approved'].includes(result.archive.import.phase) || result.confirmations?.pending || result.inspection && !result.inspection.result && result.inspection.command.deadlineAt > Date.now())
     refreshTimer = setTimeout(() => { void send({ kind: 'known.siteAdapters.status' }); }, 500);
   return result;

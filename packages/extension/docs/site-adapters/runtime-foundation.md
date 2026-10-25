@@ -78,3 +78,24 @@ Confirmation reads persist their baseline ordinal with the active command before
 `tests/fixtures/site-adapters/posts.ts` supplies a separate test-only `SiteAdapter`: DOM confirmation, post resources, string account/collection/item IDs, qualified negative evidence and stable item-page cursors. Focused tests exercise it through the page SDK/runtime, archive configuration, confirmation queue and durable ledger. This supplements rather than replaces real-site qualification; X and YouTube remain unimplemented. Bundled Bilibili negative readback remains unavailable.
 
 Follow-up checks and limits are recorded in [foundation follow-up evidence](evidence/foundation-follow-up.json).
+
+## Document-scoped readers and capability subsets
+
+`SiteDefinition.readScope` defaults to `document`. Host confirmation reads prefer the hint's exact document and route, including lease renewal on that document. They never switch a DOM reader to another tab. A missing document receives a bounded reconnect wait and then a visible `pageUnavailable` outcome. Only an explicitly qualified `account` reader may fall back to another document of the same source generation; Bilibili declares this profile. Import continuations also prefer their existing document, preserving their existing restart/resume fences.
+
+Page runtime generation 5 retires older injected runtimes during an in-place upgrade. Every `SiteAdapterFactory` receives immutable `AdapterServices.readPolicy` before source detection. `spacingMs` controls command pacing and remains the default for `requestSpacingMs`; actual requests have separate spacing, timeout, retry, backoff, automatic-wait and response-byte budgets. `commandAttempts` controls host command retries. Host scheduling never spaces commands more closely than the request minimum. Bilibili's HTTP reader applies the supplied policy to bootstrap and every command-internal request. Site-specific endpoint and response projection code remains local to the adapter; applying this policy is part of adapter qualification, not a sandbox for arbitrary network code.
+
+The shared feature map distinguishes primitives from workflows:
+
+| Feature | Required capabilities |
+| --- | --- |
+| Live archive | `observeFavorites`, plus user-selected current stable collection facts |
+| Import | `enumerateCollections` and `enumerateItems` |
+| Hint confirmation | `observeFavorites`, `readMemberships` and `resolveItem` |
+| Current-item inspection | `resolveItem` |
+
+Observation-only adapters can emit `catalog.upsert` during DOM discovery. Archive settings display these facts explicitly as **observed only**, scoped to the current connection and installation/source generations. Historical or foreign catalog rows cannot populate this setup path. Enumeration-only adapters can configure imports without an `emit` capability: host ingestion of an already validated catalog uses a separate ledger entry point. Unsupported controls are hidden, existing jobs retain cancellation/recovery, and settings use item-neutral copy. These changes add no nested collection, injected capture-control or named background-reader capability.
+
+Cloud scope reviews use a v2 key containing installation/identity, source connection and a cloud-owner digest (server, account, library, replica and generation). Old unscoped reviews are inert; users create fresh reviews. Committed plans, native proof and recovery receipts are unchanged. Parallel reviews and reverse-order approvals are tested through two real cloud runtime instances with a controlled server port.
+
+The test-only DOM reader now reads account, item and membership attributes from each supplied document. Regression tests cover two same-site documents, disappearance of the hint origin, explicitly allowed account-wide fallback, parallel site queues with identical IDs and independent pauses, observation-only live planning, enumeration-only setup, UI capability gating, HTTP policy propagation, and cloud review isolation. Controlled Chromium coverage additionally sends a hint from the second Bilibili tab and verifies that its membership request runs in that tab. See [capability foundation evidence](evidence/foundation-capabilities.json).

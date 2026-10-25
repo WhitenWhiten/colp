@@ -1,3 +1,5 @@
+import { selectReadLease } from './read-source.js';
+import { siteFeatures } from './capabilities.js';
 import { reconcileBundledScripts } from './browser-registration.js';
 import { matchesSiteUrl } from './registry-validation.js';
 import { createCloudRuntime } from './cloud-runtime.js';
@@ -52,8 +54,8 @@ function createSiteHost(definition: SiteDefinition) {
       const frame = await chrome.webNavigation.getFrame({ tabId: s.tab.id, frameId: 0 }).catch(() => null);
       return frame && frame.documentId === s.documentId && matchesSiteUrl(definition, frame.url) && frame.documentLifecycle === 'active' ? frame.url : null;
     } }, definition);
-  const activation = createReadScheduler(chrome.storage.local, installationKey('known.siteAdapters.activation.v1', definition), Date.now, LIMITS.spacingMs);
-  const reads = createReadScheduler(chrome.storage.local, installationKey('known.siteAdapters.readQueue.v1', definition), Date.now, LIMITS.spacingMs);
+  const activation = createReadScheduler(chrome.storage.local, installationKey('known.siteAdapters.activation.v1', definition), Date.now, Math.max(LIMITS.spacingMs, LIMITS.requestSpacingMs));
+  const reads = createReadScheduler(chrome.storage.local, installationKey('known.siteAdapters.readQueue.v1', definition), Date.now, Math.max(LIMITS.spacingMs, LIMITS.requestSpacingMs));
   const INSPECTION = installationKey('known.siteAdapters.inspection.v1', definition), CATALOG = installationKey('known.siteAdapters.catalog.v1', definition);
   interface CatalogCache { context: string; items: import('./contracts.js').SiteCollection[]; nextCursor: string | null; outstanding: string | null }
   const catalogContext = (c: import('./ledger-types.js').SourceContext) => JSON.stringify([c.connectionId, c.installationGeneration, c.sourceSessionGeneration, c.documentId, c.routeEpoch]);
@@ -104,7 +106,7 @@ function createSiteHost(definition: SiteDefinition) {
         if (combined.length > 2000 || new Set(combined.map(c => c.id)).size !== combined.length) return false;
         catalog = { ...cache, items: combined, outstanding: null, nextCursor: message.result.page.nextCursor };
         for (let offset = 0; offset < message.result.page.items.length; offset += 32) {
-          const accepted = await siteLedger.acceptObservation(context, `inspection-catalog:${message.requestId}:${offset}`, { type: 'catalog.upsert', collections: message.result.page.items.slice(offset, offset + 32) });
+          const accepted = await siteLedger.acceptCatalog(context, `inspection-catalog:${message.requestId}:${offset}`, message.result.page.items.slice(offset, offset + 32));
           if (accepted.status === 'rejected') return false;
         }
       } else catalog = { ...cache, outstanding: null, nextCursor: null };
@@ -122,25 +124,25 @@ function createSiteHost(definition: SiteDefinition) {
     chrome.alarms.create(recoveryAlarm, { when: at });
     workTimer = setTimeout(() => { workAt = Infinity; workTimer = undefined; void wakeSourceWork().catch(() => undefined); }, Math.max(50, at - Date.now()));
   }
-  async function currentSiteSource(tabId?: number) {
-    const s = await read(), lease = s.leases.find(l => l.expiresAt > Date.now() && ports.has(l.id) && (tabId === undefined || l.tabId === tabId));
+  async function currentSiteSource(tabId?: number, origin?: import('./ledger-types.js').SourceContext) {
+    const s = await read(), lease = selectReadLease(definition, s.leases, id => ports.has(id), Date.now(), origin, tabId);
     return lease ? { context: await sourceContext(lease, siteLedger), expiresAt: lease.expiresAt } : null;
   }
   const sendSiteCommand = (c: import('./ledger-types.js').SourceContext, command: HostCommand) => {
     const port = ports.get(c.leaseId); if (!port) throw new Error('pageUnavailable'); port.postMessage(command);
   };
   let renewingLease: string | undefined;
-  async function readableSiteSource(tabId?: number) {
-    const source = await currentSiteSource(tabId); if (!source) return null;
+  async function readableSiteSource(tabId?: number, origin?: import('./ledger-types.js').SourceContext) {
+    const source = await currentSiteSource(tabId, origin); if (!source) return null;
     if (source.expiresAt - Date.now() < LIMITS.commandMs + 1000 && ((await reads.current()).active?.deadlineAt ?? 0) <= Date.now()) {
       if (renewingLease !== source.context.leaseId) { renewingLease = source.context.leaseId; sendSiteCommand(source.context, { operation: 'renewLease', leaseId: source.context.leaseId }); }
       scheduleSourceWork(Date.now() + LIMITS.spacingMs); return null;
     }
     return source;
   }
-  const confirmations = createConfirmationQueue(siteLedger, reads, { source: readableSiteSource, send: sendSiteCommand, alarm: scheduleSourceWork,
+  const confirmations = createConfirmationQueue(siteLedger, reads, { source: origin => readableSiteSource(undefined, origin), send: sendSiteCommand, alarm: scheduleSourceWork,
     authorizeOrigin: async (context, collectionIds) => { if (context.communityOrigin) await assertCommunityArchive(context.communityOrigin, { connectionId: context.connectionId, collectionIds }); } });
-  const archives = createSourceArchiveRuntime(reads, { source: currentSiteSource, readSource: readableSiteSource, send: sendSiteCommand, alarm: scheduleSourceWork,
+  const archives = createSourceArchiveRuntime(reads, { source: currentSiteSource, readSource: origin => readableSiteSource(undefined, origin), send: sendSiteCommand, alarm: scheduleSourceWork,
     prioritizeLive: () => confirmations.wake(),
     catalog: async () => {
       const source = await currentSiteSource(), cache = (await chrome.storage.local.get(CATALOG))[CATALOG] as CatalogCache | undefined;
@@ -284,8 +286,8 @@ function createSiteHost(definition: SiteDefinition) {
         if (archiveState.config) try { await assertSourceRebound(siteLedger.db, archiveState.config.connectionId); } catch (e) { archiveHold = e instanceof Error ? e.message : 'sourceNeedsReview'; }
         const writes = !archiveHold && browserSupport().supported && siteStatus.enabled && siteStatus.connected && archiveState.config?.state === 'active' && await chrome.permissions.contains({ permissions: ['bookmarks'] });
         return { ...siteStatus, browser: browserSupport(), grants: { site: await chrome.permissions.contains(grants), bookmarks: await chrome.permissions.contains({ permissions: ['bookmarks'] }) },
-          mode: writes ? 'localArchive' : 'inspector', writes, archiveHold, archive: archiveState, ...(archiveResult ? { archiveResult } : {}), adapterId: definition.adapterId, capabilities: { itemIdentity: `${definition.siteKey}:${definition.identityVersion}`, observation: 'freshPositiveMembership', humanActionProof: 'unavailable',
-          negativeMembership: definition.negativeReadback ? 'available' : 'unavailable', shortLinks: 'unavailable', collectionChanges: 'explicitCatalogRead', nativeWrites: archiveState.config?.state === 'active' ? 'previewApprovalOrEnabledLivePolicy' : 'unavailable' },
+          mode: writes ? 'localArchive' : 'inspector', writes, archiveHold, archive: archiveState, ...(archiveResult ? { archiveResult } : {}), adapterId: definition.adapterId, features: siteFeatures(definition), capabilities: { itemIdentity: `${definition.siteKey}:${definition.identityVersion}`, observation: siteFeatures(definition).observe ? 'sourceObservations' : 'unavailable', humanActionProof: 'unavailable',
+          negativeMembership: definition.negativeReadback ? 'available' : 'unavailable', shortLinks: 'unavailable', collectionChanges: siteFeatures(definition).collections ? 'explicitCatalogRead' : siteFeatures(definition).observe ? 'observedCatalog' : 'unavailable', nativeWrites: archiveState.config?.state === 'active' ? 'previewApprovalOrEnabledLivePolicy' : 'unavailable' },
         confirmations: await confirmations.status(), ...(inspectionStatus ? { inspectionStatus } : {}), inspection: (await chrome.storage.local.get(INSPECTION))[INSPECTION] ?? null };
       })().then(respond, e => respond({ error: e instanceof Error ? e.message : 'unavailable' })); return true;
     });

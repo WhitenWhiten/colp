@@ -1,3 +1,4 @@
+import { cloudReviewKey } from './cloud-review.js';
 import { legacySite, type SiteDefinition } from './registry.js';
 import { installationKey } from './installation.js';
 import { captureTarget } from '../sw/capture-target.js';
@@ -132,12 +133,13 @@ async function handleCloudManagement(raw: unknown) {
       const s = await snapshot(), server = await api.call<{ connections: { site?: string; identityVersion?: number; sourceAccount: string; epoch: number; lease: { replicaId: string; expiresAt: number } | null }[] }>('status', {});
       const c = server.connections.find(c => c.sourceAccount === s.scope.sourceAccount && (c.site ?? legacySite.siteKey) === s.scope.site && (c.identityVersion ?? legacySite.identityVersion) === s.scope.identityVersion), expectedEpoch = c?.epoch ?? 0;
       const review = { snapshot: s, expectedEpoch, digest: sourceDigest({ scope: s.scope, replicaId: owner.replicaId, expectedEpoch }) };
-      await db.transaction(['meta'], 'readwrite', async tx => put(tx, 'meta', 'sourceCloudReview', { ...review, expiresAt: Date.now() + 600000 }));
+      await db.transaction(['meta'], 'readwrite', async tx => put(tx, 'meta', cloudReviewKey(definition, s.owner, s.authority.connectionId!), { ...review, expiresAt: Date.now() + 600000 }));
       return { digest: review.digest, sourceAccount: s.scope.sourceAccount, roots: s.nativeRoots, scope: s.scope, currentAuthority: c?.lease ?? null, expectedEpoch };
     }
     if (r.kind.endsWith('.approve')) {
-      const review = await db.read<{ snapshot: Snapshot; expectedEpoch: number; digest: string; expiresAt: number }>('meta', 'sourceCloudReview');
-      const s = await snapshot(); if (!review || review.expiresAt <= Date.now() || review.digest !== r.digest || review.snapshot.fence !== s.fence) throw new Error('sourceCloudPreviewStale');
+      const s = await snapshot();
+      const review = await db.read<{ snapshot: Snapshot; expectedEpoch: number; digest: string; expiresAt: number }>('meta', cloudReviewKey(definition, s.owner, s.authority.connectionId!));
+      if (!review || review.expiresAt <= Date.now() || review.digest !== r.digest || review.snapshot.fence !== s.fence) throw new Error('sourceCloudPreviewStale');
       const existing = await db.read<RecordState>('meta', stateKey(s.authority.connectionId!));
       if (existing?.pending && (await db.read<Plan>('meta', planKey(existing.pending)))?.state !== 'committed') throw new Error('sourceCloudRecoverFirst');
       const granted = await api.call<{ lease: CloudLease; scopeDigest: string }>('configure', { scope: s.scope, replicaId: owner.replicaId, expectedEpoch: review.expectedEpoch, approvalDigest: r.digest });

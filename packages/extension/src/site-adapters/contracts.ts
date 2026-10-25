@@ -354,6 +354,10 @@ export interface MembershipReadRequest {
   query: MembershipReadQuery;
 }
 
+/** Host-owned factory configuration, also available to pre-bootstrap account readers. */
+export interface AdapterServices { readonly readPolicy: Readonly<import('./read-policy.js').SiteReadPolicy> }
+export type SiteAdapterFactory = (services: AdapterServices) => SiteAdapter;
+
 export interface SiteAdapter {
   /** Called before bootstrap and after account/route invalidation.
    * Any page-side account read must be fixed/bounded; no lease-bound host reader yet. */

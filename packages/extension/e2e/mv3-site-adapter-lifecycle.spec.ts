@@ -1,4 +1,4 @@
-import { test, expect, chromium } from '@playwright/test';
+import { test, expect, chromium, type Page } from '@playwright/test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -24,8 +24,9 @@ test('bundled inspector scopes worlds, reconnects routes and fences revocation w
       headers: { 'access-control-allow-origin': 'https://www.bilibili.com', 'access-control-allow-credentials': 'true' }, body: JSON.stringify({ code: 0, data: { list: [{ id: 101, title: 'Fixture collection' }] } }) }));
     await context.route('https://api.bilibili.com/x/v3/fav/resource/deal', route => route.fulfill({ contentType: 'application/json',
       headers: { 'access-control-allow-origin': 'https://www.bilibili.com', 'access-control-allow-credentials': 'true' }, body: JSON.stringify({ code: 0 }) }));
-    await context.route('https://api.bilibili.com/x/v3/fav/resource/ids*', route => route.fulfill({ contentType: 'application/json',
-      headers: { 'access-control-allow-origin': 'https://www.bilibili.com', 'access-control-allow-credentials': 'true' }, body: JSON.stringify({ code: 0, data: [{ id: 1, type: 2 }] }) }));
+    const membershipReaders: Page[] = [];
+    await context.route('https://api.bilibili.com/x/v3/fav/resource/ids*', route => { membershipReaders.push(route.request().frame().page()); return route.fulfill({ contentType: 'application/json',
+      headers: { 'access-control-allow-origin': 'https://www.bilibili.com', 'access-control-allow-credentials': 'true' }, body: JSON.stringify({ code: 0, data: [{ id: 1, type: 2 }] }) }); });
     await context.route('https://api.bilibili.com/x/v3/fav/resource/infos*', route => route.fulfill({ contentType: 'application/json',
       headers: { 'access-control-allow-origin': 'https://www.bilibili.com', 'access-control-allow-credentials': 'true' }, body: JSON.stringify({ code: 0, data: [{ id: 1, type: 2, title: 'Fixture', attr: 1 }] }) }));
     const site = await context.newPage(); await site.goto('https://www.bilibili.com/video/av1');
@@ -59,6 +60,19 @@ test('bundled inspector scopes worlds, reconnects routes and fences revocation w
       const s = await chrome.runtime.sendMessage({ kind: 'known.siteAdapters.status' }) as { confirmations: { last?: { state: string } } };
       return s.confirmations.last?.state;
     }), { timeout: 30000 }).toBe('observed');
+    // A second tab's hint must execute on its originating page even for an account-wide reader.
+    const second = await context.newPage(); await second.goto('https://www.bilibili.com/video/av1');
+    await expect.poll(async () => (await readState()).leases.length, { timeout: 15000 }).toBe(2);
+    const beforeSecondHint = membershipReaders.length;
+    await second.evaluate(() => fetch('https://api.bilibili.com/x/v3/fav/resource/deal', { method: 'POST', credentials: 'include',
+      body: new URLSearchParams({ rid: '1', type: '2', add_media_ids: '101' }) }).then(() => undefined));
+    await expect.poll(() => membershipReaders.length, { timeout: 15000 }).toBeGreaterThan(beforeSecondHint);
+    expect(membershipReaders.at(-1)).toBe(second);
+    await expect.poll(() => page.evaluate(async () => {
+      const s = await chrome.runtime.sendMessage({ kind: 'known.siteAdapters.status' }) as { confirmations: { pending: number } };
+      return s.confirmations.pending;
+    }), { timeout: 15000 }).toBe(0);
+    await second.close(); await expect.poll(async () => (await readState()).leases.length).toBe(1);
     await site.evaluate(() => history.pushState({}, '', '/video/BV1xx411c7mD'));
     await expect.poll(async () => (await readState()).leases[0]?.url).toContain('/video/BV1xx411c7mD');
     await expect.poll(() => page.evaluate(async () => {
@@ -91,7 +105,9 @@ test('bundled inspector scopes worlds, reconnects routes and fences revocation w
     await page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.siteAdapters.status' }));
     expect((await readState()).routes).toEqual(routesBefore);
     await unrelated.close();
-    await site.goto('https://example.org/away'); await site.evaluate(() => history.back());
+    await site.goto('https://example.org/away');
+    // BFCache restores commit without a new load event; assert pageshow.persisted separately.
+    await site.goBack({ waitUntil: 'commit', timeout: 10000 });
     await expect(site).toHaveURL('https://www.bilibili.com/video/av2');
     await expect(site.locator('html')).toHaveAttribute('data-persisted', 'true');
     await expect.poll(async () => (await readState()).leases.length).toBe(1);
@@ -113,7 +129,7 @@ test('bundled inspector scopes worlds, reconnects routes and fences revocation w
       const db = await new Promise<IDBDatabase>((resolve, reject) => { const r = indexedDB.open('known-site-adapters'); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
       try { return await new Promise<string[]>((resolve, reject) => { const r = db.transaction('observations').objectStore('observations').getAll(); r.onsuccess = () => resolve((r.result as { observation: { type: string } }[]).map(row => row.observation.type).sort()); r.onerror = () => reject(r.error); }); } finally { db.close(); }
     });
-    expect(observations).toEqual(['catalog.upsert', 'membership.observed', 'membership.observed']);
+    expect(observations).toEqual(['catalog.upsert', 'membership.observed', 'membership.observed', 'membership.observed']);
     const oldGeneration = (await readState()).generation;
     await page.locator('#disable').click();
     await expect.poll(async () => (await readState()).generation).toBeGreaterThan(oldGeneration);

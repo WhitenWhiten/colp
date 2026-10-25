@@ -6674,6 +6674,9 @@
   "sites_available": {
     "message": "Available"
   },
+  "sites_availableFeatures": {
+    "message": "Available: $1."
+  },
   "sites_batches": {
     "message": "Batches"
   },
@@ -6688,9 +6691,6 @@
   },
   "sites_cancelImport": {
     "message": "Cancel import"
-  },
-  "sites_capabilities": {
-    "message": "Positive observation only; human-action proof, negative readback, short links and cloud archives are unavailable."
   },
   "sites_chooseRoot": {
     "message": "Choose a root"
@@ -6714,7 +6714,13 @@
     "message": "Collections"
   },
   "sites_collectionsLede": {
-    "message": "Read your collections and the current video from an open $1 tab."
+    "message": "Read your collections and the current item from an open $1 tab."
+  },
+  "sites_collectionsObserved_one": {
+    "message": "$1 collection observed."
+  },
+  "sites_collectionsObserved_other": {
+    "message": "$1 collections observed."
   },
   "sites_collectionsReadMore_one": {
     "message": "$1 collection read; more are available."
@@ -6779,8 +6785,8 @@
   "sites_copyPolicyHint": {
     "message": "Keep source and semantic copies is the supported cloud copy policy. Single-copy policies require local coordination and cannot be sent to this server profile. Backend classification is unavailable. Source archives request no AI or tags."
   },
-  "sites_currentVideo": {
-    "message": "Current video"
+  "sites_currentItem": {
+    "message": "Current item"
   },
   "sites_detectedAccount": {
     "message": "Detected account $1. Confirm the account you want to connect."
@@ -6818,14 +6824,26 @@
   "sites_exportDiagnostic": {
     "message": "Export private diagnostic"
   },
-  "sites_findCurrentVideo": {
-    "message": "Find the video open in the active tab."
+  "sites_featureCatalog": {
+    "message": "Read collections"
   },
-  "sites_foundThisVideo": {
-    "message": "Found this video."
+  "sites_featureImport": {
+    "message": "Import with preview"
   },
-  "sites_foundVideo": {
+  "sites_featureNegativeReadback": {
+    "message": "Verify membership removals"
+  },
+  "sites_featureResolution": {
+    "message": "Identify content"
+  },
+  "sites_findCurrentItem": {
+    "message": "Find the item open in a connected source tab."
+  },
+  "sites_foundItem": {
     "message": "Found “$1”."
+  },
+  "sites_foundThisItem": {
+    "message": "Found this item."
   },
   "sites_importFirst": {
     "message": "Save archive settings, then scan the selected collections."
@@ -6905,6 +6923,9 @@
   "sites_noImport": {
     "message": "No import started"
   },
+  "sites_noItem": {
+    "message": "No single item was found in the selected source tab."
+  },
   "sites_noPackages": {
     "message": "No packages installed"
   },
@@ -6917,8 +6938,8 @@
   "sites_noRootCandidate": {
     "message": "No root candidate."
   },
-  "sites_noVideo": {
-    "message": "No single video was found in the active tab."
+  "sites_noSourceActions": {
+    "message": "No source actions are available."
   },
   "sites_noWritesYet": {
     "message": "No import writes yet."
@@ -6931,6 +6952,9 @@
   },
   "sites_notReadYet": {
     "message": "Not read yet."
+  },
+  "sites_observedCatalogHint": {
+    "message": "Only collections observed in the current source session are shown. Refresh after observing more collections."
   },
   "sites_off": {
     "message": "Off"
@@ -7088,8 +7112,8 @@
   "sites_repairUnreadable": {
     "message": "Couldn’t read recovery records. The last response is below."
   },
-  "sites_resolveCurrentVideo": {
-    "message": "Resolve current video"
+  "sites_resolveCurrentItem": {
+    "message": "Resolve current item"
   },
   "sites_restartScan": {
     "message": "Restart scan and deduplicate"

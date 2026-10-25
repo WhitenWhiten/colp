@@ -5,6 +5,8 @@ export interface SiteDefinition {
   label: string; origin: string; matches: readonly string[];
   capabilities: AdapterManifest['capabilities'];
   negativeReadback: boolean;
+  /** Missing means document-local. Account-wide reads must be explicitly qualified. */
+  readScope?: 'document' | 'account';
   readPolicy?: Partial<import('./read-policy.js').SiteReadPolicy>;
   community?: { connectOrigins: readonly string[] };
   importResume: 'stableCursor' | 'restartAndDeduplicate';

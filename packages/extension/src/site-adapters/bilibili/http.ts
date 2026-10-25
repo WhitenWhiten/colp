@@ -1,3 +1,4 @@
+import { readLimits, type SiteReadPolicy } from '../read-policy.js';
 import { LIMITS as L } from '../limits.js';
 import { decimal } from './identity.js';
 import { fail } from '../read-errors.js';
@@ -41,44 +42,44 @@ export async function boundedJson(response: Response, maxBytes: number = L.respo
   try { return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(all)); } catch { return fail('invalidData'); }
 }
 export const record = (v: unknown): Record<string, unknown> => v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : {};
-export function retryAfter(value: string | null, now: number): number {
+export function retryAfter(value: string | null, now: number, backoffMs: number = L.backoffMs): number {
   if (value && /^\d+(\.\d+)?$/u.test(value.trim())) return Math.ceil(Number(value) * 1000);
   const date = value ? Date.parse(value) : NaN;
-  return Number.isFinite(date) && date >= now ? date - now : L.backoffMs;
+  return Number.isFinite(date) && date >= now ? date - now : backoffMs;
 }
 export interface HttpContext { signal: AbortSignal; deadlineAt: number }
-export function createPageHttp(deps: { fetch: typeof fetch; now(): number; sleep(ms: number, signal: AbortSignal): Promise<void> }) {
+export function createPageHttp(deps: { fetch: typeof fetch; now(): number; sleep(ms: number, signal: AbortSignal): Promise<void> }, policy: Readonly<SiteReadPolicy> = readLimits({})) {
   let nextAt = 0;
   return async (op: Operation, ctx: HttpContext): Promise<unknown> => {
     const url = operationUrl(op);
-    for (let attempt = 0; attempt < L.attempts; attempt++) {
+    for (let attempt = 0; attempt < policy.attempts; attempt++) {
       if (ctx.signal.aborted) fail('cancelled');
       const wait = Math.max(0, nextAt - deps.now());
       if (deps.now() + wait >= ctx.deadlineAt) fail('timeout');
       if (wait) await deps.sleep(wait, ctx.signal);
       const remaining = ctx.deadlineAt - deps.now(); if (remaining <= 0) fail('timeout');
-      const signal = AbortSignal.any([ctx.signal, AbortSignal.timeout(Math.min(L.requestMs, remaining))]);
+      const signal = AbortSignal.any([ctx.signal, AbortSignal.timeout(Math.min(policy.requestMs, remaining))]);
       let response: Response;
       try { response = await deps.fetch.call(globalThis, url, { method: 'GET', credentials: 'include', redirect: 'error', signal }); }
       catch {
-        nextAt = deps.now() + L.spacingMs;
+        nextAt = deps.now() + policy.requestSpacingMs;
         if (ctx.signal.aborted) fail('cancelled');
         if (signal.aborted) fail('timeout');
-        if (attempt + 1 === L.attempts) fail('network');
-        await retry(L.backoffMs); continue;
+        if (attempt + 1 === policy.attempts) fail('network');
+        await retry(policy.backoffMs); continue;
       }
-      nextAt = deps.now() + L.spacingMs;
+      nextAt = deps.now() + policy.requestSpacingMs;
       if (response.status === 412) { await response.body?.cancel(); fail('challenge'); }
       if (response.status === 429 || response.status >= 500) {
-        const waitMs = response.status === 429 ? retryAfter(response.headers.get('Retry-After'), deps.now()) : L.backoffMs;
+        const waitMs = response.status === 429 ? retryAfter(response.headers.get('Retry-After'), deps.now(), policy.backoffMs) : policy.backoffMs;
         await response.body?.cancel();
-        if (attempt + 1 === L.attempts || waitMs > L.maxAutomaticWaitMs || deps.now() + waitMs + L.requestMs > ctx.deadlineAt)
+        if (attempt + 1 === policy.attempts || waitMs > policy.maxAutomaticWaitMs || deps.now() + waitMs + policy.requestMs > ctx.deadlineAt)
           fail(response.status === 429 ? 'rateLimited' : 'network', waitMs);
         await retry(waitMs); continue;
       }
       if (response.status === 401 || response.status === 403) { await response.body?.cancel(); fail('signedOut'); }
       if (!response.ok) { await response.body?.cancel(); fail('invalidData'); }
-      const body = record(await boundedJson(response));
+      const body = record(await boundedJson(response, policy.responseBytes));
       if (body.code === -101) fail('signedOut');
       if (body.code === -412) fail('challenge');
       if (body.code !== 0) fail('invalidData');

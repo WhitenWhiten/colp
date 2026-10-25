@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "date": "2026-10-24",
+  "reviewBaseline": "3be3810a",
+  "implementationRevision": "The commit containing this evidence file.",
+  "changes": [
+    "Document-local reads default to the exact hint document/route; qualified account readers may fall back.",
+    "Actual request budgets reach adapter factories and Bilibili bootstrap/command HTTP calls; host spacing respects the request minimum.",
+    "Cloud review keys include installation, identity, source connection and cloud owner.",
+    "Capability-derived workflows support current observed catalogs without enumeration, enumeration without emit, and neutral/gated settings."
+  ],
+  "regressions": [
+    "Two same-site DOM documents with different visible content",
+    "Missing origin fails after a bounded wait; explicit account-wide fallback",
+    "Concurrent sites with identical source account/item/request IDs and independent challenge pauses",
+    "Two cloud runtime instances review concurrently and approve in reverse order",
+    "Observation-only catalog/configuration/live planning and generation/connection fencing",
+    "Enumeration-only configuration/import start without synthetic emit validation",
+    "UI capability subset controls and cancellation visibility",
+    "5-second configured HTTP spacing, independent request budget/retry/byte limits",
+    "Generation-4 page runtime retirement during upgrade"
+  ],
+  "checks": [
+    {
+      "command": "node packages/extension/scripts/with-orbstack.mjs run bash -c 'node_modules/.bin/vitest run tests/site-adapter-*.test.ts'",
+      "result": "passed",
+      "files": 23,
+      "tests": 173
+    },
+    {
+      "command": "node packages/extension/scripts/with-orbstack.mjs run node_modules/.bin/vitest run tests/site-adapter-page-runtime.test.ts tests/site-adapter-document-routing.test.ts tests/site-adapter-capabilities.test.ts tests/site-adapter-cloud-isolation.test.ts",
+      "result": "passed",
+      "tests": 12,
+      "note": "Final focused run includes in-place retirement of generation-4 page runtimes."
+    },
+    {
+      "command": "node packages/extension/scripts/with-orbstack.mjs run node --max-old-space-size=1536 node_modules/typescript/bin/tsc --noEmit --strict --skipLibCheck --noUncheckedIndexedAccess --target ES2023 --module NodeNext --moduleResolution NodeNext --lib ES2023,DOM,DOM.AsyncIterable src/chrome.d.ts src/bookmark-subscriptions/chrome-external.d.ts src/service-worker.ts src/site-adapters/settings.ts src/site-adapters/content.ts tests/site-adapter-document-routing.test.ts tests/site-adapter-capabilities.test.ts tests/site-adapter-cloud-isolation.test.ts tests/site-adapter-page-runtime.test.ts tests/site-adapter-reader.test.ts e2e/mv3-site-adapter-lifecycle.spec.ts",
+      "result": "passed"
+    },
+    {
+      "command": "node packages/extension/scripts/with-orbstack.mjs run node_modules/.bin/eslint src/site-adapters tests/site-adapter-document-routing.test.ts tests/site-adapter-capabilities.test.ts tests/site-adapter-cloud-isolation.test.ts tests/site-adapter-page-runtime.test.ts tests/site-adapter-reader.test.ts tests/fixtures/site-adapters/posts.ts e2e/mv3-site-adapter-lifecycle.spec.ts",
+      "result": "passed"
+    },
+    {
+      "command": "node packages/extension/scripts/with-orbstack.mjs run node scripts/i18n-catalog.mjs",
+      "result": "passed"
+    },
+    {
+      "command": "node packages/extension/scripts/with-orbstack.mjs run node scripts/check-source-file-sizes.mjs",
+      "result": "passed",
+      "files": 817
+    },
+    {
+      "command": "node packages/extension/scripts/with-orbstack.mjs run npm run build:development",
+      "result": "passed"
+    },
+    {
+      "command": "COLP_ADAPTER_POSTGRES=1 node packages/extension/scripts/with-orbstack.mjs e2e e2e/mv3-site-adapter-lifecycle.spec.ts e2e/mv3-site-adapter-import.spec.ts e2e/mv3-site-adapter-cloud.spec.ts",
+      "result": "cloud and import passed; lifecycle required fixture corrections",
+      "passedTests": 2
+    },
+    {
+      "command": "node packages/extension/scripts/with-orbstack.mjs e2e e2e/mv3-site-adapter-lifecycle.spec.ts",
+      "result": "passed",
+      "tests": 1,
+      "duration": "38.7 seconds",
+      "coverage": [
+        "second-tab hint reads execute in that tab",
+        "SPA and BFCache persisted restoration",
+        "permission revocation",
+        "no native capture effects",
+        "unrelated-navigation isolation"
+      ]
+    }
+  ],
+  "browserEnvironment": "Prepared OrbStack Linux arm64 runner, Chromium 149, xvfb. Cloud scenario uses disposable PostgreSQL 16.4 and COLP Server.",
+  "initialValidationCorrections": [
+    "Strict DOM lib does not include NodeList iteration; fixtures now use Array.from.",
+    "The second tab adds one expected observation; the exact observation-count assertion was updated.",
+    "history.back inside page.evaluate raced context destruction; page.goBack waiting for load then exposed that BFCache restores do not fire a new load event. The final fixture waits for commit with a 10-second bound and separately asserts pageshow.persisted."
+  ],
+  "scope": {
+    "shippedAdapters": [
+      "bilibili"
+    ],
+    "otherSites": "Test-only DOM and capability fixtures; no X or YouTube adapter was installed or qualified.",
+    "realSiteRequests": false,
+    "typecheck": "Selected strict entry graphs, not the full project."
+  },
+  "cleanup": "All task-owned Chromium/xvfb/COLP Server/PostgreSQL containers and temporary browser profiles were removed by the runner; reusable caches retained."
+}

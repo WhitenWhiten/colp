@@ -8,6 +8,7 @@ export function validateSiteDefinitions(sites: readonly SiteDefinition[]): reado
   for (const site of sites) {
     const namespace = JSON.stringify([site.siteKey, site.identityVersion]);
     if (ids.has(site.adapterId) || namespaces.has(namespace) || !site.adapterId || !site.siteKey || !Number.isSafeInteger(site.identityVersion) || site.identityVersion < 1) throw new Error('invalidSiteRegistry');
+    if (site.readScope !== undefined && !['document', 'account'].includes(site.readScope)) throw new Error('invalidReadScope');
     ids.add(site.adapterId); namespaces.add(namespace); readLimits(site);
     if (!site.matches.length || site.matches.some(pattern => { try { const u = new URL(pattern); return u.protocol !== 'https:' || !!u.username || !!u.password || u.hostname.includes('*') || !!u.hash; } catch { return true; } })) throw new Error('invalidSiteMatches');
     if (site.negativeReadback && !site.capabilities.includes('readMemberships')) throw new Error('unsupportedHostCapability');

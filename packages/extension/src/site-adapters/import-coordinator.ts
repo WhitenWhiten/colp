@@ -30,7 +30,7 @@ export interface ImportJob {
   nextPlan: number; scanSnapshot: Snapshot; counts: ImportPreview['counts']; snapshot: Snapshot | null; approvalId: string | null;
 }
 interface Ports {
-  source(): Promise<{ context: SourceContext; expiresAt: number } | null>;
+  source(origin?: SourceContext): Promise<{ context: SourceContext; expiresAt: number } | null>;
   send(context: SourceContext, command: HostCommand): void;
   prioritizeLive(): Promise<void>;
   snapshot(): Promise<Snapshot>;
@@ -276,7 +276,7 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
         if (job.phase !== 'scanning') return;
         await authority(job); await ports.prioritizeLive();
         if (job.pages >= PAGE_LIMIT) throw new Error('capacity');
-        const source = await ports.source();
+        const source = await ports.source(job.context);
         if (!source) {
           const until = job.pageWaitUntil ?? Date.now() + LIMITS.commandMs;
           if (until <= Date.now()) throw new Error('pageUnavailable');

@@ -1,3 +1,4 @@
+import { readLimits } from '../src/site-adapters/read-policy.js';
 import { test, expect } from 'vitest';
 import { MemoryStorageArea } from '../src/credential-store.js';
 import { createReadScheduler } from '../src/site-adapters/read-scheduler.js';
@@ -127,4 +128,17 @@ test('BV and parameterized av links resolve to one numeric identity using a matc
     { aid: 1, bvid: 'BV1xx411c7mD', title: 'Video' }]) {
     expect(await new BilibiliReader(read(() => data)).resolveItem('https://www.bilibili.com/video/BV1xx411c7mD', ctx)).toMatchObject({ status: 'unresolved', reason: 'ambiguousIdentity' });
   }
+});
+
+test('site request spacing, attempts and byte limits are independent of command pacing', async () => {
+  let time = 0; const starts: number[] = [];
+  const policy = readLimits({ readPolicy: { spacingMs: 5000, requestSpacingMs: 2000, attempts: 1, responseBytes: 1024 } });
+  const api = createPageHttp({ now: () => time, sleep: async ms => { time += ms; }, fetch: async () => { starts.push(time); return response(fixtures.nav); } }, policy);
+  await api({ kind: 'account' }, ctx); await api({ kind: 'account' }, ctx); expect(starts).toEqual([0, 2000]);
+  let attempts = 0;
+  const failed = createPageHttp({ now: () => time, sleep: async () => {}, fetch: async () => { attempts++; throw new Error('offline'); } }, policy);
+  await expect(failed({ kind: 'account' }, ctx)).rejects.toThrow('network'); expect(attempts).toBe(1);
+  const oversized = createPageHttp({ now: () => time, sleep: async () => {}, fetch: async () => response({ code: 0, data: 'x'.repeat(2048) }) }, policy);
+  await expect(oversized({ kind: 'account' }, ctx)).rejects.toThrow('capacity');
+  expect(() => readLimits({ readPolicy: { requestMs: 0 } })).toThrow('invalidReadPolicy');
 });

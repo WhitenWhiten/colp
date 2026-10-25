@@ -12,12 +12,12 @@ type Ledger = ReturnType<typeof createSourceLedger>;
 type Command = Extract<HostCommand, { operation: 'readMemberships' | 'resolveItem' }>;
 export interface ConfirmationRow {
   id: string; digest: string; origin: SourceContext; hint: MembershipHint; state: 'membership' | 'item' | 'observed' | 'uncertain';
-  attempts: number; cycle?: number; known?: readonly string[]; absent?: readonly string[]; baselineOrdinal?: number; reason?: string; observationId?: string;
+  attempts: number; sourceWaitUntil?: number; cycle?: number; known?: readonly string[]; absent?: readonly string[]; baselineOrdinal?: number; reason?: string; observationId?: string;
   active?: { command: Command; context: SourceContext };
 }
 interface Ports {
   authorizeOrigin?(context: SourceContext, collectionIds: readonly string[]): Promise<void>;
-  source(): Promise<{ context: SourceContext; expiresAt: number } | null>;
+  source(origin?: SourceContext): Promise<{ context: SourceContext; expiresAt: number } | null>;
   send(context: SourceContext, command: Command): void;
   alarm(at: number): void;
 }
@@ -67,11 +67,24 @@ export function createConfirmationQueue(ledger: Ledger, scheduler: ReturnType<ty
       if (row.origin.communityOrigin) try { if (!ports.authorizeOrigin) throw new Error('communityArchiveRevoked'); await ports.authorizeOrigin(row.origin, scope(row.hint)); }
       catch { await fail(row, 'communityArchiveRevoked'); ports.alarm(now() + LIMITS.spacingMs); return; }
       if (row.active && row.active.command.deadlineAt > now()) { ports.alarm(row.active.command.deadlineAt + LIMITS.spacingMs); return; }
-      if (row.attempts >= LIMITS.attempts) { await fail(row, 'pageUnavailable'); ports.alarm(now() + LIMITS.spacingMs); return; }
-      const source = await ports.source(); if (!source) { ports.alarm(now() + 30000); return; }
+      if (row.attempts >= LIMITS.commandAttempts) { await fail(row, 'pageUnavailable'); ports.alarm(now() + LIMITS.spacingMs); return; }
+      const source = await ports.source(row.origin);
+      if (!source) {
+        const until = row.sourceWaitUntil ?? now() + LIMITS.commandMs;
+        if (until <= now()) { await fail(row, 'pageUnavailable'); ports.alarm(now() + LIMITS.spacingMs); return; }
+        const waiting = row;
+        await db.transaction(['readRequests'], 'readwrite', async tx => {
+          if (!same(await get<ConfirmationRow>(tx, 'readRequests', rowKey(id)), waiting)) throw new Error('staleContext');
+          put(tx, 'readRequests', rowKey(id), { ...waiting, sourceWaitUntil: until });
+        });
+        ports.alarm(Math.min(until, now() + LIMITS.spacingMs)); return;
+      }
       const c = source.context, old = row.origin;
       if (c.connectionId !== old.connectionId || c.installationGeneration !== old.installationGeneration || c.sourceSessionGeneration !== old.sourceSessionGeneration) {
         await fail(row, 'sourceChanged'); ports.alarm(now() + LIMITS.spacingMs); return;
+      }
+      if (ledger.definition.readScope !== 'account' && (c.documentId !== old.documentId || c.tabId !== old.tabId || c.routeEpoch !== old.routeEpoch)) {
+        await fail(row, 'navigationChanged'); ports.alarm(now() + LIMITS.spacingMs); return;
       }
       const requestId = `${row.id}:${row.state === 'membership' ? 'm' : 'i'}:${row.cycle ?? 0}:${row.attempts}`, deadlineAt = Math.min(now() + LIMITS.commandMs, source.expiresAt - 1000);
       if (deadlineAt <= now() + LIMITS.spacingMs) { ports.alarm(now() + LIMITS.spacingMs); return; }
@@ -81,7 +94,7 @@ export function createConfirmationQueue(ledger: Ledger, scheduler: ReturnType<ty
       const acquired = await scheduler.acquire({ id: requestId, documentId: c.documentId, deadlineAt });
       if (acquired.status !== 'ready') { ports.alarm(now() + acquired.retryAfterMs); return; }
       const prior = row;
-      row = { ...row, active: { command, context: c }, attempts: row.attempts + 1 };
+      row = { ...row, sourceWaitUntil: undefined, active: { command, context: c }, attempts: row.attempts + 1 };
       await db.transaction(['meta', 'readRequests', 'authorities', 'documentLeases'], 'readwrite', async tx => {
         await requireSourceAuthority(tx, c);
         if (!same(await get<ConfirmationRow>(tx, 'readRequests', rowKey(id)), prior)) throw new Error('staleContext');
@@ -150,7 +163,7 @@ export function createConfirmationQueue(ledger: Ledger, scheduler: ReturnType<ty
         const pending = await get<string[]>(tx, 'meta', PENDING) ?? [];
         if (row?.state === 'uncertain' && row.hint.code === 0 && scope(row.hint).length && !['siteWriteFailed', 'negativeReadbackUnavailable', 'sourceChanged', 'conflict'].includes(row.reason ?? '')) {
           if (pending.length >= LIMITS.queue) throw new Error('capacity');
-          put(tx, 'readRequests', rowKey(row.id), { ...row, state: 'membership', attempts: 0, cycle: (row.cycle ?? 0) + 1, active: undefined, known: undefined, absent: undefined, baselineOrdinal: undefined });
+          put(tx, 'readRequests', rowKey(row.id), { ...row, state: 'membership', attempts: 0, cycle: (row.cycle ?? 0) + 1, active: undefined, known: undefined, absent: undefined, baselineOrdinal: undefined, sourceWaitUntil: undefined, reason: undefined });
           put(tx, 'meta', PENDING, [...pending, row.id]);
         }
         tx.objectStore('meta').delete(PAUSE);

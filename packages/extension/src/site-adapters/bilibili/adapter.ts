@@ -1,10 +1,12 @@
-import type { SiteAdapter } from '../contracts.js';
+import { readLimits } from '../read-policy.js';
+import { bilibiliDefinition } from './definition.js';
+import type { SiteAdapter, AdapterServices } from '../contracts.js';
 import { BilibiliReader } from './reader.js';
 import { createPageHttp, abortableSleep } from './http.js';
 import { validMembershipHint } from '../schemas.js';
 /** Site extraction only; transport, account fences and cleanup belong to the host runtime. */
-export function createBilibiliAdapter(): SiteAdapter {
-  const reader = new BilibiliReader(createPageHttp({ fetch, now: Date.now, sleep: abortableSleep }));
+export function createBilibiliAdapter(services?: AdapterServices): SiteAdapter {
+  const reader = new BilibiliReader(createPageHttp({ fetch, now: Date.now, sleep: abortableSleep }, services?.readPolicy ?? readLimits(bilibiliDefinition)));
   return {
     detectSource: context => reader.detectSource(context),
     async start(context) {

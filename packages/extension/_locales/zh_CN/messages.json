@@ -10491,10 +10491,6 @@
     "message": "取消导入",
     "description": "Cancel import"
   },
-  "sites_capabilities": {
-    "message": "仅观察新增的收藏；人工操作证明、移除回读、短链接和云端归档均不可用。",
-    "description": "Positive observation only; human-action proof, negative readback, short links and cloud archives are unavailable."
-  },
   "sites_chooseRoot": {
     "message": "选择根目录",
     "description": "Choose a root"
@@ -10524,8 +10520,8 @@
     "description": "Collections"
   },
   "sites_collectionsLede": {
-    "message": "从打开的 $1 标签页读取你的收藏夹和当前视频。",
-    "description": "Read your collections and the current video from an open $1 tab."
+    "message": "从打开的 $1 标签页读取收藏夹和当前内容。",
+    "description": "Read your collections and the current item from an open $1 tab."
   },
   "sites_collectionsReadMore_other": {
     "message": "已读取 $1 个收藏夹；还有更多。",
@@ -10603,10 +10599,6 @@
     "message": "云端支持的副本策略是“保留来源副本和语义副本”。单副本策略需要本地协调，无法发送到此服务器配置。后端分类不可用。来源归档不会请求 AI 或标签。",
     "description": "Keep source and semantic copies is the supported cloud copy policy. Single-copy policies require local coordination and cannot be sent to this server profile. Backend classification is unavailable. Source archives request no AI or tags."
   },
-  "sites_currentVideo": {
-    "message": "当前视频",
-    "description": "Current video"
-  },
   "sites_detectedAccount": {
     "message": "检测到账号 $1。请确认你要连接的账号。",
     "description": "Detected account $1. Confirm the account you want to connect."
@@ -10654,18 +10646,6 @@
   "sites_exportDiagnostic": {
     "message": "导出私密诊断信息",
     "description": "Export private diagnostic"
-  },
-  "sites_findCurrentVideo": {
-    "message": "查找当前标签页中打开的视频。",
-    "description": "Find the video open in the active tab."
-  },
-  "sites_foundThisVideo": {
-    "message": "已找到此视频。",
-    "description": "Found this video."
-  },
-  "sites_foundVideo": {
-    "message": "已找到“$1”。",
-    "description": "Found “$1”."
   },
   "sites_importFirst": {
     "message": "请先保存归档设置，再扫描所选收藏夹。",
@@ -10782,10 +10762,6 @@
   "sites_noRootCandidate": {
     "message": "没有候选根目录。",
     "description": "No root candidate."
-  },
-  "sites_noVideo": {
-    "message": "当前标签页中未找到唯一的视频。",
-    "description": "No single video was found in the active tab."
   },
   "sites_noWritesYet": {
     "message": "尚未执行任何导入写入。",
@@ -10999,10 +10975,6 @@
     "message": "无法读取恢复记录。最近一次响应见下方。",
     "description": "Couldn’t read recovery records. The last response is below."
   },
-  "sites_resolveCurrentVideo": {
-    "message": "识别当前视频",
-    "description": "Resolve current video"
-  },
   "sites_restartScan": {
     "message": "重新扫描并去重",
     "description": "Restart scan and deduplicate"
@@ -11154,5 +11126,65 @@
   "sites_yourCollections": {
     "message": "你的收藏夹",
     "description": "Your collections"
+  },
+  "sites_availableFeatures": {
+    "message": "可用功能：$1。",
+    "description": "Available: $1."
+  },
+  "sites_collectionsObserved_one": {
+    "message": "已观察到 $1 个收藏夹。",
+    "description": "$1 collection observed."
+  },
+  "sites_collectionsObserved_other": {
+    "message": "已观察到 $1 个收藏夹。",
+    "description": "$1 collections observed."
+  },
+  "sites_currentItem": {
+    "message": "当前内容",
+    "description": "Current item"
+  },
+  "sites_findCurrentItem": {
+    "message": "查找已连接来源标签页中打开的内容。",
+    "description": "Find the item open in a connected source tab."
+  },
+  "sites_resolveCurrentItem": {
+    "message": "解析当前内容",
+    "description": "Resolve current item"
+  },
+  "sites_noItem": {
+    "message": "未在所选来源标签页中找到明确的单项内容。",
+    "description": "No single item was found in the selected source tab."
+  },
+  "sites_foundThisItem": {
+    "message": "已找到这项内容。",
+    "description": "Found this item."
+  },
+  "sites_foundItem": {
+    "message": "已找到“$1”。",
+    "description": "Found “$1”."
+  },
+  "sites_featureCatalog": {
+    "message": "读取收藏夹",
+    "description": "Read collections"
+  },
+  "sites_featureResolution": {
+    "message": "识别内容",
+    "description": "Identify content"
+  },
+  "sites_featureImport": {
+    "message": "预览后导入",
+    "description": "Import with preview"
+  },
+  "sites_featureNegativeReadback": {
+    "message": "核验成员关系移除",
+    "description": "Verify membership removals"
+  },
+  "sites_noSourceActions": {
+    "message": "暂无可用的来源操作。",
+    "description": "No source actions are available."
+  },
+  "sites_observedCatalogHint": {
+    "message": "这里只显示当前来源会话中已观察到的收藏夹。发现更多收藏夹后，请刷新。",
+    "description": "Only collections observed in the current source session are shown. Refresh after observing more collections."
   }
 }

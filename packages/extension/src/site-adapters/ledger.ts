@@ -1,5 +1,5 @@
 import { requestValue } from '../sync-state/idb.js';
-import type { MembershipReadQuery, MembershipReadResult, PageResult, SiteObservation } from './contracts.js';
+import type { MembershipReadQuery, MembershipReadResult, PageResult, SiteObservation, SiteCollection } from './contracts.js';
 import { validMembershipResult, validObservation, validPageResult } from './schemas.js';
 import { legacySite, type SiteDefinition } from './registry.js';
 import { createSourceDatabase, get, put, sourceDigest, sourceKey, type SourceDatabase } from './source-db.js';
@@ -57,8 +57,8 @@ export function createSourceLedger(db: SourceDatabase = createSourceDatabase(), 
     return requireSourceAuthority(tx, context);
   };
   const now = options.now ?? Date.now, random = options.random ?? (() => crypto.randomUUID());
-  async function acceptObservation(context: SourceContext, requestId: string, observation: SiteObservation, commit?: (tx: IDBTransaction, receiptId: string) => Promise<void>, readBaseline?: number): Promise<LedgerAdmission> {
-    if (!validObservation(observation) || !definition.validateMessage({ protocolVersion: 1, requestId, leaseId: context.leaseId, capability: 'host-validated', operation: 'emit', data: observation })) return { status: 'rejected', reason: 'invalid' };
+  async function acceptObservation(context: SourceContext, requestId: string, observation: SiteObservation, commit?: (tx: IDBTransaction, receiptId: string) => Promise<void>, readBaseline?: number, hostCatalog = false): Promise<LedgerAdmission> {
+    if (!validObservation(observation) || !hostCatalog && !definition.validateMessage({ protocolVersion: 1, requestId, leaseId: context.leaseId, capability: 'host-validated', operation: 'emit', data: observation })) return { status: 'rejected', reason: 'invalid' };
     const key = sourceKey(AUTHORITY, context.installationGeneration, context.documentId, requestId), digest = sourceDigest({ operation: 'emit', observation });
     try { return await db.transaction(facts, 'readwrite', async tx => {
       await requireAuthority(tx, context);
@@ -138,6 +138,11 @@ export function createSourceLedger(db: SourceDatabase = createSourceDatabase(), 
       });
     },
     acceptObservation: (context: SourceContext, requestId: string, observation: SiteObservation, commit?: (tx: IDBTransaction, receiptId: string) => Promise<void>) => acceptObservation(context, requestId, observation, commit),
+    /** Host ingestion of a catalog already validated as a page result or current source facts; no emit capability is required. */
+    acceptCatalog: (context: SourceContext, requestId: string, collections: readonly SiteCollection[]) => {
+      if (collections.some(c => !definition.validateCollection(c.id) || c.parentId != null && !definition.validateCollection(c.parentId))) return Promise.resolve<LedgerAdmission>({ status: 'rejected', reason: 'invalid' });
+      return acceptObservation(context, requestId, { type: 'catalog.upsert', collections }, undefined, undefined, true);
+    },
     /** Host-correlated read only: the baseline is captured durably before dispatch, never supplied by page code. */
     acceptReadObservation: (context: SourceContext, requestId: string, observation: Extract<SiteObservation, { type: 'membership.observed' }>, baseline: number, commit?: (tx: IDBTransaction, receiptId: string) => Promise<void>) => acceptObservation(context, requestId, observation, commit, baseline),
     async startImport(context: SourceContext, id: string): Promise<SourceImportRun> {
@@ -177,7 +182,7 @@ export function createSourceLedger(db: SourceDatabase = createSourceDatabase(), 
           if (!definition.validateMessage({ protocolVersion: 1, requestId, leaseId: context.leaseId, capability: 'host-validated', operation: 'page.result', readSessionId: run.id, pageRequestId: requestId, result })) throw new Error('invalid');
           const cursorKey = sourceKey(result.kind, result.kind === 'items' ? result.collectionId : null, result.page.nextCursor);
           if (result.page.nextCursor && (result.page.nextCursor === request.query.cursor || run.seenCursors.includes(cursorKey))) throw new Error('invalid');
-          if (result.kind === 'collections') for (const c of result.page.items) await mergeEntity(tx, 'collections', context.connectionId, c, receipt.ordinal, run.baselineOrdinal);
+          if (result.kind === 'collections') for (const c of result.page.items) await mergeEntity(tx, 'collections', context.connectionId, c, receipt.ordinal, run.baselineOrdinal, context);
           else for (const { item } of result.page.items) {
             await mergeEntity(tx, 'items', context.connectionId, item, receipt.ordinal, run.baselineOrdinal);
             await mergeEdge(tx, context, item.id, result.collectionId, 'present', receipt.ordinal, receipt.id, run.baselineOrdinal);
