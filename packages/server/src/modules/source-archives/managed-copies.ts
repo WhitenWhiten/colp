@@ -138,6 +138,8 @@ export function claimManagedSemantic(state: ManagedSaveState, collectionId: stri
 export function releaseManagedSemantic(state: ManagedSaveState, collectionId: string, copy: ManagedCopy, claim: SemanticClaim) {
   if (copy.purpose !== 'semantic') fail('invalid_managed_copy');
   const claims = state.semanticClaims ??= {}, key = managedCopyKey(collectionId, copy), current = own(claims, key);
+  // A lost release reply may be retried after a newer owner has claimed. The old attempt stays fenced.
+  if (current && current.revision > claim.revision) return;
   if (!current || current.ownerId !== claim.ownerId || current.revision !== claim.revision) return fail('source_semantic_claim_changed');
   claims[key] = { ownerId: null, revision: current.revision + 1 };
 }

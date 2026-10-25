@@ -40,6 +40,8 @@ test('semantic processing has one owner across devices and explicit retry fences
   releaseManagedSemantic(f.state, 'library', copy, first.claim);
   const next = claimManagedSemantic(f.state, 'library', copy, 'device-b-job');
   if (next.status !== 'claimed') throw new Error('fixture');
+  releaseManagedSemantic(f.state, 'library', copy, first.claim);
+  expect(claimManagedSemantic(f.state, 'library', copy, 'device-a-job')).toMatchObject({ status: 'waiting', claim: next.claim });
   await expect(saveManagedCopy(f.state, { ...c, slot: { kind: 'bookmark', copy }, semanticClaim: { ownerId: 'device-a-job', revision: first.claim.revision } }, f.ports)).rejects.toThrow('source_semantic_claim_changed');
   const saved = await saveManagedCopy(f.state, { ...command('new'), slot: { kind: 'bookmark', copy }, semanticClaim: { ownerId: 'device-b-job', revision: next.claim.revision } }, f.ports);
   expect(saved.disposition).toBe('created'); expect(f.ports.create).toHaveBeenCalledTimes(1);
