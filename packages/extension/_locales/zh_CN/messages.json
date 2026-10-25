@@ -9104,8 +9104,8 @@
     "description": "Next expected check"
   },
   "subscription_noDiagnostics": {
-    "message": "没有匹配的记录。未完成的恢复不会被清除。",
-    "description": "No matching records. Unfinished recoveries are never cleared."
+    "message": "没有匹配的记录。",
+    "description": "No matching records."
   },
   "subscription_noMappings": {
     "message": "没有符合这些筛选条件的订阅文件夹。",

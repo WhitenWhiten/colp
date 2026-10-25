@@ -1370,6 +1370,8 @@ label.set-row-title { cursor: pointer; }
 .diagnostics-categories { margin-bottom: var(--space-5); }
 .help-body { display: grid; gap: var(--space-3); min-width: 0; padding: var(--space-4); overflow-wrap: anywhere; }
 .help-body > :empty { display: none; }
+/* The card already pads its body; an all-clear row inside it adds no padding of its own. */
+.help-body > .empty--row { padding: 0; }
 [data-subscription-diagnostics]:empty { display: none; }
 .stats-disclosure { padding: var(--hair-85) var(--space-4); }
 .stats-disclosure > section { margin-top: var(--space-3); }

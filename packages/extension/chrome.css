@@ -680,6 +680,11 @@ button.chip:hover { border-color: var(--line-heavy); background: var(--paper); c
 .empty-title { margin: 0; color: var(--ink); font-size: var(--text-sm); font-weight: var(--weight-semibold); }
 .empty-hint { margin: 0; max-width: 26rem; color: var(--muted); font-size: var(--text-xs); line-height: var(--leading-body); }
 .empty .btn { margin-top: var(--hair-55); }
+/* A section's all-clear inside its card: one quiet row, the icon then the line, not the centred block. */
+.empty--row { grid-template-columns: auto minmax(0, 1fr); justify-items: start; align-items: center; column-gap: var(--hair-65); padding: var(--hair-65) var(--space-4); text-align: left; }
+.empty--row .empty-icon { width: 1.75rem; height: 1.75rem; margin: 0; }
+.empty--row .empty-icon svg { width: 0.95rem; height: 0.95rem; }
+.empty--row .empty-title { color: var(--ink-2); font-weight: var(--weight-medium); }
 
 /* ----------------------------------------------------- avatar + identity */
 .avatar { display: grid; place-items: center; flex: none; width: 1.75rem; height: 1.75rem; border-radius: 50%; overflow: hidden; background: var(--ink); color: var(--paper); font-size: var(--text-xs); font-weight: var(--weight-semibold); }

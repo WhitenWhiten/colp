@@ -55,7 +55,7 @@ export function createSubscriptionDiagnostics(host: HTMLElement, send: Send, par
       row.append(actions);
       const details = el('details', undefined, 'diagnostics-technical'); if (params.get('event') === record.id) details.open = true; details.append(el('summary', t('subscription_technical', 'Technical details')), el('pre', JSON.stringify({ reasonCode: record.reasonCode, resolution: record.resolution, eventId: record.id, origin: record.origin, repairTaskId: record.repairTaskId }, null, 2))); row.append(details); rows.append(row);
     }
-    if (!rows.children.length) { const card = el('div', undefined, 'set-card'); card.append(emptyBlock({ icon: 'check-circle', title: t('subscription_noDiagnostics', 'No matching records. Unfinished recoveries are never cleared.') })); rows.append(card); }
+    if (!rows.children.length) { const card = el('div', undefined, 'set-card'); const empty = emptyBlock({ icon: 'check-circle', title: t('subscription_noDiagnostics', 'No matching records.') }); empty.classList.add('empty--row'); card.append(empty); rows.append(card); }
     else if (records.some(record => record.resolution !== 'pending' && !record.repairTaskId)) { const bulk = el('div', undefined, 'subscription-bulk'); bulk.append(clear); rows.append(bulk); }
   }
   async function load() { const version = ++generation; feedback.textContent = t('common_loading', 'Loading…'); try { const result = await send<Diagnostic[] | { items: Diagnostic[] }>({ kind: 'diagnostics', ...(mapping.value ? { mappingId: mapping.value } : {}), ...(resolution.value ? { resolution: resolution.value as Diagnostic['resolution'] } : {}) }); if (version !== generation) return; records = Array.isArray(result) ? result : result.items;
