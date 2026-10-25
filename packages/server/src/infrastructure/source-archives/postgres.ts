@@ -7,7 +7,7 @@ import { assertLibraryDestination, createCanonicalMutationApplication } from '..
 import { createPostgresCanonicalMutationPorts } from '../collections/canonical-mutation-postgres-ports.js';
 import { createPostgresNodeWritePort, createPostgresCollectionWritePort } from '../collections/repositories.js';
 import { managedSavePorts, lockManagedLibrary } from './managed-copies.js';
-import { parseManagedSave, parseManagedCopy, saveManagedCopy, recoverManagedCopy, observeManagedCopy, claimManagedSemantic, releaseManagedSemantic, type ManagedSaveState } from '../../modules/source-archives/index.js';
+import { parseManagedSave, parseManagedCopy, parseManagedSlot, markManagedChange, saveManagedCopy, recoverManagedCopy, observeManagedCopy, claimManagedSemantic, releaseManagedSemantic, type ManagedSaveState } from '../../modules/source-archives/index.js';
 import { SOURCE_ARCHIVE_PROFILE, SourceArchiveError, object, text, integer, digest, sourceHash, parseSourceScope, parseSourceEdges, sourceInput, sourceConnectionKey,
   type SourceArchiveActor, type SourceArchiveApplication, type SourceScope, type SourceEdge, type SourceLease, type SourceFinalEffect, type SourceFinalReceipt, type SourceCanonicalMutation } from '../../modules/source-archives/index.js';
 interface Connection { epoch: number; scope: SourceScope; lease: SourceLease | null }
@@ -46,6 +46,12 @@ export function createPostgresSourceArchives(db: Kysely<DatabaseSchema>, testHoo
       const now = async () => Number((await sql<{ at: string }>`SELECT extract(epoch FROM clock_timestamp()) * 1000 AS at`.execute(tx)).rows[0]!.at);
       const start = await now();
       const run = async (): Promise<unknown> => {
+        if (action === 'managed.manual') {
+          const input = object(body.input, ['collectionId', 'slot', 'nodeId', 'state']), collectionId = text(input.collectionId);
+          if (input.state !== 'detached' && input.state !== 'suppressed') reject('invalid_managed_copy', 422);
+          await lockManagedLibrary(tx, actor.subjectId, collectionId);
+          return { binding: markManagedChange(state.managed ??= { bindings: {}, receipts: {} }, collectionId, parseManagedSlot(input.slot), text(input.nodeId), input.state) };
+        }
         if (action === 'managed.lookup' || action === 'managed.semantic.claim' || action === 'managed.semantic.release') {
           const i = object(body.input, action === 'managed.lookup' ? ['collectionId', 'copy']
             : action === 'managed.semantic.claim' ? ['collectionId', 'copy', 'ownerId', 'replicaId'] : ['collectionId', 'copy', 'claim']);

@@ -28,6 +28,22 @@ export interface ManagedSavePorts {
 }
 const fail = (code: string): never => { throw new SourceArchiveError(code); };
 const own = <T>(r: Record<string, T>, key: string) => Object.hasOwn(r, key) ? r[key] : undefined;
+export function parseManagedSlot(raw: unknown): ManagedSlot {
+  if ((raw as { kind?: unknown } | null)?.kind === 'bookmark') {
+    const slot = object(raw, ['kind', 'copy']); parseManagedCopy(slot.copy); return slot as unknown as ManagedSlot;
+  }
+  const slot = object(raw, ['kind', 'source']); if (slot.kind !== 'folder') fail('invalid_managed_copy');
+  const s = object(slot.source, ['site', 'identityVersion', 'sourceAccount', 'sourceCollectionId']);
+  text(s.site, 512); integer(s.identityVersion); text(s.sourceAccount, 512); text(s.sourceCollectionId, 512);
+  return slot as unknown as ManagedSlot;
+}
+/** Keep the canonical bookmark while opting out of reconstruction on every replica. */
+export function markManagedChange(state: ManagedSaveState, collectionId: string, slot: ManagedSlot, nodeId: string, status: 'detached' | 'suppressed') {
+  const key = managedSlotKey(collectionId, slot), binding = own(state.bindings, key);
+  if (!binding || binding.node.nodeId !== nodeId) return fail('source_copy_adoption_conflict');
+  state.bindings[key] = { ...binding, state: binding.state === 'suppressed' ? 'suppressed' : status };
+  return state.bindings[key];
+}
 export function parseManagedCopy(raw: unknown): ManagedCopy {
   const purpose = (raw as { purpose?: unknown } | null)?.purpose;
   const value = object(raw, purpose === 'sourceArchive' ? ['content', 'purpose', 'sourceAccount', 'sourceCollectionId'] : ['content', 'purpose']);

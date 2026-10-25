@@ -1,5 +1,5 @@
 import { expect, test, vi } from 'vitest';
-import { parseManagedSave, saveManagedCopy, recoverManagedCopy, managedSlotKey, sourceHash, claimManagedSemantic, releaseManagedSemantic, observeManagedCopy,
+import { parseManagedSave, saveManagedCopy, recoverManagedCopy, managedSlotKey, sourceHash, claimManagedSemantic, releaseManagedSemantic, observeManagedCopy, markManagedChange,
   type ManagedSaveCommand, type ManagedSaveState, type ManagedNode } from '../../../src/modules/source-archives/index.js';
 const command = (id = 'command-1'): ManagedSaveCommand => ({ commandId: id, replicaId: 'device-a', collectionId: 'library', parentId: 'folder', parentRevision: 'r1',
   slot: { kind: 'bookmark', copy: { content: { site: 'fixture.posts', identityVersion: 1, itemId: 'post:one', accountId: null }, purpose: 'sourceArchive', sourceAccount: 'reader', sourceCollectionId: 'saved' } },
@@ -10,6 +10,14 @@ function fixture() {
     create: vi.fn(async (c: ManagedSaveCommand) => { const node = { nodeId: `node-${nodes.size}`, parentId: c.parentId, title: c.title, url: c.url, revision: 'r2' }; nodes.set(node.nodeId, node); return node; }) };
   return { state, nodes, ports };
 }
+test('a local opt-out suppresses shared reconstruction even when the canonical bookmark is retained', async () => {
+  const f = fixture(), c = command(), saved = await saveManagedCopy(f.state, c, f.ports);
+  expect(() => markManagedChange(f.state, c.collectionId, c.slot, 'foreign-node', 'suppressed')).toThrow('source_copy_adoption_conflict');
+  markManagedChange(f.state, c.collectionId, c.slot, saved.node.nodeId, 'suppressed');
+  markManagedChange(f.state, c.collectionId, c.slot, saved.node.nodeId, 'detached');
+  expect((await saveManagedCopy(f.state, { ...c, commandId: 'new-device' }, f.ports)).disposition).toBe('suppressed');
+  expect(f.nodes.has(saved.node.nodeId)).toBe(true); expect(f.ports.create).toHaveBeenCalledTimes(1);
+});
 test('another replica reuses the same source copy and an immutable receipt recovers a lost reply', async () => {
   const f = fixture(), a = command(), first = await saveManagedCopy(f.state, a, f.ports);
   const second = await saveManagedCopy(f.state, { ...command('command-2'), replicaId: 'device-b' }, f.ports);
