@@ -38,21 +38,20 @@ export function BookmarkAutomation({ collectionId, nodeId }: { collectionId: str
     ? 'Loading'
     : runs.state.status === 'error'
       ? errorMessage(runs.state.error, 'Could not load what automation did.')
-      : items.length === 0 ? 'Nothing yet' : null
+      : items.length === 0 ? 'No rule has acted on it yet' : null
 
   return (
     <section className="resource-section" aria-labelledby="resource-automation-heading" data-testid="bookmark-automation">
       <div className="section-head section-head--split resource-section-head">
         <h2 id="resource-automation-heading">Automation</h2>
+        {/* Nothing to show is one line in the heading row, with the way to the rules. */}
         {status && (
-          <p className="resource-section-status" role="status" data-error={runs.state.status === 'error' ? 'true' : undefined}>{status}</p>
+          <p className="resource-section-status" role="status" data-error={runs.state.status === 'error' ? 'true' : undefined}>
+            {status}
+            {runs.state.status === 'ready' && <> · <Link to="/automations">See your rules</Link></>}
+          </p>
         )}
       </div>
-      {runs.state.status === 'ready' && items.length === 0 && (
-        <p className="automation-meta">
-          No rule has acted on this bookmark. <Link to="/automations">See your rules</Link>
-        </p>
-      )}
       {runs.state.status === 'error' && (
         <button type="button" className="btn btn-secondary btn-sm automation-history-retry" onClick={runs.reload}>Try again</button>
       )}

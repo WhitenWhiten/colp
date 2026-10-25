@@ -274,11 +274,15 @@
   color: var(--danger);
 }
 
-/* A grid item inherits `justify-items: stretch`; CTAs stay intrinsic. */
-.resource-section-cta {
-  justify-self: start;
-  max-width: 100%;
+.resource-section-status a {
+  color: var(--muted);
+  text-decoration: underline;
+  text-decoration-color: var(--line-heavy);
+  text-underline-offset: 2px;
 }
+
+.resource-section-status a:hover { color: var(--ink); }
+
 
 /* ——— Guest invitation ——— one quiet row instead of two empty sections. */
 .resource-signin {
@@ -485,7 +489,8 @@
 }
 
 /* ——— Relations ——— */
-.resource-relations-tools {
+/* The heading row's right side: the section's status, then its action. */
+.resource-section-tools {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -882,7 +887,8 @@
     align-items: stretch;
   }
 
-  .resource-relations-tools {
+  /* The heading row's right side: the section's status, then its action. */
+.resource-section-tools {
     justify-content: flex-start;
   }
 

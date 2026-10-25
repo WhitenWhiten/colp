@@ -145,13 +145,13 @@ describe('Resource Detail Relation workflow', () => {
     expect(disclosure.getAttribute('aria-expanded')).toBe('false')
   })
 
-  it('shows one quiet empty line when neither direction has relations', async () => {
+  it('says once, in the heading row, that neither direction has relations', async () => {
     mocks.loadRelations.mockResolvedValue([])
     render(); await waitForDom(domFinishedLoading)
-    expect(document.body.textContent).toContain('No relations yet.')
+    expect(document.querySelector('[data-relation-state]')?.textContent).toBe('No relations yet')
+    expect(document.body.textContent?.match(/No relations/gu)).toHaveLength(1)
     expect(document.body.textContent).not.toContain('Outgoing relations')
     expect(document.body.textContent).not.toContain('Incoming relations')
-    expect(document.querySelector('[data-relation-state]')?.textContent).toBe('0 relations')
   })
 
   it('performs create, patch, and delete while endpoint replacement uses two command intents', async () => {

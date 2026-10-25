@@ -76,7 +76,7 @@ export function useRelationWorkflow(locator: RelationLocator | null, draftDirty 
       setNodes([editor.root, ...editor.nodes].filter((node) => node.id !== locator.nodeId).map((node) => (
         { id: node.id, title: node.title, kind: node.kind, host: node.kind === 'bookmark' && 'url' in node && node.url ? hostOf(node.url) : null }
       )))
-      setIncoming(nextIncoming); setOutgoing(nextOutgoing); setState('ready'); setMessage(plural(nextIncoming.length + nextOutgoing.length, 'relation'))
+      setIncoming(nextIncoming); setOutgoing(nextOutgoing); setState('ready'); setMessage(nextIncoming.length + nextOutgoing.length === 0 ? 'No relations yet' : plural(nextIncoming.length + nextOutgoing.length, 'relation'))
       /* Re-basing `editing` onto the server copy must not silently arm the
          save path with a fresh etag: a dirty draft over a moved revision
          surfaces as 'stale' so the overwrite is informed; a clean draft just

@@ -304,7 +304,6 @@ function ResourceDetailContent() {
   const tldrAi = annotation.tldr?.provenance?.kind === 'ai'
   const backHref = graphReturn ?? resourceBackPath(workspaceQuery, resolved)
   const hasRelations = relations.outgoing.length > 0 || relations.incoming.length > 0
-  const relationsSettled = relations.state !== 'loading' && relations.state !== 'error'
   const onEditRelation = (relation: RelationView, button: HTMLButtonElement) => {
     lastEditButton.current = button
     relations.beginEdit(relation)
@@ -412,16 +411,28 @@ function ResourceDetailContent() {
 
             {annotationsEnabled && allowWrite && (
               <section className="resource-section" aria-labelledby="resource-annotation-heading">
+                {/* The count and Edit details share the heading's row, so a
+                    bookmark without notes is one line here. */}
                 <div className="section-head section-head--split resource-section-head">
                   <h2 id="resource-annotation-heading">Annotations</h2>
-                  <p className="resource-section-status" role="status" aria-live="polite"
-                    data-error={annotation.state === 'error' ? 'true' : undefined}>
-                    {annotation.state === 'loading'
-                      ? 'Loading annotations'
-                      : annotation.state === 'error'
-                        ? annotation.message
-                        : annotationSummaryCopy(annotation.annotations)}
-                  </p>
+                  <div className="resource-section-tools">
+                    <p className="resource-section-status" role="status" aria-live="polite"
+                      data-error={annotation.state === 'error' ? 'true' : undefined}>
+                      {annotation.state === 'loading'
+                        ? 'Loading annotations'
+                        : annotation.state === 'error'
+                          ? annotation.message
+                          : annotationSummaryCopy(annotation.annotations)}
+                    </p>
+                    {collectionId && (
+                      <Link
+                        className="btn btn-secondary btn-sm"
+                        to={`/library/${encodeURIComponent(collectionId)}?node=${encodeURIComponent(node.id)}`}
+                      >
+                        Edit details
+                      </Link>
+                    )}
+                  </div>
                 </div>
                 {annotation.annotations.length > 0 ? (
                   <div className="resource-annotation-list" data-testid="resource-annotation-list">
@@ -442,16 +453,9 @@ function ResourceDetailContent() {
                     ))}
                   </div>
                 ) : null}
-                {collectionId ? (
-                  <Link
-                    className="btn btn-secondary btn-sm resource-section-cta"
-                    to={`/library/${encodeURIComponent(collectionId)}?node=${encodeURIComponent(node.id)}`}
-                  >
-                    Edit details
-                  </Link>
-                ) : !annotationLocator ? (
+                {!collectionId && !annotationLocator && (
                   <p className="meta">Open this bookmark from your library to see notes.</p>
-                ) : null}
+                )}
               </section>
             )}
 
@@ -464,7 +468,7 @@ function ResourceDetailContent() {
                 <div className="section-head section-head--split resource-section-head">
                   <h2 id="resource-relations-heading">Relations</h2>
                   {allowWrite && (
-                    <div className="resource-relations-tools">
+                    <div className="resource-section-tools">
                       <p className="resource-section-status" role="status" aria-live="polite" data-relation-state={relations.state} data-error={relations.state === 'error' ? 'true' : undefined}>{relations.message}</p>
                       {relationLocator && relations.canEdit && (
                         <button
@@ -513,10 +517,6 @@ function ResourceDetailContent() {
                       <button className="btn btn-ghost btn-sm" type="button" onClick={() => { setCreatingRelation(false); queueMicrotask(() => addRelationButton.current?.focus()) }}>Cancel</button>
                     </div>
                   </form>
-                )}
-
-                {allowWrite && relationLocator && !hasRelations && relationsSettled && (
-                  <p className="resource-relations-empty">No relations yet.</p>
                 )}
 
                 {allowWrite && hasRelations && (

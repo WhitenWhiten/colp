@@ -96,7 +96,7 @@ describe('Bookmark automation history', () => {
 
   it('says nothing has happened yet, and links to the rules', async () => {
     mount()
-    await waitForDom(() => document.querySelector('[role="status"]')?.textContent === 'Nothing yet')
+    await waitForDom(() => document.querySelector('[role="status"]')?.textContent === 'No rule has acted on it yet · See your rules')
     expect(document.querySelector('[data-testid="bookmark-automation"] a')?.getAttribute('href')).toBe('/automations')
   })
 
