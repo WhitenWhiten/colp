@@ -219,7 +219,7 @@ language; there is no in-extension switch.
   `description`. `npm run check:i18n` (also in the unit tests) fails when the
   English catalog is stale or a Chinese entry is missing, stale or has
   different `$n` substitutions. `node scripts/i18n-catalog.mjs --todo` lists
-  what needs translating; `--apply zh_CN <file.json>` merges `{ "key": "译文" }`.
+  what needs translating; `--apply zh_CN <file.json>` merges `{ "key": "translated text" }`.
 - `import-preview.ts` must not touch `chrome`, so its warnings stay English
   there and are translated where options shows them (`importWarningCopy`).
 
@@ -228,7 +228,7 @@ language; there is no in-extension switch.
 
 A missing native Pull target or anchor stops at an explicit local-repair state.
 Refreshing an active server Session cannot repair that Chrome identity. The
-popup and Folders settings offer **重建本机同步副本** for this state and for
+popup and Folders settings offer **Rebuild this browser's synced copy** for this state and for
 terminal identity or transport-budget failures. The preview reports unfinished
 queue operations; confirmation archives the old local scope, including pending
 reorders, then registers a new replica and opens folder/merge setup. Chrome

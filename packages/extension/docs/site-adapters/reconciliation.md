@@ -1,42 +1,42 @@
-# 重新核对网站收藏夹
+# Rechecking website collections
 
-这是网站适配器共用的功能。它读取网站当前的收藏，再与已有映射比较；不会把浏览器内的整理操作反向写回网站，也不会清空目录后重建。
+This shared website-adapter feature reads the site's current favorites and compares them with existing mappings. It does not write browser organization changes back to the website or empty and rebuild mapped folders.
 
-在“同步”页点击“再次检查”，读取结束后查看“收藏夹差异”。正常导入负责新增收藏；差异列表负责处理已有书签。确认前不执行这些改动。
+On the Sync tab, click **Check again**, then review **Collection differences** when reading finishes. The normal import handles new favorites; the difference list handles existing bookmarks. These changes wait for approval.
 
-| 遇到的情况 | 默认行为 | 可以明确选择的处理 |
+| Situation | Default behavior | Explicitly available action |
 | --- | --- | --- |
-| 排序、置顶、标签、笔记 | 保留；排序不参与收藏关系判断 | 无需重建 |
-| 自定义书签标题 | 保留，与收藏关系分别记录 | 改用网站标题 |
-| 本地删除过的来源副本 | 保持删除 | 恢复这一份；能精确对应的本地注释、置顶一起恢复 |
-| 直接位于对应映射收藏夹内、内容相同但没有来源关联的书签 | 保留，不自动采用，也不另建来源副本 | 从候选中明确选择一个进行关联 |
-| 映射目录里的个人书签或文件夹 | 保留原位 | 移到所选目录；包含受保护副本的文件夹不参与搬移 |
-| 单个来源副本被移走 | 保留当前位置，暂停这一份 | 放回对应映射目录 |
-| 收藏夹目录被移走 | 暂停向该目录继续写入 | 放回原位置；新位置仍在已授权根目录内时，也可确认继续使用 |
-| 网站明确证明已取消收藏 | 保留浏览器副本 | 移到映射范围外的专用历史目录 |
-| 本次未读到，但不能证明已取消收藏 | 标为待核实，保留 | 不提供据此清理的操作 |
-| 网址改成了其他内容、身份凭据缺失或整个映射目录被删 | 保留可见对象并要求检查 | 不猜测身份、接管相似目录或盲目重建 |
+| Order, pins, tags and notes | Preserve them; order does not determine collection membership | No reconstruction needed |
+| Custom bookmark title | Preserve it independently of collection membership | Use the source title |
+| Source copy deleted locally | Keep it deleted | Restore this copy, including local annotations and pins that can be matched exactly |
+| Matching content directly inside the mapped collection folder, without a source association | Keep the existing bookmark; neither adopt it automatically nor create another source copy | Choose a candidate explicitly and link it |
+| Personal bookmark or folder inside a mapped folder | Keep it in place | Move it to a chosen folder; folders containing protected copies cannot be moved |
+| Individual source copy moved elsewhere | Preserve its location and pause this copy | Return it to its mapped collection folder |
+| Collection folder moved elsewhere | Pause further writes to that folder | Return it to its previous location, or approve continued use if the new location remains inside the authorized root |
+| Website explicitly proves removal from the collection | Retain the browser copy | Move it to a dedicated history folder outside the mappings |
+| Item missing from this read, without proof of removal | Retain it and mark it unverified | No cleanup action based on this absence |
+| URL changed to different content, missing identity proof, or an entire mapped folder deleted | Retain visible objects and require review | No guessed identity, adoption of similar folders, or blind reconstruction |
 
-来源副本按网站、来源账号、收藏夹、内容身份区分。语义副本按内容和书签库区分。同一内容出现在多个网站收藏夹时，来源副本仍可分别存在；不会为了去重而合并来源和语义用途。共用同一个实际书签的其他用途，以及目录中的受保护后代，会阻止搬移或删除。
+Source copies are distinguished by website, source account, collection and content identity. Semantic copies are distinguished by content and bookmark library. Content present in multiple website collections can have a separate source copy in each. Deduplication does not merge source and semantic purposes. Other purposes sharing the same physical bookmark, and protected descendants inside a folder, block movement or deletion.
 
-移动个人内容与移入历史目录，必须保持原来的本地／同步书签库边界，且位于所有网站映射之外。历史目录要求是空的专用文件夹，或已经登记过的历史目录，并排除在自动语义分类的目标之外。
+Destinations for personal items and retained history must preserve the original local or synced library boundary and remain outside every website mapping. A history destination must be an empty dedicated folder or a previously registered history folder. History folders are excluded from automatic semantic classification destinations.
 
-“已处理”只表示所选操作已完成，不表示浏览器与网站完全一致。待核实项、明确保留的差异仍会列出。网站新增收藏夹需要重新选择；读不到或无权访问的收藏夹不会据此清理其书签。
+**Applied** means that the chosen operations completed, not that the browser exactly matches the website. Unverified items and explicitly retained differences remain listed. Newly created website collections require selection; unreadable or inaccessible collections do not authorize cleanup of their bookmarks.
 
-## 失败、重试与撤销
+## Failures, retries and undo
 
-每个操作先保存固定命令，再执行并保存结果。断线、页面关闭、工作线程退出后，先查原命令的结果；结果不确定时不换命令重建。一个书签发生冲突，只暂停这一项。尚未发出的搬移操作可以明确重选目标；已发出的命令保持不变。
+Each operation persists an immutable command before execution, then records its result. After disconnection, page closure or worker termination, recovery first checks that original command's result. An uncertain result never causes a replacement create under a new command. A bookmark conflict pauses only the affected operation. The user can explicitly change the destination of a move that has not been issued; issued commands remain unchanged.
 
-执行前再次检查账号、书签库、来源授权、规则版本、目录身份和用途。预览后发生的新手动修改会阻止相应操作。恢复用同一个云端书签身份；本地重建使用已有的可靠创建回执。普通同步与恢复创建共用执行锁。
+Execution rechecks the account, library, source authorization, rule version, folder identity and ownership. Manual changes made after the preview block the affected operation. Restoration reuses the same canonical bookmark identity; local reconstruction uses the existing reliable creation-receipt protocol. Ordinary synchronization and restoration creates share an execution lock.
 
-撤销会检查操作后的实际内容、位置、注释版本和用途；后来又被编辑或被其他用途使用时暂停，不覆盖新修改。撤销恢复或关联后，来源副本保持退出状态，不会立即自动补回。取消只停止后续操作，已发出的操作仍可查询原结果。下一次核对不会抹掉历史；“恢复 → 此前的收藏夹核对”提供历史分页、查看、重试和撤销。
+Undo checks the resulting content, location, annotation revision and ownership. Later edits or use by another purpose pause undo instead of overwriting newer changes. Undoing a restoration or association leaves the source copy opted out, preventing immediate automatic reconstruction. Cancellation stops subsequent operations while preserving result lookup for issued commands. Starting another check retains the history. **Recovery → Previous collection checks** provides paged history, inspection, retry and undo.
 
-服务端的来源关联改动、书签改动、普通 Sync 操作结果、删除凭据与回执在同一事务提交。关联版本阻止离线设备的旧删除状态覆盖更新的明确恢复。需要同时更新扩展和支持 `managedReconcile: 1` 的 COLP Server。
+The server commits source-association changes, bookmark changes, ordinary Sync effects, deletion authority and receipts in the same transaction. Association revisions prevent stale offline deletion reports from overriding a newer explicit restoration. Update both the extension and COLP Server; the server must support `managedReconcile: 1`.
 
-## 当前能力边界
+## Current capability limits
 
-只有经过宿主审核、连续且完整的同一时间点快照，或新鲜的明确否定读回，才能证明取消收藏。Bilibili 当前只有尽力读取，因此“本次没读到”仍是待核实，不能自动清理。基础模型支持收藏关系集合；允许同一内容在同一列表出现多次的列表尚未支持。空白标题在本地保留；云端仍服从现有书签内容校验，不会擅自填一个标题来绕过校验。
+Only a host-qualified, contiguous and complete point-in-time snapshot, or fresh explicit negative readback, can prove removal from a collection. Bilibili currently provides best-effort reads, so items missing from a read remain unverified and cannot be cleaned up automatically. The foundation supports collection membership sets; lists allowing repeated occurrences of the same content are not yet supported. Blank titles are preserved locally. Cloud writes retain the existing bookmark-content validation and never invent a title to bypass it.
 
-核对预览有明确的数量和字节上限，超限停止，不截断成“完整”。历史大预览按需读取；后台只分批处理待完成命令，不重新遍历所有历史。未知结果、人工冲突和旧回执都不自动删除。
+Reconciliation previews have explicit item and byte limits. Exceeding them stops the operation rather than presenting truncated data as complete. Large historical previews are loaded on demand. Background work processes pending commands in bounded batches without rescanning all history. Unknown results, manual conflicts and old receipts are retained.
 
-受控验收入口：`tests/site-adapter-reconcile*.test.ts`、`e2e/mv3-site-adapter-reconcile.spec.ts`、`e2e/mv3-site-adapter-reconcile-server.spec.ts`、`e2e/mv3-site-adapter-shared-sync.spec.ts`。浏览器测试使用 xvfb；网站和模型响应为受控数据，云同步测试使用真实临时 PostgreSQL 与服务端。
+Controlled acceptance entry points: `tests/site-adapter-reconcile*.test.ts`, `e2e/mv3-site-adapter-reconcile.spec.ts`, `e2e/mv3-site-adapter-reconcile-server.spec.ts` and `e2e/mv3-site-adapter-shared-sync.spec.ts`. Browser tests run under xvfb. Website and model responses use controlled fixtures; cloud synchronization tests use a real disposable PostgreSQL database and server.
