@@ -40,7 +40,12 @@ export function createContentBindings(db: SourceDatabase, assertNative: (native:
       if (connectionId) await assertSourceRebound(db, connectionId);
       if (connectionId) await assertRestoredItemAvailable(db, connectionId, input.itemId);
       const reps = connectionId ? await db.transaction(['representations'], 'readonly', async tx => (await rows<Representation>(tx, 'representations', connectionId, input.itemId)).filter(r => inScope(r, input.scopeId))) : [];
-      for (const r of reps) { if (r.state !== 'active') throw new Error('content_binding_needs_review'); await assertNative(r.native, r.lastWritten ? { ...r.lastWritten, url: r.lastWritten.url ?? definition.itemUrl(r.itemId) ?? undefined } : undefined); }
+      for (const r of reps) {
+        // Independent semantic saves do not reuse or repair source-archive copies.
+        if (settings?.policy.copies === 'sourceAndSemantic' && r.purpose === 'sourceArchive') continue;
+        if (r.state !== 'active') throw new Error('content_binding_needs_review');
+        await assertNative(r.native, r.lastWritten ? { ...r.lastWritten, url: r.lastWritten.url ?? definition.itemUrl(r.itemId) ?? undefined } : undefined);
+      }
       return db.transaction(['contentBindings', 'itemReservations', 'representations', 'meta', 'authorities', 'semanticJobs', 'semanticIndexes'], 'readwrite', async tx => {
         const history = (await rows<ContentBindingRow>(tx, 'contentBindings', identity.siteKey, identity.identityVersion, input.itemId))
           .filter(b => sameContentIdentity(b.content, identity) && (input.scopeId === undefined || b.scopeId === input.scopeId));

@@ -4,7 +4,7 @@ import { expect, test } from 'vitest';
 import { createContentBindings, contentIdentityFromUrl } from '../src/site-adapters/content-bindings.js';
 import { createSourceDatabase, put } from '../src/site-adapters/source-db.js';
 import { createSourceLedger } from '../src/site-adapters/ledger.js';
-import { createSourceReservations } from '../src/site-adapters/reservations.js';
+import { createSourceReservations, representationKey } from '../src/site-adapters/reservations.js';
 import { createCaptureCoordinator } from '../src/capture/coordinator.js';
 import { createCaptureStore } from '../src/capture/store.js';
 import { task, location } from './fixtures/capture.js';
@@ -136,3 +136,16 @@ test('a suppressed source edge does not block an independent source copy under t
   expect((await f.bindings.sourceDecision({ connectionId: f.connectionId, itemId: request.itemId, policy: f.policy,
     representation: { ...f.representation, sourceCollectionId: '102' } })).status).toBe('create'); await f.db.close();
 });
+test.each(policies.flatMap(copies => (['detached', 'suppressed'] as const).map(state => ({ copies, state }))))(
+  '$copies handles a $state source archive without changing its opt-out', async ({ copies, state }) => {
+    const f = await fixture(copies), reservations = createSourceReservations(f.db);
+    try {
+      await reservations.bindRepresentation({ ...f.representation, native, state: 'active', manualRevision: 0, lastWritten: node });
+      await reservations.manualChange(f.representation, state);
+      if (copies === 'sourceAndSemantic') {
+        expect(await f.bindings.prepare(request)).toMatchObject({ mode: 'create', native: null, forceAnother: true });
+      } else await expect(f.bindings.prepare(request)).rejects.toThrow('content_binding_needs_review');
+      expect(await f.db.read('representations', representationKey(f.representation))).toMatchObject({ state, native });
+    } finally { await f.db.close(); }
+  },
+);
