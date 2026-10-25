@@ -6755,6 +6755,9 @@
   "sites_chromeVersion": {
     "message": "Site adapters need Chrome $1 or later; this is Chrome $2."
   },
+  "sites_classifyAgain": {
+    "message": "Classify again"
+  },
   "sites_clearAll": {
     "message": "Clear all"
   },
@@ -6829,6 +6832,9 @@
   },
   "sites_copiesPreferSemantic": {
     "message": "One copy, prefer semantic location"
+  },
+  "sites_copyMigrationReview": {
+    "message": "Existing website copies need a mapping or identity review before saving can continue. No additional copies were created."
   },
   "sites_currentItem": {
     "message": "Current item"
@@ -7237,6 +7243,15 @@
   },
   "sites_retryPaused": {
     "message": "Retry paused reads"
+  },
+  "sites_retryUnsubmitted": {
+    "message": "Prepare to save again"
+  },
+  "sites_retryUnsubmittedDone": {
+    "message": "The unsubmitted save was cleared. Open the save window again."
+  },
+  "sites_retryUnsubmittedHeld": {
+    "message": "This save may already have been sent. Its original record is kept for recovery."
   },
   "sites_review": {
     "message": "Review"

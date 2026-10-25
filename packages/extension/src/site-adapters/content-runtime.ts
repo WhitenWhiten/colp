@@ -3,7 +3,7 @@ import { legacySite, identityDefinition, type SiteDefinition } from './registry.
 import { readConnectionAuthority } from './ledger.js';
 import { installCaptureContentBindings, assertCaptureContent } from '../capture/content-binding.js';
 import { createContentBindings, contentIdentityFromUrl } from './content-bindings.js';
-import { siteLedger } from './source-runtime.js';
+import { siteLedger, SITE_RECOVERY_ALARM } from './source-runtime.js';
 import { captureDeviceId } from '../sw/capture-history.js';
 import type { NativeBinding } from './contracts.js';
 import { get, put, rows, sourceKey } from './source-db.js';
@@ -16,6 +16,10 @@ import { currentCaptureScope, nativeCaptureLocation } from '../sw/capture-native
 import { assertSourceRebound, assertRestoredItemAvailable } from './portable.js';
 import { semanticContext, scopedSemanticBindings, importSharedSemantic, adoptSemanticAssociation } from './semantic-associations.js';
 import { prepareSemanticCapture, releaseSemanticCaptureClaim } from './semantic-capture.js';
+import { currentSyncScope } from '../sw/scope.js';
+import { syncState } from '../sw/runtime.js';
+import { managedLibraryKey } from './copy-identity.js';
+import { retryUnsubmittedContent } from './content-retry.js';
 interface ManagedMove { nativeId: string; dateAdded: number; title: string; from: string; to: string; at: number; state: 'submitted' | 'confirmed' }
 export async function isManagedContentMove(id: string, to: string, from: string) {
   const move = await siteLedger.db.read<ManagedMove>('meta', `contentMove:${id}`);
@@ -32,19 +36,40 @@ let resolveIdentity: (url: string, tabId?: number) => Promise<import('./contract
 export function installContentResolver(resolve: typeof resolveIdentity) { resolveIdentity = resolve; }
 const adoptSchema = object({ kind: literal('known.siteAdapters.content.adopt'), captureId: str(128), nativeId: str(128) });
 const listSchema = object({ kind: literal('known.siteAdapters.content.list') });
+const retryPendingSchema = object({ kind: literal('known.siteAdapters.content.retryUnsubmitted'), itemId: str(128), bindingId: str(128) });
 const accountAdoptSchema = object({ kind: literal('known.siteAdapters.content.adoptAccount'), itemId: str(128), bindingId: str(128), allowAccountChange: literal(true) });
-export const validContentRequest = (v: unknown) => adoptSchema(v) || listSchema(v) || accountAdoptSchema(v);
+export const validContentRequest = (v: unknown) => adoptSchema(v) || listSchema(v) || accountAdoptSchema(v) || retryPendingSchema(v);
 export async function handleContentRequest(raw: unknown, definition: SiteDefinition = legacySite) {
+  if (retryPendingSchema(raw)) {
+    const input = raw as { itemId: string; bindingId: string };
+    const binding = (await listContentBindings(siteLedger.db, definition)).find(b => b.id === input.bindingId && b.content.itemId === input.itemId);
+    if (!binding) throw new Error('content_retry_unavailable');
+    const context = await semanticContext(binding.parentId);
+    if (binding.scopeId !== context.scopeId) throw new Error('content_retry_unavailable');
+    await retryUnsubmittedContent(siteLedger.db, binding, {
+      async cancelUnsubmitted() {
+        const task = await captureStore.getForOwner(context.scope, binding.captureIntentId);
+        if (!task) return;
+        if (task.nativeIntentId || task.nativeId || !['unsubmitted', 'failed'].includes(task.save)) throw new Error('content_result_unknown');
+        await captureStore.update({ ...task, save: 'failed', classification: 'none', automaticIntent: false, reason: 'superseded_unsubmitted',
+          revision: task.revision + 1, updatedAt: Date.now() }, task.revision);
+      }, release: () => releaseSemanticCaptureClaim(binding.managed),
+    }); return { ok: true };
+  }
   if (listSchema(raw)) {
     const rows = await listContentBindings(siteLedger.db, definition);
     const authority = await siteLedger.db.read<import('./ledger-types.js').SourceAuthority>('authorities', definition.adapterId);
     return { ok: true, connectionId: authority?.enabled ? authority.connectionId : null, truncated: rows.length > 1000 || rows.filter(b => !b.supersededBy).length > 50,
-      bindings: rows.filter(b => !b.supersededBy && b.content.siteKey === definition.siteKey && b.content.identityVersion === definition.identityVersion).slice(0, 50).map(b => ({ id: b.id, itemId: b.content.itemId, title: b.title, state: b.state, connectionId: b.connectionId, native: !!b.native })) };
+      bindings: await Promise.all(rows.filter(b => !b.supersededBy && b.content.siteKey === definition.siteKey && b.content.identityVersion === definition.identityVersion).slice(0, 50).map(async b => ({ id: b.id, itemId: b.content.itemId, title: b.title, state: b.state, connectionId: b.connectionId, native: !!b.native,
+        retryable: !b.native && !await siteLedger.db.read('semanticJobs', b.captureIntentId)
+          && (b.state === 'pending' || (await siteLedger.db.read<{ state: string }>('meta', `contentRetry:${b.id}`))?.state === 'checking') }))) };
   }
   if (accountAdoptSchema(raw)) {
     const r = raw as { itemId: string; bindingId: string }, b = await siteLedger.db.read<ContentBindingRow>('contentBindings', contentBindingKey({ siteKey: definition.siteKey, identityVersion: definition.identityVersion, itemId: r.itemId }, r.bindingId));
     const authority = await siteLedger.db.read<import('./ledger-types.js').SourceAuthority>('authorities', definition.adapterId);
     if (!b?.native || b.state !== 'active' || b.supersededBy || !authority?.enabled || !authority.connectionId) throw new Error('content_adoption_unavailable');
+    if (b.content.accountId && b.content.accountId !== authority.accountId) throw new Error('content_identity_unresolved');
+    if (b.scopeId && b.scopeId !== (await semanticContext(b.parentId)).scopeId) throw new Error('content_adoption_unavailable');
     await assertContentNative(b.native, { title: b.title, parentId: b.parentId, url: b.url });
     await contentBindings.adopt(b, { ...b.native, proof: { kind: 'explicitAdoption', id: crypto.randomUUID() } },
       { title: b.title, parentId: b.parentId, url: b.url }, authority.connectionId, true);
@@ -57,6 +82,7 @@ export async function handleContentRequest(raw: unknown, definition: SiteDefinit
     || !task.existence?.exact.some(e => e.nativeId === r.nativeId && e.writable)) throw new Error('content_adoption_unavailable');
   const node = (await chrome.bookmarks.get(r.nativeId))[0];
   if (!node?.url || node.url !== task.url || !node.dateAdded || !node.parentId) throw new Error('content_binding_needs_review');
+  if (b.scopeId && b.scopeId !== (await semanticContext(node.parentId)).scopeId) throw new Error('content_binding_needs_review');
   const native: NativeBinding<'bookmark'> = { nativeId: node.id, bindingId: crypto.randomUUID(), dateAdded: node.dateAdded, deviceId: await captureDeviceId(), kind: 'bookmark',
     proof: { kind: 'explicitAdoption', id: crypto.randomUUID() } };
   const adopted = await contentBindings.adopt(b, native, { title: node.title, parentId: node.parentId, url: node.url }, b.connectionId);
@@ -94,6 +120,10 @@ export function installContentBindings() {
       const b = await contentBindings.forIntent(task.captureId);
       if (!b || b.id !== task.contentIntent.bindingId || b.commandId !== task.commandId || b.supersededBy
         || ['detached', 'suppressed'].includes(b.state)) throw new Error('content_binding_changed');
+      if (b.scopeId && b.connectionId && b.mode === 'create' && b.policyRevision !== null) {
+        const policy = await siteLedger.db.read<import('./layout.js').SourcePolicyRecord>('meta', `policy:${b.connectionId}`);
+        if (!policy?.enabled || policy.policy.revision !== b.policyRevision) throw new Error('source_policy_changed');
+      }
       if (b.connectionId && (!b.scopeId || b.mode === 'reclassify' || b.mode === 'suggest')) {
         await assertSourceRebound(siteLedger.db, b.connectionId);
         await assertRestoredItemAvailable(siteLedger.db, b.connectionId, b.content.itemId);
@@ -111,7 +141,16 @@ export function installContentBindings() {
       await contentBindings.acknowledge(b, b.native ?? { nativeId: node.id, dateAdded: task.nativeDateAdded, deviceId: await captureDeviceId(), kind: 'bookmark',
         bindingId: crypto.randomUUID(), proof: { kind: 'writeReceipt', id: task.nativeIntentId ?? task.commandId } }, { title: node.title, parentId: node.parentId });
       if (!b.managed && b.scopeId && !b.scopeId.startsWith('["local",')) {
-        const saved = await contentBindings.forIntent(task.captureId); if (saved) await adoptSemanticAssociation(saved, task.scope);
+        const saved = await contentBindings.forIntent(task.captureId);
+        if (saved && !(saved.shared?.slot.kind === 'bookmark' && saved.shared.slot.copy.purpose === 'semantic')) {
+          const key = `semanticAdoptPending:${saved.scopeId}:${saved.id}`, pending = { bindingKey: contentBindingKey(saved.content, saved.id), scope: task.scope };
+          await siteLedger.db.transaction(['meta'], 'readwrite', async tx => put(tx, 'meta', key, pending));
+          chrome.alarms.create(SITE_RECOVERY_ALARM, { when: Date.now() + 1000 });
+          try {
+            await adoptSemanticAssociation(saved, task.scope);
+            await siteLedger.db.transaction(['meta'], 'readwrite', async tx => { tx.objectStore('meta').delete(key); });
+          } catch { /* The bookmark is saved; the durable association request recovers independently. */ }
+        }
       }
     },
     async move(task, target, move) {
@@ -120,6 +159,14 @@ export function installContentBindings() {
       const b = await contentBindings.forIntent(task.captureId);
       if (!b?.native || b.supersededBy || b.state !== 'active') throw new Error('content_binding_needs_review');
       await assertContentNative(b.native, { title: b.title, parentId: b.parentId });
+      let relocate: { from: string; to: string } | undefined;
+      if (b.shared) {
+        const scope = await currentSyncScope();
+        if (managedLibraryKey(scope) !== managedLibraryKey(b.shared.library)) throw new Error('sourceSyncOwnerChanged');
+        const from = await syncState.getMappingByNativeId(scope, b.parentId), to = await syncState.getMappingByNativeId(scope, target);
+        if (!from || !to || from.quarantine || to.quarantine) throw new Error('semanticDestinationOutsideLibrary');
+        relocate = { from: from.colpId, to: to.colpId };
+      }
       const intent: ManagedMove = { nativeId: b.native.nativeId, dateAdded: b.native.dateAdded!, title: b.title, from: b.parentId, to: target, at: Date.now(), state: 'submitted' };
       await siteLedger.db.transaction(['meta'], 'readwrite', async tx => { put(tx, 'meta', `contentMove:${intent.nativeId}`, intent); });
       await assertCaptureContent(task);
@@ -133,8 +180,11 @@ export function installContentBindings() {
           if (r.native.nativeId === b.native!.nativeId && r.state === 'active') put(tx, 'representations', representationKey(r), { ...r, lastWritten: { title: b.title, parentId: target, url: b.url } });
         }
         put(tx, 'meta', `contentMove:${intent.nativeId}`, { ...intent, state: 'confirmed' });
+        if (b.shared && relocate) put(tx, 'meta', `managedRelocate:${managedLibraryKey(b.shared.library)}:${b.shared.nodeId}`, {
+          reference: b.shared, native: b.native, nativeParent: target, expected: { nodeId: b.shared.nodeId, ...relocate, title: b.title, url: b.url } });
       });
       await contentBindings.acknowledge({ ...b, parentId: target }, b.native, { title: b.title, parentId: target });
+      if (relocate) chrome.alarms.create(SITE_RECOVERY_ALARM, { when: Date.now() + 1000 });
     },
   });
 }

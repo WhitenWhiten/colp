@@ -11,7 +11,7 @@ async function folderName(id: string | null) {
 
 document.querySelector('#read-bindings')!.addEventListener('click', () => { void (async () => {
   const result = await sendSiteMessage({ kind: 'known.siteAdapters.content.list' }) as { ok?: boolean; connectionId?: string; truncated?: boolean;
-    bindings?: { id: string; itemId: string; title: string; state: string; connectionId: string | null; native: boolean }[] };
+    bindings?: { id: string; itemId: string; title: string; state: string; connectionId: string | null; native: boolean; retryable?: boolean }[] };
   const container = document.querySelector('#content-bindings')!, bindings = result.bindings ?? []; container.replaceChildren();
   text('content-summary', !result.ok ? t('sites_associationsUnreadable', 'Couldn’t read saved associations.') : !bindings.length ? t('sites_noAssociations', 'No saved associations yet.')
     : [tn('sites_associationCount', bindings.length, '$1 saved association.', '$1 saved associations.'),
@@ -21,6 +21,14 @@ document.querySelector('#read-bindings')!.addEventListener('click', () => { void
     const { row, text: copy, control } = siteRow(b.title, other ? t('sites_savedWithOther', 'Saved with another account.') : b.state === 'active' ? t('sites_savedWithConnected', 'Saved with the connected account.') : '');
     copy.title = b.itemId;
     if (b.state !== 'active') { const badge = document.createElement('span'); badge.className = 'badge'; badge.textContent = b.state; control.append(badge); }
+    if (b.retryable) {
+      const retry = siteButton(t('sites_retryUnsubmitted', 'Prepare to save again'));
+      retry.onclick = () => { retry.disabled = true; void sendSiteMessage({ kind: 'known.siteAdapters.content.retryUnsubmitted', itemId: b.itemId, bindingId: b.id })
+        .then((raw: unknown) => { const result = raw as { ok?: boolean };
+          text('content-summary', result.ok ? t('sites_retryUnsubmittedDone', 'The unsubmitted save was cleared. Open the save window again.')
+            : t('sites_retryUnsubmittedHeld', 'This save may already have been sent. Its original record is kept for recovery.')); }); };
+      control.append(retry);
+    }
     if (b.native && b.state === 'active' && result.connectionId && b.connectionId !== result.connectionId) {
       const adopt = siteButton(t('sites_adoptCopy', 'Adopt this copy into the connected account'));
       adopt.onclick = () => { void sendSiteMessage({ kind: 'known.siteAdapters.content.adoptAccount', itemId: b.itemId, bindingId: b.id, allowAccountChange: true }).then(r => {

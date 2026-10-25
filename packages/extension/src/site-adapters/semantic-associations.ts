@@ -63,13 +63,15 @@ export async function sharedSemanticBinding(identity: ContentIdentity, library: 
 /** Register an exact native/canonical association; legacy bookmarks are never discovered by URL or title. */
 export async function adoptSemanticAssociation(binding: ContentBindingRow, scope: CaptureScope) {
   if (!binding.native || !scope.accountId || !scope.collectionId) return;
+  if (binding.shared?.slot.kind === 'bookmark' && binding.shared.slot.copy.purpose === 'semantic') return;
   await assertContentNative(binding.native, { title: binding.title, parentId: binding.parentId, url: binding.url });
   const sync = await currentSyncScope(), mapping = await syncState.getMappingByNativeId(sync, binding.native.nativeId);
   if (!mapping || mapping.quarantine || mapping.colpId.startsWith('pending-')) throw new Error('sourceSyncPending');
   const node = (await chrome.bookmarks.get(binding.parentId))[0];
   const parent: NativeBinding<'folder'> = { nativeId: binding.parentId, kind: 'folder', dateAdded: node?.dateAdded ?? null, deviceId: binding.native.deviceId,
     bindingId: binding.id, proof: { kind: 'explicitAdoption', id: binding.id } };
-  const commandId = `semantic-adopt:${binding.id}`;
+  // Adoption changes metadata only. A new proven canonical revision gets its own immutable attempt.
+  const commandId = `semantic-adopt:${binding.id}:${sourceDigest({ projection: mapping.projection, parent: binding.parentId }).slice(7, 23)}`;
   const command = await managedSaves.prepareForSlot({ commandId, ownerId: binding.id, connectionId: binding.connectionId ?? '', kind: 'bookmark', parent,
     title: binding.title, logicalDigest: sourceDigest({ native: binding.native, scopeId: binding.scopeId }), deviceId: binding.native.deviceId,
     bookmark: { planId: binding.id, effectId: 'semantic', representation: { connectionId: binding.connectionId ?? '', itemId: binding.content.itemId, purpose: 'semantic', sourceCollectionId: null, mountId: null }, url: binding.url, scope, source: 'site-import' } },

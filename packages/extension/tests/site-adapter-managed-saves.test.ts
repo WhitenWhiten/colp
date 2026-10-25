@@ -12,10 +12,11 @@ const slot: ManagedSlot = { kind: 'folder', source: { site: 'fixture.posts', ide
 async function fixture() {
   const db = createSourceDatabase(new IDBFactory());
   const sent: { action: string; input: unknown }[] = [];
-  let projected = false, failReply = false, saved: ManagedSaveReceipt | null = null;
-  const call = async <T>(action: 'managed.save' | 'managed.recover', input: unknown): Promise<T> => {
+  let projected = false, failReply = false, removed = false, saved: ManagedSaveReceipt | null = null;
+  const call = async <T>(action: 'managed.save' | 'managed.recover' | 'managed.lookup', input: unknown): Promise<T> => {
     sent.push({ action, input });
     if (action === 'managed.recover') return { receipt: saved } as T;
+    if (action === 'managed.lookup') return { binding: removed ? { state: 'suppressed', node: saved?.node, slot, collectionId: library.collectionId } : null } as T;
     const c = input as ManagedDestination['command'];
     saved = { version: 1, commandId: c.commandId, digest: sourceDigest(c), key: managedSlotKey(c.collectionId, c.slot), disposition: 'created',
       node: { nodeId: 'canonical-folder', parentId: c.parentId, title: c.title, url: null, revision: 'r2' } };
@@ -31,18 +32,25 @@ async function fixture() {
   });
   const raw: PlannedNativeCommand = { commandId: 'folder-command', kind: 'folder', ownerId: 'reservation', logicalDigest: 'digest', connectionId: 'local-connection', parent, title: 'Saved', deviceId: 'device' };
   const command = await managed.prepare(raw, {} as SavePlan, {} as SaveEffect);
-  return { db, managed, command, sent, wake, client, project: () => { projected = true; }, loseReply: () => { failReply = true; }, saved: () => saved };
+  return { db, managed, command, sent, wake, client, project: () => { projected = true; }, remove: () => { removed = true; }, loseReply: () => { failReply = true; }, saved: () => saved };
 }
 test('a synced source create waits for ordinary projection and worker reconstruction reuses its persisted receipt', async () => {
   const f = await fixture(); try {
     const authorize = vi.fn(async () => {});
     expect(await f.managed.execute(f.command, authorize)).toEqual({ status: 'unknown', reason: 'sourceSyncPending' });
-    expect(authorize).toHaveBeenCalledOnce(); expect(f.sent.map(s => s.action)).toEqual(['managed.save']);
+    expect(authorize).toHaveBeenCalledOnce(); expect(f.sent.map(s => s.action)).toEqual(['managed.save', 'managed.lookup']);
     await f.db.close();
     f.project();
     expect(await f.managed.recover(f.command)).toMatchObject({ status: 'confirmed', native: { nativeId: 'native-folder' }, written: { parentId: 'root', title: 'Saved' } });
-    expect(f.sent.map(s => s.action)).toEqual(['managed.save']);
+    expect(f.sent.map(s => s.action)).toEqual(['managed.save', 'managed.lookup']);
     expect(f.wake).toHaveBeenCalled();
+  } finally { await f.db.close(); }
+});
+test('a deleted shared node stops recovery instead of waiting forever for its native projection', async () => {
+  const f = await fixture(); try {
+    await f.managed.execute(f.command, async () => {}); f.remove();
+    expect(await f.managed.recover(f.command)).toEqual({ status: 'blocked', reason: 'sourceCopySuppressed' });
+    expect(f.sent.filter(s => s.action === 'managed.save')).toHaveLength(1);
   } finally { await f.db.close(); }
 });
 test('a lost server reply recovers the original operation and never submits a replacement create', async () => {

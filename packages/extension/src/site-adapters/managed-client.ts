@@ -19,7 +19,7 @@ export interface ManagedReference { library: ManagedLibrary; slot: ManagedSlot; 
 export interface ManagedBinding { slot: ManagedSlot; collectionId: string; node: ManagedNode; state: 'active' | 'detached' | 'suppressed' }
 export interface SemanticClaim { ownerId: string; revision: number }
 export type SemanticClaimResult = { status: 'saved'; binding: ManagedBinding } | { status: 'claimed'; claim: SemanticClaim } | { status: 'waiting'; claim: SemanticClaim };
-export type ManagedAction = 'managed.save' | 'managed.recover' | 'managed.list' | 'managed.lookup' | 'managed.manual' | 'managed.semantic.claim' | 'managed.semantic.release';
+export type ManagedAction = 'managed.save' | 'managed.recover' | 'managed.list' | 'managed.lookup' | 'managed.manual' | 'managed.relocate' | 'managed.semantic.claim' | 'managed.semantic.release';
 export function createManagedCopyClient(ports: { origin: string; fetch: typeof fetch; headers(): Promise<Record<string, string>>; assertCurrent(): Promise<void> }) {
   const url = new URL(SOURCE_CLOUD_PATH, ports.origin);
   async function request(action?: string, input?: unknown) {

@@ -75,7 +75,7 @@ export function createContentBindings(db: SourceDatabase, assertNative: (native:
         const mode = !native ? 'create' : semantic || old?.native ? 'reuse' : policy?.copies === 'singlePreferSemantic' ? 'reclassify' : 'suggest';
         const id = crypto.randomUUID();
         const binding: ContentBindingRow = { id, ...(input.scopeId ? { scopeId: input.scopeId } : {}),
-          ...(old?.shared ? { shared: old.shared } : {}),
+          ...(old?.shared ?? reuse?.shared ? { shared: old?.shared ?? reuse?.shared } : {}),
           ...(!native && input.managed ? { managed: input.managed, managedParent: input.managedParent } : {}),
           sourceConnections: [...new Set([...old?.sourceConnections ?? [], ...old?.connectionId ? [old.connectionId] : [], ...connectionId ? [connectionId] : []])],
           intentPending: mode === 'reclassify' && input.automatic, requestDigest, ...(connectionId && a ? { sourceGeneration: [a.installationGeneration, a.sourceSessionGeneration] as const } : {}), content: identity,

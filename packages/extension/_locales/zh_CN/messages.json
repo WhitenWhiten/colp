@@ -12566,5 +12566,25 @@
   "sites_semanticOutsideLibrary": {
     "message": "AI 选中了当前同步范围之外的目录。请在同步范围内准备主题目录，再重新分类。",
     "description": "AI chose a folder outside this sync library. Choose topic folders inside this library, then retry classification."
+  },
+  "sites_copyMigrationReview": {
+    "message": "已有网站副本的映射或内容标识需要核对，暂时停止保存，没有另建副本。",
+    "description": "Existing website copies need a mapping or identity review before saving can continue. No additional copies were created."
+  },
+  "sites_retryUnsubmitted": {
+    "message": "重新准备保存",
+    "description": "Prepare to save again"
+  },
+  "sites_retryUnsubmittedDone": {
+    "message": "尚未发出的保存已清理，请重新打开保存窗口。",
+    "description": "The unsubmitted save was cleared. Open the save window again."
+  },
+  "sites_retryUnsubmittedHeld": {
+    "message": "这次保存可能已经发出，原记录会保留，等待恢复，避免重复保存。",
+    "description": "This save may already have been sent. Its original record is kept for recovery."
+  },
+  "sites_classifyAgain": {
+    "message": "重新分类",
+    "description": "Classify again"
   }
 }

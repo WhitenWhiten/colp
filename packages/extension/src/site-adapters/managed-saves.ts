@@ -1,12 +1,12 @@
 import { managedCopyKey, managedLibraryKey, type ManagedLibrary } from './copy-identity.js';
-import type { ManagedDestination, ManagedSaveCommand, ManagedSaveReceipt, ManagedSlot } from './managed-client.js';
+import type { ManagedDestination, ManagedSaveCommand, ManagedSaveReceipt, ManagedSlot, ManagedBinding } from './managed-client.js';
 import type { PlannedNativeCommand, PlannedNativeResult } from './planned-types.js';
 import type { NativeBinding, SaveEffect, SavePlan } from './contracts.js';
 import { sourceDigest, type SourceDatabase } from './source-db.js';
 export interface ManagedSavePorts {
   destination(parent: NativeBinding<'folder'>): Promise<{ library: ManagedLibrary; replicaId: string; parentId: string; parentRevision: string } | null>;
   slot(plan: SavePlan, effect: SaveEffect): Promise<ManagedSlot>;
-  client(library: ManagedLibrary): Promise<{ profile(): Promise<void>; call<T>(action: 'managed.save' | 'managed.recover', input: unknown): Promise<T> }>;
+  client(library: ManagedLibrary): Promise<{ profile(): Promise<void>; call<T>(action: 'managed.save' | 'managed.recover' | 'managed.lookup', input: unknown): Promise<T> }>;
   projection(destination: ManagedDestination, receipt: ManagedSaveReceipt): Promise<{ native: NativeBinding; parentId: string } | null>;
   wake(): void;
 }
@@ -45,6 +45,10 @@ export function createManagedSaves(db: SourceDatabase, ports: ManagedSavePorts) 
     if (receipt.disposition === 'suppressed' || receipt.disposition === 'detached') return { status: 'blocked', reason: receipt.disposition === 'suppressed' ? 'sourceCopySuppressed' : 'sourceCopyDetached' };
     ports.wake();
     const projected = await ports.projection(d, receipt);
+    if (!projected) {
+      const { binding } = await (await ports.client(d.library)).call<{ binding: ManagedBinding | null }>('managed.lookup', { collectionId: d.command.collectionId, slot: d.command.slot });
+      if (binding && (binding.state === 'suppressed' || binding.state === 'detached')) return { status: 'blocked', reason: binding.state === 'suppressed' ? 'sourceCopySuppressed' : 'sourceCopyDetached' };
+    }
     return projected ? { status: 'confirmed', native: projected.native, written: { title: receipt.node.title, parentId: projected.parentId, ...(receipt.node.url === null ? {} : { url: receipt.node.url }) } }
       : { status: 'unknown', reason: 'sourceSyncPending' };
   }

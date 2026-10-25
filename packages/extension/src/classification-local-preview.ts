@@ -14,7 +14,7 @@ export interface LocalClassificationTaxonomy {
   readonly folders:readonly ClassificationFolderInput[];readonly tagUsage:readonly ClassificationTagUsage[];
   readonly title:string;readonly summary:string|null;readonly revision:string;readonly collectionId:string;
 }
-/** Called only by a foreground user gesture. No durable provider worker or automatic retry. */
+/** Dispatched by a user action or an explicitly enabled host task. A spent attempt never retries automatically. */
 export async function previewLocalClassification(input:{credential:LocalClassificationCredential;taxonomy:LocalClassificationTaxonomy;
   document:ClassificationPreviewRequest;commandId:string;signal:AbortSignal;assertCurrent:()=>Promise<void>;transport?:typeof fetch}):Promise<ClassificationPreviewResponse>{
   if(!('bookmark' in input.document))throw new Error('local_incoming_only');

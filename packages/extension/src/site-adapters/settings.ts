@@ -60,6 +60,8 @@ function errorCopy(code: string | undefined) {
     case 'sourceDestinationChanged': case 'sourceDestinationNeedsReview': return t('sites_destinationChanged', 'The sync account or folder range changed. Check this folder and save the settings again.');
     case 'mountMigrationRequired': return t('sites_mappingMoveReview', 'This mapping already has saved bookmarks. Keep its current folder until those bookmarks can be moved together.');
     case 'sourceDestinationMigrationRequired': return t('sites_ownerMigrationReview', 'This mapping already contains bookmarks from another sync account or range. Return to that account and range before continuing.');
+    case 'source_mapping_migration_required': case 'source_identity_migration_required': case 'source_legacy_association_review_required': case 'source_managed_copy_review_required':
+      return t('sites_copyMigrationReview', 'Existing website copies need a mapping or identity review before saving can continue. No additional copies were created.');
     case 'semanticDestinationOutsideLibrary': return t('sites_semanticOutsideLibrary', 'AI chose a folder outside this sync library. Choose topic folders inside this library, then retry classification.');
     case 'local_key_required': return t('sites_semanticKeyRequired', 'Configure and enable your AI provider in Settings, then retry this copy.');
     case 'semanticOtherDevice': return t('sites_semanticOtherDevice', 'Another browser is handling this copy. Taking over starts a new classification attempt.');
@@ -401,9 +403,10 @@ function paintSemantic() {
     const title = document.createElement('p'); title.className = 'set-row-title'; title.textContent = job.title;
     const hint = document.createElement('p'); hint.className = 'set-row-hint'; hint.textContent = errorCopy(job.reason ?? 'sourceSyncPending'); body.append(title, hint); row.append(body);
     if (job.state === 'attention' || job.takeover) {
+      const reclassify = ['semanticChooseFolder', 'semanticDestinationMapped', 'semanticDestinationOutsideLibrary', 'destination_policy_changed'].includes(job.reason ?? '');
       const retry = document.createElement('button'); retry.className = 'btn btn-secondary btn-sm'; retry.type = 'button';
-      retry.textContent = job.takeover ? t('sites_semanticTakeover', 'Take over and retry') : t('common_retry', 'Retry');
-      retry.addEventListener('click', () => { retry.disabled = true; void act({ kind: 'known.siteAdapters.semantic.retry', jobId: job.id }); }); row.append(retry);
+      retry.textContent = job.takeover ? t('sites_semanticTakeover', 'Take over and retry') : reclassify ? t('sites_classifyAgain', 'Classify again') : t('common_retry', 'Retry');
+      retry.addEventListener('click', () => { retry.disabled = true; void act({ kind: 'known.siteAdapters.semantic.retry', jobId: job.id, ...(reclassify ? { reclassify: true } : {}) }); }); row.append(retry);
     }
     return row;
   }));

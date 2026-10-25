@@ -100,6 +100,29 @@ test('source and automatic semantic copies share ordinary sync, retry independen
     expect(nodes.filter(n => n.title === 'Shared A')).toHaveLength(1);
     expect(nodes.filter(n => n.title === 'Shared B')).toHaveLength(1);
     expect(nodes.filter(n => n.title === 'Shared source video')).toHaveLength(3);
+    const popup = await b.evaluate(async () => {
+      const folder = (await chrome.bookmarks.search({ title: 'Semantic' }))[0]!;
+      return chrome.runtime.sendMessage({ kind: 'known.capture.start', trigger: 'manual-popup', userGesture: true,
+        commandId: crypto.randomUUID(), title: 'Another source alias', url: 'https://www.bilibili.com/video/av1', parentNativeId: folder.id,
+        folderChoice: 'explicit', saveAnother: false, allowUnverifiedCloud: true });
+    });
+    expect(popup).toMatchObject({ ok: true, task: { contentIntent: { mode: 'reuse' } } });
+    expect(await b.evaluate(() => chrome.bookmarks.search({ title: 'Shared source video' }))).toHaveLength(3);
+    const bindings = async () => (await stack!.sourceArchiveProbe!({ version: 1, action: 'managed.list', input: { collectionId: stack!.collectionId, after: null } })).body as any;
+    const sharedSemantic = (await bindings()).bindings.find((entry: any) => entry.slot.kind === 'bookmark' && entry.slot.copy.purpose === 'semantic');
+    expect(sharedSemantic?.state).toBe('active');
+    await b.evaluate(async () => {
+      const folder = (await chrome.bookmarks.search({ title: 'Semantic' }))[0]!;
+      const bookmark = (await chrome.bookmarks.getChildren(folder.id)).find(n => n.url)!; await chrome.bookmarks.remove(bookmark.id);
+    });
+    await expect.poll(async () => (await bindings()).bindings.find((entry: any) => entry.slot.kind === 'bookmark' && entry.slot.copy.purpose === 'semantic')?.state, { timeout: 45000 }).toBe('suppressed');
+    const canonical = (await stack.observations()).canonicalNodes as { id: string; resource_revision: string }[];
+    const anotherDeviceSave = await stack.sourceArchiveProbe!({ version: 1, action: 'managed.save', input: { commandId: 'retry-deleted-semantic',
+      replicaId: stack.extensionBindings[1].replicaId, collectionId: stack.collectionId, slot: sharedSemantic.slot,
+      parentId: sharedSemantic.node.parentId, parentRevision: String(canonical.find(n => n.id === sharedSemantic.node.parentId)!.resource_revision),
+      title: sharedSemantic.node.title, url: sharedSemantic.node.url } }, stack.extensionBindings[1]);
+    expect(anotherDeviceSave).toMatchObject({ status: 200, body: { disposition: 'suppressed' } });
+    expect(modelCalls).toEqual([callsAfterRetry, 0]);
   } catch (error) {
     for (const context of contexts) for (const page of context.pages().filter(p => p.url().includes('site-adapters.html'))) {
       console.log('shared-source-state', JSON.stringify(await status(page)));

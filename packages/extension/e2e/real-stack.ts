@@ -153,7 +153,7 @@ export interface FixtureReplicaBinding {
 }
 
 export interface RealStack {
-  sourceArchiveProbe?(body?: unknown): Promise<{ status: number; body: unknown }>;
+  sourceArchiveProbe?(body?: unknown, authorizeReplica?: FixtureReplicaBinding): Promise<{ status: number; body: unknown }>;
   setSourceArchiveFault?(fault: 'none' | 'lost-response' | 'rollback-after-create'): void;
   readonly subscriptionProduct?: Awaited<ReturnType<typeof createBookmarkSubscriptionProductFixture>>;
   readonly classificationProduct?: ClassificationProductFixture;
@@ -747,7 +747,12 @@ export async function startRealStack(options: {readonly classification?:boolean;
 
   return {
     setSourceArchiveFault: fault => { sourceFault = fault; },
-    async sourceArchiveProbe(body) {
+    async sourceArchiveProbe(body, authorizeReplica) {
+      if (authorizeReplica) {
+        const session = await publicJson('/v1/session', { Authorization: `Bearer ${latestAccessToken}`, 'Content-Type': 'application/json',
+          'Idempotency-Key': randomUUID(), Origin: EXTENSION_ORIGIN }, replicaSessionRequest(authorizeReplica));
+        if (session.status !== 201) throw new Error('source_probe_session_failed');
+      }
       const response = await app.inject({ method: body === undefined ? 'GET' : 'POST', url: '/colp/v0.1/sync/source-archives', headers: { Authorization: `Bearer ${latestAccessToken}`, Origin: EXTENSION_ORIGIN, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) }, ...(body === undefined ? {} : { payload: body as Record<string, unknown> }) });
       return { status: response.statusCode, body: response.json() };
     },
