@@ -22,7 +22,18 @@ export async function grantOptionalBookmarks(page: Page, buttonName: string | Lo
           : pressPermissionKeys(page, attempt);
       const [clicked, interaction] = await Promise.allSettled([click, permissionInteraction]);
       if (clicked.status === 'rejected') throw clicked.reason;
-      const granted = await page.evaluate(value => chrome.permissions.contains(value),permission);
+      let granted = false;
+      // Granting an optional permission can reload this document. Retry the read
+      // if that navigation destroys its context, without replaying the click.
+      await expect.poll(async () => {
+        try {
+          granted = await page.evaluate(value => chrome.permissions.contains(value), permission);
+          return true;
+        } catch (error) {
+          if (!(error instanceof Error) || !/Execution context was destroyed|Cannot find context with specified id/u.test(error.message)) throw error;
+          return false;
+        }
+      }, { timeout: 10_000 }).toBe(true);
       // Chromium can remember prior consent and grant immediately, reloading the options
       // page before an X11 permission bubble appears. The actual permission is authoritative.
       if (interaction.status === 'rejected' && !granted) throw interaction.reason;

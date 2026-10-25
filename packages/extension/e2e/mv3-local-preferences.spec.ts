@@ -7,6 +7,7 @@ import { interceptPreferenceNetwork, setPreferenceAccount } from './bookmark-pre
 import { grantOptionalBookmarks } from './bookmark-permission.js';
 import { grantTabAccess, openPopupOver } from './popup-page.js';
 import type { LocalHistoryItem } from '../src/capture/local-history.js';
+import type { BookmarkPreferencesResponse } from '../src/types.js';
 
 test('account preferences acknowledge local commits and remain editable while Product waits', async () => {
   const profile = await mkdtemp(resolve(tmpdir(), 'known-local-preferences-'));
@@ -61,6 +62,12 @@ test('sign-in preserves device saving choices and the guest timeline, while gues
     await page.getByRole('radio', { name: /^Automatic/ }).check();
     await page.getByRole('button', { name: 'Save automatic mode', exact: true }).click();
     await expect(page.getByRole('radio', { name: /^Automatic/ })).toBeChecked();
+    // The radio changes before the confirmation's asynchronous save commits.
+    // Switch identity only after the guest preference is durably readable.
+    await expect.poll(() => page.evaluate(async () => {
+      const response = await chrome.runtime.sendMessage({ kind: 'known.bookmark.preferences.local' }) as BookmarkPreferencesResponse;
+      return response.ok ? response.preferences.captureMode : undefined;
+    })).toBe('automatic');
     await interceptPreferenceNetwork(worker); await setPreferenceAccount(page); await page.reload();
     await expect(page.locator('#bookmark-insert-top')).toBeChecked();
     await expect(page.getByRole('radio', { name: /^Automatic/ })).toBeChecked();
