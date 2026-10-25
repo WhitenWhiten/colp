@@ -10,6 +10,8 @@ import { showToast } from '../toast.js';
 import './settings-recovery.js';
 import './community-settings.js';
 import './cloud-settings.js';
+import { paintReconciliation } from './settings-reconcile.js';
+import type { ReconcilePreview } from './reconcile-model.js';
 interface Collection { id: string; title: string }
 interface ImportStatus { id: string; phase: string; edgeCount: number; pages: number; omissions: number; coverage: string; reason: string | null; nextEdge: number; nextPlan: number;
   preview: { id: string; revision: number; digest: string; coverage: string; counts: { createFolders: number; createBookmarks: number; reuseBookmarks: number; review: number }; omissions?: { samples: readonly { id: string; reason: string }[]; unscannedRemainder: boolean } } | null }
@@ -21,7 +23,7 @@ interface SiteStatus { inspectionStatus?: { status: string; retryAfterMs?: numbe
   browser?: { minimum: number; major: number | null; supported: boolean }; grants?: { site: boolean; bookmarks: boolean };
   catalog?: { items: Collection[]; nextCursor: string | null; reading: boolean; current: boolean; failed: string | null } | null;
   inspection?: { command: { deadlineAt: number; operation?: string }; result?: { status: string; item?: { title?: string } } } | null;
-  archive?: { catalog?: Collection[]; config: ArchiveConfig | null; import: ImportStatus | null; semantic?: SemanticStatus | null } }
+  archive?: { catalog?: Collection[]; config: ArchiveConfig | null; import: ImportStatus | null; semantic?: SemanticStatus | null; reconciliation?: ReconcilePreview | null } }
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.querySelector<T>(`#${id}`)!;
 const button = (id: string) => $<HTMLButtonElement>(id);
@@ -422,6 +424,7 @@ function paint() {
   $('archive-hold').hidden = !status.archiveHold;
   if (status.archiveHold) text('archive-hold', errorCopy(status.archiveHold));
   paintConnection(); paintCollections(); paintForm(); paintImport(job); paintInspector(); paintSemantic();
+  paintReconciliation(status.archive?.reconciliation);
   renderSiteCapabilities(document, selectedSite, !!job, !!config);
   autoCatalog();
 }

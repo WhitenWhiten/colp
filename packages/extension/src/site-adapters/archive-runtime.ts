@@ -17,6 +17,9 @@ import { assertSourceRoot } from '../sw/planned-capture.js';
 import type { SourcePolicyRecord } from './layout.js';
 import { createLane } from '../automation/lane.js';
 import { sourceAutomationsPaused } from '../sw/automation.js';
+import { createReconcilePreview, reconcileKey } from './reconcile-preview.js';
+import { reconcileInventory } from './reconcile-inventory.js';
+import type { ReconcilePreview } from './reconcile-model.js';
 const configureSchemaFor = (definition: SiteDefinition) => object({ kind: literal('known.siteAdapters.archive.configure'), rootNativeId: str(128),
   collectionIds: array(v => definition.validateCollection(v), 64, 1, v => v), live: literal(true, false),
   copies: v => v === undefined || literal('sourceAndSemantic', 'singlePreferSemantic', 'singleKeepExisting')(v),
@@ -44,6 +47,7 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
   const configKey = (id: string) => `archiveConfig:${id}`;
   const live = createLiveSourcePlanner(db, sourceLayout, (delay = 100) => ports.alarm(Date.now() + delay), definition);
   const importer = createSiteImporter(ledger, sourceLayout, reads, { ...ports, source: ports.readSource, execute: executePlannedSave,
+    reconciliation: createReconcilePreview(db, definition, job => reconcileInventory(db, job.context.connectionId, job.selected)),
     snapshot: async () => {
       const source = await ports.source();
       // Approved/frozen work can continue without its page. Source authority still fences it.
@@ -67,7 +71,8 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
       const current = await config(); let hold: string | null = null;
       if (current?.state === 'active') try { await sourceLayout.validateRoot(current.connectionId, current.ruleId, current.root.nativeId); }
       catch (e) { hold = e instanceof Error ? e.message : 'sourceNeedsReview'; }
-      return { config: current ?? null, import: await importer.status(), hold,
+      const job = await importer.status();
+      return { config: current ?? null, import: job, hold, reconciliation: job ? await db.read<ReconcilePreview>('meta', reconcileKey(job.id)) ?? null : null,
         ...(!features.collections && features.observe ? { catalog: source ? await observedCatalog(ledger, source.context) : [], catalogCoverage: 'observedOnly' as const } : {}) };
     },
     async handle(raw: unknown) {

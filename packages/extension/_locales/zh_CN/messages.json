@@ -12586,5 +12586,53 @@
   "sites_classifyAgain": {
     "message": "重新分类",
     "description": "Classify again"
+  },
+  "sites_diffPresent": {
+    "message": "已有关联",
+    "description": "Already mapped"
+  },
+  "sites_diffAdd": {
+    "message": "新增收藏",
+    "description": "New favorite"
+  },
+  "sites_diffCandidate": {
+    "message": "可关联到已有书签",
+    "description": "Existing bookmark can be linked"
+  },
+  "sites_diffDeleted": {
+    "message": "本地已删除，暂不补回",
+    "description": "Deleted locally; kept deleted"
+  },
+  "sites_diffMoved": {
+    "message": "本地已移动或修改",
+    "description": "Moved or changed locally"
+  },
+  "sites_diffRemoved": {
+    "message": "来源已移除",
+    "description": "No longer in the source collection"
+  },
+  "sites_diffUnverified": {
+    "message": "尚不能确认来源是否移除",
+    "description": "Source membership could not be verified"
+  },
+  "sites_diffTitle": {
+    "message": "网站标题有更新",
+    "description": "Source title changed"
+  },
+  "sites_diffPersonal": {
+    "message": "未关联的个人条目",
+    "description": "Unassociated personal item"
+  },
+  "sites_diffProtected": {
+    "message": "由其它映射或语义副本使用",
+    "description": "Used by another mapping or semantic copy"
+  },
+  "sites_reconcileHeading": {
+    "message": "重新核对收藏夹",
+    "description": "Collection differences"
+  },
+  "sites_reconcileHint": {
+    "message": "已有排序、置顶、备注和标签保持不变。未核实的来源变化和个人条目保留原地。",
+    "description": "Order, pins, notes and tags are preserved. Unverified source absences and personal items stay where they are."
   }
 }

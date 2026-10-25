@@ -17,7 +17,7 @@ import type { StoredSavePlan, SourceOutbox } from './planned-types.js';
 import { LIMITS as DEFAULT_LIMITS } from './limits.js';
 type Ledger = ReturnType<typeof createSourceLedger>;
 type Layout = ReturnType<typeof createSourceLayout>;
-interface Edge { kind: 'collectedEdge'; collectionId: string; itemId: string }
+export interface Edge { kind: 'collectedEdge'; collectionId: string; itemId: string }
 interface Snapshot { browserRules: BrowserRuleSnapshot; policyRevision: number }
 export interface ImportJob {
   installationId?: string;
@@ -30,6 +30,7 @@ export interface ImportJob {
   nextPlan: number; scanSnapshot: Snapshot; counts: ImportPreview['counts']; snapshot: Snapshot | null; approvalId: string | null;
 }
 interface Ports {
+  reconciliation?: { begin(job: ImportJob): Promise<void>; inspect(job: ImportJob, edge: Edge): Promise<boolean>; freeze(job: ImportJob): Promise<void> };
   source(origin?: SourceContext): Promise<{ context: SourceContext; expiresAt: number } | null>;
   send(context: SourceContext, command: HostCommand): void;
   prioritizeLive(): Promise<void>;
@@ -82,12 +83,14 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
     await authority(job);
     const frozenSnapshot = job.snapshot;
     if (!frozenSnapshot || sourceDigest(await ports.snapshot()) !== sourceDigest(frozenSnapshot)) throw new Error('previewStale');
+    await ports.reconciliation?.begin(job);
     const range = sourcePrefixRange('edge', job.id);
     const batch = await db.transaction(['importPages'], 'readonly', tx => cursorPage<Edge>(tx.objectStore('importPages'), job.prepareAfter ? IDBKeyRange.bound(job.prepareAfter, range.upper, true) : range, 20));
     const counts = { ...job.counts };
     for (const edge of batch) {
       let plan: SavePlan | undefined, reviewReason: string | null = null;
       try {
+        if (await ports.reconciliation?.inspect(job, edge)) throw new Error('sourceReconcileCandidate');
         const result = await layout.plan({ context: job.context, itemId: edge.itemId, collectionId: edge.collectionId, entry: 'siteImport',
           trigger: { kind: 'import', importRunId: job.id, previewId: job.previewId! } });
         if (result.status === 'represented') counts.reuseBookmarks++;
@@ -131,6 +134,7 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
     const frozenScope = await db.transaction(['importPages'], 'readonly', tx => rows<object>(tx, 'importPages', 'frozenEdge', job.previewId));
     preview.collectedSetDigest = sourceDigest(frozenScope); preview.plansDigest = sourceDigest(digests);
     preview.digest = previewDigest(preview);
+    await ports.reconciliation?.freeze(job);
     await db.transaction(['meta', 'importPreviews'], 'readwrite', async tx => {
       put(tx, 'importPreviews', preview.id, preview); put(tx, 'meta', key(job.id), { ...job, counts, planIds, phase: 'preview' });
     });

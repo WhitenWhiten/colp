@@ -6851,6 +6851,36 @@
   "sites_diagnosticExported": {
     "message": "Private diagnostic exported. Existing work and database schema were preserved."
   },
+  "sites_diffAdd": {
+    "message": "New favorite"
+  },
+  "sites_diffCandidate": {
+    "message": "Existing bookmark can be linked"
+  },
+  "sites_diffDeleted": {
+    "message": "Deleted locally; kept deleted"
+  },
+  "sites_diffMoved": {
+    "message": "Moved or changed locally"
+  },
+  "sites_diffPersonal": {
+    "message": "Unassociated personal item"
+  },
+  "sites_diffPresent": {
+    "message": "Already mapped"
+  },
+  "sites_diffProtected": {
+    "message": "Used by another mapping or semantic copy"
+  },
+  "sites_diffRemoved": {
+    "message": "No longer in the source collection"
+  },
+  "sites_diffTitle": {
+    "message": "Source title changed"
+  },
+  "sites_diffUnverified": {
+    "message": "Source membership could not be verified"
+  },
   "sites_disablePackage": {
     "message": "Disable package"
   },
@@ -7186,6 +7216,12 @@
   },
   "sites_readyToAdd_other": {
     "message": "Ready to add $1 bookmarks"
+  },
+  "sites_reconcileHeading": {
+    "message": "Collection differences"
+  },
+  "sites_reconcileHint": {
+    "message": "Order, pins, notes and tags are preserved. Unverified source absences and personal items stay where they are."
   },
   "sites_recordsNeedRecovery_one": {
     "message": "$1 record needs recovery or review."
