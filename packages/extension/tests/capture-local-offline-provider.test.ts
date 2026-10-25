@@ -11,7 +11,7 @@ import { task } from './fixtures/capture.js';
 import { workspaceFolderTree } from './fixtures/workspace-folders.js';
 import type { FolderTreeNode } from '../src/save-folder.js';
 
-const move = vi.hoisted(() => vi.fn());
+const move = vi.hoisted(() => vi.fn(async () => undefined));
 vi.mock('../src/sw/runtime.js', () => ({ syncState: {}, workCoordinator: {
   run: async (_lane: string, work: (context: unknown) => unknown) => work({ generation: 1, signal: new AbortController().signal }),
 } }));

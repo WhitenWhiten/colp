@@ -141,7 +141,7 @@ declare namespace chrome {
     function registerContentScripts(scripts: RegisteredContentScript[]): Promise<void>;
     function getRegisteredContentScripts(filter: { ids: string[] }): Promise<RegisteredContentScript[]>;
     function unregisterContentScripts(filter: { ids: string[] }): Promise<void>;
-    function executeScript(options: { target: { tabId: number }; world: 'MAIN' | 'ISOLATED'; files?: string[]; func?: (...args: any[]) => unknown; args?: unknown[] }): Promise<{ result?: unknown }[]>;
+    function executeScript<Args extends unknown[] = []>(options: { target: { tabId: number }; world: 'MAIN' | 'ISOLATED'; files?: string[]; func?: (...args: Args) => unknown; args?: Args }): Promise<{ result?: unknown }[]>;
   }
   namespace webNavigation {
     function getFrame(details: { tabId: number; frameId: number }): Promise<{ url: string; documentId: string; documentLifecycle: string } | null>;

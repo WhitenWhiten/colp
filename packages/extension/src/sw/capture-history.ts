@@ -7,16 +7,9 @@ import { captureStore } from './capture.js';
 import { currentCaptureScope, assertCaptureOwner } from './capture-native.js';
 import { createClassificationProductClient } from '../classification-product-client.js';
 import { captureDateFormatter } from '../capture/statistics.js';
-let device: Promise<string> | undefined;
+import { captureDeviceId } from '../capture/device-id.js';
+export { captureDeviceId } from '../capture/device-id.js';
 export const backupHistoryStore = createBackupHistoryStore();
-export function captureDeviceId(): Promise<string> {
-  device ??= (async () => {
-    const key = 'known.capture.device.v1', value = (await chrome.storage.local.get(key))[key];
-    if (typeof value === 'string' && /^[0-9a-f-]{36}$/u.test(value)) return value;
-    const id = crypto.randomUUID(); await chrome.storage.local.set({ [key]: id }); return id;
-  })().catch(error => { device = undefined; throw error; });
-  return device;
-}
 export interface CaptureHistoryRequest {
   readonly kind: 'known.capture.history'; readonly days: 7 | 30 | 90; readonly timezone: string;
   readonly status: HistoryStatus; readonly q: string; readonly source: string; readonly collectionId: string;

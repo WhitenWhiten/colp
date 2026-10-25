@@ -19,6 +19,10 @@ import { LOCAL_CLASSIFICATION_KEY, LOCAL_CLASSIFICATION_PROJECTION } from '../sr
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
+import { installSiteAdapters } from '../src/site-adapters/worker.js';
+
+// Adapter listener behavior has its own runtime tests; this suite owns entry wiring.
+vi.mock('../src/site-adapters/worker.js', () => ({ installSiteAdapters: vi.fn() }));
 
 const observed = vi.hoisted(() => ({
   scope: { environment: 'production' as const, serverId: 'server-entry', serverOrigin: 'https://known.example',
@@ -284,6 +288,7 @@ describe('MV3 service worker entry wiring is exercised, not grepped', () => {
   });
 
   test('boot installs each bookmark consumer once and repeated installation adds no duplicates', async () => {
+    expect(installSiteAdapters).toHaveBeenCalledOnce();
     // `install()` runs at the entry top level and again from the boot recovery
     // chain; Chrome de-duplicates the identical callback, so both must leave
     // one sync listener per event, plus folder ordering on create/move/reorder.

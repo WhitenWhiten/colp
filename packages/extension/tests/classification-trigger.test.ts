@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { MemoryStorageArea } from '../src/credential-store.js';
 import { classificationDocument } from '../src/classification-intent.js';
 import type { ClassificationPreviewReply } from '../src/classification-preview-reply.js';
+import type { ClassificationPreviewResponse } from '../src/classification-product-client.js';
 import { CLASSIFICATION_PREVIEW_PREFIX, type ClassificationPreviewMessage } from '../src/classification-preview-store.js';
 import { LOCAL_CLASSIFICATION_ENABLED, LOCAL_CLASSIFICATION_KEY } from '../src/classification-local-session.js';
 import { MANUAL_CLASSIFICATION_AUTO } from '../src/manual-classification.js';
@@ -36,9 +37,11 @@ const context = { generation: 1, signal: new AbortController().signal };
 const sender = { id: 'extension', url: `chrome-extension://extension/popup.html?surface=${crypto.randomUUID()}` };
 let localStorage: MemoryStorageArea, sessionStorage: MemoryStorageArea;
 
-const result = () => ({ contractVersion: '1.0.0', collectionId: 'library', source: { kind: 'incoming', nodeId: null },
-  taxonomyRevision: '1', folder: { decision: 'l2', folderId: 'recipes', confidence: 1, probabilities: [{ folderId: 'recipes', probability: 1 }] },
-  tags: { mode: 'suggest', candidates: [{ tag: 'Cooking', selected: true, noul: 0.99 }] },
+const result = (): ClassificationPreviewResponse => ({ contractVersion: '1.0.0', collectionId: 'library', source: { kind: 'incoming', nodeId: null },
+  taxonomyRevision: '1', folder: { decision: 'l2', folderId: 'recipes', parentFolderId: 'food', l1FolderId: 'food', depth: 2,
+    confidence: 1, l1Confidence: 1, l2Specificity: 1, probabilities: [{ folderId: 'recipes', probability: 1 }] },
+  tags: { mode: 'suggest', maxAutoTags: 3, candidates: [{ tag: 'Cooking', selected: true, noul: 0.99 }] },
+  provider: { providerId: 'fixture', model: 'fixture', policyVersion: 'v1', promptVersion: 'v1' },
   candidateCoverage: { policyVersion: 'v1', l1Included: 1, l1Total: 1, descendantIncluded: 0, descendantTotal: 0, tagTotal: 1, tagIncluded: 1 } });
 function existence(exact: CaptureExistence['exact'] = [], complete = true): CaptureExistence {
   return { kind: exact.length ? 'local' : complete ? 'not-found' : 'unavailable', exact, similar: [],

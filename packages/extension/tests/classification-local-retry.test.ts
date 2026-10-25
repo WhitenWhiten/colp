@@ -1,3 +1,4 @@
+import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { MemoryStorageArea } from '../src/credential-store.js';
 import { classificationErrorFeedback } from '../src/classification-error-feedback.js';
