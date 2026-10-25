@@ -7483,10 +7483,6 @@
     "message": "没有建议的文件夹。请保留你选择的文件夹，或另选一个。",
     "description": "No folder suggested. Keep your chosen folder or pick another."
   },
-  "popup_noFoldersMatch": {
-    "message": "没有匹配的文件夹。",
-    "description": "No folders match."
-  },
   "popup_noOtherFolderFits": {
     "message": "没有其他合适的文件夹。保留当前文件夹，或另选一个。",
     "description": "No other folder fits. Keep this one or pick another."

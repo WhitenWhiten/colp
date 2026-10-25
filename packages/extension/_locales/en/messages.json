@@ -5843,9 +5843,6 @@
   "popup_noFolderSuggestedKeep": {
     "message": "No folder suggested. Keep your chosen folder or pick another."
   },
-  "popup_noFoldersMatch": {
-    "message": "No folders match."
-  },
   "popup_noOtherFolderFits": {
     "message": "No other folder fits. Keep this one or pick another."
   },
