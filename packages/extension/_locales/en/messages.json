@@ -5958,7 +5958,7 @@
     "message": "Your data"
   },
   "prefs_dataHint": {
-    "message": "Tags, notes, folder descriptions, save history and settings live in this extension. Removing Know-N deletes them, except what syncs with your library. Export a Know-N backup to keep a copy."
+    "message": "Tags, notes, folder descriptions, save history and settings live in this extension. Removing Know-N deletes what doesn't sync with your library."
   },
   "prefs_dataTitle": {
     "message": "Kept on this browser"
@@ -6405,7 +6405,7 @@
     "message": "Runs suggestions that were waiting while you were offline."
   },
   "shell_foldersFirstHint": {
-    "message": "Also reorders your browser bookmarks, keeping the order within each group. Read-only folders are excluded. Turning this off stops sorting without restoring the previous order."
+    "message": "Also reorders your browser bookmarks, keeping each group's order. Turning it off doesn't restore the old order."
   },
   "shell_general": {
     "message": "General"

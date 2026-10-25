@@ -31,7 +31,7 @@ test('Options exposes both preference controls and explicit conflict choices', a
   assert.match(html, /id="bookmark-insert-bottom"/u);
   assert.match(html, /id="bookmark-folders-first"/u);
   assert.match(html, /Also reorders your browser bookmarks/u);
-  assert.match(html, /Turning this off stops sorting without restoring the previous order/u);
+  assert.match(html, /Turning it off doesn't restore the old order/u);
   assert.match(html, /bookmark-preferences-use-server/u);
   assert.match(html, /bookmark-preferences-use-local/u);
   assert.match(source, /known\.bookmark\.preferences\.get/u);

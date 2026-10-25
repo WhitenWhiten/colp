@@ -7636,8 +7636,8 @@
     "description": "Your data"
   },
   "prefs_dataHint": {
-    "message": "标签、备注、文件夹说明、保存历史和设置都保存在此扩展中。移除 Know-N 会删除它们，已与书签库同步的内容除外。导出 Know-N 备份即可保留一份副本。",
-    "description": "Tags, notes, folder descriptions, save history and settings live in this extension. Removing Know-N deletes them, except what syncs with your library. Export a Know-N backup to keep a copy."
+    "message": "标签、备注、文件夹说明、保存历史和设置都保存在此扩展中。移除 Know-N 会删除未同步到书签库的内容。",
+    "description": "Tags, notes, folder descriptions, save history and settings live in this extension. Removing Know-N deletes what doesn't sync with your library."
   },
   "prefs_dataTitle": {
     "message": "保存在此浏览器中",
@@ -8224,8 +8224,8 @@
     "description": "Runs suggestions that were waiting while you were offline."
   },
   "shell_foldersFirstHint": {
-    "message": "同时调整浏览器中的书签顺序，保留文件夹之间、书签之间的原有顺序。跳过只读文件夹。关闭后停止自动排序，不恢复之前的顺序。",
-    "description": "Also reorders your browser bookmarks, keeping the order within each group. Read-only folders are excluded. Turning this off stops sorting without restoring the previous order."
+    "message": "同时调整浏览器中的书签顺序，保留各组内的原有顺序。关闭后不会恢复之前的顺序。",
+    "description": "Also reorders your browser bookmarks, keeping each group's order. Turning it off doesn't restore the old order."
   },
   "shell_general": {
     "message": "常规",
