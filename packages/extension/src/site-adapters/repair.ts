@@ -1,4 +1,5 @@
 import { jsonBytes } from './schema.js';
+import { SOURCE_DATABASE_VERSION } from './source-db.js';
 
 export interface SourceDiagnostic { format: 'colp-source-diagnostic'; version: 1; schemaVersion: number;
   stores: { name: string; records: { key: IDBValidKey; value: unknown; specialValues?: { path: (string | number)[]; type: 'undefined' | 'date' }[] }[] }[] }
@@ -73,9 +74,9 @@ export function diagnosticSummary(data: SourceDiagnostic) {
         ['unknown', 'submitted'].includes(state!) ? 'Recover the original command; replacement creates are blocked.' : 'Explicit review required; existing objects are retained.' });
   }
   const ordinal = data.stores.find(s => s.name === 'meta')?.records.find(r => r.key === 'ordinal')?.value;
-  return { schemaVersion: data.schemaVersion, supportedSchema: data.schemaVersion <= 3, stores: summaries, attention,
-    lastAcceptedOrdinal: data.schemaVersion <= 3 && Number.isSafeInteger(ordinal) ? ordinal : null,
-    pendingObservations: data.schemaVersion <= 3 ? data.stores.find(s => s.name === 'observations')?.records.filter(r => (r.value as { state?: string })?.state !== 'settled').length ?? 0 : null,
+  return { schemaVersion: data.schemaVersion, supportedSchema: data.schemaVersion <= SOURCE_DATABASE_VERSION, stores: summaries, attention,
+    lastAcceptedOrdinal: data.schemaVersion <= SOURCE_DATABASE_VERSION && Number.isSafeInteger(ordinal) ? ordinal : null,
+    pendingObservations: data.schemaVersion <= SOURCE_DATABASE_VERSION ? data.stores.find(s => s.name === 'observations')?.records.filter(r => (r.value as { state?: string })?.state !== 'settled').length ?? 0 : null,
     truncated: data.stores.reduce((n, s) => n + s.records.filter(r => {
       const v = r.value as { state?: string; phase?: string } | null;
       return v && typeof v === 'object' && ['unknown', 'submitted', 'blocked', 'detached', 'suppressed', 'attention', 'paused'].includes(v.state ?? v.phase ?? '');

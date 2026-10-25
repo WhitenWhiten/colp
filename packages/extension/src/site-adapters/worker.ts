@@ -11,7 +11,9 @@ import { createConfirmationQueue } from './confirmation-queue.js';
 import { installSourceLayout } from './layout-runtime.js';
 import { semanticJobs, enqueueSourceSemantics, installSemanticRuntime } from './semantic-runtime.js';
 import { currentCaptureScope } from '../sw/capture-native.js';
+import { rows } from './source-db.js';
 import { flushManagedChanges } from './managed-change-runtime.js';
+import { reconciliationRuns, installReconciliationRuntime, validReconcileRequest, handleReconcileRequest } from './reconcile-runtime.js';
 import { installSiteAdapterEvidence } from './evidence.js';
 import { installPlannedSaveRuntime, wakePlannedSaves, installSourceRecoveryScheduler } from './planned-runtime.js';
 import { siteLedger as sharedLedger, synchronizeSourceAuthority, sourceContext, SITE_RECOVERY_ALARM } from './source-runtime.js';
@@ -153,16 +155,38 @@ function createSiteHost(definition: SiteDefinition) {
   };
   let renewingLease: string | undefined;
   async function readableSiteSource(tabId?: number, origin?: import('./ledger-types.js').SourceContext) {
-    const source = await currentSiteSource(tabId, origin); if (!source) return null;
+    const source = await currentSiteSource(tabId, origin);
+    if (!source) {
+      const state = await read();
+      const expired = selectReadLease(definition, state.leases.filter(l => l.generation === state.generation && l.sourceGeneration === state.sourceGeneration
+        && l.accountId === state.accountId), id => ports.has(id), -Infinity, origin, tabId);
+      if (state.enabled && !state.candidateAccount && expired && renewingLease !== expired.id) {
+        renewingLease = expired.id; const port = ports.get(expired.id); port?.postMessage({ operation: 'renewLease', leaseId: expired.id });
+        scheduleSourceWork(Date.now() + LIMITS.spacingMs);
+      }
+      return null;
+    }
     if (source.expiresAt - Date.now() < LIMITS.commandMs + 1000 && ((await reads.current()).active?.deadlineAt ?? 0) <= Date.now()) {
       if (renewingLease !== source.context.leaseId) { renewingLease = source.context.leaseId; sendSiteCommand(source.context, { operation: 'renewLease', leaseId: source.context.leaseId }); }
       scheduleSourceWork(Date.now() + LIMITS.spacingMs); return null;
     }
     return source;
   }
+  async function managementSource() {
+    const hadConnection = (await read()).leases.some(l => ports.has(l.id));
+    let injected = false;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const source = await readableSiteSource(); if (source) return source;
+      if (!injected && !hadConnection && (await read()).enabled) { injected = true; await injectOpen(); }
+      if (!hadConnection && !renewingLease && !injected) return null;
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    return null;
+  }
   const confirmations = createConfirmationQueue(siteLedger, reads, { source: origin => readableSiteSource(undefined, origin), send: sendSiteCommand, alarm: scheduleSourceWork,
     authorizeOrigin: async (context, collectionIds) => { if (context.communityOrigin) await assertCommunityArchive(context.communityOrigin, { connectionId: context.connectionId, collectionIds }); } });
-  const archives = createSourceArchiveRuntime(reads, { source: currentSiteSource, readSource: origin => readableSiteSource(undefined, origin), send: sendSiteCommand, alarm: scheduleSourceWork,
+  const archives = createSourceArchiveRuntime(reads, { source: managementSource, readSource: origin => readableSiteSource(undefined, origin), send: sendSiteCommand, alarm: scheduleSourceWork,
+    reconciliation: { valid: validReconcileRequest, handle: handleReconcileRequest, status: reconciliationRuns.status, cancel: reconciliationRuns.cancel },
     scope: currentCaptureScope,
     prioritizeLive: () => confirmations.wake(),
     catalog: async () => {
@@ -178,6 +202,18 @@ function createSiteHost(definition: SiteDefinition) {
       await flushManagedChanges().catch(() => undefined);
       if ((await read()).enabled) { await confirmations.wake(); await archives.live.wake(); }
       await archives.importer.wake(); await wakePlannedSaves();
+      await reconciliationRuns.wake();
+      const importJob = await archives.importer.status();
+      if (importJob?.preview?.id && importJob.phase === 'attention' && importJob.reason === 'sourceReviewRequired') {
+        const run = await reconciliationRuns.status(importJob.preview.id);
+        if (run?.state === 'completed') {
+          const reviews = await siteLedger.db.transaction(['importPages'], 'readonly', tx => rows<{ reviewReason?: string }>(tx, 'importPages', 'frozenEdge', importJob.preview!.id));
+          if (reviews.every(r => !r.reviewReason || ['sourceReconcileCandidate', 'suppressed', 'policySkipped', 'copyPolicyMigrationRequired'].includes(r.reviewReason))) await siteLedger.db.transaction(['meta'], 'readwrite', async tx => {
+            const request = tx.objectStore('meta').get(`importJob:${importJob.id}`);
+            request.onsuccess = () => { if (request.result?.phase === 'attention') tx.objectStore('meta').put({ ...request.result, phase: 'completed', reason: 'reconciledWithExceptions' }, `importJob:${importJob.id}`); };
+          });
+        }
+      }
       const authority = await siteLedger.db.read<import('./ledger-types.js').SourceAuthority>('authorities', definition.adapterId);
       if (authority?.connectionId && await enqueueSourceSemantics(authority.connectionId)) scheduleSourceWork(Date.now() + 100);
       void semanticJobs.wake().catch(() => undefined);
@@ -414,6 +450,7 @@ const community = createCommunityRuntime({ ready: () => hosts[0]!.ready(),
 export function installSiteAdapters() {
   community.install(); installContentBindings(); installPlannedSaveRuntime(); installSourceLayout();
   installSemanticRuntime();
+  installReconciliationRuntime();
   installSourceRecoveryScheduler(at => chrome.alarms.create(SITE_RECOVERY_ALARM, { when: at }));
   installContentResolver(async (url, tabId) => {
     for (const host of hosts) { const id = await host.resolve(url, tabId); if (id) return { siteKey: host.definition.siteKey, identityVersion: host.definition.identityVersion, itemId: id }; }

@@ -11,6 +11,8 @@ export interface SiteDefinition {
   contentIdScope?: 'site' | 'account';
   /** Qualified enumeration semantics. EOF/best-effort pages alone never prove absence. */
   collectionSnapshot?: 'positiveOnly' | 'pointInTime';
+  /** Entry lists allowing repeated content require a separately qualified host implementation. */
+  membershipModel?: 'set';
   readPolicy?: Partial<import('./read-policy.js').SiteReadPolicy>;
   community?: { connectOrigins: readonly string[] };
   importResume: 'stableCursor' | 'restartAndDeduplicate';

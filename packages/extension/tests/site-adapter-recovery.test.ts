@@ -37,6 +37,7 @@ test('diagnostics preserve undefined and date values with unambiguous path metad
   await db.transaction(['meta'], 'readwrite', async tx => { tx.objectStore('meta').put({ state: 'blocked', reason: undefined, at: new Date(1), nested: [undefined, null] }, 'special'); });
   await db.close();
   const diagnostic = await exportSourceDiagnostic(factory, 'values'), row = diagnostic.stores.find(s => s.name === 'meta')!.records[0]!;
+  expect(diagnosticSummary(diagnostic).supportedSchema).toBe(true);
   expect(row.value).toEqual({ state: 'blocked', reason: null, at: new Date(1).toISOString(), nested: [null, null] });
   expect(row.specialValues).toEqual([{ path: ['value', 'reason'], type: 'undefined' }, { path: ['value', 'at'], type: 'date' }, { path: ['value', 'nested', 0], type: 'undefined' }]);
   expect(diagnosticSummary(diagnostic).attention[0]?.state).toBe('blocked');

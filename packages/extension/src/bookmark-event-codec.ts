@@ -6,6 +6,7 @@ import type { JsonObject, JsonValue, MappingInput } from './sync-state-store.js'
 import { bookmarkUrl } from './generated/import-preview-validators.js';
 
 export interface BookmarkEventNode {
+  readonly dateAdded?: number;
   readonly id: string; readonly parentId?: string; readonly index?: number; readonly title: string; readonly url?: string;
   readonly type?: 'bookmark' | 'folder' | 'separator'; readonly children?: readonly BookmarkEventNode[];
   readonly unmodifiable?: string; readonly folderType?: string;

@@ -33,6 +33,8 @@ const approveSchema = object({ kind: literal('known.siteAdapters.import.approve'
 interface ArchiveConfig { connectionId: string; ruleId: string; root: NativeBinding<'folder'>; collectionIds: readonly string[]; live: boolean; state: 'pending' | 'active' | 'disabled';
   copies?: import('./contracts.js').SavePolicy['copies']; primarySourceCollectionId?: string | null; aiDestination?: 'excluded' | 'allowed'; semantic?: 'manual' | 'automatic' }
 interface RuntimePorts {
+  reconciliation?: { valid(raw: unknown): boolean; handle(raw: unknown, connectionId: string): Promise<unknown>;
+    status(id: string): Promise<import('./reconcile-run.js').ReconcileRun | undefined>; cancel(id: string): Promise<void> };
   scope?(): Promise<import('../capture/contracts.js').CaptureScope>;
   source(): Promise<{ context: SourceContext; expiresAt: number } | null>;
   readSource(origin?: SourceContext): Promise<{ context: SourceContext; expiresAt: number } | null>;
@@ -46,10 +48,10 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
   const db = ledger.db, configureLane = createLane();
   const configKey = (id: string) => `archiveConfig:${id}`;
   const live = createLiveSourcePlanner(db, sourceLayout, (delay = 100) => ports.alarm(Date.now() + delay), definition);
-  const importer = createSiteImporter(ledger, sourceLayout, reads, { ...ports, source: ports.readSource, execute: executePlannedSave,
+  const importer = createSiteImporter(ledger, sourceLayout, reads, { ...ports, source: origin => origin ? ports.readSource(origin) : ports.source(), execute: executePlannedSave,
     reconciliation: createReconcilePreview(db, definition, job => reconcileInventory(db, job.context.connectionId, job.selected)),
     snapshot: async () => {
-      const source = await ports.source();
+      const source = await ports.readSource();
       // Approved/frozen work can continue without its page. Source authority still fences it.
       const authority = await db.read<import('./ledger-types.js').SourceAuthority>('authorities', definition.adapterId);
       const connectionId = source?.context.connectionId ?? authority?.connectionId;
@@ -65,17 +67,19 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
   }
   return {
     importer, live,
-    valid: (v: unknown) => jsonBytes(v, 16384) && [configureSchema, disableSchema, startSchema, changeSchema, approveSchema].some(s => s(v)),
+    valid: (v: unknown) => !!ports.reconciliation?.valid(v) || jsonBytes(v, 16384) && [configureSchema, disableSchema, startSchema, changeSchema, approveSchema].some(s => s(v)),
     async status() {
       const source = !features.collections && features.observe ? await ports.source() : null;
       const current = await config(); let hold: string | null = null;
       if (current?.state === 'active') try { await sourceLayout.validateRoot(current.connectionId, current.ruleId, current.root.nativeId); }
       catch (e) { hold = e instanceof Error ? e.message : 'sourceNeedsReview'; }
       const job = await importer.status();
-      return { config: current ?? null, import: job, hold, reconciliation: job ? await db.read<ReconcilePreview>('meta', reconcileKey(job.id)) ?? null : null,
+      return { config: current ?? null, import: job, hold, reconciliationRun: job?.preview?.id ? await ports.reconciliation?.status(job.preview.id) ?? null : null,
+        reconciliation: job ? await db.read<ReconcilePreview>('meta', reconcileKey(job.id)) ?? null : null,
         ...(!features.collections && features.observe ? { catalog: source ? await observedCatalog(ledger, source.context) : [], catalogCoverage: 'observedOnly' as const } : {}) };
     },
     async handle(raw: unknown) {
+      if (ports.reconciliation?.valid(raw)) { const c = await config(); if (!c) throw new Error('chooseArchiveRoot'); return await ports.reconciliation.handle(raw, c.connectionId) ?? {}; }
       if (configureSchema(raw)) return configureLane(async () => {
         const input = raw as { rootNativeId: string; collectionIds: readonly string[]; live: boolean; copies?: import('./contracts.js').SavePolicy['copies']; primarySourceCollectionId?: string | null; aiDestination?: 'excluded' | 'allowed'; semantic?: 'manual' | 'automatic' }, source = await ports.source();
         if (input.semantic === 'automatic' && input.copies && input.copies !== 'sourceAndSemantic') throw new Error('semanticRequiresTwoCopies');
@@ -123,6 +127,7 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
         if (policy) await sourceLayout.configure({ ...policy, enabled: false, liveArchive: false, policy: { ...policy.policy, revision: policy.policy.revision + 1 } });
         await db.transaction(['meta'], 'readwrite', async tx => { tx.objectStore('meta').put({ ...old, live: false, state: 'disabled' }, configKey(old.connectionId)); });
         const job = await importer.status(); if (job && !['cancelled', 'completed'].includes(job.phase)) await importer.cancel(job.id);
+        if (job?.preview?.id) await ports.reconciliation?.cancel(job.preview.id);
         return { configured: false };
       });
       if (startSchema(raw)) {

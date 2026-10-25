@@ -25,7 +25,8 @@ test('live archive configuration admits confirmed favorites as well as imports a
   await ledger.bindLease(context, Date.now() + 60000);
   vi.stubGlobal('chrome', { permissions: { contains: async () => true }, bookmarks: { get: async () => [{ id: 'root', dateAdded: 10 }] } });
   try {
-    const runtime = createSourceArchiveRuntime(createReadScheduler(new MemoryStorageArea(), 'reads'), { source: async () => ({ context, expiresAt: Date.now() + 60000 }), readSource: async () => null,
+    const source = vi.fn(async () => ({ context, expiresAt: Date.now() + 60000 }));
+    const runtime = createSourceArchiveRuntime(createReadScheduler(new MemoryStorageArea(), 'reads'), { source, readSource: async () => null,
       catalog: async () => [saved], send: () => {}, prioritizeLive: async () => {}, alarm: () => {} }, ledger, postsDefinition);
     await runtime.handle({ kind: 'known.siteAdapters.archive.configure', rootNativeId: 'root', collectionIds: [saved.id], live: true });
     for (const entry of ['siteFavorite', 'siteImport', 'reconcile'] as const) {
@@ -34,5 +35,10 @@ test('live archive configuration admits confirmed favorites as well as imports a
       expect(admitsSiteEdge(mocks.draft?.site, { ...edge, collectionId: 'list:other' })).toBe(false);
       expect(admitsSiteEdge(mocks.draft?.site, { ...edge, connectionId: 'other' })).toBe(false);
     }
+    // Starting a new check uses the management path that waits for reconnection;
+    // background reads still use the scoped, nonblocking readSource path.
+    source.mockClear();
+    await expect(runtime.handle({ kind: 'known.siteAdapters.import.start' })).rejects.toThrow('sourceAutomationPaused');
+    expect(source).toHaveBeenCalledOnce();
   } finally { await db.close(); }
 });

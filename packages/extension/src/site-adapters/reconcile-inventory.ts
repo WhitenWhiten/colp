@@ -5,7 +5,17 @@ import { createBookmarkAnnotationStore } from '../bookmark-annotation-store.js';
 import { captureDeviceId } from '../sw/capture-history.js';
 import { cursorPage } from '../sync-state/idb.js';
 import type { SourceDatabase } from './source-db.js';
-export interface ReconcileInventory { folders: SourceFolderReservation[]; representations: Representation[]; nodes: ReconcileNode[] }
+import { sourceDigest } from './source-db.js';
+export function reconcileTreeDigest(root: chrome.bookmarks.BookmarkTreeNode): string {
+  const rows: unknown[] = [];
+  const visit = (node: chrome.bookmarks.BookmarkTreeNode, depth = 0) => {
+    if (depth > 128 || rows.length >= 100000) throw new Error('capacity');
+    rows.push({ id: node.id, dateAdded: node.dateAdded ?? null, title: node.title, url: node.url ?? null, parentId: node.parentId ?? null });
+    for (const child of node.children ?? []) visit(child, depth + 1);
+  }; visit(root); return sourceDigest(rows.sort((a, b) => (a as { id: string }).id.localeCompare((b as { id: string }).id)));
+}
+export interface ReconcileInventory { folders: SourceFolderReservation[]; representations: Representation[]; nodes: ReconcileNode[];
+  movedFolders: { folder: SourceFolderReservation; node: ReconcileNode; withinRoot: boolean }[] }
 /** Inventory preserves exact native proof and treats every other copy purpose/connection as protected. */
 export async function reconcileInventory(db: SourceDatabase, connectionId: string, selected: readonly string[]): Promise<ReconcileInventory> {
   const all = await db.transaction(['representations', 'folderReservations', 'contentBindings'], 'readonly', async tx => ({
@@ -43,7 +53,24 @@ export async function reconcileInventory(db: SourceDatabase, connectionId: strin
     nodes.push({ native: { nativeId: node.id, bindingId: `inventory:${node.id}`, deviceId, dateAdded: node.dateAdded ?? null,
       kind: node.url === undefined ? 'folder' : 'bookmark', proof: { kind: 'explicitAdoption', id: `inventory:${node.id}` } },
       title: node.title, url: node.url ?? null, parentId: node.parentId ?? '', pinned: pins.get(node.id)?.pinned === true,
+      annotationRevision: pins.get(node.id)?.version ?? 0,
+      ...(node.url === undefined ? { subtreeDigest: reconcileTreeDigest(node) } : {}),
       protected: protectedIds.has(node.id) || !!node.unmodifiable || !!node.children?.some(hasProtected), children: node.children?.map(child => child.id) ?? [] });
   }
-  return { folders, representations, nodes };
+  const movedFolders: ReconcileInventory['movedFolders'] = [];
+  for (const folder of folders) {
+    const node = folder.native && tree.get(folder.native.nativeId);
+    const parent = folder.locationOverride?.nativeId ?? (folder.parent.kind === 'native' ? folder.parent.binding.nativeId : null);
+    if (!node || node.parentId === parent || !folder.native) continue;
+    const root = folder.parent.kind === 'native' ? folder.parent.binding.nativeId : null;
+    let id = node.parentId, withinRoot = false; const seen = new Set<string>();
+    while (id && !seen.has(id) && seen.size < 256) { if (id === root) { withinRoot = true; break; } seen.add(id); id = (await chrome.bookmarks.get(id))[0]?.parentId; }
+    const foreign = new Set(all.reps.filter(r => r.connectionId !== connectionId || r.sourceCollectionId !== folder.collectionId || r.purpose !== 'sourceArchive').map(r => r.native.nativeId));
+    const protectedTree = (n: chrome.bookmarks.BookmarkTreeNode): boolean => !!n.unmodifiable || foreign.has(n.id) || protectedIds.has(n.id) || !!n.children?.some(protectedTree);
+    movedFolders.push({ folder, withinRoot, node: { native: folder.native, title: node.title, url: null, parentId: node.parentId ?? '', pinned: pins.get(node.id)?.pinned === true,
+      annotationRevision: pins.get(node.id)?.version ?? 0,
+      subtreeDigest: reconcileTreeDigest(node),
+      protected: protectedTree(node), children: node.children?.map(c => c.id) ?? [] } });
+  }
+  return { folders, representations, nodes, movedFolders };
 }

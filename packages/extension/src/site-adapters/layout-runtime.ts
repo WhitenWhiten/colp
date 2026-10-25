@@ -12,6 +12,7 @@ import { workCoordinator } from '../sw/runtime.js';
 import { unsettledCloudDestination } from '../classification-destination-boundary.js';
 import { assertCommunityArchive } from './community-authority.js';
 import { installBookmarkOwnershipObserver } from '../bookmark-ownership.js';
+import { isReconcileNativeMutation } from './reconcile-executor.js';
 
 export const sourceLayout = createSourceLayout(siteLedger.db, {
   authorizeCommunity: assertCommunityArchive,
@@ -41,6 +42,7 @@ export const sourceLayout = createSourceLayout(siteLedger.db, {
 export function installSourceLayout() {
   installSourcePlanAuthorization((plan, effect) => sourceLayout.authorize(plan, effect));
   installBookmarkOwnershipObserver(async event => {
+    if (['changed', 'moved', 'removed'].includes(event.kind) && await isReconcileNativeMutation(event.nativeId, event.kind === 'removed' ? event.removal.node?.dateAdded : undefined)) return;
     if (event.kind === 'moved' && await isManagedContentMove(event.nativeId, event.move.parentId, event.move.oldParentId)) return;
     if (event.kind === 'changed' || event.kind === 'moved') await sourceLayout.nativeChanged([event.nativeId], false);
     if (event.kind === 'removed') {

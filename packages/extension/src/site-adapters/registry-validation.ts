@@ -11,6 +11,7 @@ export function validateSiteDefinitions(sites: readonly SiteDefinition[]): reado
     if (site.readScope !== undefined && !['document', 'account'].includes(site.readScope)) throw new Error('invalidReadScope');
     if (site.contentIdScope !== undefined && !['site', 'account'].includes(site.contentIdScope)) throw new Error('invalidContentScope');
     if (site.collectionSnapshot !== undefined && !['positiveOnly', 'pointInTime'].includes(site.collectionSnapshot)) throw new Error('invalidSnapshotScope');
+    if (site.membershipModel !== undefined && site.membershipModel !== 'set') throw new Error('unsupportedMembershipModel');
     ids.add(site.adapterId); namespaces.add(namespace); readLimits(site);
     if (!site.matches.length || site.matches.some(pattern => { try { const u = new URL(pattern); return u.protocol !== 'https:' || !!u.username || !!u.password || u.hostname.includes('*') || !!u.hash; } catch { return true; } })) throw new Error('invalidSiteMatches');
     if (site.negativeReadback && !site.capabilities.includes('readMemberships')) throw new Error('unsupportedHostCapability');

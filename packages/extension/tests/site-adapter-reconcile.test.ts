@@ -37,6 +37,8 @@ test('unseen items are pending verification while a proven removal can be archiv
   expect(diff([node], [rep], [])).toMatchObject([{ kind: 'unverified', choices: ['keep'] }]);
   expect(diff([node], [rep], [], true)).toMatchObject([{ kind: 'sourceRemoved', choices: ['keep', 'archive'] }]);
   expect(diff([{ ...node, protected: true }], [rep], [], true)[0]!.choices).toEqual(['keep']);
+  expect(diff([{ ...node, protected: true }], [{ ...rep, state: 'suppressed' }])[0]!.choices).toEqual(['keep']);
+  expect(diff([{ ...node, protected: true }], [rep], [{ ...item, title: 'Updated source' }])[0]!.choices).toEqual(['keep']);
 });
 test('user deletion stays explicit; matching personal nodes become candidates rather than a duplicate create', () => {
   expect(diff([], [{ ...rep, state: 'suppressed' }])).toMatchObject([{ kind: 'localDeleted', choices: ['keep', 'restore'] }]);
@@ -45,6 +47,8 @@ test('user deletion stays explicit; matching personal nodes become candidates ra
 });
 test('source title updates do not overwrite personal titles, and changed native identities are never rebound', () => {
   expect(diff([node], [rep], [{ ...item, title: 'Updated source' }])).toMatchObject([{ kind: 'title' }]);
-  expect(diff([{ ...node, title: 'My title' }], [rep], [{ ...item, title: 'Updated source' }])).toMatchObject([{ kind: 'present', title: 'My title' }]);
+  expect(diff([{ ...node, title: 'My title' }], [rep], [{ ...item, title: 'Updated source' }])).toMatchObject([{ kind: 'titleOverride', title: 'My title' }]);
+  expect(diff([{ ...node, title: '' }], [{ ...rep, localTitle: '', lastWritten: { ...rep.lastWritten!, title: '' } }])).toMatchObject([{ kind: 'titleOverride', title: '' }]);
   expect(diff([{ ...node, native: { ...node.native, dateAdded: 20 } }])[0]!.kind).toBe('localDeleted');
+  expect(diff([{ ...node, url: 'https://else.test/' }], [{ ...rep, state: 'detached' }])[0]).toMatchObject({ kind: 'moved', choices: ['keep'], reason: 'sourceIdentityChanged' });
 });
