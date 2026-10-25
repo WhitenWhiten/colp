@@ -718,7 +718,7 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
       const first = await stored(reporting.replica.replicaId);
       assert.deepEqual([first.health_state, first.health_code, first.health_revision, first.issue_total],
         ['stopped', 'create_placement_unproven', '200', 3]);
-      assert.deepEqual((first.issues as Array<{ title?: string }>).map((issue) => issue.title), ['Recipes', undefined]);
+      assert.deepEqual((first.issues as Array<{ title?: string }>).map((issue) => issue.title), ['Recipes', 'My secret list']);
       // The owner reads it back: the state on the device card, the items on demand.
       const healthOf = async (client: ProductClient) => new Map((await api.inject({ method: 'GET', url: '/api/v1/sync/status',
         headers: { cookie: client.cookie } })).json().replicas.map((row: { id: string; health: unknown }) => [row.id, row.health]));
@@ -976,7 +976,10 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
       const resolved = await api.inject({ method: 'GET', url: `/api/v1/sync/replicas/${replicaId}/issues`, headers: { cookie: owner.cookie } });
       assert.equal(resolved.json().total, 0); assert.deepEqual(resolved.json().items, []);
       // A separate explicit repair remains archive-backed and reports actual execution.
-      assert.deepEqual(await local.stallUpload(), { ok: false, code: 'upload_outcome_unsettled' });
+      const stalled = await local.stallUpload();
+      assert.ok(stalled.ok && 'preview' in stalled);
+      assert.equal(stalled.preview.mode, 'server_fenced');
+      assert.equal(stalled.preview.replicaId, replicaId);
       await local.report(post, context.session.sessionId);
       const command = await api.inject({ method: 'POST', url: `/api/v1/sync/replicas/${replicaId}/commands`,
         headers: mutation(owner, randomUUID(), 'application/json'), payload: { action: 'rebuild' } });

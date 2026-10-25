@@ -2,6 +2,8 @@ import { SyncFailureError } from './sync-failure-class.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
 import { readBoundedJson } from './json-response.js';
+import { responseProblemCode } from './durable-sync-engine-errors.js';
+import { authorityCodeForStatus, classifyHttpStatus, statusFailure } from './sync-transport-failure.js';
 import type { JsonObject } from './sync-state-store.js';
 
 const PAGE_LIMIT = 50;
@@ -52,7 +54,7 @@ export async function persistSnapshotOpenConflicts(input: {
     const response = await input.fetch(url.toString(), {
       method: 'GET', redirect: 'error', cache: 'no-store', headers: conflictHeaders(input.headers),
     });
-    if (response.status !== 200) throw new Error(await problemCode(response, 'snapshot_conflict_page_invalid'));
+    if (response.status !== 200) throw await conflictFailure(response, 'snapshot_conflict_page_invalid', input.timeoutMilliseconds);
     const body = await readBoundedJson(response, input.maxBytes, 'snapshot_conflict_page_invalid',
       input.timeoutMilliseconds === undefined ? {} : { timeoutMilliseconds: input.timeoutMilliseconds });
     const parsed = parsePage(body, input.snapshotId, offset);
@@ -78,7 +80,7 @@ export async function persistSnapshotOpenConflicts(input: {
       headers: { ...conflictHeaders(input.headers), 'Content-Type': 'application/json' },
       body: JSON.stringify({ snapshotId: input.snapshotId, conflictDigest }),
     });
-    if (response.status !== 200) throw new Error(await problemCode(response, 'snapshot_conflict_confirm_invalid'));
+    if (response.status !== 200) throw await conflictFailure(response, 'snapshot_conflict_confirm_invalid', input.timeoutMilliseconds);
     const body = await readBoundedJson(response, input.maxBytes, 'snapshot_conflict_confirm_invalid',
       input.timeoutMilliseconds === undefined ? {} : { timeoutMilliseconds: input.timeoutMilliseconds });
     if (!body || typeof body !== 'object' || Array.isArray(body)
@@ -136,11 +138,15 @@ function parseConflict(value: unknown): SnapshotOpenConflict {
   };
 }
 
-async function problemCode(response: Response, fallback: string): Promise<string> {
-  try {
-    const body = await response.json() as { readonly code?: unknown };
-    return typeof body.code === 'string' ? body.code : fallback;
-  } catch {
-    return fallback;
-  }
+/**
+ * A non-200 answer from the conflicts endpoint (Rule A, W2C-08). An integrity code is only for a complete 200 body
+ * that fails its checks: a gateway hiccup is transient, a denial renews authority (the code the server named wins),
+ * and only another complete answer the client cannot use keeps the caller's integrity code.
+ */
+async function conflictFailure(response: Response, integrityCode: string, timeoutMilliseconds?: number): Promise<Error> {
+  const kind = classifyHttpStatus(response.status);
+  if (kind === 'transient' || kind === 'rate_limited') return statusFailure(response, { other: integrityCode }, Date.now());
+  const named = await responseProblemCode(response, '', timeoutMilliseconds);
+  if (named) return new Error(named);
+  return new Error(kind === 'authority' ? authorityCodeForStatus(response.status) ?? integrityCode : integrityCode);
 }

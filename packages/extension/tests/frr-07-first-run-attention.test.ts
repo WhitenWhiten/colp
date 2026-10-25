@@ -25,6 +25,9 @@ async function persistNeedsAttention(runId: string) {
     ...scope, lifecycle: 'active', lease: { leaseId: 'lease-1', expiresAt: 99_999 },
     checkpoint: { serverRevision: 'r0', cursor: 'c0' }, selectedRoots: [],
   });
+  await store.putMapping(scope, { nativeId: 'a', colpId: 'r1', rootNativeId: 'bar', nodeKind: 'bookmark',
+    parentNativeId: 'bar', parentColpId: 'mount-bar', projection: { revision: 'r2', digest: 'sha256:cloud',
+      content: { title: 'Cloud', url: 'https://example.test/dup' } } });
   const coordinator = createBootstrapCoordinator({ store, scope, now: () => 10, randomUUID: () => runId });
   const input = {
     confirmationId: `conf-${runId}`, treeDigest: 'sha256:tree', confirmationVersion: '1',
@@ -74,7 +77,7 @@ function assertFourSurfaces(input: {
     connected: true, firstRun: input.firstRun, deferredDraft: false, phase: input.phase, attention: summary,
     engine: { phase: 'idle', hasPendingWork: false },
   });
-  assert.equal(label, "action-required");
+  assert.equal(label, "review-conflicts");
   assert.notEqual(label, "synced");
   const status = withAttention(input.phase, input.firstRun, { attention: input.attention });
   assert.equal(status.ok && 'phase' in status && status.phase, 'needs_attention');
@@ -116,7 +119,7 @@ test('FRR-07-A: completed firstRun does not hide needs_attention on four surface
   });
 });
 
-test('FRR-07-A: merge confirm persists a bounded attention report without raw URLs', async () => {
+test('FRR-07-A: real identity differences stay private and cannot be dismissed as duplicates', async () => {
   const { store, view } = await persistNeedsAttention('run-attn');
   assert.equal(view.run.phase, 'needs_attention');
   assert.ok(view.run.attention);
@@ -127,9 +130,10 @@ test('FRR-07-A: merge confirm persists a bounded attention report without raw UR
   assert.equal(JSON.stringify(page).includes('https://example.test/dup'), false);
   const items = page.ok && 'items' in page ? page.items ?? [] : [];
   assert.equal(items.every((item) => !('url' in item) && !('nativeId' in item)), true);
+  assert.equal(items.every(item => item.kind === 'local_difference'), true);
   const itemId = items[0]?.itemId ?? '';
   const decided = await handleAttentionDecide(store, scope, 'run-attn', itemId, 'completed');
-  assert.equal(decided.ok && 'attention' in decided && decided.attention?.pendingCount, 0);
+  assert.deepEqual(decided, { ok: false, error: 'request_invalid' });
   const again = await handleAttentionDecide(store, scope, 'run-attn', itemId, 'completed');
-  assert.equal(again.ok, true);
+  assert.equal(again.ok, false);
 });

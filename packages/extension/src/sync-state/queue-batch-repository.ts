@@ -5,6 +5,7 @@ import { clone, safeInteger } from './codec.js';
 import { cursorPage, requestValue, requireActiveScope, runTransaction } from './idb.js';
 import { INDEXES, STORES } from './schema.js';
 import { scopeKey, validateScope } from './scope-key.js';
+import { tryValidateQueueRecord } from './queue-lenient.js';
 import { validateQueueRecord } from './queue-validate.js';
 import { unavailableImportOpIds } from './import-settle.js';
 import { firstLaneQueueRow, heldBy, laneHolders } from './queue-hold.js';
@@ -33,7 +34,9 @@ export function createQueueBatchRepository(ctx: SyncStoreRuntime) {
         const rows = await cursorPage<QueueOperation>(queue.index(INDEXES.queueBySequence),
           IDBKeyRange.bound([key, sequence + 1], [key, Number.MAX_SAFE_INTEGER]), limit);
         for (const raw of rows) {
-          const row = validateQueueRecord(raw, ctx.maxRecordBytes);
+          const row = tryValidateQueueRecord(raw, ctx.maxRecordBytes);
+          // An unreadable row ends the batch; the next single claim quarantines it or makes the lane wait (Rule C).
+          if (!row) break;
           if (row.sequence !== sequence + claimed.length + 1 || row.status !== 'pending'
               || row.attempt || row.retry.attempt !== 0 || row.retry.notBefore > now
               || unavailable.has(row.opId) || await heldBy(row, holders, graph) || !eligible(row)) break;

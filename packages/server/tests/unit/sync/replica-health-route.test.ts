@@ -58,10 +58,30 @@ test('a replica report is a closed, bounded document', () => {
   assert.deepEqual(parseReplicaHealthReport(report()).actions, []);
   // A stop needs a reason; other states may omit it.
   assert.equal(parseReplicaHealthReport(report({ state: 'syncing', code: undefined })).code, undefined);
-  // Display text that looks like a URL, credential or native id is dropped, not stored.
-  for (const title of ['https://example.test/a', 'my secret list', 'bearer abc', 'native id 12', '   ']) {
+  // Display text that carries a credential or a native id is dropped, not stored.
+  for (const title of ['Bearer abcdefghijklmnop12', 'Authorization: Basic dXNlcjpwYXNz', 'password: hunter2', 'my token=abc123xyz',
+    'https://user:pass@example.test/a', 'https://example.test/cb?access_token=abcdef123456', 'native id 12',
+    'javascript:alert(1)', 'sk_live_abcdefghijklmnop1234', '   ']) {
     const parsed = parseReplicaHealthReport(report({ issues: { total: 1, items: [{ ...item, title }] } }));
     assert.equal(parsed.issues.items[0]!.title, undefined, title);
+  }
+});
+
+test('C-11: ordinary titles that merely contain a sensitive-sounding word or an address are kept', () => {
+  const item = report().issues.items[0]!;
+  for (const title of ['https://example.com/a', 'OAuth 2.0 Authorization Code Flow', 'Secret Santa 2026', 'Chrome: tips',
+    'Bearer of good news', 'JavaScript: The Good Parts', 'Password manager comparison 2026', 'Token bucket algorithm',
+    'How to rotate secrets in Vault', 'https://github.com/user/repo/issues/12?tab=readme', 'Native ID cards',
+    'a-very-long-url-slug-for-an-article-about-bookmark-syncing-2026']) {
+    const parsed = parseReplicaHealthReport(report({ issues: { total: 1, items: [{ ...item, title }] } }));
+    assert.equal(parsed.issues.items[0]!.title, title);
+  }
+  // The purpose stays: a credential is recognised by its shape, wherever it sits.
+  for (const title of ['https://example.com/#id_token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcdefghij',
+    'ghp_abcdefghijklmnopqrstuvwxyz0123456789', 'AKIAABCDEFGHIJKLMNOP',
+    'https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit']) {
+    assert.equal(parseReplicaHealthReport(report({ issues: { total: 1, items: [{ ...item, title }] } })).issues.items[0]!.title,
+      undefined, title);
   }
 });
 

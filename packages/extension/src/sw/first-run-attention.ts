@@ -1,7 +1,7 @@
 import { enqueueLocalMergeResolution } from '../bootstrap/merge-resolution.js';
 import type { ConfirmInput } from '../bootstrap/coordinator.js';
 import { reasonCode } from '../push-error-code.js';
-import { decideAttentionItem, pageAttention, publicAttentionSummary } from '../bootstrap/attention-report.js';
+import { bootstrapAttentionPhase, decideAttentionItem, pageAttention, publicAttentionSummary } from '../bootstrap/attention-report.js';
 import type { BootstrapRunRecord, SyncScope, createSyncStateStore } from '../sync-state-store.js';
 import type { FirstRunOrScopeResponse, FirstRunScopeState, PublicAttentionSummary } from '../types.js';
 import { t } from '../i18n.js';
@@ -15,10 +15,10 @@ export function attentionSummaryOf(run: { readonly attention?: BootstrapRunRecor
 
 export function withAttention(
   phase: BootstrapRunRecord['phase'], firstRun: FirstRunScopeState,
-  run?: { readonly attention?: BootstrapRunRecord['attention'] },
+  run?: Pick<BootstrapRunRecord, 'attention'> & Partial<Pick<BootstrapRunRecord, 'retryReason' | 'bootstrapMode'>>,
 ): FirstRunOrScopeResponse {
   const attention = attentionSummaryOf(run);
-  return { ok: true, phase, firstRun, ...(attention ? { attention } : {}) };
+  return { ok: true, phase: bootstrapAttentionPhase({ ...run, phase }), firstRun, ...(attention ? { attention } : {}) };
 }
 
 export async function latestBootstrapRun(store: Store, scope: SyncScope): Promise<BootstrapRunRecord | undefined> {

@@ -115,6 +115,10 @@ test('offline status exposes a terminal recovery reason without refreshing the n
     assert.equal(ready.cursorsConverged, true);
     assert.equal(ready.hasPushServerCursor, true);
     assert.equal(ready.sessionReady, true);
+    const sessionless = await f.engine.publicSyncEngineState(scope, f.credential, null, f.config);
+    assert.equal(sessionless.sessionReady, false);
+    assert.equal(sessionless.scopeKey, ready.scopeKey);
+    assert.equal(sessionless.credentialReady, true);
     await f.workCoordinator.run('engine', async () => { assert.equal((await status()).engineWakeInFlight, true); });
     f.permission.allowed = false;
     assert.equal((await status()).listenerInstalled, false);

@@ -1,6 +1,8 @@
 import { collectSyncDiagnostics } from '../sync-diagnostics.js';
 import { currentSyncScope } from './scope.js';
 import { syncState } from './runtime.js';
+import { readHealthDeliveryFailure } from './health-delivery-status.js';
+import { readWatchdogFacts } from './sync-watchdog.js';
 import { handleSyncProgressRequest } from './sync-progress.js';
 import { captureRuntimeView } from './capture-control.js';
 import { currentCaptureScope, assertCaptureOwner } from './capture-native.js';
@@ -15,6 +17,9 @@ export async function captureDiagnostics() {
     captureStore.listForOwner(scope), captureRuntimeView(),
     currentSyncScope({ allowStopped: true }).then(scope => collectSyncDiagnostics(syncState, scope)),
     handleSyncProgressRequest(),
+    // The facts Status shows and Copy details copies, so the three never tell different stories (C-18).
+    currentSyncScope({ allowStopped: true }).then(scope => readHealthDeliveryFailure(chrome.storage.local, scope, Date.now())),
+    currentSyncScope({ allowStopped: true }).then(scope => readWatchdogFacts(chrome.storage.local, scope)),
   ]);
   await assertCaptureOwner(scope);
   const bookmarks = results[0].status === 'fulfilled' ? results[0].value : null;
@@ -34,6 +39,8 @@ export async function captureDiagnostics() {
       conflict: preferences.conflict, learning: preferences.preferences.learnFromCorrections !== false } : null,
     sync,
     progress: results[7].status === 'fulfilled' && results[7].value.ok ? results[7].value.progress : null,
+    syncHealth: { reportsFailing: results[8].status === 'fulfilled' ? results[8].value ?? null : null,
+      ...(results[9].status === 'fulfilled' && results[9].value ? results[9].value : {}) },
     inspectedRecentTasks: tasks.length,
     // Allowlist only: never serialize task URLs, titles, account ids, cookies or bearer state.
     tasks: tasks.map(task => ({ captureId: task.captureId, save: task.save, classification: task.classification, sync: task.sync, reason: task.reason })),

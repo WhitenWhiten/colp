@@ -9,6 +9,8 @@ import {
 import { SyncStateError, type StoreOptions } from './types.js';
 import { pageV15Backfill } from './v15-backfill.js';
 
+const BLOCKED_WAIT_MS = 10_000;
+
 export interface SyncStoreRuntime {
   readonly maxRecordBytes: number;
   readonly factory: IDBFactory;
@@ -22,6 +24,8 @@ export interface SyncStoreRuntime {
   isDiagnosticReadOnly(): boolean;
   setUpgradeFailed(): void;
   isUpgradeFailed(): boolean;
+  /** Closes the connection and forgets every sticky flag: the next call opens the database from scratch. */
+  reset(): void;
 }
 
 export function createSyncStoreRuntime(options: StoreOptions = {}): SyncStoreRuntime {
@@ -45,32 +49,53 @@ export function createSyncStoreRuntime(options: StoreOptions = {}): SyncStoreRun
 
   async function openConnection(): Promise<IDBDatabase> {
     const request = factory.open(DATABASE_NAME, DATABASE_VERSION);
-    let injectedUpgradeFailure = false;
-    request.onblocked = (event) => options.onBlocked?.(event);
+    let injectedUpgradeFailure = false; let upgrading = false; let abandoned = false;
+    // W2A-10: an upgrade that another connection holds back would leave every caller waiting forever. After a
+    // bounded wait the callers get `storage_blocked`; the request itself stays queued, and a connection it
+    // eventually opens is closed again, because nobody is waiting for it any more.
+    let timer: ReturnType<typeof setTimeout> | undefined; let giveUp!: (error: Error) => void;
+    const blocked = new Promise<never>((_, reject) => { giveUp = reject; });
+    request.onblocked = (event) => {
+      options.onBlocked?.(event);
+      timer ??= setTimeout(() => { abandoned = true; giveUp(new SyncStateError('storage_blocked')); },
+        options.blockedWaitMilliseconds ?? BLOCKED_WAIT_MS);
+    };
+    request.addEventListener('success', () => { if (timer) clearTimeout(timer); if (abandoned) request.result.close(); });
     request.onupgradeneeded = (event) => {
+      upgrading = true;
       if (options.injectUpgradeFailure) { injectedUpgradeFailure = true; request.transaction?.abort(); return; }
       upgrade(request.result, request.transaction!, event.oldVersion, maxRecordBytes);
     };
-    try { connection = await requestValue(request); }
+    try { connection = await Promise.race([requestValue(request), blocked]); }
     catch (error) {
-      if (injectedUpgradeFailure) { upgradeFailed = true; throw new SyncStateError('upgrade_failed'); }
+      if (timer) clearTimeout(timer);
+      if (abandoned) throw error;
+      // W2A-01: an open that fails while the version change was running is an upgrade that did not finish
+      // (a full disk, a browser error), not a transaction that merely aborted.
+      if (injectedUpgradeFailure || upgrading) { upgradeFailed = true; throw new SyncStateError('upgrade_failed'); }
       if (error instanceof Error && error.name === 'VersionError') throw new SyncStateError('future_schema');
       throw stableError(error);
     }
     connection.onversionchange = () => { connection?.close(); connection = undefined; };
+    // W2A-05: the browser may close the connection under us (site data cleared, profile storage lost);
+    // forget it so the next call reopens instead of failing on a dead handle until the worker restarts.
+    const opened = connection;
+    connection.onclose = () => { if (connection === opened) { connection = undefined; durableCache.clear(); } };
     if (structuralProblems(connection).length) diagnosticReadOnly = true;
     else await pageV15Backfill({ open: async () => connection! });
     return connection;
   }
 
   function close() { connection?.close(); connection = undefined; durableCache.clear(); }
+  /** W2A-01: after the database was deleted, nothing of the old one (connection, read-only flag, cache) may survive. */
+  function reset() { close(); diagnosticReadOnly = false; upgradeFailed = false; }
   function assertWritable() { if (diagnosticReadOnly) throw new SyncStateError('diagnostic_read_only'); }
   async function writableDatabase() { const db = await open(); assertWritable(); return db; }
   async function readOne(storeName: string, key: IDBValidKey) { const db = await open(); const tx = db.transaction(storeName, 'readonly');
     const completion = transactionDone(tx); const value = await requestValue(tx.objectStore(storeName).get(key)); await completion; return value; }
 
   return {
-    maxRecordBytes, factory, durableCache, open, close, writableDatabase, assertWritable, readOne,
+    maxRecordBytes, factory, durableCache, open, close, reset, writableDatabase, assertWritable, readOne,
     setDiagnosticReadOnly() { diagnosticReadOnly = true; },
     isDiagnosticReadOnly() { return diagnosticReadOnly; },
     setUpgradeFailed() { upgradeFailed = true; },

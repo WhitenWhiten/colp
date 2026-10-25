@@ -3,6 +3,7 @@ import 'fake-indexeddb/auto';
 import { describe, test } from 'vitest';
 import { queueStatusProjection } from '../src/engine-public-stability.js';
 import { freezeScopeRecovery } from '../src/pull-recovery-freeze.js';
+import { STOP_PROBE_DELAYS_MS } from '../src/sync-circuit-breaker.js';
 import {
   abortFailure, ack, json, networkFailure, problem, emptyPullPage, recoverySnapshot,
   scope, seedLegacySpc2Bootstrap, setup, snapshot,
@@ -309,7 +310,10 @@ describe('P3-33 durable extension sync lifecycle', () => {
       const state = (await fixture.store.getEngineState(scope))!;
       assert.equal(fixture.pullRequests.length, 2, label); assert.equal(state.phase, expectedPhase, label);
       assert.equal(state.lastError, expectedError, label);
-      if (expectedPhase === 'error') assert.equal(state.notBefore, 0, 'corrupt protocol data is a reported stop');
+      if (expectedPhase === 'error') {
+        // A reported stop, probed again after the first slow-probe delay (A-F5) instead of never.
+        assert.equal(state.notBefore, fixture.clock.now + STOP_PROBE_DELAYS_MS[0], 'corrupt protocol data is a reported stop');
+      }
       else assert.ok(state.notBefore > fixture.clock.now, label);
       assert.equal(state.connectivityConfirmationRevision, undefined, label);
       if (label === 'rate limit') assert.ok(state.notBefore >= fixture.clock.now + 17_000);
@@ -786,13 +790,14 @@ describe('P3-33 durable extension sync lifecycle', () => {
     await fixture.engine.wake('alarm');
     fixture.forcedSessions.push({ sessionId: 'session-recovery-pinned', state: 'active',
       snapshotRequired: true, cursor: 'cursor-stale' });
-    fixture.snapshotResponses.push(problem(400, 'invalid_query', { sessionId: 'must-not-be-retained' }));
+    // `invalid_json` stands for any Problem with no policy of its own (B-08 registered `invalid_query` as a stop).
+    fixture.snapshotResponses.push(problem(400, 'invalid_json', { sessionId: 'must-not-be-retained' }));
     await fixture.engine.wake('online'); const exported = await fixture.store.exportScope(scope);
     assert.equal(exported.engine.phase, 'recovery');
     assert.equal(exported.engine.recoveryFrozen, true);
     assert.equal(exported.engine.authorityRefreshRequired, false);
     assert.equal(exported.engine.sessionId, 'session-recovery-pinned');
-    assert.equal(exported.engine.lastError, 'snapshot_400_invalid_query');
+    assert.equal(exported.engine.lastError, 'snapshot_400_invalid_json');
     assert.doesNotMatch(JSON.stringify(exported.engine), /must-not-be-retained/u);
     fixture.snapshotResponses.push(json(200, recoverySnapshot(1, true, 'page-retry')),
       json(200, recoverySnapshot(2, false, null)));

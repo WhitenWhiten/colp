@@ -201,8 +201,9 @@ describe('P3-35 extension options import UI', () => {
     assert.match(source, /required\('import-goto-sync'\)\.addEventListener\('click', host\.showStatus\)/);
     assert.match(diagnostics, /'#sync\/center', 'Open Sync › Status'/);
     // Links that open the web page say so.
+    // Two conflict links, and the Status card's two (the recovery card's and the settled card's).
     const webLinks = [...html.matchAll(/target="_blank"[^>]*>([^<]*Sync center[^<]*)</g)].map((match) => match[1]);
-    assert.equal(webLinks.length, 3);
+    assert.equal(webLinks.length, 4);
     for (const label of webLinks) assert.match(label!, / on the web$/);
     assert.doesNotMatch(html, />(?:Open|Resolve conflicts in|Review conflicts in) Sync center</);
   });

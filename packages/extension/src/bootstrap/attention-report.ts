@@ -43,42 +43,36 @@ export function buildAttentionReport(
   const prior = run.attention && run.attention.reportId === run.runId ? run.attention : undefined;
   const priorById = new Map((prior?.items ?? []).map((item) => [item.itemId, item]));
   const items: AttentionItemRecord[] = [];
-  for (const candidate of report.candidates) {
-    const itemId = digest({ kind: 'duplicate_candidate', url: candidate.url, nodeIds: [...candidate.nodeIds].sort() });
+  // Repeated URLs are ordinary bookmarks. The matcher preserves ambiguous
+  // occurrences independently; they require no review or sync recovery.
+  for (const conflict of report.conflicts) {
+    const itemId = digest({
+      kind: 'conflict', localNativeId: conflict.localNativeId, remoteNodeId: conflict.remoteNodeId,
+    });
     items.push({
-      itemId, nodeRefs: candidate.nodeIds, kind: 'duplicate_candidate', locationCount: Math.max(candidate.nodeIds.length, candidate.parents.length),
+      itemId, nodeRefs: [conflict.localNativeId, conflict.remoteNodeId], kind: 'local_difference', locationCount: 2,
+      parentRefs: [conflict.localParentNativeId ?? '', conflict.remoteParentNodeId ?? ''].filter(Boolean),
+      evidenceDigest: conflict.evidenceDigest,
+      ...(priorById.get(itemId)?.resolutionOpIds ? { resolutionOpIds: priorById.get(itemId)!.resolutionOpIds } : {}),
       decision: priorById.get(itemId)?.decision === 'keep_both' ? 'keep_both' : 'open',
     });
-  }
-  {
-    for (const conflict of report.conflicts) {
-      const itemId = digest({
-        kind: 'conflict', localNativeId: conflict.localNativeId, remoteNodeId: conflict.remoteNodeId,
-      });
-      items.push({
-        itemId, nodeRefs: [conflict.localNativeId, conflict.remoteNodeId], kind: 'local_difference', locationCount: 2,
-        parentRefs: [conflict.localParentNativeId ?? '', conflict.remoteParentNodeId ?? ''].filter(Boolean),
-        evidenceDigest: conflict.evidenceDigest,
-        ...(priorById.get(itemId)?.resolutionOpIds ? { resolutionOpIds: priorById.get(itemId)!.resolutionOpIds } : {}),
-        decision: priorById.get(itemId)?.decision === 'keep_both' ? 'keep_both' : 'open',
-      });
-    }
   }
   const unique = [...new Map(items.map(item => [item.itemId, item])).values()];
   return {
     reportId: run.runId, version: ATTENTION_REPORT_VERSION,
-    candidateCount: unique.filter(item => item.kind === 'duplicate_candidate').length, conflictCount: unique.filter(item => item.kind !== 'duplicate_candidate').length,
+    candidateCount: 0, conflictCount: unique.length,
     localOnlyCount: report.localOnly.length, remoteOnlyCount: report.remoteOnly.length,
     matchedCount: report.matched.length, items: unique, createdAt: prior?.createdAt ?? now,
   };
 }
 
 export function publicAttentionSummary(attention: AttentionReportRecord): PublicAttentionSummary {
+  const items = uniqueAttentionItems(attention);
   return {
     reportId: attention.reportId,
-    candidateCount: uniqueAttentionItems(attention).filter(item => item.kind === 'duplicate_candidate').length,
-    conflictCount: uniqueAttentionItems(attention).filter(item => item.kind !== 'duplicate_candidate').length,
-    pendingCount: uniqueAttentionItems(attention).filter((item) => item.decision === 'open').length,
+    candidateCount: 0,
+    conflictCount: items.length,
+    pendingCount: items.filter(item => item.decision === 'open').length,
   };
 }
 
@@ -108,5 +102,16 @@ export function decideAttentionItem(
 }
 
 export function uniqueAttentionItems(attention: AttentionReportRecord): AttentionItemRecord[] {
-  return [...new Map(attention.items.map(item => [item.itemId, item])).values()];
+  // Older installations persisted duplicate reviews. Keep the audit records,
+  // but retire them from every current review, issue and health projection.
+  return [...new Map(attention.items.filter(item => item.kind !== 'duplicate_candidate')
+    .map(item => [item.itemId, item])).values()];
+}
+
+/** A completed merge formerly marked for duplicate review needs no further decision. */
+export function bootstrapAttentionPhase(run: Pick<BootstrapRunRecord, 'phase' | 'attention'>
+  & Partial<Pick<BootstrapRunRecord, 'retryReason' | 'bootstrapMode'>>): BootstrapRunRecord['phase'] {
+  return run.phase === 'needs_attention' && run.attention && !run.retryReason
+    && (run.bootstrapMode === undefined || run.bootstrapMode === 'merge')
+    && publicAttentionSummary(run.attention).pendingCount === 0 ? 'completed' : run.phase;
 }

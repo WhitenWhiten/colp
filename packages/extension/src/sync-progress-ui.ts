@@ -41,8 +41,15 @@ function guidance(): string[] {
   ];
 }
 
+/** A pause that ends by itself: the engine tripped its breaker on something that heals, and no item needs a person. */
+const coolingDown = (progress: PublicSyncProgress) => progress.coolingDown === true && progress.retryAutomatic === false
+  && (progress.issueCount ?? 0) === 0;
+
 /** Why a count is not going down, in the user's words. Nothing when it is moving. */
 function stallNote(progress: PublicSyncProgress, status: SyncStatus | undefined): string | undefined {
+  if (coolingDown(progress)) {
+    return t('syncProgress_cooling', 'Sync paused after repeated errors and tries again on its own. Open Status to see when.');
+  }
   if (progress.retryAutomatic === false) {
     return t('syncProgress_stopped', 'Sync on this device has stopped. Open Status to review the problem.');
   }
@@ -55,6 +62,9 @@ function stallNote(progress: PublicSyncProgress, status: SyncStatus | undefined)
     case 'retrying': return t('syncProgress_retrying', 'The server didn’t answer. Sync retries on its own.');
     case 'action-required':
     case 'review-conflicts': return t('syncProgress_attention', 'Sync needs your attention. Open Status to see what is waiting.');
+    case 'permission-required': return t('syncProgress_permission', 'Sync needs permission to read and change your bookmarks. Allow it in the Folders tab.');
+    case 'stuck': return t('syncProgress_stuck', 'Sync is stuck. Open Status to see where.');
+    case 'stalled': return t('syncProgress_stalled', 'Sync hasn’t completed a pass in a while. Open Status to see more.');
     default: break;
   }
   if (progress.stage === 'syncing' && !progress.liveWork && !progress.firstSync
@@ -64,6 +74,18 @@ function stallNote(progress: PublicSyncProgress, status: SyncStatus | undefined)
   return undefined;
 }
 
+/**
+ * Sync is set up but the browser no longer lets the extension read or change
+ * bookmarks: there is no count to show, so the bar says why nothing moves.
+ */
+export function describeMissingPermission(): SyncProgressView {
+  const title = t('syncProgress_permissionTitle', 'Bookmark access needed');
+  return { show: true, indeterminate: false, value: 0, done: false, paused: false, title,
+    detail: t('syncProgress_permissionDetail', 'Nothing syncs while this extension can’t read or change your bookmarks.'),
+    short: title, note: t('syncProgress_permission', 'Sync needs permission to read and change your bookmarks. Allow it in the Folders tab.'),
+    guidance: [] };
+}
+
 export function describeSyncProgress(progress: PublicSyncProgress | null | undefined,
   status?: SyncStatus, options: { readonly showDone?: boolean } = {}): SyncProgressView {
   // Disconnected or not set up: nothing is syncing, whatever the counts say.
@@ -71,9 +93,12 @@ export function describeSyncProgress(progress: PublicSyncProgress | null | undef
   const { bookmarks, folders } = progress;
   const total = bookmarks.total + folders.total; const synced = bookmarks.synced + folders.synced;
   const paused = status?.kind === 'paused' && progress.stage !== 'done';
+  const cooling = coolingDown(progress);
   const blocked = (progress.issueCount ?? 0) > 0 || progress.retryAutomatic === false
-    || status?.kind === 'action-required' || status?.kind === 'review-conflicts';
-  const blockedTitle = t('sync_actionRequired', 'Action required');
+    || status?.kind === 'action-required' || status?.kind === 'review-conflicts'
+    || status?.kind === 'permission-required' || status?.kind === 'stuck' || status?.kind === 'stalled';
+  // A pause that ends by itself is not "Action required": nobody has to do anything.
+  const blockedTitle = cooling ? t('syncProgress_coolingTitle', 'Sync will retry') : t('sync_actionRequired', 'Action required');
   const pausedTitle = progress.firstSync
     ? t('syncProgress_firstPausedTitle', 'First sync paused') : t('syncProgress_pausedTitle', 'Sync paused');
   if (progress.stage === 'preparing' && paused) {
@@ -122,11 +147,18 @@ export function describeSyncProgress(progress: PublicSyncProgress | null | undef
 export const SYNC_PROGRESS_ACTIVE_MS = 2_000;
 export const SYNC_PROGRESS_IDLE_MS = 30_000;
 
-export async function readSyncProgress(): Promise<PublicSyncProgress | null> {
+interface SyncProgressRead { readonly progress: PublicSyncProgress | null; readonly permissionRequired: boolean }
+const NO_PROGRESS: SyncProgressRead = { progress: null, permissionRequired: false };
+
+async function readSyncProgressState(): Promise<SyncProgressRead> {
   try {
     const response = await chrome.runtime.sendMessage({ kind: 'known.sync.progress.get' }) as SyncProgressResponse;
-    return response?.ok ? response.progress : null;
-  } catch { return null; }
+    return response?.ok ? { progress: response.progress, permissionRequired: response.permissionRequired === true } : NO_PROGRESS;
+  } catch { return NO_PROGRESS; }
+}
+
+export async function readSyncProgress(): Promise<PublicSyncProgress | null> {
+  return (await readSyncProgressState()).progress;
 }
 
 /**
@@ -147,12 +179,14 @@ export function watchSyncProgress(input: {
     // Its initiating page still owes the user a verified completion message.
     if (options.showDone) showCompletion = true;
     const mine = ++turn;
-    const progress = input.enabled && !input.enabled() ? null : await readSyncProgress();
+    const read = input.enabled && !input.enabled() ? NO_PROGRESS : await readSyncProgressState();
+    const { progress } = read;
     const running = progress !== null && progress.stage !== 'done';
     const status = running && input.status ? await input.status().catch(() => undefined) : undefined;
     if (mine !== turn || stopped) return;
     if (running) showCompletion = true;
-    input.paint(describeSyncProgress(progress, status, { showDone: showCompletion }), progress);
+    input.paint(read.permissionRequired ? describeMissingPermission()
+      : describeSyncProgress(progress, status, { showDone: showCompletion }), progress);
     if (document.visibilityState !== 'hidden') {
       timer = window.setTimeout(() => { void refresh(); }, running ? SYNC_PROGRESS_ACTIVE_MS : SYNC_PROGRESS_IDLE_MS);
     }

@@ -171,7 +171,10 @@ export function upgrade(db: IDBDatabase, tx: IDBTransaction, oldVersion: number,
   ensureLiveIndexes(tx);
   tx.objectStore(STORES.metadata).put({ key: 'schema', version: DATABASE_VERSION, authorityDigest: AUTHORITY_DIGEST });
   if (oldVersion < 15) {
-    tx.objectStore(STORES.metadata).put({ key: V15_BACKFILL_KEY, status: 'unknown' });
+    // W2A-12: only a database that predates v15 can hold intents without a native result. A new one has nothing to
+    // backfill; leaving it 'unknown' ran a write transaction on every open and stamped the first intents it saw
+    // 'unknown', which the expired-intent prune then never reclaims.
+    tx.objectStore(STORES.metadata).put({ key: V15_BACKFILL_KEY, status: oldVersion === 0 ? 'complete' : 'unknown' });
   }
   if (oldVersion > 0 && oldVersion < 17) {
     // Only a database that PREDATES v17 can hold marker rows without the

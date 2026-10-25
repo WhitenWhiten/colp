@@ -8,7 +8,7 @@ import { authoritativeColp, placeholderOccupant, mountNeedsRemote, mountRemoteFr
 import { recordKns09FirstRun } from '../kns-09-release.js';
 import { digestJson, validateOperation } from '../bookmark-event-codec.js';
 import { virtualNativeId } from '../projection-native-occupancy.js';
-import { buildAttentionReport, publicAttentionSummary } from './attention-report.js';
+import { bootstrapAttentionPhase, buildAttentionReport, publicAttentionSummary } from './attention-report.js';
 import type {
   BootstrapMode, BootstrapRunRecord, BookmarkEventRecord, JsonObject, MappingInput, MountBindingRecord,
   QueueOperation, ScopePreviewRecord, SyncScope, createSyncStateStore,
@@ -28,6 +28,8 @@ export interface ConfirmInput {
   readonly treeDigest: string; readonly confirmationVersion: string;
   readonly localFacts: readonly LocalNodeFact[]; readonly remoteFacts?: readonly RemoteNodeFact[];
   readonly mappings?: readonly MappingFact[]; readonly sidecars?: readonly SidecarFact[];
+  /** Same-profile archived identities; only live selected natives and snapshot nodes may pair. */
+  readonly identityHints?: readonly MappingFact[];
   readonly mounts: readonly MountFact[]; readonly rootNodeId?: string | null;
   readonly bootstrapMode?: BootstrapMode; readonly previewOnly?: boolean;
   readonly destructiveConfirmed?: boolean; readonly pauseAfter?: PauseAfter;
@@ -98,6 +100,9 @@ export function createBootstrapCoordinator(options: {
         await store.putBootstrapRun(scope, { ...matched.run, phase, attention,
           reportDigest: matched.report.reportDigest, updatedAt: now() }, run);
       }
+      // The old needs_attention phase already proved the initial uploads done.
+      // Resume the final scope commit if the worker stopped before writing it.
+      if ((await store.getScope(scope))?.firstRun === 'running') await store.setFirstRun(scope, 'completed');
       return view(runId, matched.report);
     }
     if (run.phase === 'confirmed') {
@@ -130,7 +135,7 @@ export function createBootstrapCoordinator(options: {
       (op.reason === 'local-only' || op.reason === 'mount-resolve') && !canEnqueue(op, rootId));
     const inboxPending = (await pendingEvents()).length > 0;
     const upload = await bootstrapUploadStatus(run.confirmationId, input);
-    const attention = report.candidates.length > 0 || report.conflicts.length > 0;
+    const attention = report.conflicts.length > 0;
     const done = queued.caughtUp && !pendingMount && !waitingParent && !inboxPending
       && !upload.pending && !upload.rejected;
     const phase = done ? (attention ? 'needs_attention' : 'completed') : 'syncing';
@@ -152,7 +157,7 @@ export function createBootstrapCoordinator(options: {
     const runs = [...await store.listBootstrapRuns(scope)].sort((left, right) => right.updatedAt - left.updatedAt);
     const run = runs.find(row => row.attention && publicAttentionSummary(row.attention).pendingCount > 0) ?? runs[0];
     return {
-      phase: run?.phase ?? 'draft', firstRun: recorded?.firstRun ?? 'none',
+      phase: run ? bootstrapAttentionPhase(run) : 'draft', firstRun: recorded?.firstRun ?? 'none',
       ...(run ? { runId: run.runId } : {}),
       ...(run?.retryReason ? { retryReason: run.retryReason } : {}),
       ...(run?.attention ? { attention: run.attention } : {}),
@@ -195,8 +200,12 @@ export function createBootstrapCoordinator(options: {
     const storedMappings = input.mappings ?? (await store.listMappings(scope)).filter(row => row.projection.revision !== 'local-root').map((row) => (
       { nativeId: row.nativeId, colpId: row.colpId }));
     const mounts = await mergeMounts(input.mounts);
+    const localKinds = new Map(local.map(row => [row.nativeId, row.kind]));
+    const remoteKinds = new Map(remote.map(row => [row.nodeId, row.kind]));
+    const hints = (input.identityHints ?? []).filter(row => row.colpId !== rootNodeId && localKinds.has(row.nativeId)
+      && localKinds.get(row.nativeId) === remoteKinds.get(row.colpId));
     const mappings = mergeAuthoritativeMappings(storedMappings,
-      await mappingsFromTerminalCreates(run.confirmationId, local, mounts));
+      [...await mappingsFromTerminalCreates(run.confirmationId, local, mounts), ...hints]);
     const report = matchLocalRemote({
       scopeKey: run.scopeKey, confirmationId: run.confirmationId, local, remote, mappings, mounts,
       sidecars: input.sidecars, rootNodeId,

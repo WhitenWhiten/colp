@@ -352,16 +352,32 @@
                 <p id="sync-attention-settings-recovery-copy"></p>
                 <div class="inline-alert-actions">
                   <button id="sync-attention-settings-retry" class="btn btn-secondary btn-sm" type="button" data-i18n="sync_retrySync">Retry sync</button>
+                  <button id="sync-attention-settings-site-access" class="btn btn-secondary btn-sm" type="button" hidden data-i18n="sync_allowSiteAccess">Allow access</button>
+                  <button id="sync-attention-settings-storage-reset" class="btn btn-secondary btn-sm" type="button" hidden data-i18n="sync_resetLocalSyncData">Reset local sync data</button>
                   <button id="sync-attention-settings-recovery-diagnostics" class="btn btn-ghost btn-sm" type="button" data-i18n="sync_copyDetails">Copy details</button>
+                  <a id="sync-attention-settings-recovery-sync-center" class="btn btn-ghost btn-sm" rel="noreferrer" target="_blank" hidden data-i18n="sync_openSyncCenterWeb">Open Sync center on the web</a>
+                  <a id="sync-attention-settings-recovery-folders" class="btn btn-secondary btn-sm" href="#sync/folders" hidden data-i18n="sync_openFoldersTab">Open Folders</a>
                 </div>
               </div>
             </div>
+            <!-- The status could not be read: the card keeps its last reading and says so here. -->
+            <p id="sync-attention-settings-unreadable" class="set-row-hint" role="status" hidden></p>
+            <!-- Facts beside the card that are not about one item, e.g. the server cannot hear from this browser. -->
+            <div id="sync-attention-settings-notes" hidden></div>
+            <!-- One row per item that could not sync: its name, why, and what can be done. -->
+            <p id="sync-attention-settings-issues-hint" class="set-row-hint" hidden></p>
+            <ul id="sync-attention-settings-issues" class="set-card sync-issue-list" hidden></ul>
+            <p id="sync-attention-settings-issues-more" class="set-row-hint" hidden></p>
+            <!-- The same action for every item of a kind, for more than the rows above can show. -->
+            <div id="sync-attention-settings-issues-bulk" class="inline-alert-actions" hidden></div>
             <div id="sync-attention-settings-terminal" class="inline-alert sync-attention-terminal" data-tone="danger" role="alert" hidden>
               <svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="alert"></svg>
               <div class="inline-alert-body">
                 <p id="sync-attention-settings-terminal-copy"></p>
                 <div class="inline-alert-actions">
                   <button id="sync-attention-settings-rebuild" class="btn btn-secondary btn-sm" type="button" data-i18n="sync_resetSyncDevice">Reset sync on this device</button>
+                  <button id="sync-attention-settings-rebuild-cancel" class="btn btn-ghost btn-sm" type="button" hidden data-i18n="sync_cancelPendingReset">Cancel pending reset</button>
+                  <button id="sync-attention-settings-terminal-retry" class="btn btn-secondary btn-sm" type="button" hidden data-i18n="sync_retrySync">Retry sync</button>
                   <button id="sync-attention-settings-copy-diagnostics" class="btn btn-ghost btn-sm" type="button" data-keep-label data-i18n="sync_copyDetails">Copy details</button>
                   <a id="sync-attention-settings-sync-center" class="btn btn-ghost btn-sm" rel="noreferrer" target="_blank" hidden data-i18n="sync_openSyncCenterWeb">Open Sync center on the web</a>
                 </div>

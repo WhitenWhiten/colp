@@ -5,7 +5,9 @@ import type {
   AuthExtensionRequest, BatchRequest, ConnectivityRequest, FirstRunRequest, ImportRequest, IngressDiagnosticsGetRequest,
   NativeSaveRequest, NativeWaitRequest, RemoteDeleteRequest, RootRequest, SaveStatusRequest, ScopeCommandRequest,
   SyncAttentionGetRequest, SyncRetryRequest, SyncEngineRequest, SyncProgressRequest, BookmarkPreferencesRequest,
+  SyncIssueActionRequest,
 } from '../types.js';
+import { SYNC_ISSUE_ACTION_MAX } from '../sync-issue-local-actions.js';
 
 export interface SyncStateEvidenceRequest {
   readonly kind: 'known.sync-state.evidence';
@@ -66,6 +68,19 @@ export function validSyncEngineRequest(value: unknown): value is SyncEngineReque
 export function validSyncRetryRequest(value: unknown): value is SyncRetryRequest {
   return !!value && typeof value === 'object' && !Array.isArray(value)
     && (value as Record<string, unknown>).kind === 'known.sync.engine.retry' && Object.keys(value).length === 1;
+}
+
+/**
+ * Try again or Dismiss on named items (K5). Only the action and the display ids the card showed ride along;
+ * the worker looks each one up again and refuses what is no longer open or does not offer the action.
+ */
+export function validSyncIssueActionRequest(value: unknown): value is SyncIssueActionRequest {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const request = value as Record<string, unknown>;
+  return request.kind === 'known.sync.issue.act' && Object.keys(request).length === 3
+    && (request.action === 'retry' || request.action === 'dismiss') && Array.isArray(request.issueIds)
+    && request.issueIds.length >= 1 && request.issueIds.length <= SYNC_ISSUE_ACTION_MAX
+    && request.issueIds.every(id => typeof id === 'string' && /^[A-Za-z0-9._~-]{1,128}$/u.test(id));
 }
 
 /**

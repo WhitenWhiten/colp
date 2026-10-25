@@ -3,6 +3,7 @@ import type {
   PublicAttentionSummary, PublicRootNode, PublicRootView,
 } from './types.js';
 import { localized, listCopy, t, tn } from './i18n.js';
+import { classifySyncFailure } from './sync-failure-class.js';
 
 export const FIRST_RUN_DRAFT = 'known.firstRun.draft.v1';
 
@@ -227,6 +228,14 @@ export function confirmFailureCopy(response: FirstRunOrScopeResponse): string {
   return t('firstRun_couldNotStartSync', 'Could not start sync. Try again in a moment.');
 }
 
+/** A failed keep/upload decision on a merge item says what failed; "could not start sync" is for the start button. */
+export function decisionFailureCopy(response: FirstRunOrScopeResponse): string {
+  if (response.ok) return '';
+  if (response.error === 'bootstrap_confirmation_stale') return confirmFailureCopy(response);
+  if (response.error === 'request_invalid') return t('firstRun_decisionItemGone', 'This item is no longer in the list. Reload the list and try again.');
+  return t('firstRun_decisionFailed', 'Could not save your decision ($1). Try again in a moment.', response.error);
+}
+
 export function popupFirstRunStatus(input: {
   readonly connected: boolean; readonly firstRun: FirstRunScopeState | undefined;
   readonly deferredDraft: boolean;
@@ -245,9 +254,11 @@ export function popupFirstRunStatus(input: {
   const engine = input.engine;
   if (!engine) return 'syncing';
   if (engine.conflictPending) return 'review-conflicts';
-  // The engine parks every retried failure in its offline phase; only a
-  // transport failure is a network wait, the rest is a server or local error.
-  if (engine.phase === 'offline') {
+  // The engine parks every retried failure in its offline phase (a frozen replica in its recovery phase);
+  // only a transport failure is a network wait, the rest is a server or local error.
+  const failingRecovery = engine.phase === 'recovery' && engine.errorCode !== undefined
+    && (classifySyncFailure(engine.errorCode)?.class ?? 'transient') === 'transient';
+  if (engine.phase === 'offline' || failingRecovery) {
     return engine.errorCode === undefined || engine.errorCode === 'network_unavailable'
       ? 'waiting-network' : 'retrying';
   }

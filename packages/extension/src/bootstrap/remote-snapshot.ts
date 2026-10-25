@@ -3,6 +3,8 @@ import { syncSnapshotV02 } from '../generated/pull-effect-validators.js';
 import { colpCredentialHeaders } from '../auth-client.js';
 import { assertCredentialHostPermission, SERVER_HOST_PERMISSION_ERROR } from '../server-origin-permission.js';
 import { readBoundedJson } from '../json-response.js';
+import { authorityCodeForStatus, classifyHttpStatus } from '../sync-transport-failure.js';
+import { schemaRejection } from '../durable-sync-engine-errors.js';
 import { sessionTransportBudget } from '../colp-transport-budget-browser.js';
 import type { SyncScope } from '../sync-state-store.js';
 import type { StoredCredential, StoredSession } from '../types.js';
@@ -62,12 +64,18 @@ export async function loadCompleteRemoteSnapshot(input: {
       if (error instanceof Error && error.name === 'AbortError') throw error;
       throw new Error('offline');
     } finally { clearTimeout(timer); }
-    if (response.status !== 200 || !jsonContentType(response)) throw new Error(await snapshotProblemCode(response));
+    if (response.status !== 200 || !jsonContentType(response)) {
+      const code = await snapshotProblemCode(response);
+      // B-02: the server materializes the whole Snapshot on its first page, so a 413 there is its
+      // aggregate size limit, which no Reset or page size changes.
+      throw new Error(response.status === 413 && code === 'payload_too_large' && pageCursor === undefined
+        ? 'snapshot_too_large' : code);
+    }
     const document = await readWithTimeout(response, sessionTransportBudget(input.session).snapshotPageBytes,
       timeoutMs, input.signal);
     if(input.classificationProjection){classificationBytes+=new TextEncoder().encode(JSON.stringify(document)).length;
       if(classificationBytes>4*1024*1024)throw new Error('local_projection_context_limit');}
-    if (!syncSnapshotV02(document)) throw new Error('snapshot_invalid');
+    if (!syncSnapshotV02(document)) throw schemaRejection(syncSnapshotV02, 'snapshot_invalid');
     const page = document as DurableSyncSnapshot;
     validatePage(page, input.scope, pageNumber, pages[0]);
     pages.push(page);
@@ -162,12 +170,16 @@ function remoteFact(node: SnapshotNode, childrenRevisions: ReadonlyMap<string, s
 async function snapshotProblemCode(response: Response): Promise<string> {
   if (response.status === 401) return 'authentication_required';
   if (response.status === 429) return 'rate_limited';
+  // Rule A: a gateway hiccup is transient whatever its body says.
+  if (classifyHttpStatus(response.status) === 'transient') return 'server_unavailable';
+  // No named code: the status still says whether the Session must be renewed.
+  const unnamed = authorityCodeForStatus(response.status) ?? 'snapshot_failed';
   try {
     const problem = await readBoundedJson(response.clone(), 128 * 1024, 'snapshot_problem_invalid');
     const code = problem && typeof problem === 'object' && !Array.isArray(problem)
       ? (problem as { readonly code?: unknown }).code : undefined;
-    return typeof code === 'string' && /^[a-z][a-z0-9_]{0,63}$/u.test(code) ? code : 'snapshot_failed';
-  } catch { return 'snapshot_failed'; }
+    return typeof code === 'string' && /^[a-z][a-z0-9_]{0,63}$/u.test(code) ? code : unnamed;
+  } catch { return unnamed; }
 }
 
 function jsonContentType(response: Response): boolean {

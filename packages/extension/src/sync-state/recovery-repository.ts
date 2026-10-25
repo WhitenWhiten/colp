@@ -6,6 +6,7 @@ import { addQueueIssueRoots, blockedPullIssue } from './open-issue-facts.js';
 import { extractOutstandingTarget } from '../recovery-overlay.js';
 import { rebaseableRecoveryMoves, recoverMoveAuthority } from '../move-authority.js';
 import { markQueuePullEchoApplied } from './pull-queue-echo.js';
+import { holdsNativeResultUnknown } from '../native-wait-open.js';
 import {
   SyncStateError, type AckIntentRecord, type DurableSyncEngineState, type IntentRecord, type MappingInput,
   type QueueOperation, type RecoveryHeader, type RecoveryNodeRecord, type RecoveryPageInput, type BookmarkEventRecord,
@@ -21,6 +22,11 @@ import { sameAckIntent } from './engine-validate.js';
 import { cursorIsConfirmed } from './cursor-confirmation.js';
 import { validateAckIntent, validateRecoveryPage, samePullEventRecord } from './pull-validate.js';
 import type { SyncStoreRuntime } from './runtime.js';
+
+/** W2A-09: an apply intent never outlives its delete members; every place that drops one drops the other. */
+function deleteMembers(tx: IDBTransaction, key: string, intentId: string): void {
+  tx.objectStore(STORES.deleteMembers).delete(IDBKeyRange.bound([key, intentId], [key, intentId, []]));
+}
 
 /**
  * F005/B1 growth-page handover. The server re-paged the unacked stretch from the same
@@ -178,7 +184,7 @@ export function createRecoveryRepository(ctx: SyncStoreRuntime) {
       eventStore.delete([key, String(event.eventId)]);
       if (typeof event.operationId === 'string') retiredOps.add(event.operationId);
       const intent = intentFor(event);
-      if (intent && pullEventCallFact(event, intent) === 'not_called') intentStore.delete([key, intent.intentId]);
+      if (intent && pullEventCallFact(event, intent) === 'not_called') { intentStore.delete([key, intent.intentId]); deleteMembers(tx, key, intent.intentId); }
       for (const effectPage of effectPages) {
         if (effectPage.eventId === event.eventId) {
           effectStore.delete([key, String(effectPage.eventId), Number(effectPage.pageNumber)]);
@@ -266,7 +272,10 @@ export function createRecoveryRepository(ctx: SyncStoreRuntime) {
             snapshotAccountedBy: snapshotId, completedAt: Date.now() });
         }
       } else if (name === STORES.intents) {
-        for (const intent of intents) if (!unresolved.includes(intent)) tx.objectStore(name).delete([key, String(intent.intentId)]);
+        for (const intent of intents) {
+          if (unresolved.includes(intent)) continue;
+          tx.objectStore(name).delete([key, String(intent.intentId)]); deleteMembers(tx, key, String(intent.intentId));
+        }
       } else if (name === STORES.pullEvents) {
         for (const event of events) if (!retainedEvents.has(String(event.eventId))) tx.objectStore(name).delete([key, String(event.eventId)]);
       } else if (name === STORES.effectPages && retainedEvents.size) {
@@ -341,7 +350,7 @@ export function createRecoveryRepository(ctx: SyncStoreRuntime) {
     assertWritable(); const scope = validateScope(input); const key = scopeKey(scope); boundedString(snapshotId, 'snapshotId');
     const db = await writableDatabase(); await runTransaction(db, [STORES.scopes, STORES.mappings, STORES.queue, STORES.bookmarkEvents,
       STORES.cursors, STORES.recovery, STORES.recoveryNodes, STORES.ackIntents, STORES.pullPages, STORES.pullEvents,
-      STORES.effectPages, STORES.intents, STORES.diagnostics, STORES.localSyncExclusions, STORES.remoteDeleteDecisions], 'readwrite', async (tx) => {
+      STORES.effectPages, STORES.intents, STORES.deleteMembers, STORES.diagnostics, STORES.localSyncExclusions, STORES.remoteDeleteDecisions], 'readwrite', async (tx) => {
       const scopes = tx.objectStore(STORES.scopes); const current = await requireActiveScope(tx, key);
       const header = await requestValue(tx.objectStore(STORES.recovery).get([key, snapshotId])) as RecoveryHeader | undefined;
       if (!header?.complete || header.nextCursor !== null) throw new SyncStateError('recovery_incomplete');
@@ -443,7 +452,7 @@ export function createRecoveryRepository(ctx: SyncStoreRuntime) {
     const cursor = boundedString(checkpoint.cursor, 'serverCursor');
     const serverRevision = boundedString(checkpoint.serverRevision, 'serverRevision'); const db = await writableDatabase();
     await runTransaction(db, [STORES.scopes, STORES.cursors, STORES.ackIntents, STORES.pullPages, STORES.pullEvents,
-      STORES.effectPages, STORES.intents, STORES.diagnostics, STORES.queue], 'readwrite', async (tx) => {
+      STORES.effectPages, STORES.intents, STORES.deleteMembers, STORES.diagnostics, STORES.queue], 'readwrite', async (tx) => {
       const scopes = tx.objectStore(STORES.scopes); const current = await requireActiveScope(tx, key);
       const cursors = tx.objectStore(STORES.cursors); const prior = await requestValue(cursors.get(key)) as UnknownRecord | undefined;
       const intents = await cursorPage<AckIntentRecord>(tx.objectStore(STORES.ackIntents), scopeRowsRange(key), Number.MAX_SAFE_INTEGER);
@@ -472,7 +481,7 @@ export function createRecoveryRepository(ctx: SyncStoreRuntime) {
     assertWritable(); const key = scopeKey(validateScope(input)); const cursor = boundedString(checkpoint.cursor, 'serverCursor');
     const serverRevision = boundedString(checkpoint.serverRevision, 'serverRevision'); const db = await writableDatabase();
     await runTransaction(db, [STORES.scopes, STORES.cursors, STORES.engine, STORES.pullPages, STORES.pullEvents,
-      STORES.effectPages, STORES.intents, STORES.ackIntents, STORES.diagnostics, STORES.queue], 'readwrite', async (tx) => {
+      STORES.effectPages, STORES.intents, STORES.deleteMembers, STORES.ackIntents, STORES.diagnostics, STORES.queue], 'readwrite', async (tx) => {
       const scopes = tx.objectStore(STORES.scopes); const current = await requireActiveScope(tx, key);
       const engine = await requestValue(tx.objectStore(STORES.engine).get(key)) as DurableSyncEngineState | undefined;
       if (checkpoint.expectedEngineRevision !== undefined
@@ -490,7 +499,7 @@ export function createRecoveryRepository(ctx: SyncStoreRuntime) {
             || acks.some(ack => ack.state === 'pending')
             || !durable || !cursorIsConfirmed(durable, engine.lastAckedCursor, acks)
             || pages.some(page => page.state !== 'page_complete')
-            || intents.some(intent => intent.nativeResult === 'result_unknown' || intent.waitReason === 'native_result_unknown')) {
+            || intents.some(holdsNativeResultUnknown)) {
           throw new SyncStateError('session_handoff_pending');
         }
       }

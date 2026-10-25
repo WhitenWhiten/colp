@@ -29,6 +29,8 @@ import { validBookmarkAnnotationNotice } from './bookmark-annotation-notice.js';
 import { handleClassificationRequest } from './sw/classification.js';
 import { validReplicaRebuildRequest } from './replica-rebuild.js';
 import { replicaRebuilder } from './sw/scope-rebuild.js';
+import { validSyncStorageResetRequest } from './sync-storage-reset.js';
+import { syncStorageReset } from './sw/storage-reset.js';
 import { writeAuthSnapshot } from './auth-snapshot.js';
 import { FAVICON_SIDECAR_ALARM } from './favicon-sidecar-store.js';
 import { handle, onExtensionInstalled } from './sw/auth.js';
@@ -36,7 +38,7 @@ import { handleServerDisconnect, validServerDisconnectRequest } from './sw/serve
 import { browserPersonalSyncPolicy } from './personal-sync-policy.js';
 import { configurePersonalSyncTransport } from './personal-sync-fetch.js';
 import { validPersonalSyncCommand, trustedLifecyclePage } from './personal-sync-commands.js';
-import { personalSyncLifecycle } from './sw/personal-sync.js';
+import { onBeforePersonalSyncDisconnect, personalSyncLifecycle } from './sw/personal-sync.js';
 import { validDeviceHistoryClear } from './device-history-clear.js';
 import { browserHistoryStore } from './capture/browser-history-store.js';
 import { validMetadataReassociationCommand } from './metadata-reassociation-commands.js';
@@ -50,7 +52,13 @@ import { FOLDERS_FIRST_ALARM, installNativeFoldersFirst, installNativeFoldersFir
 import { installWorkerMetadataWake } from './sw/metadata-sync-wake.js';
 import { bindLibraryOnStartup } from './sw/library.js';
 import { handleSyncEngineRequest, scheduleSyncEngineWake } from './sw/engine.js';
-import { REPLICA_HEALTH_ALARM, REPLICA_HEALTH_PERIOD_MINUTES, reportReplicaHealth } from './sw/replica-health.js';
+import { readHealthDeliveryFailure } from './sw/health-delivery-status.js';
+import { runManualRetry } from './sw/manual-retry.js';
+import { wakeSyncForServerPermission } from './sw/server-permission.js';
+import { requestExplicitSyncRetry } from './sw/explicit-retry.js';
+import { syncWatchdog } from './sw/sync-watchdog-runtime.js';
+import { guardWakeStep, workerWakeFailureLog } from './sw/wake-failure.js';
+import { REPLICA_HEALTH_ALARM, REPLICA_HEALTH_PERIOD_MINUTES, reportReplicaDisconnected, reportReplicaHealth } from './sw/replica-health.js';
 import { handleSyncStateEvidence } from './sw/evidence.js';
 import { clearFaviconForCurrentScope, drainFaviconSidecarsForCurrentScope, readFaviconPolicyForCurrentScope, resolveFaviconSaveContext, resolveLocalSaveContext } from './sw/favicon.js';
 import { handleFirstRunRequest, handleScopeCommand } from './sw/first-run.js';
@@ -63,13 +71,19 @@ import { handleNativeWaitRequest, type NativeWaitAuthority, type NativeWaitDeps 
 import { handleRemoteDeleteRequest } from './sw/remote-delete.js';
 import { handleImportRequest } from './sw/import.js';
 import { handleIngressDiagnosticsRequest, type IngressDiagnosticsDeps } from './sw/ingress-diagnostics.js';
+import { readIngressExamples } from './sw/ingress-examples.js';
+import { lastKnownClientClockSkew } from './session-clock.js';
+import { personalTreeApi } from './bookmark-subscriptions/personal-boundary.js';
+import { createChromeBookmarkTreeAdapter } from './chrome-bookmark-tree.js';
 import { handleSyncAttentionRequest, type SyncAttentionDeps } from './sw/sync-attention.js';
 import { handleSyncProgressRequest } from './sw/sync-progress.js';
+import { handleSyncIssueAction } from './sw/sync-issue-actions.js';
+import { syncIssueActionDeps } from './sw/sync-issue-actions-runtime.js';
 import { validBatchRequest, validConnectivityRequest, validFaviconRequest, validFirstRunRequest, validImportRequest,
   validIngressDiagnosticsRequest,
   validBookmarkPreferencesRequest, validNativeSaveRequest, validNativeWaitRequest, validRemoteDeleteRequest, validRequest, validRootRequest,
   validSaveStatusRequest, validScopeCommandRequest, validSender, validSyncAttentionRequest, validSyncEngineRequest, validSyncRetryRequest,
-  validSyncProgressRequest,
+  validSyncProgressRequest, validSyncIssueActionRequest,
   validSyncStateEvidenceRequest } from './sw/messages.js';
 import { handleRootRequest, resumeBookmarksAfterPermissionGrant } from './sw/roots.js';
 import { ensurePeriodicAlarm } from './sw/reconcile-alarm.js';
@@ -126,6 +140,7 @@ chrome.runtime.onStartup.addListener(() => {
   void flushCaptureReports().catch((error) => logBackgroundFailure('startup.capture-reports', error));
 });
 chrome.permissions.onAdded.addListener((permissions) => {
+  void wakeSyncForServerPermission(permissions);
   if (permissions.permissions?.includes('bookmarks')) {
     installNativeFoldersFirst();
     void resumeBookmarksAfterPermissionGrant().finally(() => scheduleNativeFoldersFirst());
@@ -191,13 +206,21 @@ const nativeWaitDeps: NativeWaitDeps = {
 };
 
 /** S7 / B2 (SR-09·SR-11·SR-13): the read-only attention read shared by popup and options. */
-const syncAttentionDeps: SyncAttentionDeps = { scope: currentSyncScope, store: syncState,
-  rebuildPending: () => replicaRebuilder().hasPending() };
+const syncAttentionDeps: SyncAttentionDeps = { scope: currentSyncScope, store: syncState, readableFailure: true,
+  rebuildPending: () => replicaRebuilder().hasPending(), rebuildCancelAvailable: () => replicaRebuilder().canCancelPending(),
+  bookmarkPermission: hasBookmarkPermission,
+  healthDelivery: scope => readHealthDeliveryFailure(chrome.storage.local, scope, Date.now()), watchdog: syncWatchdog,
+  clockSkew: lastKnownClientClockSkew };
 
-/** SR-10 / A-08: the read-only ingress-diagnostic read behind the options list. */
-const ingressDiagnosticsDeps: IngressDiagnosticsDeps = { scope: currentSyncScope, store: syncState };
+// A deliberate disconnect tells the Sync center before this browser leaves its library (C-17d).
+onBeforePersonalSyncDisconnect(reportReplicaDisconnected);
 
-void workCoordinator.run('engine', () => replicaRebuilder().resume())
+/** SR-10 / A-08: the read-only ingress-diagnostic read behind the options list; C-20: with a live example per refused-bookmark row. */
+const ingressDiagnosticsDeps: IngressDiagnosticsDeps = { scope: currentSyncScope, store: syncState,
+  examples: scope => readIngressExamples(syncState, scope, () => createChromeBookmarkTreeAdapter(personalTreeApi()).read()) };
+
+void workCoordinator.run('engine', () => guardWakeStep(workerWakeFailureLog(), 'rebuild_resume',
+  () => replicaRebuilder().resume()))
   .catch((error) => logBackgroundFailure('startup.replica-rebuild-resume', error))
   .then(() => recoverBookmarkEventsAfterEngineSettles('manual', { workerBoot: true }));
 
@@ -340,8 +363,17 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     return true;
   }
   if (validSyncRetryRequest(message)) {
-    void scheduleSyncEngineWake('manual').catch((error) => logBackgroundFailure('message.sync-engine-wake', error));
-    respond({ ok: true }); return false;
+    // The person's own Retry: the next manual pass treats it as such (explicit-retry.ts), and the answer waits
+    // (bounded) for that pass, so the page can say whether Retry did anything.
+    void runManualRetry({ request: requestExplicitSyncRetry, wake: () => scheduleSyncEngineWake('manual'), describeError: safeError,
+      onError: (error) => logBackgroundFailure('message.sync-engine-wake', error) }).then(respond);
+    return true;
+  }
+  if (validSyncIssueActionRequest(message)) {
+    // Try again / Dismiss on named items: the Status tab only; queue changes run in the engine lane.
+    if (!trustedLifecyclePage(sender, chrome.runtime.id)) return false;
+    void handleSyncIssueAction(syncIssueActionDeps, message).then(respond, error => respond({ ok: false, error: safeError(error) }));
+    return true;
   }
   if (validSyncEngineRequest(message)) {
     void handleSyncEngineRequest().then(respond); return true;
@@ -449,6 +481,12 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (validReplicaRebuildRequest(message)) {
     void workCoordinator.run('engine', () => replicaRebuilder().handle(message)).then(respond,
       () => respond({ ok: false, code: 'rebuild_failed' }));
+    return true;
+  }
+  if (validSyncStorageResetRequest(message)) {
+    // W2A-01: the exit when the sync database itself cannot be used; serialized with every engine run.
+    void workCoordinator.run('engine', () => syncStorageReset().handle(message)).then(respond,
+      () => respond({ ok: false, code: 'storage_reset_failed' }));
     return true;
   }
   if (validNativeWaitRequest(message)) {

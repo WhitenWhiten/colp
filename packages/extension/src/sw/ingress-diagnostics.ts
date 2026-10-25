@@ -19,17 +19,41 @@
  *
  * Like `sw/sync-attention.ts` this module never wakes the engine, never takes a
  * coordinator lane and never requires a user gesture.
+ *
+ * One addition at read time (C-20 / D2): for the three "this bookmark cannot be
+ * synced" rows the handler may attach `example`, a live bookmark still refused
+ * for that reason (`sw/ingress-examples.ts`). It is best effort — a slow, failing
+ * or impossible tree read gives the list as it was — and it exists only in this
+ * response: nothing is stored and no other report reads it.
  */
 import { isParkMarkerCode } from '../ingress-diagnostics-ui.js';
 import type { IngressDiagnosticRecord } from '../sync-state/bookmark-event-repository.js';
 import type { createSyncStateStore, SyncScope } from '../sync-state-store.js';
-import type { IngressDiagnosticsResponse, PublicIngressDiagnostic } from '../types.js';
+import type { IngressDiagnosticsResponse, PublicIngressDiagnostic, PublicIngressExample } from '../types.js';
+import { REFUSED_REASONS } from './ingress-examples.js';
 
 export type IngressDiagnosticsStore = Pick<ReturnType<typeof createSyncStateStore>, 'listIngressDiagnostics'>;
+
+/** The list must paint well inside the page's own 8 s wait; a tree read that takes longer is given up. */
+export const INGRESS_EXAMPLES_BUDGET_MS = 3_000;
 
 export interface IngressDiagnosticsDeps {
   readonly scope: () => Promise<SyncScope>;
   readonly store: IngressDiagnosticsStore;
+  /** Live examples per ledger code. Absent, failing or too slow means no examples. */
+  readonly examples?: (scope: SyncScope) => Promise<ReadonlyMap<string, PublicIngressExample>>;
+}
+
+async function liveExamples(deps: IngressDiagnosticsDeps, scope: SyncScope,
+  rows: readonly PublicIngressDiagnostic[]): Promise<ReadonlyMap<string, PublicIngressExample>> {
+  if (!deps.examples || !rows.some((row) => (REFUSED_REASONS as readonly string[]).includes(row.code))) return new Map();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([deps.examples(scope),
+      new Promise<ReadonlyMap<string, PublicIngressExample>>((resolve) => {
+        timer = setTimeout(() => resolve(new Map()), INGRESS_EXAMPLES_BUDGET_MS);
+      })]);
+  } catch { return new Map(); } finally { if (timer !== undefined) clearTimeout(timer); }
 }
 
 /**
@@ -52,7 +76,11 @@ export async function handleIngressDiagnosticsRequest(
   try {
     const rows = await deps.store.listIngressDiagnostics(scope);
     // Order is the store's (`lastAt` desc, `code` asc) — never re-sorted here.
-    return { ok: true, diagnostics: rows.filter((row) => !isParkMarkerCode(row.code))
-      .map(publicIngressDiagnostic) };
+    const diagnostics = rows.filter((row) => !isParkMarkerCode(row.code)).map(publicIngressDiagnostic);
+    const examples = await liveExamples(deps, scope, diagnostics);
+    return { ok: true, diagnostics: diagnostics.map((row) => {
+      const example = examples.get(row.code);
+      return example ? { ...row, example } : row;
+    }) };
   } catch { return { ok: false, error: 'state_unavailable' }; }
 }

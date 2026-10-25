@@ -1,4 +1,5 @@
 import { t } from './i18n.js';
+import { endedSignInLine } from './signed-out-reason.js';
 import { syncTone, type SyncStatus } from './sync-status.js';
 import type { PublicAuthState } from './types.js';
 
@@ -17,8 +18,11 @@ import type { PublicAuthState } from './types.js';
  *   "Sync is off", "Waiting for network" (the FIRST_RUN_* constants).
  */
 export interface HubChrome {
-  /** @param status the public auth status. @param label the account's name, when one is known. */
-  setAccount(status: PublicAuthState['status'], label?: string): void;
+  /**
+   * @param status the public auth status. @param label the account's name, when one is known.
+   * @param signInEnded a working sign-in was ended for the person (W2B-P1-2): the line after "Sign in" says to do it again.
+   */
+  setAccount(status: PublicAuthState['status'], label?: string, signInEnded?: boolean): void;
   setEnginePhase(status: SyncStatus | undefined, connected: boolean): void;
 }
 
@@ -31,11 +35,13 @@ export interface HubChromeNodes {
 
 export function bindHubChrome(nodes: HubChromeNodes): HubChrome {
   let account: PublicAuthState['status'] = 'signed_out';
+  let signInEnded = false;
   const accountLine = (status: PublicAuthState['status']): string => status === 'connected' ? t('common_signedIn', 'Signed in')
     : status === 'offline' ? t('common_offline', 'Offline')
       : status === 'connecting' ? t('common_signingIn2', 'Signing in')
         : status === 'refreshing' ? t('common_renewingSession', 'Renewing session')
-          : status === 'error' || status === 'policy_blocked' ? t('common_signInProblem', 'Sign-in problem') : t('options_forOptionalSync', 'for optional sync');
+          : status === 'error' || status === 'policy_blocked' ? t('common_signInProblem', 'Sign-in problem')
+            : signInEnded ? endedSignInLine() : t('options_forOptionalSync', 'for optional sync');
   /* `ok` is the dot's default green; everything not yet settled is the quiet grey. */
   function paintDot(tone: ReturnType<typeof syncTone> | undefined): void {
     if (tone === undefined || tone === 'ok') delete nodes.dot.dataset.tone;
@@ -47,8 +53,9 @@ export function bindHubChrome(nodes: HubChromeNodes): HubChrome {
     paintDot(shown ? syncTone(status!.kind, 'connected') : account === 'connected' ? 'ok' : 'busy');
   }
   return {
-    setAccount(status, label) {
+    setAccount(status, label, ended = false) {
       account = status;
+      signInEnded = ended && status === 'signed_out';
       const signedOut = status === 'signed_out';
       nodes.name.textContent = signedOut ? t('sync_notSignedIn', 'Not signed in') : label || t('common_account', 'Account');
       nodes.signIn.hidden = !signedOut;

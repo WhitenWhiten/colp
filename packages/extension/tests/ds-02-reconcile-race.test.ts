@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { test } from 'vitest';
+import { readOpenSyncIssues } from '../src/sync-issues.js';
 import { fixture, mapping, bookmark, folder, scope } from './bookmark-event-queue-harness.js';
 
 test('DS-02 a bookmark moving behind the scan does not become a cloud deletion', async () => {
@@ -36,7 +37,13 @@ for (const failure of ['Permission denied', 'bookmark backend unavailable', 'emp
       await f.queue.recover();
       assert.ok((await f.store.listQueue(scope)).some(row => row.payload.type === 'delete_node'));
     } else {
-      await assert.rejects(f.queue.recover());
+      if (failure === 'Permission denied') await assert.rejects(f.queue.recover(), /Permission denied/);
+      else {
+        await f.queue.recover();
+        const issues = await readOpenSyncIssues(f.store, scope);
+        assert.ok(issues.local.some(row => row.nativeId === 'mapped'
+          && row.code === (failure === 'empty' ? 'bookmark_lookup_empty' : 'sync_failed')));
+      }
       assert.equal((await f.store.listQueue(scope)).some(row => String(row.payload.type).startsWith('delete_')), false);
     }
   });

@@ -487,7 +487,8 @@ describe('P3-33 durable extension bootstrap and empty-queue wake', () => {
     const fixture = await setup(); fixture.pullResponses.push(problem(410, 'replica_retired', {}));
     await fixture.engine.wake('alarm');
     const state = (await fixture.store.getEngineState(scope))!;
-    assert.equal(state.phase, 'offline');
+    // B-08: a browser the owner retired stops (retrying cannot bring the replica back) instead of looping offline.
+    assert.equal(state.phase, 'error');
     assert.equal(state.lastError, 'replica_retired');
     assert.equal(state.recoveryFrozen, false);
     assert.equal(state.authorityRefreshRequired, false);

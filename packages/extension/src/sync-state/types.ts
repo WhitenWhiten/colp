@@ -305,7 +305,9 @@ export interface RecoveryPageInput { readonly snapshotId: string; readonly sessi
     readonly kind: 'Folder' | 'Bookmark' | 'Separator'; readonly payloadDigest: string; readonly mapping?: MappingInput;
   }> }
 export interface StoreOptions { readonly indexedDB?: IDBFactory; readonly maxRecordBytes?: number;
-  readonly onBlocked?: (event: Event) => void; readonly injectUpgradeFailure?: boolean }
+  readonly onBlocked?: (event: Event) => void; readonly injectUpgradeFailure?: boolean;
+  /** How long an upgrade held back by another connection is waited for before `storage_blocked` (default 10 s). */
+  readonly blockedWaitMilliseconds?: number }
 export interface FaultOptions { readonly fault?: 'after_sequence' | 'after_queue' | 'after_receipt' | 'after_cursor'
   | 'after_mapping' | 'after_event' | 'quota' | 'unknown_commit' | CompactFault }
 

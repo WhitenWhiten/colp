@@ -10,7 +10,7 @@ import { readFile } from 'node:fs/promises';
 import 'fake-indexeddb/auto';
 import { describe, test } from 'vitest';
 import { installKns05IndexedDb, setup, scope } from './kns-05-pull-harness.js';
-import { freezesPullApply, setsAsidePullItem } from '../src/sync-failure-class.js';
+import { classifySyncFailure, freezesPullApply, setsAsidePullItem } from '../src/sync-failure-class.js';
 import { pullFixtures } from './pull-effect-fixtures.js';
 
 installKns05IndexedDb();
@@ -55,13 +55,14 @@ describe('A-02 pull honest failure semantics', () => {
       [['node-created-61', 'anchor_mapping_missing']]);
   });
 
-  test('an unreadable parent fails with pull_apply_evidence_missing and no empty-children digest', async () => {
+  test('an unreadable parent fails without an empty-children digest and without freezing the scope (B-10)', async () => {
     const f = await setup();
     f.api.denyPermission('native-root');
     const event = pullFixtures.createEvent({ kind: 'Bookmark', sequence: 62, collectionId: scope.collectionId,
       parentId: 'root-colp' });
     await f.applier.stage(f.page([event]));
-    await assert.rejects(() => f.applier.resume(), /pull_apply_evidence_missing/);
+    // A lost permission waits for the user, like every other native call; it is not a rebuild-only freeze.
+    await assert.rejects(() => f.applier.resume(), /permission_revoked/);
     assert.equal(f.api.calls.some((call) => call.kind === 'create'), false);
     assert.equal(await f.store.getMappingByColpId(scope, 'node-created-62'), null);
     // No expectation was built at all, so no `preStateDigest` over `[]` can exist.
@@ -72,8 +73,24 @@ describe('A-02 pull honest failure semantics', () => {
       // No intent row was ever written, so no `preStateDigest` over `[]` exists to be replayed.
       assert.equal(await f.store.getApplyIntent(scope, `intent:${row.eventId}`), undefined);
     }
-    assert.equal((await f.store.getScope(scope))?.lifecycle, 'recovery_required');
-    assert.equal((await f.store.getScope(scope))?.metadata?.recoveryCode, 'pull_apply_evidence_missing');
+    assert.equal((await f.store.getScope(scope))?.lifecycle, 'active');
+    assert.equal((await f.store.getScope(scope))?.metadata?.recoveryCode, undefined);
+  });
+
+  test('B-10: one failed read of the parent is transient: nothing is frozen and the next pass applies the create', async () => {
+    const f = await setup();
+    const original = f.api.getChildren.bind(f.api); let busy = true;
+    f.api.getChildren = async (id) => { if (busy) throw new Error('Bookmarks storage is busy'); return original(id); };
+    const event = pullFixtures.createEvent({ kind: 'Bookmark', sequence: 63, collectionId: scope.collectionId,
+      parentId: 'root-colp' });
+    await f.applier.stage(f.page([event]));
+    await assert.rejects(() => f.applier.resume(), /native_read_failed/);
+    assert.equal((await f.store.getScope(scope))?.lifecycle, 'active', 'no freeze');
+    assert.equal((await f.store.getEngineState(scope))?.recoveryFrozen ?? false, false);
+    assert.equal(classifySyncFailure('native_read_failed')?.class, 'transient');
+    busy = false;
+    await f.applier.resume();
+    assert.ok(await f.store.getMappingByColpId(scope, 'node-created-63'), 'the retry applied the create');
   });
 });
 

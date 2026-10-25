@@ -1,44 +1,43 @@
 import { reasonCode } from './push-error-code.js';
-import { localized, t, tn } from './i18n.js';
+import { localized, t } from './i18n.js';
+import { askResetConfirmation } from './reset-confirm-ui.js';
+import { cancelPendingResetConfirmation, rebuildFailureCopy, replicaRebuildConfirmation } from './replica-rebuild-copy.js';
 import type { ReplicaRebuildRequest, ReplicaRebuildResponse } from './replica-rebuild.js';
 
-export let REBUILD_LABEL: string, REBUILD_CONFIRM_LABEL: string, REBUILD_CANCEL_LABEL: string;
+export { replicaRebuildConfirmation };
+export let REBUILD_LABEL: string, REBUILD_CONFIRM_LABEL: string, REBUILD_CANCEL_LABEL: string, REBUILD_CANCEL_PENDING_LABEL: string,
+  REBUILD_KEEP_PENDING_LABEL: string;
 localized(() => {
   REBUILD_LABEL = t('sync_resetSyncDevice', 'Reset sync on this device');
   REBUILD_CONFIRM_LABEL = t('common_resetSync', 'Reset sync');
   REBUILD_CANCEL_LABEL = t('common_cancel', 'Cancel');
+  REBUILD_CANCEL_PENDING_LABEL = t('sync_cancelPendingReset', 'Cancel pending reset');
+  REBUILD_KEEP_PENDING_LABEL = t('sync_keepPendingReset', 'Keep it pending');
 });
-export function replicaRebuildConfirmation(queuedOperations: number): string {
-  if (queuedOperations === 0) return t('sync_rebuildConfirm', "Your bookmarks stay on this device and in your library. Afterwards you'll choose which folders sync and review the merge again. Reset sync now?");
-  return t('sync_rebuildConfirmSetAside', "Your bookmarks stay on this device and in your library. $1 Afterwards you'll choose which folders sync and review the merge again. Reset sync now?",
-    tn('sync_rebuildSetAside', queuedOperations, '$1 change that has not synced yet will be set aside and not retried.', '$1 changes that have not synced yet will be set aside and not retried.'));
+
+export interface ReplicaRebuildBinding {
+  /** The card should be read again (a reset was cancelled, or the state it was offered for changed). */
+  readonly onChanged?: () => Promise<unknown> | void;
 }
 
-export function bindReplicaRebuildButton(hostId: string): void {
+/**
+ * K3: "Reset sync on this device" and "Cancel pending reset" for one card. The button is shown by the card only when a
+ * Reset is possible from the state (`rebuildAvailable`); pressing it previews first, so the confirmation can say which
+ * kind of Reset this is, and sends nothing until it is confirmed.
+ */
+export function bindReplicaRebuildButton(hostId: string, binding: ReplicaRebuildBinding = {}): void {
   const button = document.getElementById(`${hostId}-rebuild`) as HTMLButtonElement | null;
   const feedback = document.getElementById(`${hostId}-feedback`);
   if (!button || !feedback) return;
+  const cancelButton = document.getElementById(`${hostId}-rebuild-cancel`) as HTMLButtonElement | null;
   button.textContent = REBUILD_LABEL;
   button.addEventListener('click', () => { void rebuild(); });
+  if (cancelButton) {
+    cancelButton.textContent = REBUILD_CANCEL_PENDING_LABEL;
+    cancelButton.addEventListener('click', () => { void cancelPending(cancelButton); });
+  }
   async function send(message: ReplicaRebuildRequest): Promise<ReplicaRebuildResponse> {
     return chrome.runtime.sendMessage(message) as Promise<ReplicaRebuildResponse>;
-  }
-  function askConfirmation(hostButton: HTMLButtonElement, feedbackElement: HTMLElement, question: string): Promise<boolean> {
-    return new Promise((resolve) => {
-      const strip = document.createElement('div'); strip.className = 'rebuild-confirm';
-      const copy = document.createElement('p'); copy.className = 'rebuild-confirm-copy'; copy.textContent = question;
-      const actions = document.createElement('div'); actions.className = 'row-actions';
-      const confirmButton = document.createElement('button'); confirmButton.type = 'button';
-      confirmButton.className = 'btn btn-danger btn-sm'; confirmButton.textContent = REBUILD_CONFIRM_LABEL;
-      const cancelButton = document.createElement('button'); cancelButton.type = 'button';
-      cancelButton.className = 'btn btn-ghost btn-sm'; cancelButton.textContent = REBUILD_CANCEL_LABEL;
-      const settle = (proceed: boolean) => { strip.remove(); if (!proceed) hostButton.focus(); resolve(proceed); };
-      confirmButton.addEventListener('click', () => settle(true));
-      cancelButton.addEventListener('click', () => settle(false));
-      strip.addEventListener('keydown', (event) => { if (event.key === 'Escape') settle(false); });
-      actions.append(confirmButton, cancelButton); strip.append(copy, actions); feedbackElement.before(strip);
-      confirmButton.focus();
-    });
   }
   async function rebuild(): Promise<void> {
     if (!button || !feedback || button.disabled) return;
@@ -47,7 +46,8 @@ export function bindReplicaRebuildButton(hostId: string): void {
       const preview = await send({ kind: 'known.scope.rebuild.preview' });
       if (!preview.ok) throw new Error(preview.code);
       if (!('preview' in preview)) throw new Error('request_invalid');
-      const proceed = await askConfirmation(button, feedback, replicaRebuildConfirmation(preview.preview.queuedOperations));
+      const proceed = await askResetConfirmation(button, feedback,
+        replicaRebuildConfirmation(preview.preview.queuedOperations, preview.preview.mode), { confirm: REBUILD_CONFIRM_LABEL, keep: REBUILD_CANCEL_LABEL });
       if (!proceed) return;
       const result = await send({ kind: 'known.scope.rebuild.confirm', userGesture: true,
         replicaId: preview.preview.replicaId, generation: preview.preview.generation, revision: preview.preview.revision, targetFence: preview.preview.targetFence });
@@ -58,11 +58,25 @@ export function bindReplicaRebuildButton(hostId: string): void {
       else await chrome.tabs.create({ url });
     } catch (error) {
       feedback.hidden = false;
-      const code = reasonCode(error, 'rebuild_failed');
-      feedback.textContent = code === 'upload_outcome_unsettled' || code === 'native_outcome_unsettled'
-        ? t('sync_rebuildUnsettled', 'A previous change has an unknown result ($1). Resolve it in Status before resetting sync.', code)
-        : code === 'rebuild_not_required' || code === 'stale_ref'
-          ? t('sync_rebuildNoLongerAvailable', 'Sync state changed. Refresh Status to review the available actions ($1).', code) : t('sync_resetIsntFinishedYet', "Reset isn't finished yet. Try again.");
+      feedback.textContent = rebuildFailureCopy(reasonCode(error, 'rebuild_failed'));
     } finally { button.disabled = false; }
+  }
+  /** W2A-02: a reset that cannot finish can be given up while nothing is archived; once archived it can only be finished. */
+  async function cancelPending(target: HTMLButtonElement): Promise<void> {
+    if (!feedback || target.disabled) return;
+    target.disabled = true;
+    let message: string;
+    try {
+      const proceed = await askResetConfirmation(target, feedback, cancelPendingResetConfirmation(),
+        { confirm: REBUILD_CANCEL_PENDING_LABEL, keep: REBUILD_KEEP_PENDING_LABEL });
+      if (!proceed) return;
+      const result = await send({ kind: 'known.scope.rebuild.cancel', userGesture: true });
+      if (!result.ok) throw new Error(result.code);
+      message = t('sync_resetCancelled', 'The reset was cancelled. Sync on this device is as it was before.');
+    } catch (error) { message = rebuildFailureCopy(reasonCode(error, 'rebuild_failed')); }
+    finally { target.disabled = false; }
+    // Read the card again first: it repaints its feedback line, and what happened is said last.
+    await binding.onChanged?.();
+    feedback.hidden = false; feedback.textContent = message;
   }
 }

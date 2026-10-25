@@ -39,24 +39,27 @@ describe('durable sync engine payload_too_large adaptation (F013)', () => {
     assert.equal(exported.engine.lastError, 'payload_too_large');
   });
 
-  test('halves the Snapshot page limit on payload_too_large and completes recovery', async () => {
+  test('halves the Snapshot page limit on a mid-chain payload_too_large and completes recovery', async () => {
     // Subject is the Snapshot transport-budget negotiation, not projection identity:
     // this fixture's Chrome world cannot satisfy the production identity verification.
+    // B-02: a 413 on the FIRST page is the server's aggregate limit and never halves
+    // (see snapshot-aggregate-cap.test.ts); only a later page can mean "this page is too big".
     const fixture = await setup({ useStandInProjector: true });
     fixture.pullResponses.push(problem(410, 'stale_replica', {}));
     await fixture.engine.wake('alarm');
     fixture.forcedSessions.push({ state: 'active', snapshotRequired: true, cursor: 'cursor-stale' });
-    fixture.snapshotResponses.push(problem(413, 'payload_too_large', {}),
-      problem(413, 'payload_too_large', {}),
-      json(200, recoverySnapshot(1, true, 'page-2')), json(200, recoverySnapshot(2, false, null)));
+    fixture.snapshotResponses.push(
+      json(200, recoverySnapshot(1, true, 'page-2')), problem(413, 'payload_too_large', {}),
+      json(200, recoverySnapshot(1, true, 'page-2-half')), problem(413, 'payload_too_large', {}),
+      json(200, recoverySnapshot(1, true, 'page-2-quarter')), json(200, recoverySnapshot(2, false, null)));
     fixture.ackResponses.push(json(200, ack('bootstrap-cursor')));
     fixture.forcedSessions.push({ state: 'active', snapshotRequired: false, cursor: 'cursor-recovered' });
     await fixture.engine.wake('online');
     const exported = await fixture.store.exportScope(scope);
     const requests = fixture.snapshotRequests.map((request) => new URL(request.url));
-    assert.deepEqual(requests.map((url) => url.searchParams.get('limit')), ['100', '50', '25', '25']);
-    assert.equal(requests[0]!.searchParams.has('pageCursor'), false);
-    assert.equal(requests[3]!.searchParams.get('pageCursor'), 'page-2');
+    assert.deepEqual(requests.map((url) => url.searchParams.get('limit')), ['100', '100', '50', '50', '25', '25']);
+    assert.deepEqual(requests.map((url) => url.searchParams.get('pageCursor')),
+      [null, 'page-2', null, 'page-2-half', null, 'page-2-quarter']);
     assert.equal(exported.engine.phase, 'sleeping');
     assert.equal(exported.engine.recoveryFrozen, false);
     assert.equal(exported.cursor.cursor, 'cursor-recovered');
@@ -91,11 +94,12 @@ describe('durable sync engine payload_too_large adaptation (F013)', () => {
     fixture.pullResponses.push(problem(410, 'stale_replica', {}));
     await fixture.engine.wake('alarm');
     fixture.forcedSessions.push({ state: 'active', snapshotRequired: true, cursor: 'cursor-stale' });
-    // The chain is staged at the halved limit, then the worker crashes before
-    // the next page — the durable nextCursor was signed for limit=50.
-    fixture.snapshotResponses.push(problem(413, 'payload_too_large', {}),
-      json(200, recoverySnapshot(1, true, 'page-2-at-50')));
-    fixture.crashAt = 'after_snapshot_page';
+    // The chain is staged at the halved limit (a mid-chain 413 restarted it), then the
+    // worker crashes before the next page - the durable nextCursor was signed for limit=50.
+    const crashAfterThisPage = { then(resolve: (value: Response) => void) {
+      fixture.crashAt = 'after_snapshot_page'; resolve(json(200, recoverySnapshot(1, true, 'page-2-at-50'))); } } as unknown as Promise<Response>;
+    fixture.snapshotResponses.push(json(200, recoverySnapshot(1, true, 'page-2')),
+      problem(413, 'payload_too_large', {}), crashAfterThisPage);
     await assert.rejects(() => fixture.engine.wake('online'), /worker_crash/);
     await fixture.store.transitionEngine(scope, { phase: 'recovery', updatedAt: fixture.clock.now,
       recoveryFrozen: true, authorityRefreshRequired: true, notBefore: 0, sessionId: 'session-renewed' });
@@ -112,9 +116,9 @@ describe('durable sync engine payload_too_large adaptation (F013)', () => {
     await fixture.reopen().wake('online');
     const exported = await fixture.store.exportScope(scope);
     const requests = fixture.snapshotRequests.map((request) => new URL(request.url));
-    assert.deepEqual(requests.map((url) => url.searchParams.get('limit')), ['100', '50', '100', '100', '100']);
+    assert.deepEqual(requests.map((url) => url.searchParams.get('limit')), ['100', '100', '50', '100', '100', '100']);
     assert.deepEqual(requests.map((url) => url.searchParams.get('pageCursor')),
-      [null, null, 'page-2-at-50', null, 'page-2b']);
+      [null, 'page-2', null, 'page-2-at-50', null, 'page-2b']);
     assert.equal(exported.engine.phase, 'sleeping');
     assert.equal(exported.cursor.cursor, 'cursor-recovered');
   });
@@ -124,14 +128,17 @@ describe('durable sync engine payload_too_large adaptation (F013)', () => {
     fixture.pullResponses.push(problem(410, 'stale_replica', {}));
     await fixture.engine.wake('alarm');
     fixture.forcedSessions.push({ state: 'active', snapshotRequired: true, cursor: 'cursor-stale' });
+    // B-02: the first page always fits (a 413 there is the aggregate limit); a later page
+    // that does not fit restarts the chain at half the limit until one Node alone is too big.
     for (let index = 0; index < 7; index += 1) {
-      fixture.snapshotResponses.push(problem(413, 'payload_too_large', {}));
+      fixture.snapshotResponses.push(json(200, recoverySnapshot(1, true, `page-2-${index}`)),
+        problem(413, 'payload_too_large', {}));
     }
     await fixture.engine.wake('online');
     let exported = await fixture.store.exportScope(scope);
     const requests = fixture.snapshotRequests.map((request) => new URL(request.url));
     assert.deepEqual(requests.map((url) => url.searchParams.get('limit')),
-      ['100', '50', '25', '12', '6', '3', '1']);
+      ['100', '100', '50', '50', '25', '25', '12', '12', '6', '6', '3', '3', '1', '1']);
     assert.equal(exported.engine.phase, 'recovery');
     assert.equal(exported.engine.recoveryFrozen, true);
     assert.equal(exported.engine.authorityRefreshRequired, false);
@@ -144,7 +151,7 @@ describe('durable sync engine payload_too_large adaptation (F013)', () => {
     fixture.clock.now += 2_000;
     await fixture.engine.wake('online');
     exported = await fixture.store.exportScope(scope);
-    assert.equal(fixture.snapshotRequests.length, 7);
+    assert.equal(fixture.snapshotRequests.length, 14);
     assert.deepEqual(fixture.sessionForces, [false, true]);
     assert.equal(exported.engine.recoveryFrozen, true);
     assert.equal(exported.engine.lastError, 'payload_too_large');

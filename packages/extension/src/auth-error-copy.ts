@@ -6,7 +6,7 @@ import { t } from './i18n.js';
  * Known codes read as user language; an unknown code gets one generic line
  * and is never shown raw (R13 E-07).
  */
-export function authErrorCopy(code: string | undefined, context: 'attempt' | 'state' = 'state'): string {
+export function authErrorCopy(code: string | undefined, context: 'attempt' | 'state' | 'setup' = 'state'): string {
   if (!code) return t('auth_couldNotSignPlease', 'Could not sign in. Please try again.');
   if (code === 'invalid_credentials') return t('auth_emailPasswordIncorrect', 'Username, email or password is incorrect.');
   if (code === 'server_configuration_failed') return t('auth_serverConfigurationFailed', 'Check the server address and allow access before signing in.');
@@ -26,8 +26,14 @@ export function authErrorCopy(code: string | undefined, context: 'attempt' | 'st
   }
   if (code === 'session_cookie_missing') return t('auth_signSucceededButSession', 'Sign-in succeeded but the session cookie was missing. Try again.');
   if (code === 'session_unavailable') return t('auth_couldNotRestoreSession', 'Could not restore the session. Please try again.');
+  // The server ended a sign-in that had run past its lifetime; nothing was taken away (W2B-P2-7).
+  if (code === 'session_expired') return t('auth_sessionExpiredSignAgain', 'Your session expired. Sign in again.');
   if (code === 'authentication_required' || code === 'credential_revoked' || code === 'invalid_grant') {
     return t('auth_accessRevokedSignAgain', 'Your access was revoked. Sign in again.');
+  }
+  if (code === 'server_unavailable') return t('auth_serverUnavailableTryAgain', 'The server could not answer just now. Try again in a moment.');
+  if (code === 'server_version_mismatch') {
+    return t('auth_serverVersionMismatch', 'This version of Know-N and the server do not match. Update the extension, or ask whoever runs the server to check its version.');
   }
   if (code === 'binding_mismatch') {
     return t('auth_browserSignedOutBecause', 'This browser was signed out because the sign-in configuration changed. Sign in again.');
@@ -52,6 +58,10 @@ export function authErrorCopy(code: string | undefined, context: 'attempt' | 'st
     return t('auth_knowNDidNot', 'Know-N did not accept sign-in from this copy of the extension. Reinstall it, or sign in on the Know-N website.');
   }
   if (code === 'authority_fenced') return t('auth_anotherSignSignOut', 'Another sign-in or sign-out interrupted this one. Try again.');
+  // W2B-P3-4: the sign-in worked and what came after it did not, so it is not worded as a sign-in that failed.
+  if (context === 'setup') {
+    return t('auth_signedInSetupFailed', 'You are signed in, but Know-N could not finish setting up sync. Try again in a moment.');
+  }
   // D-27: a failed attempt reads 'Sign-in failed'; a persistent session state
   // reads 'Sign-in problem'.
   return context === 'attempt'

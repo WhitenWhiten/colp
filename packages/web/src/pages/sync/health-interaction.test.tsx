@@ -61,7 +61,9 @@ test('a stale action has visible feedback; API acceptance and command execution 
   await waitForDom(() => document.body.textContent?.includes('waiting for Chrome to execute') === true)
   mounted.rerender(<ReplicaHealth replica={replica({ ...health, actions: ['retry'], commands: [{ commandId: 'cmd', replicaId: 'r',
     action: 'retry', issueId: null, state: 'done', resultCode: 'retry_completed', createdAt: now, completedAt: now, expiresAt: now }] })} onChanged={changed} />)
-  expect(document.body.textContent).toContain('convergence must be checked')
+  // A request that ran is not a cure: the card says what the browser reports since.
+  expect(document.body.textContent).toContain('Chrome tried again, but it still reports a problem.')
+  expect(document.body.textContent).not.toContain('convergence')
   expect(document.body.textContent).toContain('1 item')
 })
 
@@ -95,4 +97,89 @@ test('diagnostic read failure still exposes recovery actions inside the dialog',
   await waitForDom(() => document.body.textContent?.includes('Couldn’t load the items') === true)
   const dialog = document.querySelector('[role="dialog"]')!
   expect([...dialog.querySelectorAll('button')].some(button => button.textContent === 'Reset sync')).toBe(true)
+})
+
+const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString()
+const text = () => document.body.textContent ?? ''
+
+test('a browser reporting on its usual schedule is not called stale; one quiet for 45 minutes is (C-17b)', () => {
+  const quiet = (reportedAt: string) => replica({ ...health, state: 'syncing', issueCount: 0, reportedAt, since: reportedAt })
+  const mounted = mountTree(<ReplicaHealth replica={quiet(minutesAgo(22))} onChanged={() => {}} />)
+  expect(text()).not.toContain('report is over')
+  mounted.rerender(<ReplicaHealth replica={quiet(minutesAgo(50))} onChanged={() => {}} />)
+  expect(text()).toContain('This browser’s report is over 45 minutes old.')
+})
+
+test('an item whose browser had no honest time does not claim it was first seen in 1970 (C-17c)', async () => {
+  const view = report('waiting_dependency')
+  view.items[0] = { ...view.items[0]!, direction: 'pull', firstSeenAt: '1970-01-01T00:00:00.000Z', lastSeenAt: '1970-01-01T00:00:00.000Z' }
+  mocks.list.mockResolvedValue(view)
+  mountTree(<ReplicaHealth replica={replica(health)} onChanged={() => {}} />)
+  click('Show 1 item'); await waitForDom(() => text().includes('waiting_dependency'))
+  expect(text()).toContain('Download')
+  expect(text()).not.toContain('First seen')
+  expect(text()).not.toContain('Jan 1')
+})
+
+test('the card says how long the browser has been in its state (C-10)', () => {
+  mountTree(<ReplicaHealth replica={replica({ ...health, since: minutesAgo(190) })} onChanged={() => {}} />)
+  expect(text()).toContain('Needs attention since 3 h ago.')
+  const syncing = replica({ ...health, state: 'syncing', issueCount: 0, reportedAt: minutesAgo(50), since: minutesAgo(3000) })
+  mountTree(<ReplicaHealth replica={syncing} onChanged={() => {}} />)
+  expect(text()).not.toContain('Syncing since')
+})
+
+test('a pause the browser ends by itself is told as a pause, not as a stop (C-06)', () => {
+  mountTree(<ReplicaHealth replica={replica({ ...health, issueCount: 0, code: 'push_network_failed', actions: ['retry'] })} onChanged={() => {}} />)
+  expect(text()).toContain('hit repeated errors and is waiting to try again: it couldn’t reach the server several times in a row (push_network_failed). It tries again by itself; Retry below tries now.')
+  expect(text()).not.toContain('has stopped')
+  expect(text()).not.toContain('0 items')
+})
+
+test('a clock that is off is told as a warning that sync still works, not as errors or a stop (K4)', () => {
+  mountTree(<ReplicaHealth replica={replica({ ...health, issueCount: 0, code: 'clock_skew', actions: ['retry'] })} onChanged={() => {}} />)
+  expect(text()).toContain('Sync on this browser keeps working, but its clock is more than two minutes off the server’s. Set the clock on that computer to automatic time so sign-in and expiry checks stay reliable.')
+  expect(text()).not.toContain('hit repeated errors')
+  expect(text()).not.toContain('has stopped')
+  expect(text()).not.toContain('0 items')
+})
+
+test('a stall the extension watchdog noticed is told as a stall, with a Retry to try (S6)', () => {
+  mountTree(<ReplicaHealth replica={replica({ ...health, issueCount: 0, code: 'sync_stuck', actions: ['retry'] })} onChanged={() => {}} />)
+  expect(text()).toContain('Sync on this browser looks stuck: the oldest change waiting to upload hasn’t moved for a while. Retry below tries now.')
+  expect(text()).not.toContain('repeated errors')
+  mountTree(<ReplicaHealth replica={replica({ ...health, issueCount: 0, code: 'sync_not_completing', actions: [] })} onChanged={() => {}} />)
+  expect(text()).toContain('hasn’t finished a pass in over an hour')
+})
+
+test('a browser that was deliberately disconnected says so, instead of keeping its last state (C-17d)', () => {
+  mountTree(<ReplicaHealth replica={replica({ ...health, state: 'paused', code: 'sync_disconnected', issueCount: 0 })} onChanged={() => {}} />)
+  expect(text()).toContain('Sync is turned off on this browser. It keeps its bookmarks; nothing syncs until it’s connected again there.')
+  expect(text()).toContain('Paused since')
+})
+
+test('a reset the browser could not do says why and what to try, and a stop names the way out (C-12)', () => {
+  const failed = { commandId: 'reset', replicaId: 'r', action: 'rebuild' as const, issueId: null, state: 'failed' as const,
+    resultCode: 'upload_outcome_unsettled', createdAt: now, completedAt: now, expiresAt: now }
+  mountTree(<ReplicaHealth replica={replica({ ...health, state: 'stopped', code: 'mapping_identity_conflict', issueCount: 0,
+    actions: ['retry', 'rebuild'], commands: [failed] })} onChanged={() => {}} />)
+  expect(text()).toContain('Sync on this browser has stopped: its copy of your library needs a rebuild. Reset sync below to continue.')
+  expect(text()).toContain('Reset sync didn’t work: a change that browser sent has no confirmed result yet')
+  expect(text()).toContain('Try Retry first')
+  expect(text()).not.toContain('it reported')
+})
+
+test('a browser close to the open-items limit is told so beside its list, with the way to clear some (A-F8 / B-12)', async () => {
+  mocks.list.mockResolvedValue({ ...report(), total: 163 })
+  mountTree(<ReplicaHealth replica={replica({ ...health, issueCount: 163 })} onChanged={() => {}} />)
+  click('Show 163 items'); await waitForDom(() => document.body.textContent?.includes('local_merge_difference') === true)
+  expect(text()).toContain('This browser has 163 open items. It stops syncing above 200.')
+  expect(text()).toContain('use Try again or Dismiss to clear some')
+})
+
+test('a short list carries no limit note', async () => {
+  mocks.list.mockResolvedValue(report())
+  mountTree(<ReplicaHealth replica={replica(health)} onChanged={() => {}} />)
+  click('Show 1 item'); await waitForDom(() => document.body.textContent?.includes('local_merge_difference') === true)
+  expect(text()).not.toContain('open items')
 })

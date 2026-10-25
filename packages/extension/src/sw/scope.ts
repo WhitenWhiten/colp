@@ -8,7 +8,7 @@ import { fetchSyncEndpoints } from '../manifest-client.js';
 import { declaredClientTransportBudget, SYNC_TRANSPORT_BUDGET_EXTENSION } from '../colp-transport-budget-browser.js';
 import { isProtocolOpaqueId } from '../protocol-id.js';
 import { createSyncSession, retainSessionAfterTransientRenewalFailure, retryStaleReplicaSession,
-  SessionRequestError,
+  SESSION_REPLICA_UNKNOWN, SessionRequestError,
   sessionMatchesCredentialAuthority, shouldForceSessionRefresh, syncSessionNeedsRenewal } from '../session-client.js';
 import type { SyncScope } from '../sync-state-store.js';
 import type { BuildConfig, ExtensionRequest, StoredAuthBinding, StoredCredential, StoredSession } from '../types.js';
@@ -16,6 +16,8 @@ import { resolveSessionBootstrapMode, resolveSessionMountBinding, retireScopeIfQ
 import { COLLECTION_BINDING, extensionOrigin, safeError, store, sw, syncState, workCoordinator } from './runtime.js';
 import { writeAuthSnapshot } from '../auth-snapshot.js';
 import { configuredPersonalSyncPolicy, personalSyncFetch } from '../personal-sync-fetch.js';
+import { lastKnownClientClockSkew, localTimeOf, rememberClientClockSkew } from '../session-clock.js';
+import { recordClockSkew } from '../session-clock-record.js';
 
 export async function loadConfig(): Promise<BuildConfig> {
   sw.configPromise ??= fetch(chrome.runtime.getURL('generated-config.json'), { cache: 'no-store' })
@@ -52,6 +54,10 @@ export function createRuntimeAuth(
     cookies: chrome.cookies,
     openOAuthTab: (url) => chrome.tabs.create({ url }),
     fetch: evidenceTransportFetch,
+    // The credential's expiry is server time too (W2B-P0-1): judge it with the skew the last Session measured.
+    now: () => Date.now() - lastKnownClientClockSkew(),
+    // The popup paints from this snapshot before the worker answers (W2B-P3-5).
+    onSignedOut: (state) => { void writeAuthSnapshot(state).catch(() => undefined); },
     ...(retireSession ? { retire: retireSession } : {}),
     drain: () => workCoordinator.drain('auth'),
   });
@@ -133,7 +139,7 @@ export async function sessionRequest(expectedGeneration: number, maxBatchOperati
 }
 
 export async function ensureSyncScope(config: BuildConfig, credential: StoredCredential, session: StoredSession,
-  expectedGeneration: number) {
+  expectedGeneration: number): Promise<SyncScope> {
   await store.assertWritable(expectedGeneration);
   if (!credential.subject) throw new Error('account_identity_missing');
   const binding = await bindingForRequest(expectedGeneration);
@@ -154,6 +160,7 @@ export async function ensureSyncScope(config: BuildConfig, credential: StoredCre
     }
     throw error;
   }
+  return scope;
 }
 
 export async function currentSyncScope(options: { allowStopped?: boolean; allowUnregistered?: boolean } = {}): Promise<SyncScope> {
@@ -225,6 +232,9 @@ export async function requireSyncScope(): Promise<SyncScope> {
 }
 
 export async function bindingForRequest(expectedGeneration: number) {
+  // W2B-P3-1: the memo holds only while storage still holds the binding it names. A sign-out for another account
+  // (or a configuration change) removes the binding behind its back, and a request must not use the removed one.
+  if (sw.bindingPromise && !await memoNamesStoredBinding(sw.bindingPromise)) sw.bindingPromise = undefined;
   if (!sw.bindingPromise) sw.bindingPromise = store.getOrCreateBinding(expectedGeneration);
   try {
     return await sw.bindingPromise;
@@ -232,6 +242,13 @@ export async function bindingForRequest(expectedGeneration: number) {
     sw.bindingPromise = undefined;
     throw error;
   }
+}
+
+async function memoNamesStoredBinding(memo: Promise<StoredAuthBinding>): Promise<boolean> {
+  try {
+    const held = await memo, stored = await store.loadBinding();
+    return stored?.replicaId === held.replicaId && stored.generation === held.generation;
+  } catch { return false; }
 }
 
 export async function retireLegacyScopeForRemount(options: {
@@ -247,14 +264,14 @@ export async function retireLegacyScopeForRemount(options: {
 
 export async function currentSyncStatusAuthority() {
   const config = await loadConfig();
-  const [credential, session, binding] = await Promise.all([
-    store.loadCredential(), store.loadSession(), store.loadBinding(),
+  const [credential, session] = await Promise.all([
+    store.loadCredential(), store.loadSession(),
   ]);
-  if (!credential?.subject || !session || !binding) throw new Error('not_connected');
-  return { config, credential, session, scope: { environment: config.environment, serverId: config.serverOrigin,
-    serverOrigin: config.serverOrigin, accountId: credential.subject, browserProfileId: binding.browserProfileId,
-    collectionId: session.collection.collectionId, replicaId: binding.replicaId,
-    generation: Number(binding.generation) } satisfies SyncScope };
+  if (!credential?.subject) throw new Error('not_connected');
+  // Status locates durable work while paused or offline. A missing Session
+  // remains sessionReady=false; reading this identity never mints authority.
+  const scope = await currentSyncScope({ allowStopped: true });
+  return { config, credential, session, scope };
 }
 
 export async function pushSessionAuthority(forceRefresh = false) {
@@ -274,6 +291,7 @@ async function pushSessionAuthorityExclusive(forceRefresh = false, observedSessi
   const auth = createRuntimeAuth(config, async (credential, session, signal) =>
     retire(await endpoints(), credential, session, signal));
   const before = await store.loadCredential(); let session = await store.loadSession();
+  if (session) rememberClientClockSkew(session);
   const target = await boundCollectionId();
   if (before?.subject && target) await configuredPersonalSyncPolicy()?.capture({ serverOrigin: before.serverOrigin, accountId: before.subject, collectionId: target });
   const effectiveForce = shouldForceSessionRefresh(forceRefresh, observedSessionId, session?.sessionId ?? null);
@@ -292,8 +310,8 @@ async function pushSessionAuthorityExclusive(forceRefresh = false, observedSessi
   if (Date.now() < sw.sessionRetryNotBefore) {
     const retryAfterMilliseconds = sw.sessionRetryNotBefore - Date.now();
     if (!effectiveForce && session && sessionMatchesCredential && sessionMatchesCollection
-        && Date.parse(session.expiresAt) > sw.sessionRetryNotBefore
-        && Date.parse(session.replicaLease.expiresAt) > sw.sessionRetryNotBefore) return { credential, session };
+        && localTimeOf(session, session.expiresAt) > sw.sessionRetryNotBefore
+        && localTimeOf(session, session.replicaLease.expiresAt) > sw.sessionRetryNotBefore) return { credential, session };
     throw new SessionRequestError('rate_limited', retryAfterMilliseconds);
   }
   if (effectiveForce || before?.accessToken !== credential.accessToken || !session || !sessionMatchesCredential
@@ -302,34 +320,75 @@ async function pushSessionAuthorityExclusive(forceRefresh = false, observedSessi
     const sessionFetch = credentialGatedFetch(credential.subject && target
       ? personalSyncFetch({ serverOrigin: credential.serverOrigin, accountId: credential.subject, collectionId: target })
       : fetch);
-    try { session = await createSyncSession({ endpoints: await endpoints(), credential, replicaProof: await loadBoundReplicaReportProof(), request: await sessionRequest(context.generation, (await endpoints()).maxBatchOperations ?? 1),
+    const mint = async () => createSyncSession({ endpoints: await endpoints(), credential,
+      replicaProof: await loadBoundReplicaReportProof(),
+      request: await sessionRequest(context.generation, (await endpoints()).maxBatchOperations ?? 1),
       origin: extensionOrigin(), signal: context.signal, fetch: sessionFetch });
-      sw.sessionRetryNotBefore = 0; }
+    try { session = await mint(); sw.sessionRetryNotBefore = 0; }
     catch (error) {
       if (error instanceof SessionRequestError && error.code === 'rate_limited'
           && error.retryAfterMilliseconds !== undefined) {
         sw.sessionRetryNotBefore = Date.now() + error.retryAfterMilliseconds;
       }
-      if (!prior) { await clearSessionIfGeneration(context.generation); throw error; }
-      try { session = await retryStaleReplicaSession(prior, error, async () => createSyncSession({
-        endpoints: await endpoints(), credential, replicaProof: await loadBoundReplicaReportProof(), request: await sessionRequest(context.generation, (await endpoints()).maxBatchOperations ?? 1), origin: extensionOrigin(),
-        signal: context.signal, fetch: sessionFetch,
-      })); }
-      catch {
-        // Retention is for a TRANSIENT failure of a Session that is still this
-        // Collection's authority. A prior Session for a DIFFERENT Collection is
-        // not a fallback: keeping it let Push/Pull run against the Collection the
-        // user just switched away from, because `currentSyncScope` preferred the
-        // Session's Collection over the binding.
-        if (prior !== null && authenticatesBoundCollection(prior, boundCollection)
-            && retainSessionAfterTransientRenewalFailure(prior, error)) throw error;
-        await clearSessionIfGeneration(context.generation); throw error;
+      if (!effectiveForce) await recheckRefusedCredential(auth, error);
+      if (!prior) {
+        // W2B-P1-3: a replica id this browser never registered, refused as unknown (another account holds it).
+        // Nothing was ever synced under it, so a new name loses nothing; try once.
+        if (!await renameUnregisteredReplica(error, context.generation)) {
+          await clearSessionIfGeneration(context.generation); throw error;
+        }
+        try { session = await mint(); sw.sessionRetryNotBefore = 0; }
+        catch (again) { await clearSessionIfGeneration(context.generation); throw again; }
+      } else {
+        try { session = await retryStaleReplicaSession(prior, error, mint); }
+        catch {
+          // Retention is for a TRANSIENT failure of a Session that is still this
+          // Collection's authority. A prior Session for a DIFFERENT Collection is
+          // not a fallback: keeping it let Push/Pull run against the Collection the
+          // user just switched away from, because `currentSyncScope` preferred the
+          // Session's Collection over the binding.
+          if (authenticatesBoundCollection(prior, boundCollection)
+              && retainSessionAfterTransientRenewalFailure(prior, error)) throw error;
+          await clearSessionIfGeneration(context.generation); throw error;
+        }
       }
     }
     await store.saveSession(session, context.generation);
-    await ensureSyncScope(config, credential, session, context.generation);
+    rememberClientClockSkew(session);
+    await recordClockSkew(syncState, await ensureSyncScope(config, credential, session, context.generation), session);
   }
   return { credential, session };
+}
+
+/**
+ * W2B-P1-3 (server half): the Session route did not know a replica id this browser never registered, which is what it
+ * answers when another account holds that id. No scope was ever recorded under the id, so nothing was synced with it
+ * and a new name loses nothing. A replica that did sync is a Reset (or a new sign-in), never a silent new name.
+ */
+async function renameUnregisteredReplica(error: unknown, generation: number): Promise<boolean> {
+  if (!(error instanceof SessionRequestError) || error.code !== SESSION_REPLICA_UNKNOWN) return false;
+  const [config, credential, binding, collectionId] = await Promise.all([
+    loadConfig(), store.loadCredential(), store.loadBinding(), boundCollectionId()]);
+  if (!credential?.subject || !binding || !collectionId) return false;
+  const scope: SyncScope = { environment: config.environment, serverId: config.serverOrigin, serverOrigin: config.serverOrigin,
+    accountId: credential.subject, browserProfileId: binding.browserProfileId, collectionId,
+    replicaId: binding.replicaId, generation: Number(binding.generation) };
+  if (await syncState.getScope(scope)) return false;
+  await store.assertWritable(generation);
+  await store.clearBinding();
+  sw.bindingPromise = undefined;
+  return true;
+}
+
+/**
+ * W2B-P1-2: a 401 from the Session route says the server no longer accepts this credential, although its cookie and
+ * stored expiry still look fine (a web sign-out, a password change, an administrator). Ask the identity server once.
+ * When it agrees, this signs out and keeps the replica; retrying a dead credential used to go on until it expired.
+ */
+async function recheckRefusedCredential(auth: ReturnType<typeof createRuntimeAuth>, error: unknown): Promise<void> {
+  if (!(error instanceof SessionRequestError) || error.code !== 'credential_revoked') return;
+  try { await auth.ensureFreshCredential(true); }
+  catch (check) { if (safeError(check) === 'authentication_required') throw check; }
 }
 
 /**

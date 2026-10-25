@@ -98,6 +98,15 @@
   "auth_serverConfigurationFailed": {
     "message": "Check the server address and allow access before signing in."
   },
+  "auth_serverUnavailableTryAgain": {
+    "message": "The server could not answer just now. Try again in a moment."
+  },
+  "auth_serverVersionMismatch": {
+    "message": "This version of Know-N and the server do not match. Update the extension, or ask whoever runs the server to check its version."
+  },
+  "auth_sessionExpiredSignAgain": {
+    "message": "Your session expired. Sign in again."
+  },
   "auth_showPassword": {
     "message": "Show password"
   },
@@ -112,6 +121,9 @@
   },
   "auth_signWindowDidNot": {
     "message": "The sign-in window did not complete. Try again."
+  },
+  "auth_signedInSetupFailed": {
+    "message": "You are signed in, but Know-N could not finish setting up sync. Try again in a moment."
   },
   "auth_signingOut": {
     "message": "Signing out…"
@@ -4322,6 +4334,12 @@
   "firstRun_couldNotStartSync": {
     "message": "Could not start sync. Try again in a moment."
   },
+  "firstRun_decisionFailed": {
+    "message": "Could not save your decision ($1). Try again in a moment."
+  },
+  "firstRun_decisionItemGone": {
+    "message": "This item is no longer in the list. Reload the list and try again."
+  },
   "firstRun_deviceWins": {
     "message": "This device wins"
   },
@@ -4402,6 +4420,9 @@
   },
   "firstRun_mergeLibrary": {
     "message": "Bookmarks on this browser and in your library are merged. Existing bookmarks are kept. Unmatched items remain as separate copies."
+  },
+  "firstRun_mergeResolutionFailed": {
+    "message": "That upload did not go through. $1 ($2)"
   },
   "firstRun_mergeResolutionPending": {
     "message": "Upload submitted; waiting for convergence"
@@ -5264,6 +5285,9 @@
   "options_advancedSyncPolicy": {
     "message": "Advanced sync policy"
   },
+  "options_againToResumeSync": {
+    "message": "again to resume sync"
+  },
   "options_allowOptionalBookmarksPermission": {
     "message": "Allow bookmark access to browse and organize bookmarks here. You can remove it any time under General › Permissions."
   },
@@ -5488,6 +5512,12 @@
   },
   "options_signViewCredits": {
     "message": "Sign in to view your credits."
+  },
+  "options_signedInNotReady": {
+    "message": "Signed in, sync is not ready"
+  },
+  "options_signedOutKept": {
+    "message": "Sync is paused. Your bookmarks and any changes that have not synced yet are kept here."
   },
   "options_staySignedIn": {
     "message": "Stay signed in"
@@ -8030,6 +8060,636 @@
   "subscription_visibility_unlisted": {
     "message": "Unlisted"
   },
+  "syncIssue_actionDismissed_one": {
+    "message": "Dismissed $1 item. This browser keeps its version."
+  },
+  "syncIssue_actionDismissed_other": {
+    "message": "Dismissed $1 items. This browser keeps its versions."
+  },
+  "syncIssue_actionError": {
+    "message": "Could not do that ($1). The items stay as they were."
+  },
+  "syncIssue_actionFailed_one": {
+    "message": "$1 item could not be tried again ($2). It stays as it was."
+  },
+  "syncIssue_actionFailed_other": {
+    "message": "$1 items could not be tried again ($2). They stay as they were."
+  },
+  "syncIssue_actionMore": {
+    "message": "More items are left. Press again for the rest."
+  },
+  "syncIssue_actionNoReply": {
+    "message": "Sync did not answer. Try again in a moment."
+  },
+  "syncIssue_actionNotReady": {
+    "message": "Sync is not ready to try again yet. Try again in a moment; the items stay as they were."
+  },
+  "syncIssue_actionNothing": {
+    "message": "Nothing changed: the item is gone or no longer offers this."
+  },
+  "syncIssue_actionRetriedRemote_one": {
+    "message": "Trying again. $1 item from your library goes back to the next sync pass."
+  },
+  "syncIssue_actionRetriedRemote_other": {
+    "message": "Trying again. $1 items from your library go back to the next sync pass."
+  },
+  "syncIssue_actionRetried_one": {
+    "message": "Tried again. $1 item is back in the upload queue."
+  },
+  "syncIssue_actionRetried_other": {
+    "message": "Tried again. $1 items are back in the upload queue."
+  },
+  "syncIssue_actionSettled_one": {
+    "message": "Nothing left to do for $1 item. It has been settled since."
+  },
+  "syncIssue_actionSettled_other": {
+    "message": "Nothing left to do for $1 items. They have been settled since."
+  },
+  "syncIssue_actionUnavailable_one": {
+    "message": "Sync cannot try $1 item again from here. If it stays, dismiss it to keep this browser’s version, or reset sync on this device."
+  },
+  "syncIssue_actionUnavailable_other": {
+    "message": "Sync cannot try $1 items again from here. If they stay, dismiss them to keep this browser’s versions, or reset sync on this device."
+  },
+  "syncIssue_actionWorking": {
+    "message": "Working…"
+  },
+  "syncIssue_applyFailed": {
+    "message": "The browser refused to apply this change from your library, so it was set aside. Dismiss keeps this browser's version."
+  },
+  "syncIssue_applyFailedRetry": {
+    "message": "The browser refused to apply this change from your library, so it was set aside. Everything else keeps syncing. Try again applies it; Dismiss keeps this browser's version."
+  },
+  "syncIssue_attemptChanged": {
+    "message": "A change that may already have reached the server could not be sent again, so later uploads are waiting. Resetting sync on this device clears it"
+  },
+  "syncIssue_bindFailed": {
+    "message": "This browser couldn't prepare it for upload"
+  },
+  "syncIssue_bootstrapExcluded": {
+    "message": "Not part of the first sync, so it was left out"
+  },
+  "syncIssue_boundaryUnavailable": {
+    "message": "It couldn't be checked against the first sync because its folder couldn't be read"
+  },
+  "syncIssue_conflictHold": {
+    "message": "Waiting for a conflict on this bookmark to be resolved"
+  },
+  "syncIssue_conflictPending": {
+    "message": "Waiting for a conflict to be resolved"
+  },
+  "syncIssue_contentTargetMissing": {
+    "message": "Deleted on this device while your library still has it. Sync left it alone: restore it, or press Retry sync to add it back"
+  },
+  "syncIssue_deleteDecision": {
+    "message": "Waiting for your decision under Deletions: delete, restore, or keep it on this browser"
+  },
+  "syncIssue_deletionUnproven": {
+    "message": "Deleted here, but it couldn't be matched, so nothing else was deleted"
+  },
+  "syncIssue_dependencyHold": {
+    "message": "Waiting for an earlier change to it that couldn't sync"
+  },
+  "syncIssue_dependencyPending": {
+    "message": "Waiting for an earlier operation; this browser checks it automatically"
+  },
+  "syncIssue_deviceBookmark": {
+    "message": "A bookmark on this device"
+  },
+  "syncIssue_dismissAll": {
+    "message": "Dismiss all $1"
+  },
+  "syncIssue_dismissAllConfirm": {
+    "message": "Dismiss all $1? This browser keeps its versions."
+  },
+  "syncIssue_dismissFor": {
+    "message": "Dismiss: $1"
+  },
+  "syncIssue_dismissTitle": {
+    "message": "Closes this item and keeps this browser’s version. Nothing is deleted."
+  },
+  "syncIssue_download": {
+    "message": "Download"
+  },
+  "syncIssue_duplicateCandidate": {
+    "message": "Review possible duplicates in the Folders tab."
+  },
+  "syncIssue_headUnreadable": {
+    "message": "A change that may already have reached the server cannot be read on this device, so later uploads are waiting. Resetting sync on this device clears it"
+  },
+  "syncIssue_identityUnproven": {
+    "message": "It couldn't be matched with one saved bookmark"
+  },
+  "syncIssue_libraryBookmark": {
+    "message": "A bookmark in your library"
+  },
+  "syncIssue_localNotPrepared": {
+    "message": "Couldn't be prepared for sync"
+  },
+  "syncIssue_managedNotWritable": {
+    "message": "This bookmark is managed by the browser and cannot be changed here"
+  },
+  "syncIssue_mediaTypeInvalid": {
+    "message": "It is in a format sync cannot send"
+  },
+  "syncIssue_mergeDifference": {
+    "message": "Review this difference in the Folders tab. It is not a server conflict."
+  },
+  "syncIssue_metadataNotSynced": {
+    "message": "It includes tags or a description, which you chose not to sync, so it was not uploaded"
+  },
+  "syncIssue_more": {
+    "message": "and $1 more. Copy details lists all of them."
+  },
+  "syncIssue_moveCycle": {
+    "message": "The library asks to move this folder into one of its own subfolders, which the browser does not allow. It was left where it is. Move one of the two folders on any device to untangle them"
+  },
+  "syncIssue_nativeUnknown": {
+    "message": "Waiting for your decision under Waiting for you"
+  },
+  "syncIssue_nearCeiling": {
+    "message": "Sync stops when $2 items are open, and $1 are open now. Try again or dismiss some of them before it does."
+  },
+  "syncIssue_onDevice": {
+    "message": "On this device"
+  },
+  "syncIssue_parentSetAside": {
+    "message": "Its folder couldn't be added to this browser"
+  },
+  "syncIssue_placementParentDeleted": {
+    "message": "Its folder was deleted before it synced"
+  },
+  "syncIssue_placementUnproven": {
+    "message": "Its place in the folder couldn't be confirmed"
+  },
+  "syncIssue_projectionAmbiguous": {
+    "message": "An identical bookmark is already in the same folder and nothing shows that sync created it, so sync left it alone. Delete the extra copy and press Retry sync, and sync adds it"
+  },
+  "syncIssue_pullNotApplied": {
+    "message": "Couldn't be applied in this browser"
+  },
+  "syncIssue_pushDeferred": {
+    "message": "The server keeps deferring this change; later uploads from this browser wait behind it"
+  },
+  "syncIssue_pushNotReady": {
+    "message": "This browser couldn't get it ready to upload"
+  },
+  "syncIssue_pushRefused": {
+    "message": "The server didn't accept this change"
+  },
+  "syncIssue_pushUnsettled": {
+    "message": "The server's answer to this change couldn't be settled; later uploads from this browser wait behind it"
+  },
+  "syncIssue_recordTooLarge": {
+    "message": "Too large for this browser to store"
+  },
+  "syncIssue_requestRefused": {
+    "message": "A firewall or network filter keeps refusing this change, so it was set aside. Everything else keeps syncing"
+  },
+  "syncIssue_resetNotFinishing": {
+    "message": "The reset could not finish ($1). It is tried again on the next pass"
+  },
+  "syncIssue_resetNotFinishingPlain": {
+    "message": "The reset could not finish. It is tried again on the next pass"
+  },
+  "syncIssue_resourceId": {
+    "message": "The server used this change up but refused its identity. The change has not been applied."
+  },
+  "syncIssue_retryAll": {
+    "message": "Try again for all $1"
+  },
+  "syncIssue_retryHint": {
+    "message": "Retry sync checks the server again. To release a held item, use Try again on it."
+  },
+  "syncIssue_rowUnreadable": {
+    "message": "One saved change could not be read, so it was set aside. The bookmark is unchanged; Try again saves it again"
+  },
+  "syncIssue_savedChangeTitle": {
+    "message": "A saved change"
+  },
+  "syncIssue_secretField": {
+    "message": "A field looks like a password or key, so it is not synced"
+  },
+  "syncIssue_seenSince": {
+    "message": "$1 since $2"
+  },
+  "syncIssue_seenTimes_one": {
+    "message": "Seen $1 time"
+  },
+  "syncIssue_seenTimes_other": {
+    "message": "Seen $1 times"
+  },
+  "syncIssue_sequenceBlocked": {
+    "message": "An earlier deferred operation holds this upload. Try again checks it without changing the change itself."
+  },
+  "syncIssue_sequenceGap": {
+    "message": "The server is waiting for an earlier change first; later uploads from this browser wait behind it"
+  },
+  "syncIssue_serverNotAnswering": {
+    "message": "The server isn't answering this change; later uploads from this browser wait behind it. Retry sync sends it again"
+  },
+  "syncIssue_stepFailed": {
+    "message": "Part of syncing keeps failing ($1) and will be tried again. Cause: $2"
+  },
+  "syncIssue_stepFailedCause": {
+    "message": "Part of syncing keeps failing and will be tried again. Cause: $1"
+  },
+  "syncIssue_stepFailedPlain": {
+    "message": "Part of syncing keeps failing and will be tried again"
+  },
+  "syncIssue_stepFailedStage": {
+    "message": "Part of syncing keeps failing ($1) and will be tried again"
+  },
+  "syncIssue_stepTitle": {
+    "message": "Part of syncing"
+  },
+  "syncIssue_stringTooLong": {
+    "message": "A field is too long for this browser to store"
+  },
+  "syncIssue_subscriptionExcluded": {
+    "message": "Not uploaded: the bookmark is in a subscribed folder"
+  },
+  "syncIssue_subtreeChanged": {
+    "message": "Deleted here, but the folder changed elsewhere first. Try again deletes it anyway, with those changes"
+  },
+  "syncIssue_tryAgain": {
+    "message": "Try again"
+  },
+  "syncIssue_tryAgainFor": {
+    "message": "Try again: $1"
+  },
+  "syncIssue_upload": {
+    "message": "Upload"
+  },
+  "syncIssue_waitingDependency": {
+    "message": "Waiting for another change to finish"
+  },
+  "syncProblem_applyEvidenceMissing": {
+    "message": "Sync couldn't read the folder it needed to apply a change from your library."
+  },
+  "syncProblem_applyTargetMissing": {
+    "message": "A bookmark that a change from your library refers to is no longer on this device."
+  },
+  "syncProblem_attemptChanged": {
+    "message": "A change that may already have reached the server could not be sent again, so later uploads are waiting."
+  },
+  "syncProblem_authority": {
+    "message": "Sync is renewing its access to your library."
+  },
+  "syncProblem_bookmarkApiError": {
+    "message": "The browser refused to apply a change from your library to a bookmark."
+  },
+  "syncProblem_byteBudget": {
+    "message": "A bookmark change is too large to upload."
+  },
+  "syncProblem_ceiling": {
+    "message": "Sync on this device has stopped: it set aside too many items to keep syncing safely."
+  },
+  "syncProblem_clockOff": {
+    "message": "This computer's clock is more than two minutes off the server's."
+  },
+  "syncProblem_codec": {
+    "message": "A bookmark has a value sync can't store, such as a very long title or address."
+  },
+  "syncProblem_concurrentEdit": {
+    "message": "A bookmark was edited on this device while a change from your library was being applied."
+  },
+  "syncProblem_confirm": {
+    "message": "A change from your library is waiting for your answer."
+  },
+  "syncProblem_connectionDropped": {
+    "message": "The connection to the server dropped while it was answering."
+  },
+  "syncProblem_createAmbiguous": {
+    "message": "Sync can't tell which of several identical bookmarks on this device is the one it just created."
+  },
+  "syncProblem_createEvidenceMissing": {
+    "message": "Sync can't confirm that a bookmark it just created is on this device."
+  },
+  "syncProblem_dataDamaged": {
+    "message": "Sync data on this device is damaged and cannot be changed."
+  },
+  "syncProblem_decide": {
+    "message": "A bookmark needs your decision before sync can continue."
+  },
+  "syncProblem_deleteSubtreeChanged": {
+    "message": "A folder was deleted on this device, but it gained bookmarks on another device first, so sync held the deletion."
+  },
+  "syncProblem_effectRefused": {
+    "message": "The server refused a request for part of a change from your library."
+  },
+  "syncProblem_effectSignIn": {
+    "message": "The server did not recognize this sign-in while sync was downloading a change."
+  },
+  "syncProblem_futureSchema": {
+    "message": "Sync data on this device was saved by a newer version of the extension, so this version cannot read it."
+  },
+  "syncProblem_headUnreadable": {
+    "message": "A change that may already have reached the server cannot be read on this device, so later uploads are waiting."
+  },
+  "syncProblem_insufficientScope": {
+    "message": "Your sign-in isn't allowed to sync bookmarks."
+  },
+  "syncProblem_integrityPull": {
+    "message": "Changes from your library failed a safety check, so this device stopped taking them in."
+  },
+  "syncProblem_integritySnapshot": {
+    "message": "The copy of your library that the server sent failed a safety check, so this device stopped using it."
+  },
+  "syncProblem_internalMismatch": {
+    "message": "Sync on this device stopped because of an internal mismatch."
+  },
+  "syncProblem_itemMapping": {
+    "message": "A change from your library refers to a bookmark or folder this device does not know yet."
+  },
+  "syncProblem_managedNotWritable": {
+    "message": "This bookmark is managed by your browser or organization, so sync can't change it."
+  },
+  "syncProblem_manifestUnavailable": {
+    "message": "This address does not look like a Know-N sync server: it refused to describe itself."
+  },
+  "syncProblem_moveCycle": {
+    "message": "The library asks to move a folder into one of its own subfolders, which the browser does not allow."
+  },
+  "syncProblem_nativeReadFailed": {
+    "message": "The browser could not read your bookmarks just now."
+  },
+  "syncProblem_nextAllowSite": {
+    "message": "Allow access to the site (Chrome: Extensions, Details, Site access) and sync continues by itself. Nothing is lost."
+  },
+  "syncProblem_nextAllowedOrigins": {
+    "message": "Update the extension, or ask whoever runs your Know-N server to check its allowed origins. Your bookmarks are safe."
+  },
+  "syncProblem_nextByItself": {
+    "message": "It will retry automatically."
+  },
+  "syncProblem_nextCeiling": {
+    "message": "Try again or dismiss some of the items below, or all of one kind, and sync continues by itself. Or reset sync on this device: your bookmarks stay, and changes that have not synced yet are set aside."
+  },
+  "syncProblem_nextCeilingNoReset": {
+    "message": "Try again or dismiss some of the items below, or all of one kind, and sync continues by itself."
+  },
+  "syncProblem_nextCheckAddress": {
+    "message": "Check the server address under Account, then press Retry sync."
+  },
+  "syncProblem_nextCheckAgain": {
+    "message": "Retry sync checks with the server again."
+  },
+  "syncProblem_nextCheckVersion": {
+    "message": "Update the extension, or ask whoever runs your Know-N server to check its version. Retry sync checks again. Your bookmarks are safe."
+  },
+  "syncProblem_nextChecksAt": {
+    "message": "Sync checks again by itself at $1, and Retry sync checks now."
+  },
+  "syncProblem_nextChecksSoon": {
+    "message": "Sync checks again by itself soon, and Retry sync checks now."
+  },
+  "syncProblem_nextClearedByReset": {
+    "message": "Reset sync on this device to clear it. Your bookmarks stay; changes that have not synced yet are set aside and not retried."
+  },
+  "syncProblem_nextClockAuto": {
+    "message": "Sync keeps working. Set the clock to automatic time so sign-in and expiry checks stay reliable."
+  },
+  "syncProblem_nextCloseWindows": {
+    "message": "Close other Know-N windows and sync carries on by itself."
+  },
+  "syncProblem_nextConfirm": {
+    "message": "Answer it under Waiting for you or Deletions below."
+  },
+  "syncProblem_nextCooling": {
+    "message": "It paused after repeated errors and will try again at $1. Retry sync tries now."
+  },
+  "syncProblem_nextDeleteExtraCopy": {
+    "message": "Delete the extra copy and press Retry sync, and sync will add the bookmark."
+  },
+  "syncProblem_nextDetailsOnly": {
+    "message": "Copy details to investigate. Your bookmarks are not affected."
+  },
+  "syncProblem_nextFinishReset": {
+    "message": "Press Reset sync on this device to finish it."
+  },
+  "syncProblem_nextFinishResetElsewhere": {
+    "message": "Finish it from the Sync center on the web."
+  },
+  "syncProblem_nextFreeSpace": {
+    "message": "Free up some disk space and sync carries on by itself."
+  },
+  "syncProblem_nextFreeSpaceOrReset": {
+    "message": "Free some disk space and try again, or reset the sync data on this device."
+  },
+  "syncProblem_nextHalted": {
+    "message": "It stopped after repeated errors. Retry sync tries again now."
+  },
+  "syncProblem_nextKeepsStoppingDetails": {
+    "message": "If it keeps stopping, copy details to investigate. Your bookmarks are not affected."
+  },
+  "syncProblem_nextKeepsStoppingReset": {
+    "message": "If it keeps stopping, copy details and reset sync on this device. Your bookmarks stay either way."
+  },
+  "syncProblem_nextMayStopAgain": {
+    "message": "Retry sync tries once more, but it may stop the same way."
+  },
+  "syncProblem_nextMoveCycle": {
+    "message": "The folder was left where it is. Move one of the two folders on any device to untangle them."
+  },
+  "syncProblem_nextPermission": {
+    "message": "Allow bookmark access in the Folders tab and sync resumes."
+  },
+  "syncProblem_nextRaiseSnapshotLimit": {
+    "message": "Ask whoever runs your Know-N server to raise its snapshot size limit (SYNC_SNAPSHOT_MAX_BYTES), then press Retry sync. Resetting will not help. Your bookmarks are safe."
+  },
+  "syncProblem_nextRegisterAgain": {
+    "message": "Reset sync on this device to register this browser again. If that does not help, sign out and in again. Your bookmarks here are kept."
+  },
+  "syncProblem_nextResendsSame": {
+    "message": "Retry sync sends it again."
+  },
+  "syncProblem_nextReset": {
+    "message": "Reset sync on this device to continue. Your bookmarks stay; changes that have not synced yet are set aside and not retried."
+  },
+  "syncProblem_nextResetData": {
+    "message": "Reset the sync data on this device."
+  },
+  "syncProblem_nextResetElsewhere": {
+    "message": "Reset it from the Sync center on the web."
+  },
+  "syncProblem_nextResetInStatus": {
+    "message": "Open Sync, then Status, and press Reset sync on this device to continue. Your bookmarks stay; changes that have not synced yet are set aside and not retried."
+  },
+  "syncProblem_nextRetryingSoon": {
+    "message": "It paused after repeated errors and tries again shortly. Retry sync tries now."
+  },
+  "syncProblem_nextSessionRetry": {
+    "message": "It will try again by itself. If it keeps happening, update the extension, or sign out and in again."
+  },
+  "syncProblem_nextSignIn": {
+    "message": "Sign in again from Account and sync resumes."
+  },
+  "syncProblem_nextSignInAgain": {
+    "message": "Sync signs in again by itself. If it keeps failing, sign in again from Account."
+  },
+  "syncProblem_nextSignOutIn": {
+    "message": "Sign out and in again to register this browser. Your bookmarks here are kept."
+  },
+  "syncProblem_nextStalled": {
+    "message": "Retry sync tries again now. If it stays this way, copy details to investigate; your bookmarks are not affected."
+  },
+  "syncProblem_nextStalledDetails": {
+    "message": "If it stays this way, copy details to investigate; your bookmarks are not affected."
+  },
+  "syncProblem_nextStepRetried": {
+    "message": "It is tried again on the next pass."
+  },
+  "syncProblem_nextStorageLast": {
+    "message": "If it keeps happening, free some disk space or reset the sync data on this device."
+  },
+  "syncProblem_nextTooLarge": {
+    "message": "Copy details and send them to whoever runs your Know-N server."
+  },
+  "syncProblem_nextUpdateExtension": {
+    "message": "Update the extension, or reset the sync data on this device."
+  },
+  "syncProblem_notCompleting": {
+    "message": "Sync has not finished a pass in over an hour, and nothing says why."
+  },
+  "syncProblem_notReady": {
+    "message": "Sync is not ready to do that yet."
+  },
+  "syncProblem_offline": {
+    "message": "Sync can't reach the server right now."
+  },
+  "syncProblem_originNotAllowed": {
+    "message": "The server doesn't accept connections from this extension."
+  },
+  "syncProblem_permission": {
+    "message": "Sync needs permission to read and change your bookmarks."
+  },
+  "syncProblem_projectionAmbiguous": {
+    "message": "An identical bookmark is already in the same folder and nothing shows that sync created it, so sync left it alone."
+  },
+  "syncProblem_quotaExceeded": {
+    "message": "Your browser has no room left to save sync data."
+  },
+  "syncProblem_rateLimited": {
+    "message": "The server asked sync to slow down."
+  },
+  "syncProblem_rebuild": {
+    "message": "This device's record of which bookmark is which no longer matches your library, so sync stopped before it could do any harm."
+  },
+  "syncProblem_rebuildPending": {
+    "message": "The sync reset isn't finished. Your bookmarks are safe."
+  },
+  "syncProblem_replicaRetired": {
+    "message": "This browser was stopped from the Sync center, so it no longer syncs."
+  },
+  "syncProblem_replicaUnknown": {
+    "message": "The server does not recognize this browser's sync identity, or cannot find your library."
+  },
+  "syncProblem_requestRefused": {
+    "message": "The server refused a request from this extension because it does not match what the server expects."
+  },
+  "syncProblem_resetNativeUnsettled": {
+    "message": "A bookmark change made in this browser has no confirmed result yet, so Reset is not available. Decide it under Waiting for you first."
+  },
+  "syncProblem_resetNeedsConnection": {
+    "message": "Resetting needs a connection, because a change may already have reached the server. Connect and try again."
+  },
+  "syncProblem_retired": {
+    "message": "This browser was stopped from the Sync center, so it no longer syncs."
+  },
+  "syncProblem_serverBusy": {
+    "message": "The server didn't answer properly, or asked sync to slow down."
+  },
+  "syncProblem_serverNoAnswer": {
+    "message": "The server could not answer just now."
+  },
+  "syncProblem_serverNotAnswering": {
+    "message": "The server is not answering the upload right now."
+  },
+  "syncProblem_serverProblem": {
+    "message": "The server had a problem and could not answer."
+  },
+  "syncProblem_sessionGone": {
+    "message": "The server does not know this sync session any more: it expired or was replaced."
+  },
+  "syncProblem_sessionNotStarted": {
+    "message": "Sync could not start a session with the server."
+  },
+  "syncProblem_signIn": {
+    "message": "Your sign-in no longer works for sync."
+  },
+  "syncProblem_signInRefused": {
+    "message": "The server stopped accepting this browser's sign-in."
+  },
+  "syncProblem_siteAccessOff": {
+    "message": "Know-N can no longer reach the server: this extension's access to the site was turned off."
+  },
+  "syncProblem_snapshotTooLarge": {
+    "message": "This library is too large for the server to send to a new device."
+  },
+  "syncProblem_stalled": {
+    "message": "Sync has stopped making progress and has not said why."
+  },
+  "syncProblem_stalledLead": {
+    "message": "Sync has been stuck on the same step for a long time."
+  },
+  "syncProblem_stepFailed": {
+    "message": "Part of syncing keeps failing."
+  },
+  "syncProblem_stopDownload": {
+    "message": "Sync on this device stopped because its record of changes from your library failed an internal check."
+  },
+  "syncProblem_stopFeature": {
+    "message": "Sync on this device stopped because a bookmark management step failed an internal check."
+  },
+  "syncProblem_stopFirstSync": {
+    "message": "Sync on this device stopped because the setup of your first sync, an import or your folder choice failed an internal check."
+  },
+  "syncProblem_stopLocal": {
+    "message": "Sync on this device stopped because the sync data stored in this browser failed an internal check."
+  },
+  "syncProblem_stopUpload": {
+    "message": "Sync on this device stopped because its record of changes waiting to upload failed an internal check."
+  },
+  "syncProblem_storageBlocked": {
+    "message": "Sync data is being updated, but another Know-N window is still using it."
+  },
+  "syncProblem_storageRecordRejected": {
+    "message": "Sync could not save one of its records, and trying again gives the same answer."
+  },
+  "syncProblem_storageUnavailable": {
+    "message": "Your browser could not read or save sync data just now."
+  },
+  "syncProblem_stuck": {
+    "message": "The oldest change waiting to upload has not moved for a while."
+  },
+  "syncProblem_syncFailed": {
+    "message": "Sync failed for a reason it did not record."
+  },
+  "syncProblem_unknown": {
+    "message": "Sync ran into a problem it has no description for."
+  },
+  "syncProblem_unsettledAnswer": {
+    "message": "The server's answer about a change could not be understood, so uploads behind it are waiting."
+  },
+  "syncProblem_upgradeFailed": {
+    "message": "Sync could not update its data on this device."
+  },
+  "syncProblem_uploadNotStarted": {
+    "message": "Sync could not start an upload."
+  },
+  "syncProblem_versionMismatch": {
+    "message": "This version of Know-N and the server do not match, so sync paused."
+  },
+  "syncProblem_waiting": {
+    "message": "Sync is waiting for something on this device to finish."
+  },
+  "syncProblem_waitingUploads": {
+    "message": "Sync is waiting for pending uploads to finish."
+  },
+  "syncProblem_writeQuota": {
+    "message": "The browser limits how fast bookmarks can be changed, so sync is pausing for a moment."
+  },
   "syncProgress_attention": {
     "message": "Sync needs your attention. Open Status to see what is waiting."
   },
@@ -8041,6 +8701,12 @@
   },
   "syncProgress_canClose": {
     "message": "You can close this page. Sync carries on in the background while the browser is open, and picks up where it left off after a restart."
+  },
+  "syncProgress_cooling": {
+    "message": "Sync paused after repeated errors and tries again on its own. Open Status to see when."
+  },
+  "syncProgress_coolingTitle": {
+    "message": "Sync will retry"
   },
   "syncProgress_details": {
     "message": "Details"
@@ -8087,6 +8753,15 @@
   "syncProgress_pausedTitle": {
     "message": "Sync paused"
   },
+  "syncProgress_permission": {
+    "message": "Sync needs permission to read and change your bookmarks. Allow it in the Folders tab."
+  },
+  "syncProgress_permissionDetail": {
+    "message": "Nothing syncs while this extension can’t read or change your bookmarks."
+  },
+  "syncProgress_permissionTitle": {
+    "message": "Bookmark access needed"
+  },
   "syncProgress_preparingDetail": {
     "message": "Comparing this browser’s bookmarks with your library. Large libraries take a minute."
   },
@@ -8114,8 +8789,14 @@
   "syncProgress_short": {
     "message": "Syncing $1 of $2"
   },
+  "syncProgress_stalled": {
+    "message": "Sync hasn’t completed a pass in a while. Open Status to see more."
+  },
   "syncProgress_stopped": {
     "message": "Sync on this device has stopped. Open Status to review the problem."
+  },
+  "syncProgress_stuck": {
+    "message": "Sync is stuck. Open Status to see where."
   },
   "syncProgress_title": {
     "message": "Syncing bookmarks"
@@ -8126,8 +8807,53 @@
   "syncProgress_whileItRuns": {
     "message": "While it runs"
   },
+  "syncStage_advancedPlan": {
+    "message": "the advanced first sync"
+  },
+  "syncStage_bootstrapRun": {
+    "message": "the first sync"
+  },
+  "syncStage_historyPrune": {
+    "message": "clearing old sync history"
+  },
+  "syncStage_identityRecovery": {
+    "message": "recovering from a paused identity check"
+  },
+  "syncStage_metadataPass": {
+    "message": "checking tags and descriptions"
+  },
+  "syncStage_missingRemovals": {
+    "message": "looking for bookmarks removed here"
+  },
+  "syncStage_pushDrain": {
+    "message": "uploading changes"
+  },
+  "syncStage_recoveryState": {
+    "message": "checking where recovery stands"
+  },
+  "syncStage_saveRecovery": {
+    "message": "recovering a bookmark that was being saved"
+  },
+  "syncStage_scopeRegistration": {
+    "message": "registering this browser with the server again"
+  },
+  "syncStage_scopeRestore": {
+    "message": "restoring this browser’s sync setup"
+  },
+  "syncStage_stateRead": {
+    "message": "reading sync data"
+  },
+  "syncStage_syncPass": {
+    "message": "the sync pass"
+  },
+  "syncStage_workFacts": {
+    "message": "counting pending work"
+  },
   "sync_actionRequired": {
     "message": "Action required"
+  },
+  "sync_allowSiteAccess": {
+    "message": "Allow access"
   },
   "sync_askFirst": {
     "message": "Ask me first"
@@ -8138,8 +8864,20 @@
   "sync_bookmarksBar": {
     "message": "Bookmarks bar"
   },
+  "sync_cancelPendingReset": {
+    "message": "Cancel pending reset"
+  },
+  "sync_cancelResetConfirm": {
+    "message": "Cancel the pending reset? Nothing on this device has been changed yet, so sync stays as it was. You can press Reset sync on this device again later."
+  },
   "sync_changesPreviewed": {
     "message": "Changes are previewed before anything syncs."
+  },
+  "sync_clockAhead": {
+    "message": "Your computer’s clock is $1 minutes ahead of the server’s. Sync keeps working, but set your clock to automatic time so sign-in and expiry checks stay reliable."
+  },
+  "sync_clockBehind": {
+    "message": "Your computer’s clock is $1 minutes behind the server’s. Sync keeps working, but set your clock to automatic time so sign-in and expiry checks stay reliable."
   },
   "sync_copyDetails": {
     "message": "Copy details"
@@ -8228,6 +8966,9 @@
   "sync_foldersSyncing_other": {
     "message": "$2 of $1 folders sync"
   },
+  "sync_healthNotSent": {
+    "message": "This browser couldn’t send its status to the server since $1 ($2). The Sync center on the web may show old information."
+  },
   "sync_htmlFile": {
     "message": "HTML bookmarks file"
   },
@@ -8315,6 +9056,15 @@
   "sync_inboundWaitsPlain_other": {
     "message": "$1 cloud items are waiting for your decision."
   },
+  "sync_ingressExample": {
+    "message": "For example: “$1”"
+  },
+  "sync_ingressExampleMore": {
+    "message": "For example: “$1” (and $2 more)"
+  },
+  "sync_ingressUnknownReason": {
+    "message": "Left out of sync for a reason this version doesn’t describe ($1)"
+  },
   "sync_insideNoKnowNSyncFolder": {
     "message": "Inside a folder excluded from sync"
   },
@@ -8345,6 +9095,9 @@
   "sync_keepHere": {
     "message": "Keep it here"
   },
+  "sync_keepPendingReset": {
+    "message": "Keep it pending"
+  },
   "sync_keepSyncingNamed": {
     "message": "Keep syncing $1 at the new location"
   },
@@ -8353,6 +9106,9 @@
   },
   "sync_keptWithParent": {
     "message": "This folder stays on this browser with its parent."
+  },
+  "sync_lastSynced": {
+    "message": "Last synced $1."
   },
   "sync_latest": {
     "message": "$1 · Latest: $2"
@@ -8390,6 +9146,9 @@
   "sync_onlyWebAddressesHttp": {
     "message": "Only web addresses (http or https) can sync"
   },
+  "sync_openFoldersTab": {
+    "message": "Open Folders"
+  },
   "sync_openSyncCenterWeb": {
     "message": "Open Sync center on the web"
   },
@@ -8401,6 +9160,9 @@
   },
   "sync_otherBookmarks": {
     "message": "Other bookmarks"
+  },
+  "sync_permissionRequired": {
+    "message": "Bookmark access needed"
   },
   "sync_personalBoundary": {
     "message": "This browser’s bookmarks stay in sync with your library. Pausing or disconnecting never removes bookmarks from this browser."
@@ -8471,23 +9233,50 @@
   "sync_rangeTotalsChanges": {
     "message": "$1 $2."
   },
+  "sync_rebuildAccountSwitch": {
+    "message": "This browser is signed in to a different account now. Nothing was reset."
+  },
+  "sync_rebuildCannotHelp": {
+    "message": "A reset would not help here: a new copy meets the same refusal. Nothing was reset. The card says what does."
+  },
   "sync_rebuildConfirm": {
     "message": "Your bookmarks stay on this device and in your library. Afterwards you'll choose which folders sync and review the merge again. Reset sync now?"
+  },
+  "sync_rebuildConfirmFenced": {
+    "message": "A change from this browser may already have reached the server, and sync can't tell whether it did. To make a reset safe, the server first stops taking anything from this browser's current sync copy; then sync on this device starts again. This needs a connection. Your bookmarks stay on this device and in your library. Afterwards you'll choose which folders sync and review the merge again. Reset sync now?"
+  },
+  "sync_rebuildConfirmFencedSetAside": {
+    "message": "A change from this browser may already have reached the server, and sync can't tell whether it did. To make a reset safe, the server first stops taking anything from this browser's current sync copy; then sync on this device starts again. This needs a connection. Your bookmarks stay on this device and in your library. $1 Afterwards you'll choose which folders sync and review the merge again. Reset sync now?"
   },
   "sync_rebuildConfirmSetAside": {
     "message": "Your bookmarks stay on this device and in your library. $1 Afterwards you'll choose which folders sync and review the merge again. Reset sync now?"
   },
+  "sync_rebuildFenceRefused": {
+    "message": "The server did not accept the reset ($1). Nothing was reset."
+  },
+  "sync_rebuildFenceUnauthorized": {
+    "message": "Your sign-in no longer works, so the server could not be told. Nothing was reset. Sign in again from Account, then reset."
+  },
   "sync_rebuildNoLongerAvailable": {
     "message": "Sync state changed. Refresh Status to review the available actions ($1)."
+  },
+  "sync_rebuildNoSession": {
+    "message": "Sync could not get permission from the server to reset. Nothing was reset; try again."
+  },
+  "sync_rebuildNotCancellable": {
+    "message": "The reset has already started and can only be finished. Press Reset sync on this device to finish it."
+  },
+  "sync_rebuildRateLimited": {
+    "message": "The server asked sync to wait. Nothing was reset; try again in a minute."
+  },
+  "sync_rebuildServerDown": {
+    "message": "The server is not answering. Nothing was reset; try again later."
   },
   "sync_rebuildSetAside_one": {
     "message": "$1 change that has not synced yet will be set aside and not retried."
   },
   "sync_rebuildSetAside_other": {
     "message": "$1 changes that have not synced yet will be set aside and not retried."
-  },
-  "sync_rebuildUnsettled": {
-    "message": "A previous change has an unknown result ($1). Resolve it in Status before resetting sync."
   },
   "sync_recordedIssues": {
     "message": "Recorded $1 · $2"
@@ -8498,17 +9287,26 @@
   "sync_recoveryRetryFailed": {
     "message": "Could not retry sync. Copy details to investigate."
   },
-  "sync_recoveryRetryRequested": {
-    "message": "Sync retry requested."
-  },
   "sync_recoveryRetrying": {
     "message": "Sync is recovering on this device. It will retry automatically."
   },
   "sync_recoveryStopped": {
     "message": "Sync could not finish on this device. Retry sync or copy details to investigate."
   },
+  "sync_rejectedWorkListed": {
+    "message": "A change could not be synced and will not retry automatically. Other items keep syncing. The items below say which."
+  },
+  "sync_resetCancelled": {
+    "message": "The reset was cancelled. Sync on this device is as it was before."
+  },
   "sync_resetIsntFinishedYet": {
     "message": "Reset isn't finished yet. Try again."
+  },
+  "sync_resetLocalSyncData": {
+    "message": "Reset local sync data"
+  },
+  "sync_resetSyncData": {
+    "message": "Reset sync data"
   },
   "sync_resetSyncDevice": {
     "message": "Reset sync on this device"
@@ -8516,8 +9314,23 @@
   "sync_retryFailed": {
     "message": "Retry failed items"
   },
+  "sync_retryRunning": {
+    "message": "Retrying sync…"
+  },
+  "sync_retryStillFailing": {
+    "message": "Retried, but sync still reports a problem ($1). Copy details to investigate."
+  },
+  "sync_retryStillRunning": {
+    "message": "Retry is still running. This card updates when it finishes."
+  },
   "sync_retrySync": {
     "message": "Retry sync"
+  },
+  "sync_retryUnreadable": {
+    "message": "Retried, but the status could not be read afterwards."
+  },
+  "sync_retryWorked": {
+    "message": "Retried. Sync is running again."
   },
   "sync_review": {
     "message": "Review"
@@ -8534,17 +9347,83 @@
   "sync_signInLibrary": {
     "message": "Sign in to sync this browser with your bookmark library."
   },
+  "sync_siteAccessAllowed": {
+    "message": "Access allowed. Sync is trying again."
+  },
+  "sync_siteAccessDenied": {
+    "message": "Access was not allowed, so sync still cannot reach the server."
+  },
   "sync_someSelectedFoldersWere": {
     "message": "Some folders you picked are inside other picked folders. Only the outer folders are listed."
   },
   "sync_someSiblingBookmarksExcluded": {
     "message": "Some sibling bookmarks are excluded, so the order change was not fully uploaded"
   },
+  "sync_stalled": {
+    "message": "Sync hasn’t completed in a while"
+  },
+  "sync_statusUnavailable": {
+    "message": "Can’t read sync status"
+  },
+  "sync_statusUnreadable": {
+    "message": "Couldn’t read sync status ($1). What is shown may be out of date."
+  },
+  "sync_statusUnreadableFirst": {
+    "message": "Couldn’t read sync status ($1). Try again in a moment."
+  },
   "sync_stayLocal": {
     "message": "This browser only"
   },
   "sync_stopSyncing": {
     "message": "Stop syncing"
+  },
+  "sync_storageResetArchiveFailed": {
+    "message": "Sync could not save a copy of your unsent changes, so nothing was reset. Free some disk space and try again."
+  },
+  "sync_storageResetArchived_one": {
+    "message": "$1 unsent change was saved to a local archive."
+  },
+  "sync_storageResetArchived_other": {
+    "message": "$1 unsent changes were saved to a local archive."
+  },
+  "sync_storageResetBlocked": {
+    "message": "Something is still using the sync data. Close other Know-N windows; the reset finishes by itself once nothing uses it."
+  },
+  "sync_storageResetDone": {
+    "message": "Sync data on this device was reset. Your bookmarks were not changed."
+  },
+  "sync_storageResetFailed": {
+    "message": "The reset could not finish ($1). Try again."
+  },
+  "sync_storageResetHead": {
+    "message": "This resets the sync data stored in this browser. Your bookmarks are not changed."
+  },
+  "sync_storageResetNoneFound": {
+    "message": "No unsent changes were found."
+  },
+  "sync_storageResetNotNeeded": {
+    "message": "Sync data on this device works now, so there is nothing to reset."
+  },
+  "sync_storageResetOmitted_one": {
+    "message": "$1 more change was too much to keep."
+  },
+  "sync_storageResetOmitted_other": {
+    "message": "$1 more changes were too much to keep."
+  },
+  "sync_storageResetSaved_one": {
+    "message": "$1 unsent change is saved to a local archive first."
+  },
+  "sync_storageResetSaved_other": {
+    "message": "$1 unsent changes are saved to a local archive first."
+  },
+  "sync_storageResetTail": {
+    "message": "Afterwards sync starts again from the first-sync merge, and this browser becomes a new device on the server. Reset the sync data now?"
+  },
+  "sync_storageResetUnreadable": {
+    "message": "The data could not be read at all, so nothing can be saved first."
+  },
+  "sync_stuck": {
+    "message": "Sync is stuck"
   },
   "sync_syncAll": {
     "message": "Sync all"
@@ -8555,9 +9434,6 @@
   "sync_syncDeviceHasStopped2": {
     "message": "Sync on this device has stopped: the transfer size exceeds supported limits. Retrying will not change the result."
   },
-  "sync_syncDeviceHasStopped3": {
-    "message": "Sync on this device has stopped because some bookmarks on this device are missing. The bookmarks in your library are safe. Reset sync on this device to continue."
-  },
   "sync_syncDeviceHasStopped4": {
     "message": "Sync on this device has stopped: this device cannot verify the bookmark to delete matches the cloud item."
   },
@@ -8567,17 +9443,8 @@
   "sync_syncDeviceResetBookmarks": {
     "message": "Sync on this device was reset and your bookmarks were kept. Choose which folders sync, then review the merge again."
   },
-  "sync_syncDeviceStoppedBecause": {
-    "message": "Sync on this device stopped because of an internal mismatch. Your bookmarks are safe. Reset sync on this device to continue."
-  },
-  "sync_syncOperationRejectedServer": {
-    "message": "A change could not be synced and will not retry automatically. Other items will keep syncing. Open Not included in sync for details."
-  },
   "sync_syncPaused": {
     "message": "Sync is paused."
-  },
-  "sync_syncResetIsntFinished": {
-    "message": "The sync reset isn't finished. Your bookmarks are safe. Try again to finish it."
   },
   "sync_syncedFolders": {
     "message": "Synced folders"
@@ -8600,9 +9467,6 @@
   "sync_titleCannotRepresentedEmpty": {
     "message": "Title cannot be represented (empty or too long)"
   },
-  "sync_tooManyItemsSetAside": {
-    "message": "Sync on this device has stopped: it set aside too many items to keep syncing safely. The bookmarks in your library are safe. Reset sync on this device to continue."
-  },
   "sync_urlCannotRepresentedMissing": {
     "message": "URL cannot be synced (invalid format, disallowed scheme, or too long)"
   },
@@ -8620,6 +9484,15 @@
   },
   "sync_waitingNetwork": {
     "message": "Waiting for network"
+  },
+  "sync_watchdogNoPass": {
+    "message": "Sync has not finished a pass since $1, and nothing says why."
+  },
+  "sync_watchdogStuck": {
+    "message": "Sync is stuck: the oldest change waiting to upload has not moved since $1."
+  },
+  "sync_watchdogStuckAt": {
+    "message": "Sync is stuck at “$1”: this upload has not moved since $2."
   },
   "sync_whenDeletedElsewhere": {
     "message": "When a bookmark is deleted on another device"

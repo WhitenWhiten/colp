@@ -24,7 +24,7 @@ import { reconcileBookmarkTree } from './bookmark-event-reconcile.js';
 import { captureMissingNativeRemovals } from './bookmark-removal-reconcile.js';
 import { journalSubtreeNativeIds, persistRemovalJournal } from './deletion-journal.js';
 import { capturePendingSubtreeDeletion } from './subtree-observation.js';
-import { LOCAL_DELETE_MEMBER_ID_BOUND } from './pull-local-delete-supersede.js';
+import { recordedDeleteMembers } from './pull-local-delete-supersede.js';
 import { resolveEventIdentityTokens } from './bookmark-event-resolve.js';
 import { createProjectionSuppression, projectionSuppresses, type ProjectionChangeFields } from './recovery-overlay.js';
 import { nativeEventCorrelation } from './native-event-correlation.js';
@@ -286,8 +286,8 @@ export function createBookmarkEventQueue(options: QueueOptions) {
     ...(subtree?.observation ? { subtreeObservation: subtree.observation } : {}),
     // Kept so a stale upload can tell "the same nodes, newer revisions" from new members (push-delete-rebase.ts).
     ...(subtree?.memberIdsDigest ? { subtreeMemberIdsDigest: subtree.memberIdsDigest } : {}),
-    // Names the members so a later remote change inside the deleted folder is taken as superseded.
-    ...(subtree && subtree.memberIds.length <= LOCAL_DELETE_MEMBER_ID_BOUND ? { subtreeMemberIds: subtree.memberIds } : {}),
+    // Names the members so a later remote change inside the deleted folder is taken as superseded (B-14: the folders, past the bound).
+    ...(subtree ? { subtreeMemberIds: recordedDeleteMembers(subtree.memberIds, subtree.parentIds) } : {}),
     deleteNativeIds: deleteNativeIds.filter((id) => !boundaries.has(id)) }, eventId);
   }
 

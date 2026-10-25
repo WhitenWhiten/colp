@@ -202,7 +202,9 @@ describe('A-10 terminal freeze: no scheduling, but a rendered exit', () => {
     assert.equal(view.terminal.show, true);
     assert.equal(view.terminal.code, 'payload_too_large');
     assert.match(view.terminal.copy, /Sync on this device has stopped/);
-    assert.doesNotMatch(view.terminal.copy, /payload_too_large/);
+    // The card says what to do about it and keeps the code in brackets for whoever investigates (C-13).
+    assert.match(view.terminal.copy, /whoever runs your Know-N server/);
+    assert.match(view.terminal.copy, /\(payload_too_large\)$/);
     assert.match(view.terminal.report, /recoveryCode: payload_too_large/);
     assert.match(view.terminal.report, /lastError: payload_too_large/);
     assert.equal(view.terminal.copyDiagnosticsLabel, 'Copy diagnostics');
@@ -237,7 +239,7 @@ describe('A-10 terminal freeze: no scheduling, but a rendered exit', () => {
     const view = describeSyncAttention(syncAttentionInput(response.attention, remoteDeletePolicy(SYNC_CENTER)));
     assert.equal(view.terminal.show, true);
     assert.match(view.terminal.copy, /Sync on this device has stopped/);
-    assert.doesNotMatch(view.terminal.copy, /recovery_identity_unproven/);
+    assert.match(view.terminal.copy, /\(recovery_identity_unproven\)$/);
     assert.match(view.terminal.report, /recovery_identity_unproven/);
     assert.equal(view.terminal.syncCenter.show, true);
   });

@@ -231,7 +231,10 @@ describe('sync attention wiring', () => {
 
   test('popup and options keep the exits wired to the read-only facts', async () => {
     const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-    const ui = await readFile(resolve(root, 'src/sync-attention-ui.ts'), 'utf8');
+    // The binder, the pure view it paints (sync-attention-view.ts) and the one reading of "has sync stopped" they share are one surface.
+    const ui = await readFile(resolve(root, 'src/sync-attention-ui.ts'), 'utf8')
+      + await readFile(resolve(root, 'src/sync-attention-view.ts'), 'utf8')
+      + await readFile(resolve(root, 'src/sync-stop-state.ts'), 'utf8');
     const swHandler = await readFile(resolve(root, 'src/sw/sync-attention.ts'), 'utf8');
     const worker = await readFile(resolve(root, 'src/service-worker.ts'), 'utf8');
     const messages = await readFile(resolve(root, 'src/sw/messages.ts'), 'utf8');

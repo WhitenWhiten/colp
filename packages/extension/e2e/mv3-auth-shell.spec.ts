@@ -82,7 +82,7 @@ test('production MV3 rejects wrong password, missing gesture and offline sign-in
   } finally { await context.close(); }
 });
 
-test('server revocation clears credential, Session and binding authority', async () => {
+test('server revocation clears credential and Session while preserving replica identity', async () => {
   const context = await launch();
   try {
     const { page } = await options(context);
@@ -96,7 +96,11 @@ test('server revocation clears credential, Session and binding authority', async
     expect(response.ok).toBe(false);
     expect(response.state).toMatchObject({ status: 'error', errorCode: 'authentication_required' });
     expect(await page.evaluate(() => chrome.storage.local.get([
-      'known.auth.transaction.v1', 'known.auth.credential.v1', 'known.auth.session.v1', 'known.auth.binding.v1']))).toEqual({});
+      'known.auth.transaction.v1', 'known.auth.credential.v1', 'known.auth.session.v1']))).toEqual({});
+    expect(await page.evaluate(() => chrome.storage.local.get('known.auth.binding.v1'))).toEqual({
+      'known.auth.binding.v1': { replicaId: requireStack().extensionBinding.replicaId,
+        browserProfileId: requireStack().extensionBinding.browserProfileId, generation: requireStack().extensionBinding.generation },
+    });
   } finally { await context.close(); }
 });
 

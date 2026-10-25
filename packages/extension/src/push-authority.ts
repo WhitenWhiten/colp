@@ -1,9 +1,12 @@
 import { freezeScopeRecovery } from './pull-recovery-freeze.js';
+import { holdRefusedRequest, repeatsDenial, REQUEST_REFUSED_ATTEMPTS } from './push-denial-containment.js';
 import { isSequenceReuseCode } from './sequence-reuse-settlement.js';
 import type { QueueOperation, SyncScope, createSyncStateStore } from './sync-state-store.js';
 import type { StoredSession } from './types.js';
+import { serverNow } from './session-clock.js';
 
-export function assertPushSession(session: StoredSession, scope: SyncScope, current: number) {
+export function assertPushSession(session: StoredSession, scope: SyncScope, localNow: number) {
+  const current = serverNow(session, localNow); // expiry is server time (W2B-P0-1)
   if (session.scope !== 'collection' || session.collection.collectionId !== scope.collectionId
       || session.replicaLease.state !== 'active'
       || Date.parse(session.expiresAt) <= current || Date.parse(session.replicaLease.expiresAt) <= current) {
@@ -70,11 +73,13 @@ export function classifyPushProblem(problem: { readonly code: string; readonly r
 }
 
 type AuthorityStore = Pick<ReturnType<typeof createSyncStateStore>,
-  'putScopeDiagnostic' | 'getScope' | 'registerScope' | 'getEngineState' | 'transitionEngine'>;
+  'putScopeDiagnostic' | 'getScope' | 'registerScope' | 'getEngineState' | 'transitionEngine'
+  | 'rebaseClaimedPush' | 'setAsideClaimedPush' | 'listQueue'>;
 
 export function createAuthorityRecovery(input: {
   readonly scope: SyncScope; readonly store: AuthorityStore;
-  readonly sessions: { get(forceRefresh?: boolean): Promise<unknown> };
+  readonly sessions: { get(forceRefresh?: boolean): Promise<{ readonly session: StoredSession }> };
+  readonly ownerId: string; readonly now: () => number;
   /** The worker's durable `unknown` settlement: keeps the row replayable. */
   readonly persistUnknown: (queue: QueueOperation, fence: number, reason: string,
     retryAfter?: string | null) => Promise<'unknown'>;
@@ -110,24 +115,37 @@ export function createAuthorityRecovery(input: {
   }
 
   /**
-   * An authority response we cannot name (unnamed 401, unparseable authority
-   * Problem) still must not replay the identical bytes forever. The row's
-   * durable attempt counter bounds the replays — `claimNextQueue` clears
-   * `recovery`, so `attempt` is the only counter that survives a claim. Past
-   * the bound the drain demands credential refresh plus scope recovery.
+   * An authority response we cannot name (unnamed 401/403/410, unparseable authority Problem)
+   * must neither replay the identical bytes for ever nor freeze the replica for a refusal that
+   * may be about this one request (A-F2, see push-denial-containment.ts). The row's durable
+   * attempt counter bounds the replays: `claimNextQueue` clears `recovery`, so `attempt` is the
+   * only counter that survives a claim. Past the bound the Session endpoint is asked for a fresh
+   * credential. If that fails the refusal is an authority problem (credential refresh plus scope
+   * recovery, as before); if it works and the same bytes are still refused after
+   * REQUEST_REFUSED_ATTEMPTS tries, this one change leaves the lane as an item.
    */
   async function handleUnexplained(queue: QueueOperation, fence: number, reason: string,
-    retryAfter: string | null, repair: { attention: number }): Promise<'unknown'> {
-    if (queue.retry.attempt < AUTHORITY_REPLAY_LIMIT) {
+    retryAfter: string | null, repair: { attention: number }): Promise<'unknown' | 'terminal'> {
+    if (queue.retry.attempt < AUTHORITY_REPLAY_LIMIT || !repeatsDenial(queue)) {
       return input.persistUnknown(queue, fence, reason, retryAfter);
     }
     repair.attention += 1;
     try { await input.store.putScopeDiagnostic(input.scope,
       { kind: 'push_authority', code: 'push_denial_escalated' }); } catch { /* the queue row keeps the code */ }
-    try { await input.sessions.get(true); } catch { /* the freeze below still demands recovery */ }
+    if (await credentialStillWorks()) {
+      if (queue.retry.attempt + 1 < REQUEST_REFUSED_ATTEMPTS) return input.persistUnknown(queue, fence, reason, retryAfter);
+      if (await holdRefusedRequest({ store: input.store, scope: input.scope, ownerId: input.ownerId },
+        queue, fence)) return 'terminal';
+    }
     try { await freezeScopeRecovery(input.store, input.scope, 'push_denial_escalated'); }
     catch { /* the replayable unknown row keeps the evidence */ }
     return input.persistUnknown(queue, fence, 'push_denial_escalated', retryAfter);
+  }
+
+  /** A forced Session refresh is a different request: only a real authority problem can fail it. */
+  async function credentialStillWorks() {
+    try { assertPushSession((await input.sessions.get(true)).session, input.scope, input.now()); return true; }
+    catch { return false; }
   }
 
   return Object.freeze({ handleRefusal, handleUnexplained });

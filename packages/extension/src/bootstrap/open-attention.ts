@@ -7,7 +7,7 @@ export interface BootstrapDisplayIssue {
   readonly code: 'local_merge_difference' | 'duplicate_candidate'; readonly nodeId?: string;
   readonly title?: string; readonly at: number;
 }
-/** Display facts only. Neither a merge choice nor a duplicate review protects the upload/Pull graph. */
+/** Display facts only. A merge choice never protects the upload/Pull graph. */
 export function openBootstrapAttention(runs: readonly BootstrapRunRecord[], mappings: readonly MappingInput[]): BootstrapDisplayIssue[] {
   const issues = new Map<string, BootstrapDisplayIssue>();
   const byNative = new Map(mappings.map(row => [row.nativeId, row]));

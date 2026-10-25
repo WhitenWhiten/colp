@@ -56,6 +56,11 @@ export interface StoredSession {
     readonly expiresAt: string; readonly acknowledgedCursor?: string | null };
   readonly acceptedProtocolVersion?: '0.2';
   readonly snapshotRequired: boolean;
+  /**
+   * This computer's clock minus the server's at the mint (positive: the clock is ahead). Session and lease
+   * expiry are judged in server time with it; absent on a Session stored before it was measured.
+   */
+  readonly clientClockSkewMilliseconds?: number;
   readonly conversionPolicy?: { readonly separator: 'native' | 'omit' | 'preserve_remote' | 'reject' };
   readonly transportBudget?: {
     readonly pullResponseBytes: number;
@@ -96,6 +101,8 @@ export interface PublicSyncEngineState {
   readonly rejectedPending: boolean;
   readonly queueProjection: 'idle' | 'syncing' | 'conflict' | 'rejected';
   readonly hasPublishedCursor: boolean; readonly cursorsConverged: boolean; readonly errorCode?: string;
+  /** K4: this computer's clock minus the server's; present only when it is more than two minutes off. Sync keeps working. */
+  readonly clockSkewMilliseconds?: number;
   readonly nativeWaitPending?: boolean;
   readonly listenerInstalled: boolean; readonly eventObserved: number; readonly eventAccepted: number;
   readonly eventRejected: number; readonly eventRejectedReason?: 'filtered' | 'permission_required' | 'not_connected'
@@ -393,6 +400,9 @@ export type ExtensionResponse = { readonly ok: true; readonly state: PublicAuthS
   | { readonly ok: false; readonly state: PublicAuthState; readonly error: string };
 export type SyncEngineRequest = { readonly kind: 'known.sync.engine.status' };
 export type SyncRetryRequest = { readonly kind: 'known.sync.engine.retry' };
+/** `settled`: the pass Retry started has finished; false means it is still running after the wait. */
+export type SyncRetryResponse = { readonly ok: true; readonly settled: boolean }
+  | { readonly ok: false; readonly error: string };
 export type ConnectivityRequest = { readonly kind: 'known.connectivity.online' };
 export type SyncEngineResponse = { readonly ok: true; readonly engine: PublicSyncEngineState }
   | { readonly ok: false; readonly error: 'not_connected' | 'state_unavailable' };
@@ -409,71 +419,9 @@ export type FaviconClearResponse =
   | { readonly ok: true; readonly outcome: FaviconClearOutcome }
   | { readonly ok: false; readonly error: 'bookmark_unmapped' | 'clear_failed' };
 
-/**
- * S7 / B2 (SR-09 · SR-11 · SR-13): one read-only aggregation for the popup and
- * settings exits. `PublicSyncEngineState` already projects the queue
- * (`queueProjection`/`conflictPending`/`rejectedPending`), but the terminal
- * freeze also lives on the scope record (`lifecycle: 'recovery_required'` +
- * `metadata.recoveryCode`, see `freezeScopeRecovery`). This view surfaces both
- * halves together so a terminal freeze can never degrade into a bare
- * "Needs attention" with no way out.
- */
-export type SyncAttentionGetRequest = { readonly kind: 'known.sync.attention.get' };
-/** How much of the synced boundary is on the server (`known.sync.progress.get`, read-only). */
-export type SyncProgressRequest = { readonly kind: 'known.sync.progress.get' };
-export interface PublicSyncProgress {
-  /** Open item problems prevent completion even while independent changes keep syncing. */
-  readonly issueCount?: number;
-  /** False when the engine has stopped; progress must not promise another automatic retry. */
-  readonly retryAutomatic?: boolean;
-  /** preparing: comparing this browser with the collection; syncing: items left; done: everything has a server node. */
-  readonly stage: 'preparing' | 'syncing' | 'done';
-  /** The first sync's bootstrap is still running. */
-  readonly firstSync: boolean;
-  /** Changes are still queued for upload. */
-  readonly liveWork: boolean;
-  readonly bookmarks: { readonly synced: number; readonly total: number };
-  readonly folders: { readonly synced: number; readonly total: number };
-}
-export type SyncProgressResponse = { readonly ok: true; readonly progress: PublicSyncProgress | null }
-  | { readonly ok: false; readonly error: 'state_unavailable' };
-export type SyncAttentionTerminalCode = 'metadata_sync_disabled' | 'replica_rebuild_pending' | 'pull_apply_target_missing' | 'pull_apply_evidence_missing'
-  | 'anchor_mapping_missing' | 'payload_too_large' | 'recovery_identity_unproven'
-  | 'deletion_identity_unproven' | 'legacy_resolution_sequence_collision' | 'mapping_identity_collision'
-  | 'create_ambiguous' | 'create_evidence_missing'
-  | 'create_placement_parent_deleted' | 'create_placement_unproven' | 'pull_issue_ceiling' | 'sync_issue_ceiling';
-/** Browser-local diagnostics. Native identities stay on this device. */
-export interface SyncIssueDiagnostic {
-  readonly direction: 'pull' | 'push' | 'local'; readonly code: string; readonly title?: string;
-  readonly reportId?: string; readonly itemId?: string;
-  readonly issueId?: string; readonly nodeId?: string; readonly opId?: string; readonly eventId?: string;
-  readonly count?: number; readonly firstSeenAt?: string | number; readonly lastSeenAt?: string | number;
-  readonly dependencyOpId?: string; readonly dependencyEventId?: string; readonly dependencySequence?: number;
-  readonly rootCause?: string; readonly attempts?: number; readonly recovery?: 'automatic' | 'decision';
-}
-export interface PublicSyncAttention {
-  readonly issueCount?: number;
-  readonly issues?: readonly SyncIssueDiagnostic[];
-  readonly rebuildAvailable?: boolean;
-  readonly rebuildUnavailableReason?: string;
-  readonly retryAvailable?: boolean;
-  readonly retryAt?: number;
-  readonly retryAutomatic?: boolean;
-  readonly phase?: PublicSyncEngineState['phase'];
-  readonly recoveryFrozen: boolean;
-  readonly queueProjection: PublicSyncEngineState['queueProjection'];
-  readonly rejectedPending: boolean;
-  readonly conflictPending: boolean;
-  readonly nativeWaitPending: boolean;
-  readonly waitCount: number;
-  readonly lastError?: string;
-  /** `scope.metadata.recoveryCode` — the specific code recorded at freeze time. */
-  readonly recoveryCode?: string;
-  readonly terminal: boolean;
-  readonly terminalCode?: SyncAttentionTerminalCode;
-}
-export type SyncAttentionResponse = { readonly ok: true; readonly attention: PublicSyncAttention }
-  | { readonly ok: false; readonly error: 'not_connected' | 'state_unavailable' };
+export type { SyncAttentionGetRequest, SyncProgressRequest, PublicSyncProgress, SyncProgressResponse, SyncAttentionTerminalCode,
+  SyncIssueLocalAction, SyncIssueDiagnostic, PublicSyncAttention, SyncAttentionResponse } from './sync-attention-types.js';
+export type { SyncIssueActionRequest, SyncIssueActionResponse } from './sync-issue-action-types.js';
 /**
  * SR-10 / A-08: the read-only ingress-diagnostic ledger the options page lists
  * as "not included in sync". The durable rows already exist
@@ -491,7 +439,11 @@ export interface PublicIngressDiagnostic {
   readonly firstAt: number;
   /** Epoch ms of the most recent occurrence; `0` means the same unknown time. */
   readonly lastAt: number;
+  /** One live bookmark still refused for this reason; only the options list may show it (never a copy or a report). */
+  readonly example?: PublicIngressExample;
 }
+/** A bookmark title (cut short) or, for a bookmark without one, its host; and how many others are refused the same way now. */
+export interface PublicIngressExample { readonly text: string; readonly others: number }
 export type IngressDiagnosticsResponse =
   | { readonly ok: true; readonly diagnostics: readonly PublicIngressDiagnostic[] }
   | { readonly ok: false; readonly error: 'not_connected' | 'state_unavailable' };

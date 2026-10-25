@@ -1,13 +1,15 @@
-import { FIRST_RUN_KEEP_BOTH, attentionItemCopy } from './first-run-draft.js';
+import { attentionItemCopy } from './first-run-draft.js';
 import { syncCenterHref } from './sync-attention-ui.js';
 import type { PublicAttentionItem } from './types.js';
 import { t } from './i18n.js';
+import { mergeResolutionFailureCopy } from './sync-issue-copy.js';
 
 export function renderAttentionItems(
   list: HTMLElement, items: readonly PublicAttentionItem[], onKeepBoth: (itemId: string, decision?: 'keep_both' | 'keep_local', evidenceDigest?: string) => void,
 ): void {
   list.replaceChildren();
   for (const item of items) {
+    if (item.kind === 'duplicate_candidate') continue;
     const row = document.createElement('li');
     const label = document.createElement('span');
     label.textContent = [item.label, attentionItemCopy(item)].filter(Boolean).join(' · ');
@@ -17,22 +19,14 @@ export function renderAttentionItems(
       placement.textContent = t('firstRun_mergeFolderComparison', 'Device folder: $1; cloud folder: $2.', item.parentLabels[0]!, item.parentLabels[1]!);
       row.append(placement);
     }
-    if (item.decision === 'open' && item.kind === 'duplicate_candidate') {
-      const keep = document.createElement('button');
-      keep.type = 'button';
-      keep.className = 'btn btn-ghost btn-sm';
-      keep.textContent = FIRST_RUN_KEEP_BOTH;
-      keep.addEventListener('click', () => onKeepBoth(item.itemId));
-      row.append(keep);
-    }
-    if (item.kind !== 'duplicate_candidate' && item.decision === 'open') {
+    if (item.decision === 'open') {
       const action = document.createElement('button'); action.type = 'button'; action.className = 'btn btn-secondary btn-sm';
       action.textContent = item.resolutionPending ? t('firstRun_mergeResolutionPending', 'Upload submitted; waiting for convergence')
         : t('firstRun_uploadLocalVersion', 'Upload this device’s version and folder');
       action.disabled = item.resolutionPending === true || !item.evidenceDigest;
       action.addEventListener('click', () => onKeepBoth(item.itemId, 'keep_local', item.evidenceDigest));
       row.append(action);
-      if (item.resolutionError) { const failure = document.createElement('span'); failure.textContent = item.resolutionError; row.append(failure); }
+      if (item.resolutionError) { const failure = document.createElement('span'); failure.textContent = mergeResolutionFailureCopy(item.resolutionError); row.append(failure); }
     }
     list.append(row);
   }

@@ -6,11 +6,11 @@ import { buildAttentionReport, pageAttention } from '../src/bootstrap/attention-
 import type { LocalMatchReport } from '../src/bootstrap/matcher.js';
 import { createSyncStateStore } from '../src/sync-state-store.js';
 import { scope } from './kns-05-pull-harness.js';
-test('all 5000 attention candidates survive durable paging and restart', async () => {
+test('all 5000 local merge differences survive durable paging and restart', async () => {
   const report: LocalMatchReport = { kind: 'local-match-report', scopeKey: 'audit', reportDigest: 'sha256:audit',
-    matched: [], localOnly: [], remoteOnly: [], conflicts: [], planned: [], collectionRootDirectBookmarks: 0,
-    emptyRemote: false, mountResolveRoles: [], candidates: Array.from({length:5000}, (_,i) => ({ kind: 'duplicate_candidate',
-      url: `https://example.test/${i}`, nodeIds: [`local-${i}`, `remote-${i}`], parents: ['a', 'b'] })) };
+    matched: [], localOnly: [], remoteOnly: [], candidates: [], planned: [], collectionRootDirectBookmarks: 0,
+    emptyRemote: false, mountResolveRoles: [], conflicts: Array.from({length:5000}, (_,i) => ({ kind: 'title',
+      localNativeId: `local-${i}`, remoteNodeId: `remote-${i}` })) };
   const attention = buildAttentionReport({ runId: 'audit-run' }, report, Date.now());
   const indexedDB = new IDBFactory(); const store = createSyncStateStore({ indexedDB });
   await store.registerScope({ ...scope, lifecycle: 'active', lease: { leaseId: 'l', expiresAt: 9999999999999 }, checkpoint: { cursor: 'c0', serverRevision: 'r0' }, selectedRoots: [] });
