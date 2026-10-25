@@ -1,6 +1,6 @@
 # Reusable site adapter foundation
 
-Implemented October 24, 2026 following the foundation review. Bilibili remains the only implemented adapter. Isolation tests use metadata and persisted records, not a second adapter implementation. Site capabilities still require their own evidence before activation.
+Implemented October 24, 2026 following the foundation review. Bilibili remains the only implemented adapter. Isolation tests cover metadata and persisted records. Additional contract regression tests use a test-only DOM/post adapter with nonnumeric IDs, negative readback and stable cursors; it is not registered or shipped as a supported site. Site capabilities still require their own evidence before activation.
 
 ## Runtime and registration
 
@@ -68,3 +68,13 @@ The remediation and exact validation commands are recorded in [foundation eviden
 | `21772b5d` | localize shared adapter capture controls |
 
 Validation: 184/184 focused unit tests across 20 files, strict selected production/test type graphs, seven distinct browser scenarios exercised in staged runs, server import boundaries, lint, source-size and locale checks, and the 41-file production artifact verifier passed. Full-project TypeScript and unrelated suites were not run.
+
+## Follow-up foundation review
+
+The follow-up review fixes five shared-host defects: generated archive rules now admit `siteFavorite` as well as import/reconciliation; fresh membership reads resolve older conflicts without replacing facts received after dispatch; negative readback follows the registered capability; replay caches retain independent response snapshots; and navigation only persists changes for relevant tabs, deleting departed/closed tab state and pruning legacy orphan routes at startup.
+
+Confirmation reads persist their baseline ordinal with the active command before dispatch. Positive/mixed results retain that baseline across item resolution and worker reconstruction. Authoritative merging and pending observations commit in one transaction; edges superseded after the baseline are omitted from the planning observation. Negative-only results do not require item resolution and create no native deletion. Readback also advances the live overlay fence so an older import cannot resurrect a verified absence. Unknown edges remain unchanged. Legacy in-flight hints without a baseline stop for retry instead of receiving authoritative merge semantics.
+
+`tests/fixtures/site-adapters/posts.ts` supplies a separate test-only `SiteAdapter`: DOM confirmation, post resources, string account/collection/item IDs, qualified negative evidence and stable item-page cursors. Focused tests exercise it through the page SDK/runtime, archive configuration, confirmation queue and durable ledger. This supplements rather than replaces real-site qualification; X and YouTube remain unimplemented. Bundled Bilibili negative readback remains unavailable.
+
+Follow-up checks and limits are recorded in [foundation follow-up evidence](evidence/foundation-follow-up.json).

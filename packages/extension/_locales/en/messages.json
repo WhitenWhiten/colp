@@ -6875,6 +6875,9 @@
   "sites_lede": {
     "message": "Connect $1, inspect its collections, and choose a local archive root. Source archives use no AI. Negative membership readback is unavailable; removals retain existing archives."
   },
+  "sites_ledeWithNegativeReadback": {
+    "message": "Connect $1, inspect its collections, and choose a local archive root. Source archives use no AI. Membership removals can be verified; existing archives are retained."
+  },
   "sites_listboxEmpty": {
     "message": "Inspect collections to list them here."
   },

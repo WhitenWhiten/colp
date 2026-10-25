@@ -170,6 +170,8 @@ function createSiteHost(definition: SiteDefinition) {
     }
   }
   async function reconcile() {
+    const openTabs = (await chrome.tabs.query({})).flatMap(tab => tab.id === undefined ? [] : [tab.id]);
+    for (const id of await siteTransport.pruneTabs(openTabs)) await siteLedger.revokeDocuments(id);
     let s = await read(); const granted = browserSupport().supported && await chrome.permissions.contains(grants);
     if (s.enabled && !granted) { await siteTransport.invalidate(); s = await read(); }
     await synchronizeSourceAuthority(s, siteLedger);
@@ -283,7 +285,7 @@ function createSiteHost(definition: SiteDefinition) {
         const writes = !archiveHold && browserSupport().supported && siteStatus.enabled && siteStatus.connected && archiveState.config?.state === 'active' && await chrome.permissions.contains({ permissions: ['bookmarks'] });
         return { ...siteStatus, browser: browserSupport(), grants: { site: await chrome.permissions.contains(grants), bookmarks: await chrome.permissions.contains({ permissions: ['bookmarks'] }) },
           mode: writes ? 'localArchive' : 'inspector', writes, archiveHold, archive: archiveState, ...(archiveResult ? { archiveResult } : {}), adapterId: definition.adapterId, capabilities: { itemIdentity: `${definition.siteKey}:${definition.identityVersion}`, observation: 'freshPositiveMembership', humanActionProof: 'unavailable',
-          negativeMembership: 'unavailable', shortLinks: 'unavailable', collectionChanges: 'explicitCatalogRead', nativeWrites: archiveState.config?.state === 'active' ? 'previewApprovalOrEnabledLivePolicy' : 'unavailable' },
+          negativeMembership: definition.negativeReadback ? 'available' : 'unavailable', shortLinks: 'unavailable', collectionChanges: 'explicitCatalogRead', nativeWrites: archiveState.config?.state === 'active' ? 'previewApprovalOrEnabledLivePolicy' : 'unavailable' },
         confirmations: await confirmations.status(), ...(inspectionStatus ? { inspectionStatus } : {}), inspection: (await chrome.storage.local.get(INSPECTION))[INSPECTION] ?? null };
       })().then(respond, e => respond({ error: e instanceof Error ? e.message : 'unavailable' })); return true;
     });
@@ -328,7 +330,8 @@ function createSiteHost(definition: SiteDefinition) {
     const navigated = (d: chrome.webNavigation.CommitDetails) => {
       if (d.frameId !== 0) return;
       if (definition.adapterId === legacySite.adapterId) void community.navigated(d.tabId).catch(() => undefined);
-      void siteTransport.invalidate(d.tabId).then(async () => {
+      void siteTransport.navigate(d.tabId, d.url).then(async relevant => {
+        if (!relevant) return;
         await siteLedger.revokeDocuments(d.tabId);
         for (const [id, p] of ports) if (p.sender?.tab?.id === d.tabId) {
           p.disconnect(); ports.delete(id);
@@ -348,7 +351,7 @@ function createSiteHost(definition: SiteDefinition) {
     installNavigation();
     chrome.storage.onChanged.addListener((changes, area) => { if (area === 'local' && changes[AUTOMATION_CHANGED_KEY]) scheduleSourceWork(Date.now() + 50); });
     chrome.permissions.onAdded.addListener(() => { installNavigation(); void reconcile().catch(() => undefined); });
-    chrome.tabs.onRemoved.addListener(id => { void siteTransport.invalidate(id).then(() => siteLedger.revokeDocuments(id)).catch(() => undefined); });
+    chrome.tabs.onRemoved.addListener(id => { void siteTransport.removeTab(id).then(relevant => relevant ? siteLedger.revokeDocuments(id) : undefined).catch(() => undefined); });
     chrome.permissions.onRemoved.addListener(removed => {
       if (!removed.permissions?.some(p => grants.permissions.includes(p)) && !removed.origins?.some(o => grants.origins.includes(o) || o === '<all_urls>')) return;
       void siteTransport.invalidate().then(async () => { await synchronizeSourceAuthority(await read(), siteLedger); disconnectAll(); await reconcile(); }).catch(() => undefined);

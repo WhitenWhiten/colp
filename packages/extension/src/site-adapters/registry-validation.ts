@@ -10,6 +10,7 @@ export function validateSiteDefinitions(sites: readonly SiteDefinition[]): reado
     if (ids.has(site.adapterId) || namespaces.has(namespace) || !site.adapterId || !site.siteKey || !Number.isSafeInteger(site.identityVersion) || site.identityVersion < 1) throw new Error('invalidSiteRegistry');
     ids.add(site.adapterId); namespaces.add(namespace); readLimits(site);
     if (!site.matches.length || site.matches.some(pattern => { try { const u = new URL(pattern); return u.protocol !== 'https:' || !!u.username || !!u.password || u.hostname.includes('*') || !!u.hash; } catch { return true; } })) throw new Error('invalidSiteMatches');
+    if (site.negativeReadback && !site.capabilities.includes('readMemberships')) throw new Error('unsupportedHostCapability');
     if (!site.capabilities.every(c => available.has(c)) || new Set(site.capabilities).size !== site.capabilities.length) throw new Error('unsupportedHostCapability');
     if (site.community?.connectOrigins.some(origin => { try { const u = new URL(origin); return u.protocol !== 'https:' || u.origin !== origin; } catch { return true; } })) throw new Error('invalidSiteMatches');
   }

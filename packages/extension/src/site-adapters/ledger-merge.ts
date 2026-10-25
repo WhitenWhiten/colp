@@ -39,3 +39,17 @@ export async function mergeObservation(tx: IDBTransaction, ctx: SourceContext, o
       await mergeEdge(tx, ctx, o.item.id, id, requested.has(id) ? 'present' : 'absent', ordinal, observationId);
   }
 }
+
+/** Fresh scoped reads replace only facts at/before their dispatch baseline. Preserve later observations and import overlays. */
+export async function mergeReadEdges(tx: IDBTransaction, ctx: SourceContext, itemId: string,
+  memberships: { added: readonly string[]; removed: readonly string[] }, baseline: number, ordinal: number, observationId: string) {
+  const applied: { added: string[]; removed: string[] } = { added: [], removed: [] };
+  for (const kind of ['added', 'removed'] as const) for (const collectionId of memberships[kind]) {
+    const key = sourceKey(ctx.connectionId, itemId, collectionId), old = await get<LedgerEdge>(tx, 'memberships', key);
+    if (old && old.ordinal > baseline) continue;
+    put(tx, 'memberships', key, { connectionId: ctx.connectionId, itemId, collectionId, state: kind === 'added' ? 'present' : 'absent',
+      ordinal, liveOrdinal: ordinal, evidence: 'read', observationId, conflicts: [] } satisfies LedgerEdge);
+    applied[kind].push(collectionId);
+  }
+  return applied;
+}

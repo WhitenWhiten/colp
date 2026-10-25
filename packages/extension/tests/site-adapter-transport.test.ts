@@ -1,4 +1,4 @@
-import { test, expect } from 'vitest';
+import { test, expect, vi } from 'vitest';
 import { createSiteTransport, initialTransportState, validSiteSender, type SiteSender } from '../src/site-adapters/transport.js';
 import { envelope, observation } from './fixtures/site-adapters/bilibili.js';
 function harness() {
@@ -45,4 +45,22 @@ test('private capability and content identity cannot be replaced with authority 
   expect(await h.transport.authorize({ ...envelope, leaseId: l.leaseId, operation: 'connect' }, h.sender)).toBeNull();
   expect(await h.transport.authorize({ ...envelope, leaseId: l.leaseId, capability: l.capability, operation: 'emit', data: {
     ...observation, item: { ...observation.item, id: 'video:av:99' } } }, h.sender)).toBeNull();
+});
+
+test('navigation ignores unrelated tabs, fences matching routes and removes closed or departed tabs', async () => {
+  const h = harness(), lease = await h.ready(), write = vi.spyOn(h.deps, 'write');
+  expect(await h.transport.navigate(99, 'https://other.example/')).toBe(false); expect(write).not.toHaveBeenCalled();
+  expect(await h.transport.navigate(1, 'https://www.bilibili.com/video/av2')).toBe(true);
+  expect(h.state().routes['1']).toBe(1); expect(h.state().leases).toHaveLength(0);
+  expect(await h.transport.authorize({ ...envelope, leaseId: lease.leaseId, capability: lease.capability, operation: 'connect' }, h.sender)).toBeNull();
+  await h.transport.navigate(1, 'https://other.example/'); expect(h.state().routes).toEqual({});
+  await h.transport.bootstrap(h.hello, h.sender); await h.transport.removeTab(1); expect(h.state().routes).toEqual({}); expect(h.state().leases).toEqual([]);
+  write.mockClear(); expect(await h.transport.removeTab(999)).toBe(false); expect(write).not.toHaveBeenCalled();
+  await h.transport.configure(false); write.mockClear();
+  expect(await h.transport.navigate(1, h.sender.url!)).toBe(false); expect(write).not.toHaveBeenCalled();
+});
+test('startup prunes old route leaks and preserves active tab epochs and leases', async () => {
+  const h = harness(); await h.ready(); const state = await h.deps.read(); state.routes['999'] = 42; await h.deps.write(state);
+  expect(await h.transport.pruneTabs([1])).toEqual([999]); expect(h.state().routes).toEqual({ '1': 0 }); expect(h.state().leases).toHaveLength(1);
+  await h.transport.pruneTabs([]); expect(h.state().routes).toEqual({}); expect(h.state().leases).toHaveLength(0);
 });

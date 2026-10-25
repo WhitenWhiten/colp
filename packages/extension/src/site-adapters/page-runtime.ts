@@ -113,7 +113,7 @@ export function startAdapterRuntime(definition: SiteDefinition, createAdapter: (
               if (!validAdapterMessage(message) || !definition.validateMessage(message)) {
                 localReader.clear?.(); message = { ...envelope, requestId: id, ...resultEnvelope(raw), result: { status: 'failed', error: { code: 'invalidData' } } } as AdapterMessage;
               }
-              replays.set(id, { command: JSON.stringify(raw), message }); if (replays.size > 2) replays.delete(replays.keys().next().value!);
+              replays.set(id, { command: JSON.stringify(raw), message: structuredClone(message) }); if (replays.size > 2) replays.delete(replays.keys().next().value!);
               ownPort.postMessage(message);
             })().catch(() => { if (epoch === current) recover(); }).finally(() => { busy = false; });
           });

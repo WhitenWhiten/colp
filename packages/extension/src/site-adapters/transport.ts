@@ -26,11 +26,11 @@ export interface TransportDeps {
 export function createSiteTransport(deps: TransportDeps, definition: SiteDefinition = legacySite) {
   let tail: Promise<unknown> = Promise.resolve();
   const serial = <T>(work: () => Promise<T>): Promise<T> => { const result = tail.then(work); tail = result.catch(() => undefined); return result; };
-  const fence = (s: TransportState) => { s.generation++; s.leases = []; };
+  const fence = (s: TransportState) => { s.generation++; s.leases = []; s.routes = {}; };
   return {
     status: () => serial(async () => { const s = await deps.read(); return { enabled: s.enabled, generation: s.generation,
       connected: s.accountId !== null && !s.sourceUnresolved, candidateAccount: s.candidateAccount, documents: s.leases.filter(l => l.expiresAt > deps.now()).length,
-      mode: 'inspector', writes: false, models: false, observation: 'degraded', negativeReadback: 'unavailable' }; }),
+      mode: 'inspector', writes: false, models: false, observation: 'degraded', negativeReadback: definition.negativeReadback ? 'available' : 'unavailable' }; }),
     configure: (enabled: boolean) => serial(async () => { const s = await deps.read(); fence(s); s.enabled = enabled; await deps.write(s); }),
     confirm: (accountId: string) => serial(async () => {
       const s = await deps.read();
@@ -40,8 +40,35 @@ export function createSiteTransport(deps: TransportDeps, definition: SiteDefinit
     invalidate: (tabId?: number) => serial(async () => {
       const s = await deps.read();
       if (tabId === undefined) fence(s);
-      else { s.leases = s.leases.filter(l => l.tabId !== tabId); s.routes[String(tabId)] = (s.routes[String(tabId)] ?? 0) + 1; }
+      else {
+        if (!Object.hasOwn(s.routes, String(tabId)) && !s.leases.some(l => l.tabId === tabId)) return;
+        s.leases = s.leases.filter(l => l.tabId !== tabId); s.routes[String(tabId)] = (s.routes[String(tabId)] ?? 0) + 1;
+      }
       await deps.write(s);
+    }),
+    /** Only matching enabled pages or tabs already owned by this installation need navigation work. */
+    navigate: (tabId: number, url: string) => serial(async () => {
+      const s = await deps.read(), matching = s.enabled && matchesSiteUrl(definition, url);
+      const tracked = Object.hasOwn(s.routes, String(tabId)) || s.leases.some(l => l.tabId === tabId);
+      if (!tracked) return matching;
+      s.leases = s.leases.filter(l => l.tabId !== tabId);
+      if (matching) s.routes[String(tabId)] = (s.routes[String(tabId)] ?? 0) + 1;
+      else delete s.routes[String(tabId)];
+      await deps.write(s); return true;
+    }),
+    removeTab: (tabId: number) => serial(async () => {
+      const s = await deps.read();
+      if (!Object.hasOwn(s.routes, String(tabId)) && !s.leases.some(l => l.tabId === tabId)) return false;
+      s.leases = s.leases.filter(l => l.tabId !== tabId); delete s.routes[String(tabId)];
+      await deps.write(s); return true;
+    }),
+    /** Also remove legacy/orphan route records after a worker/browser restart. */
+    pruneTabs: (open: readonly number[]) => serial(async () => {
+      const s = await deps.read(), live = new Set(open);
+      const removed = [...new Set([...Object.keys(s.routes).map(Number), ...s.leases.map(l => l.tabId)])].filter(id => !live.has(id));
+      if (!removed.length) return removed;
+      s.routes = Object.fromEntries(Object.entries(s.routes).filter(([id]) => live.has(Number(id))));
+      s.leases = s.leases.filter(l => live.has(l.tabId)); await deps.write(s); return removed;
     }),
     retire: (leaseId: string) => serial(async () => { const s = await deps.read(); s.leases = s.leases.filter(l => l.id !== leaseId); await deps.write(s); }),
     bootstrap: (raw: unknown, sender: SiteSender): Promise<BootstrapReply> => serial(async () => {
@@ -69,6 +96,7 @@ export function createSiteTransport(deps: TransportDeps, definition: SiteDefinit
           url: currentUrl, routeEpoch: s.routes[String(sender.tab.id)] ?? 0, generation: s.generation, sourceGeneration: s.sourceGeneration,
           accountId: s.accountId!, expiresAt: deps.now() + LIMITS.leaseMs }; s.leases.push(lease);
       }
+      s.routes[String(sender.tab.id)] = lease.routeEpoch;
       await deps.write(s);
       return { status: 'ready', leaseId: lease.id, capability: lease.capability, routeEpoch: lease.routeEpoch, expiresAt: lease.expiresAt, readerEpoch: JSON.stringify([s.generation, s.sourceGeneration, lease.documentId, lease.routeEpoch]) };
     }),

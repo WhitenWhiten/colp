@@ -76,7 +76,7 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
         if (old) await sourceLayout.bindRoot(c.connectionId, old.ruleId, node.id);
         const saved = await browserRuleStore().saveRule({ ...(old ? { id: old.ruleId } : {}), draft: { name: `${definition.label} source archive`, combinator: 'all',
           conditions: [{ kind: 'siteIs', value: new URL(definition.origin).hostname }], action: { kind: 'file', folderNativeId: node.id },
-          site: { version: 1, admission: { entries: ['siteImport', 'reconcile'], purpose: 'sourceArchive', connectionId: c.connectionId, collectionIds: input.collectionIds },
+          site: { version: 1, admission: { entries: ['siteFavorite', 'siteImport', 'reconcile'], purpose: 'sourceArchive', connectionId: c.connectionId, collectionIds: input.collectionIds },
             layout: { kind: 'sourceCollections', root: 'actionDestination' } } } }, Date.now());
         if (!saved.ok) throw new Error('ruleRejected');
         let next: ArchiveConfig = { connectionId: c.connectionId, ruleId: saved.rule.id, root: binding, collectionIds: input.collectionIds, live: input.live, state: 'pending',

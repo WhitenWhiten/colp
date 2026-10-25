@@ -33,7 +33,7 @@ test('bundled inspector scopes worlds, reconnects routes and fences revocation w
     await grantOptionalBookmarks(page, 'Enable Bilibili inspector', 'Known adapter access', {
       permissions: ['scripting', 'webNavigation'], origins: ['https://www.bilibili.com/*'],
     });
-    const readState = () => page.evaluate(async () => (await chrome.storage.local.get('known.siteAdapters.runtime.v1'))['known.siteAdapters.runtime.v1'] as { generation: number; leases: { id: string; documentId: string; url: string; routeEpoch: number }[]; candidateAccount: string | null });
+    const readState = () => page.evaluate(async () => (await chrome.storage.local.get('known.siteAdapters.runtime.v1'))['known.siteAdapters.runtime.v1'] as { routes: Record<string, number>; generation: number; leases: { id: string; documentId: string; url: string; routeEpoch: number }[]; candidateAccount: string | null });
     await expect.poll(async () => (await readState()).candidateAccount, { timeout: 15000 }).toBe('42');
     await page.locator('#refresh').click(); await page.locator('#confirm').click();
     await expect.poll(async () => (await readState()).leases.length).toBe(1);
@@ -85,6 +85,12 @@ test('bundled inspector scopes worlds, reconnects routes and fences revocation w
     });
     expect(storageIsolation[0]?.result).toBe('blocked');
     await context.route('https://example.org/**', route => route.fulfill({ contentType: 'text/html', body: '<title>Other page</title>' }));
+    const routesBefore = (await readState()).routes;
+    const unrelated = await context.newPage(); await unrelated.goto('https://example.org/unrelated');
+    await unrelated.evaluate(() => history.pushState({}, '', '/another-unrelated-route'));
+    await page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.siteAdapters.status' }));
+    expect((await readState()).routes).toEqual(routesBefore);
+    await unrelated.close();
     await site.goto('https://example.org/away'); await site.evaluate(() => history.back());
     await expect(site).toHaveURL('https://www.bilibili.com/video/av2');
     await expect(site.locator('html')).toHaveAttribute('data-persisted', 'true');

@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "date": "2026-10-24",
+  "reviewBaseline": "6574f615",
+  "implementationRevision": "The commit containing this evidence file and its regression tests.",
+  "fixes": [
+    "Admit confirmed favorites in generated local archive rules.",
+    "Persist host read baselines and atomically reconcile old conflicts while preserving later observations.",
+    "Gate negative readback, retries and capability presentation by the registered site definition; retain native archives.",
+    "Snapshot replay payloads independently of mutable adapter caches.",
+    "Scope navigation effects to relevant tabs and remove departed/closed/orphan route state."
+  ],
+  "scope": {
+    "shippedAdapters": [
+      "bilibili"
+    ],
+    "testOnlyAdapter": "posts: DOM confirmation, post resources, nonnumeric IDs, negative readback and stable cursors",
+    "realSiteRequests": false,
+    "nativeDeletionOnSourceRemoval": false,
+    "bilibiliNegativeReadback": false
+  },
+  "checks": [
+    {
+      "command": "node packages/extension/scripts/with-orbstack.mjs run node_modules/.bin/vitest run tests/site-adapter-*.test.ts",
+      "result": "passed",
+      "files": 20,
+      "tests": 159
+    },
+    {
+      "command": "node packages/extension/scripts/with-orbstack.mjs run node_modules/.bin/vitest run tests/site-adapter-readback.test.ts",
+      "result": "passed",
+      "tests": 9,
+      "note": "Final targeted run includes two additional tests for older import overlay and later observations; final unique site-adapter tests passing across staged runs: 161."
+    },
+    {
+      "command": "node packages/extension/scripts/with-orbstack.mjs run node_modules/.bin/vitest run tests/site-adapter-page-runtime.test.ts",
+      "result": "passed",
+      "tests": 1,
+      "note": "Final test also exercises stable cursor continuation through lease renewal."
+    },
+    {
+      "command": "node packages/extension/scripts/with-orbstack.mjs run node --max-old-space-size=1536 node_modules/typescript/bin/tsc --noEmit --strict --skipLibCheck --noUncheckedIndexedAccess --target ES2023 --module NodeNext --moduleResolution NodeNext --lib ES2023,DOM,DOM.AsyncIterable src/chrome.d.ts src/bookmark-subscriptions/chrome-external.d.ts src/service-worker.ts src/site-adapters/settings.ts src/site-adapters/content.ts tests/site-adapter-readback.test.ts tests/site-adapter-page-runtime.test.ts tests/site-adapter-archive-runtime.test.ts tests/site-adapter-transport.test.ts e2e/mv3-site-adapter-lifecycle.spec.ts",
+      "result": "passed",
+      "note": "Selected production/test entry graphs, not a full-project check; final changed tests were checked again with the same strict flags."
+    },
+    {
+      "command": "node packages/extension/scripts/with-orbstack.mjs run node_modules/.bin/eslint src/site-adapters/confirmation-queue.ts src/site-adapters/ledger.ts src/site-adapters/ledger-merge.ts src/site-adapters/transport.ts src/site-adapters/worker.ts src/site-adapters/settings.ts src/site-adapters/archive-runtime.ts src/site-adapters/page-runtime.ts src/site-adapters/registry-validation.ts tests/site-adapter-readback.test.ts tests/site-adapter-page-runtime.test.ts tests/site-adapter-archive-runtime.test.ts tests/site-adapter-transport.test.ts tests/fixtures/site-adapters/posts.ts e2e/mv3-site-adapter-lifecycle.spec.ts",
+      "result": "passed"
+    },
+    {
+      "command": "node packages/extension/scripts/with-orbstack.mjs run node scripts/check-source-file-sizes.mjs",
+      "result": "passed",
+      "files": 812
+    },
+    {
+      "command": "node packages/extension/scripts/with-orbstack.mjs run node scripts/i18n-catalog.mjs",
+      "result": "passed",
+      "note": "Added English entry and Chinese translation including its English source description."
+    },
+    {
+      "command": "node packages/extension/scripts/with-orbstack.mjs run npm run build:development",
+      "result": "passed"
+    },
+    {
+      "command": "node packages/extension/scripts/with-orbstack.mjs e2e e2e/mv3-site-adapter-lifecycle.spec.ts e2e/mv3-site-adapter-import.spec.ts",
+      "result": "passed",
+      "tests": 2,
+      "environment": "Linux arm64, Chromium 149, xvfb through the prepared OrbStack runner",
+      "duration": "2.8 minutes",
+      "coverage": [
+        "exact partial import preview",
+        "live-during-import preservation",
+        "restart and deduplication",
+        "SPA and BFCache",
+        "permission revocation",
+        "unrelated tab navigation"
+      ]
+    }
+  ],
+  "cleanup": "Task-owned test containers removed by the runner; no temporary service retained. Reusable caches retained.",
+  "limitations": [
+    "The second adapter is a test-only implementation exercised by unit tests, not a second shipped browser adapter.",
+    "No X/YouTube real-site qualification, server E2E or full-project TypeScript check was performed."
+  ]
+}

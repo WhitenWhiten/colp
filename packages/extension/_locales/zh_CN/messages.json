@@ -10723,6 +10723,10 @@
     "message": "最近一次响应",
     "description": "Last response"
   },
+  "sites_ledeWithNegativeReadback": {
+    "message": "连接 $1、查看来源集合并选择本地归档根文件夹。来源归档不使用 AI。支持核验成员关系移除，已有归档仍会保留。",
+    "description": "Connect $1, inspect its collections, and choose a local archive root. Source archives use no AI. Membership removals can be verified; existing archives are retained."
+  },
   "sites_lede": {
     "message": "连接 $1，检查其收藏夹，并选择本地归档根目录。来源归档不使用 AI。无法回读收藏的移除；移除收藏时会保留现有归档。",
     "description": "Connect $1, inspect its collections, and choose a local archive root. Source archives use no AI. Negative membership readback is unavailable; removals retain existing archives."

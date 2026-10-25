@@ -23,7 +23,9 @@ const text = (id: string, value: string) => { document.querySelector(`#${id}`)!.
 // Static copy is marked data-i18n; the lines that name the site are filled here. A language change reloads the page, as the options page does.
 localizePage(); onUiLanguageChanged(() => location.reload());
 const siteName = selectedSite.label;
-text('sites-lede', t('sites_lede', 'Connect $1, inspect its collections, and choose a local archive root. Source archives use no AI. Negative membership readback is unavailable; removals retain existing archives.', siteName));
+text('sites-lede', selectedSite.negativeReadback
+  ? t('sites_ledeWithNegativeReadback', 'Connect $1, inspect its collections, and choose a local archive root. Source archives use no AI. Membership removals can be verified; existing archives are retained.', siteName)
+  : t('sites_lede', 'Connect $1, inspect its collections, and choose a local archive root. Source archives use no AI. Negative membership readback is unavailable; removals retain existing archives.', siteName));
 text('inspector-title', t('sites_inspectorTitle', '$1 inspector', siteName));
 text('inspector-hint', t('sites_inspectorHint', 'Reads the $1 pages you open. Needs Chrome 149 or later and access to the site.', siteName));
 text('connection', t('sites_turnOnThenOpen', 'Turn on the inspector, then open $1 while signed in.', siteName));

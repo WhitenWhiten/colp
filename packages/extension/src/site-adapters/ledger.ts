@@ -3,8 +3,8 @@ import type { MembershipReadQuery, MembershipReadResult, PageResult, SiteObserva
 import { validMembershipResult, validObservation, validPageResult } from './schemas.js';
 import { legacySite, type SiteDefinition } from './registry.js';
 import { createSourceDatabase, get, put, sourceDigest, sourceKey, type SourceDatabase } from './source-db.js';
-import type { ImportRead, LedgerAdmission, LedgerEdge, ObservationRow, SourceAuthority, SourceConnection, SourceContext, SourceImportRun, SourceReceipt } from './ledger-types.js';
-import { mergeEdge, mergeEntity, mergeObservation } from './ledger-merge.js';
+import type { ImportRead, LedgerAdmission, ObservationRow, SourceAuthority, SourceConnection, SourceContext, SourceImportRun, SourceReceipt } from './ledger-types.js';
+import { mergeReadEdges, mergeEdge, mergeEntity, mergeObservation } from './ledger-merge.js';
 import { LIMITS } from './limits.js';
 export async function authorityForConnection(tx: IDBTransaction, connectionId: string): Promise<SourceAuthority | undefined> {
   return new Promise((resolve, reject) => {
@@ -57,6 +57,35 @@ export function createSourceLedger(db: SourceDatabase = createSourceDatabase(), 
     return requireSourceAuthority(tx, context);
   };
   const now = options.now ?? Date.now, random = options.random ?? (() => crypto.randomUUID());
+  async function acceptObservation(context: SourceContext, requestId: string, observation: SiteObservation, commit?: (tx: IDBTransaction, receiptId: string) => Promise<void>, readBaseline?: number): Promise<LedgerAdmission> {
+    if (!validObservation(observation) || !definition.validateMessage({ protocolVersion: 1, requestId, leaseId: context.leaseId, capability: 'host-validated', operation: 'emit', data: observation })) return { status: 'rejected', reason: 'invalid' };
+    const key = sourceKey(AUTHORITY, context.installationGeneration, context.documentId, requestId), digest = sourceDigest({ operation: 'emit', observation });
+    try { return await db.transaction(facts, 'readwrite', async tx => {
+      await requireAuthority(tx, context);
+      const previous = await get<SourceReceipt>(tx, 'receipts', key);
+      if (previous) {
+        if (previous.digest !== digest) return { status: 'rejected', reason: 'conflict' };
+        await commit?.(tx, previous.id); return { status: 'duplicate', receiptId: previous.id };
+      }
+      await capacity(tx, 'observations', LIMITS.pendingObservations); await capacity(tx, 'receipts', 100000);
+      const receipt = { id: random(), digest, ordinal: await ordinal(tx) };
+      if (readBaseline !== undefined) {
+        const authority = await requireAuthority(tx, context);
+        if (observation.type !== 'membership.observed' || observation.memberships.mode !== 'delta' || !Number.isSafeInteger(readBaseline) || readBaseline < 0
+          || !authority.negativeReadback && observation.memberships.removed.length) throw new Error('invalid');
+        const applied = await mergeReadEdges(tx, context, observation.item.id, observation.memberships, readBaseline, receipt.ordinal, receipt.id);
+        observation = { ...observation, memberships: { mode: 'delta', ...applied } };
+      }
+      const row: ObservationRow = { installationId: definition.adapterId, id: receipt.id, ordinal: receipt.ordinal, context, observation, state: 'pending', acceptedAt: now(), adapterVersion: definition.version,
+        cause: observation.type === 'favorite.confirmed' || observation.type === 'favorite.uncertain' ? 'siteFavorite' : 'reconcile' };
+      put(tx, 'observations', receipt.id, row); put(tx, 'receipts', key, receipt);
+      if (readBaseline === undefined) await mergeObservation(tx, context, observation, receipt.ordinal, receipt.id);
+      else if (observation.type === 'membership.observed') await mergeEntity(tx, 'items', context.connectionId, observation.item, receipt.ordinal, readBaseline);
+      await commit?.(tx, receipt.id);
+      options.beforeCommit?.(tx);
+      return { status: 'accepted', receiptId: receipt.id };
+    }); } catch (e) { return rejected(e); }
+  }
   return {
     db, definition,
     async setAuthority(input: Omit<SourceAuthority, 'connectionId'>): Promise<SourceAuthority> {
@@ -108,27 +137,9 @@ export function createSourceLedger(db: SourceDatabase = createSourceDatabase(), 
             if ((c.value.context.installationId ?? legacySite.adapterId) === definition.adapterId && c.value.context.leaseId === leaseId) c.update({ ...c.value, active: false }); c.continue(); }; });
       });
     },
-    async acceptObservation(context: SourceContext, requestId: string, observation: SiteObservation, commit?: (tx: IDBTransaction, receiptId: string) => Promise<void>): Promise<LedgerAdmission> {
-      if (!validObservation(observation) || !definition.validateMessage({ protocolVersion: 1, requestId, leaseId: context.leaseId, capability: 'host-validated', operation: 'emit', data: observation })) return { status: 'rejected', reason: 'invalid' };
-      const key = sourceKey(AUTHORITY, context.installationGeneration, context.documentId, requestId), digest = sourceDigest({ operation: 'emit', observation });
-      try { return await db.transaction(facts, 'readwrite', async tx => {
-        await requireAuthority(tx, context);
-        const previous = await get<SourceReceipt>(tx, 'receipts', key);
-        if (previous) {
-          if (previous.digest !== digest) return { status: 'rejected', reason: 'conflict' };
-          await commit?.(tx, previous.id); return { status: 'duplicate', receiptId: previous.id };
-        }
-        await capacity(tx, 'observations', LIMITS.pendingObservations); await capacity(tx, 'receipts', 100000);
-        const receipt = { id: random(), digest, ordinal: await ordinal(tx) };
-        const row: ObservationRow = { installationId: definition.adapterId, id: receipt.id, ordinal: receipt.ordinal, context, observation, state: 'pending', acceptedAt: now(), adapterVersion: definition.version,
-          cause: observation.type === 'favorite.confirmed' || observation.type === 'favorite.uncertain' ? 'siteFavorite' : 'reconcile' };
-        put(tx, 'observations', receipt.id, row); put(tx, 'receipts', key, receipt);
-        await mergeObservation(tx, context, observation, receipt.ordinal, receipt.id);
-        await commit?.(tx, receipt.id);
-        options.beforeCommit?.(tx);
-        return { status: 'accepted', receiptId: receipt.id };
-      }); } catch (e) { return rejected(e); }
-    },
+    acceptObservation: (context: SourceContext, requestId: string, observation: SiteObservation, commit?: (tx: IDBTransaction, receiptId: string) => Promise<void>) => acceptObservation(context, requestId, observation, commit),
+    /** Host-correlated read only: the baseline is captured durably before dispatch, never supplied by page code. */
+    acceptReadObservation: (context: SourceContext, requestId: string, observation: Extract<SiteObservation, { type: 'membership.observed' }>, baseline: number, commit?: (tx: IDBTransaction, receiptId: string) => Promise<void>) => acceptObservation(context, requestId, observation, commit, baseline),
     async startImport(context: SourceContext, id: string): Promise<SourceImportRun> {
       return db.transaction(['meta', 'authorities', 'documentLeases', 'importRuns'], 'readwrite', async tx => {
         await requireAuthority(tx, context);
@@ -188,7 +199,7 @@ export function createSourceLedger(db: SourceDatabase = createSourceDatabase(), 
         put(tx, 'readRequests', input.id, { ...input, context, kind: 'membership', baselineOrdinal: await get<number>(tx, 'meta', 'ordinal') ?? 0 });
       });
     },
-    async acceptMembershipRead(context: SourceContext, id: string, result: MembershipReadResult): Promise<LedgerAdmission> {
+    async acceptMembershipRead(context: SourceContext, id: string, result: MembershipReadResult, commit?: (tx: IDBTransaction, receipt: SourceReceipt) => Promise<void>): Promise<LedgerAdmission> {
       try { return await db.transaction(['meta', 'authorities', 'documentLeases', 'readRequests', 'receipts', 'memberships'], 'readwrite', async tx => {
         const authority = await requireAuthority(tx, context);
         const request = await get<{ kind: string; context: SourceContext; query: MembershipReadQuery; deadlineAt: number; baselineOrdinal: number }>(tx, 'readRequests', id);
@@ -197,14 +208,11 @@ export function createSourceLedger(db: SourceDatabase = createSourceDatabase(), 
         const key = sourceKey('membership', id), digest = sourceDigest(result), previous = await get<SourceReceipt>(tx, 'receipts', key);
         if (previous) return previous.digest === digest ? { status: 'duplicate', receiptId: previous.id } : { status: 'rejected', reason: 'conflict' };
         const receipt = { id: random(), digest, ordinal: await ordinal(tx) };
-        if (result.status === 'ok') for (const edge of result.edges) {
-          if (edge.state === 'unknown') continue;
-          const edgeKey = sourceKey(context.connectionId, result.itemId, edge.collectionId), old = await get<LedgerEdge>(tx, 'memberships', edgeKey);
-          if (old && old.ordinal > request.baselineOrdinal) continue;
-          put(tx, 'memberships', edgeKey, { connectionId: context.connectionId, itemId: result.itemId, collectionId: edge.collectionId,
-            state: edge.state, ordinal: receipt.ordinal, liveOrdinal: old?.liveOrdinal ?? 0, evidence: 'read', observationId: receipt.id, conflicts: [] } satisfies LedgerEdge);
-        }
-        put(tx, 'receipts', key, receipt); options.beforeCommit?.(tx); return { status: 'accepted', receiptId: receipt.id };
+        if (result.status === 'ok') await mergeReadEdges(tx, context, result.itemId, {
+          added: result.edges.filter(e => e.state === 'present').map(e => e.collectionId),
+          removed: result.edges.filter(e => e.state === 'absent').map(e => e.collectionId),
+        }, request.baselineOrdinal, receipt.ordinal, receipt.id);
+        put(tx, 'receipts', key, receipt); await commit?.(tx, receipt); options.beforeCommit?.(tx); return { status: 'accepted', receiptId: receipt.id };
       }); } catch (e) { return rejected(e); }
     },
     async stopImport(context: SourceContext, id: string) {
