@@ -35,7 +35,7 @@ test('semantic processing has one owner across devices and explicit retry fences
   const copy = { content: c.slot.copy.content, purpose: 'semantic' as const };
   const first = claimManagedSemantic(f.state, 'library', copy, 'device-a-job');
   expect(first.status).toBe('claimed');
-  expect(claimManagedSemantic(f.state, 'library', copy, 'device-b-job')).toEqual({ status: 'waiting' });
+  expect(claimManagedSemantic(f.state, 'library', copy, 'device-b-job')).toMatchObject({ status: 'waiting' });
   if (first.status !== 'claimed') throw new Error('fixture');
   releaseManagedSemantic(f.state, 'library', copy, first.claim);
   const next = claimManagedSemantic(f.state, 'library', copy, 'device-b-job');

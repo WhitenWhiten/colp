@@ -131,7 +131,7 @@ export function claimManagedSemantic(state: ManagedSaveState, collectionId: stri
   if (binding) return { status: 'saved' as const, binding };
   const claims = state.semanticClaims ??= {}, old = own(claims, key);
   if (!old && Object.keys(claims).length >= 50000) fail('source_capacity');
-  if (old?.ownerId && old.ownerId !== ownerId) return { status: 'waiting' as const };
+  if (old?.ownerId && old.ownerId !== ownerId) return { status: 'waiting' as const, claim: old };
   if (!old?.ownerId) claims[key] = { ownerId, revision: (old?.revision ?? 0) + 1 };
   return { status: 'claimed' as const, claim: claims[key]! };
 }

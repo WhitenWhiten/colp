@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { expect, test, vi } from 'vitest';
-import { createSourceDatabase, sourceKey, SOURCE_STORES } from '../src/site-adapters/source-db.js';
+import { createSourceDatabase, sourceKey, SOURCE_STORES, SOURCE_DATABASE_VERSION } from '../src/site-adapters/source-db.js';
 import { createSourceLedger, readConnectionAuthority } from '../src/site-adapters/ledger.js';
 import { legacySite } from '../src/site-adapters/registry.js';
 import { createLiveSourcePlanner } from '../src/site-adapters/live-planner.js';
@@ -84,5 +84,5 @@ test('a blocked schema upgrade can retry after the old context closes without le
   const old = await new Promise<IDBDatabase>(resolve => { const r = factory.open('blocked', 2); r.onsuccess = () => resolve(r.result); });
   const db = createSourceDatabase(factory, 'blocked');
   await expect(db.open()).rejects.toThrow('schemaIncompatible'); old.close();
-  expect((await db.open()).version).toBe(3); await db.close();
+  expect((await db.open()).version).toBe(SOURCE_DATABASE_VERSION); await db.close();
 });

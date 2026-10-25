@@ -7,12 +7,18 @@ export type ManagedSlot = { kind: 'bookmark'; copy: ManagedCopy } | { kind: 'fol
 export interface ManagedSaveCommand {
   commandId: string; replicaId: string; collectionId: string; parentId: string; parentRevision: string;
   slot: ManagedSlot; title: string; url: string | null;
+  semanticClaim?: { ownerId: string; revision: number };
+  adopt?: { nodeId: string; revision: string };
 }
 export interface ManagedNode { nodeId: string; parentId: string; title: string; url: string | null; revision: string; deleted?: boolean }
 export interface ManagedSaveReceipt {
   version: 1; commandId: string; digest: string; key: string; node: ManagedNode; disposition: 'created' | 'reused' | 'detached' | 'suppressed';
 }
 export interface ManagedDestination { library: ManagedLibrary; command: ManagedSaveCommand }
+export interface ManagedBinding { slot: ManagedSlot; collectionId: string; node: ManagedNode; state: 'active' | 'detached' | 'suppressed' }
+export interface SemanticClaim { ownerId: string; revision: number }
+export type SemanticClaimResult = { status: 'saved'; binding: ManagedBinding } | { status: 'claimed'; claim: SemanticClaim } | { status: 'waiting'; claim: SemanticClaim };
+export type ManagedAction = 'managed.save' | 'managed.recover' | 'managed.list' | 'managed.lookup' | 'managed.semantic.claim' | 'managed.semantic.release';
 export function createManagedCopyClient(ports: { origin: string; fetch: typeof fetch; headers(): Promise<Record<string, string>>; assertCurrent(): Promise<void> }) {
   const url = new URL(SOURCE_CLOUD_PATH, ports.origin);
   async function request(action?: string, input?: unknown) {
@@ -30,6 +36,8 @@ export function createManagedCopyClient(ports: { origin: string; fetch: typeof f
   }
   return {
     async profile() { if ((await request() as { managedCopies?: number })?.managedCopies !== 1) throw new Error('sourceSyncUpgradeRequired'); },
-    async call<T>(action: 'managed.save' | 'managed.recover' | 'managed.list', input: unknown): Promise<T> { return await request(action, input) as T; },
+    async semanticProfile() { const profile = await request() as { managedCopies?: number; managedSemantic?: number };
+      if (profile?.managedCopies !== 1 || profile.managedSemantic !== 1) throw new Error('sourceSyncUpgradeRequired'); },
+    async call<T>(action: ManagedAction, input: unknown): Promise<T> { return await request(action, input) as T; },
   };
 }

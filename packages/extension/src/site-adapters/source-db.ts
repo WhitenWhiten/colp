@@ -5,8 +5,9 @@ import { bytesToHex } from '@noble/hashes/utils.js';
 import { canonicalJson } from '../canonical-json.js';
 export const SOURCE_STORES = ['meta', 'authorities', 'documentLeases', 'connections', 'observations', 'receipts', 'items', 'collections', 'memberships',
   'readRequests', 'importRuns', 'importPages', 'representations', 'itemReservations', 'folderReservations', 'folderConsumers',
-  'savePlans', 'effects', 'outbox', 'contentBindings', 'mounts', 'importPreviews', 'importApprovals'] as const;
+  'savePlans', 'effects', 'outbox', 'contentBindings', 'mounts', 'importPreviews', 'importApprovals', 'semanticJobs', 'semanticIndexes'] as const;
 export type SourceStore = typeof SOURCE_STORES[number];
+export const SOURCE_DATABASE_VERSION = 4;
 export function sourceDigest(value: unknown): string {
   return `sha256:${bytesToHex(sha256(new TextEncoder().encode(canonicalJson(value, () => { throw new Error('invalidData'); }))))}`;
 }
@@ -29,9 +30,12 @@ export function createSourceDatabase(factory?: IDBFactory, name = 'known-site-ad
     const available = factory ?? globalThis.indexedDB;
     if (!available) { reject(new Error('sourceStoreUnavailable')); return; }
     let abandoned = false;
-    const r = available.open(name, 3);
+    const r = available.open(name, SOURCE_DATABASE_VERSION);
     r.onupgradeneeded = () => {
       for (const store of SOURCE_STORES) if (!r.result.objectStoreNames.contains(store)) r.result.createObjectStore(store);
+      const semanticJobs = r.transaction!.objectStore('semanticJobs');
+      if (!semanticJobs.indexNames.contains('stateUpdatedAt')) semanticJobs.createIndex('stateUpdatedAt', ['state', 'updatedAt']);
+      if (!semanticJobs.indexNames.contains('connections')) semanticJobs.createIndex('connections', 'connections', { multiEntry: true });
       const connections = r.transaction!.objectStore('connections');
       if (!connections.indexNames.contains('id')) connections.createIndex('id', 'id', { unique: true });
       const bindings = r.transaction!.objectStore('contentBindings');
@@ -52,7 +56,9 @@ export function createSourceDatabase(factory?: IDBFactory, name = 'known-site-ad
     };
     r.onerror = () => { if (abandoned) return; connection = undefined; reject(new Error(r.error?.name === 'VersionError' ? 'schemaIncompatible' : 'sourceStoreUnavailable')); };
     r.onblocked = () => { abandoned = true; connection = undefined; reject(new Error('schemaIncompatible')); };
-    r.onsuccess = () => { if (abandoned) { r.result.close(); return; } r.result.onversionchange = () => { r.result.close(); connection = undefined; }; resolve(r.result); };
+    r.onsuccess = () => { if (abandoned) { r.result.close(); return; }
+      if (SOURCE_STORES.some(store => !r.result.objectStoreNames.contains(store))) { r.result.close(); connection = undefined; reject(new Error('schemaIncompatible')); return; }
+      r.result.onversionchange = () => { r.result.close(); connection = undefined; }; resolve(r.result); };
     });
   };
   return {
