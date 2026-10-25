@@ -97,9 +97,10 @@ test.each(['deleted', 'moved', 'renamed'] as const)('user changes (%s) never cre
   if (change === 'deleted') f.nodes.delete(first.node.nodeId);
   else f.nodes.set(first.node.nodeId, { ...first.node, ...(change === 'moved' ? { parentId: 'manual-folder' } : { title: 'My title' }) });
   const result = await saveManagedCopy(f.state, command('second-device'), f.ports);
-  expect(result.disposition).toBe(change === 'deleted' ? 'suppressed' : 'detached');
+  expect(result.disposition).toBe(change === 'deleted' ? 'suppressed' : change === 'renamed' ? 'reused' : 'detached');
   expect(f.ports.create).toHaveBeenCalledTimes(1);
-  expect(f.state.bindings[managedSlotKey('library', command().slot)]?.state).toBe(result.disposition);
+  expect(f.state.bindings[managedSlotKey('library', command().slot)]?.state).toBe(change === 'renamed' ? 'active' : result.disposition);
+  if (change === 'renamed') expect(result.node.title).toBe('My title');
 });
 test('changing mapping roots stops for migration and source renaming does not create a new identity', async () => {
   const f = fixture(); await saveManagedCopy(f.state, command(), f.ports);

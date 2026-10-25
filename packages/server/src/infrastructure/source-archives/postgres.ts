@@ -7,6 +7,8 @@ import { assertLibraryDestination, createCanonicalMutationApplication } from '..
 import { createPostgresCanonicalMutationPorts } from '../collections/canonical-mutation-postgres-ports.js';
 import { createPostgresNodeWritePort, createPostgresCollectionWritePort } from '../collections/repositories.js';
 import { managedSavePorts, lockManagedLibrary } from './managed-copies.js';
+import { managedReconcilePorts } from './reconcile.js';
+import { parseManagedReconcile, reconcileManagedCopy, undoManagedReconcile } from '../../modules/source-archives/index.js';
 import { parseManagedSave, parseManagedCopy, parseManagedSlot, markManagedChange, relocateManagedCopy, adoptLegacyManagedCopy, saveManagedCopy, recoverManagedCopy, observeManagedCopy, claimManagedSemantic, releaseManagedSemantic, type ManagedSaveState } from '../../modules/source-archives/index.js';
 import { SOURCE_ARCHIVE_PROFILE, SourceArchiveError, object, text, integer, digest, sourceHash, parseSourceScope, parseSourceEdges, sourceInput, sourceConnectionKey,
   type SourceArchiveActor, type SourceArchiveApplication, type SourceScope, type SourceEdge, type SourceLease, type SourceFinalEffect, type SourceFinalReceipt, type SourceCanonicalMutation } from '../../modules/source-archives/index.js';
@@ -30,7 +32,7 @@ export function createPostgresSourceArchives(db: Kysely<DatabaseSchema>, testHoo
     return uow.execute(async ({ transaction: tx }) => {
       // Session → account → private receipt row → replica gate → replicas → collection.
       // Holding the authority rows through commit fences concurrent credential/replica revocation.
-      if (['configure', 'renew', 'preview', 'commit', 'managed.save', 'managed.semantic.claim'].includes(action)) {
+      if (['configure', 'renew', 'preview', 'commit', 'managed.save', 'managed.semantic.claim', 'managed.reconcile', 'managed.reconcile.undo'].includes(action)) {
         const sessions = await tx.selectFrom('sync_sessions').select('session_id').where('account_id', '=', actor.accountId)
           .where('credential_id', '=', actor.credentialId).where('credential_issuer', '=', actor.credentialIssuer)
           .where('status', '=', 'active').where('expires_at', '>', new Date()).orderBy('session_id').forShare().execute();
@@ -46,6 +48,27 @@ export function createPostgresSourceArchives(db: Kysely<DatabaseSchema>, testHoo
       const now = async () => Number((await sql<{ at: string }>`SELECT extract(epoch FROM clock_timestamp()) * 1000 AS at`.execute(tx)).rows[0]!.at);
       const start = await now();
       const run = async (): Promise<unknown> => {
+        if (action === 'managed.node') {
+          const input = object(body.input, ['collectionId', 'nodeId']), collectionId = text(input.collectionId);
+          await lockManagedLibrary(tx, actor.subjectId, collectionId);
+          return { node: await managedSavePorts(tx, actor.subjectId, actor.accountId).read(collectionId, text(input.nodeId)) };
+        }
+        if (action === 'managed.reconcile') {
+          const command = parseManagedReconcile(body.input); await assertReplica(tx, actor, command.replicaId, command.collectionId);
+          await lockManagedLibrary(tx, actor.subjectId, command.collectionId);
+          return reconcileManagedCopy(state.managed ??= { bindings: {}, receipts: {} }, command, managedReconcilePorts(tx, actor.subjectId, actor.accountId));
+        }
+        if (action === 'managed.reconcile.recover') {
+          const input = object(body.input, ['commandId', 'digest']), id = text(input.commandId), hash = digest(input.digest);
+          const receipt = state.managed?.edits && own(state.managed.edits, id);
+          if (receipt && receipt.digest !== hash) reject('source_command_reused'); return { receipt: receipt ?? null };
+        }
+        if (action === 'managed.reconcile.undo') {
+          const input = object(body.input, ['commandId', 'collectionId', 'replicaId', 'original']);
+          const command = { commandId: text(input.commandId), collectionId: text(input.collectionId), replicaId: text(input.replicaId), original: text(input.original) };
+          await assertReplica(tx, actor, command.replicaId, command.collectionId); await lockManagedLibrary(tx, actor.subjectId, command.collectionId);
+          return undoManagedReconcile(state.managed ??= { bindings: {}, receipts: {} }, command, managedReconcilePorts(tx, actor.subjectId, actor.accountId));
+        }
         if (action === 'managed.relocate') {
           const input = object(body.input, ['collectionId', 'slot', 'expected']), collectionId = text(input.collectionId);
           const expected = object(input.expected, ['nodeId', 'from', 'to', 'title', 'url', 'revision']);
@@ -56,10 +79,11 @@ export function createPostgresSourceArchives(db: Kysely<DatabaseSchema>, testHoo
             expected as unknown as Parameters<typeof relocateManagedCopy>[3], managedSavePorts(tx, actor.subjectId, actor.accountId)) };
         }
         if (action === 'managed.manual') {
-          const input = object(body.input, ['collectionId', 'slot', 'nodeId', 'state']), collectionId = text(input.collectionId);
+          const input = object(body.input, ['collectionId', 'slot', 'nodeId', 'state',
+            ...body.input && typeof body.input === 'object' && Object.hasOwn(body.input, 'revision') ? ['revision'] : []]), collectionId = text(input.collectionId);
           if (input.state !== 'detached' && input.state !== 'suppressed') reject('invalid_managed_copy', 422);
           await lockManagedLibrary(tx, actor.subjectId, collectionId);
-          return { binding: markManagedChange(state.managed ??= { bindings: {}, receipts: {} }, collectionId, parseManagedSlot(input.slot), text(input.nodeId), input.state) };
+          return { binding: markManagedChange(state.managed ??= { bindings: {}, receipts: {} }, collectionId, parseManagedSlot(input.slot), text(input.nodeId), input.state, input.revision === undefined ? 0 : integer(input.revision, 0)) };
         }
         if (action === 'managed.lookup' || action === 'managed.semantic.claim' || action === 'managed.semantic.release') {
           const bySlot = action === 'managed.lookup' && body.input && typeof body.input === 'object' && Object.hasOwn(body.input, 'slot');

@@ -3,11 +3,12 @@ export { sourceConnectionKey } from './site-registry.js';
 import { SourceArchiveError, object, text, integer, digest } from './codec.js';
 export { SourceArchiveError, object, text, integer, digest, sourceHash } from './codec.js';
 export * from './managed-copies.js';
+export * from './reconcile.js';
 export * from './managed-legacy.js';
 export const SOURCE_ARCHIVE_PATH = '/colp/v0.1/sync/source-archives';
 export const SOURCE_ARCHIVE_PROFILE = Object.freeze({
   sites: sourceSiteIdentities.map(s => ({ site: s.site, identityVersion: s.identityVersion })),
-  version: 1, sourceAdmission: 1, sourceFinalEffects: 1, sourceAuthorityLease: 1, managedCopies: 1, managedSemantic: 1,
+  version: 1, sourceAdmission: 1, sourceFinalEffects: 1, sourceAuthorityLease: 1, managedCopies: 1, managedSemantic: 1, managedReconcile: 1,
   classification: false, classificationDestinationPolicy: false, copies: ['sourceAndSemantic'], maxEdges: 20, leaseMs: 120_000,
 });
 export interface SourceArchiveActor { accountId: string; subjectId: string; credentialId: string; credentialIssuer: string }

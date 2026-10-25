@@ -14,12 +14,13 @@ export interface ManagedSaveCommand {
 }
 export interface ManagedNode { nodeId: string; parentId: string; title: string; url: string | null; revision: string; deleted?: boolean }
 export interface ManagedSaveReceipt {
+  controlRevision?: number;
   version: 1; commandId: string; digest: string; key: string; node: ManagedNode;
   disposition: 'created' | 'reused' | 'detached' | 'suppressed';
 }
-export interface ManagedBinding { slot: ManagedSlot; collectionId: string; node: ManagedNode; state: 'active' | 'detached' | 'suppressed' }
+export interface ManagedBinding { slot: ManagedSlot; collectionId: string; node: ManagedNode; state: 'active' | 'detached' | 'suppressed'; lifecycle?: 'current' | 'retired'; titleOverride?: boolean; controlRevision?: number }
 export interface SemanticClaim { ownerId: string | null; revision: number }
-export interface ManagedSaveState { bindings: Record<string, ManagedBinding>; receipts: Record<string, ManagedSaveReceipt>; semanticClaims?: Record<string, SemanticClaim> }
+export interface ManagedSaveState { bindings: Record<string, ManagedBinding>; receipts: Record<string, ManagedSaveReceipt>; semanticClaims?: Record<string, SemanticClaim>; edits?: Record<string, import('./reconcile.js').ManagedReconcileReceipt> }
 export interface ManagedSavePorts {
   /** Caller holds the authenticated session, account, replica and collection locks through commit. */
   assertTarget(command: ManagedSaveCommand): Promise<void>;
@@ -38,10 +39,12 @@ export function parseManagedSlot(raw: unknown): ManagedSlot {
   return slot as unknown as ManagedSlot;
 }
 /** Keep the canonical bookmark while opting out of reconstruction on every replica. */
-export function markManagedChange(state: ManagedSaveState, collectionId: string, slot: ManagedSlot, nodeId: string, status: 'detached' | 'suppressed') {
+export function markManagedChange(state: ManagedSaveState, collectionId: string, slot: ManagedSlot, nodeId: string, status: 'detached' | 'suppressed', revision = 0) {
   const key = managedSlotKey(collectionId, slot), binding = own(state.bindings, key);
   if (!binding || binding.node.nodeId !== nodeId) return fail('source_copy_adoption_conflict');
-  for (const [alias, value] of Object.entries(state.bindings)) if (value.collectionId === collectionId && value.node.nodeId === nodeId)
+  if ((binding.controlRevision ?? 0) !== revision && binding.state !== status) return fail('source_association_changed');
+  for (const [alias, value] of Object.entries(state.bindings)) if (value.collectionId === collectionId && value.node.nodeId === nodeId
+    && ((value.controlRevision ?? 0) <= revision || value.state === status))
     state.bindings[alias] = { ...value, state: value.state === 'suppressed' ? 'suppressed' : status };
   return state.bindings[key];
 }
@@ -114,7 +117,7 @@ export async function saveManagedCopy(state: ManagedSaveState, command: ManagedS
     return previous;
   }
   await ports.assertTarget(command);
-  const key = managedSlotKey(command.collectionId, command.slot), binding = own(state.bindings, key);
+  const key = managedSlotKey(command.collectionId, command.slot), binding = await observeManagedCopy(state, command.collectionId, command.slot, ports);
   const identity = command.slot.kind === 'folder' ? { site: command.slot.source.site, version: command.slot.source.identityVersion, account: command.slot.source.sourceAccount }
     : { site: command.slot.copy.content.site, version: command.slot.copy.content.identityVersion, account: command.slot.copy.purpose === 'sourceArchive' ? command.slot.copy.sourceAccount : command.slot.copy.content.accountId };
   if (!binding && Object.values(state.bindings).some(b => {
@@ -146,8 +149,8 @@ export async function saveManagedCopy(state: ManagedSaveState, command: ManagedS
       node = existing; disposition = 'reused';
     } else { node = await ports.create(command); disposition = 'created'; }
   }
-  const receipt: ManagedSaveReceipt = { version: 1, commandId: command.commandId, digest, key, node, disposition };
-  state.bindings[key] = { slot: command.slot, collectionId: command.collectionId, node,
+  const receipt: ManagedSaveReceipt = { version: 1, commandId: command.commandId, digest, key, node, disposition, controlRevision: binding?.controlRevision ?? 0 };
+  state.bindings[key] = { ...binding, slot: command.slot, collectionId: command.collectionId, node,
     state: disposition === 'suppressed' || disposition === 'detached' ? disposition : 'active' };
   state.receipts[command.commandId] = receipt;
   return receipt;
@@ -156,9 +159,10 @@ export async function saveManagedCopy(state: ManagedSaveState, command: ManagedS
 export async function observeManagedCopy(state: ManagedSaveState, collectionId: string, slot: ManagedSlot, ports: Pick<ManagedSavePorts, 'read'>): Promise<ManagedBinding | null> {
   const key = managedSlotKey(collectionId, slot), binding = own(state.bindings, key); if (!binding) return null;
   const node = await ports.read(collectionId, binding.node.nodeId);
+  const titleOnly = binding.state === 'active' && node && !node.deleted && node.parentId === binding.node.parentId && node.url === binding.node.url && node.title !== binding.node.title;
   const status = binding.state === 'suppressed' || !node || node.deleted ? 'suppressed'
-    : binding.state === 'detached' || node.parentId !== binding.node.parentId || node.title !== binding.node.title || node.url !== binding.node.url ? 'detached' : 'active';
-  const current = { ...binding, node: node ?? { ...binding.node, deleted: true }, state: status } satisfies ManagedBinding;
+    : binding.state === 'detached' || node.parentId !== binding.node.parentId || !titleOnly && node.title !== binding.node.title || node.url !== binding.node.url ? 'detached' : 'active';
+  const current = { ...binding, node: node ?? { ...binding.node, deleted: true }, state: status, ...(titleOnly ? { titleOverride: true } : {}) } satisfies ManagedBinding;
   state.bindings[key] = current; return current;
 }
 /** A provider call has no automatic timeout takeover: an uncertain result requires an explicit retry. */
