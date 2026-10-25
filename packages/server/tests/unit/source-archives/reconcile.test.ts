@@ -58,3 +58,25 @@ test('a late offline deletion cannot override a newer explicit restoration', asy
   markManagedChange(f.state, 'library', command.slot!, node.nodeId, 'suppressed', 1);
   await expect(undoManagedReconcile(f.state, { commandId: 'undo-late', collectionId: 'library', replicaId: 'replica', original: command.commandId }, f.ports)).rejects.toThrow('source_association_changed');
 });
+test.each(['forward', 'undo'] as const)('%s protects new canonical descendants even when their cached association location is stale', async direction => {
+  const folder = { ...node, url: null };
+  let current = folder;
+  const state: ManagedSaveState = { bindings: {}, receipts: {} };
+  const nodes = new Map<string, ManagedNode>();
+  const ports = {
+    read: async (_collection: string, id: string) => id === folder.nodeId ? current : nodes.get(id) ?? null,
+    mutate: vi.fn(async (c: ManagedReconcileCommand) => (current = { ...current, parentId: c.parentId, revision: `${current.revision}-next` })),
+  };
+  const move = { ...command, expected: folder, slot: null, retire: false };
+  if (direction === 'undo') await reconcileManagedCopy(state, move, ports);
+  const child = { ...node, nodeId: 'semantic-child', parentId: 'old-location' };
+  const semantic = { kind: 'bookmark' as const, copy: { purpose: 'semantic' as const, content: { site: 'fixture.posts', identityVersion: 1, itemId: 'post', accountId: null } } };
+  state.bindings[managedSlotKey('library', semantic)] = { collectionId: 'library', slot: semantic, node: child, state: 'active' };
+  nodes.set(child.nodeId, { ...child, parentId: 'nested' });
+  nodes.set('nested', { ...folder, nodeId: 'nested', parentId: folder.nodeId });
+  const action = direction === 'undo'
+    ? undoManagedReconcile(state, { commandId: 'undo-folder', collectionId: 'library', replicaId: 'replica', original: move.commandId }, ports)
+    : reconcileManagedCopy(state, move, ports);
+  await expect(action).rejects.toThrow('source_copy_protected');
+  expect(ports.mutate).toHaveBeenCalledTimes(direction === 'undo' ? 1 : 0);
+});

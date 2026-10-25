@@ -1,5 +1,6 @@
 import { object, text, sourceHash, SourceArchiveError } from './codec.js';
 import { parseManagedSlot, managedSlotKey, type ManagedNode, type ManagedSlot, type ManagedSaveState } from './managed-copies.js';
+import { assertManagedDescendants } from './reconcile-protection.js';
 export interface ManagedReconcileCommand {
   commandId: string; collectionId: string; replicaId: string; action: 'rename' | 'move' | 'restore' | 'unlink';
   expected: ManagedNode; slot: ManagedSlot | null; parentId: string; title: string; retire: boolean;
@@ -42,21 +43,7 @@ export async function reconcileManagedCopy(state: ManagedSaveState & ReconcileSt
   const aliases = Object.entries(state.bindings).filter(([, b]) => b.collectionId === command.collectionId && b.node.nodeId === command.expected.nodeId);
   const metadataOnly = command.action === 'unlink' || command.action === 'restore' && !command.expected.deleted && command.parentId === command.expected.parentId && command.title === command.expected.title;
   if (!metadataOnly && (aliases.some(([key]) => key !== role) || !role && aliases.length)) fail('source_copy_protected');
-  if (!metadataOnly && command.expected.url === null) {
-    const parents = new Map<string, string | null>();
-    for (const b of Object.values(state.bindings)) if (b.collectionId === command.collectionId && b.node.nodeId !== command.expected.nodeId) {
-      if (command.slot?.kind === 'folder' && b.slot.kind === 'bookmark' && b.slot.copy.purpose === 'sourceArchive'
-        && b.slot.copy.content.site === command.slot.source.site && b.slot.copy.content.identityVersion === command.slot.source.identityVersion
-        && b.slot.copy.sourceAccount === command.slot.source.sourceAccount && b.slot.copy.sourceCollectionId === command.slot.source.sourceCollectionId) continue;
-      let id: string | null = b.node.parentId; const seen = new Set<string>();
-      while (id) {
-        if (id === command.expected.nodeId) fail('source_copy_protected');
-        if (seen.has(id) || seen.size >= 256 || parents.size >= 10000) fail('source_capacity'); seen.add(id);
-        if (!parents.has(id)) parents.set(id, (await ports.read(command.collectionId, id))?.parentId ?? null);
-        id = parents.get(id) ?? null;
-      }
-    }
-  }
+  if (!metadataOnly && command.expected.url === null) await assertManagedDescendants(state, command.collectionId, command.expected.nodeId, command.slot, ports);
   const before = await ports.read(command.collectionId, command.expected.nodeId);
   if (!before || !same(before, command.expected) || before.deleted && command.action !== 'restore') return fail('source_reconcile_conflict');
   const after = metadataOnly ? before : await ports.mutate(command);
@@ -80,6 +67,7 @@ export async function undoManagedReconcile(state: ManagedSaveState & ReconcileSt
   if (role && ((state.bindings[role]?.controlRevision ?? 0) !== (original.controlRevision ?? 0) || state.bindings[role]?.state !== (original.afterState ?? 'active'))) fail('source_association_changed');
   const metadataOnly = same(original.before, original.after);
   if (!metadataOnly && aliases.some(([key]) => key !== role)) fail('source_copy_protected');
+  if (!metadataOnly && current.url === null) await assertManagedDescendants(state, input.collectionId, current.nodeId, original.slot, ports);
   const command: ManagedReconcileCommand = { ...input, action: 'move', expected: current, slot: original.slot,
     parentId: original.before.parentId, title: original.before.title, retire: false };
   const after = metadataOnly ? current : await ports.mutate(command, !!original.before.deleted);
