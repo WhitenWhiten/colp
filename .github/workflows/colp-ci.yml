@@ -51,6 +51,7 @@ jobs:
               - 'packages/extension/**'
               - 'deploy/**'
               - '.github/workflows/colp-server-image.yml'
+              - '.github/workflows/colp-extension-release.yml'
               - 'scripts/**'
               - 'protocol/**'
               - '.github/workflows/colp-ci.yml'

@@ -1,11 +1,15 @@
 # Changelog
 
-All notable changes to the Know-N browser extension are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The extension has its own version, separate from COLP Server and `@know-n/colp`; `package.json` and `manifest.base.json` carry it, and an `extension-vX.Y.Z` tag publishes a release with the store zip.
+All notable changes to the Know-N browser extension are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The extension has its own version, separate from COLP Server and `@know-n/colp`; `package.json` and the display version in `manifest.base.json` carry it. An `extension-vX.Y.Z` or `extension-vX.Y.Z-rc.N` tag publishes a GitHub release with the extension ZIP.
 
 ## [Unreleased]
 
+## [0.1.0-rc.1] - 2026-10-24
+
 
 ### Added
+
+- First GitHub pre-release alongside COLP Server 0.1.0-rc.11, including the current local-first bookmark manager, sync recovery and reusable site adapters. Site adapters capture, read back and manage source archives through capability-based workflows and private server receipts.
 
 - The extension tells the server's Sync center how its sync stands: syncing, degraded (some items set aside), stopped (with the reason code) or paused. It reports after every sync pass when something changed and at least every 15 minutes (every 5 while something needs attention), through `POST /colp/v0.1/sync/replica-health`. A stopped engine still reports, and the report is the only request it makes: it needs no Sync Session and renews nothing. While paused it names no bookmarks; after a deliberate disconnect it reports nothing. A server without the route is asked again after six hours.
 - The Sync center can fix a browser from the server. Each report says what the browser can do now: Retry for a stop a manual wake may end, Reset sync while the replica is frozen (the same check as the extension's own Reset button), and Try again for a save held for its own placement or identity, which goes through every placement and identity check again. The extension runs a command from the report response only if the report it answers still offers it, never runs one twice (it keeps every command it has seen), and reports the result in its next report; a command it saw but never finished is reported as interrupted. After a reset from the server, the old replica's last report says so (`replica_rebuilt`) and carries the result; the browser then asks for setup as after a local reset.
@@ -20,6 +24,9 @@ All notable changes to the Know-N browser extension are documented here. The for
 - The list of bookmarks not included in sync shows an example for addresses and titles that cannot be synced: its title, or its host when it has none, never the full address.
 
 ### Changed
+
+- GitHub CD accepts RC tags, checks the full display version against the package and changelog, builds and scans the production ZIP, and marks RC releases as pre-releases without moving latest. This RC uses numeric Chrome version `0.1.0.1` and display version `0.1.0-rc.1`; install it unpacked from the GitHub ZIP. The final release reserves numeric revision 65535 so it upgrades every RC.
+- The extension uses the published `@know-n/colp` 0.3.0 release.
 
 - The source moved from the private Know-N repository into `packages/extension` of the COLP repository. It builds from this repository alone: Know-N's design tokens, styles, icon paths and wordmark are copied into `design/`, the capture metrics into `src/capture/statistics.ts`, and the API types come from `packages/server`. Browser tests run against COLP Server by default.
 - `npm run package` builds, scans and zips the production extension; `.github/workflows/colp-extension-release.yml` attaches that zip to a GitHub release for each `extension-v*` tag.

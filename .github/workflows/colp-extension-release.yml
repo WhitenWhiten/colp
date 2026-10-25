@@ -1,7 +1,7 @@
 name: colp-extension-release
 
-# Tag pushes only (extension-vX.Y.Z). The extension has its own version: the tag
-# must match packages/extension/package.json, manifest.base.json and a section of
+# Tag pushes only (extension-vX.Y.Z or extension-vX.Y.Z-rc.N). The extension has its own version: the tag
+# must match packages/extension/package.json, the manifest display version and a section of
 # packages/extension/CHANGELOG.md. The job builds and scans the production
 # extension and attaches the store zip to a GitHub release. Uploading that zip to
 # the Chrome Web Store is a manual step.
@@ -38,13 +38,21 @@ jobs:
         run: |
           node packages/extension/scripts/check-release-tag.mjs "$RELEASE_TAG" > "$RUNNER_TEMP/changelog-section.md"
           test -s "$RUNNER_TEMP/changelog-section.md"
-          echo "version=${RELEASE_TAG#extension-v}" >> "$GITHUB_OUTPUT"
+          version="${RELEASE_TAG#extension-v}"
+          prerelease=false
+          if [[ "$version" == *-* ]]; then prerelease=true; fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
 
       - name: Frozen extension install
         run: npm ci
         working-directory: packages/extension
       - name: Rebuild allowlisted esbuild
         run: test ! -d node_modules/esbuild || npm rebuild esbuild --ignore-scripts=false
+        working-directory: packages/extension
+
+      - name: Check release tooling
+        run: npm exec vitest run -- tests/release-tooling.test.ts
         working-directory: packages/extension
 
       - name: Build, scan and zip the production extension
@@ -59,7 +67,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
           EXTENSION_VERSION: ${{ steps.release.outputs.version }}
+          EXTENSION_PRERELEASE: ${{ steps.release.outputs.prerelease }}
         run: |
+          prerelease=()
+          if [[ "$EXTENSION_PRERELEASE" == true ]]; then prerelease=(--prerelease --latest=false); fi
           gh release create "$RELEASE_TAG" "packages/extension/dist/known-extension-${EXTENSION_VERSION}.zip" \
+            "${prerelease[@]}" --verify-tag \
             --title "Know-N for Chrome ${EXTENSION_VERSION}" \
             --notes-file "$RUNNER_TEMP/changelog-section.md"

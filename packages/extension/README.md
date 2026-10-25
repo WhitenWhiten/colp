@@ -124,10 +124,16 @@ the extension ID, which `manifest.base.json` fixes through its `key`. For a cust
 
 ## Releases
 
-The extension has its own version, in `package.json` and `manifest.base.json` (they must match), and its own
-[CHANGELOG](CHANGELOG.md). Pushing a tag `extension-vX.Y.Z` runs `.github/workflows/colp-extension-release.yml`:
+The extension has its own SemVer in `package.json` and its own [CHANGELOG](CHANGELOG.md).
+`manifest.base.json` uses numeric `X.Y.Z.N` for an RC (N is 1–65534) and `version_name` set to the full
+`X.Y.Z-rc.N`, matching `package.json`. The final release uses `X.Y.Z.65535` and `version_name: X.Y.Z`
+so Chrome upgrades it after every RC; stable versions without preceding RCs may also use plain `X.Y.Z`.
+Pushing a tag `extension-vX.Y.Z` or `extension-vX.Y.Z-rc.N`
+runs `.github/workflows/colp-extension-release.yml`:
 it checks the versions and the CHANGELOG section, builds and scans the production extension, and attaches the
-zip to a GitHub release. Upload that zip to the Chrome Web Store by hand.
+zip to a GitHub release. RC tags create pre-releases without moving the latest release.
+RCs are distributed through GitHub for unpacked installation. Upload stable release zips to the Chrome
+Web Store by hand.
 
 ## Checks
 

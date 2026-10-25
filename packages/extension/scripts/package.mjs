@@ -5,15 +5,14 @@ import { execFile } from 'node:child_process';
 import { readdir, readFile, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
+import { checkReleaseVersion } from './release-version.mjs';
 
 const run = promisify(execFile);
 const root = resolve(import.meta.dirname, '..');
 const dist = resolve(root, 'dist/production');
 const { version } = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
 const manifest = JSON.parse(await readFile(resolve(root, 'manifest.base.json'), 'utf8'));
-if (manifest.version !== version) {
-  throw new Error(`package.json ${version} and manifest.base.json ${manifest.version} must match`);
-}
+checkReleaseVersion(version, manifest);
 
 await run(process.execPath, [resolve(root, 'scripts/build.mjs'), 'production'], { cwd: root });
 await run(process.execPath, [resolve(root, 'scripts/verify-release-artifact.mjs'), dist], { cwd: root });

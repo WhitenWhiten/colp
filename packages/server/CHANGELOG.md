@@ -4,7 +4,15 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+## [0.1.0-rc.11] - 2026-10-24
+
+### Added
+
+- Private source archives support durable capture receipts, device leases, namespaced cloud authority and site identity registration. Startup applies migration `202611020600_source_archives`.
+
 ### Changed
+
+- Server, web app and browser extension use the published `@know-n/colp` 0.3.0 release. The browser extension is published alongside this server as `0.1.0-rc.1`.
 
 - `SYNC_SNAPSHOT_MAX_BYTES` no longer defaults to 2 MiB. Unset, the server applies no aggregate Snapshot size limit; negotiated per-page budgets still bound every response. With the old default, libraries above roughly 5,000 bookmarks could not complete a first sync, a recovery or a reset. Operators who want a limit set it explicitly (1 to 16,777,216 bytes of summed node JSON); an updated extension then names that limit instead of offering a reset.
 
@@ -13,6 +21,13 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 - A Pull page ends before a subtree deletion whose member pages would not fit the session's effect budget. Several large deletions no longer share one page, and a deletion above a raised `KNOW_N_MAX_DELETE_SUBTREE_NODES` goes to Snapshot recovery instead of freezing the browser on `pull_page_invalid`.
 - Replica health reports keep ordinary bookmark titles such as "OAuth 2.0 Authorization Code Flow" or "Secret Santa 2026", which the Sync center showed as "A bookmark in your library". Credentials are recognised by their shape instead (userinfo in an address, secret query parameters, bearer values, JWTs, well-known key prefixes), which also drops some that got through before.
 - The Sync center explains every stop code and failed request in plain words, with the code in brackets only when it has no words of its own. It says how long a browser has been in its state, recognises a deliberate disconnect, a stall found by the extension's watchdog and a clock that is off, warns from 150 open items, and waits 45 minutes instead of 15 before calling a browser's report stale.
+
+### Upgrade notes
+
+From 0.1.0-rc.10, back up the database, update the checkout and deployment files
+from this tag, set `COLP_IMAGE_TAG=0.1.0-rc.11`, and recreate the server.
+Startup applies `202611020600_source_archives`. The image includes the web app;
+install the `extension-v0.1.0-rc.1` ZIP separately for the current sync and site-adapter changes.
 
 ## [0.1.0-rc.10] - 2026-10-24
 
