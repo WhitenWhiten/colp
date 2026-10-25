@@ -21,6 +21,9 @@ test('sync callbacks and same-parent reordering preserve ownership while actual 
     expect(await db.read('representations', representationKey(representation))).toMatchObject({ state: 'active', manualRevision: 0 });
     nodes.set('bookmark', { ...nodes.get('bookmark')!, title: 'My title' });
     await layout.nativeChanged(['bookmark'], false);
+    expect(await db.read('representations', representationKey(representation))).toMatchObject({ state: 'active', localTitle: 'My title', manualRevision: 0 });
+    nodes.set('bookmark', { ...nodes.get('bookmark')!, url: 'https://other.test/' });
+    await layout.nativeChanged(['bookmark'], false);
     expect(await db.read('representations', representationKey(representation))).toMatchObject({ state: 'detached', manualRevision: 1 });
     await layout.nativeChanged(['bookmark'], true);
     expect(await db.read('representations', representationKey(representation))).toMatchObject({ state: 'suppressed', manualRevision: 2 });

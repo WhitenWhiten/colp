@@ -461,6 +461,22 @@ export function createBookmarkAnnotationStore(options: { readonly indexedDB?: ID
       };
     });
   }
+  /** Explicit same-resource restoration; never select another bookmark's metadata by URL. */
+  async function rebindExact(original: AnnotatedBookmark, bookmark: AnnotatedBookmark) {
+    if (original.id === bookmark.id) return;
+    await transaction('readwrite', (table, result) => {
+      result(undefined); const request = table.get(original.id);
+      request.onsuccess = () => {
+        const row = request.result as BookmarkAnnotation | undefined;
+        if (!row || row.dateAdded !== original.dateAdded || row.url !== original.url || row.url !== bookmark.url) return;
+        const next = table.get(bookmark.id); next.onsuccess = () => {
+          if (next.result) return; const { removedAt: _removedAt, ...retained } = row;
+          table.put({ ...row, removedAt: row.removedAt ?? now() });
+          table.put({ ...retained, nativeId: bookmark.id, dateAdded: bookmark.dateAdded, title: bookmark.title ?? row.title, updatedAt: now() });
+        };
+      };
+    });
+  }
   const pruneRemoved = () => transaction('readwrite', (table, result) => {
     result(undefined); const request = table.openCursor(); request.onsuccess = () => {
       const cursor = request.result; if (!cursor) return;
@@ -489,7 +505,7 @@ export function createBookmarkAnnotationStore(options: { readonly indexedDB?: ID
   }
 
   return Object.freeze({ get, getMany, save, setPinned, observePinsMany, markPinAttempt, observeTags, observeTagsMany, markTagsAttempt, observeNote, observeNotesMany, prepareNote, finishNote, resolveNoteConflict, markNoteChecked,
-    remove: (nativeId: string) => removeMany([nativeId]), removeMany, list, tagCounts, search, releaseBindings, restoreRemoved, pruneRemoved,
+    remove: (nativeId: string) => removeMany([nativeId]), removeMany, list, tagCounts, search, releaseBindings, restoreRemoved, rebindExact, pruneRemoved,
     close() { void opening?.then(db => db.close()).catch(() => undefined); opening = undefined; } });
 }
 export type BookmarkAnnotationStore = ReturnType<typeof createBookmarkAnnotationStore>;

@@ -96,7 +96,7 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
     const node = await ports.lookup(folder.native.nativeId);
     // Local edits own the folder; source renames never overwrite its creation receipt.
     if (!node || node.url || node.dateAdded !== folder.native.dateAdded || node.title !== (folder.nativeTitle ?? folder.title)
-      || folder.parent.kind !== 'native' || node.parentId !== folder.parent.binding.nativeId) throw new Error('folderManuallyChanged');
+      || folder.parent.kind !== 'native' || node.parentId !== (folder.locationOverride?.nativeId ?? folder.parent.binding.nativeId)) throw new Error('folderManuallyChanged');
   }
   async function evaluate(edge: SiteRuleEdge, item: SiteItem) {
     const flat = await ports.rules();
@@ -160,13 +160,19 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
           const folder = await db.read<SourceFolderReservation>('folderReservations', sourceKey(m.id, input.collectionId));
           if (folder?.native && node?.parentId !== folder.native.nativeId) throw new Error('copyPolicyMigrationRequired');
         }
+        if (existing.state === 'active' && node?.dateAdded === existing.native.dateAdded && node.parentId === existing.lastWritten?.parentId
+          && sameNativeContentValue('url', node.url, existing.lastWritten?.url ?? facts.item.url) && node.title !== (existing.localTitle ?? existing.lastWritten?.title)) {
+          await db.transaction(['representations'], 'readwrite', async tx => put(tx, 'representations', representationKey(existing), { ...existing, localTitle: node.title }));
+          return { status: 'represented', representation: { ...existing, localTitle: node.title } } as const;
+        }
         if (existing.state === 'active' && (!node || node.dateAdded !== existing.native.dateAdded || !sameNativeContentValue('url', node.url, existing.lastWritten?.url ?? facts.item.url)
-          || existing.lastWritten && (node.title !== existing.lastWritten.title || node.parentId !== existing.lastWritten.parentId))) {
+          || existing.lastWritten && (node.title !== (existing.localTitle ?? existing.lastWritten.title) || node.parentId !== existing.lastWritten.parentId))) {
           await reservations.manualChange(representation, node && node.dateAdded === existing.native.dateAdded ? 'detached' : 'suppressed');
           return { status: 'suppressed', representation: await db.read<Representation>('representations', representationKey(representation)) } as const;
         }
         return { status: existing.state === 'active' ? 'represented' : 'suppressed', representation: existing } as const;
       }
+      if (await db.read('meta', sourceKey('reconcileKeep', m.id, input.collectionId, input.itemId))) return { status: 'policySkipped' } as const;
       const copy = await ports.sourceCopies?.({ connectionId: c.connectionId, itemId: input.itemId, policy: settings.policy, representation });
       if (copy?.status === 'dependency') throw new Error('sourceDependencyPending');
       if (copy?.status === 'reuse') return { status: 'represented', representation: copy.representation } as const;
@@ -252,6 +258,10 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
       await db.transaction(['representations', 'folderReservations', 'mounts', 'contentBindings', 'meta'], 'readwrite', async tx => {
         const bindings = await cursorPage<import('./content-bindings.js').ContentBindingRow>(tx.objectStore('contentBindings'), null, 100001);
         for (const b of bindings) if (b.native && ids.has(b.native.nativeId) && !unchanged(b.native, b.title, b.parentId, b.url)) {
+          const node = observed.get(b.native.nativeId);
+          if (!deleted && node?.dateAdded === b.native.dateAdded && node.parentId === b.parentId && sameNativeContentValue('url', node.url, b.url)) {
+            put(tx, 'contentBindings', contentBindingKey(b.content, b.id), { ...b, title: node.title }); continue;
+          }
           await queueManagedChange(tx, b.shared, deleted ? 'suppressed' : 'detached');
           put(tx, 'contentBindings', contentBindingKey(b.content, b.id), { ...b, state: deleted ? 'suppressed' : 'detached' });
         }
@@ -261,12 +271,22 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
             if ('rootRuleId' in row) {
               if (deleted && ids.has(row.root.nativeId)) put(tx, store, keyForMount(row.connectionId, row.rootRuleId), { ...row, state: 'suppressed' });
             } else if ('manualRevision' in row) {
+              const node = observed.get(row.native.nativeId);
+              if (!deleted && ids.has(row.native.nativeId) && row.lastWritten && node?.dateAdded === row.native.dateAdded && node.parentId === row.lastWritten.parentId
+                && sameNativeContentValue('url', node.url, row.lastWritten.url)) {
+                if (node.title !== (row.localTitle ?? row.lastWritten.title)) put(tx, store, representationKey(row), { ...row, localTitle: node.title });
+                continue;
+              }
               if (ids.has(row.native.nativeId) && (!row.lastWritten || !unchanged(row.native, row.lastWritten.title, row.lastWritten.parentId, row.lastWritten.url))) {
                 await queueManagedChange(tx, row.shared, deleted ? 'suppressed' : 'detached');
                 put(tx, store, representationKey(row), { ...row, state: deleted ? 'suppressed' : 'detached', manualRevision: row.manualRevision + 1 });
               }
             } else if (row.native && ids.has(row.native.nativeId) && (row.parent.kind !== 'native'
-              || !unchanged(row.native, row.nativeTitle ?? row.title, row.parent.binding.nativeId))) {
+              || !unchanged(row.native, row.nativeTitle ?? row.title, row.locationOverride?.nativeId ?? row.parent.binding.nativeId))) {
+              const node = observed.get(row.native.nativeId);
+              if (!deleted && node?.dateAdded === row.native.dateAdded && row.parent.kind === 'native' && node.parentId === (row.locationOverride?.nativeId ?? row.parent.binding.nativeId)) {
+                put(tx, store, sourceKey(row.mountId, row.collectionId), { ...row, nativeTitle: node.title }); continue;
+              }
               await queueManagedChange(tx, row.shared, deleted ? 'suppressed' : 'detached');
               put(tx, store, sourceKey(row.mountId, row.collectionId), { ...row, state: 'blocked' });
             }

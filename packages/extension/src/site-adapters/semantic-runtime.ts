@@ -28,8 +28,9 @@ import { classificationDocument } from '../classification-intent.js';
 import { classificationDestinationPolicy } from '../sw/classification-destination.js';
 import { assertSourceRebound, assertRestoredItemAvailable } from './portable.js';
 import { cursorPage } from '../sync-state/idb.js';
+import { managedDestinations } from './managed-destinations.js';
 const schedule = () => { chrome.alarms.create(SITE_RECOVERY_ALARM, { when: Date.now() + 30000 }); };
-async function mounts() { return siteLedger.db.transaction(['mounts'], 'readonly', tx => cursorPage<SourceMount>(tx.objectStore('mounts'), null, 10001)); }
+async function mounts() { return managedDestinations(siteLedger.db); }
 export async function assertSemanticDestination(binding: NativeBinding<'folder'>, digest?: string) {
   await assertSourceRoot(binding);
   const roots = new Set((await mounts()).map(m => m.root.nativeId));
@@ -85,7 +86,7 @@ export const semanticJobs = createSemanticJobs(siteLedger.db, {
         if (!projection) return { status: 'waiting' };
         if (projection.native.kind !== 'bookmark' || shared.node.url === null) throw new Error('sourceSyncInvalid');
         return { status: 'saved', native: projection.native as NativeBinding<'bookmark'>,
-          shared: { library: context.library, slot: shared.slot, nodeId: shared.node.nodeId },
+          shared: { library: context.library, slot: shared.slot, nodeId: shared.node.nodeId, controlRevision: shared.controlRevision ?? 0 },
           written: { title: shared.node.title, parentId: projection.parentId, url: shared.node.url } };
       }
     }

@@ -35,7 +35,9 @@ export function flushManagedChanges(): Promise<void> {
     const client = await managedClientForLibrary(library);
     for (const { key, value } of entries) {
       const { reference, state } = value;
-      await client.call('managed.manual', { collectionId: library.collectionId, slot: reference.slot, nodeId: reference.nodeId, state });
+      try { await client.call('managed.manual', { collectionId: library.collectionId, slot: reference.slot, nodeId: reference.nodeId, state, revision: reference.controlRevision ?? 0 }); }
+      catch (e) { if (!(e instanceof Error) || e.message !== 'source_association_changed') throw e;
+        await siteLedger.db.transaction(['meta'], 'readwrite', async tx => { tx.objectStore('meta').put({ reference, state, reason: e.message }, `reconcileConflict:${reference.nodeId}`); }); }
       await forget(key, value);
     }
     const sync = await currentSyncScope();

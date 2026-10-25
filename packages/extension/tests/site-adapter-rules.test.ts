@@ -157,7 +157,7 @@ describe('deterministic layout and native ownership', () => {
       policy: { revision: 2, copies: 'sourceAndSemantic', backgroundClassification: 'disabled', sourceRemoval: 'retainArchive' } });
     await expect(f.layout.authorize(p, p.effects[0]!)).rejects.toThrow('sourceAutomationPaused'); await f.db.close();
   });
-  it('preserves a confirmed folder through source rename, and stops at a local rename or move', async () => {
+  it('preserves a confirmed folder through source and local renames, and stops at a local move', async () => {
     const f = await fixture(), p = await f.plan();
     const key = sourceKey(p.mount!.id, '101'), old = (await f.db.read<SourceFolderReservation>('folderReservations', key))!;
     const native: NativeBinding<'folder'> = { kind: 'folder', bindingId: 'folder', nativeId: 'folder', deviceId: 'device', dateAdded: 20, proof: { kind: 'writeReceipt', id: old.commandId } };
@@ -168,6 +168,9 @@ describe('deterministic layout and native ownership', () => {
     f.nodes.get('folder')!.title = 'User title';
     await expect(f.layout.authorize(next, next.effects[0]!)).rejects.toThrow('folderManuallyChanged');
     await f.layout.nativeChanged(['folder'], false);
+    expect(await f.db.read('folderReservations', key)).toMatchObject({ state: 'confirmed', native, nativeTitle: 'User title' });
+    await f.layout.authorize(next, next.effects[0]!);
+    f.nodes.get('folder')!.parentId = 'other-parent'; await f.layout.nativeChanged(['folder'], false);
     expect(await f.db.read('folderReservations', key)).toMatchObject({ state: 'blocked', native }); await f.db.close();
   });
   it('retains suppression after deletion instead of recreating a source copy', async () => {

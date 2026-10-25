@@ -15,8 +15,16 @@ let clock = 1_000;
 const stores: ReturnType<typeof createBookmarkAnnotationStore>[] = [];
 const open = () => { const store = createBookmarkAnnotationStore({ indexedDB: factory, now: () => ++clock }); stores.push(store); return store; };
 const bookmark = { id: '10', dateAdded: 100, url: 'https://example.org/a' };
-beforeEach(() => { factory = new IDBFactory(); vi.stubGlobal('indexedDB', factory); });
+beforeEach(() => { clock = 1000; factory = new IDBFactory(); vi.stubGlobal('indexedDB', factory); });
 afterEach(() => { for (const store of stores.splice(0)) store.close(); vi.unstubAllGlobals(); });
+test('explicit restoration rebinds only the proven old bookmark and preserves its metadata', async () => {
+  const store = open(), restored = { ...bookmark, id: 'restored', dateAdded: 200 };
+  await store.save(bookmark, { tags: ['mine'], note: 'keep this note' }); await store.setPinned(bookmark, true);
+  await store.rebindExact({ ...bookmark, dateAdded: 999 }, restored);
+  expect(await store.get(restored)).toBeNull();
+  await store.rebindExact(bookmark, restored);
+  expect(await store.get(restored)).toMatchObject({ tags: ['mine'], note: 'keep this note', pinned: true, nativeId: 'restored', dateAdded: 200 });
+});
 
 test('tags are trimmed, de-hashed, split on commas, deduplicated by case and capped', () => {
   expect(normalizeAnnotationTags(['  #Reading  list ', 'reading LIST', '', '  ', '#', 'a,b', 'A', 'x\ty'])).toEqual(['Reading list', 'a', 'b', 'x y']);

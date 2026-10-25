@@ -6,7 +6,7 @@ export async function managedReference(tx: IDBTransaction, managed?: ManagedDest
   if (!managed) return;
   const receipt = await get<ManagedSaveReceipt>(tx, 'meta', `managedReceipt:${managedLibraryKey(managed.library)}:${managed.command.commandId}`);
   if (!receipt) throw new Error('sourceSyncPending');
-  return { library: managed.library, slot: managed.command.slot, nodeId: receipt.node.nodeId };
+  return { library: managed.library, slot: managed.command.slot, nodeId: receipt.node.nodeId, controlRevision: receipt.controlRevision ?? 0 };
 }
 export async function queueManagedChange(tx: IDBTransaction, reference: ManagedReference | undefined, state: 'detached' | 'suppressed') {
   if (!reference) return;

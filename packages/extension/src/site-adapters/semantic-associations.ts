@@ -121,7 +121,7 @@ export async function importSharedSemantic(identity: ContentIdentity, scope: Cap
   if (projected.native.kind !== 'bookmark' || binding.node.url === null) throw new Error('sourceSyncInvalid');
   await assertCaptureScope(scope);
   await attachSemanticAssociation({ identity, scopeId, id, connections: connectionIds, native: projected.native as NativeBinding<'bookmark'>,
-    shared: { library, slot: binding.slot, nodeId: binding.node.nodeId },
+    shared: { library, slot: binding.slot, nodeId: binding.node.nodeId, controlRevision: binding.controlRevision ?? 0 },
     written: { title: binding.node.title, parentId: projected.parentId, url: binding.node.url } });
   return binding;
 }

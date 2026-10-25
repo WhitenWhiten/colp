@@ -465,6 +465,7 @@ export interface RepresentationKey {
 
 /** Source content identity does not depend on an installation or a URL lookup. */
 export interface Representation extends RepresentationKey {
+  localTitle?: string;
   shared?: import('./managed-client.js').ManagedReference;
   /** Retain the proven historical identity even when a node was deleted. */
   native: NativeBinding<'bookmark'>;
@@ -479,6 +480,7 @@ export type TargetFolder =
 
 /** Unique (mountId, collectionId); shared across items, tabs, imports and plans. */
 export interface SourceFolderReservation {
+  locationOverride?: NativeBinding<'folder'>;
   shared?: import('./managed-client.js').ManagedReference;
   id: Id;
   mountId: Id;
