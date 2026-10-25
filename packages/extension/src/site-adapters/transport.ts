@@ -89,8 +89,11 @@ export function createSiteTransport(deps: TransportDeps, definition: SiteDefinit
         return { status: 'unavailable', reason: 'sourceUnresolved' };
       }
       s.leases = s.leases.filter(l => l.expiresAt > deps.now());
-      let lease = s.leases.find(l => l.documentId === sender.documentId && l.url === currentUrl && l.generation === s.generation);
+      let lease = s.leases.find(l => l.documentId === sender.documentId && l.url === currentUrl && l.generation === s.generation
+        && l.expiresAt > deps.now() + LIMITS.commandMs + 1000);
       if (!lease) {
+        // A verified renewal must give a full command window and retire the old capability.
+        s.leases = s.leases.filter(l => l.documentId !== sender.documentId);
         if (s.leases.length >= 32) return { status: 'unavailable', reason: 'disabled' };
         lease = { id: deps.random(), capability: deps.random(), tabId: sender.tab.id, documentId: sender.documentId,
           url: currentUrl, routeEpoch: s.routes[String(sender.tab.id)] ?? 0, generation: s.generation, sourceGeneration: s.sourceGeneration,

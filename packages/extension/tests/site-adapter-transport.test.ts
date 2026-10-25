@@ -11,7 +11,7 @@ function harness() {
   const hello = { protocolVersion: 1, operation: 'hello', runtime: 'bundled', activationId: 'activation-1', adapterId: 'bundled.bilibili', source: { state: 'signedIn', accountId: '42' } };
   const ready = async () => { await transport.configure(true); await transport.bootstrap(hello, sender); await transport.confirm('42');
     const lease = await transport.bootstrap(hello, sender); if (lease.status !== 'ready') throw Error('not ready'); return lease; };
-  return { transport, deps, sender, hello, ready, state: () => state, expired: () => { now += 61000; }, revoke: () => { permitted = false; }, stale: () => { current = false; } };
+  return { transport, deps, sender, hello, ready, state: () => state, advance: (ms: number) => { now += ms; }, expired: () => { now += 61000; }, revoke: () => { permitted = false; }, stale: () => { current = false; } };
 }
 test('strict browser sender scope rejects frames, spoofed origins, inactive and incognito documents', () => {
   const h = harness(); expect(validSiteSender(h.sender, 'ext')).toBe(true);
@@ -28,6 +28,13 @@ test('new account needs explicit connection; one lease per generation and docume
   await h.transport.bootstrap({ ...h.hello, source: { state: 'signedIn', accountId: '43' } }, h.sender);
   expect(await h.transport.authorize(m, h.sender)).toBeNull();
   await expect(h.transport.confirm('42')).rejects.toThrow('sourceUnresolved');
+});
+test('renewal before expiry rotates the old capability and provides another complete read window', async () => {
+  const h = harness(), original = await h.ready(); h.advance(35000);
+  const renewed = await h.transport.bootstrap(h.hello, h.sender); expect(renewed.status).toBe('ready'); if (renewed.status !== 'ready') throw Error('not ready');
+  expect(renewed.leaseId).not.toBe(original.leaseId); expect(renewed.expiresAt).toBeGreaterThan(original.expiresAt);
+  expect(await h.transport.authorize({ ...envelope, operation: 'connect', leaseId: original.leaseId, capability: original.capability }, h.sender)).toBeNull();
+  expect(await h.transport.authorize({ ...envelope, operation: 'connect', leaseId: renewed.leaseId, capability: renewed.capability }, h.sender)).not.toBeNull();
 });
 test.each(['navigate', 'disable', 'expire', 'permission', 'document', 'signedOut'] as const)('%s fences old replies', async kind => {
   const h = harness(), l = await h.ready();
