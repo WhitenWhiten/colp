@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import type { AgentConnectCopy } from '../../api/agentsClient'
 import { CommandBlock } from '../../components/CommandBlock'
+import { Icon } from '../../components/Icon'
 import { TabList } from '../../components/TabList'
 
 export type ConnectClient = 'claude' | 'codex' | 'other' | 'key' | 'worker'
@@ -136,7 +137,7 @@ export function ConnectGuide({
                 becomes a worker on its own the first time it talks to this server; there is no pairing code.
               </p>
               <details className="agents-example">
-                <summary>Client asks for a client ID?</summary>
+                <summary><Icon name="chevron-right" className="agents-example-chevron" />Client asks for a client ID?</summary>
                 <p className="agents-note">
                   Register one. Put the callback address the client shows in place of <code>REDIRECT_URI</code>,
                   then paste the <code>client_id</code> it returns and leave the secret empty.
@@ -197,7 +198,7 @@ export function ConnectGuide({
             </p>
             {keyPanel}
             <details className="agents-example">
-              <summary>Show a curl example</summary>
+              <summary><Icon name="chevron-right" className="agents-example-chevron" />Show a curl example</summary>
               <CommandBlock label="curl example" command={connect.curl} />
             </details>
           </div>

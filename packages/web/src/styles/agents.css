@@ -363,12 +363,38 @@
   color: var(--warning);
 }
 
+/* The page's disclosures read as the rest of the product's: a muted
+   chevron that turns, ink text, no browser marker, never link blue. */
 .agents-example > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   width: fit-content;
-  color: var(--accent-ink);
+  color: var(--ink-2);
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
+  list-style: none;
   cursor: pointer;
+}
+
+.agents-example > summary::-webkit-details-marker {
+  display: none;
+}
+
+.agents-example > summary:hover {
+  color: var(--ink);
+}
+
+.agents-example-chevron {
+  flex: none;
+  width: 0.9rem;
+  height: 0.9rem;
+  color: var(--muted);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.agents-example[open] > summary .agents-example-chevron {
+  transform: rotate(90deg);
 }
 
 .agents-example[open] {

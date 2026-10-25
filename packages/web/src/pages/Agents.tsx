@@ -408,7 +408,7 @@ export function Agents({
 
           {isLoggedIn && automationsOn && (
             <details className="agents-section agents-example">
-              <summary>Developer automation connections</summary>
+              <summary><Icon name="chevron-right" className="agents-example-chevron" />Developer automation connections</summary>
               <p className="agents-note">For summaries and tags, <Link to="/automations/new">connect an AI while creating a rule</Link>.</p>
               <AutomationWorkersSection
               workers={workers}
