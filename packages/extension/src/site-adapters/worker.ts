@@ -168,19 +168,19 @@ function createSiteHost(definition: SiteDefinition) {
     chrome.alarms.create(recoveryAlarm, { when: at });
     workTimer = setTimeout(() => { workAt = Infinity; workTimer = undefined; void wakeSourceWork().catch(() => undefined); }, Math.max(50, at - Date.now()));
   }
-  async function currentSiteSource(tabId?: number, origin?: import('./ledger-types.js').SourceContext) {
-    const s = await read(), lease = selectReadLease(definition, s.leases, id => ports.has(id), Date.now(), origin, tabId);
+  async function currentSiteSource(tabId?: number, origin?: import('./ledger-types.js').SourceContext, readScope = definition.readScope) {
+    const s = await read(), lease = selectReadLease({ readScope }, s.leases, id => ports.has(id), Date.now(), origin, tabId);
     return lease ? { context: await sourceContext(lease, siteLedger), expiresAt: lease.expiresAt } : null;
   }
   const sendSiteCommand = (c: import('./ledger-types.js').SourceContext, command: HostCommand) => {
     const port = ports.get(c.leaseId); if (!port) throw new Error('pageUnavailable'); port.postMessage(command);
   };
   let renewingLease: string | undefined;
-  async function readableSiteSource(tabId?: number, origin?: import('./ledger-types.js').SourceContext) {
-    const source = await currentSiteSource(tabId, origin);
+  async function readableSiteSource(tabId?: number, origin?: import('./ledger-types.js').SourceContext, readScope = definition.readScope) {
+    const source = await currentSiteSource(tabId, origin, readScope);
     if (!source) {
       const state = await read();
-      const expired = selectReadLease(definition, state.leases.filter(l => l.generation === state.generation && l.sourceGeneration === state.sourceGeneration
+      const expired = selectReadLease({ readScope }, state.leases.filter(l => l.generation === state.generation && l.sourceGeneration === state.sourceGeneration
         && l.accountId === state.accountId), id => ports.has(id), -Infinity, origin, tabId);
       if (state.enabled && !state.candidateAccount && expired && renewingLease !== expired.id) {
         renewingLease = expired.id; const port = ports.get(expired.id); port?.postMessage({ operation: 'renewLease', leaseId: expired.id });
@@ -207,7 +207,8 @@ function createSiteHost(definition: SiteDefinition) {
   }
   const confirmations = createConfirmationQueue(siteLedger, reads, { activity, source: origin => readableSiteSource(undefined, origin), send: sendSiteCommand, alarm: scheduleSourceWork,
     authorizeOrigin: async (context, collectionIds) => { if (context.communityOrigin) await assertCommunityArchive(context.communityOrigin, { connectionId: context.connectionId, collectionIds }); } });
-  const archives = createSourceArchiveRuntime(reads, { activity, source: managementSource, readSource: origin => readableSiteSource(undefined, origin), send: sendSiteCommand, alarm: scheduleSourceWork,
+  // Import cursors belong to one document, even when individual account reads allow another tab.
+  const archives = createSourceArchiveRuntime(reads, { activity, source: managementSource, readSource: origin => readableSiteSource(undefined, origin, 'document'), send: sendSiteCommand, alarm: scheduleSourceWork,
     reconciliation: { valid: validReconcileRequest, handle: handleReconcileRequest, status: reconciliationRuns.status, view: reconciliationRuns.view, cancel: reconciliationRuns.cancel },
     scope: currentCaptureScope,
     prioritizeLive: () => confirmations.wake(),
@@ -448,7 +449,7 @@ function createSiteHost(definition: SiteDefinition) {
     const navigated = (d: chrome.webNavigation.CommitDetails) => {
       if (d.frameId !== 0) return;
       if (definition.adapterId === legacySite.adapterId) void community.navigated(d.tabId).catch(() => undefined);
-      void siteTransport.navigate(d.tabId, d.url).then(async relevant => {
+      void siteTransport.navigate(d.tabId, d.url, d.documentId).then(async relevant => {
         if (!relevant) return;
         await siteLedger.revokeDocuments(d.tabId);
         for (const [id, p] of ports) if (p.sender?.tab?.id === d.tabId) {

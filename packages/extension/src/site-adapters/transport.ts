@@ -47,10 +47,12 @@ export function createSiteTransport(deps: TransportDeps, definition: SiteDefinit
       await deps.write(s);
     }),
     /** Only matching enabled pages or tabs already owned by this installation need navigation work. */
-    navigate: (tabId: number, url: string) => serial(async () => {
+    navigate: (tabId: number, url: string, documentId?: string) => serial(async () => {
       const s = await deps.read(), matching = s.enabled && matchesSiteUrl(definition, url);
       const tracked = Object.hasOwn(s.routes, String(tabId)) || s.leases.some(l => l.tabId === tabId);
       if (!tracked) return matching;
+      // Sites may replace history state without changing the document or URL.
+      if (documentId && s.leases.some(l => l.tabId === tabId && l.documentId === documentId && l.url === url)) return false;
       s.leases = s.leases.filter(l => l.tabId !== tabId);
       if (matching) s.routes[String(tabId)] = (s.routes[String(tabId)] ?? 0) + 1;
       else delete s.routes[String(tabId)];

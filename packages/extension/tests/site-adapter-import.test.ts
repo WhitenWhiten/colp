@@ -52,7 +52,7 @@ async function fixture(copies: import('../src/site-adapters/contracts.js').SaveP
   };
   const executor = createPlannedSaveExecutor(db, execution), sent: HostCommand[] = [];
   const activity = createSiteActivity(storage, legacySite, { extensionVersion: 'test' });
-  const ports = { activity, source: async () => ({ context, expiresAt: time + 60000 }), send: (_: SourceContext, command: HostCommand) => { sent.push(command); },
+  const ports = { activity, source: async (): Promise<{ context: SourceContext; expiresAt: number } | null> => ({ context, expiresAt: time + 60000 }), send: (_: SourceContext, command: HostCommand) => { sent.push(command); },
     prioritizeLive: async () => {}, snapshot: async () => ({ browserRules: { storageVersion: 3 as const, listRevision: record.revision, contentVersions: {} }, policyRevision: 1 }),
     execute: (p: string, e: string) => executor.execute(p, e), alarm: (_: number) => {} };
   const scheduler = () => createReadScheduler(storage, 'queue');
@@ -69,10 +69,10 @@ async function fixture(copies: import('../src/site-adapters/contracts.js').SaveP
     nextCursor: null, consistency: 'bestEffort', coverage: partial ? 'partial' : 'complete', ...(partial ? { omissions: [{ id: 'video:av:99', reason: 'invalid' }] } : {}) } });
   async function scan(partial = false) { const id = await importer.start(['101', '102']); await page(catalog); const b = await page(items('101')); await page(items('102', '2', partial)); return { id, b }; }
   async function freeze(id: string) { await importer.freeze(id); await importer.wake(); const status = await importer.status(); expect(status?.phase).toBe('preview'); return status!.preview!; }
-  return { db, ledger, layout, importer, create, executor, execution, activity, context: () => context, counts, nodes, sent, page, catalog, items, scan, freeze,
+  return { db, ledger, layout, importer, create, executor, execution, activity, ports, context: () => context, counts, nodes, sent, page, catalog, items, scan, freeze,
     changeRules: () => { record = { ...record, revision: record.revision + 1 }; },
     setRuleEnabled: (enabled: boolean) => { record = { ...record, revision: record.revision + 1, entries: [{ kind: 'rule', rule: { ...rule, enabled } }] }; },
-    renew: async () => { context = { ...context, documentId: 'new-doc', leaseId: 'new-lease' }; await ledger.bindLease(context, time + 10000000); },
+    renew: async (patch: Partial<SourceContext> = { documentId: 'new-doc' }) => { context = { ...context, leaseId: 'new-lease', ...patch }; await ledger.bindLease(context, time + 10000000); },
     advance: (ms = 2000) => { time += ms; } };
 }
 test('scan, page acknowledgment and a frozen partial preview authorize zero native writes; exact approval executes only covered effects', async () => {
@@ -124,6 +124,37 @@ test('restart-and-deduplicate repeats discovery with new requests, preserves acc
   expect((await f.importer.status())?.edgeCount).toBe(2);
   expect((await f.importer.accept(f.context(), b))?.status).toBe('rejected');
   const p = await f.freeze(id); expect(p.counts.createBookmarks).toBe(2); expect(f.counts.bookmark).toBe(0); await f.db.close();
+});
+test('temporary lease renewal preserves a document-local cursor and accepted progress without pausing', async () => {
+  const f = await fixture(); try {
+    await f.importer.start(['101']); await f.page(f.catalog);
+    const first = f.items('101'); if (first.status !== 'ok' || first.kind !== 'items') throw new Error('items');
+    const previous = await f.page({ ...first, page: { ...first.page, nextCursor: 'document-cursor' } });
+    vi.spyOn(f.ports, 'source').mockResolvedValueOnce(null);
+    f.advance(); await f.importer.wake();
+    expect(await f.importer.status()).toMatchObject({ phase: 'scanning', reason: 'reconnectingSource', edgeCount: 1, cursor: 'document-cursor' });
+    await f.renew({}); f.advance(); await f.importer.wake();
+    expect(f.sent.at(-1)).toMatchObject({ operation: 'readPage', leaseId: 'new-lease', query: { kind: 'items', collectionId: '101', cursor: 'document-cursor' } });
+    expect(await f.importer.status()).toMatchObject({ phase: 'scanning', reason: null, edgeCount: 1 });
+    await f.page(f.items('101', '2')); await f.importer.wake();
+    expect(await f.importer.status()).toMatchObject({ phase: 'preview', edgeCount: 2, preview: { counts: { createBookmarks: 2 } } });
+    expect((await f.importer.accept(f.context(), previous))?.status).toBe('rejected');
+    expect((await f.activity.list()).filter(event => event.kind === 'problem')).toEqual([]);
+    expect(f.counts).toEqual({ folder: 0, bookmark: 0 });
+  } finally { await f.db.close(); }
+});
+test('an unavailable import document pauses after the bounded reconnection window and preserves accepted progress', async () => {
+  const f = await fixture(); try {
+    await f.importer.start(['101']); await f.page(f.catalog);
+    const first = f.items('101'); if (first.status !== 'ok' || first.kind !== 'items') throw new Error('items');
+    await f.page({ ...first, page: { ...first.page, nextCursor: 'document-cursor' } });
+    vi.spyOn(f.ports, 'source').mockResolvedValue(null);
+    f.advance(); await f.importer.wake();
+    expect(await f.importer.status()).toMatchObject({ phase: 'scanning', reason: 'reconnectingSource' });
+    f.advance(30001); await f.importer.wake();
+    expect(await f.importer.status()).toMatchObject({ phase: 'paused', reason: 'pageUnavailable', edgeCount: 1, cursor: 'document-cursor' });
+    expect(f.counts).toEqual({ folder: 0, bookmark: 0 });
+  } finally { await f.db.close(); }
 });
 test('cancellation fences approved work and late pages cannot revive a frozen or cancelled campaign', async () => {
   const f = await fixture(), { id, b } = await f.scan(), p = await f.freeze(id);

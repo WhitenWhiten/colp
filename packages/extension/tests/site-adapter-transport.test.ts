@@ -71,3 +71,16 @@ test('startup prunes old route leaks and preserves active tab epochs and leases'
   expect(await h.transport.pruneTabs([1])).toEqual([999]); expect(h.state().routes).toEqual({ '1': 0 }); expect(h.state().leases).toHaveLength(1);
   await h.transport.pruneTabs([]); expect(h.state().routes).toEqual({}); expect(h.state().leases).toHaveLength(0);
 });
+
+test('history updates retaining the document and URL keep the lease; changed routes and reloads fence it', async () => {
+  const h = harness(), lease = await h.ready(), write = vi.spyOn(h.deps, 'write');
+  const message = { ...envelope, leaseId: lease.leaseId, capability: lease.capability, operation: 'connect' };
+  expect(await h.transport.navigate(1, h.sender.url!, h.sender.documentId)).toBe(false);
+  expect(write).not.toHaveBeenCalled(); expect(h.state().routes['1']).toBe(0);
+  expect(await h.transport.authorize(message, h.sender)).not.toBeNull();
+  expect(await h.transport.navigate(1, h.sender.url!, 'reloaded-document')).toBe(true);
+  expect(await h.transport.authorize(message, h.sender)).toBeNull();
+  await h.transport.bootstrap(h.hello, h.sender);
+  expect(await h.transport.navigate(1, `${h.sender.url}?route=changed`, h.sender.documentId)).toBe(true);
+  expect(h.state().leases).toHaveLength(0); expect(h.state().routes['1']).toBe(2);
+});

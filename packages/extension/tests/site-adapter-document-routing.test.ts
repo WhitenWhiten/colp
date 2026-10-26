@@ -67,6 +67,18 @@ test('missing origin pauses boundedly instead of reading another document; accou
     const other = await fixture(db, new MemoryStorageArea(), shared); await other.enqueue(); other.removeOrigin(); await other.queue.wake(); expect(other.sent[0]?.context.tabId).toBe(1);
   } finally { await db.close(); }
 });
+test('document-local import cursors wait for their renewed lease while account reads can use another tab', () => {
+  const origin: SourceContext = { connectionId: 'connection', installationGeneration: 1, sourceSessionGeneration: 1,
+    tabId: 1, documentId: 'origin', routeEpoch: 0, leaseId: 'old' };
+  const lease: Lease = { id: 'old', capability: 'private', tabId: 1, documentId: 'origin', routeEpoch: 0,
+    url: postsDefinition.origin, generation: 1, sourceGeneration: 1, accountId: 'acct:reader', expiresAt: 60000 };
+  const other = { ...lease, id: 'other', tabId: 2, documentId: 'other' }, renewed = { ...lease, id: 'renewed', expiresAt: 90000 };
+  const available = [other, lease];
+  expect(selectReadLease({ readScope: 'account' }, available, id => id !== 'old', 30000, origin)).toBe(other);
+  expect(selectReadLease({ readScope: 'document' }, available, id => id !== 'old', 30000, origin)).toBeUndefined();
+  expect(selectReadLease({ readScope: 'document' }, [other, renewed], () => true, 30000, origin)).toBe(renewed);
+  expect(selectReadLease({ readScope: 'document' }, [other, { ...renewed, routeEpoch: 1 }], () => true, 30000, origin)).toBeUndefined();
+});
 test('two site queues and DOM readers run in parallel with identical account/item/request IDs without sharing facts or pauses', async () => {
   const db = createSourceDatabase(new IDBFactory()), storage = new MemoryStorageArea(); try {
     const second: SiteDefinition = { ...postsDefinition, adapterId: 'fixture.other', siteKey: 'other', origin: 'https://other.example', matches: ['https://other.example/*'],
