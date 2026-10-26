@@ -22,7 +22,7 @@ test('planned native commands survive worker cuts or expose unknown without repl
     `--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`,
   ] });
   let modelCalls = 0;
-  const cuts: { point: string; resumedStatus: string; folders: number; bookmarks: number }[] = [];
+  const cuts: { point: string; commandId: string; resumedStatus: string; folders: number; bookmarks: number }[] = [];
   try {
     await context.route('https://provider.test/**', route => { modelCalls++; return route.fulfill({ status: 500, body: '{}' }); });
     await context.route('https://www.bilibili.com/**', route => route.fulfill({ contentType: 'text/html', body: '<title>Controlled source</title>' }));
@@ -57,7 +57,8 @@ test('planned native commands survive worker cuts or expose unknown without repl
       const folders = await page.evaluate(id => chrome.bookmarks.getChildren(id), root.id); expect(folders).toHaveLength(1);
       const bookmarks = await page.evaluate(id => chrome.bookmarks.getChildren(id), folders[0]!.id);
       expect(bookmarks).toHaveLength(bookmarkFault ? 1 : 0);
-      cuts.push({ point, resumedStatus: resumed.status, folders: folders.length, bookmarks: bookmarks.length });
+      cuts.push({ point, commandId: bookmarkFault ? prepared.bookmarkCommandId : prepared.folderCommandId,
+        resumedStatus: resumed.status, folders: folders.length, bookmarks: bookmarks.length });
       if (point === 'beforeNativeSubmit') {
         expect(await call(page, { operation: 'execute', planId: prepared.planId, effectId: 'bookmark' })).toMatchObject({ status: 'confirmed' });
         expect(await page.evaluate(id => chrome.bookmarks.getChildren(id), folders[0]!.id)).toHaveLength(1);
@@ -71,19 +72,26 @@ test('planned native commands survive worker cuts or expose unknown without repl
     const layoutFolders = await page.evaluate(id => chrome.bookmarks.getChildren(id), layoutRoot.id);
     expect(layoutFolders).toHaveLength(1);
     const later = await call<{ planId: string }>(page, { operation: 'layout', rootNativeId: layoutRoot.id, scenario: 'later' });
-    await page.evaluate(id => chrome.bookmarks.update(id, { title: 'User renamed source folder' }), layoutFolders[0]!.id);
+    // Local renames preserve the association; moving the folder stops pending writes.
+    await page.evaluate(({ id, parentId }) => chrome.bookmarks.move(id, { parentId }),
+      { id: layoutFolders[0]!.id, parentId: layoutRoot.parentId! });
     // The shared folder command may acknowledge its old receipt; it issues no mutation.
     expect(await call(page, { operation: 'execute', planId: later.planId, effectId: 'folder' })).toMatchObject({ status: 'confirmed' });
     const stopped = await call<any>(page, { operation: 'execute', planId: later.planId, effectId: 'bookmark' });
     expect(stopped.status).toBe('blocked');
     expect(['folderManuallyChanged', 'folderNeedsReview']).toContain(stopped.reason);
     expect(await page.evaluate(id => chrome.bookmarks.getChildren(id), layoutFolders[0]!.id)).toHaveLength(1);
+    expect(await page.evaluate(id => chrome.bookmarks.getChildren(id), layoutRoot.id)).toHaveLength(0);
     expect(modelCalls).toBe(0);
     await page.locator('#tab-recovery').click(); await page.locator('#repair-status').click();
     await expect(page.locator('#repair-summary')).toContainText('replacement creates are blocked');
-    await expect(page.locator('#repair-summary')).toContainText('"state": "unknown"');
+    const repair = JSON.parse((await page.locator('#repair-summary').textContent())!);
+    // A worker cut leaves the durable outbox submitted even when native recovery reports unknown.
+    expect(repair.attention).toEqual(expect.arrayContaining(cuts.filter(cut => cut.resumedStatus === 'unknown').map(cut =>
+      expect.objectContaining({ store: 'outbox', key: cut.commandId, state: expect.stringMatching(/^(submitted|unknown)$/),
+        reason: 'Recover the original command; replacement creates are blocked.' }))));
     await test.info().attach('source-planned-acceptance.json', { body: Buffer.from(JSON.stringify({ schemaVersion: 1, observedAt: new Date().toISOString(),
       browser: await page.evaluate(() => navigator.userAgent), browserVersion: context.browser()?.version(), workerTermination: 'CDP Target.closeTarget', sourceWorld: 'ISOLATED', cuts, modelCalls,
-      automaticSaving: true, tagMode: 'add', ruleLayout: { createdFolders: 1, createdBookmarks: 1, localRenameStopsPending: stopped.status }, fixture: true, realSite: false }, null, 2)), contentType: 'application/json' });
+      automaticSaving: true, tagMode: 'add', ruleLayout: { createdFolders: 1, createdBookmarks: 1, localMoveStopsPending: stopped.status }, fixture: true, realSite: false }, null, 2)), contentType: 'application/json' });
   } finally { await context.close(); await rm(profile, { recursive: true, force: true }); }
 });

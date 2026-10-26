@@ -46,6 +46,8 @@ vi.mock('../src/sw/capture-sync.js', () => ({ reconcileCaptureSync: vi.fn() }));
 vi.mock('../src/sw/capture-result-recovery.js', () => ({ inspectCaptureDecision: vi.fn(), applyCaptureSuggestion: vi.fn() }));
 vi.mock('../src/sw/capture-remove.js', () => ({ cancelRemovedCapture: vi.fn() }));
 vi.mock('../src/classification-product-client.js', () => ({ createClassificationProductClient: vi.fn() }));
+// Planned source saves have their own runtime tests; these cases exercise ordinary pre-save rules.
+vi.mock('../src/site-adapters/planned-runtime.js', () => ({ executePlannedSave: async () => { throw new Error('unexpected planned save'); } }));
 
 import { captureStore, startCapture, wakeCaptures } from '../src/sw/capture.js';
 
