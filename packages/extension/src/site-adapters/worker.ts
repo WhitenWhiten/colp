@@ -1,5 +1,5 @@
 import { selectReadLease } from './read-source.js';
-import { siteFeatures } from './capabilities.js';
+import { siteFeatures, reconciliationCapability } from './capabilities.js';
 import { reconcileBundledScripts } from './browser-registration.js';
 import { matchesSiteUrl } from './registry-validation.js';
 import { createCloudRuntime } from './cloud-runtime.js';
@@ -355,7 +355,7 @@ function createSiteHost(definition: SiteDefinition) {
         const writes = !archiveHold && browserSupport().supported && siteStatus.enabled && siteStatus.connected && archiveState.config?.state === 'active' && await chrome.permissions.contains({ permissions: ['bookmarks'] });
         return { ...siteStatus, browser: browserSupport(), grants: { site: await chrome.permissions.contains(grants), bookmarks: await chrome.permissions.contains({ permissions: ['bookmarks'] }) },
           mode: writes ? 'localArchive' : 'inspector', writes, archiveHold, archive: archiveState, catalog: await catalogStatus(), ...(archiveResult ? { archiveResult } : {}), adapterId: definition.adapterId, features: siteFeatures(definition), capabilities: { itemIdentity: `${definition.siteKey}:${definition.identityVersion}`, observation: siteFeatures(definition).observe ? 'sourceObservations' : 'unavailable', humanActionProof: 'unavailable',
-          negativeMembership: definition.negativeReadback ? 'available' : 'unavailable', shortLinks: 'unavailable', collectionChanges: siteFeatures(definition).collections ? 'explicitCatalogRead' : siteFeatures(definition).observe ? 'observedCatalog' : 'unavailable', nativeWrites: archiveState.config?.state === 'active' ? 'previewApprovalOrEnabledLivePolicy' : 'unavailable' },
+          negativeMembership: definition.negativeReadback ? 'available' : 'unavailable', reconciliation: reconciliationCapability(definition), collectionHierarchy: 'flat', shortLinks: 'unavailable', collectionChanges: siteFeatures(definition).collections ? 'explicitCatalogRead' : siteFeatures(definition).observe ? 'observedCatalog' : 'unavailable', nativeWrites: archiveState.config?.state === 'active' ? 'previewApprovalOrEnabledLivePolicy' : 'unavailable' },
         confirmations: await confirmations.status(), ...(inspectionStatus ? { inspectionStatus } : {}), inspection: (await chrome.storage.local.get(INSPECTION))[INSPECTION] ?? null };
       })().then(respond, e => respond({ error: e instanceof Error ? e.message : 'unavailable' })); return true;
     });

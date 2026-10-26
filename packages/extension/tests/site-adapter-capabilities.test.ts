@@ -9,7 +9,7 @@ import { createSourceLedger } from '../src/site-adapters/ledger.js';
 import { createSourceLayout } from '../src/site-adapters/layout.js';
 import { createSourceArchiveRuntime } from '../src/site-adapters/archive-runtime.js';
 import { observedCatalog } from '../src/site-adapters/observed-catalog.js';
-import { siteFeatures } from '../src/site-adapters/capabilities.js';
+import { siteFeatures, reconciliationCapability } from '../src/site-adapters/capabilities.js';
 import { renderSiteCapabilities } from '../src/site-adapters/settings-capabilities.js';
 import { validateSiteDefinitions, validateAdapterImplementation } from '../src/site-adapters/registry-validation.js';
 import { createReadScheduler } from '../src/site-adapters/read-scheduler.js';
@@ -86,4 +86,10 @@ test.each([observer, { ...observer, capabilities: ['enumerateCollections', 'enum
   if (!f.import) { expect(document.querySelector<HTMLButtonElement>('#start-import')!.disabled).toBe(true); renderSiteCapabilities(document, definition, true);
     expect(document.querySelector<HTMLElement>('[aria-labelledby="sites-import-heading"]')!.hidden).toBe(false); }
   expect(document.querySelector('#capability-summary')!.textContent).not.toContain('Positive observation only');
+});
+
+test('rechecking capability distinguishes positive reads from qualified absence', () => {
+  expect(reconciliationCapability({ negativeReadback: false, collectionSnapshot: 'positiveOnly' })).toBe('positiveOnly');
+  expect(reconciliationCapability({ negativeReadback: true })).toBe('scopedAbsence');
+  expect(reconciliationCapability({ negativeReadback: false, collectionSnapshot: 'pointInTime' })).toBe('snapshotAbsence');
 });

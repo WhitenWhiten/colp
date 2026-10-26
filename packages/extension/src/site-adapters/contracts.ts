@@ -418,15 +418,19 @@ export interface MountBinding {
   aiDestination: 'excluded' | 'allowed';
 }
 
-export interface SavePolicy {
+export interface SourceArchiveSavePolicy {
   revision: number;
   copies: 'sourceAndSemantic' | 'singlePreferSemantic' | 'singleKeepExisting';
   primarySourceCollectionId?: Id;
-  /** No model call on site events/import/reconcile in phase one. */
+  /** Legacy wire name: disables classification of the sourceArchive effect only.
+   * Independent semantic jobs require SourcePolicyRecord.semantic authorization. */
   backgroundClassification: 'disabled';
   /** A source archive is not a destructive mirror. */
   sourceRemoval: 'retainArchive';
 }
+
+/** Compatibility name for archived commands and adapter SDK consumers. */
+export type SavePolicy = SourceArchiveSavePolicy;
 
 /** Device-local identity; backups cannot execute or adopt these IDs on restore. */
 export interface NativeBinding<Kind extends 'bookmark' | 'folder' = 'bookmark' | 'folder'> {
@@ -565,7 +569,7 @@ export type PlanTrigger =
   | { kind: 'import'; importRunId: Id; previewId: Id }
   | { kind: 'semanticSave'; captureIntentId: Id };
 
-/** A plan for a source-linked intent; ordinary captures keep their own contract. */
+/** Source archive execution uses this contract. Independent semantic work uses SemanticJob; ordinary captures keep their own contract. */
 export interface SavePlan {
   communityOrigin?: import('./community-state.js').CommunityOrigin;
   id: Id;

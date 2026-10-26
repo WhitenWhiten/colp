@@ -129,6 +129,7 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
       }); });
     },
     async configure(record: SourcePolicyRecord) {
+      if (record.semantic === 'automatic' && record.policy.copies !== 'sourceAndSemantic') throw new Error('semanticRequiresTwoCopies');
       if (!Number.isSafeInteger(record.policy.revision) || record.policy.revision < 1 || record.policy.backgroundClassification !== 'disabled'
         || record.policy.sourceRemoval !== 'retainArchive' || !['sourceAndSemantic', 'singlePreferSemantic', 'singleKeepExisting'].includes(record.policy.copies)) throw new Error('invalidPolicy');
       await db.transaction(['meta'], 'readwrite', async tx => {

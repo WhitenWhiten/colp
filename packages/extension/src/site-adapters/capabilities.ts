@@ -7,3 +7,9 @@ export function siteFeatures(definition: Pick<SiteDefinition, 'capabilities'>) {
     import: collections && items, liveArchive: observe, archive: observe || collections && items };
 }
 export type SiteFeatures = ReturnType<typeof siteFeatures>;
+
+/** Rechecking is not mirroring: negative authority must be qualified independently. */
+export function reconciliationCapability(definition: Pick<SiteDefinition, 'collectionSnapshot' | 'negativeReadback'>) {
+  return definition.collectionSnapshot === 'pointInTime' ? 'snapshotAbsence' as const
+    : definition.negativeReadback ? 'scopedAbsence' as const : 'positiveOnly' as const;
+}

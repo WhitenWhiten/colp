@@ -205,3 +205,14 @@ it('a second rule cannot create a competing mapping in the same destination scop
     await expect(f.plan()).rejects.toThrow('sourceMappingMigrationRequired');
   } finally { await f.db.close(); }
 });
+
+it('source archive classification and automatic semantic authorization are independent', async () => {
+  const f = await fixture();
+  try {
+    const record = { connectionId: 'connection', enabled: true, liveArchive: true, semantic: 'automatic' as const,
+      policy: { revision: 2, copies: 'singleKeepExisting' as const, backgroundClassification: 'disabled' as const, sourceRemoval: 'retainArchive' as const } };
+    await expect(f.layout.configure(record)).rejects.toThrow('semanticRequiresTwoCopies');
+    await expect(f.layout.configure({ ...record, policy: { ...record.policy, copies: 'sourceAndSemantic' } })).resolves.toBeUndefined();
+    expect((await f.plan()).classification).toBe('disabled');
+  } finally { await f.db.close(); }
+});

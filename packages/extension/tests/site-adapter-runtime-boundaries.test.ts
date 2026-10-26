@@ -49,3 +49,9 @@ test('a registered script ID does not hide stale origin grants or bundle paths a
   expect(sameScriptRegistration({ ...desired, js: ['old.js'] }, desired)).toBe(false);
   expect(sameScriptRegistration({ ...desired, world: 'MAIN' }, desired)).toBe(false);
 });
+
+test('registration rejects unsupported collection models before starting a reader', () => {
+  expect(() => validateSiteDefinitions([{ ...legacySite, collectionHierarchy: 'tree' as never }])).toThrow('unsupportedCollectionHierarchy');
+  expect(() => validateSiteDefinitions([{ ...legacySite, membershipModel: 'orderedEntries' as never }])).toThrow('unsupportedMembershipModel');
+  expect(() => validateSiteDefinitions([{ ...legacySite, capabilities: ['observeFavorites'], collectionSnapshot: 'pointInTime' }])).toThrow('unsupportedSnapshotCapability');
+});

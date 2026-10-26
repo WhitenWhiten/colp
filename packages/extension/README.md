@@ -169,7 +169,7 @@ English and Simplified Chinese. Copy lives at the call site; `npm run i18n:write
 
 - [docs/engineering-notes.md](docs/engineering-notes.md): sync engine, storage and CI notes.
 - [docs/ui-design.md](docs/ui-design.md): layout and component rules.
-- [Site adapter design](docs/site-adapters/README.md): proposed website favorites integration with browser rules and classification.
+- [Site adapter foundation](docs/site-adapters/runtime-foundation.md): implemented website favorites integration, copy identities, independent semantic saving, reconciliation and adapter qualification.
 - Other notes under [docs/](docs/).
 
 ## License

@@ -72,7 +72,7 @@ The server advertises supported identities in `profile.sites`. New identities mu
 1. Normalize source labels with `siteDisplayTitle` (nonblank, no C0 controls, at most 512 UTF-16 units; truncation preserves surrogate pairs). Titles are display values, never identity. Implement the bounded `SiteAdapter` in a site-local directory, with a canonical identity codec and validated message semantics.
 2. Register its audited `SiteDefinition` and page factory. Add a classic build entry only if the site needs a separate entry/probe bundle. The current shared page bundle may compose multiple factories.
 3. Declare only implemented/qualified capabilities, exact origins/paths, read budgets and resume behavior. The settings, ledger, import, native planner and semantic binding code need no site-specific branches.
-4. If cloud support is desired, register the corresponding audited server identity codec and qualify that capability separately. Community support likewise requires an explicit registered network/identity profile.
+4. Normal saves into synced folders use generic managed-copy coordination and need no site-specific backend codec. Qualify that shared path and its negotiated copy-policy capability. Only the legacy cloud archive profile requires a matching audited server identity codec. Community support separately requires a registered network/identity profile.
 5. Run focused contract/lifecycle/import/recovery checks with sanitized fixtures; apply real-site gates only with appropriate authorization.
 
 The remediation and exact validation commands are recorded in [foundation evidence](evidence/foundation-remediation.json). No X or YouTube adapter was added.
@@ -131,3 +131,26 @@ The test-only DOM reader now reads account, item and membership attributes from 
 Rechecking collections computes source membership differences independently of native order, pins and user annotations. Only a host-qualified contiguous point-in-time traversal can infer absence; best-effort EOF, omissions, changed snapshots and incomplete reads retain positive facts but grant no cleanup authority. Unassociated matching bookmarks are review candidates, never automatically adopted or merged across copy purposes. Personal and protected entries remain separate. Suppressed copies require explicit restoration. Reconciliation previews freeze identities, current native proof and allowed choices before any native mutation.
 
 The execution and UI are implemented in the shared foundation. See [Rechecking website collections](reconciliation.md) for decisions, boundaries, resumable commands, cross-device receipts and historical undo. Reconciliation metadata uses the existing schema-4 store; recovery diagnostics recognize that schema. Background execution uses a small durable queue and paged history summaries, keeping retained previews out of routine wake scans.
+
+
+## Explicit v1 capability boundaries
+
+`SourceArchiveSavePolicy.backgroundClassification` is a retained wire name for
+source archive effects only. It does not disable independent semantic work.
+Automatic semantic creation is separately authorized by `SourcePolicyRecord.semantic`
+and is accepted only with `sourceAndSemantic`; configuration rejects contradictory
+settings rather than silently leaving jobs inactive. Semantic jobs retain their own
+provider attempts, destination checks and retries.
+
+New definitions declare `collectionHierarchy: 'flat'` and `membershipModel: 'set'`; omitted legacy declarations retain those v1 limits.
+Tree layouts and repeated entries require a separately implemented host capability;
+registration rejects unsupported declarations. `reconciliationCapability` distinguishes
+positive-only rechecking, scoped membership absence and qualified snapshot absence.
+Bilibili explicitly declares positive-only rechecking: additions can be repaired,
+but unverified removals remain retained exceptions, not evidence of an empty source.
+Do not describe this behavior as a destructive mirror or bidirectional site sync.
+
+Shared saves negotiate `managedCopyPolicy: 1` before submitting single-copy commands.
+The server arbitrates source and semantic roles within a library atomically. A shared
+reuse receipt preserves keep-existing behavior or permits the explicitly requested
+semantic reclassification; it cannot silently initiate another classification.

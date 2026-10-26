@@ -13,6 +13,8 @@ export interface SiteDefinition {
   collectionSnapshot?: 'positiveOnly' | 'pointInTime';
   /** Entry lists allowing repeated content require a separately qualified host implementation. */
   membershipModel?: 'set';
+  /** v1 layout supports proven roots only. Tree collections need a qualified host layout. */
+  collectionHierarchy?: 'flat';
   readPolicy?: Partial<import('./read-policy.js').SiteReadPolicy>;
   community?: { connectOrigins: readonly string[] };
   importResume: 'stableCursor' | 'restartAndDeduplicate';
