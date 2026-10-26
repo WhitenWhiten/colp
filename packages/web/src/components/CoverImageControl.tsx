@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { isProductApiError, productClient, type CoverMode, type CoverPreferenceView } from '../api'
 import { previewCover } from '../lib/linkPreview'
+import { Icon } from './Icon'
 
 const MAX_BYTES = 2 * 1024 * 1024
 const ACCEPT = 'image/png,image/jpeg,image/webp'
@@ -14,7 +15,7 @@ type Operation = {
 }
 
 /** Immediate cover mutations keep both command identities when the user retries. */
-export function CoverImageControl({ collectionId, nodeId, kind, mode, revision, image, disabled, onSaved }: {
+export function CoverImageControl({ collectionId, nodeId, kind, mode, revision, image, disabled, onSaved, onSuccess }: {
   collectionId: string
   nodeId: string
   kind: 'bookmark' | 'folder'
@@ -23,6 +24,7 @@ export function CoverImageControl({ collectionId, nodeId, kind, mode, revision, 
   image: unknown
   disabled: boolean
   onSaved: () => Promise<void>
+  onSuccess?: () => void
 }) {
   const inputId = useId()
   const [busy, setBusy] = useState(false)
@@ -31,6 +33,7 @@ export function CoverImageControl({ collectionId, nodeId, kind, mode, revision, 
   const [saved, setSaved] = useState<CoverPreferenceView | null>(null)
   const [failedUrl, setFailedUrl] = useState<string | null>(null)
   const operation = useRef<Operation | null>(null)
+  const fileInput = useRef<HTMLInputElement>(null)
   const mounted = useRef(false)
   useEffect(() => {
     mounted.current = true
@@ -57,7 +60,8 @@ export function CoverImageControl({ collectionId, nodeId, kind, mode, revision, 
       if (!mounted.current) return
       setSaved(result)
       operation.current = null
-      setNotice('Cover updated')
+      setNotice('')
+      onSuccess?.()
       await onSaved().catch(() => {
         if (mounted.current) setNotice('Cover updated. Refresh the page to update the gallery.')
       })
@@ -70,7 +74,7 @@ export function CoverImageControl({ collectionId, nodeId, kind, mode, revision, 
         await onSaved().catch(() => undefined)
       } else {
         if (isProductApiError(cause) && !cause.sameRequestRetrySafe) operation.current = null
-        setError(isProductApiError(cause) ? cause.recoveryHint : 'Could not update this cover. Try again.')
+        setError(isProductApiError(cause) ? cause.recoveryHint : 'Could not update this cover.')
       }
     } finally {
       if (mounted.current) setBusy(false)
@@ -91,30 +95,49 @@ export function CoverImageControl({ collectionId, nodeId, kind, mode, revision, 
   }
 
   return (
-    <section className="field cover-image-control" aria-labelledby={`${inputId}-label`} aria-busy={busy}>
-      <label id={`${inputId}-label`} htmlFor={`${inputId}-mode`}>Gallery cover</label>
-      {cover && currentMode !== 'none' && cover.url !== failedUrl && (
-        <img className="cover-image-preview" src={cover.url} width={cover.width} height={cover.height}
-          alt="Current gallery cover" referrerPolicy="no-referrer" onError={() => setFailedUrl(cover.url)} />
-      )}
-      <select id={`${inputId}-mode`} value={currentMode} disabled={disabled || busy}
-        onChange={event => choose(event.target.value as CoverMode)}>
-        <option value="auto">{kind === 'folder' ? 'Automatic mosaic' : 'Website image'}</option>
-        <option value="custom" disabled>Custom image</option>
-        <option value="none">No cover</option>
-      </select>
-      <label htmlFor={inputId}>Upload cover</label>
-      <input id={inputId} type="file" accept={ACCEPT} disabled={disabled || busy}
-        aria-describedby={`${inputId}-hint`} onChange={event => {
-          const file = event.target.files?.[0]
-          event.target.value = ''
-          if (file) choose('custom', file)
-        }} />
-      <p className="field-hint" id={`${inputId}-hint`}>PNG, JPEG or WebP, up to 2 MiB. Changes save immediately.</p>
-      {notice && <p className="field-hint" role="status">{notice}</p>}
-      {error && <p className="field-error" role="alert">{error}</p>}
-      {error && operation.current && <button type="button" className="btn btn-ghost btn-sm" disabled={disabled || busy}
-        onClick={() => { if (operation.current) void run(operation.current) }}>Retry cover update</button>}
+    <section className="stack" aria-labelledby={`${inputId}-label`} aria-busy={busy}>
+      <div className="field">
+        <label id={`${inputId}-label`} htmlFor={inputId}>Gallery cover</label>
+        <label className="file-drop-card" htmlFor={inputId} aria-labelledby={`${inputId}-label`}>
+          <input ref={fileInput} id={inputId} type="file" accept={ACCEPT} disabled={disabled || busy}
+            aria-labelledby={`${inputId}-label`}
+            aria-describedby={`${inputId}-hint`} onChange={event => {
+              const file = event.currentTarget.files?.[0]
+              event.currentTarget.value = ''
+              if (file) choose('custom', file)
+            }} />
+          <span className="file-drop-card-preview" aria-hidden>
+            {cover && currentMode !== 'none' && cover.url !== failedUrl
+              ? <img src={cover.url} width={20} height={20} alt="" referrerPolicy="no-referrer" onError={() => setFailedUrl(cover.url)} />
+              : <Icon name="file" />}
+          </span>
+          <span className="file-drop-card-copy">
+            <strong>{currentMode === 'custom' ? 'Replace cover' : 'Upload cover'}</strong>
+            <small id={`${inputId}-hint`}>PNG, JPEG or WebP · Up to 2 MB</small>
+          </span>
+        </label>
+      </div>
+      <fieldset className="option-group" disabled={disabled || busy}>
+        <legend className="visually-hidden">Cover source</legend>
+        <label className="option-row">
+          <input type="radio" name={`${inputId}-mode`} value="auto" checked={currentMode === 'auto'} onChange={() => choose('auto')} />
+          <span>{kind === 'folder' ? 'Automatic mosaic' : 'Website image'}</span>
+        </label>
+        {currentMode === 'custom' && (
+          <label className="option-row">
+            <input type="radio" name={`${inputId}-mode`} value="custom" checked onChange={() => fileInput.current?.click()} />
+            <span>Uploaded image</span>
+          </label>
+        )}
+        <label className="option-row">
+          <input type="radio" name={`${inputId}-mode`} value="none" checked={currentMode === 'none'} onChange={() => choose('none')} />
+          <span>No cover</span>
+        </label>
+        {notice && <p className="meta" role="status">{notice}</p>}
+        {error && <p className="field-error" role="alert">{error}</p>}
+        {error && operation.current && <button type="button" className="btn btn-secondary btn-sm"
+          onClick={() => { if (operation.current) void run(operation.current) }}>Retry</button>}
+      </fieldset>
     </section>
   )
 }

@@ -5,7 +5,7 @@ import { CoverImageControl } from './CoverImageControl'
 import { cleanup, renderWithRouter, waitForDom } from '../test/render'
 import { ProductApiError } from '../api/errors'
 
-const mocks = vi.hoisted(() => ({ upload: vi.fn(), update: vi.fn(), saved: vi.fn(), nextId: 0 }))
+const mocks = vi.hoisted(() => ({ upload: vi.fn(), update: vi.fn(), saved: vi.fn(), success: vi.fn(), nextId: 0 }))
 vi.mock('../api', async importOriginal => ({
   ...await importOriginal<typeof import('../api')>(),
   productClient: {
@@ -16,7 +16,7 @@ vi.mock('../api', async importOriginal => ({
 }))
 const image = { url: 'https://known.example/api/v1/images/12345678-1234-4234-8234-123456789abc', width: 800, height: 400 }
 const base = { collectionId: 'col', nodeId: 'bookmark', kind: 'bookmark' as const, mode: 'auto' as const,
-  revision: '0', image: null, disabled: false, onSaved: mocks.saved }
+  revision: '0', image: null, disabled: false, onSaved: mocks.saved, onSuccess: mocks.success }
 
 async function pick(file: File) {
   const input = document.querySelector<HTMLInputElement>('input[type="file"]')!
@@ -31,6 +31,7 @@ describe('CoverImageControl', () => {
     mocks.upload.mockReset().mockResolvedValue({ assetId: 'asset', image })
     mocks.update.mockReset().mockResolvedValue({ mode: 'custom', revision: '1', image })
     mocks.saved.mockReset().mockResolvedValue(undefined)
+    mocks.success.mockReset()
   })
   afterEach(cleanup)
 
@@ -42,8 +43,9 @@ describe('CoverImageControl', () => {
     expect(mocks.upload).toHaveBeenCalledWith('col', upload, expect.objectContaining({ intentId: expect.any(String) }))
     expect(mocks.update).toHaveBeenCalledWith('col', 'bookmark', { mode: 'custom', assetId: 'asset' }, '0', expect.any(Object))
     expect(document.querySelector('img')?.getAttribute('src')).toBe(image.url)
-    expect(document.querySelector('select')?.value).toBe('custom')
-    expect(document.querySelector('[role="status"]')?.textContent).toBe('Cover updated')
+    expect(document.querySelector<HTMLInputElement>('input[value="custom"]')?.checked).toBe(true)
+    expect(mocks.success).toHaveBeenCalledTimes(1)
+    expect(document.querySelector('[role="status"]')).toBeNull()
   })
 
   it('retries a failed binding with the same command and uploaded asset', async () => {
@@ -61,12 +63,11 @@ describe('CoverImageControl', () => {
   it('restores automatic mosaics and hides covers without uploading', async () => {
     mocks.update.mockResolvedValue({ mode: 'auto', revision: '5', image: null })
     renderWithRouter(<CoverImageControl {...base} kind="folder" mode="custom" revision="4" image={image} />)
-    const select = document.querySelector<HTMLSelectElement>('select')!
-    await act(async () => { select.value = 'auto'; select.dispatchEvent(new Event('change', { bubbles: true })) })
+    await act(async () => document.querySelector<HTMLInputElement>('input[value="auto"]')!.click())
     await waitForDom(() => mocks.saved.mock.calls.length === 1)
     expect(mocks.update.mock.calls[0]?.slice(0, 4)).toEqual(['col', 'bookmark', { mode: 'auto', assetId: null }, '4'])
     mocks.update.mockResolvedValue({ mode: 'none', revision: '6', image: null })
-    await act(async () => { select.value = 'none'; select.dispatchEvent(new Event('change', { bubbles: true })) })
+    await act(async () => document.querySelector<HTMLInputElement>('input[value="none"]')!.click())
     await waitForDom(() => mocks.saved.mock.calls.length === 2)
     expect(mocks.update.mock.calls[1]?.slice(0, 4)).toEqual(['col', 'bookmark', { mode: 'none', assetId: null }, '5'])
     expect(mocks.upload).not.toHaveBeenCalled()
@@ -79,8 +80,8 @@ describe('CoverImageControl', () => {
     expect(document.querySelector('[role="alert"]')?.textContent).toContain('PNG, JPEG or WebP')
     expect(mocks.upload).not.toHaveBeenCalled()
     view.rerender(<CoverImageControl {...base} disabled />)
-    expect(document.querySelector<HTMLInputElement>('input')?.disabled).toBe(true)
-    expect(document.querySelector<HTMLSelectElement>('select')?.disabled).toBe(true)
+    expect(document.querySelector<HTMLInputElement>('input[type="file"]')?.disabled).toBe(true)
+    expect(document.querySelector<HTMLFieldSetElement>('fieldset')?.disabled).toBe(true)
   })
 
   it('refreshes a concurrent edit conflict without replaying a stale revision', async () => {

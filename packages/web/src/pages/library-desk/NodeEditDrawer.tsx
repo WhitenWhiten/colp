@@ -203,7 +203,8 @@ export function NodeEditDrawer({
         <CoverImageControl key={`${snap.collection.id}:${node.id}`}
           collectionId={snap.collection.id} nodeId={node.id} kind={node.kind}
           mode={node.coverMode ?? 'auto'} revision={node.coverRevision} image={nodeGalleryCover(node)}
-          disabled={!canEdit} onSaved={() => loadTree(snap.collection.id, { silent: true })} />
+          disabled={!canEdit} onSaved={() => loadTree(snap.collection.id, { silent: true })}
+          onSuccess={() => success('Cover updated')} />
       )}
       <NodeAnnotationFields
         idPrefix="nd"

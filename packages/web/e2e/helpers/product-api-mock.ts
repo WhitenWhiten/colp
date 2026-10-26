@@ -13,6 +13,9 @@ type MockNode = {
   iconUrl?: string | null
   etag: string
   parentId: string
+  coverMode?: 'auto' | 'custom' | 'none'
+  coverRevision?: string
+  coverImage?: { url: string; width: number; height: number } | null
 }
 
 export type MockState = {
@@ -181,6 +184,8 @@ function editorPage(state: MockState, config?: ProductRequestExpectation['editor
     },
     nodes: nodes.map((node) => {
       const common = {
+        ...(node.coverRevision === undefined ? {} : { coverMode: node.coverMode ?? 'auto',
+          coverRevision: node.coverRevision, coverImage: node.coverImage ?? null }),
         id: node.id,
         collectionId: MOCK_COLLECTION_ID,
         parentId: node.parentId,
