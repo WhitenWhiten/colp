@@ -60,4 +60,24 @@ describe('attachBookmarkPreviewImages', () => {
     assert.equal(linkPreviewObjectUrl('https://known.example/some/path', OBJECT), `${ORIGIN}/api/v1/link-preview/${OBJECT}`);
     assert.throws(() => linkPreviewObjectUrl(ORIGIN, '../../etc/passwd'));
   });
+
+  test('node-local custom covers override OG, none suppresses it and tombstones stay redacted', async () => {
+    const objectId = '12345678-1234-4234-8234-123456789abc';
+    const image = { objectId, width: 320, height: 200 };
+    const previews: LinkPreviewReadPort = {
+      ...port(),
+      findCoverPreferences: async () => new Map([
+        ['a', { mode: 'custom', revision: '1', image }],
+        ['folder', { mode: 'custom', revision: '1', image }],
+        ['a-again', { mode: 'none', revision: '2', image: null }],
+        ['tombstone', { mode: 'custom', revision: '1', image }],
+      ]),
+    };
+    const result = await attachBookmarkPreviewImages(previews, ORIGIN, nodes);
+    const custom = { url: `${ORIGIN}/api/v1/images/${objectId}`, width: 320, height: 200 };
+    assert.deepEqual((result[0] as { previewImage?: unknown }).previewImage, custom);
+    assert.deepEqual((result[1] as { previewImage?: unknown }).previewImage, custom);
+    assert.equal((result[2] as { previewImage?: unknown }).previewImage, null);
+    assert.equal((result[4] as { previewImage?: unknown }).previewImage, null);
+  });
 });

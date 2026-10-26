@@ -85,6 +85,9 @@ export interface RootNodeView {
 }
 
 export interface FolderNodeView {
+  readonly previewImage?: BookmarkPreviewImageView | null;
+  readonly coverMode?: import('./image-assets.js').CoverMode;
+  readonly coverRevision?: string;
   readonly shared?: true;
   readonly id: string;
   readonly collectionId: string;
@@ -107,6 +110,8 @@ export interface FolderNodeView {
 }
 
 export interface BookmarkNodeView {
+  readonly coverMode?: import('./image-assets.js').CoverMode;
+  readonly coverRevision?: string;
   readonly id: string;
   readonly collectionId: string;
   readonly kind: 'bookmark';

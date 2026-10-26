@@ -6,13 +6,16 @@
 import { sql, type Kysely } from 'kysely';
 import type { DatabaseSchema, DatabaseTransaction } from '../database/index.js';
 import type { LinkPreviewReadPort, LinkPreviewReadyTarget } from '../../modules/collections/index.js';
+import { readNodeCoverPreferences } from './node-cover-postgres.js';
 
 export function createPostgresLinkPreviewReadPort(
   db: DatabaseTransaction | Kysely<DatabaseSchema>,
+  options: { readonly ogEnabled?: boolean } = {},
 ): LinkPreviewReadPort {
   return {
+    findCoverPreferences: ids => readNodeCoverPreferences(db, ids),
     async findReadyByUrlKeys(urlKeys) {
-      if (urlKeys.length === 0) return new Map();
+      if (urlKeys.length === 0 || options.ogEnabled === false) return new Map();
       const result = await sql<{ url_key: string; object_id: string; width: number; height: number }>`
         SELECT url_key, object_id, width, height FROM link_preview_targets
          WHERE url_key = ANY(${[...urlKeys]}::text[]) AND status = 'ready' AND NOT generic AND object_id IS NOT NULL

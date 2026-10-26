@@ -4,10 +4,11 @@
  * A bookmark gets an image only when its URL's shared target is ready and
  * not a site-wide default, the owner has not vetoed it, and the view still
  * carries a URL (moderation tombstones null it). Everything else is JSON
- * null; folders never carry the field. A missing port (feature off) or a
+ * null; folders may carry a custom cover. A missing port (feature off) or a
  * missing PRODUCT_ORIGIN yields null for every bookmark.
  */
 import { linkPreviewTargetIdentity } from './link-preview-policy.js';
+import { imageAssetUrl, type NodeCoverPreference } from './image-assets.js';
 
 export interface LinkPreviewReadyTarget {
   readonly objectId: string;
@@ -16,6 +17,8 @@ export interface LinkPreviewReadyTarget {
 }
 
 export interface LinkPreviewReadPort {
+  /** Durable per-node covers remain available when automatic OG fetching is off. */
+  findCoverPreferences?(nodeIds: readonly string[]): Promise<ReadonlyMap<string, NodeCoverPreference>>;
   /** Ready, non-generic targets by url key; absent keys have no preview. */
   findReadyByUrlKeys(urlKeys: readonly string[]): Promise<ReadonlyMap<string, LinkPreviewReadyTarget>>;
   /** Node ids whose owner set the preview mode to `none`. */
@@ -64,13 +67,27 @@ export async function attachBookmarkPreviewImages<Node extends PreviewableNode>(
       port.findVetoedNodeIds([...keyed.keys()]),
     ])
     : [new Map<string, LinkPreviewReadyTarget>(), new Set<string>()];
+  const covers = productOrigin && port?.findCoverPreferences
+    ? await port.findCoverPreferences(nodes.map(node => node.id)) : undefined;
   return nodes.map((node) => {
-    if (node.kind !== 'bookmark') return node;
+    const preference = covers?.get(node.id);
+    const settings = covers === undefined ? {} : {
+      coverMode: preference?.mode ?? 'auto', coverRevision: preference?.revision ?? '0',
+    };
+    // Redacted bookmark views must never regain an image through an upload binding.
+    if (node.kind === 'bookmark' && typeof node.url !== 'string') return { ...node, previewImage: null };
+    if (preference?.mode === 'custom') {
+      const image = preference.image;
+      return { ...node, ...settings, previewImage: image && productOrigin
+        ? { url: imageAssetUrl(productOrigin, image.objectId), width: image.width, height: image.height } : null };
+    }
+    if (preference?.mode === 'none') return { ...node, ...settings, previewImage: null };
+    if (node.kind !== 'bookmark') return { ...node, ...settings };
     const urlKey = keyed.get(node.id);
     const target = urlKey === undefined || vetoed.has(node.id) ? undefined : ready.get(urlKey);
     const previewImage: BookmarkPreviewImageView | null = target === undefined || productOrigin === undefined
       ? null
       : { url: linkPreviewObjectUrl(productOrigin, target.objectId), width: target.width, height: target.height };
-    return { ...node, previewImage };
+    return { ...node, ...settings, previewImage };
   });
 }

@@ -2,6 +2,7 @@ import { sourceArchiveHelpers } from './source-archive-helpers.js';
 import { undoAutomationApproval } from '../infrastructure/automation/index.js';
 import { isFaviconReadableBySubject } from '../infrastructure/database/index.js';
 import {
+  createPostgresCoverImages,
   createDatabaseFaviconStore,
   createDatabaseLinkPreviewStore,
   createPostgresLinkPreviewCommandUnitOfWork,
@@ -424,6 +425,7 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
     ...publicObjects.publicObjectStores,
     faviconPublicAccess: { isPubliclyAccessible: (objectId) => isFaviconPubliclyAccessible(database.db, objectId, KNOWN_FAVICON_DOMAINS), isReadableBySubject: (objectId, subjectId) => isFaviconReadableBySubject(database.db, objectId, subjectId) },
     avatarPublicAccess: { isPublicationRestricted: (objectId) => isAvatarPublicationRestricted(database.db, objectId) },
+    coverImages: createPostgresCoverImages(database.db, { cancelBackend: database.cancelBackend }),
     ...(config.linkPreview?.enabled === true ? {
       linkPreview: {
         store: createDatabaseLinkPreviewStore(database.db),

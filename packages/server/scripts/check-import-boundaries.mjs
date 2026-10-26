@@ -740,6 +740,8 @@ const transportTargets = new Set([
   'transport/product/bookmark-favicon-routes.ts',
   'transport/product/link-preview-routes.ts',
   'transport/product/link-preview-command-routes.ts',
+  'transport/product/node-cover-routes.ts',
+  'transport/product/image-cache.ts',
   'transport/auth/browser-auth-deps.ts',
   'transport/auth/browser-auth-handlers.ts',
   'transport/auth/browser-auth-mapping.ts',

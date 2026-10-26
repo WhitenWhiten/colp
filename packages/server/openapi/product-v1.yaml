@@ -2,7 +2,7 @@ openapi: 3.1.0
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Known Product API
-  version: 1.103.0
+  version: 1.104.0
   description: >-
     Version 1.70.0 intentionally removes browser credential management: parent
     keys are provisioned only through the database for official bots. Credential
@@ -371,6 +371,176 @@ tags:
   - name: Activity
     description: Private activity from agents and automation runs.
 paths:
+  /api/v1/collections/{collectionId}/images:
+    post:
+      tags:
+        - Collections
+      operationId: uploadCollectionImage
+      summary: Upload a durable custom cover image
+      description: Owner/editor session and CSRF required. PNG, JPEG or WebP, at most
+        2 MiB and 4096 pixels per side. Uploads never expire. A new command
+        creates a new immutable URL; replay returns the same asset. Only bindable
+        inside this collection. Independent of automatic link previews.
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CollectionId"
+        - $ref: "#/components/parameters/Origin"
+        - $ref: "#/components/parameters/CsrfToken"
+        - $ref: "#/components/parameters/CommandId"
+      requestBody:
+        required: true
+        content: &a13
+          image/png:
+            schema:
+              type: string
+              format: binary
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+          image/webp:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "201":
+          description: Uploaded image.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImageUploadView"
+        "400": &a1
+          $ref: "#/components/responses/BadRequest"
+        "401": &a2
+          $ref: "#/components/responses/AuthenticationRequired"
+        "403": &a3
+          $ref: "#/components/responses/Forbidden"
+        "404": &a4
+          $ref: "#/components/responses/NotFound"
+        "409": &a5
+          description: command_id_reused, or command_in_progress while the first attempt
+            is running.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/PrivateNoStore"
+            X-Request-Id:
+              $ref: "#/components/headers/XRequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductErrorEnvelope"
+        "410": &a6
+          $ref: "#/components/responses/Gone"
+        "413": &a7
+          $ref: "#/components/responses/PayloadTooLarge"
+        "415": &a8
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422": &a9
+          $ref: "#/components/responses/InvalidDocument"
+        "429": &a10
+          $ref: "#/components/responses/RateLimited"
+        "500": &a11
+          $ref: "#/components/responses/InternalError"
+        "503": &a12
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/collections/{collectionId}/nodes/{nodeId}/cover:
+    put:
+      tags:
+        - Collections
+      operationId: updateNodeCover
+      summary: Set the gallery cover of a bookmark or folder
+      description: Owner/editor session and CSRF required. If-Match must contain the
+        quoted cover:N value from coverRevision (0 initially). Custom images
+        override OG images and folder mosaics. Old uploads remain stored after
+        replacement. Same-command replay is idempotent.
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CollectionId"
+        - $ref: "#/components/parameters/NodeId"
+        - $ref: "#/components/parameters/Origin"
+        - $ref: "#/components/parameters/CsrfToken"
+        - $ref: "#/components/parameters/CommandId"
+        - name: If-Match
+          in: header
+          required: true
+          schema:
+            type: string
+            pattern: ^"cover:(0|[1-9][0-9]*)"$
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CoverPreferenceInput"
+      responses:
+        "200":
+          description: Updated cover settings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CoverPreferenceView"
+        "400": *a1
+        "401": *a2
+        "403": *a3
+        "404": *a4
+        "409": *a5
+        "410": *a6
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "413": *a7
+        "415": *a8
+        "422": *a9
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "429": *a10
+        "500": *a11
+        "503": *a12
+  /api/v1/images/{imageId}:
+    get:
+      tags:
+        - Collections
+      operationId: getImageAsset
+      summary: Read an immutable uploaded image
+      description: Access follows live node bindings and collection permissions.
+        Public responses cache for one year; private responses only in the browser
+        for seven days. Both are immutable with content ETags. Authorization
+        precedes 304. Removed bindings return 404 at the origin; cached bytes
+        remain usable until cache expiry. Missing and forbidden objects share 404
+        with no-store. No Set-Cookie.
+      security: []
+      parameters:
+        - name: imageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: If-None-Match
+          in: header
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Validated image bytes.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+            ETag:
+              schema:
+                type: string
+            Vary:
+              schema:
+                type: string
+          content: *a13
+        "304":
+          description: Image unchanged after current authorization.
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429": *a10
+        "503": *a12
   /api/v1/me/activity:
     get:
       tags:
@@ -8376,6 +8546,9 @@ paths:
         - cookieAuth: []
         - {}
       parameters:
+        - name: If-None-Match
+          in: header
+          schema: { type: string }
         - $ref: '#/components/parameters/PublicCollectionSlugPath'
         - $ref: '#/components/parameters/PublicCollectionLimit'
         - $ref: '#/components/parameters/PublicCollectionCursor'
@@ -8385,6 +8558,8 @@ paths:
             pagination stream. Graph responses are not cached.
           schema: { type: string, enum: [ relations ] }
       responses:
+        "304":
+          description: Current authorized public projection is unchanged.
         '200':
           description: One public/member Collection page.
           headers:
@@ -17979,6 +18154,56 @@ components:
         minLength: 1
 
   schemas:
+    CoverMode:
+      type: string
+      enum:
+        - auto
+        - custom
+        - none
+    CoverPreferenceInput:
+      type: object
+      additionalProperties: false
+      properties:
+        mode:
+          $ref: "#/components/schemas/CoverMode"
+        assetId:
+          type:
+            - string
+            - "null"
+          format: uuid
+      required:
+        - mode
+      description: custom requires a collection upload assetId; auto and none require
+        no assetId.
+    CoverPreferenceView:
+      type: object
+      additionalProperties: false
+      properties:
+        mode:
+          $ref: "#/components/schemas/CoverMode"
+        revision:
+          type: string
+          pattern: ^(0|[1-9][0-9]*)$
+        image:
+          oneOf:
+            - $ref: "#/components/schemas/BookmarkPreviewImage"
+            - type: "null"
+      required:
+        - mode
+        - revision
+        - image
+    ImageUploadView:
+      type: object
+      additionalProperties: false
+      properties:
+        assetId:
+          type: string
+          format: uuid
+        image:
+          $ref: "#/components/schemas/BookmarkPreviewImage"
+      required:
+        - assetId
+        - image
     ActivityAgent:
       type: object
       additionalProperties: false
@@ -28259,7 +28484,7 @@ components:
       type: string
       format: uri
       maxLength: 2048
-      pattern: '^https?://.+/api/v1/link-preview/[a-f0-9-]{36}$'
+      pattern: '^https?://.+/api/v1/(link-preview|images)/[a-f0-9-]{36}$'
       description: >-
         Absolute PRODUCT_ORIGIN URL whose path is exactly
         /api/v1/link-preview/{uuid}. Servers never return a third-party URL here.
@@ -28267,7 +28492,7 @@ components:
       type: object
       additionalProperties: false
       description: >-
-        Same-origin copy of the bookmark page's own sharing image, with its
+        Same-origin automatic or custom cover image, with its
         intrinsic size so clients can lay out before the bytes arrive.
       properties:
         url: { $ref: '#/components/schemas/LinkPreviewUrl' }
@@ -28698,6 +28923,15 @@ components:
       type: object
       additionalProperties: false
       properties:
+        coverMode:
+          $ref: "#/components/schemas/CoverMode"
+        coverRevision:
+          type: string
+          pattern: ^(0|[1-9][0-9]*)$
+        previewImage:
+          oneOf:
+            - $ref: "#/components/schemas/BookmarkPreviewImage"
+            - type: "null"
         shared: { type: boolean, const: true, description: This folder has a live unlisted share link. }
         id: { $ref: '#/components/schemas/OpaqueId' }
         collectionId: { $ref: '#/components/schemas/OpaqueId' }
@@ -28745,6 +28979,11 @@ components:
       type: object
       additionalProperties: false
       properties:
+        coverMode:
+          $ref: "#/components/schemas/CoverMode"
+        coverRevision:
+          type: string
+          pattern: ^(0|[1-9][0-9]*)$
         id: { $ref: '#/components/schemas/OpaqueId' }
         collectionId: { $ref: '#/components/schemas/OpaqueId' }
         kind: { type: string, const: bookmark }
@@ -30259,6 +30498,11 @@ components:
       type: object
       additionalProperties: false
       properties:
+        coverMode:
+          $ref: "#/components/schemas/CoverMode"
+        coverRevision:
+          type: string
+          pattern: ^(0|[1-9][0-9]*)$
         id: { $ref: '#/components/schemas/OpaqueId' }
         parentId:
           oneOf:

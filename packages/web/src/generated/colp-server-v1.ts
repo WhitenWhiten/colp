@@ -9,6 +9,66 @@
  */
 
 export interface paths {
+    "/api/v1/collections/{collectionId}/images": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload a durable custom cover image
+         * @description Owner/editor session and CSRF required. PNG, JPEG or WebP, at most 2 MiB and 4096 pixels per side. Uploads never expire. A new command creates a new immutable URL; replay returns the same asset. Only bindable inside this collection. Independent of automatic link previews.
+         */
+        post: operations["uploadCollectionImage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/collections/{collectionId}/nodes/{nodeId}/cover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set the gallery cover of a bookmark or folder
+         * @description Owner/editor session and CSRF required. If-Match must contain the quoted cover:N value from coverRevision (0 initially). Custom images override OG images and folder mosaics. Old uploads remain stored after replacement. Same-command replay is idempotent.
+         */
+        put: operations["updateNodeCover"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/images/{imageId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read an immutable uploaded image
+         * @description Access follows live node bindings and collection permissions. Public responses cache for one year; private responses only in the browser for seven days. Both are immutable with content ETags. Authorization precedes 304. Removed bindings return 404 at the origin; cached bytes remain usable until cache expiry. Missing and forbidden objects share 404 with no-store. No Set-Cookie.
+         */
+        get: operations["getImageAsset"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/activity": {
         parameters: {
             query?: never;
@@ -2184,6 +2244,24 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @enum {string} */
+        CoverMode: "auto" | "custom" | "none";
+        /** @description custom requires a collection upload assetId; auto and none require no assetId. */
+        CoverPreferenceInput: {
+            mode: components["schemas"]["CoverMode"];
+            /** Format: uuid */
+            assetId?: string | null;
+        };
+        CoverPreferenceView: {
+            mode: components["schemas"]["CoverMode"];
+            revision: string;
+            image: components["schemas"]["BookmarkPreviewImage"] | null;
+        };
+        ImageUploadView: {
+            /** Format: uuid */
+            assetId: string;
+            image: components["schemas"]["BookmarkPreviewImage"];
+        };
         ActivityAgent: {
             clientId: string;
             name: string | null;
@@ -3709,7 +3787,7 @@ export interface components {
          * @description Absolute PRODUCT_ORIGIN URL whose path is exactly /api/v1/link-preview/{uuid}. Servers never return a third-party URL here.
          */
         LinkPreviewUrl: string;
-        /** @description Same-origin copy of the bookmark page's own sharing image, with its intrinsic size so clients can lay out before the bytes arrive. */
+        /** @description Same-origin automatic or custom cover image, with its intrinsic size so clients can lay out before the bytes arrive. */
         BookmarkPreviewImage: {
             url: components["schemas"]["LinkPreviewUrl"];
             width: number;
@@ -3848,6 +3926,9 @@ export interface components {
             updatedAt: components["schemas"]["UtcDateTime"];
         };
         FolderNodeView: {
+            coverMode?: components["schemas"]["CoverMode"];
+            coverRevision?: string;
+            previewImage?: components["schemas"]["BookmarkPreviewImage"] | null;
             /**
              * @description This folder has a live unlisted share link.
              * @constant
@@ -3877,6 +3958,8 @@ export interface components {
             updatedAt: components["schemas"]["UtcDateTime"];
         };
         BookmarkNodeView: {
+            coverMode?: components["schemas"]["CoverMode"];
+            coverRevision?: string;
             id: components["schemas"]["OpaqueId"];
             collectionId: components["schemas"]["OpaqueId"];
             /**
@@ -4371,6 +4454,8 @@ export interface components {
             language?: string | null;
         };
         PublicCollectionNode: {
+            coverMode?: components["schemas"]["CoverMode"];
+            coverRevision?: string;
             id: components["schemas"]["OpaqueId"];
             parentId: components["schemas"]["OpaqueId"] | null;
             /** @enum {string} */
@@ -5383,6 +5468,164 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    uploadCollectionImage: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Exact allowed Product Web origin. Duplicate or null values fail. */
+                Origin: components["parameters"]["Origin"];
+                /** @description Session-bound CSRF token returned by getSession. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+                /** @description Stable ID for one user intent. Reuse only for an exact retry of that intent. Full replay results are retained for at least 30 days. */
+                "Known-Command-Id": components["parameters"]["CommandId"];
+            };
+            path: {
+                /** @description Case-sensitive opaque Collection ID. */
+                collectionId: components["parameters"]["CollectionId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "image/png": string;
+                "image/jpeg": string;
+                "image/webp": string;
+            };
+        };
+        responses: {
+            /** @description Uploaded image. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImageUploadView"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["AuthenticationRequired"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description command_id_reused, or command_in_progress while the first attempt is running. */
+            409: {
+                headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductErrorEnvelope"];
+                };
+            };
+            410: components["responses"]["Gone"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            422: components["responses"]["InvalidDocument"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    updateNodeCover: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Exact allowed Product Web origin. Duplicate or null values fail. */
+                Origin: components["parameters"]["Origin"];
+                /** @description Session-bound CSRF token returned by getSession. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+                /** @description Stable ID for one user intent. Reuse only for an exact retry of that intent. Full replay results are retained for at least 30 days. */
+                "Known-Command-Id": components["parameters"]["CommandId"];
+                "If-Match": string;
+            };
+            path: {
+                /** @description Case-sensitive opaque Collection ID. */
+                collectionId: components["parameters"]["CollectionId"];
+                /** @description Case-sensitive opaque Node ID. */
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoverPreferenceInput"];
+            };
+        };
+        responses: {
+            /** @description Updated cover settings. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoverPreferenceView"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["AuthenticationRequired"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description command_id_reused, or command_in_progress while the first attempt is running. */
+            409: {
+                headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductErrorEnvelope"];
+                };
+            };
+            410: components["responses"]["Gone"];
+            412: components["responses"]["PreconditionFailed"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            422: components["responses"]["InvalidDocument"];
+            428: components["responses"]["PreconditionRequired"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getImageAsset: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-None-Match"?: string;
+            };
+            path: {
+                imageId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Validated image bytes. */
+            200: {
+                headers: {
+                    "Cache-Control"?: string;
+                    ETag?: string;
+                    Vary?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": string;
+                    "image/jpeg": string;
+                    "image/webp": string;
+                };
+            };
+            /** @description Image unchanged after current authorization. */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
     listMyActivity: {
         parameters: {
             query?: {
@@ -8995,7 +9238,9 @@ export interface operations {
                 /** @description Include permission-filtered relations in the same revision-fenced pagination stream. Graph responses are not cached. */
                 include?: "relations";
             };
-            header?: never;
+            header?: {
+                "If-None-Match"?: string;
+            };
             path: {
                 /** @description Canonical publication slug for GET getPublicCollectionPage. This path segment is not the Collection OpaqueId used by PATCH updateCollection. GET looks up the Collection solely via findCollectionIdBySlug; it does not load by collection id. A UUID-shaped token is still treated as a slug, never as an OpaqueId fallback. */
                 collectionId: components["parameters"]["PublicCollectionSlugPath"];
@@ -9016,6 +9261,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["PublicCollectionPage"];
                 };
+            };
+            /** @description Current authorized public projection is unchanged. */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];

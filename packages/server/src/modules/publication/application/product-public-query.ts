@@ -101,6 +101,8 @@ export interface ProductPublicCollectionPage {
 }
 
 export type ProductPublicCollectionNode = Readonly<{
+  coverMode?: import('../../collections/index.js').CoverMode;
+  coverRevision?: string;
   id: string;
   parentId: string | null;
   kind: 'root' | 'folder' | 'bookmark';

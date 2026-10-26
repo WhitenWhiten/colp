@@ -6,3 +6,4 @@ export * from './link-preview-read.js';
 export * from './link-preview-commands.js';
 export * from './link-preview-store.js';
 export * from './image-assets.js';
+export * from './node-cover-commands.js';

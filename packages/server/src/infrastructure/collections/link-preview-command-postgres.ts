@@ -20,9 +20,10 @@ function createStore(transaction: DatabaseTransaction): LinkPreviewCommandStore 
     async loadBookmarks(collectionId, nodeIds) {
       if (nodeIds.length === 0) return [];
       const result = await sql<{ id: string; url: string; mode: BookmarkPreviewMode | null }>`
-        SELECT n.id, n.url, p.mode
+        SELECT n.id, n.url, CASE WHEN cp.mode IN ('custom', 'none') THEN 'none' ELSE p.mode END AS mode
           FROM nodes n
           LEFT JOIN bookmark_preview_prefs p ON p.node_id = n.id
+          LEFT JOIN node_cover_prefs cp ON cp.node_id = n.id AND cp.collection_id = n.collection_id
          WHERE n.collection_id = ${collectionId} AND n.id = ANY(${[...nodeIds]}::text[])
            AND n.kind = 'bookmark' AND n.deleted_at IS NULL AND n.url IS NOT NULL
       `.execute(transaction);

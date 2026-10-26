@@ -178,7 +178,7 @@ afterEach(() => {
   collectionMarksCalls = 0;
 });
 
-test('serves anonymous public and unlisted pages from a Cookie-varying shared cache', async () => {
+test('serves anonymous public and unlisted pages with Cookie-varying revalidation', async () => {
   for (const value of ['public', 'unlisted'] as const) {
     visibility = value;
     const response = await app.inject({
@@ -186,7 +186,8 @@ test('serves anonymous public and unlisted pages from a Cookie-varying shared ca
       headers: { origin: 'https://known.example' },
     });
     assert.equal(response.statusCode, 200);
-    assert.equal(response.headers['cache-control'], 'public, max-age=60, stale-while-revalidate=300');
+    assert.equal(response.headers['cache-control'], 'public, max-age=0, must-revalidate');
+    assert.equal(typeof response.headers.etag, 'string');
     assertVary(response.headers.vary, ['Origin', 'Cookie']);
     assert.equal(response.headers['access-control-allow-origin'], 'https://known.example');
     assert.equal(response.json().collection.access, 'public');
@@ -382,7 +383,7 @@ test('HTTP anonymous GET slug returns the windowed viewCount sum', async () => {
     headers: { origin: 'https://known.example' },
   });
   assert.equal(response.statusCode, 200);
-  assert.equal(response.headers['cache-control'], 'public, max-age=60, stale-while-revalidate=300');
+  assert.equal(response.headers['cache-control'], 'public, max-age=0, must-revalidate');
   assert.equal(response.json().collection.viewCount, 12);
   assert.equal('viewCount' in response.json().collection, true);
 });
@@ -397,7 +398,7 @@ test('HTTP unlisted anonymous GET slug is 200 with viewCount', async () => {
   assert.equal(response.statusCode, 200);
   assert.equal(response.json().collection.access, 'public');
   assert.equal(response.json().collection.viewCount, 4);
-  assert.equal(response.headers['cache-control'], 'public, max-age=60, stale-while-revalidate=300');
+  assert.equal(response.headers['cache-control'], 'public, max-age=0, must-revalidate');
 });
 
 test('HTTP private anonymous GET slug stays 404 without loading viewCount', async () => {

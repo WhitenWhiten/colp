@@ -26,7 +26,8 @@ import { registerLibraryOrderRoutes } from './product/library-order-routes.js';
 import { registerAccountProductSurfaces } from './register-account-product-surfaces.js';
 import { registerLinkHealthRoutes } from './product/link-health-routes.js';
 import { registerLinkPreviewCommandRoutes } from './product/link-preview-command-routes.js';
-import { registerLinkPreviewRoutes } from './product/link-preview-routes.js';
+import { registerLinkPreviewRoutes, registerImageDeliveryRoute } from './product/link-preview-routes.js';
+import { registerNodeCoverRoutes } from './product/node-cover-routes.js';
 import { registerCollectionExportRoutes } from './product/collection-export-routes.js';
 import { registerCollectionVersionRoutes } from './product/collection-version-routes.js';
 import { registerSearchRoutes } from './product/search-routes.js';
@@ -191,6 +192,18 @@ export function registerProductSurfaces(
         rateLimiter: createFixedWindowRateLimiter(defaultProductRouteBudget),
       });
     }
+  }
+  if (deps.coverImages) {
+    registerImageDeliveryRoute(app, {
+      store: deps.coverImages.store, publicAccess: deps.coverImages.publicAccess,
+      publicObjectRateLimiter: publicObjectAdmissionRateLimiter,
+      requestTimeoutMs: config.httpSecurity.requestTimeoutMs,
+      ...(identityUnitOfWork ? { identityUnitOfWork } : {}),
+    }, { path: '/api/v1/images/:imageId', parameter: 'imageId', uploaded: true });
+    if (identityUnitOfWork) registerNodeCoverRoutes(app, {
+      identityUnitOfWork, commands: deps.coverImages.commands, allowedOrigins: config.allowedOrigins,
+      productOrigin: config.productOrigin, rateLimiter: publicObjectAdmissionRateLimiter,
+    });
   }
   if (identityUnitOfWork && productSyncCenterUnitOfWork) {
     registerProductSyncCenterRoutes(app, { config, identityUnitOfWork, unitOfWork: productSyncCenterUnitOfWork });

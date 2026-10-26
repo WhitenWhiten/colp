@@ -1,4 +1,6 @@
 import { FolderSharePublicReadError } from '../../modules/publication/index.js';
+import { createHash } from 'node:crypto';
+import { matchesImageEtag } from './image-cache.js';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import {
   getProductPublicCollectionPage,
@@ -65,11 +67,16 @@ export function registerProductPublicCollectionRoutes(
         'Cache-Control',
         session || paging.includeRelations || page.collection.folderShare
           ? 'private, no-store'
-          : dependencies.contentGovernanceEnabled
-            ? 'public, max-age=0, must-revalidate'
-            : 'public, max-age=60, stale-while-revalidate=300',
+          : 'public, max-age=0, must-revalidate',
       );
       if (page.collection.folderShare) reply.header('X-Robots-Tag', 'noindex, nofollow');
+      // Validate the current projection first: cover bindings can change independently
+      // of the canonical bookmark tree revision.
+      if (!session && !paging.includeRelations && !page.collection.folderShare) {
+        const etag = `"${createHash('sha256').update(JSON.stringify(page)).digest('hex')}"`;
+        reply.header('ETag', etag);
+        if (matchesImageEtag(request.headers['if-none-match'], etag)) return reply.code(304).send();
+      }
       return reply.code(200).type('application/json; charset=utf-8').send(page);
     } catch (error) {
       if (error instanceof ProductPublicCollectionCursorError || (error instanceof FolderSharePublicReadError && error.code === 'invalid_cursor')) {

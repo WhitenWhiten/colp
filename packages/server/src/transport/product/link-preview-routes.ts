@@ -7,9 +7,11 @@
  * successes may remain usable for up to fifteen days after access is revoked.
  */
 import { createHash } from 'node:crypto';
+import { matchesImageEtag } from './image-cache.js';
 import type { FastifyInstance } from 'fastify';
 import type { IdentityUnitOfWork } from '../../modules/identity/index.js';
 import {
+  IMAGE_ID_PATTERN, IMAGE_PUBLIC_MAX_AGE, IMAGE_PRIVATE_MAX_AGE,
   LINK_PREVIEW_CACHE_MAX_AGE_SECONDS,
   LINK_PREVIEW_CACHE_MIN_AGE_SECONDS,
   sniffBookmarkFaviconCanonicalMime,
@@ -38,27 +40,36 @@ export interface LinkPreviewRouteDependencies {
   readonly requestTimeoutMs: number;
 }
 
-function linkPreviewNotFound(privateRead: boolean): ProductHttpError {
+function linkPreviewNotFound(privateRead: boolean, uploaded = false): ProductHttpError {
   return new ProductHttpError({
     statusCode: 404,
     code: 'resource_not_found',
     message: 'Preview image was not found.',
     recovery: 'none',
-    headers: { 'Cache-Control': privateRead ? 'private, no-store' : LINK_PREVIEW_MISSING_CACHE_CONTROL, Vary: 'Cookie' },
+    headers: { 'Cache-Control': privateRead || uploaded ? 'private, no-store' : LINK_PREVIEW_MISSING_CACHE_CONTROL, Vary: 'Cookie' },
   });
 }
 
 export function registerLinkPreviewRoutes(app: FastifyInstance, deps: LinkPreviewRouteDependencies): void {
-  app.get('/api/v1/link-preview/:previewId', {
+  registerImageDeliveryRoute(app, deps, { path: '/api/v1/link-preview/:previewId', parameter: 'previewId', uploaded: false });
+}
+
+/** Shared admission, live authorization, validation and conditional delivery for immutable images. */
+export function registerImageDeliveryRoute(
+  app: FastifyInstance, deps: LinkPreviewRouteDependencies,
+  options: { readonly path: string; readonly parameter: string; readonly uploaded: boolean },
+): void {
+  const missing = (privateRead: boolean) => linkPreviewNotFound(privateRead, options.uploaded);
+  app.get(options.path, {
     config: {
-      ...productRouteMetadata('GET', '/api/v1/link-preview/{previewId}'),
+      ...productRouteMetadata('GET', options.path),
       productTransport: { allowedQuery: [], cacheControl: 'public-revalidate' },
     },
   }, async (request, reply) => {
     await admitPublicObjectGet(deps.publicObjectRateLimiter, request);
     const privateRead = Boolean(request.headers.cookie);
-    const previewId = (request.params as { previewId?: string }).previewId ?? '';
-    if (!LINK_PREVIEW_ID_PATTERN.test(previewId)) throw linkPreviewNotFound(privateRead);
+    const previewId = (request.params as Record<string, string>)[options.parameter] ?? '';
+    if (!(options.uploaded ? IMAGE_ID_PATTERN : LINK_PREVIEW_ID_PATTERN).test(previewId)) throw missing(privateRead);
     const cancellation = requestCancellation(request, reply, productReadDeadlineMs(deps.requestTimeoutMs));
     let stored;
     let publicAccess: boolean;
@@ -67,17 +78,17 @@ export function registerLinkPreviewRoutes(app: FastifyInstance, deps: LinkPrevie
       if (!publicAccess) {
         // A private Gallery: the signed-in owner or a member of a collection
         // holding a bookmark with this URL.
-        if (!privateRead || deps.identityUnitOfWork === undefined) throw linkPreviewNotFound(privateRead);
+        if (!privateRead || deps.identityUnitOfWork === undefined) throw missing(privateRead);
         let subjectId: string;
         try {
           subjectId = (await requireBrowserSessionActor(request, deps.identityUnitOfWork, { touch: false })).account.subjectId;
         } catch (error) {
           if (error instanceof ProductHttpError && (error.statusCode === 401 || error.statusCode === 403)) {
-            throw linkPreviewNotFound(true);
+            throw missing(true);
           }
           throw error;
         }
-        if (!await deps.publicAccess.isReadableBySubject(previewId, subjectId)) throw linkPreviewNotFound(true);
+        if (!await deps.publicAccess.isReadableBySubject(previewId, subjectId)) throw missing(true);
       }
       stored = await deps.store.get(previewId, { signal: cancellation.signal });
     } catch (error) {
@@ -86,44 +97,25 @@ export function registerLinkPreviewRoutes(app: FastifyInstance, deps: LinkPrevie
     } finally {
       cancellation.dispose();
     }
-    if (!stored) throw linkPreviewNotFound(privateRead);
+    if (!stored) throw missing(privateRead);
     // Declared Content-Type is ignored; only magic bytes decide what is served.
     const mime = sniffBookmarkFaviconCanonicalMime(stored.body);
-    if (mime === null || !SERVABLE_MIME.has(mime)) throw linkPreviewNotFound(privateRead);
+    if (mime === null || !SERVABLE_MIME.has(mime)) throw missing(privateRead);
     const etag = `"${createHash('sha256').update(stored.body).digest('hex')}"`;
     // Stable per-object jitter spreads simultaneous loads across 7–15 days,
     // and stays consistent across revalidation, restarts and server replicas.
     const jitterRange = LINK_PREVIEW_CACHE_MAX_AGE_SECONDS - LINK_PREVIEW_CACHE_MIN_AGE_SECONDS + 1;
-    const maxAge = LINK_PREVIEW_CACHE_MIN_AGE_SECONDS
+    const previewMaxAge = LINK_PREVIEW_CACHE_MIN_AGE_SECONDS
       + createHash('sha256').update(previewId).digest().readUInt32BE(0) % jitterRange;
+    const maxAge = options.uploaded ? (publicAccess ? IMAGE_PUBLIC_MAX_AGE : IMAGE_PRIVATE_MAX_AGE) : previewMaxAge;
     reply
       .header('content-type', mime)
-      .header('cache-control', `${publicAccess ? 'public' : 'private'}, max-age=${maxAge}, must-revalidate`)
+      .header('cache-control', `${publicAccess ? 'public' : 'private'}, max-age=${maxAge}, ${options.uploaded ? 'immutable' : 'must-revalidate'}`)
       .header('etag', etag)
       .header('vary', 'Cookie')
       .header('x-content-type-options', 'nosniff');
     // Authorization and stored-image validation must precede every 304.
-    if (matchesPreviewEtag(request.headers['if-none-match'], etag)) return reply.code(304).send();
+    if (matchesImageEtag(request.headers['if-none-match'], etag)) return reply.code(304).send();
     return reply.send(stored.body);
   });
-}
-
-/** GET uses weak comparison. Ignore malformed validators rather than accepting a partial match. */
-function matchesPreviewEtag(value: string | undefined, etag: string): boolean {
-  if (value === undefined) return false;
-  if (value.trim() === '*') return true;
-  const validators: string[] = [];
-  let start = 0;
-  let quoted = false;
-  for (let index = 0; index < value.length; index += 1) {
-    if (value[index] === '"') quoted = !quoted;
-    if (value[index] === ',' && !quoted) {
-      validators.push(value.slice(start, index).trim());
-      start = index + 1;
-    }
-  }
-  if (quoted) return false;
-  validators.push(value.slice(start).trim());
-  return validators.every((item) => /^(?:W\/)?"[\x21\x23-\x7E\u0080-\u00FF]*"$/u.test(item))
-    && validators.some((item) => item.replace(/^W\//u, '') === etag);
 }

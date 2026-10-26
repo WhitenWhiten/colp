@@ -356,8 +356,7 @@ export function createApiPostgresAppDependencies(input: {
       bookmarkIcons: createPostgresBookmarkIconReadPort(database.db, { perNode: true }),
       faviconSources: createPostgresFaviconSourceModeReadPort(database.db),
       publicMarks: createPostgresPublicMarksReadPort(database),
-      ...(config.linkPreview?.enabled === true
-        ? { linkPreviews: createPostgresLinkPreviewReadPort(database.db) } : {}),
+      linkPreviews: createPostgresLinkPreviewReadPort(database.db, { ogEnabled: config.linkPreview?.enabled === true }),
     },
     productCollaboration: {
       identityUnitOfWork,

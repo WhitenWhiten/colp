@@ -295,6 +295,7 @@ export function buildApiApp(input: AppDependencies) {
       ...BOOKMARK_FAVICON_DEFERRED_OPERATION_IDS,
       ...(faviconStore ? [] : ['getBookmarkFavicon']),
       'getLinkPreviewObject',
+      ...(input.coverImages ? [] : ['getImageAsset', 'uploadCollectionImage', 'updateNodeCover']),
       'listPublicProfileActivity',
       'headPublicProfileActivity',
     ],

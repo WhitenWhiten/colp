@@ -303,3 +303,26 @@ Image bytes remain in PostgreSQL; no object-storage bucket is required.
 (default 2) sets the worker's parallel fetches.
 `LINK_PREVIEW_RETENTION_SECONDS` (default and minimum 1296000, or 15 days) retains
 displaced image versions for at least the longest cache lifetime before garbage collection.
+
+### Custom gallery covers
+
+Owners and editors can upload a PNG, JPEG or WebP (up to 2 MiB and 4096 pixels per
+side) with `POST /api/v1/collections/{collectionId}/images`, then set a bookmark or
+folder cover with `PUT /api/v1/collections/{collectionId}/nodes/{nodeId}/cover`.
+The JSON settings are `mode: auto | custom | none`; `custom` requires the upload's
+`assetId`. Send `If-Match: "cover:N"` using the node's `coverRevision` (initially
+`0`). Both mutations use the standard session, CSRF and `Known-Command-Id` rules.
+`custom` overrides automatic OG images or folder mosaics; `auto` restores them.
+
+Uploads never expire and remain stored after replacement. Bytes live in the
+separate `image_asset_bytes` PostgreSQL table and are included in database backups;
+the OG worker does not refresh or garbage-collect them. Each new upload command
+creates a new immutable `/api/v1/images/{uuid}` URL. Read access follows current
+node bindings and collection permissions. Public image responses cache for one
+year; private ones cache only in the browser for seven days, with `immutable` and
+content ETags. Cached bytes can remain visible for that long after access is
+revoked. Missing objects use `no-store`; conditional reads recheck access before
+returning `304`. Custom covers work with `KNOWN_FEATURE_LINK_PREVIEW=false`.
+Editor read revisions include cover settings; anonymous public collection JSON
+uses `max-age=0, must-revalidate` with a current-projection ETag so image references
+can change independently of the immutable image cache.

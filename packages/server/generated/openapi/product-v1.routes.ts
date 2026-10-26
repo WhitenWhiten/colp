@@ -292,6 +292,11 @@ export const PRODUCT_ROUTE_MANIFEST = [
   },
   {
     "method": "POST",
+    "path": "/api/v1/collections/{collectionId}/images",
+    "operationId": "uploadCollectionImage"
+  },
+  {
+    "method": "POST",
     "path": "/api/v1/collections/{collectionId}/link-preview-requests",
     "operationId": "requestCollectionLinkPreviews"
   },
@@ -339,6 +344,11 @@ export const PRODUCT_ROUTE_MANIFEST = [
     "method": "POST",
     "path": "/api/v1/collections/{collectionId}/nodes/{nodeId}/classification-confirmations",
     "operationId": "confirmCollectionBookmarkClassification"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/collections/{collectionId}/nodes/{nodeId}/cover",
+    "operationId": "updateNodeCover"
   },
   {
     "method": "DELETE",
@@ -544,6 +554,11 @@ export const PRODUCT_ROUTE_MANIFEST = [
     "method": "GET",
     "path": "/api/v1/favicon/{faviconId}",
     "operationId": "getBookmarkFavicon"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/images/{imageId}",
+    "operationId": "getImageAsset"
   },
   {
     "method": "GET",

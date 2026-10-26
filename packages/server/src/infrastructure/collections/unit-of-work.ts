@@ -121,7 +121,7 @@ export function createPostgresCollectionsEditorReadUnitOfWork(
             cursorSigner: options.cursorSigner,
             cursorTtlMs: options.cursorTtlMs,
             bookmarkIcons: createPostgresBookmarkIconReadPort(transaction),
-            ...(options.linkPreviews === true ? { linkPreviews: createPostgresLinkPreviewReadPort(transaction) } : {}),
+            linkPreviews: createPostgresLinkPreviewReadPort(transaction, { ogEnabled: options.linkPreviews === true }),
             ...(options.productOrigin === undefined ? {} : { productOrigin: options.productOrigin }),
           };
           return work(ports);

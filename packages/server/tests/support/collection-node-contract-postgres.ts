@@ -23,6 +23,8 @@ export interface CollectionNodeContractCollection {
   readonly title?: string;
   readonly summary?: string | null;
   readonly visibility?: 'private' | 'unlisted' | 'public';
+  readonly publicationSlug?: string | null;
+  readonly publishedAt?: Date | null;
   readonly resourceRevision: string;
   readonly contentRevision: string;
   readonly policyRevision: string;
@@ -100,8 +102,8 @@ export async function resetCollectionNodeContractFixture(
     await client.query(
       `insert into collections (
          id, owner_subject_id, title, summary, kind, visibility, root_node_id,
-         resource_revision, content_revision, policy_revision, commit_ordinal
-       ) values ($1, $2, $3, $4, 'bookmarks', $5, $6, $7, $8, $9, $10)`,
+         resource_revision, content_revision, policy_revision, commit_ordinal, publication_slug, published_at
+       ) values ($1, $2, $3, $4, 'bookmarks', $5, $6, $7, $8, $9, $10, $11, $12)`,
       [
         collection.id,
         collection.ownerSubjectId,
@@ -113,6 +115,8 @@ export async function resetCollectionNodeContractFixture(
         collection.contentRevision,
         collection.policyRevision,
         collection.commitOrdinal.toString(),
+        collection.publicationSlug ?? null,
+        collection.publishedAt ?? null,
       ],
     );
 

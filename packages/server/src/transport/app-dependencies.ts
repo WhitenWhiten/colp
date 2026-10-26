@@ -75,6 +75,11 @@ import type { McpReadTransportDependencies } from './mcp/mcp-read-routes.js';
 import type { McpWriteApprovalRoutesDependencies } from './mcp/mcp-write-approval-routes.js';
 
 export interface AppDependencies {
+  readonly coverImages?: {
+    readonly store: import('../modules/collections/index.js').ImageObjectStore;
+    readonly publicAccess: import('./product/link-preview-routes.js').LinkPreviewPublicAccess;
+    readonly commands: import('../modules/collections/index.js').NodeCoverCommandUnitOfWork;
+  };
   readonly activity?: import('../modules/activity/index.js').ActivityPorts;
   readonly automationWorker?: import('../modules/automation/index.js').AutomationWorkerService;
   readonly automationApprovals?: import('../modules/automation/index.js').ApprovedProposalApplier;

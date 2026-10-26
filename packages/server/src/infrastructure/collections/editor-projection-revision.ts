@@ -27,11 +27,12 @@ export async function loadEditorProjectionRevision(
     .execute();
   const [icons, previews] = await Promise.all([
     findBookmarkIconObjectIdsByNodeIds(transaction, nodes.filter(node => node.kind === 'bookmark').map(node => node.id)),
-    attachBookmarkPreviewImages(options.linkPreviews ? createPostgresLinkPreviewReadPort(transaction) : undefined,
+    attachBookmarkPreviewImages(createPostgresLinkPreviewReadPort(transaction, { ogEnabled: options.linkPreviews === true }),
       options.productOrigin, nodes),
   ]);
   return createHash('sha256').update(JSON.stringify(nodes.map((node, index) => [
     node.id, node.shared, icons.get(node.id) ?? null,
     (previews[index] as { previewImage?: unknown } | undefined)?.previewImage ?? null,
+    (previews[index] as { coverRevision?: string } | undefined)?.coverRevision ?? '0',
   ]))).digest('hex');
 }

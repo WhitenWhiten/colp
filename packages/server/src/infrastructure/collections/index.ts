@@ -220,3 +220,6 @@ export { withCanonicalTreeCapacityBatch, type CanonicalTreeCapacityAdmission } f
 export { canonicalBookmarkMoveBatch } from './canonical-bookmark-move-batch.js';
 export { createPostgresLibraryCollectionUnitOfWork } from './library-collection-postgres.js';
 export { FaviconProviderCache } from './favicon-provider-cache.js';
+export { createDatabaseImageStore } from './image-database-store.js';
+export { createPostgresNodeCoverCommandUnitOfWork, createPostgresCoverImages } from './node-cover-postgres.js';
+export { createPostgresImagePublicAccess } from './image-public-access.js';
