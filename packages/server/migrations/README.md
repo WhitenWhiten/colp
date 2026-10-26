@@ -7,6 +7,15 @@ Migrations follow expand/contract deployment order: add backward-compatible stru
 deploy readers and writers, validate/backfill, then remove obsolete structures in a later
 release. A migration must not make the currently deployed reader unable to start.
 
+## Node cover images
+
+Apply `202611020800_node_cover_images` before deploying cover uploads. It adds
+immutable user image metadata, a separate PostgreSQL byte table, and per-node
+`auto` / `custom` / `none` preferences. Images have no expiration and are not
+managed by the OG worker or its garbage collector. Physical storage identity is
+recorded per object so future storage backends can coexist during migration.
+Older binaries ignore these tables. Dropping them discards uploaded covers.
+
 ## Managed website copies
 
 Apply `202611020700_source_archive_managed_records` before deploying the new API.

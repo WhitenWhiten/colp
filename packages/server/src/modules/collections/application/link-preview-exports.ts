@@ -5,3 +5,4 @@ export * from './link-preview-policy.js';
 export * from './link-preview-read.js';
 export * from './link-preview-commands.js';
 export * from './link-preview-store.js';
+export * from './image-assets.js';
