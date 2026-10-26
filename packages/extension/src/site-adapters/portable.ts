@@ -1,3 +1,4 @@
+import { sameDestinationOwner } from './copy-identity.js';
 import { legacySite, identityDefinition, type SiteDefinition } from './registry.js';
 import { readConnectionAuthority, authorityForConnection } from './ledger.js';
 import { readSourceConnection } from './content-identity.js';
@@ -40,6 +41,17 @@ async function all<T>(db: SourceDatabase, store: 'connections' | 'mounts' | 'rep
   const values = await db.transaction([store], 'readonly', tx => cursorPage<T>(tx.objectStore(store), range, 100001));
   if (values.length > 100000) throw new Error('sourceBackupLimit'); return values;
 }
+/** Several rules may reference one stable mapping; export that mapping only once. */
+function portableMounts(mounts: readonly SourceMount[]) {
+  const unique = new Map<string, SourceMount>();
+  for (const mount of mounts) {
+    const old = unique.get(mount.id);
+    if (old && (old.root.nativeId !== mount.root.nativeId || old.root.dateAdded !== mount.root.dateAdded
+      || old.root.deviceId !== mount.root.deviceId || !sameDestinationOwner(old.destination, mount.destination))) throw new Error('sourceBackupInvalid');
+    unique.set(mount.id, old ? { ...mount, aiDestination: old.aiDestination === 'excluded' || mount.aiDestination === 'excluded' ? 'excluded' : 'allowed' } : mount);
+  }
+  return [...unique.values()];
+}
 /** Foreign native IDs are source references only. Executable plans, generations and grants never travel. */
 export async function exportPortableSources(db: SourceDatabase, nativeSourceIds: ReadonlySet<string>): Promise<PortableSources | undefined> {
   const [connections, mounts, reps, folders] = await Promise.all([all<SourceConnection>(db, 'connections'), all<SourceMount>(db, 'mounts'),
@@ -49,7 +61,7 @@ export async function exportPortableSources(db: SourceDatabase, nativeSourceIds:
   for (const c of connections) {
     const policy = await db.read<SourcePolicyRecord>('meta', `policy:${c.id}`);
     result.connections.push({ ref: c.id, siteKey: c.siteKey ?? legacySite.siteKey, accountId: c.accountId, identityVersion: c.identityVersion, copies: policy?.policy.copies ?? 'sourceAndSemantic',
-      mounts: mounts.filter(m => m.connectionId === c.id).map(m => ({ ref: m.id, rootSourceId: sourceRef(m.root.nativeId), aiDestination: m.aiDestination,
+      mounts: portableMounts(mounts.filter(m => m.connectionId === c.id)).map(m => ({ ref: m.id, rootSourceId: sourceRef(m.root.nativeId), aiDestination: m.aiDestination,
         folders: folders.filter(f => f.mountId === m.id).map(f => ({ collectionId: f.collectionId, nativeSourceId: sourceRef(f.native?.nativeId), state: f.state })) })),
       associations: reps.filter(r => r.connectionId === c.id).map(r => ({ itemId: r.itemId, collectionId: r.sourceCollectionId, mountRef: r.mountId,
         purpose: r.purpose, nativeSourceId: sourceRef(r.native.nativeId), state: r.state,

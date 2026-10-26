@@ -148,3 +148,15 @@ test('backup round trips distinct local and synced semantic copies without execu
     } finally { await restored.close(); }
   } finally { await db.close(); }
 });
+
+test('backup coalesces rule aliases of one stable mapping without discarding exclusion or conflicting proof', async () => {
+  const f = await restored();
+  try {
+    const key = sourceKey(f.mount.connectionId, 'replacement');
+    await f.db.transaction(['mounts'], 'readwrite', async tx => { tx.objectStore('mounts').put({ ...f.mount, rootRuleId: 'replacement', aiDestination: 'allowed' }, key); });
+    const exported = await exportPortableSources(f.db, new Set(['newRoot']));
+    expect(exported?.connections[0]?.mounts).toEqual([{ ref: f.mount.id, rootSourceId: 'newRoot', aiDestination: 'excluded', folders: [] }]);
+    await f.db.transaction(['mounts'], 'readwrite', async tx => { tx.objectStore('mounts').put({ ...f.mount, rootRuleId: 'replacement', root: { ...f.mount.root, nativeId: 'different-root' } }, key); });
+    await expect(exportPortableSources(f.db, new Set(['newRoot']))).rejects.toThrow('sourceBackupInvalid');
+  } finally { await f.db.close(); }
+});
