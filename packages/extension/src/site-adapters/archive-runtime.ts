@@ -1,3 +1,4 @@
+import { readReconcileData } from './reconcile-storage.js';
 import { siteFeatures } from './capabilities.js';
 import { observedCatalog } from './observed-catalog.js';
 import { array, integer, jsonBytes, literal, object, str } from './schema.js';
@@ -75,7 +76,7 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
       catch (e) { hold = e instanceof Error ? e.message : 'sourceNeedsReview'; }
       const job = await importer.status();
       return { config: current ?? null, import: job, hold, reconciliationRun: job?.preview?.id ? await ports.reconciliation?.status(job.preview.id) ?? null : null,
-        reconciliation: job ? await db.read<ReconcilePreview>('meta', reconcileKey(job.id)) ?? null : null,
+        reconciliation: job ? await readReconcileData<ReconcilePreview>(db, reconcileKey(job.id)) ?? null : null,
         ...(!features.collections && features.observe ? { catalog: source ? await observedCatalog(ledger, source.context) : [], catalogCoverage: 'observedOnly' as const } : {}) };
     },
     async handle(raw: unknown) {

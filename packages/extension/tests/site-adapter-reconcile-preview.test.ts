@@ -1,3 +1,4 @@
+import { readReconcileData } from '../src/site-adapters/reconcile-storage.js';
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { expect, test, vi } from 'vitest';
@@ -26,7 +27,7 @@ test.each(['site', 'account'] as const)('preview follows stored request receipts
         title: 'My post', url: post.url, parentId: binding.nativeId, pinned: true, protected: false }] }));
     const service = createReconcilePreview(db, definition, inventory);
     await service.begin(job); await service.inspect(job, { kind: 'collectedEdge', collectionId: saved.id, itemId: post.id }); await service.begin(job); await service.freeze(job);
-    const preview = await db.read<ReconcilePreview>('meta', reconcileKey(job.id));
+    const preview = await readReconcileData<ReconcilePreview>(db, reconcileKey(job.id));
     expect(preview?.differences[0]?.kind).toBe(contentIdScope === 'site' ? 'candidate' : 'add');
     expect(preview?.snapshots[0]).toMatchObject({ complete: true, absence: 'unverified', items: [post] });
     expect(inventory).toHaveBeenCalledOnce(); expect(preview?.digest).toMatch(/^sha256:/u);
@@ -54,7 +55,7 @@ test('freezing retains deletion bookkeeping discovered during layout preparation
       tx.objectStore('representations').put({ ...representation, state: 'suppressed', manualRevision: 1 }, representationKey(representation));
     });
     await service.freeze(job);
-    expect((await db.read<ReconcilePreview>('meta', reconcileKey(job.id)))?.differences).toMatchObject([
+    expect((await readReconcileData<ReconcilePreview>(db, reconcileKey(job.id)))?.differences).toMatchObject([
       { kind: 'localDeleted', choices: ['keep', 'restore'], representation: { state: 'suppressed', manualRevision: 1 } },
     ]);
   } finally { await db.close(); }

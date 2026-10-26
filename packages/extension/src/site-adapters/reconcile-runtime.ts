@@ -1,3 +1,4 @@
+import { readReconcileData } from './reconcile-storage.js';
 import { createReconcileRuns, type ReconcileRun, type ReconcileOperation } from './reconcile-run.js';
 import { executeReconcileCommand, prepareReconcileCommand, assertReconcileOwnership, assertReconcileUndoState, type ReconcileReceipt } from './reconcile-executor.js';
 import { installReconcileAuthorization } from './reconcile-authorization.js';
@@ -197,7 +198,7 @@ export async function handleReconcileRequest(raw: unknown, connectionId: string)
     await assertCaptureOwner(run.scope); return { run };
   }
   if (apply(raw)) {
-    const input = raw as { importId: string; digest: string; decisions: ReconcileDecision[] }, preview = await siteLedger.db.read<ReconcilePreview>('meta', reconcileKey(input.importId));
+    const input = raw as { importId: string; digest: string; decisions: ReconcileDecision[] }, preview = await readReconcileData<ReconcilePreview>(siteLedger.db, reconcileKey(input.importId));
     if (!preview || preview.context.connectionId !== connectionId || preview.digest !== input.digest
       || sourceDigest({ ...preview, digest: '' }) !== preview.digest) throw new Error('previewStale');
     await reconciliationRuns.approve(preview, await currentCaptureScope(), input.decisions);

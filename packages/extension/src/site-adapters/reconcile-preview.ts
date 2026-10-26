@@ -1,3 +1,4 @@
+import { readReconcileData, writeReconcileData, type ReconcileData } from './reconcile-storage.js';
 import { reconcileSnapshot, type ReconcilePage } from './reconcile-scan.js';
 import { reconcileDifferences } from './reconcile-diff.js';
 import type { ReconcilePreview } from './reconcile-model.js';
@@ -63,15 +64,17 @@ export function createReconcilePreview(db: SourceDatabase, definition: SiteDefin
         && !(owners.get(n.native.nativeId)!.size === 1 && owners.get(n.native.nativeId)!.has(snapshot.collectionId)) })), collectionParentId: folder?.native?.nativeId ?? '',
         negative: id => negatives.has(id), candidateNodes: item => candidateIndex.get(item.id) ?? [], candidates: () => true }));
     }
-    return differences.length > 10000 || new TextEncoder().encode(JSON.stringify({ snapshots, differences })).byteLength > 8 * 1024 * 1024 ? Promise.reject(new Error('capacity')) : { snapshots, differences };
+    // Import edges and native inventory have independent bounded admission limits.
+    // Persist their union in pages rather than imposing a smaller preview limit.
+    return { snapshots, differences };
   }
   return {
     async begin(job: ImportJob) {
       if (current?.id === job.previewId) return;
-      let record = await db.read<{ differences: ReconcilePreview['differences'] }>('meta', cached(job));
+      let record = await readReconcileData<ReconcileData>(db, cached(job));
       if (!record) {
         const result = await build(job, await inventory(job)); record = result;
-        await db.transaction(['meta'], 'readwrite', async tx => { tx.objectStore('meta').put(result, cached(job)); });
+        await writeReconcileData(db, cached(job), result);
       }
       current = { id: job.previewId!, positives: new Set(record.differences.filter(d => d.source).map(d => sourceKey(d.collectionId, d.itemId))), candidates: new Set(record.differences.filter(d => d.kind === 'candidate').map(d => sourceKey(d.collectionId, d.itemId))) };
     },
@@ -79,7 +82,7 @@ export function createReconcilePreview(db: SourceDatabase, definition: SiteDefin
       await this.begin(job); return !current!.positives.has(sourceKey(edge.collectionId, edge.itemId)) || current!.candidates.has(sourceKey(edge.collectionId, edge.itemId));
     },
     async freeze(job: ImportJob) {
-      const record = await db.read<{ snapshots: ReconcilePreview['snapshots']; differences: ReconcilePreview['differences'] }>('meta', cached(job));
+      const record = await readReconcileData<ReconcileData>(db, cached(job));
       if (!record) throw new Error('reconcileInventoryMissing');
       // Layout preparation may notice a deletion missed while the adapter was off.
       // Carry that bookkeeping revision into the same missing-node preview, without
@@ -96,7 +99,7 @@ export function createReconcilePreview(db: SourceDatabase, definition: SiteDefin
         policyRevision: job.snapshot!.policyRevision,
         snapshots: record.snapshots, differences: record.differences };
       preview.digest = sourceDigest(preview);
-      await db.transaction(['meta'], 'readwrite', async tx => { tx.objectStore('meta').put(preview, reconcileKey(job.id)); });
+      await writeReconcileData(db, reconcileKey(job.id), preview);
     },
   };
 }
