@@ -9,6 +9,10 @@ export function validateSiteDefinitions(sites: readonly SiteDefinition[]): reado
     const namespace = JSON.stringify([site.siteKey, site.identityVersion]);
     if (ids.has(site.adapterId) || namespaces.has(namespace) || !site.adapterId || !site.siteKey || !Number.isSafeInteger(site.identityVersion) || site.identityVersion < 1) throw new Error('invalidSiteRegistry');
     if (site.readScope !== undefined && !['document', 'account'].includes(site.readScope)) throw new Error('invalidReadScope');
+    if (site.connectionKind !== undefined && !['account', 'page'].includes(site.connectionKind)) throw new Error('invalidConnectionKind');
+    if (site.defaultCollection && (!site.capabilities.includes('enumerateItems') || site.capabilities.includes('enumerateCollections')
+      || !site.validateCollection(site.defaultCollection.id) || site.defaultCollection.identity !== 'siteId' || site.defaultCollection.parentId !== null
+      || !site.defaultCollection.title || site.defaultCollection.title.length > 512)) throw new Error('invalidDefaultCollection');
     if (site.contentIdScope !== undefined && !['site', 'account'].includes(site.contentIdScope)) throw new Error('invalidContentScope');
     if (site.collectionSnapshot !== undefined && !['positiveOnly', 'pointInTime'].includes(site.collectionSnapshot)) throw new Error('invalidSnapshotScope');
     if (site.collectionHierarchy !== undefined && site.collectionHierarchy !== 'flat') throw new Error('unsupportedCollectionHierarchy');

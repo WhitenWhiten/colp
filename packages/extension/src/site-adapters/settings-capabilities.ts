@@ -12,9 +12,9 @@ export function renderSiteCapabilities(document: Document, definition: SiteDefin
   hideAction('read-catalog', features.collections);
   hideAction('read-item', features.resolve, true); hideAction('retry-confirmation', features.confirmation, true);
   hideAction('archive-live', features.liveArchive, true); hideAction('configure-archive', features.archive); hideAction('grant-archive', features.archive);
-  for (const id of ['start-import', 'resume-import', 'freeze-import', 'approve-import']) hideAction(id, features.import);
+  for (const id of ['start-import', 'resume-import', 'retry-import', 'freeze-import', 'approve-import']) hideAction(id, features.import);
   const archive = document.querySelector<HTMLElement>('[aria-labelledby="sites-archive-heading"]'); if (archive) archive.hidden = !features.archive && !hasArchiveConfig;
-  const section = document.querySelector<HTMLElement>('[aria-labelledby="sites-import-heading"]'); if (section) section.hidden = !features.import && !hasImportJob;
+  const section = document.querySelector<HTMLElement>('#step-import'); if (section) section.hidden = !features.import && !hasImportJob;
   const summary = document.querySelector('#capability-summary');
   const labels = [features.liveArchive && t('sites_liveArchiving', 'Live archiving'), features.collections && t('sites_featureCatalog', 'Read collections'),
     features.resolve && t('sites_featureResolution', 'Identify content'), features.import && t('sites_featureImport', 'Import with preview'),

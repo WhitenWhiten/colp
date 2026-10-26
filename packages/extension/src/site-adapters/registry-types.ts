@@ -3,6 +3,10 @@ import type { AdapterManifest, AdapterMessage, ContentIdentity, SiteItem } from 
 export interface SiteDefinition {
   adapterId: string; version: string; siteKey: string; identityVersion: number;
   label: string; origin: string; matches: readonly string[];
+  /** Page sources use a verified opaque source identity without an account-connection UI. */
+  connectionKind?: 'account' | 'page';
+  /** A qualified single-list source can enumerate items without exposing a collection catalog. */
+  defaultCollection?: import('./contracts.js').SiteCollection;
   capabilities: AdapterManifest['capabilities'];
   negativeReadback: boolean;
   /** Missing means document-local. Account-wide reads must be explicitly qualified. */

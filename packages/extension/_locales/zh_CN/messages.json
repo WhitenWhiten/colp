@@ -11511,14 +11511,6 @@
     "message": "Know-N 需要先获得访问权限。请允许后重试。",
     "description": "Know-N needs access first. Allow it, then try again."
   },
-  "sites_accountNamed": {
-    "message": "$1 账号 $2",
-    "description": "$1 account $2"
-  },
-  "sites_actionFailed": {
-    "message": "操作未成功。详细信息在“恢复 › 技术详情”中。",
-    "description": "That didn’t work. The details are in Recovery › Technical details."
-  },
   "sites_addBookmarks_other": {
     "message": "添加 $1 个书签",
     "description": "Add $1 bookmarks"
@@ -11530,14 +11522,6 @@
   "sites_addRule": {
     "message": "添加规则",
     "description": "Add rule"
-  },
-  "sites_addedCount_other": {
-    "message": "已添加 $1 个书签。新收藏会继续同步。",
-    "description": "Added $1 bookmarks. New favorites keep syncing."
-  },
-  "sites_addingBookmarks": {
-    "message": "正在添加书签…",
-    "description": "Adding bookmarks…"
   },
   "sites_addingInto": {
     "message": "正在把它们添加到你的文件夹。你可以离开此页面。",
@@ -11643,21 +11627,9 @@
     "message": "每批最多 20 个已确认的收藏，每批都有自己的预览和批准。如果结果不确定，请先恢复它，再准备下一批。",
     "description": "Up to 20 confirmed favorites per batch, each with its own preview and approval. If a result is uncertain, recover it before the next batch."
   },
-  "sites_cancelledHint": {
-    "message": "不会再添加任何内容。",
-    "description": "Nothing more was added."
-  },
-  "sites_checkAgain": {
-    "message": "再次检查",
-    "description": "Check again"
-  },
   "sites_checkExisting": {
     "message": "检查已有收藏",
     "description": "Check for existing favorites"
-  },
-  "sites_checkExistingHint": {
-    "message": "查找开始同步之前就已收藏的内容。添加任何内容之前，你会先看到列表。",
-    "description": "Look for favorites saved before syncing started. You see the list before anything is added."
   },
   "sites_chooseCollection": {
     "message": "请至少选择一个收藏夹。",
@@ -11768,8 +11740,8 @@
     "description": "Keep source and semantic copies"
   },
   "sites_copiesHint": {
-    "message": "当你也把视频保存到其他位置时如何处理。",
-    "description": "What happens when you also save a video somewhere else."
+    "message": "同一项内容也保存在其他位置时，该如何处理。",
+    "description": "What happens when the same item is also saved elsewhere."
   },
   "sites_copiesKeepExisting": {
     "message": "一个副本，保留现有位置",
@@ -11798,10 +11770,6 @@
   "sites_disabledUntilReviewed": {
     "message": "审查前保持停用。",
     "description": "Disabled until reviewed."
-  },
-  "sites_doneHint": {
-    "message": "新收藏会继续同步。",
-    "description": "New favorites keep syncing."
   },
   "sites_enablePackage": {
     "message": "启用检查器",
@@ -11847,21 +11815,9 @@
     "message": "$1 个新文件夹",
     "description": "$1 new folders"
   },
-  "sites_listNoChanges": {
-    "message": "其他内容不变。",
-    "description": "Nothing else changes."
-  },
-  "sites_listPartial": {
-    "message": "部分收藏夹未读取完",
-    "description": "some collections weren’t read to the end"
-  },
   "sites_listSaved_other": {
     "message": "$1 个已保存",
     "description": "$1 already saved"
-  },
-  "sites_listUnreadable_other": {
-    "message": "$1 个无法读取",
-    "description": "$1 couldn’t be read"
   },
   "sites_liveArchiving": {
     "message": "实时归档",
@@ -11882,10 +11838,6 @@
   "sites_navConnect": {
     "message": "连接账号",
     "description": "Connect account"
-  },
-  "sites_navSyncing": {
-    "message": "同步中",
-    "description": "Syncing"
   },
   "sites_needsAccess": {
     "message": "$1 需要站点访问权限",
@@ -11943,10 +11895,6 @@
     "message": "尚未同步。",
     "description": "Not syncing yet."
   },
-  "sites_nothingImported": {
-    "message": "尚未导入任何内容",
-    "description": "Nothing brought in yet"
-  },
   "sites_nothingNew": {
     "message": "没有需要添加的新内容",
     "description": "Nothing new to add"
@@ -11954,10 +11902,6 @@
   "sites_off": {
     "message": "关闭",
     "description": "Off"
-  },
-  "sites_omittedItems": {
-    "message": "遗漏的项目",
-    "description": "Omitted items"
   },
   "sites_on": {
     "message": "开启",
@@ -12007,33 +11951,13 @@
     "message": "站点适配器 · Know-N",
     "description": "Site adapters · Know-N"
   },
-  "sites_pauseSyncing": {
-    "message": "暂停同步",
-    "description": "Pause syncing"
-  },
   "sites_paused": {
     "message": "已暂停。",
     "description": "Paused."
   },
-  "sites_pausedAlert": {
-    "message": "站点适配器已暂停。恢复检查和导出仍然可用。",
-    "description": "Site adapters are paused. Recovery inspection and export remain available."
-  },
   "sites_phaseAttention": {
     "message": "需要审查",
     "description": "Needs review"
-  },
-  "sites_phaseCancelled": {
-    "message": "导入已取消",
-    "description": "Import cancelled"
-  },
-  "sites_preparingFound_other": {
-    "message": "找到 $1 个收藏。",
-    "description": "Found $1 favorites."
-  },
-  "sites_preparingList": {
-    "message": "正在生成列表…",
-    "description": "Making the list…"
   },
   "sites_previewBatchShort": {
     "message": "预览批次",
@@ -12083,29 +12007,13 @@
     "message": "正在读取你的收藏夹…",
     "description": "Reading your collections…"
   },
-  "sites_readingFavorites": {
-    "message": "正在读取你的收藏…",
-    "description": "Reading your favorites…"
-  },
   "sites_readingSoFar_other": {
     "message": "正在读取你的收藏夹… 已读取 $1 个。",
     "description": "Reading your collections… $1 so far."
   },
-  "sites_readingStopped": {
-    "message": "读取提前停止",
-    "description": "Reading stopped early"
-  },
-  "sites_readingTabs_other": {
-    "message": "正在读取 $1 个打开的 $2 标签页。",
-    "description": "Reading $1 open $2 tabs."
-  },
   "sites_readsWaiting_other": {
     "message": "$1 个读取正在等待。",
     "description": "$1 reads waiting."
-  },
-  "sites_readyToAdd_other": {
-    "message": "可以添加 $1 个书签",
-    "description": "Ready to add $1 bookmarks"
   },
   "sites_recordsNeedRecovery_other": {
     "message": "$1 条记录需要恢复或审查。",
@@ -12243,10 +12151,6 @@
     "message": "已用其他账号保存。",
     "description": "Saved with another account."
   },
-  "sites_scanningFound_other": {
-    "message": "目前找到 $1 个收藏。在你批准列表之前不会添加任何内容。",
-    "description": "Found $1 favorites so far. Nothing is added until you approve the list."
-  },
   "sites_signedInAs": {
     "message": "已以 $2 登录 $1",
     "description": "Signed in to $1 as $2"
@@ -12295,37 +12199,9 @@
     "message": "连接你的账号",
     "description": "Connect your account"
   },
-  "sites_stepImport": {
-    "message": "导入已有收藏",
-    "description": "Bring in existing favorites"
-  },
-  "sites_stepImportWait": {
-    "message": "开始同步后，Know-N 会列出收藏夹中已有的内容。在你批准列表之前不会添加任何内容。",
-    "description": "After you start syncing, Know-N lists what is already in your collections. Nothing is added until you approve the list."
-  },
   "sites_stopAndReview": {
     "message": "停止并查看",
     "description": "Stop and review"
-  },
-  "sites_stoppedEarly": {
-    "message": "读取未完成就停止了。$1",
-    "description": "Reading stopped before the end. $1"
-  },
-  "sites_stoppedRate": {
-    "message": "$1 要求 Know-N 放慢速度。请几分钟后重试。$2",
-    "description": "$1 asked Know-N to slow down. Try again in a few minutes. $2"
-  },
-  "sites_stoppedSignedOut": {
-    "message": "你已退出 $1。请登录后重试。$2",
-    "description": "You’re signed out of $1. Sign in, then try again. $2"
-  },
-  "sites_stoppedTab": {
-    "message": "$1 标签页已关闭或转到了其他页面。$2",
-    "description": "The $1 tab closed or moved to another page. $2"
-  },
-  "sites_syncingInto_other": {
-    "message": "正在把 $1 个收藏夹同步到 $2。",
-    "description": "Syncing $1 collections into $2."
   },
   "sites_syncingPaused": {
     "message": "同步已暂停。",
@@ -12407,10 +12283,6 @@
     "message": "该文件夹已不存在。请选择其他文件夹。",
     "description": "That folder is gone. Choose another one."
   },
-  "sites_folderNotCreated": {
-    "message": "无法新建文件夹。请改为选择一个。",
-    "description": "Couldn’t make the folder. Choose one instead."
-  },
   "sites_noItem": {
     "message": "未在所选来源标签页中找到明确的单项内容。",
     "description": "No single item was found in the selected source tab."
@@ -12422,10 +12294,6 @@
   "sites_identify": {
     "message": "识别",
     "description": "Identify"
-  },
-  "sites_importDone": {
-    "message": "已有收藏已导入",
-    "description": "Existing favorites are in"
   },
   "sites_importRunning": {
     "message": "已有导入正在进行。",
@@ -12446,10 +12314,6 @@
   "sites_foundItem": {
     "message": "已找到“$1”。",
     "description": "Found “$1”."
-  },
-  "sites_foundSoFar_other": {
-    "message": "找到 $1 个收藏。",
-    "description": "Found $1 favorites."
   },
   "sites_featureCatalog": {
     "message": "读取收藏夹",
@@ -12475,10 +12339,6 @@
     "message": "暂无可用的来源操作。",
     "description": "No source actions are available."
   },
-  "sites_noTabOpen": {
-    "message": "没有打开的 $1 标签页。需要读取收藏夹时请打开一个。",
-    "description": "No $1 tab is open. Open one when you want to read your collections."
-  },
   "sites_observedCatalogHint": {
     "message": "这里只显示当前来源会话中已观察到的收藏夹。发现更多收藏夹后，请刷新。",
     "description": "Only collections observed in the current source session are shown. Refresh after observing more collections."
@@ -12490,10 +12350,6 @@
   "sites_syncServerUpgrade": {
     "message": "请更新 COLP Server，以支持将网站收藏保存到同步目录。",
     "description": "Update COLP Server to support saving website collections into synced folders."
-  },
-  "sites_waitingForBookmarkSync": {
-    "message": "正在等待书签同步…",
-    "description": "Waiting for bookmark sync…"
   },
   "sites_waitingForBookmarkSyncHint": {
     "message": "已保留你批准的导入。同步连接和目录就绪后会继续。",
@@ -12766,5 +12622,717 @@
   "sites_reconcileUrlChanged": {
     "message": "该书签的网址已被手动改动。先保留原位，等待检查。",
     "description": "Its URL was changed locally. The bookmark is kept for review."
+  },
+  "sites_mappedInto_other": {
+    "message": "已将 $1 个收藏夹映射到 $2。",
+    "description": "Mapped $1 collections to $2."
+  },
+  "sites_cancelledRestart": {
+    "message": "读取和导入已停止。准备好后可重新读取，已保存的书签会保留。",
+    "description": "Reading and importing have stopped. Start a new check when you are ready; saved bookmarks are kept."
+  },
+  "sites_changeSyncSettings": {
+    "message": "更改收藏夹和保存位置",
+    "description": "Change collections and save location"
+  },
+  "sites_collectionsRead": {
+    "message": "已读取 $1 / $2 个收藏夹",
+    "description": "$1 / $2 collections read"
+  },
+  "sites_importDestination_other": {
+    "message": "$1 个收藏夹 → $2",
+    "description": "$1 collections → $2"
+  },
+  "sites_importReviewRemaining": {
+    "message": "已添加 $1 个书签，另有 $2 项需要在下方单独检查。",
+    "description": "$1 bookmarks added; $2 items need a separate review below."
+  },
+  "sites_importSaved": {
+    "message": "已添加 $1 个书签。原有书签已保留。",
+    "description": "$1 bookmarks added. Existing bookmarks were kept."
+  },
+  "sites_liveOff": {
+    "message": "已关闭新增收藏的自动保存。",
+    "description": "Automatic saving of new favorites is off."
+  },
+  "sites_liveOn": {
+    "message": "浏览 $1 时，新增收藏会自动保存。",
+    "description": "New favorites save automatically while you browse $1."
+  },
+  "sites_liveWaiting": {
+    "message": "打开 $1 时，新增收藏会自动保存。",
+    "description": "New favorites save automatically while $1 is open."
+  },
+  "sites_readInBackground": {
+    "message": "请保持源网站标签页开启。可以离开此页面，返回时查看导入列表。",
+    "description": "Keep the website tab open. You can leave this page; the list will be ready when you return."
+  },
+  "sites_readNotFinished": {
+    "message": "部分收藏夹尚未读完。你可以先添加列表中已读取的收藏。",
+    "description": "Some collections have not been read to the end. You can add the favorites in this list first."
+  },
+  "sites_readRateLimited": {
+    "message": "$1 要求放慢读取速度。请几分钟后继续，已读取的收藏会保留。",
+    "description": "$1 asked us to slow down. Try continuing in a few minutes; favorites already read are kept."
+  },
+  "sites_readSourceLost": {
+    "message": "与源网站的连接已断开。继续读取可重新检查，不会重复添加已保存的书签。",
+    "description": "The website connection was lost. Continue reading to check again; saved bookmarks will not be duplicated."
+  },
+  "sites_readingCollection": {
+    "message": "正在读取“$1” · 已找到 $2 个收藏",
+    "description": "Reading “$1” · $2 favorites found"
+  },
+  "sites_resumeBeforeImport": {
+    "message": "请在设置中恢复同步后继续。已保存的书签会保留。",
+    "description": "Resume syncing in settings to continue. Bookmarks already saved are kept."
+  },
+  "sites_reviewBeforeAdding": {
+    "message": "确认列表后即可添加书签。",
+    "description": "Check the list, then add the bookmarks."
+  },
+  "sites_reviewSyncSettings": {
+    "message": "检查同步设置",
+    "description": "Review sync settings"
+  },
+  "sites_skippedItems_other": {
+    "message": "已跳过 $1 项",
+    "description": "$1 items skipped"
+  },
+  "sites_skippedKept": {
+    "message": "不可用的内容会跳过，能够读取的收藏仍会包含在列表中。",
+    "description": "Unavailable items are skipped. Favorites that can be read are still included."
+  },
+  "sites_skippedMissing": {
+    "message": "网站未返回 $1 项内容。",
+    "description": "$1 items were not returned by the website."
+  },
+  "sites_skippedReadProblem": {
+    "message": "部分内容未能读取。请继续读取或重新检查。",
+    "description": "Some content could not be read. Continue reading or check again to retry."
+  },
+  "sites_skippedUnsupported": {
+    "message": "$1 项内容的格式暂不受此适配器支持。",
+    "description": "$1 items use a format this adapter does not support."
+  },
+  "sites_taskCount": {
+    "message": "$1 / $2",
+    "description": "$1 / $2"
+  },
+  "sites_archivePausedTitle": {
+    "message": "收藏保存已暂停",
+    "description": "Website saving paused"
+  },
+  "sites_itemsNotIncluded_other": {
+    "message": "$1 项未包含在导入中",
+    "description": "$1 items not included"
+  },
+  "sites_viewImportList": {
+    "message": "查看收藏列表和书签变化",
+    "description": "View favorites and bookmark changes"
+  },
+  "sites_finishEmptyImport": {
+    "message": "可用的收藏已保存，或本次只读到了不可用内容。点击“完成”结束本次检查。",
+    "description": "Available favorites are already saved, or this read found only unavailable items. Finish to close this check."
+  },
+  "sites_liveBlocked": {
+    "message": "连接和设置就绪后，新增收藏才会自动保存。",
+    "description": "Automatic saving of new favorites waits until the connection and settings are ready."
+  },
+  "sites_stopImport": {
+    "message": "停止导入",
+    "description": "Stop import"
+  },
+  "sites_stopImportHint": {
+    "message": "已添加的书签会保留。",
+    "description": "Bookmarks already added are kept."
+  },
+  "sites_statusUnreadable": {
+    "message": "无法读取当前同步状态。请重试，或打开“恢复”查看详情。",
+    "description": "Couldn’t read the current sync status. Try again, or open Recovery for details."
+  },
+  "sites_mappingNeedsReview": {
+    "message": "此映射需要检查后才能继续保存。请打开“恢复”查看。",
+    "description": "This mapping needs to be checked before saving can continue. Open Recovery to review it."
+  },
+  "sites_checkMapping": {
+    "message": "检查映射",
+    "description": "Check mapping"
+  },
+  "sites_reviewItems": {
+    "message": "核对内容",
+    "description": "Review items"
+  },
+  "sites_cancelledBeforeSaving": {
+    "message": "读取已停止，此前找到 $1 个收藏。本次导入尚未添加书签，准备好后可重新读取。",
+    "description": "Reading stopped after $1 favorites were found. This import added no bookmarks. Read again when ready."
+  },
+  "common_change": {
+    "message": "更改",
+    "description": "Change"
+  },
+  "sites_accountDisplayName": {
+    "message": "$1 · $2",
+    "description": "$1 · $2"
+  },
+  "sites_advancedTools": {
+    "message": "高级工具",
+    "description": "Advanced tools"
+  },
+  "sites_checkBeforeSaving": {
+    "message": "先检查所选列表，再确认要添加的内容。本次检查尚未添加任何书签。",
+    "description": "Check the selected source lists, then review what will be added. No bookmarks have been added by this check yet."
+  },
+  "sites_checkComplete": {
+    "message": "本次检查已完成",
+    "description": "This check is complete"
+  },
+  "sites_checkNotFinished": {
+    "message": "内容检查尚未完成",
+    "description": "The source check has not finished"
+  },
+  "sites_checkUpdates": {
+    "message": "检查更新",
+    "description": "Check for updates"
+  },
+  "sites_checkingSource": {
+    "message": "正在检查内容",
+    "description": "Checking source items"
+  },
+  "sites_collectionUnknown": {
+    "message": "暂时无法获取收藏夹名称",
+    "description": "Collection name not available"
+  },
+  "sites_configureCollection": {
+    "message": "配置此收藏夹",
+    "description": "Configure this collection"
+  },
+  "sites_confirmDetectedAccount": {
+    "message": "确认在 $1 上识别到的账号",
+    "description": "Confirm the account detected on $1"
+  },
+  "sites_confirmedSaved_other": {
+    "message": "此映射已保存 $2 个书签",
+    "description": "$2 bookmarks saved in this mapping"
+  },
+  "sites_connectWebsite": {
+    "message": "连接网站",
+    "description": "Connect the website"
+  },
+  "sites_connectedSource": {
+    "message": "已连接 $1 账号",
+    "description": "$1 account connected"
+  },
+  "sites_connectionNeedsAttention": {
+    "message": "需要处理",
+    "description": "Needs attention"
+  },
+  "sites_connectionSettings": {
+    "message": "账号与访问",
+    "description": "Connection"
+  },
+  "sites_continueCheck": {
+    "message": "继续检查",
+    "description": "Continue checking"
+  },
+  "sites_continueFirstSave": {
+    "message": "继续首次保存",
+    "description": "Continue first save"
+  },
+  "sites_copyDiagnostic": {
+    "message": "复制诊断报告",
+    "description": "Copy diagnostic report"
+  },
+  "sites_copyProblem": {
+    "message": "复制问题信息",
+    "description": "Copy problem report"
+  },
+  "sites_copyRecord": {
+    "message": "复制这条操作记录",
+    "description": "Copy this operation record"
+  },
+  "sites_diagnosticReport": {
+    "message": "诊断报告",
+    "description": "Diagnostic report"
+  },
+  "sites_firstSaveTitle": {
+    "message": "已有内容尚未保存",
+    "description": "Existing items have not been saved yet"
+  },
+  "sites_folderAfterSave": {
+    "message": "保存内容时会创建此文件夹",
+    "description": "Folder is created when items are saved"
+  },
+  "sites_folderMissing": {
+    "message": "文件夹已不存在，请检查保存位置",
+    "description": "Folder is missing; check the mapping"
+  },
+  "sites_folderReview": {
+    "message": "文件夹关联需要检查",
+    "description": "Folder association needs review"
+  },
+  "sites_identifyOnly": {
+    "message": "此来源可识别当前页面，不提供列表读取或自动保存。",
+    "description": "This source identifies the current page. It does not enumerate or automatically save items."
+  },
+  "sites_lastActivityAt": {
+    "message": "最近操作：$1",
+    "description": "Last activity: $1"
+  },
+  "sites_manageScope": {
+    "message": "管理收藏夹",
+    "description": "Manage collections"
+  },
+  "sites_manualChecks": {
+    "message": "检查并确认后保存",
+    "description": "Saved through reviewed checks"
+  },
+  "sites_mappingChanged": {
+    "message": "已保存 $1 项 · 本地更改了 $2 项",
+    "description": "$1 saved · $2 changed locally"
+  },
+  "sites_mappingKeptDeleted": {
+    "message": "已在本地删除，保持删除",
+    "description": "Kept deleted locally"
+  },
+  "sites_mappingNotSaved": {
+    "message": "尚未保存",
+    "description": "Not saved yet"
+  },
+  "sites_mappingSaved": {
+    "message": "已保存 $1 项",
+    "description": "$1 saved"
+  },
+  "sites_mappingTable": {
+    "message": "来源与保存结果",
+    "description": "Source and saved results"
+  },
+  "sites_mappingUnknown": {
+    "message": "尚未核对",
+    "description": "Not verified"
+  },
+  "sites_newItemsOff": {
+    "message": "自动保存新增内容：关闭",
+    "description": "Automatically save new items: off"
+  },
+  "sites_newItemsOn": {
+    "message": "自动保存新增内容：开启",
+    "description": "Automatically save new items: on"
+  },
+  "sites_newItemsOnly": {
+    "message": "浏览此网站时，新增内容会保存到所选文件夹。此来源不支持读取全部已有内容。",
+    "description": "This source provides new items as you browse. They are saved into the configured folders; reading all existing items is unavailable."
+  },
+  "sites_newItemsReady": {
+    "message": "等待新增内容",
+    "description": "Ready for new source items"
+  },
+  "sites_noSavingCapability": {
+    "message": "此来源不提供收藏夹读取或自动保存。",
+    "description": "This adapter does not offer collection reading or automatic saving."
+  },
+  "sites_oneSourceList": {
+    "message": "一个来源列表",
+    "description": "One source list"
+  },
+  "sites_openFolder": {
+    "message": "打开文件夹",
+    "description": "Open folder"
+  },
+  "sites_pageConnectionHint": {
+    "message": "此来源使用当前网页，无需连接账号。",
+    "description": "This source uses the current website page. No account connection is needed."
+  },
+  "sites_pageSource": {
+    "message": "来源：$1",
+    "description": "Source: $1"
+  },
+  "sites_problemAllow": {
+    "message": "请打开同步设置，允许所需的访问权限。",
+    "description": "Open sync settings and allow the missing access."
+  },
+  "sites_problemAutomatic": {
+    "message": "后台已安排再次尝试，暂时无需操作。",
+    "description": "The background task has scheduled another attempt; no action is needed now."
+  },
+  "sites_problemCapacity": {
+    "message": "本次操作达到了数量或大小限制。已保存的内容会保留。",
+    "description": "This operation reached a size or item limit. Work already saved is kept."
+  },
+  "sites_problemChanged": {
+    "message": "检查过程中，来源或设置发生了变化。请重新检查后再应用剩余更改。",
+    "description": "The source or settings changed during this check. Check again before applying the remaining changes."
+  },
+  "sites_problemCheckSettings": {
+    "message": "请检查自动化或 AI 设置后再继续。",
+    "description": "Review the automation or AI settings before continuing this operation."
+  },
+  "sites_problemConfiguration": {
+    "message": "当前自动化或 AI 设置阻止了保存。原有书签会保留。",
+    "description": "Saving is blocked by the current automation or AI settings. Existing bookmarks are kept."
+  },
+  "sites_problemConnection": {
+    "message": "与源网站的连接不可用，暂时无法继续读取。",
+    "description": "The website connection is unavailable. Reading cannot continue yet."
+  },
+  "sites_problemCopied": {
+    "message": "已复制问题报告，其中不包含账号身份、网页内容和凭据。",
+    "description": "Problem report copied. It excludes account identities, page content and credentials."
+  },
+  "sites_problemCopyManual": {
+    "message": "请复制下方已选中的报告。",
+    "description": "Copy the selected report below."
+  },
+  "sites_problemDestination": {
+    "message": "保存位置或其关联发生了变化。请检查后再保存更多内容。",
+    "description": "The save location or its association has changed. Check it before saving more items."
+  },
+  "sites_problemDetails": {
+    "message": "可以查看操作记录，或复制问题信息以便排查。",
+    "description": "Review the operation details or copy the problem report."
+  },
+  "sites_problemInspect": {
+    "message": "请在操作记录中检查原有操作的保存结果。",
+    "description": "Use the operation records to check the save result."
+  },
+  "sites_problemLocation": {
+    "message": "请在同步设置中检查保存位置。原有书签会留在原处。",
+    "description": "Check the save location in sync settings. Existing bookmarks will stay where they are."
+  },
+  "sites_problemNetwork": {
+    "message": "连接未能完成。已确认保存的书签会保留，未完成的内容仍在等待处理。",
+    "description": "The connection did not finish. Confirmed bookmarks are kept; unfinished work is still pending."
+  },
+  "sites_problemOpen": {
+    "message": "请打开 $1 并检查连接后继续。",
+    "description": "Open $1 and check its connection to continue."
+  },
+  "sites_problemPermission": {
+    "message": "缺少书签或网站访问权限。已保存的书签会保留。",
+    "description": "Bookmark or website access is missing. Saved bookmarks are kept."
+  },
+  "sites_problemRate": {
+    "message": "$1 正在限制请求。已读取和已保存的内容会保留。",
+    "description": "$1 is limiting requests. Items already read and saved are kept."
+  },
+  "sites_problemRecheck": {
+    "message": "请重新检查，查看当前需要应用的更改。",
+    "description": "Run a new check to review the current changes."
+  },
+  "sites_problemReduceScope": {
+    "message": "请减少所选收藏夹，或选择更小的来源列表后重新检查。",
+    "description": "Select fewer collections or a smaller source list, then check again."
+  },
+  "sites_problemSourceData": {
+    "message": "网站返回的内容暂时无法读取。已确认保存的书签会保留。",
+    "description": "The website returned content this adapter could not read. Confirmed bookmarks are kept."
+  },
+  "sites_problemUnconfirmed": {
+    "message": "部分保存结果尚未确认。请先检查原有操作，再创建新的副本。",
+    "description": "Some save results could not be confirmed. Check the original operations before creating another copy."
+  },
+  "sites_problemUnknown": {
+    "message": "本次操作未能完成，具体原因尚未确定。可以复制诊断信息以便排查。",
+    "description": "This operation could not finish, and the cause is not yet classified. Its diagnostic details can be copied for investigation."
+  },
+  "sites_problemUnsupported": {
+    "message": "当前插件、浏览器或本地数据版本暂不支持此操作。",
+    "description": "This operation is unavailable with the current adapter, browser or stored data version."
+  },
+  "sites_problemWait": {
+    "message": "请几分钟后再继续。失效内容会另外跳过。",
+    "description": "Wait a few minutes before continuing. Unavailable source items are skipped separately."
+  },
+  "sites_readAndPreview": {
+    "message": "读取并预览",
+    "description": "Read and preview"
+  },
+  "sites_readyToSave_other": {
+    "message": "可保存 $1 项内容",
+    "description": "$1 items can be saved"
+  },
+  "sites_recentActivity": {
+    "message": "最近记录",
+    "description": "Recent activity"
+  },
+  "sites_recordChecked": {
+    "message": "内容检查完成",
+    "description": "Source check completed"
+  },
+  "sites_recordConfigured": {
+    "message": "已保存同步设置",
+    "description": "Sync settings saved"
+  },
+  "sites_recordConnected": {
+    "message": "已更新网站连接",
+    "description": "Website connection updated"
+  },
+  "sites_recordCounts": {
+    "message": "已读取 $1 项 · 已确认保存 $2 项 · 已跳过 $3 项",
+    "description": "$1 read · $2 confirmed saved · $3 skipped"
+  },
+  "sites_recordDismissed": {
+    "message": "已关闭",
+    "description": "Closed"
+  },
+  "sites_recordReading": {
+    "message": "开始检查内容",
+    "description": "Source check started"
+  },
+  "sites_recordRecovered": {
+    "message": "已恢复",
+    "description": "Recovered"
+  },
+  "sites_recordRepeated": {
+    "message": "已尝试 $1 次",
+    "description": "$1 attempts"
+  },
+  "sites_recordSaved": {
+    "message": "已确认保存书签",
+    "description": "Bookmark saves confirmed"
+  },
+  "sites_recordSaving": {
+    "message": "开始保存",
+    "description": "Saving started"
+  },
+  "sites_recordStopped": {
+    "message": "本次操作已停止，已确认保存的书签会保留",
+    "description": "The operation was stopped; confirmed bookmarks are kept"
+  },
+  "sites_recordsEmpty": {
+    "message": "新的检查、保存和问题会记录在这里。",
+    "description": "New checks, saves and problems will be recorded here."
+  },
+  "sites_recordsUnavailable": {
+    "message": "暂时无法读取操作记录，仍可复制问题报告。",
+    "description": "Operation records could not be read. You can still copy a problem report."
+  },
+  "sites_reportCopiedShort": {
+    "message": "已复制",
+    "description": "Copied"
+  },
+  "sites_result": {
+    "message": "保存结果",
+    "description": "Result"
+  },
+  "sites_resultNeedsAttention": {
+    "message": "部分结果需要检查",
+    "description": "Some results need your attention"
+  },
+  "sites_reviewingReadItems": {
+    "message": "正在将已读取的 $1 项内容与已保存的书签比对。",
+    "description": "Comparing the $1 items read with the bookmarks already saved."
+  },
+  "sites_saveLocation": {
+    "message": "本地位置",
+    "description": "Save location"
+  },
+  "sites_saveSettings": {
+    "message": "保存设置",
+    "description": "Save settings"
+  },
+  "sites_savedCountUnknown": {
+    "message": "已保存的结果暂时无法核对。",
+    "description": "Saved results could not be verified yet."
+  },
+  "sites_savedUnder": {
+    "message": "保存到：$1",
+    "description": "Save into: $1"
+  },
+  "sites_savingItems": {
+    "message": "正在保存内容",
+    "description": "Saving source items"
+  },
+  "sites_scopeCount_other": {
+    "message": "已选 $1 个收藏夹",
+    "description": "$1 collections selected"
+  },
+  "sites_singleListHint": {
+    "message": "此来源提供一个列表。",
+    "description": "This source provides one list."
+  },
+  "sites_skippedUnavailableItems": {
+    "message": "$1 项内容已失效或被删除，其他内容会继续处理。",
+    "description": "$1 unavailable or deleted items. Other items continue normally."
+  },
+  "sites_source": {
+    "message": "来源",
+    "description": "Source"
+  },
+  "sites_sourceList": {
+    "message": "来源列表",
+    "description": "Source list"
+  },
+  "sites_sourceNeedsConnection": {
+    "message": "需要检查 $1 连接",
+    "description": "$1 connection needs attention"
+  },
+  "sites_syncSettings": {
+    "message": "同步设置",
+    "description": "Sync settings"
+  },
+  "sites_websiteConnected": {
+    "message": "网站已连接",
+    "description": "Website connected"
+  },
+  "sites_websiteOff": {
+    "message": "已关闭此来源的保存",
+    "description": "Website saving is off"
+  },
+  "sites_yourCollections": {
+    "message": "收藏夹",
+    "description": "Your collections"
+  },
+  "sites_updatingSavedResults": {
+    "message": "正在更新已确认的保存结果…",
+    "description": "Updating confirmed save results…"
+  },
+  "sites_mappingUpdating": {
+    "message": "正在更新保存位置的结果",
+    "description": "Updating the destination result"
+  },
+  "sites_mappingSaving": {
+    "message": "保存中…",
+    "description": "Saving…"
+  },
+  "sites_reconnectSource": {
+    "message": "请在同步设置中连接此来源后继续。",
+    "description": "Connect this source in sync settings to continue."
+  },
+  "sites_sourceItemsFound_other": {
+    "message": "已找到 $1 项内容，保存前可以确认检查结果。",
+    "description": "$1 items found. You can review the result before saving."
+  },
+  "sites_checkSavedUpdates": {
+    "message": "下方列出了已保存的内容。可以检查更新，查找还需要保存的内容。",
+    "description": "Your saved items are listed below. Check for updates to find anything else that needs saving."
+  },
+  "sites_noCheckRunning": {
+    "message": "当前没有进行中的检查",
+    "description": "No source check is running"
+  },
+  "sites_openForCheck": {
+    "message": "将打开 $1 以继续检查。读取期间请保持其标签页开启。",
+    "description": "$1 will open so this check can continue. Keep its tab open while items are read."
+  },
+  "sites_accountAndAccess": {
+    "message": "账号与访问",
+    "description": "Account and access"
+  },
+  "sites_pauseSourceSaving": {
+    "message": "暂停此来源的保存",
+    "description": "Pause saving from this source"
+  },
+  "sites_pauseSourceSavingHint": {
+    "message": "停止当前保存任务，已保存的书签会保留。",
+    "description": "Stops current saving and keeps saved bookmarks."
+  },
+  "sites_checkStopped": {
+    "message": "上次检查已停止",
+    "description": "The last check was stopped"
+  },
+  "sites_availableTabs_other": {
+    "message": "有 $1 个 $2 标签页可用于读取。",
+    "description": "$1 open $2 tabs available."
+  },
+  "sites_checkAndContinueSave": {
+    "message": "核对并继续保存",
+    "description": "Check and continue saving"
+  },
+  "sites_connectingForCheck": {
+    "message": "正在连接 $1 以继续检查",
+    "description": "Connecting to $1 to continue the check"
+  },
+  "sites_existingCopyLocation": {
+    "message": "按你的副本设置保留原有位置",
+    "description": "Existing copies keep their locations under your copy policy"
+  },
+  "sites_interruptedProgress": {
+    "message": "已读取 $1 项内容 · 本次已确认保存 $2 个书签",
+    "description": "$1 items read · $2 bookmarks confirmed in this check"
+  },
+  "sites_noReadablePage": {
+    "message": "尚未连接可供读取的 $1 页面。需要检查内容时，请打开或刷新网站。",
+    "description": "No $1 page is connected for reading. Open or reload the website when you want to check its content."
+  },
+  "sites_openedForCheck": {
+    "message": "网站已打开，连接就绪后会自动继续检查。",
+    "description": "The website has been opened. Checking continues automatically once its connection is ready."
+  },
+  "sites_otherLocation": {
+    "message": "其他本地文件夹",
+    "description": "Another local folder"
+  },
+  "sites_preservedLocations": {
+    "message": "沿用已有保存位置",
+    "description": "Kept in existing locations"
+  },
+  "sites_problemRetryConnection": {
+    "message": "请检查连接，再继续检查或重试原有操作。",
+    "description": "Check the connection, then continue the check or retry the original operation."
+  },
+  "sites_recordWaiting": {
+    "message": "等待书签同步，已确认的任务会保留",
+    "description": "Waiting for bookmark sync; the approved work is kept"
+  },
+  "sites_verifySavedResults": {
+    "message": "核对保存结果",
+    "description": "Check saved results"
+  },
+  "sites_problemReviewItems": {
+    "message": "部分内容需要你核对后才能保存。已确认保存的书签会保留。",
+    "description": "Some items need your review before they can be saved. Confirmed bookmarks are kept."
+  },
+  "sites_problemCreateFolder": {
+    "message": "未能创建本地文件夹。请选择已有文件夹，或重试。",
+    "description": "The local folder could not be created. Choose an existing folder or try again."
+  },
+  "sites_problemStorage": {
+    "message": "无法读取此来源的本地记录。浏览器中已保存的书签会保留。",
+    "description": "Local records for this source could not be read. Bookmarks already saved in the browser are kept."
+  },
+  "sites_problemReviewNext": {
+    "message": "点击下方“核对内容”，查看哪些结果需要你决定。",
+    "description": "Open Review items below to see which results need a decision."
+  },
+  "sites_problemStorageNext": {
+    "message": "请尝试刷新。如果仍然失败，可复制问题信息以便排查。",
+    "description": "Try refreshing. If the problem continues, copy the report so this failure can be investigated."
+  },
+  "sites_itemsNotSaved": {
+    "message": "尚未保存的内容",
+    "description": "Items not saved"
+  },
+  "sites_reviewDifference": {
+    "message": "这项内容与本地书签有差异，需要核对后再保存。",
+    "description": "This item has a bookmark difference that needs to be reviewed before saving."
+  },
+  "sites_reviewLocalChange": {
+    "message": "你曾在本地删除或修改这个副本，已保留你的更改。",
+    "description": "This copy was deleted or changed locally. Your change has been preserved."
+  },
+  "sites_reviewPolicySkip": {
+    "message": "根据当前保存策略，这项内容保持原样。",
+    "description": "The current saving policy leaves this item as it is."
+  },
+  "sites_reviewPreservedNext": {
+    "message": "请核对书签差异或保存设置，准备好后重新生成列表。",
+    "description": "Review the bookmark changes or saving settings, then make the list again when ready."
+  },
+  "sites_reviewPrimary": {
+    "message": "这项内容属于多个已选收藏夹。请在副本设置中选择主要收藏夹。",
+    "description": "This item belongs to several selected collections. Choose its primary collection in the copy settings."
+  },
+  "sites_reviewSamplesShown": {
+    "message": "有 $1 项内容需要核对，以下显示 $2 个示例。已保存的书签会保留。",
+    "description": "$1 items need review. Showing $2 examples; bookmarks already saved are kept."
+  },
+  "sites_reviewSamplesUnavailable": {
+    "message": "这次较早的检查没有保留逐项详情。可复制问题信息，或重新生成列表。",
+    "description": "Item details are unavailable for this older check. Copy its problem report or make the list again."
+  },
+  "sites_sourceItem": {
+    "message": "来源内容",
+    "description": "Source item"
   }
 }

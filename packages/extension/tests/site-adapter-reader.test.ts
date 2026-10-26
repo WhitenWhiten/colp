@@ -29,6 +29,16 @@ test('412, business -412, auth loss and 200 business failures never become succe
     const h = http([r]); await expect(h.api({ kind: 'account' }, ctx)).rejects.toMatchObject({ failure: { code } }); expect(h.calls()).toBe(1);
   }
 });
+test('read failures preserve bounded HTTP and source codes for diagnostics without response content', async () => {
+  const limited = http([response({ detail: 'private-content' }, 429, { 'Retry-After': '120' })]);
+  await expect(limited.api({ kind: 'account' }, ctx)).rejects.toMatchObject({ failure: { code: 'rateLimited', httpStatus: 429 } });
+  const source = http([response({ code: -412, message: 'private-source-message', account: 'private-account' })]);
+  try { await source.api({ kind: 'account' }, ctx); throw new Error('expected failure'); }
+  catch (error) {
+    expect(error).toMatchObject({ failure: { code: 'challenge', httpStatus: 200, sourceCode: -412 } });
+    expect(JSON.stringify(error)).not.toContain('private-');
+  }
+});
 test('transient retries are paced and bounded; Retry-After is honored or paused', async () => {
   const h = http([new Error('offline'), response({}, 500), response(fixtures.nav)]);
   expect(await h.api({ kind: 'account' }, ctx)).toEqual(fixtures.nav.data); expect(h.calls()).toBe(3); expect(h.now()).toBeGreaterThanOrEqual(6000);

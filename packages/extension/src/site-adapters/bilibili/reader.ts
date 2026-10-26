@@ -3,6 +3,7 @@ import { LIMITS as L } from '../limits.js';
 import { jsonBytes } from '../schema.js';
 import { aidFromItem, collection, decimal, detail, itemId, resolveAvUrl, resolveBvUrl } from './identity.js';
 import { fail, record, type HttpContext, type Operation } from './http.js';
+import { siteDisplayTitle } from '../title.js';
 type Read = (operation: Operation, ctx: HttpContext) => Promise<unknown>;
 type Resource = { id: string; type: number };
 interface Buffer { token: string; collectionId: string | null; nextPage: number; offset: number; rows: (Resource | SiteCollection)[];
@@ -20,7 +21,8 @@ export class BilibiliReader {
     const data = record(await this.read({ kind: 'account' }, ctx));
     if (data.isLogin === false) return { state: 'signedOut' };
     const accountId = decimal(data.mid);
-    return data.isLogin === true && accountId ? { state: 'signedIn', accountId } : { state: 'unknown' };
+    const displayName = siteDisplayTitle(data.uname);
+    return data.isLogin === true && accountId ? { state: 'signedIn', accountId, ...(displayName ? { displayName } : {}) } : { state: 'unknown' };
   }
   async verifyAccount(accountId: string, ctx: HttpContext) {
     const source = await this.detectSource(ctx);

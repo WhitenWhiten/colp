@@ -9,7 +9,7 @@ export interface SiteSender { id?: string; url?: string; origin?: string; docume
 export interface Lease { id: string; capability: string; tabId: number; documentId: string; url: string; routeEpoch: number;
   generation: number; sourceGeneration: number; accountId: string; expiresAt: number }
 export interface TransportState { version: 1; enabled: boolean; generation: number; sourceGeneration: number;
-  accountId: string | null; candidateAccount: string | null; sourceUnresolved: boolean; leases: Lease[]; routes: Record<string, number> }
+  accountId: string | null; candidateAccount: string | null; accountLabel?: string; candidateLabel?: string; sourceUnresolved: boolean; leases: Lease[]; routes: Record<string, number> }
 export const initialTransportState = (): TransportState => ({ version: 1, enabled: false, generation: 1, sourceGeneration: 1,
   accountId: null, candidateAccount: null, sourceUnresolved: true, leases: [], routes: {} });
 export function validSiteSender(sender: SiteSender, extensionId: string, definition: SiteDefinition = legacySite): sender is SiteSender & { documentId: string; tab: { id: number }; url: string } {
@@ -29,13 +29,13 @@ export function createSiteTransport(deps: TransportDeps, definition: SiteDefinit
   const fence = (s: TransportState) => { s.generation++; s.leases = []; s.routes = {}; };
   return {
     status: () => serial(async () => { const s = await deps.read(); return { enabled: s.enabled, generation: s.generation,
-      connected: s.accountId !== null && !s.sourceUnresolved, accountId: s.accountId, candidateAccount: s.candidateAccount, documents: s.leases.filter(l => l.expiresAt > deps.now()).length,
+      connected: s.accountId !== null && !s.sourceUnresolved, accountId: s.accountId, candidateAccount: s.candidateAccount, accountLabel: s.accountLabel, candidateLabel: s.candidateLabel, documents: s.leases.filter(l => l.expiresAt > deps.now()).length,
       mode: 'inspector', writes: false, models: false, observation: 'degraded', negativeReadback: definition.negativeReadback ? 'available' : 'unavailable' }; }),
     configure: (enabled: boolean) => serial(async () => { const s = await deps.read(); fence(s); s.enabled = enabled; await deps.write(s); }),
     confirm: (accountId: string) => serial(async () => {
       const s = await deps.read();
       if (!s.enabled || !definition.validateAccount(accountId) || s.candidateAccount !== accountId) throw new Error('sourceUnresolved');
-      fence(s); s.sourceGeneration++; s.accountId = accountId; s.candidateAccount = null; s.sourceUnresolved = false; await deps.write(s);
+      fence(s); s.sourceGeneration++; s.accountId = accountId; s.accountLabel = s.candidateLabel; s.candidateAccount = null; s.candidateLabel = undefined; s.sourceUnresolved = false; await deps.write(s);
     }),
     invalidate: (tabId?: number) => serial(async () => {
       const s = await deps.read();
@@ -81,13 +81,18 @@ export function createSiteTransport(deps: TransportDeps, definition: SiteDefinit
       if (!s.enabled) return { status: 'unavailable', reason: 'disabled' };
       const request: BootstrapRequest = raw;
       if (request.source.state !== 'signedIn' || !definition.validateAccount(request.source.accountId)) {
-        fence(s); s.sourceGeneration++; s.sourceUnresolved = true; s.candidateAccount = null; await deps.write(s);
+        fence(s); s.sourceGeneration++; s.sourceUnresolved = true; s.candidateAccount = null; s.candidateLabel = undefined; await deps.write(s);
         return { status: 'unavailable', reason: 'sourceUnresolved' };
       }
       if (s.accountId !== request.source.accountId || s.sourceUnresolved) {
-        fence(s); s.sourceGeneration++; s.sourceUnresolved = true; s.candidateAccount = request.source.accountId; await deps.write(s);
-        return { status: 'unavailable', reason: 'sourceUnresolved' };
+        if (definition.connectionKind === 'page') {
+          fence(s); s.sourceGeneration++; s.accountId = request.source.accountId; s.accountLabel = request.source.displayName; s.sourceUnresolved = false; s.candidateAccount = null; s.candidateLabel = undefined;
+        } else {
+          fence(s); s.sourceGeneration++; s.sourceUnresolved = true; s.candidateAccount = request.source.accountId; s.candidateLabel = request.source.displayName; await deps.write(s);
+          return { status: 'unavailable', reason: 'sourceUnresolved' };
+        }
       }
+      s.accountLabel = request.source.displayName ?? s.accountLabel;
       s.leases = s.leases.filter(l => l.expiresAt > deps.now());
       let lease = s.leases.find(l => l.documentId === sender.documentId && l.url === currentUrl && l.generation === s.generation
         && l.expiresAt > deps.now() + LIMITS.commandMs + 1000);

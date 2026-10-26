@@ -122,7 +122,7 @@ export interface CaptureControlRequest {
 
 /** Page claims are checked against the host-bound connection; not authentication. */
 export type SourceIdentityClaim =
-  | { state: 'signedIn'; accountId: Id }
+  | { state: 'signedIn'; accountId: Id; displayName?: string }
   | { state: 'signedOut' | 'unknown' };
 
 /** Separate bootstrap channel; no writes, named reads, or model authority. */
@@ -181,6 +181,9 @@ export type AdmissionReply =
 export type ReadFailure = {
   code: 'signedOut' | 'pageUnavailable' | 'navigationChanged' | 'rateLimited' | 'unsupported' | 'invalidData' | 'timeout' | 'cancelled' | 'challenge' | 'network' | 'capacity' | 'staleCursor';
   retryAfterMs?: number;
+  /** Diagnostic metadata only; never response bodies, URLs or credentials. */
+  httpStatus?: number;
+  sourceCode?: number;
 };
 
 export type AdapterReply = AdmissionReply

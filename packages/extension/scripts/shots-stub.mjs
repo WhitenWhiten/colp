@@ -292,21 +292,56 @@ export function installStub(messages) {
   //   site-repair  a restored backup and an unknown write wait for review   site-packages  two community packages, user scripts on
   //   site-waiting  on, no account yet   site-choose  connected, nothing chosen yet   site-reading  (with site-choose) collections still being read
   //   site-many  (with site-choose) 40 collections, so the list scrolls and offers a filter   site-notab  (connected) no Bilibili tab open
-  const siteChoose = has('site-choose'), siteOn = has('site-on', 'site-scan', 'site-preview', 'site-hold') || siteChoose, siteCandidate = has('site-candidate'), siteWaiting = has('site-waiting');
+  const siteChoose = has('site-choose'), siteOn = has('site-on', 'site-scan', 'site-preview', 'site-hold', 'site-preparing', 'site-saving', 'site-sync-wait', 'site-cancelled', 'site-complete', 'site-all-skipped', 'site-paused', 'site-attention') || siteChoose, siteCandidate = has('site-candidate'), siteWaiting = has('site-waiting');
   const siteCollections = [{ id: '101', title: 'Watch later' }, { id: '202', title: 'Music' }, { id: '305', title: 'Machine learning lectures' },
     { id: '410', title: 'Cooking' }, { id: '512', title: 'Travel vlogs' }, { id: '613', title: 'Default collection' },
-    ...has('site-many') ? Array.from({ length: 34 }, (_, i) => ({ id: String(700 + i), title: `Collection ${i + 1}` })) : []];
-  const siteImport = () => has('site-preview') ? { id: 'job-1', phase: 'preview', edgeCount: 214, pages: 9, omissions: 2, coverage: 'complete', reason: null, nextEdge: 214, nextPlan: 0,
-    preview: { id: 'pv-1', revision: 1, digest: 'sha256:p', coverage: 'complete', counts: { createFolders: 3, createBookmarks: 198, reuseBookmarks: 14, review: 2 }, omissions: { samples: [], unscannedRemainder: false } } }
-    : has('site-scan') ? { id: 'job-1', phase: 'scanning', edgeCount: 86, pages: 4, omissions: 0, coverage: 'partial', reason: null, nextEdge: 86, nextPlan: 0, preview: null } : null;
-  const siteStatus = () => has('site-error') ? { error: 'sourceNeedsReview' } : {
-    enabled: siteOn || siteCandidate || siteWaiting, generation: 3, connected: siteOn, accountId: siteOn ? '42' : null, candidateAccount: siteCandidate ? '42' : null, documents: siteOn && !has('site-notab') ? 1 : 0,
+    ...has('site-many', 'site-cancelled') ? Array.from({ length: has('site-cancelled') ? 16 : 34 }, (_, i) => ({ id: String(700 + i), title: `Collection ${i + 1}` })) : []];
+  const siteImport = () => {
+    const preview = { id: 'pv-1', revision: 1, digest: 'sha256:p', coverage: 'partial', counts: { createFolders: 2, createBookmarks: 198, reuseBookmarks: 14, review: 0 }, omissions: { samples: [], unscannedRemainder: false } };
+    const job = { id: 'job-1', phase: 'preview', edgeCount: 212, pages: 9, omissions: 2, omissionCounts: { invalid: 2 }, scanComplete: true, coverage: 'partial', reason: null, nextEdge: 212, nextPlan: 0,
+      progress: { collectionsRead: 2, collectionsTotal: 2, currentCollection: null, prepared: 212, saved: 0, toSave: 198 }, preview };
+    if (has('site-preview')) return job;
+    if (has('site-scan')) return { ...job, phase: 'scanning', edgeCount: 86, omissions: 0, omissionCounts: {}, scanComplete: false, nextEdge: 0, preview: null,
+      progress: { ...job.progress, collectionsRead: 1, currentCollection: 'Machine learning lectures', prepared: 0, toSave: 0 } };
+    if (has('site-preparing')) return { ...job, phase: 'preparing', nextEdge: 106, preview: null, progress: { ...job.progress, prepared: 106, toSave: 0 } };
+    if (has('site-saving', 'site-sync-wait')) return { ...job, phase: 'approved', reason: has('site-sync-wait') ? 'sourceSyncPending' : null,
+      nextPlan: 124, progress: { ...job.progress, saved: 124 } };
+    if (has('site-cancelled')) return { ...job, phase: 'cancelled', edgeCount: 4914, omissions: 442, omissionCounts: { invalid: 442 }, preview: null };
+    if (has('site-complete')) return { ...job, phase: 'completed', nextPlan: 198, progress: { ...job.progress, saved: 198 } };
+    if (has('site-paused')) return { ...job, phase: 'paused', reason: 'rateLimited', scanComplete: false, preview: null };
+    if (has('site-attention')) return { ...job, phase: 'attention', reason: 'sourceReviewRequired', nextPlan: 196,
+      progress: { ...job.progress, saved: 196, toSave: 196 }, preview: { ...preview, counts: { ...preview.counts, createBookmarks: 196, review: 2 },
+        reviewSamples: [{ itemId: 'video:av:1', collectionId: '101', itemTitle: 'A favorite shared by two collections', collectionTitle: 'Watch later', reason: 'primarySourceCollectionRequired' },
+          { itemId: 'video:av:2', collectionId: '305', itemTitle: 'A previously saved lecture', collectionTitle: 'Machine learning lectures', reason: 'nativeOutcomeUnresolved' }] } };
+    if (has('site-all-skipped')) return { ...job, edgeCount: 0, omissions: 442, omissionCounts: { invalid: 442 }, nextEdge: 0,
+      preview: { ...preview, counts: { createFolders: 0, createBookmarks: 0, reuseBookmarks: 0, review: 0 } } };
+    return null;
+  };
+  const siteEvents = () => {
+    const job = siteImport(), operation = has('site-hold') ? 'configure' : has('site-sync-wait', 'site-attention') ? 'save' : 'read';
+    const issue = has('site-paused', 'site-sync-wait', 'site-hold', 'site-error', 'site-attention');
+    const base = { id: 'event-1', operation, firstAt: now - 120000, lastAt: now - 60000, occurrences: 1,
+      taskRef: 'job-1', counts: { read: job?.edgeCount ?? 0, saved: job?.nextPlan ?? 0, skipped: job?.omissions ?? 0 } };
+    return issue ? [{ ...base, kind: has('site-sync-wait') ? 'waiting' : 'problem', code: has('site-paused') ? 'rateLimited' : has('site-sync-wait') ? 'sourceSyncPending' : has('site-hold') ? 'sourceNeedsReview' : has('site-attention') ? 'sourceReviewRequired' : 'sourceStoreUnavailable',
+      ...has('site-paused') ? { httpStatus: 429 } : {}, ...has('site-sync-wait') ? { automatic: true, retryAt: now + 3000 } : {} }]
+      : job ? [{ ...base, kind: job.phase === 'completed' ? 'saved' : job.phase === 'cancelled' ? 'stopped' : job.phase === 'preview' ? 'checked' : 'started' }] : [];
+  };
+  const selectedSiteCollections = () => has('site-cancelled') ? siteCollections : siteCollections.filter(c => ['101', '305'].includes(c.id));
+  const siteOverview = () => {
+    const job = siteImport(), saved = job?.phase === 'preview' && !has('site-all-skipped') ? 14 : job?.nextPlan ?? 212, selected = selectedSiteCollections();
+    return { checkedAt: now, saved, collections: selected.map((c, i) => ({ id: c.id, title: c.title, destinationTitle: c.title,
+      destinationId: saved ? `source-folder-${c.id}` : null, folder: saved ? 'ready' : 'pending',
+      saved: Math.floor(saved / selected.length) + (i < saved % selected.length ? 1 : 0), changed: 0, keptDeleted: 0 })) };
+  };
+  const siteStatus = () => has('site-error') ? { error: 'sourceStoreUnavailable', incidentId: 'event-1' } : {
+    enabled: siteOn || siteCandidate || siteWaiting, generation: 3, connected: siteOn, accountId: siteOn ? '42' : null, accountLabel: siteOn ? 'Lin' : undefined, candidateLabel: siteCandidate ? 'Lin' : undefined, candidateAccount: siteCandidate ? '42' : null, documents: siteOn && !has('site-notab') ? 1 : 0,
     mode: siteOn && !has('site-hold') ? 'localArchive' : 'inspector', writes: siteOn && !has('site-hold'), models: false, observation: 'degraded', negativeReadback: 'unavailable',
     browser: has('site-unsupported') ? { minimum: 149, major: 140, supported: false } : { minimum: 149, major: 149, supported: true },
     grants: { site: siteOn || siteCandidate || siteWaiting, bookmarks: !has('noperm') }, archiveHold: has('site-hold') ? 'sourceNeedsReview' : null,
     catalog: siteOn ? { items: has('site-reading') ? siteCollections.slice(0, 2) : siteCollections, nextCursor: has('site-reading') ? 'c2' : null, reading: has('site-reading'), current: true, failed: null } : null,
-    archive: { config: siteOn && !siteChoose ? { root: { nativeId: 'f-research' }, collectionIds: ['101', '305'], live: true, state: 'active', copies: 'sourceAndSemantic', primarySourceCollectionId: null, aiDestination: 'excluded' } : null,
-      import: siteImport() },
+    archive: { config: siteOn && !siteChoose ? { root: { nativeId: 'f-research' }, collectionIds: selectedSiteCollections().map(c => c.id), live: true, state: 'active', copies: 'sourceAndSemantic', primarySourceCollectionId: null, aiDestination: 'excluded' } : null,
+      import: siteImport(), overview: siteOn && !siteChoose ? siteOverview() : null },
+    activity: { problem: siteEvents().find(e => e.kind === 'problem') ?? null, lastEvent: siteEvents()[0] ?? null },
     adapterId: 'bundled.bilibili', confirmations: { pending: 0 },
     inspection: siteOn ? { command: { deadlineAt: now - 1, pageRequestId: 'p1', query: { cursor: null } }, result: { status: 'ok', kind: 'collections', page: { items: siteCollections, nextCursor: null } } } : null };
   const sitePackages = () => has('site-packages') ? [
@@ -317,6 +352,8 @@ export function installStub(messages) {
     if (kind === 'known.community.status') return { ok: true, available: has('site-packages'), unavailable: has('site-packages') ? null : 'userScriptsUnavailable', supportedMinimum: 149, installations: sitePackages() };
     if (kind === 'known.community.preview') return { ok: true, preview: { digest: 'sha256:9f2c41d07a6be3e8', bytes: 2311, manifest: { apiVersion: 'known.site-adapter/v1', adapterId: 'community.bili-hints', version: '1.2.0' }, previous: null, publisherTrust: 'unverified' } };
     if (kind.startsWith('known.community.')) return { ok: true };
+    if (kind === 'known.siteAdapters.activity.list') return { events: siteEvents() };
+    if (kind === 'known.siteAdapters.activity.report') return { report: { format: 'known.site-adapter-report/v1', adapter: { adapterId: 'bundled.bilibili', version: '1.0.0', siteKey: 'bilibili' }, incident: siteEvents()[0] ?? null, history: siteEvents() } };
     if (kind === 'known.siteAdapters.content.list') return { ok: true, connectionId: 'conn-2', truncated: false, bindings: [
       { id: 'b-1', itemId: 'video:BV1GJ411x7h7', title: 'Attention in transformers, visually explained', state: 'active', connectionId: 'conn-1', native: true },
       { id: 'b-2', itemId: 'video:BV1xx411c7mD', title: 'Weeknight dumplings in 20 minutes', state: 'active', connectionId: 'conn-2', native: true }] };

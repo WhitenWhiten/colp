@@ -82,9 +82,9 @@ test.each([observer, { ...observer, capabilities: ['enumerateCollections', 'enum
   renderSiteCapabilities(document, definition); const f = siteFeatures(definition);
   expect(document.querySelector<HTMLButtonElement>('#read-catalog')!.hidden).toBe(!f.collections);
   expect(document.querySelector<HTMLButtonElement>('#read-item')!.hidden).toBe(!f.resolve);
-  expect(document.querySelector<HTMLElement>('[aria-labelledby="sites-import-heading"]')!.hidden).toBe(!f.import);
+  expect(document.querySelector<HTMLElement>('#step-import')!.hidden).toBe(!f.import);
   if (!f.import) { expect(document.querySelector<HTMLButtonElement>('#start-import')!.disabled).toBe(true); renderSiteCapabilities(document, definition, true);
-    expect(document.querySelector<HTMLElement>('[aria-labelledby="sites-import-heading"]')!.hidden).toBe(false); }
+    expect(document.querySelector<HTMLElement>('#step-import')!.hidden).toBe(false); }
   expect(document.querySelector('#capability-summary')!.textContent).not.toContain('Positive observation only');
 });
 

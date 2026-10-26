@@ -8,6 +8,7 @@ import { requireSourceAuthority, type createSourceLedger } from './ledger.js';
 import { get, put, sourceDigest, sourceKey } from './source-db.js';
 import type { createReadScheduler } from './read-scheduler.js';
 import { installationKey } from './installation.js';
+import type { ActivitySink } from './activity.js';
 type Ledger = ReturnType<typeof createSourceLedger>;
 type Command = Extract<HostCommand, { operation: 'readMemberships' | 'resolveItem' }>;
 export interface ConfirmationRow {
@@ -16,6 +17,7 @@ export interface ConfirmationRow {
   active?: { command: Command; context: SourceContext };
 }
 interface Ports {
+  activity?: ActivitySink;
   authorizeOrigin?(context: SourceContext, collectionIds: readonly string[]): Promise<void>;
   source(origin?: SourceContext): Promise<{ context: SourceContext; expiresAt: number } | null>;
   send(context: SourceContext, command: Command): void;
@@ -40,6 +42,8 @@ export function createConfirmationQueue(ledger: Ledger, scheduler: ReturnType<ty
       await settle(tx, { ...row, active: undefined, state: 'uncertain', reason });
       if (pause) put(tx, 'meta', PAUSE, reason);
     });
+    await ports.activity?.record({ kind: 'problem', operation: 'inspect', taskId: row.id, connectionId: row.origin.connectionId,
+      collectionId: scope(row.hint)[0], requestId: commandId(row), code: reason }).catch(() => undefined);
   }
   return {
     async enqueue(context: SourceContext, requestId: string, hint: MembershipHint) {
@@ -153,6 +157,8 @@ export function createConfirmationQueue(ledger: Ledger, scheduler: ReturnType<ty
           if (receipt.status === 'rejected') await fail(row, receipt.reason);
         }
       } else return false;
+      const after = await db.read<ConfirmationRow>('readRequests', rowKey(id));
+      if (after?.state === 'observed') await ports.activity?.resolve(row.id, 'inspect').catch(() => undefined);
       await scheduler.finish(requestId); ports.alarm(now() + LIMITS.spacingMs); return true;
     },
     async status() { return { pending: (await db.read<string[]>('meta', PENDING) ?? []).length,

@@ -1,7 +1,7 @@
 import { readLimits, type SiteReadPolicy } from '../read-policy.js';
 import { LIMITS as L } from '../limits.js';
 import { decimal } from './identity.js';
-import { fail } from '../read-errors.js';
+import { fail, SiteReadError } from '../read-errors.js';
 export { SiteReadError, abortableSleep, fail } from '../read-errors.js';
 export type Operation = { kind: 'video'; bvid: string } | { kind: 'account' } | { kind: 'collections'; accountId: string }
   | { kind: 'ids'; collectionId: string; page: number } | { kind: 'details'; ids: readonly { id: string; type: number }[] };
@@ -69,20 +69,24 @@ export function createPageHttp(deps: { fetch: typeof fetch; now(): number; sleep
         await retry(policy.backoffMs); continue;
       }
       nextAt = deps.now() + policy.requestSpacingMs;
-      if (response.status === 412) { await response.body?.cancel(); fail('challenge'); }
+      const diagnostic = response.status >= 100 && response.status <= 599 ? { httpStatus: response.status } : {};
+      if (response.status === 412) { await response.body?.cancel(); fail('challenge', undefined, diagnostic); }
       if (response.status === 429 || response.status >= 500) {
         const waitMs = response.status === 429 ? retryAfter(response.headers.get('Retry-After'), deps.now(), policy.backoffMs) : policy.backoffMs;
         await response.body?.cancel();
         if (attempt + 1 === policy.attempts || waitMs > policy.maxAutomaticWaitMs || deps.now() + waitMs + policy.requestMs > ctx.deadlineAt)
-          fail(response.status === 429 ? 'rateLimited' : 'network', waitMs);
+          fail(response.status === 429 ? 'rateLimited' : 'network', waitMs, diagnostic);
         await retry(waitMs); continue;
       }
-      if (response.status === 401 || response.status === 403) { await response.body?.cancel(); fail('signedOut'); }
-      if (!response.ok) { await response.body?.cancel(); fail('invalidData'); }
-      const body = record(await boundedJson(response, policy.responseBytes));
-      if (body.code === -101) fail('signedOut');
-      if (body.code === -412) fail('challenge');
-      if (body.code !== 0) fail('invalidData');
+      if (response.status === 401 || response.status === 403) { await response.body?.cancel(); fail('signedOut', undefined, diagnostic); }
+      if (!response.ok) { await response.body?.cancel(); fail('invalidData', undefined, diagnostic); }
+      let body: Record<string, unknown>;
+      try { body = record(await boundedJson(response, policy.responseBytes)); }
+      catch (error) { if (error instanceof SiteReadError) throw new SiteReadError({ ...error.failure, ...diagnostic }); throw error; }
+      const source = Number.isSafeInteger(body.code) && Math.abs(Number(body.code)) <= 1_000_000_000 ? { sourceCode: Number(body.code) } : {};
+      if (body.code === -101) fail('signedOut', undefined, { ...diagnostic, ...source });
+      if (body.code === -412) fail('challenge', undefined, { ...diagnostic, ...source });
+      if (body.code !== 0) fail('invalidData', undefined, { ...diagnostic, ...source });
       return body.data;
       async function retry(ms: number) {
         if (deps.now() + ms >= ctx.deadlineAt) fail('timeout');

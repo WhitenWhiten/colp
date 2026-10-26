@@ -20,6 +20,8 @@ import { createLane } from '../automation/lane.js';
 import { sourceAutomationsPaused } from '../sw/automation.js';
 import { createReconcilePreview, reconcileKey } from './reconcile-preview.js';
 import { reconcileInventory } from './reconcile-inventory.js';
+import { createSourceOverview } from './overview.js';
+import type { ActivitySink } from './activity.js';
 const configureSchemaFor = (definition: SiteDefinition) => object({ kind: literal('known.siteAdapters.archive.configure'), rootNativeId: str(128),
   collectionIds: array(v => definition.validateCollection(v), 64, 1, v => v), live: literal(true, false),
   copies: v => v === undefined || literal('sourceAndSemantic', 'singlePreferSemantic', 'singleKeepExisting')(v),
@@ -28,11 +30,12 @@ const configureSchemaFor = (definition: SiteDefinition) => object({ kind: litera
   aiDestination: v => v === undefined || literal('excluded', 'allowed')(v) });
 const disableSchema = object({ kind: literal('known.siteAdapters.archive.disable') });
 const startSchema = object({ kind: literal('known.siteAdapters.import.start') });
-const changeSchema = object({ kind: literal('known.siteAdapters.import.freeze', 'known.siteAdapters.import.resume', 'known.siteAdapters.import.cancel'), jobId: str(128) });
+const changeSchema = object({ kind: literal('known.siteAdapters.import.freeze', 'known.siteAdapters.import.resume', 'known.siteAdapters.import.retry', 'known.siteAdapters.import.cancel'), jobId: str(128) });
 const approveSchema = object({ kind: literal('known.siteAdapters.import.approve'), jobId: str(128), previewId: str(128), revision: integer, digest: str(128) });
 interface ArchiveConfig { connectionId: string; ruleId: string; root: NativeBinding<'folder'>; collectionIds: readonly string[]; live: boolean; state: 'pending' | 'active' | 'disabled';
   copies?: import('./contracts.js').SavePolicy['copies']; primarySourceCollectionId?: string | null; aiDestination?: 'excluded' | 'allowed'; semantic?: 'manual' | 'automatic' }
 interface RuntimePorts {
+  activity?: ActivitySink;
   reconciliation?: { valid(raw: unknown): boolean; handle(raw: unknown, connectionId: string): Promise<unknown>;
     view?(id: string, differences: readonly string[]): Promise<import('./reconcile-run.js').ReconcileRun | undefined>;
     status(id: string): Promise<import('./reconcile-run.js').ReconcileRun | undefined>; cancel(id: string): Promise<void> };
@@ -48,6 +51,7 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
   const configureSchema = configureSchemaFor(definition), features = siteFeatures(definition);
   const db = ledger.db, configureLane = createLane();
   const configKey = (id: string) => `archiveConfig:${id}`;
+  const overview = createSourceOverview(db, async id => (await chrome.bookmarks.get(id).catch(() => []))[0] ?? null);
   const live = createLiveSourcePlanner(db, sourceLayout, (delay = 100) => ports.alarm(Date.now() + delay), definition);
   const importer = createSiteImporter(ledger, sourceLayout, reads, { ...ports, source: origin => origin ? ports.readSource(origin) : ports.source(), execute: executePlannedSave,
     reconciliation: createReconcilePreview(db, definition, job => reconcileInventory(db, job.context.connectionId, job.selected)),
@@ -75,10 +79,15 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
       if (current?.state === 'active') try { await sourceLayout.validateRoot(current.connectionId, current.ruleId, current.root.nativeId); }
       catch (e) { hold = e instanceof Error ? e.message : 'sourceNeedsReview'; }
       const job = await importer.status();
+      let saved: Awaited<ReturnType<typeof overview>> | null = null, overviewError: string | null = null;
+      if (current && await chrome.permissions.contains({ permissions: ['bookmarks'] })) try { saved = await overview(current,
+        job ? { id: job.id, saved: job.nextPlan, finished: ['completed', 'cancelled', 'attention'].includes(job.phase) } : undefined); }
+      catch (error) { overviewError = error instanceof Error ? error.message : 'unavailable'; }
       const preview = job ? await readReconcilePage(db, reconcileKey(job.id), offset) ?? null : null;
-      return { config: current ?? null, import: job, hold, reconciliationRun: job?.preview?.id ? await (ports.reconciliation?.view ? ports.reconciliation.view(job.preview.id, preview?.differences.map(d => d.id) ?? []) : ports.reconciliation?.status(job.preview.id)) ?? null : null,
+      return { config: current ?? null, import: job, hold, overview: saved, overviewError, reconciliationRun: job?.preview?.id ? await (ports.reconciliation?.view ? ports.reconciliation.view(job.preview.id, preview?.differences.map(d => d.id) ?? []) : ports.reconciliation?.status(job.preview.id)) ?? null : null,
         reconciliation: preview,
-        ...(!features.collections && features.observe ? { catalog: source ? await observedCatalog(ledger, source.context) : [], catalogCoverage: 'observedOnly' as const } : {}) };
+        ...(!features.collections ? { catalog: definition.defaultCollection ? [definition.defaultCollection] : source ? await observedCatalog(ledger, source.context) : [],
+          catalogCoverage: definition.defaultCollection ? 'complete' as const : 'observedOnly' as const } : {}) };
     },
     async handle(raw: unknown) {
       if (ports.reconciliation?.valid(raw)) { const c = await config(); if (!c) throw new Error('chooseArchiveRoot'); return await ports.reconciliation.handle(raw, c.connectionId) ?? {}; }
@@ -93,7 +102,7 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
         const binding: NativeBinding<'folder'> = { bindingId: crypto.randomUUID(), nativeId: node.id, kind: 'folder', dateAdded: node.dateAdded,
           deviceId: await captureDeviceId(), proof: { kind: 'explicitAdoption', id: crypto.randomUUID() } };
         await assertSourceRoot(binding);
-        const catalog = features.collections ? await ports.catalog() : await observedCatalog(ledger, source.context), selected = catalog.filter(c => input.collectionIds.includes(c.id));
+        const catalog = definition.defaultCollection ? [definition.defaultCollection] : features.collections ? await ports.catalog() : await observedCatalog(ledger, source.context), selected = catalog.filter(c => input.collectionIds.includes(c.id));
         if (selected.length !== input.collectionIds.length) throw new Error('refreshCatalogRequired');
         if (input.primarySourceCollectionId && !input.collectionIds.includes(input.primarySourceCollectionId)) throw new Error('invalidPrimaryCollection');
         const c = source.context, old = await db.read<ArchiveConfig>('meta', configKey(c.connectionId));
@@ -141,6 +150,7 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
         const r = raw as { kind: string; jobId: string };
         if (r.kind.endsWith('.freeze')) await importer.freeze(r.jobId);
         else if (r.kind.endsWith('.resume')) await importer.resume(r.jobId);
+        else if (r.kind.endsWith('.retry')) await importer.retry(r.jobId);
         else await importer.cancel(r.jobId); return {};
       }
       if (approveSchema(raw)) return { approvalId: await importer.approve(raw as { jobId: string; previewId: string; revision: number; digest: string }) };

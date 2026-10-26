@@ -1,15 +1,30 @@
 import { bundledSites, legacySite, siteDefinition, type SiteDefinition } from './registry.js';
 import { t } from '../i18n.js';
 export const selectedSite = siteDefinition(new URL(location.href).searchParams.get('adapterId') ?? legacySite.adapterId);
-export const sendSiteMessage = (message: unknown) => chrome.runtime.sendMessage({ ...(message as Record<string, unknown>), adapterId: selectedSite.adapterId });
+export const SITE_PROBLEM_EVENT = 'known:site-adapter-problem';
+export const sendSiteMessage = async (message: unknown) => {
+  const input = message as Record<string, unknown>;
+  const result = await chrome.runtime.sendMessage({ ...input, adapterId: selectedSite.adapterId }).catch(() => ({ error: 'unavailable' })) ?? { error: 'unavailable' };
+  if (result && typeof result === 'object' && typeof (result as { error?: unknown }).error === 'string'
+    && !String(input.kind).includes('.activity.')) document.dispatchEvent(new CustomEvent(SITE_PROBLEM_EVENT,
+      { detail: { kind: input.kind, error: (result as { error: string }).error, incidentId: (result as { incidentId?: string }).incidentId } }));
+  return result;
+};
 
 /** What the sidebar says about a site, from its status reply. */
-export interface SiteNavStatus { enabled?: boolean; connected?: boolean; candidateAccount?: string | null; error?: string; archive?: { config?: { state: string } | null } }
+export interface SiteNavStatus { enabled?: boolean; connected?: boolean; candidateAccount?: string | null; documents?: number; error?: string; archiveHold?: string | null;
+  activity?: { problem?: unknown };
+  archive?: { config?: { state: string } | null; import?: { phase: string; reason?: string | null } | null } }
 function navState(status: SiteNavStatus | undefined): { label: string; tone: 'on' | 'off' | 'warning' } {
   if (!status || status.error) return { label: '', tone: 'off' };
-  if (status.archive?.config?.state === 'active') return { label: t('sites_navSyncing', 'Syncing'), tone: 'on' };
-  if (status.connected) return { label: t('sites_connected', 'Connected'), tone: 'on' };
   if (status.candidateAccount) return { label: t('sites_navConnect', 'Connect account'), tone: 'warning' };
+  if (!status.enabled) return { label: t('sites_off', 'Off'), tone: 'off' };
+  if (status.archive?.config?.state === 'disabled') return { label: t('sites_paused', 'Paused.'), tone: 'off' };
+  if (status.archiveHold || status.activity?.problem || status.archive?.config?.state === 'active' && !status.connected
+    || status.archive?.import?.phase === 'attention' || status.archive?.import?.phase === 'paused' && status.archive.import.reason !== 'scanFinished')
+    return { label: t('sites_connectionNeedsAttention', 'Needs attention'), tone: 'warning' };
+  if (status.archive?.config?.state === 'active' && status.enabled) return { label: t('sites_connected', 'Connected'), tone: 'on' };
+  if (status.connected) return { label: t('sites_connected', 'Connected'), tone: 'on' };
   return { label: status.enabled ? t('sites_on', 'On') : t('sites_off', 'Off'), tone: 'off' };
 }
 const navItems = new Map<string, HTMLAnchorElement>();

@@ -29,12 +29,14 @@ export const hintSchema = object({ interactionId: id, itemId: id, added: ids, re
   return h.added.length + h.removed.length > 0 && h.added.length + h.removed.length <= L.memberships && !h.added.some(x => h.removed.includes(x));
 });
 export const validMembershipHint = (v: unknown): v is MembershipHint => jsonBytes(v, 8192) && hintSchema(v);
-const source = union(object({ state: literal('signedIn'), accountId: id }), object({ state: literal('signedOut', 'unknown') }));
+const source = union(object({ state: literal('signedIn'), accountId: id, displayName: optional(validSiteTitle) }), object({ state: literal('signedOut', 'unknown') }));
 const bootstrapFields = { protocolVersion: literal(1), operation: literal('hello'), adapterId: id, source };
 const bootstrapSchema = union(object({ ...bootstrapFields, runtime: literal('bundled'), activationId: id }),
   object({ ...bootstrapFields, runtime: literal('userScript'), installationCredential: str(256) }));
 export const failureSchema = object({ code: literal('signedOut', 'pageUnavailable', 'navigationChanged', 'rateLimited', 'unsupported', 'invalidData',
-  'timeout', 'cancelled', 'challenge', 'network', 'capacity', 'staleCursor'), retryAfterMs: optional(integer) });
+  'timeout', 'cancelled', 'challenge', 'network', 'capacity', 'staleCursor'), retryAfterMs: optional(integer),
+  httpStatus: optional(v => Number.isInteger(v) && Number(v) >= 100 && Number(v) <= 599),
+  sourceCode: optional(v => Number.isSafeInteger(v) && Math.abs(Number(v)) <= 1_000_000_000) });
 const failed = { status: literal('failed'), error: failureSchema };
 const omission = object({ id, reason: literal('invalid', 'unsupported', 'missing', 'failed') });
 const page = (entity: Check, key: (v: unknown) => unknown) => {

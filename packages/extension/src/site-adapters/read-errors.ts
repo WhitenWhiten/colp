@@ -2,8 +2,8 @@ import type { ReadFailure } from './contracts.js';
 export class SiteReadError extends Error {
   constructor(readonly failure: ReadFailure) { super(failure.code); }
 }
-export function fail(code: ReadFailure['code'], retryAfterMs?: number): never {
-  throw new SiteReadError({ code, ...(retryAfterMs === undefined ? {} : { retryAfterMs }) });
+export function fail(code: ReadFailure['code'], retryAfterMs?: number, diagnostic?: Pick<ReadFailure, 'httpStatus' | 'sourceCode'>): never {
+  throw new SiteReadError({ code, ...(retryAfterMs === undefined ? {} : { retryAfterMs }), ...diagnostic });
 };
 export function abortableSleep(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {

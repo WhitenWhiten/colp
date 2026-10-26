@@ -14,9 +14,9 @@ export function createBookmarkManagerNavigation(host: HTMLElement) {
       const route = parseHubRoute(location.hash), key = route.hash;
       if (route.pane !== 'bookmarks') return null;
       const returnTo = route.params.get('return'); back.hidden = !returnTo; back.href = returnTo ? `#${returnTo}` : '#history';
-      if (applied === key || !route.params.has('native') && !route.params.has('node')) return null;
+      if (applied === key || !route.params.has('native') && !route.params.has('node') && !route.params.has('folder')) return null;
       if (editing) { status.textContent = t('manager_finishCurrentEditLocate', 'Finish the current edit to locate the requested bookmark. Your draft is preserved.'); return null; }
-      let id = route.params.get('native');
+      let id = route.params.get('folder') ?? route.params.get('native');
       if (!id && route.params.get('node')) {
         const reply = await chrome.runtime.sendMessage({ kind: 'known.capture.navigation.resolve', nodeId: route.params.get('node'), collectionId: route.params.get('collection') }) as { ok: boolean; nativeId?: string };
         if (location.hash !== key) return null;
@@ -29,7 +29,7 @@ export function createBookmarkManagerNavigation(host: HTMLElement) {
       const ancestors: string[] = []; let parent = node.parentId; const seen = new Set<string>();
       while (parent && !seen.has(parent)) { seen.add(parent); ancestors.push(parent); parent = nodes.get(parent)?.parentId; }
       pendingId = node.id; status.textContent = t('manager_locatedItsCurrentBrowser', 'Located at its current browser position. Ordinary edits here do not rate the original classification.');
-      return { nativeId: node.id, folderId: node.parentId ?? node.id, ancestors };
+      return { nativeId: node.id, folderId: route.params.has('folder') && !node.url ? node.id : node.parentId ?? node.id, ancestors };
     },
     highlight(list: HTMLElement) {
       if (!pendingId) return;

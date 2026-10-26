@@ -15,6 +15,8 @@ import type { createReadScheduler } from './read-scheduler.js';
 import { planDigest } from './planned-executor.js';
 import type { StoredSavePlan, SourceOutbox } from './planned-types.js';
 import { LIMITS as DEFAULT_LIMITS } from './limits.js';
+import { siteFeatures } from './capabilities.js';
+import { sourceActivityCounts, type ActivitySink, type ActivityInput } from './activity.js';
 type Ledger = ReturnType<typeof createSourceLedger>;
 type Layout = ReturnType<typeof createSourceLayout>;
 export interface Edge { kind: 'collectedEdge'; collectionId: string; itemId: string }
@@ -24,18 +26,19 @@ export interface ImportJob {
   id: string; context: SourceContext; selected: readonly string[];
   phase: 'scanning' | 'paused' | 'preparing' | 'preview' | 'approved' | 'attention' | 'cancelled' | 'completed';
   stage: 'collections' | 'items'; found: readonly string[]; collectionIndex: number; cursor: string | null;
-  outstanding: string | null; pageWaitUntil?: number; pages: number; edgeCount: number; scanComplete: boolean; omissions: number; omissionSamples: readonly { id: string; reason: string; collectionId?: string }[]; coverage: 'complete' | 'partial';
+  outstanding: string | null; pageWaitUntil?: number; pages: number; edgeCount: number; scanComplete: boolean; omissions: number; omissionCounts?: Record<string, number>; omissionSamples: readonly { id: string; reason: string; collectionId?: string }[]; coverage: 'complete' | 'partial';
   pageReceipts: readonly { id: string; digest: string }[]; reason: string | null;
   previewId: string | null; previewRevision: number; nextEdge: number; prepareAfter?: string; planIds: readonly string[];
   nextPlan: number; scanSnapshot: Snapshot; counts: ImportPreview['counts']; snapshot: Snapshot | null; approvalId: string | null;
 }
 interface Ports {
+  activity?: ActivitySink;
   reconciliation?: { begin(job: ImportJob): Promise<void>; inspect(job: ImportJob, edge: Edge): Promise<boolean>; freeze(job: ImportJob): Promise<void> };
   source(origin?: SourceContext): Promise<{ context: SourceContext; expiresAt: number } | null>;
   send(context: SourceContext, command: HostCommand): void;
   prioritizeLive(): Promise<void>;
   snapshot(): Promise<Snapshot>;
-  execute(planId: string, effectId: string): Promise<{ status: string; reason?: string }>;
+  execute(planId: string, effectId: string): Promise<{ status: string; reason?: string; commandId?: string }>;
   alarm(at: number): void;
 }
 const key = (id: string) => `importJob:${id}`;
@@ -47,7 +50,19 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
   const load = async (id?: string) => { const active = id ?? await db.read<string>('meta', ACTIVE); const job = active ? await db.read<ImportJob>('meta', key(active)) : undefined;
     if (job && (job.installationId ?? legacySite.adapterId) !== ledger.definition.adapterId) throw new Error('sourceAuthorizationChanged');
     return job; };
-  const save = (job: ImportJob) => db.transaction(['meta'], 'readwrite', async tx => { put(tx, 'meta', key(job.id), job); });
+  const log = (job: ImportJob, input: Omit<ActivityInput, 'taskId' | 'counts' | 'phase'>) => ports.activity?.record({ ...input, taskId: job.id, phase: job.phase, connectionId: job.context.connectionId,
+    counts: sourceActivityCounts(job) }).catch(() => undefined);
+  const save = async (job: ImportJob, details?: Pick<ActivityInput, 'commandId' | 'requestId' | 'collectionId'>) => {
+    const previous = await db.transaction(['meta'], 'readwrite', async tx => { const old = await get<ImportJob>(tx, 'meta', key(job.id)); put(tx, 'meta', key(job.id), job); return old; });
+    if (previous?.phase !== job.phase || previous?.reason !== job.reason) {
+      if (job.phase === 'completed') { await log(job, { kind: 'saved', operation: 'save' }); await ports.activity?.resolve(job.id, 'save').catch(() => undefined); }
+      else if (job.phase === 'attention' || job.phase === 'paused' && job.reason !== 'scanFinished' || job.reason === 'sourceSyncPending')
+        await log(job, { ...details, kind: job.reason === 'sourceSyncPending' ? 'waiting' : 'problem', operation: job.phase === 'paused' ? 'read' : 'save', code: job.reason ?? 'unavailable',
+          ...(job.reason === 'sourceReviewRequired' && job.previewId ? { reviewSamples: (await db.read<ImportPreview>('importPreviews', job.previewId))?.reviewSamples } : {}),
+          ...(job.reason === 'sourceSyncPending' ? { automatic: true, retryAt: Date.now() + 3000 } : {}) });
+    }
+    if (job.nextPlan > (previous?.nextPlan ?? 0)) await ports.activity?.resolve(job.id, 'save').catch(() => undefined);
+  };
   async function authority(job: ImportJob, tx?: IDBTransaction) {
     const a = tx ? await authorityForConnection(tx, job.context.connectionId) : await readConnectionAuthority(db, job.context.connectionId);
     if (!a?.enabled || a.connectionId !== job.context.connectionId || a.installationGeneration !== job.context.installationGeneration
@@ -138,6 +153,7 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
     await db.transaction(['meta', 'importPreviews'], 'readwrite', async tx => {
       put(tx, 'importPreviews', preview.id, preview); put(tx, 'meta', key(job.id), { ...job, counts, planIds, phase: 'preview' });
     });
+    await log({ ...job, phase: 'preview' }, { kind: 'checked', operation: 'read', reviewSamples: preview.reviewSamples });
   }
   async function validate(job: ImportJob, preview: ImportPreview) {
     await authority(job);
@@ -153,23 +169,48 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
       if (plan) for (const e of plan.effects) await layout.authorize(plan, e);
     }
   }
+  async function freeze(job: ImportJob) {
+    if (['approved', 'cancelled', 'completed'].includes(job.phase)) throw new Error('importChanged');
+    await stopScan(job); await cancelPlans(job);
+    const next: ImportJob = { ...job, phase: 'preparing', outstanding: null, snapshot: await ports.snapshot(), previewId: crypto.randomUUID(), previewRevision: job.previewRevision + 1,
+      nextEdge: 0, prepareAfter: undefined, planIds: [], nextPlan: 0, counts: emptyCounts(), approvalId: null, reason: null,
+      coverage: job.scanComplete ? job.coverage : 'partial' };
+    await save(next); ports.alarm(Date.now() + 100); return next;
+  }
   return {
     status: async () => {
       const job = await load(); if (!job) return null;
       const p = job.previewId ? await db.read<ImportPreview>('importPreviews', job.previewId) : undefined;
+      const currentId = job.stage === 'items' ? job.found[job.collectionIndex] : undefined;
+      const collection = currentId ? await db.read<{ entity: { title: string } }>('collections', sourceKey(job.context.connectionId, currentId)) : undefined;
+      const reviewSamples = p?.reviewSamples?.length ? await db.transaction(['items', 'collections'], 'readonly', async tx => {
+        const samples = [];
+        for (const sample of p.reviewSamples!.slice(0, 20)) {
+          const item = await get<{ entity: { title: string } }>(tx, 'items', sourceKey(job.context.connectionId, sample.itemId));
+          const list = await get<{ entity: { title: string } }>(tx, 'collections', sourceKey(job.context.connectionId, sample.collectionId));
+          samples.push({ ...sample, itemTitle: item?.entity.title, collectionTitle: list?.entity.title });
+        }
+        return samples;
+      }) : p?.reviewSamples;
       return { ...job, pageReceipts: undefined, context: { connectionId: job.context.connectionId }, planIds: undefined,
-        preview: p ? { id: p.id, revision: p.revision, digest: p.digest, coverage: p.coverage, counts: p.counts, omissions: p.omissions, reviewSamples: p.reviewSamples } : null };
+        progress: { collectionsRead: job.collectionIndex, collectionsTotal: job.selected.length, currentCollection: collection?.entity.title ?? null,
+          prepared: job.nextEdge, saved: job.nextPlan, toSave: p?.planIds.length ?? 0 },
+        preview: p ? { id: p.id, revision: p.revision, digest: p.digest, coverage: p.coverage, counts: p.counts, omissions: p.omissions, reviewSamples } : null };
     },
     start: (selected: readonly string[]) => lane(async () => {
-      if (!ledger.definition.capabilities.includes('enumerateCollections') || !ledger.definition.capabilities.includes('enumerateItems')) throw new Error('unsupported');
+      if (!siteFeatures(ledger.definition).import) throw new Error('unsupported');
       const existing = await load(); if (existing && !['cancelled', 'completed'].includes(existing.phase)) throw new Error('importAlreadyActive');
       if (!selected.length || selected.length > 64 || new Set(selected).size !== selected.length) throw new Error('invalidScope');
+      const single = ledger.definition.defaultCollection;
+      if (single && (selected.length !== 1 || selected[0] !== single.id)) throw new Error('invalidScope');
       const source = await ports.source(); if (!source) throw new Error('pageUnavailable');
       const id = crypto.randomUUID(); await ledger.startImport(source.context, id);
-      const job: ImportJob = { installationId: ledger.definition.adapterId, id, context: source.context, selected, phase: 'scanning', stage: 'collections', found: [], collectionIndex: 0, cursor: null, outstanding: null,
-        pages: 0, edgeCount: 0, scanComplete: false, omissions: 0, omissionSamples: [], coverage: 'complete', pageReceipts: [], reason: null, previewId: null, previewRevision: 0, nextEdge: 0,
+      if (single) { const receipt = await ledger.acceptCatalog(source.context, crypto.randomUUID(), [single]); if (receipt.status === 'rejected') throw new Error(receipt.reason); }
+      const job: ImportJob = { installationId: ledger.definition.adapterId, id, context: source.context, selected, phase: 'scanning', stage: single ? 'items' : 'collections', found: single ? [single.id] : [], collectionIndex: 0, cursor: null, outstanding: null,
+        pages: 0, edgeCount: 0, scanComplete: false, omissions: 0, omissionCounts: {}, omissionSamples: [], coverage: 'complete', pageReceipts: [], reason: null, previewId: null, previewRevision: 0, nextEdge: 0,
         planIds: [], nextPlan: 0, scanSnapshot: await ports.snapshot(), counts: emptyCounts(), snapshot: null, approvalId: null };
-      await db.transaction(['meta'], 'readwrite', async tx => { put(tx, 'meta', key(id), job); put(tx, 'meta', ACTIVE, id); }); ports.alarm(Date.now() + 100); return id;
+      await db.transaction(['meta'], 'readwrite', async tx => { put(tx, 'meta', key(id), job); put(tx, 'meta', ACTIVE, id); });
+      await log(job, { kind: 'started', operation: 'read' }); ports.alarm(Date.now() + 100); return id;
     }),
     accept: (context: SourceContext, message: AdapterMessage) => lane(async () => {
       if (message.operation !== 'page.result') return null;
@@ -177,16 +218,21 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
       const receipt = await ledger.acceptPage(context, message.pageRequestId, message.result, async (tx, receipt) => {
         const current = await get<ImportJob>(tx, 'meta', key(job.id));
         if (!current || current.phase !== 'scanning' || current.outstanding !== message.pageRequestId) throw new Error('staleContext');
-        let next: ImportJob = { ...current, pages: current.pages + 1, outstanding: null, pageReceipts: [...current.pageReceipts, { id: receipt.id, digest: receipt.digest }] };
+        const omissionCounts = { ...(current.omissionCounts ?? (current.omissions ? { unknown: current.omissions } : {})) };
+        let next: ImportJob = { ...current, omissionCounts, pages: current.pages + 1, outstanding: null, pageReceipts: [...current.pageReceipts, { id: receipt.id, digest: receipt.digest }] };
         const result = message.result;
-        if (result.status === 'failed') next = { ...next, phase: 'paused', coverage: 'partial', reason: result.error.code, omissions: next.omissions + 1,
-          omissionSamples: [...next.omissionSamples, { id: next.found[next.collectionIndex] ?? 'catalog', reason: result.error.code }].slice(0, 20) };
+        if (result.status === 'failed') {
+          omissionCounts.failed = (omissionCounts.failed ?? 0) + 1;
+          next = { ...next, phase: 'paused', coverage: 'partial', reason: result.error.code, omissions: next.omissions + 1,
+            omissionSamples: [...next.omissionSamples, { id: next.found[next.collectionIndex] ?? 'catalog', reason: result.error.code }].slice(0, 20) };
+        }
         else {
           next = { ...next, cursor: result.page.nextCursor, coverage: next.coverage === 'partial' || result.page.coverage === 'partial' ? 'partial' : 'complete', omissionSamples: next.omissionSamples };
           for (const omission of result.page.omissions ?? []) {
             const collectionId = result.kind === 'items' ? result.collectionId : 'catalog', k = sourceKey('omission', job.id, collectionId, omission.id);
             if (!await get(tx, 'importPages', k)) {
               put(tx, 'importPages', k, { ...omission, collectionId });
+              omissionCounts[omission.reason] = (omissionCounts[omission.reason] ?? 0) + 1;
               next = { ...next, omissions: next.omissions + 1, omissionSamples: [...next.omissionSamples, { ...omission, collectionId }].slice(0, 20) };
             }
           }
@@ -195,6 +241,7 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
             next = { ...next, found };
             if (!result.page.nextCursor) {
               const missing = next.selected.length - found.length;
+              if (missing) omissionCounts.collectionMissing = (omissionCounts.collectionMissing ?? 0) + missing;
               next = { ...next, stage: 'items', found: next.selected.filter(id => found.includes(id)), omissions: next.omissions + missing, omissionSamples: [...next.omissionSamples, ...next.selected.filter(id => !found.includes(id)).map(id => ({ id, reason: 'collectionMissing' }))].slice(0, 20),
                 coverage: missing ? 'partial' : next.coverage, ...(!found.length ? { phase: 'paused', reason: 'scanFinished', scanComplete: true } : {}) };
             }
@@ -211,16 +258,17 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
         put(tx, 'meta', key(job.id), next);
       });
       if (receipt.status === 'rejected' && job.phase === 'scanning') await save({ ...job, phase: 'paused', reason: receipt.reason, coverage: 'partial' });
+      if (receipt.status === 'accepted') {
+        if (message.result.status === 'failed') await log(await load(job.id) ?? job, { kind: 'problem', operation: 'read', requestId: message.pageRequestId,
+          code: message.result.error.code, httpStatus: message.result.error.httpStatus, sourceCode: message.result.error.sourceCode,
+          collectionId: job.stage === 'items' ? job.found[job.collectionIndex] : undefined });
+        else await ports.activity?.resolve(job.id, 'read').catch(() => undefined);
+      }
       await scheduler.finish(message.pageRequestId, message.result.status === 'failed' ? message.result.error.retryAfterMs : undefined);
       ports.alarm(Date.now() + LIMITS.spacingMs); return receipt;
     }),
     freeze: (id: string) => lane(async () => {
-      let job = await load(id); if (!job || ['approved', 'cancelled', 'completed'].includes(job.phase)) throw new Error('importChanged');
-      await stopScan(job); await cancelPlans(job);
-      job = { ...job, phase: 'preparing', outstanding: null, snapshot: await ports.snapshot(), previewId: crypto.randomUUID(), previewRevision: job.previewRevision + 1,
-        nextEdge: 0, prepareAfter: undefined, planIds: [], nextPlan: 0, counts: emptyCounts(), approvalId: null, reason: null,
-        coverage: job.reason === 'scanFinished' ? job.coverage : 'partial' };
-      await save(job); ports.alarm(Date.now() + 100);
+      const job = await load(id); if (!job) throw new Error('importChanged'); await freeze(job);
     }),
     approve: (input: { jobId: string; previewId: string; revision: number; digest: string }) => lane(async () => {
       const job = await load(input.jobId), preview = await db.read<ImportPreview>('importPreviews', input.previewId);
@@ -235,7 +283,21 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
           put(tx, 'savePlans', id, { ...row, state: 'approved', plan: { ...row.plan, importApprovalId: approval.id } });
         }
         put(tx, 'importApprovals', approval.id, approval); put(tx, 'meta', key(job.id), { ...job, phase: 'approved', approvalId: approval.id });
-      }); ports.alarm(Date.now() + 100); return approval.id;
+      }); await log({ ...job, phase: 'approved' }, { kind: 'started', operation: 'save' }); ports.alarm(Date.now() + 100); return approval.id;
+    }),
+    retry: (id: string) => lane(async () => {
+      const job = await load(id);
+      if (!job || job.phase !== 'attention' || !job.approvalId || !job.previewId || job.reason === 'sourceReviewRequired') throw new Error('importChanged');
+      await authority(job);
+      if (sourceDigest(await ports.snapshot()) !== sourceDigest(job.snapshot)) throw new Error('previewStale');
+      await db.transaction(['meta', 'importApprovals', 'importPreviews', 'authorities'], 'readwrite', async tx => {
+        await authority(job, tx);
+        const approval = await get<ImportApproval>(tx, 'importApprovals', job.approvalId!), preview = await get<ImportPreview>(tx, 'importPreviews', job.previewId!);
+        if (!approval || approval.state !== 'active' || approval.importRunId !== job.id || approval.previewId !== job.previewId
+          || !preview || approval.previewDigest !== preview.digest || preview.digest !== previewDigest(preview)) throw new Error('previewStale');
+        put(tx, 'meta', key(id), { ...job, phase: 'approved', reason: null });
+      });
+      await log({ ...job, phase: 'approved' }, { kind: 'started', operation: 'save' }); ports.alarm(Date.now() + 100);
     }),
     cancel: (id: string) => lane(async () => {
       const job = await load(id); if (!job) throw new Error('importMissing');
@@ -250,6 +312,7 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
         await scheduler.finish(job.outstanding);
       }
       await cancelPlans(job);
+      await log({ ...job, phase: 'cancelled' }, { kind: 'stopped', operation: job.approvalId ? 'save' : 'read' });
     }),
     resume: (id: string) => lane(async () => {
       const job = await load(id), source = await ports.source();
@@ -259,19 +322,23 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
         await requireSourceAuthority(tx, source.context);
         const run = await get<SourceImportRun>(tx, 'importRuns', id); if (!run) throw new Error('importMissing');
         put(tx, 'importRuns', id, { ...run, phase: 'scanning', context: source.context, outstanding: null, ...(restart ? { cursor: null, seenCursors: [] } : {}) });
-        put(tx, 'meta', key(id), { ...job, context: source.context, phase: 'scanning', ...(restart ? { stage: 'collections', found: [], collectionIndex: 0, cursor: null } : {}), outstanding: null,
+        put(tx, 'meta', key(id), { ...job, context: source.context, phase: 'scanning', ...(restart ? { stage: ledger.definition.defaultCollection ? 'items' : 'collections', found: ledger.definition.defaultCollection ? [ledger.definition.defaultCollection.id] : [], collectionIndex: 0, cursor: null } : {}), outstanding: null,
           coverage: 'partial', scanComplete: false, reason: restart ? 'restartAndDeduplicate' : 'stableCursor' });
-      }); ports.alarm(Date.now() + 100);
+      }); await log({ ...job, phase: 'scanning' }, { kind: 'started', operation: 'read' }); ports.alarm(Date.now() + 100);
     }),
     wake: () => lane(async () => {
       let job = await load(); if (!job) return;
+      let failedEffect: Pick<ActivityInput, 'commandId' | 'requestId'> | undefined;
       try {
+        if (job.phase === 'paused' && job.reason === 'scanFinished') job = await freeze(job);
         if (job.phase === 'preparing') { await prepare(job); return; }
         if (job.phase === 'approved') {
+          job = { ...job, reason: null };
           const preview = job.previewId && await db.read<ImportPreview>('importPreviews', job.previewId); if (!preview) throw new Error('previewStale');
           for (const id of preview.planIds.slice(job.nextPlan, job.nextPlan + 10)) {
             const row = await db.read<StoredSavePlan>('savePlans', id); if (!row) throw new Error('previewStale');
-            for (const e of row.plan.effects) { const result = await ports.execute(id, e.effectId); if (result.status !== 'confirmed') throw new Error(result.reason ?? 'nativeResultUnknown'); }
+            for (const e of row.plan.effects) { const result = await ports.execute(id, e.effectId); if (result.status !== 'confirmed') {
+              failedEffect = { commandId: result.commandId, requestId: e.effectId }; throw new Error(result.reason ?? 'nativeResultUnknown'); } }
             job = { ...job, nextPlan: job.nextPlan + 1 }; await save(job);
           }
           if (job.nextPlan >= preview.planIds.length) await save({ ...job, phase: preview.counts.review ? 'attention' : 'completed', reason: preview.counts.review ? 'sourceReviewRequired' : null }); else ports.alarm(Date.now() + 100);
@@ -311,10 +378,10 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
         ports.send(source.context, { operation: 'readPage', leaseId: source.context.leaseId, readSessionId: job.id, pageRequestId: id, deadlineAt, query }); ports.alarm(deadlineAt + LIMITS.spacingMs);
       } catch (e) {
         if (job.phase === 'approved' && e instanceof Error && e.message === 'sourceSyncPending') {
-          await save({ ...job, reason: 'sourceSyncPending' }); ports.alarm(Date.now() + 3000); return;
+          await save({ ...job, reason: 'sourceSyncPending' }, failedEffect); ports.alarm(Date.now() + 3000); return;
         }
         await save({ ...job, phase: job.phase === 'scanning' ? 'paused' : 'attention', coverage: job.phase === 'scanning' ? 'partial' : job.coverage,
-        reason: e instanceof Error ? e.message : 'unavailable' }); }
+        reason: e instanceof Error ? e.message : 'unavailable' }, failedEffect); }
     }),
   };
 }

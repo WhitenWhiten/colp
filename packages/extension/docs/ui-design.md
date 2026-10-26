@@ -169,13 +169,20 @@ bar whose items wrap onto a second line, so every destination stays visible.
 | `#help` | Diagnostics (the only place for internals) |
 
 **Site adapters** (`site-adapters.html`, linked from the sidebar's Settings group) is one page in the options shell.
-The sidebar holds a Settings back link, **Sites** (one item per bundled site: a letter mark, the name and its state, such as
-Off, Connected or Syncing; `?adapterId=` picks the site) and **More › Add-on packages**. No site is special; Bilibili is
-one item in that list. The main column is the `46rem` settings column: the site's name as the h1, a refresh icon, and a
-segmented tab rail (`#sync`, `#cloud`, `#recovery`; `#packages` is the Add-on packages view).
+The sidebar holds a Settings back link, **Sites** (one item per bundled site: a letter mark, the name and a stable state,
+Off, Connected, Paused or Needs attention; `?adapterId=` picks the site) and **More › Add-on packages**. Bilibili uses the
+same host components as other sources. The main column is the `46rem` settings column: the site's name as the h1, a
+refresh icon, and Settings once configured. Advanced tools are folded below the main view; their `#cloud`, `#recovery`
+and `#packages` links remain addressable.
 
-- **Sync** is three numbered steps. A step that can't start yet shows only its title and what it waits for. A finished step
-  shows a check instead of its number, and its card stays editable.
+- **Sync** shows setup until a mapping is configured. Afterwards one card keeps source, actual saved destination,
+  confirmed bookmark count and current operation together. A source → local folder → saved result table shows every
+  selected collection, including zero saved or a missing destination. It counts committed associations in this mapping,
+  not scanned items, pending plans or unrelated bookmarks. The main destination and each collection open the same
+  Settings dialog at the relevant field; local folder links open that folder in the bookmark manager. Existing single
+  copies kept elsewhere show their real location. The task uses the same title, count, shared `.sync-bar` and ranked
+  actions as Sync › Import; no separate metrics grid or competing state badges.
+  Setup has two numbered steps. A step that can't start yet shows only its title and what it waits for.
   1. *Connect your account*: Turn on (asks for site access), Open the site, Connect this account, then one Connected row
      with Turn off.
   2. *Choose what to sync*: the collections as ticked option rows in one boxed list. The page reads them on its own once
@@ -183,17 +190,43 @@ segmented tab rail (`#sync`, `#cloud`, `#recovery`; `#packages` is the Add-on pa
      items; Select all / Clear all sits beside the refresh icon. Then *Save into*, the shared folder picker
      (`library-folder-picker.ts`, as in rule sets) with a one-press New folder named after the site. Then *Keep syncing
      new favorites* (on by default) and More options (copies, primary collection, AI destinations). The foot says what
-     is syncing and holds Start syncing, or Save changes once something has changed. A missing choice is a field error
+     was mapped and holds Start syncing, or Save changes once something has changed. A missing choice is a field error
      under its field.
-  3. *Bring in existing favorites*: Start syncing also starts the scan, unless the archive is on hold. A finished scan
-     becomes its list on its own. Nothing is written until the person presses the list's one primary button, Add N
-     bookmarks. A list that changed in the meantime is made again, never approved in its place.
+  Configured mappings reuse the setup form in the shared dialog, with explicit Save changes and Cancel. Draft edits do
+  not change the displayed saved mapping. Collection selection, connection, destination, automatic saving, and copy
+  policy each have one configuration home. Source capabilities determine available fields: a declared single list needs
+  no list picker; page sources need no account confirmation; observation-only sources explain that only new items can
+  be saved; identification-only sources offer no archive or full-read controls.
+  *Current operation*: Read and preview also starts the scan, unless the archive is on hold. The worker prepares a finished
+  scan's preview even when settings are closed. Reading names the current collection and counts completed collections;
+  preparing counts checked favorites; adding counts confirmed bookmarks. A source tab is required only for reading.
+  A stopped task states the known read and saved counts. Opening the source for a check waits for its connection and
+  continues automatically; account or mapping changes fence that continuation. Connection health and an enabled mapping
+  never imply a task is running. Saving, stopping this check, pausing the whole mapping and automatic saving of new items
+  remain distinct actions. An uncertain save checks the original approved command before continuing; it does not create
+  a replacement command or ask for a broader approval.
+  Nothing is written until the person presses the list's one primary button, Add N bookmarks. A list that changed in the
+  meantime is made again, never approved in its place. A calm disclosure counts skipped unavailable items; the source's
+  conservative coverage remains intact for reconciliation. Failed reads are distinct from deleted videos. An empty
+  preview can Finish without creating folders. The source and bookmark differences are in a separate disclosure.
+  Planning refusals use that same disclosure: source titles link to the affected items, reasons explain the preserved
+  local change or required copy setting, and the existing Settings and original-operation recovery actions are reused.
+  Reports retain bounded reason samples and opaque item/collection references without copying the source titles.
+  One quiet line says whether new favorites save automatically; a saved mapping alone never says a task is running.
+- **Operation records** are a folded, bounded host journal stored independently of the source database. Reading,
+  approval, confirmed saves, stopping and waiting survive closing settings or restarting the worker. A problem says what
+  happened and what to do next beside the task, or inside Settings for a failed configuration. Retry attempts keep the
+  first failure's timestamp, progress snapshot and incident ID; recovery closes it without losing its history. Ordinary
+  reports can be copied per incident and include safe machine codes, HTTP status, adapter/extension versions and
+  task/request/command references. Credentials, account identities, source titles, URLs and response bodies are excluded.
+  If clipboard access fails, a selectable report appears in the current view. Technical JSON stays inside the record.
 - **COLP Server** and **Recovery** keep the reviewed cloud batches, recovery records, restored backups, the private
   diagnostic, saved copies and the inspector rows. The worker's raw reply sits folded in a `.code-panel` ("Last
   response"); the full status is in Recovery › Technical details.
-- Results and refusals are toasts. A refusal's code maps to a sentence, and a message nothing answers is a refusal, never
-  silence. The only inline notices are the page-level alert (an unsupported Chrome, a failed status read) and an archive
-  on hold.
+- Successful settings changes may use a toast. Blocking failures stay visible and copyable, including a failed status
+  read that hides stale actions. The same incident is not repeated in the task summary, a separate alert and a toast.
+  An expected wait for bookmark sync is an operation state, not a new failure on every poll. A source's deleted or
+  unavailable items are calmly counted as skips; failed requests remain separate and retryable.
 - Its copy is in the catalog (`sites_*`). Lines that name the site take it as `$1`. A language change reloads the page,
   as it does the options page.
 

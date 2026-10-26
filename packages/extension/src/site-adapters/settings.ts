@@ -1,6 +1,6 @@
 import { siteFeatures } from './capabilities.js';
 import { renderSiteCapabilities } from './settings-capabilities.js';
-import { selectedSite, sendSiteMessage, mountSiteNav, paintSiteNav, mountRoutes, onRoute, currentRoute, showTab, offer } from './settings-client.js';
+import { selectedSite, sendSiteMessage, SITE_PROBLEM_EVENT, mountSiteNav, paintSiteNav, mountRoutes, onRoute, currentRoute, showTab, offer } from './settings-client.js';
 import { createFolderPicker, folderChoices, type FolderPicker } from '../library-folder-picker.js';
 import { exclusionIds } from '../bookmark-subscriptions/guards.js';
 import { optionRow } from '../library-dom.js';
@@ -12,20 +12,29 @@ import './settings-reconcile-history.js';
 import './community-settings.js';
 import './cloud-settings.js';
 import { paintReconciliation, installReconcileControls, reconcileSelections, reconcilePageOffset } from './settings-reconcile.js';
+import { paintSiteImport, type ImportStatus } from './settings-import.js';
+import { createSiteConfiguration } from './settings-configuration.js';
+import { createSiteActivityView } from './settings-activity.js';
+import { paintSourceOverview } from './settings-overview.js';
+import { paintImportReview } from './settings-review.js';
+import { siteProblem } from './problem-view.js';
+import { siteOperation, sourceActivityCounts, type SiteActivity } from './activity.js';
+import type { SourceOverview } from './overview.js';
 import type { ReconcilePreview } from './reconcile-model.js';
 import type { ReconcileRun } from './reconcile-run.js';
 interface Collection { id: string; title: string }
-interface ImportStatus { id: string; phase: string; edgeCount: number; pages: number; omissions: number; coverage: string; reason: string | null; nextEdge: number; nextPlan: number;
-  preview: { id: string; revision: number; digest: string; coverage: string; counts: { createFolders: number; createBookmarks: number; reuseBookmarks: number; review: number }; omissions?: { samples: readonly { id: string; reason: string }[]; unscannedRemainder: boolean } } | null }
 interface ArchiveConfig { root: { nativeId: string }; collectionIds: readonly string[]; live: boolean; state: string; copies?: string; primarySourceCollectionId?: string | null; aiDestination?: string; semantic?: string }
 interface SemanticStatus { pending: number; attention: number; completed: number; suppressed: number;
   jobs: { id: string; title: string; state: string; reason: string | null; takeover: boolean }[] }
-interface SiteStatus { inspectionStatus?: { status: string; retryAfterMs?: number }; enabled?: boolean; connected?: boolean; accountId?: string | null; documents?: number; candidateAccount?: string | null; error?: string;
+interface SiteStatus { inspectionStatus?: { status: string; retryAfterMs?: number }; enabled?: boolean; connected?: boolean; accountId?: string | null; documents?: number; candidateAccount?: string | null; error?: string; incidentId?: string;
+  accountLabel?: string; candidateLabel?: string;
+  activity?: { problem: SiteActivity | null; lastEvent: SiteActivity | null };
   confirmations?: { pending: number; paused?: unknown }; archiveHold?: string | null;
   browser?: { minimum: number; major: number | null; supported: boolean }; grants?: { site: boolean; bookmarks: boolean };
   catalog?: { items: Collection[]; nextCursor: string | null; reading: boolean; current: boolean; failed: string | null } | null;
   inspection?: { command: { deadlineAt: number; operation?: string }; result?: { status: string; item?: { title?: string } } } | null;
-  archive?: { catalog?: Collection[]; config: ArchiveConfig | null; import: ImportStatus | null; semantic?: SemanticStatus | null; reconciliation?: ReconcilePreview | null; reconciliationRun?: ReconcileRun | null } }
+  archive?: { catalog?: Collection[]; config: ArchiveConfig | null; import: ImportStatus | null; overview?: SourceOverview | null; overviewError?: string | null;
+    semantic?: SemanticStatus | null; reconciliation?: ReconcilePreview | null; reconciliationRun?: ReconcileRun | null } }
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.querySelector<T>(`#${id}`)!;
 const button = (id: string) => $<HTMLButtonElement>(id);
@@ -59,6 +68,7 @@ function errorCopy(code: string | undefined) {
     case 'rateLimited': return t('sites_rateLimited', '$1 asked Know-N to slow down. Try again in a few minutes.', site);
     case 'ruleRejected': return t('sites_ruleRejected', 'This browser’s rules couldn’t take the archive rule. Check Automations, then try again.');
     case 'sourceAutomationPaused': return t('sites_automationsPaused', 'Automations are paused in this browser. Resume them, then try again.');
+    case 'sourceNeedsReview': return t('sites_mappingNeedsReview', 'This mapping needs to be checked before saving can continue. Open Recovery to review it.');
     case 'sourceCloudUnsupported': return t('sites_refreshSyncedPreview', 'This folder now participates in sync. Make the import preview again before saving.');
     case 'sourceSyncUpgradeRequired': return t('sites_syncServerUpgrade', 'Update COLP Server to support saving website collections into synced folders.');
     case 'sourceDestinationChanged': case 'sourceDestinationNeedsReview': return t('sites_destinationChanged', 'The sync account or folder range changed. Check this folder and save the settings again.');
@@ -75,19 +85,31 @@ function errorCopy(code: string | undefined) {
     case 'sourceCopySuppressed': return t('sites_semanticSuppressed', 'This copy was deleted. It will stay deleted.');
     case 'sourceCopyDetached': case 'semanticBindingNeedsReview': return t('sites_semanticReview', 'This copy was changed or its old association needs review. Existing bookmarks are kept.');
     case 'semanticPaused': return t('sites_semanticPaused', 'Paused because the source account or settings changed.');
-    default: return t('sites_actionFailed', 'That didn’t work. The details are in Recovery › Technical details.');
+    default: { const problem = siteProblem(code ?? 'unavailable', site); return `${problem.what} ${problem.next}`; }
   }
 }
 /** One notice at the top of the page, for what blocks the whole site; a step's own result is a toast. */
 function showAlert(message: string | null) { text('site-alert-text', message ?? ''); $('site-alert').hidden = !message; }
 function statusAlert(s: SiteStatus) {
-  if (s.error) return s.error === 'browserUnsupported' ? errorCopy(s.error) : t('sites_pausedAlert', 'Site adapters are paused. Recovery inspection and export remain available.');
+  if (s.error) return s.error === 'browserUnsupported' ? errorCopy(s.error) : t('sites_statusUnreadable', 'Couldn’t read the current sync status. Try again, or open Recovery for details.');
   if (!s.browser || s.browser.supported) return null;
   return s.browser.major ? t('sites_chromeVersion', 'Site adapters need Chrome $1 or later; this is Chrome $2.', s.browser.minimum, s.browser.major)
     : t('sites_chromeMinimum', 'Site adapters need Chrome $1 or later.', s.browser.minimum);
 }
 
 let status: SiteStatus = {};
+const activityView = createSiteActivityView(message => sendSiteMessage(message), selectedSite);
+const problemEvent = (event: Event) => { const detail = (event as CustomEvent<{ kind: string; error: string; incidentId?: string }>).detail;
+  showActionProblem(detail, detail.kind); };
+document.addEventListener(SITE_PROBLEM_EVENT, problemEvent);
+const configuration = createSiteConfiguration(() => { dirty = false; configSignature = undefined; activityView.discardConfiguration(); loadConfig(status.archive?.config ?? null); paint(); });
+button('site-configure').addEventListener('click', () => { showTab('sync'); configuration.open(); });
+button('overview-manage-connection').addEventListener('click', () => configuration.open('connection'));
+button('overview-edit-destination').addEventListener('click', () => configuration.open('destination'));
+button('overview-manage-collections').addEventListener('click', () => configuration.open('collections'));
+button('overview-identify').addEventListener('click', () => { void requestInspection({ kind: 'known.siteAdapters.inspect', operation: 'resolve' }); });
+document.querySelector('#site-problem .sites-problem-actions')!.append(button('retry-site-status'));
+let disposed = false;
 installReconcileControls(message => act(message), () => { if (lastImport) paintImport(lastImport); });
 let lastActionError: { operation: string; error: string; at: number } | undefined;
 let refreshTimer: ReturnType<typeof setTimeout> | undefined, inspectionRetry: ReturnType<typeof setTimeout> | undefined;
@@ -95,24 +117,39 @@ let refreshTimer: ReturnType<typeof setTimeout> | undefined, inspectionRetry: Re
 async function request(message: unknown): Promise<SiteStatus> {
   try { return (await sendSiteMessage(message) as SiteStatus | undefined) ?? { error: 'unavailable' }; } catch { return { error: 'unavailable' }; }
 }
-async function refresh() { return apply(await request({ kind: 'known.siteAdapters.status', reconcileOffset: reconcilePageOffset() })); }
-/** Run a step. A refusal is a toast, and the page repaints from a fresh status. */
+async function refresh() { const result = await request({ kind: 'known.siteAdapters.status', reconcileOffset: reconcilePageOffset() });
+  if (!result.error) activityView.succeeded('status'); return apply(result); }
+/** Run a step. Refusals remain in the operation record while status is refreshed. */
 async function act(message: unknown, done?: () => void): Promise<boolean> {
   clearTimeout(refreshTimer);
   const result = await request(message);
   const action = message as { kind: string };
   if (result.error) {
     lastActionError = { operation: action.kind, error: result.error, at: Date.now() };
-    showToast(errorCopy(result.error), 'error', { announce: true }); await refresh(); return false;
+    showActionProblem(result, action.kind); await refresh(); return false;
   }
   if (lastActionError?.operation === action.kind) lastActionError = undefined;
-  done?.(); apply(result); return true;
+  activityView.succeeded(siteOperation(action.kind)); done?.(); apply(result); activityView.changed(); return true;
+}
+function showActionProblem(result: SiteStatus, kind: string) {
+  const job = status.archive?.import;
+  activityView.failed(result.error ?? 'unavailable', result.incidentId,
+    job ? sourceActivityCounts(job) : undefined, siteOperation(kind));
 }
 function apply(result: SiteStatus) {
+  if (disposed) return result;
   clearTimeout(refreshTimer);
   $('status').textContent = JSON.stringify({ ...result, ...(lastActionError ? { lastActionError } : {}) }, null, 2);
-  showAlert(statusAlert(result)); paintSiteNav(selectedSite.adapterId, result);
-  if (result.error) return result;
+  showAlert(result.error && result.error !== 'browserUnsupported' ? null : statusAlert(result)); paintSiteNav(selectedSite.adapterId, result);
+  button('retry-site-status').hidden = !result.error;
+  if (result.error) {
+    showActionProblem(result, 'known.siteAdapters.status');
+    $('source-overview').hidden = true; configuration.unavailable();
+    for (const id of ['step-import', 'semantic-progress', 'reconcile-details']) $(id).hidden = true;
+    activityView.layout();
+    return result;
+  }
+  activityView.paint(result.activity?.problem);
   status = result; paint(); schedule(); return result;
 }
 /** Poll while something moves (a scan, a read, a confirmation) or while waiting for a tab or an account. */
@@ -122,14 +159,15 @@ function schedule() {
     || !!status.inspection && !status.inspection.result && status.inspection.command.deadlineAt > Date.now() || !!status.archive?.semantic?.pending
     || !!status.archive?.reconciliationRun?.progress?.pending || !!status.archive?.reconciliationRun?.operations.some(op => op.state === 'pending');
   const waiting = !!status.enabled && (!status.connected || !status.documents);
-  if (busy || waiting) refreshTimer = setTimeout(() => { if (document.visibilityState === 'visible') void refresh(); }, busy ? 500 : 2000);
+  if (busy || waiting || status.archive?.config) refreshTimer = setTimeout(() => { if (document.visibilityState === 'visible') void refresh(); }, busy ? 500 : waiting ? 2000 : 5000);
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') void refresh(); });
+window.addEventListener('pagehide', () => { disposed = true; clearTimeout(refreshTimer); clearTimeout(inspectionRetry); document.removeEventListener(SITE_PROBLEM_EVENT, problemEvent); }, { once: true });
 /** Ask for a read, waiting out a busy read slot for up to 30 seconds; `gaveUp` runs if it never started. */
 async function requestInspection(message: unknown, until = Date.now() + 30000, gaveUp?: () => void) {
   clearTimeout(inspectionRetry);
   const result = await request(message);
-  if (result.error) { showToast(errorCopy(result.error), 'error', { announce: true }); await refresh(); return; }
+  if (result.error) { showActionProblem(result, 'known.siteAdapters.inspect'); await refresh(); return; }
   apply(result);
   if (result.inspectionStatus?.status !== 'paused') return;
   if (Date.now() < until) inspectionRetry = setTimeout(() => { void requestInspection(message, until, gaveUp); }, Math.max(500, result.inspectionStatus.retryAfterMs ?? 1500));
@@ -140,14 +178,16 @@ for (const id of ['open-site', 'open-site-list']) button(id).addEventListener('c
 
 // ---- Step 1: connect
 function paintConnection() {
+  if (selectedSite.connectionKind !== 'page') text('sites-connection-heading', status.archive?.config ? t('sites_accountAndAccess', 'Account and access') : t('sites_stepConnect', 'Connect your account'));
   const s = status, enabled = !!s.enabled, granted = s.grants?.site ?? false, candidate = s.candidateAccount ?? null, connected = !!s.connected && !candidate, docs = s.documents ?? 0;
   const title = !enabled ? t('sites_turnOnSite', 'Turn on $1', site) : !granted ? t('sites_needsAccess', '$1 needs site access', site)
-    : candidate ? t('sites_signedInAs', 'Signed in to $1 as $2', site, candidate) : connected ? s.accountId ? t('sites_accountNamed', '$1 account $2', site, s.accountId) : t('sites_connected', 'Connected')
+    : candidate ? s.candidateLabel ? t('sites_signedInAs', 'Signed in to $1 as $2', site, s.candidateLabel) : t('sites_confirmDetectedAccount', 'Confirm the account detected on $1', site)
+    : connected ? s.accountLabel ? t('sites_accountDisplayName', '$1 · $2', site, s.accountLabel) : t('sites_connected', 'Connected')
     : t('sites_openAndSignIn', 'Open $1 and sign in', site);
   const hint = !enabled ? t('sites_turnOnHint', 'Know-N reads your favorites from the $1 tabs you open. It never changes anything on $1.', site)
     : !granted ? t('sites_needsAccessHint', 'Allow access to $1 so Know-N can read your favorites.', new URL(selectedSite.origin).hostname)
     : candidate ? t('sites_connectHint', 'Connect this account to sync its collections.')
-    : connected ? docs ? tn('sites_readingTabs', docs, 'Reading $1 open $2 tab.', 'Reading $1 open $2 tabs.', site) : t('sites_noTabOpen', 'No $1 tab is open. Open one when you want to read your collections.', site)
+    : connected ? docs ? tn('sites_availableTabs', docs, '$1 open $2 tab available.', '$1 open $2 tabs available.', site) : t('sites_noReadablePage', 'No $1 page is connected for reading. Open or reload the website when you want to check its content.', site)
     : t('sites_openSignedInHint', 'Know-N finds your account in an open $1 tab.', site);
   text('connection-title', title); text('connection', hint);
   $('account-value').hidden = !connected;
@@ -157,6 +197,12 @@ function paintConnection() {
   button('open-site').hidden = !enabled || !granted || !!candidate || connected && docs > 0;
   // An extra tab to open is secondary to connecting the account.
   button('open-site').className = !connected ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm';
+  if (selectedSite.connectionKind === 'page') {
+    text('sites-connection-heading', t('sites_connectWebsite', 'Connect the website'));
+    text('connection-title', connected ? t('sites_websiteConnected', 'Website connected') : t('sites_openSite', 'Open $1', site));
+    text('connection', t('sites_pageConnectionHint', 'This source uses the current website page. No account connection is needed.'));
+    $('account-value').hidden = true; button('confirm').hidden = true;
+  }
 }
 button('enable').addEventListener('click', () => {
   void chrome.permissions.request({ permissions: ['scripting', 'webNavigation'], origins: [...selectedSite.matches] }).then(granted => {
@@ -166,11 +212,14 @@ button('enable').addEventListener('click', () => {
 button('disable').addEventListener('click', () => { void act({ kind: 'known.siteAdapters.enable', enabled: false }); });
 button('confirm').addEventListener('click', () => { const account = status.candidateAccount; if (account) void act({ kind: 'known.siteAdapters.confirm', accountId: account }); });
 button('refresh').addEventListener('click', () => { void refresh(); });
+button('retry-site-status').addEventListener('click', () => { void refresh(); });
 
 // ---- Step 2: choose collections and a folder
 const selection = new Set<string>();
 let formRoot = '', primaryValue = '', dirty = false, configSignature: string | undefined, listSignature: string | undefined;
 let picker: FolderPicker | null = null;
+let folderNames = new Map<string, string>();
+let folderPaths = new Map<string, string>();
 const switchOn = (id: string) => button(id).getAttribute('aria-checked') === 'true';
 const setSwitch = (id: string, on: boolean) => button(id).setAttribute('aria-checked', String(on));
 const copies = $<HTMLSelectElement>('archive-copies'), primary = $<HTMLSelectElement>('archive-primary'), list = $('archive-collections'), filter = $<HTMLInputElement>('collection-filter');
@@ -197,11 +246,13 @@ function loadConfig(config: ArchiveConfig | null) {
   setSwitch('archive-semantic', config?.semantic === 'automatic');
 }
 function paintCollections() {
+  if (selectedSite.defaultCollection) selection.add(selectedSite.defaultCollection.id);
   const items = catalogItems(), c = status.catalog, docs = status.documents ?? 0, connected = !!status.connected && !status.candidateAccount;
   const signature = JSON.stringify(items);
   if (signature !== listSignature) {
     listSignature = signature;
     list.replaceChildren(...items.map(item => { const { label, input } = optionRow({ type: 'checkbox', value: item.id, checked: selection.has(item.id), title: item.title });
+      input.disabled = !!selectedSite.defaultCollection;
       label.dataset.title = item.title.toLocaleLowerCase();
       input.addEventListener('change', () => { if (input.checked) selection.add(item.id); else selection.delete(item.id); $('collections-error').hidden = true; edited(); });
       return label; }));
@@ -214,7 +265,7 @@ function paintCollections() {
   button('select-all').textContent = all ? t('sites_clearAll', 'Clear all') : t('common_selectAll', 'Select all');
   button('read-catalog').disabled = !!c?.reading || !connected;
   const chosen = chosenIds().length;
-  text('catalog-summary', !features.collections ? items.length ? t('sites_chosenOf', '$1 of $2 chosen', chosen, items.length) : t('sites_observedCatalogHint', 'Only collections observed in the current source session are shown. Refresh after observing more collections.')
+  text('catalog-summary', selectedSite.defaultCollection ? t('sites_singleListHint', 'This source provides one list.') : !features.collections ? items.length ? t('sites_chosenOf', '$1 of $2 chosen', chosen, items.length) : t('sites_observedCatalogHint', 'Only collections observed in the current source session are shown. Refresh after observing more collections.')
     : c?.reading ? items.length ? tn('sites_readingSoFar', items.length, 'Reading your collections… $1 so far.', 'Reading your collections… $1 so far.') : t('sites_readingCollections', 'Reading your collections…')
     : items.length && c?.nextCursor ? tn('sites_collectionsReadMore', items.length, '$1 collection read; more are available.', '$1 collections read; more are available.')
     : items.length ? t('sites_chosenOf', '$1 of $2 chosen', chosen, items.length)
@@ -265,6 +316,8 @@ async function loadRoots() {
   text('archive-root-hint', allowed ? t('sites_saveIntoHint', 'Each collection becomes a folder inside this one.') : t('sites_allowToChoose', 'Allow bookmark access to choose a folder.'));
   if (!allowed || !features.archive) { picker?.element.remove(); picker = null; paintForm(); return; }
   const choices = folderChoices(await chrome.bookmarks.getTree(), { exclude: await exclusionIds().catch(() => new Set<string>()) });
+  folderNames = new Map(choices.map(choice => [choice.id, choice.title]));
+  folderPaths = new Map(choices.map(choice => [choice.id, choice.path.join(' / ')]));
   if (!picker) {
     picker = createFolderPicker({ choices, value: formRoot, label: t('sites_saveInto', 'Save into'), startEmpty: true,
       onChange: () => { formRoot = picker!.value(); $('root-error').hidden = true; edited(); } });
@@ -272,6 +325,7 @@ async function loadRoots() {
     $('archive-root-slot').prepend(picker.element);
   } else picker.setChoices(choices);
   paintForm();
+  if (status.archive?.config) paintSourceOverview(status, selectedSite, folderNames, (part, collectionId) => configuration.open(part, collectionId), folderPaths);
 }
 button('grant-archive').addEventListener('click', () => { void chrome.permissions.request({ permissions: ['bookmarks'] }).then(granted => { if (granted) return loadRoots(); }); });
 // No folder yet: one press makes a folder named after the site, or picks the one already there.
@@ -281,28 +335,29 @@ button('create-root').addEventListener('click', () => { void (async () => {
   const existing = (await chrome.bookmarks.getChildren(parent.id)).find(n => !n.url && n.title === site);
   const folder = existing ?? await chrome.bookmarks.create({ parentId: parent.id, title: site });
   formRoot = folder.id; await loadRoots(); picker?.setValue(folder.id); $('root-error').hidden = true; edited();
-})().catch(() => { showToast(t('sites_folderNotCreated', 'Couldn’t make the folder. Choose one instead.'), 'error', { announce: true }); }); });
+})().catch(() => { showActionProblem({ error: 'folderCreateFailed' }, 'known.siteAdapters.archive.configure'); }); });
 
 function paintForm() {
   const config = status.archive?.config ?? null, active = config?.state === 'active', connected = !!status.connected && !status.candidateAccount;
   const configure = button('configure-archive');
-  configure.textContent = !config || config.state === 'pending' ? t('sites_startSyncing', 'Start syncing') : config.state === 'disabled' ? t('sites_resumeSyncing', 'Resume syncing') : t('sites_saveChanges', 'Save changes');
-  configure.className = active ? 'btn btn-secondary btn-sm' : 'btn btn-primary btn-sm';
-  offer(configure, features.archive && connected && (!active || dirty || !!status.archiveHold));
-  configure.disabled = configure.hidden || !!status.catalog?.reading;
+  configure.textContent = !config || config.state === 'pending' ? features.import ? t('sites_readAndPreview', 'Read and preview') : t('sites_saveSettings', 'Save settings') : config.state === 'disabled' ? t('sites_resumeSyncing', 'Resume syncing') : t('sites_saveChanges', 'Save changes');
+  configure.className = 'btn btn-primary btn-sm';
+  offer(configure, features.archive && connected);
+  configure.disabled = configure.hidden || !!status.catalog?.reading || active && !dirty && !status.archiveHold;
   offer(button('disable-archive'), active);
   button('create-root').hidden = !picker || !!rootValue();
-  const rootName = picker?.pill.querySelector('.folder-pill-name')?.textContent || t('sites_theChosenRoot', 'the chosen root');
+  const rootName = folderNames.get(config?.root.nativeId ?? '') || t('sites_theChosenRoot', 'the chosen root');
+  text('import-destination', config ? tn('sites_importDestination', config.collectionIds.length, '$1 collection → $2', '$1 collections → $2', rootName) : '');
   text('archive-summary', dirty && config ? t('sites_unsavedChanges', 'You have changes to save.')
     : !config ? t('sites_notSyncing', 'Not syncing yet.')
-    : config.state === 'active' ? tn('sites_syncingInto', config.collectionIds.length, 'Syncing $1 collection into $2.', 'Syncing $1 collections into $2.', rootName)
+    : config.state === 'active' ? tn('sites_mappedInto', config.collectionIds.length, 'Mapped $1 collection to $2.', 'Mapped $1 collections to $2.', rootName)
     : config.state === 'pending' ? t('sites_archivePending', 'Saved. Waiting for the archive root.') : t('sites_syncingPaused', 'Syncing is paused.'));
 }
 button('configure-archive').addEventListener('click', () => {
   const ids = chosenIds(), root = rootValue();
   $('collections-error').hidden = ids.length > 0; $('root-error').hidden = !!root;
   if (!ids.length || !root) return;
-  if (!status.documents) { showToast(errorCopy('pageUnavailable'), 'error', { announce: true }); return; }
+  if (!status.documents) { showActionProblem({ error: 'pageUnavailable' }, 'known.siteAdapters.archive.configure'); return; }
   const config = status.archive?.config, job = status.archive?.import, first = config?.state !== 'active';
   button('configure-archive').disabled = true;
   void (async () => {
@@ -311,7 +366,8 @@ button('configure-archive').addEventListener('click', () => {
       semantic: copies.value === 'sourceAndSemantic' && switchOn('archive-semantic') ? 'automatic' : 'manual',
       live: features.liveArchive && switchOn('archive-live') }, () => { dirty = false; });
     if (!saved) { paintForm(); return; }
-    showToast(tn('sites_syncingInto', ids.length, 'Syncing $1 collection into $2.', 'Syncing $1 collections into $2.', picker?.pill.querySelector('.folder-pill-name')?.textContent ?? ''), 'ok');
+    configuration.saved();
+    showToast(tn('sites_mappedInto', ids.length, 'Mapped $1 collection to $2.', 'Mapped $1 collections to $2.', picker?.pill.querySelector('.folder-pill-name')?.textContent ?? ''), 'ok');
     // Starting to sync also looks for what is already there; that list waits for approval before anything is added.
     // An archive on hold (a restored one not yet rebound) brings nothing in.
     if (first && features.import && !status.archiveHold && (!job || ['cancelled', 'completed'].includes(job.phase))) await act({ kind: 'known.siteAdapters.import.start' });
@@ -321,69 +377,72 @@ button('disable-archive').addEventListener('click', () => { void act({ kind: 'kn
 
 // ---- Step 3: bring in what is already in the collections
 let lastImport: ImportStatus | null = null;
-const autoFrozen = new Set<string>();
-function stoppedCopy(job: ImportStatus) {
-  const found = tn('sites_foundSoFar', job.edgeCount, 'Found $1 favorite.', 'Found $1 favorites.');
-  switch (job.reason) {
-    case 'restartRequired': case 'pageUnavailable': case 'navigationChanged': return t('sites_stoppedTab', 'The $1 tab closed or moved to another page. $2', site, found);
-    case 'rateLimited': return t('sites_stoppedRate', '$1 asked Know-N to slow down. Try again in a few minutes. $2', site, found);
-    case 'signedOut': return t('sites_stoppedSignedOut', 'You’re signed out of $1. Sign in, then try again. $2', site, found);
-    default: return t('sites_stoppedEarly', 'Reading stopped before the end. $1', found);
-  }
-}
 function paintImport(job: ImportStatus | null) {
-  const p = job?.preview, c = p?.counts, waiting = !!job && ['preview', 'attention'].includes(job.phase) && !!p, nothing = !!c && !c.createBookmarks && !c.createFolders;
-  const scanDone = job?.phase === 'paused' && job.reason === 'scanFinished';
-  text('import-state', !job ? t('sites_nothingImported', 'Nothing brought in yet')
-    : job.phase === 'scanning' ? t('sites_readingFavorites', 'Reading your favorites…')
-    : job.phase === 'preparing' || scanDone ? t('sites_preparingList', 'Making the list…')
-    : job.phase === 'paused' ? t('sites_readingStopped', 'Reading stopped early')
-    : job.phase === 'preview' ? nothing ? t('sites_nothingNew', 'Nothing new to add') : tn('sites_readyToAdd', c!.createBookmarks, 'Ready to add $1 bookmark', 'Ready to add $1 bookmarks')
-    : job.phase === 'attention' ? t('sites_phaseAttention', 'Needs review')
-    : job.phase === 'approved' ? job.reason === 'sourceSyncPending' ? t('sites_waitingForBookmarkSync', 'Waiting for bookmark sync…') : t('sites_addingBookmarks', 'Adding bookmarks…')
-    : job.phase === 'cancelled' ? t('sites_phaseCancelled', 'Import cancelled') : t('sites_importDone', 'Existing favorites are in'));
-  text('import-summary', !job ? t('sites_checkExistingHint', 'Look for favorites saved before syncing started. You see the list before anything is added.')
-    : job.phase === 'scanning' ? tn('sites_scanningFound', job.edgeCount, 'Found $1 favorite so far. Nothing is added until you approve the list.', 'Found $1 favorites so far. Nothing is added until you approve the list.')
-    : job.phase === 'preparing' || scanDone ? tn('sites_preparingFound', job.edgeCount, 'Found $1 favorite.', 'Found $1 favorites.')
-    : job.phase === 'paused' ? stoppedCopy(job)
-    : waiting ? [...c!.createFolders ? [tn('sites_listFolders', c!.createFolders, '$1 new folder', '$1 new folders')] : [],
-      ...c!.reuseBookmarks ? [tn('sites_listSaved', c!.reuseBookmarks, '$1 already saved', '$1 already saved')] : [],
-      ...job.omissions ? [tn('sites_listUnreadable', job.omissions, '$1 couldn’t be read', '$1 couldn’t be read')] : [],
-      ...p!.coverage !== 'complete' ? [t('sites_listPartial', 'some collections weren’t read to the end')] : []].join(' · ') || t('sites_listNoChanges', 'Nothing else changes.')
-    : job.phase === 'approved' ? job.reason === 'sourceSyncPending' ? t('sites_waitingForBookmarkSyncHint', 'Your approved import is kept. It will continue when the sync connection and folder are ready.') : t('sites_addingInto', 'Adding them to your folder. You can leave this page.')
-    : job.phase === 'cancelled' ? t('sites_cancelledHint', 'Nothing more was added.')
-    : c ? tn('sites_addedCount', c.createBookmarks, 'Added $1 bookmark. New favorites keep syncing.', 'Added $1 bookmarks. New favorites keep syncing.') : t('sites_doneHint', 'New favorites keep syncing.'));
-  const badge = $('import-badge'); badge.hidden = !waiting || !c?.review;
-  if (c?.review) { badge.textContent = tn('sites_toReview', c.review, '$1 to review', '$1 to review'); badge.dataset.tone = 'warning'; }
-  $('import-progress').hidden = !job || !(['scanning', 'preparing', 'approved'].includes(job.phase) || scanDone);
-  const samples = p?.omissions?.samples ?? [], omissions = $<HTMLDetailsElement>('import-omissions');
-  omissions.hidden = !waiting || !samples.length;
-  $('import-omission-list').replaceChildren(...samples.map(o => { const li = document.createElement('li'); li.textContent = o.reason; li.title = o.id; return li; }));
-  const config = status.archive?.config;
-  offer(button('start-import'), features.import && config?.state === 'active' && (!job || ['cancelled', 'completed'].includes(job.phase)));
-  button('start-import').textContent = job ? t('sites_checkAgain', 'Check again') : t('sites_checkExisting', 'Check for existing favorites');
-  offer(button('resume-import'), job?.phase === 'paused' && !scanDone);
-  offer(button('freeze-import'), !!job && (job.phase === 'paused' && !scanDone || waiting || job.phase === 'scanning'));
-  button('freeze-import').textContent = waiting ? t('sites_makeListAgain', 'Make the list again') : job?.phase === 'scanning' ? t('sites_stopAndReview', 'Stop and review') : t('sites_reviewFound', 'Review what was found');
-  button('freeze-import').className = job?.phase === 'paused' ? 'btn btn-secondary btn-sm' : 'btn btn-ghost btn-sm';
-  offer(button('approve-import'), job?.phase === 'preview' && !!p);
-  button('approve-import').textContent = nothing ? t('sites_finish', 'Finish') : tn('sites_addBookmarks', c?.createBookmarks ?? 0, 'Add $1 bookmark', 'Add $1 bookmarks');
+  paintSiteImport({ job, site, documents: status.documents ?? 0, enabled: !!status.enabled,
+    connected: !!status.connected && !status.candidateAccount, bookmarkAccess: status.grants?.bookmarks ?? false, hold: status.archiveHold ?? null,
+    config: status.archive?.config ?? null, saved: status.archive?.overview?.saved, lastEvent: status.activity?.lastEvent ?? null,
+    problem: status.activity?.problem ?? null, available: features.import, hasDifferences: !!status.archive?.reconciliation, errorCopy });
+  if (waitingForSource) {
+    text('import-state', t('sites_connectingForCheck', 'Connecting to $1 to continue the check', site));
+    $('import-summary').hidden = false;
+    text('import-summary', t('sites_openedForCheck', 'The website has been opened. Checking continues automatically once its connection is ready.'));
+    for (const id of ['import-open-source', 'start-import', 'resume-import']) button(id).disabled = true;
+  }
   const selectedChanges = reconcileSelections().filter(d => d.choice !== 'keep').length;
   if (selectedChanges) button('approve-import').textContent = t('sites_reconcileApprove', 'Approve saving and $1 chosen changes', selectedChanges);
-  offer(button('cancel-import'), !!job && !['cancelled', 'completed'].includes(job.phase));
-  // A finished scan becomes its list on its own; the list still waits for approval.
-  if (job && scanDone && !autoFrozen.has(`${job.id}:${job.edgeCount}:${job.pages}`)) { autoFrozen.add(`${job.id}:${job.edgeCount}:${job.pages}`); void act({ kind: 'known.siteAdapters.import.freeze', jobId: job.id }); }
 }
 button('start-import').addEventListener('click', () => { void act({ kind: 'known.siteAdapters.import.start' }); });
+button('import-open-source').addEventListener('click', () => { void continueWithSource(); });
+let waitingForSource = false;
+async function continueWithSource() {
+  if (waitingForSource) return;
+  waitingForSource = true; button('import-open-source').disabled = true;
+  const original = status.archive?.import, config = JSON.stringify(status.archive?.config);
+  try {
+    await chrome.tabs.create({ url: selectedSite.origin });
+    for (let attempt = 0; attempt < 30 && !disposed; attempt++) {
+      const next = await request({ kind: 'known.siteAdapters.status' });
+      if (disposed) return;
+      apply(next);
+      if (next.error) return;
+      if (JSON.stringify(next.archive?.config) !== config || next.archive?.import?.id !== original?.id) return;
+      if (next.candidateAccount) { configuration.open('connection'); return; }
+      if (next.documents) {
+        const job = next.archive?.import;
+        if (job && !['paused', 'cancelled', 'completed'].includes(job.phase)) return;
+        await act(job?.phase === 'paused' ? { kind: 'known.siteAdapters.import.resume', jobId: job.id } : { kind: 'known.siteAdapters.import.start' }); return;
+      }
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    if (!disposed) showActionProblem({ error: 'pageUnavailable' }, 'known.siteAdapters.import.start');
+  } finally { waitingForSource = false; if (!disposed) paintImport(lastImport); }
+}
+button('import-open-recovery').addEventListener('click', () => { showTab('recovery'); });
+button('import-review-items').addEventListener('click', () => { $<HTMLDetailsElement>('reconcile-details').open = true; $('reconcile-details').scrollIntoView({ block: 'start', behavior: 'smooth' }); });
+button('import-review-settings').addEventListener('click', () => configuration.open('collections'));
+button('import-review-check').addEventListener('click', () => { const job = lastImport; if (!job) return;
+  const button = document.getElementById('import-review-check')! as HTMLButtonElement; button.disabled = true;
+  void (async () => {
+    const result = await request({ kind: 'known.siteAdapters.operations.check' });
+    if (result.error) { showActionProblem(result, 'known.siteAdapters.operations.check'); await refresh(); }
+    else {
+      activityView.succeeded('recover');
+      if (lastImport?.id === job.id && ['preview', 'attention'].includes(lastImport.phase)) await act({ kind: 'known.siteAdapters.import.freeze', jobId: job.id });
+      else await refresh();
+    }
+  })().finally(() => { button.disabled = false; });
+});
+button('import-edit-settings').addEventListener('click', () => configuration.open('connection'));
 button('freeze-import').addEventListener('click', () => { if (lastImport) void act({ kind: 'known.siteAdapters.import.freeze', jobId: lastImport.id }); });
 button('resume-import').addEventListener('click', () => { if (lastImport) void act({ kind: 'known.siteAdapters.import.resume', jobId: lastImport.id }); });
+button('retry-import').addEventListener('click', () => { if (lastImport) void act({ kind: 'known.siteAdapters.import.retry', jobId: lastImport.id }); });
 button('cancel-import').addEventListener('click', () => { if (lastImport) void act({ kind: 'known.siteAdapters.import.cancel', jobId: lastImport.id }); });
 button('approve-import').addEventListener('click', () => { const job = lastImport, p = job?.preview; if (!job || !p) return; button('approve-import').disabled = true;
   void (async () => {
     const result = await request({ kind: 'known.siteAdapters.import.approve', jobId: job.id, previewId: p.id, revision: p.revision, digest: p.digest });
     // A list that changed under the person is made again, never approved in its place.
     if (result.error === 'previewStale') { showToast(errorCopy('previewStale'), 'info', { announce: true }); await act({ kind: 'known.siteAdapters.import.freeze', jobId: job.id }); return; }
-    if (result.error) { showToast(errorCopy(result.error), 'error', { announce: true }); await refresh(); return; }
+    if (result.error) { showActionProblem(result, 'known.siteAdapters.import.approve'); await refresh(); return; }
     apply(result);
     if (status.archive?.reconciliation && !status.archive.reconciliationRun) await act({ kind: 'known.siteAdapters.reconcile.apply',
       importId: job.id, digest: status.archive.reconciliation.digest, decisions: reconcileSelections() });
@@ -433,10 +492,17 @@ function paint() {
   if (status.archiveHold) text('archive-hold', errorCopy(status.archiveHold));
   paintConnection(); paintCollections(); paintForm(); paintInspector(); paintSemantic();
   paintReconciliation(status.archive?.reconciliation, status.archive?.reconciliationRun, job?.phase);
+  $('reconcile-details').hidden = !paintImportReview(job, selectedSite, !!status.archive?.reconciliation) && !status.archive?.reconciliation;
   paintImport(job);
   renderSiteCapabilities(document, selectedSite, !!job, !!config);
+  configuration.paint(!!config);
+  button('site-configure').hidden = !config;
+  $('step-import').hidden = !config;
+  paintSourceOverview(status, selectedSite, folderNames, (part, collectionId) => configuration.open(part, collectionId), folderPaths);
+  activityView.layout();
   autoCatalog();
 }
-onRoute(route => { if (route.view === 'site') autoCatalog(); });
+onRoute(route => { if (route.tab !== 'sync') $<HTMLDetailsElement>('site-tools').open = true; if (route.view === 'site') autoCatalog(); });
+if (currentRoute().tab !== 'sync') $<HTMLDetailsElement>('site-tools').open = true;
 void refresh();
 void loadRoots();

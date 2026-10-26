@@ -3335,6 +3335,9 @@
   "common_captureStarted": {
     "message": "Capture started"
   },
+  "common_change": {
+    "message": "Change"
+  },
   "common_changeShortcuts": {
     "message": "Change shortcuts"
   },
@@ -6611,11 +6614,11 @@
   "sites_accessRequired": {
     "message": "Know-N needs access first. Allow it, then try again."
   },
-  "sites_accountNamed": {
-    "message": "$1 account $2"
+  "sites_accountAndAccess": {
+    "message": "Account and access"
   },
-  "sites_actionFailed": {
-    "message": "That didn’t work. The details are in Recovery › Technical details."
+  "sites_accountDisplayName": {
+    "message": "$1 · $2"
   },
   "sites_addBookmarks_one": {
     "message": "Add $1 bookmark"
@@ -6629,15 +6632,6 @@
   "sites_addRule": {
     "message": "Add rule"
   },
-  "sites_addedCount_one": {
-    "message": "Added $1 bookmark. New favorites keep syncing."
-  },
-  "sites_addedCount_other": {
-    "message": "Added $1 bookmarks. New favorites keep syncing."
-  },
-  "sites_addingBookmarks": {
-    "message": "Adding bookmarks…"
-  },
   "sites_addingInto": {
     "message": "Adding them to your folder. You can leave this page."
   },
@@ -6646,6 +6640,9 @@
   },
   "sites_adoptProven": {
     "message": "Adopt these proven copies (no native writes)"
+  },
+  "sites_advancedTools": {
+    "message": "Advanced tools"
   },
   "sites_aiDestinations": {
     "message": "AI destinations"
@@ -6676,6 +6673,9 @@
   },
   "sites_archiveHoldShort": {
     "message": "This archive needs review before it saves again. Open Recovery to inspect it."
+  },
+  "sites_archivePausedTitle": {
+    "message": "Website saving paused"
   },
   "sites_archivePending": {
     "message": "Saved. Waiting for the archive root."
@@ -6716,23 +6716,56 @@
   "sites_availableFeatures": {
     "message": "Available: $1."
   },
+  "sites_availableTabs_one": {
+    "message": "$1 open $2 tab available."
+  },
+  "sites_availableTabs_other": {
+    "message": "$1 open $2 tabs available."
+  },
   "sites_batches": {
     "message": "Batches"
   },
   "sites_batchesHintShort": {
     "message": "Up to 20 confirmed favorites per batch, each with its own preview and approval. If a result is uncertain, recover it before the next batch."
   },
-  "sites_cancelledHint": {
-    "message": "Nothing more was added."
+  "sites_cancelledBeforeSaving": {
+    "message": "Reading stopped after $1 favorites were found. This import added no bookmarks. Read again when ready."
   },
-  "sites_checkAgain": {
-    "message": "Check again"
+  "sites_cancelledRestart": {
+    "message": "Reading and importing have stopped. Start a new check when you are ready; saved bookmarks are kept."
+  },
+  "sites_changeSyncSettings": {
+    "message": "Change collections and save location"
+  },
+  "sites_checkAndContinueSave": {
+    "message": "Check and continue saving"
+  },
+  "sites_checkBeforeSaving": {
+    "message": "Check the selected source lists, then review what will be added. No bookmarks have been added by this check yet."
+  },
+  "sites_checkComplete": {
+    "message": "This check is complete"
   },
   "sites_checkExisting": {
     "message": "Check for existing favorites"
   },
-  "sites_checkExistingHint": {
-    "message": "Look for favorites saved before syncing started. You see the list before anything is added."
+  "sites_checkMapping": {
+    "message": "Check mapping"
+  },
+  "sites_checkNotFinished": {
+    "message": "The source check has not finished"
+  },
+  "sites_checkSavedUpdates": {
+    "message": "Your saved items are listed below. Check for updates to find anything else that needs saving."
+  },
+  "sites_checkStopped": {
+    "message": "The last check was stopped"
+  },
+  "sites_checkUpdates": {
+    "message": "Check for updates"
+  },
+  "sites_checkingSource": {
+    "message": "Checking source items"
   },
   "sites_chooseCollection": {
     "message": "Choose at least one collection."
@@ -6770,6 +6803,9 @@
   "sites_cloudLedeShort": {
     "message": "Save the collections chosen on Sync to your COLP account, in reviewed batches. Local archives stay where they are."
   },
+  "sites_collectionUnknown": {
+    "message": "Collection name not available"
+  },
   "sites_collections": {
     "message": "Collections"
   },
@@ -6778,6 +6814,9 @@
   },
   "sites_collectionsChanged": {
     "message": "Your collections changed. Check the list, then try again."
+  },
+  "sites_collectionsRead": {
+    "message": "$1 / $2 collections read"
   },
   "sites_collectionsReadMore_one": {
     "message": "$1 collection read; more are available."
@@ -6797,8 +6836,20 @@
   "sites_communityRisk": {
     "message": "This code can read and alter authorized site pages, make requests using the site session, and expose visible private content. Install only code and authors you trust. You are responsible for this choice. Inspector mode blocks host writes, but does not make unknown page code safe."
   },
+  "sites_configureCollection": {
+    "message": "Configure this collection"
+  },
+  "sites_confirmDetectedAccount": {
+    "message": "Confirm the account detected on $1"
+  },
   "sites_confirmationReads": {
     "message": "Confirmation reads"
+  },
+  "sites_confirmedSaved_one": {
+    "message": "$2 bookmark saved in this mapping"
+  },
+  "sites_confirmedSaved_other": {
+    "message": "$2 bookmarks saved in this mapping"
   },
   "sites_connectAccount": {
     "message": "Connect this account"
@@ -6809,14 +6860,35 @@
   "sites_connectToList": {
     "message": "Connect your account to list your collections."
   },
+  "sites_connectWebsite": {
+    "message": "Connect the website"
+  },
   "sites_connected": {
     "message": "Connected"
+  },
+  "sites_connectedSource": {
+    "message": "$1 account connected"
+  },
+  "sites_connectingForCheck": {
+    "message": "Connecting to $1 to continue the check"
+  },
+  "sites_connectionNeedsAttention": {
+    "message": "Needs attention"
+  },
+  "sites_connectionSettings": {
+    "message": "Connection"
   },
   "sites_contentHint": {
     "message": "Review which account each saved copy belongs to."
   },
   "sites_contentLedeShort": {
     "message": "Which account each saved copy belongs to. A new account never takes over a copy on its own."
+  },
+  "sites_continueCheck": {
+    "message": "Continue checking"
+  },
+  "sites_continueFirstSave": {
+    "message": "Continue first save"
   },
   "sites_copies": {
     "message": "Copies"
@@ -6825,7 +6897,7 @@
     "message": "Keep source and semantic copies"
   },
   "sites_copiesHint": {
-    "message": "What happens when you also save a video somewhere else."
+    "message": "What happens when the same item is also saved elsewhere."
   },
   "sites_copiesKeepExisting": {
     "message": "One copy, preserve existing location"
@@ -6833,8 +6905,17 @@
   "sites_copiesPreferSemantic": {
     "message": "One copy, prefer semantic location"
   },
+  "sites_copyDiagnostic": {
+    "message": "Copy diagnostic report"
+  },
   "sites_copyMigrationReview": {
     "message": "Existing website copies need a mapping or identity review before saving can continue. No additional copies were created."
+  },
+  "sites_copyProblem": {
+    "message": "Copy problem report"
+  },
+  "sites_copyRecord": {
+    "message": "Copy this operation record"
   },
   "sites_currentItem": {
     "message": "Current item"
@@ -6850,6 +6931,9 @@
   },
   "sites_diagnosticExported": {
     "message": "Private diagnostic exported. Existing work and database schema were preserved."
+  },
+  "sites_diagnosticReport": {
+    "message": "Diagnostic report"
   },
   "sites_diffAdd": {
     "message": "New favorite"
@@ -6893,11 +6977,11 @@
   "sites_disabledUntilReviewed": {
     "message": "Disabled until reviewed."
   },
-  "sites_doneHint": {
-    "message": "New favorites keep syncing."
-  },
   "sites_enablePackage": {
     "message": "Enable inspector"
+  },
+  "sites_existingCopyLocation": {
+    "message": "Existing copies keep their locations under your copy policy"
   },
   "sites_featureCatalog": {
     "message": "Read collections"
@@ -6920,20 +7004,26 @@
   "sites_finish": {
     "message": "Finish"
   },
+  "sites_finishEmptyImport": {
+    "message": "Available favorites are already saved, or this read found only unavailable items. Finish to close this check."
+  },
+  "sites_firstSaveTitle": {
+    "message": "Existing items have not been saved yet"
+  },
+  "sites_folderAfterSave": {
+    "message": "Folder is created when items are saved"
+  },
   "sites_folderGone": {
     "message": "That folder is gone. Choose another one."
   },
-  "sites_folderNotCreated": {
-    "message": "Couldn’t make the folder. Choose one instead."
+  "sites_folderMissing": {
+    "message": "Folder is missing; check the mapping"
+  },
+  "sites_folderReview": {
+    "message": "Folder association needs review"
   },
   "sites_foundItem": {
     "message": "Found “$1”."
-  },
-  "sites_foundSoFar_one": {
-    "message": "Found $1 favorite."
-  },
-  "sites_foundSoFar_other": {
-    "message": "Found $1 favorites."
   },
   "sites_foundThisItem": {
     "message": "Found this item."
@@ -6941,11 +7031,23 @@
   "sites_identify": {
     "message": "Identify"
   },
-  "sites_importDone": {
-    "message": "Existing favorites are in"
+  "sites_identifyOnly": {
+    "message": "This source identifies the current page. It does not enumerate or automatically save items."
+  },
+  "sites_importDestination_one": {
+    "message": "$1 collection → $2"
+  },
+  "sites_importDestination_other": {
+    "message": "$1 collections → $2"
+  },
+  "sites_importReviewRemaining": {
+    "message": "$1 bookmarks added; $2 items need a separate review below."
   },
   "sites_importRunning": {
     "message": "An import is already running."
+  },
+  "sites_importSaved": {
+    "message": "$1 bookmarks added. Existing bookmarks were kept."
   },
   "sites_inspect": {
     "message": "Inspect"
@@ -6965,6 +7067,18 @@
   "sites_installedPackages": {
     "message": "Installed packages"
   },
+  "sites_interruptedProgress": {
+    "message": "$1 items read · $2 bookmarks confirmed in this check"
+  },
+  "sites_itemsNotIncluded_one": {
+    "message": "$1 item not included"
+  },
+  "sites_itemsNotIncluded_other": {
+    "message": "$1 items not included"
+  },
+  "sites_itemsNotSaved": {
+    "message": "Items not saved"
+  },
   "sites_keepBlocked": {
     "message": "Keep these restored items and collections blocked"
   },
@@ -6976,6 +7090,9 @@
   },
   "sites_knowNSettings": {
     "message": "Know-N settings"
+  },
+  "sites_lastActivityAt": {
+    "message": "Last activity: $1"
   },
   "sites_lastResponse": {
     "message": "Last response"
@@ -6989,32 +7106,71 @@
   "sites_listFolders_other": {
     "message": "$1 new folders"
   },
-  "sites_listNoChanges": {
-    "message": "Nothing else changes."
-  },
-  "sites_listPartial": {
-    "message": "some collections weren’t read to the end"
-  },
   "sites_listSaved_one": {
     "message": "$1 already saved"
   },
   "sites_listSaved_other": {
     "message": "$1 already saved"
   },
-  "sites_listUnreadable_one": {
-    "message": "$1 couldn’t be read"
-  },
-  "sites_listUnreadable_other": {
-    "message": "$1 couldn’t be read"
-  },
   "sites_liveArchiving": {
     "message": "Live archiving"
+  },
+  "sites_liveBlocked": {
+    "message": "Automatic saving of new favorites waits until the connection and settings are ready."
+  },
+  "sites_liveOff": {
+    "message": "Automatic saving of new favorites is off."
+  },
+  "sites_liveOn": {
+    "message": "New favorites save automatically while you browse $1."
+  },
+  "sites_liveWaiting": {
+    "message": "New favorites save automatically while $1 is open."
   },
   "sites_makeListAgain": {
     "message": "Make the list again"
   },
+  "sites_manageScope": {
+    "message": "Manage collections"
+  },
+  "sites_manualChecks": {
+    "message": "Saved through reviewed checks"
+  },
+  "sites_mappedInto_one": {
+    "message": "Mapped $1 collection to $2."
+  },
+  "sites_mappedInto_other": {
+    "message": "Mapped $1 collections to $2."
+  },
+  "sites_mappingChanged": {
+    "message": "$1 saved · $2 changed locally"
+  },
+  "sites_mappingKeptDeleted": {
+    "message": "Kept deleted locally"
+  },
   "sites_mappingMoveReview": {
     "message": "This mapping already has saved bookmarks. Keep its current folder until those bookmarks can be moved together."
+  },
+  "sites_mappingNeedsReview": {
+    "message": "This mapping needs to be checked before saving can continue. Open Recovery to review it."
+  },
+  "sites_mappingNotSaved": {
+    "message": "Not saved yet"
+  },
+  "sites_mappingSaved": {
+    "message": "$1 saved"
+  },
+  "sites_mappingSaving": {
+    "message": "Saving…"
+  },
+  "sites_mappingTable": {
+    "message": "Source and saved results"
+  },
+  "sites_mappingUnknown": {
+    "message": "Not verified"
+  },
+  "sites_mappingUpdating": {
+    "message": "Updating the destination result"
   },
   "sites_more": {
     "message": "More"
@@ -7024,9 +7180,6 @@
   },
   "sites_navConnect": {
     "message": "Connect account"
-  },
-  "sites_navSyncing": {
-    "message": "Syncing"
   },
   "sites_needsAccess": {
     "message": "$1 needs site access"
@@ -7040,11 +7193,26 @@
   "sites_newFolderNamed": {
     "message": "New folder “$1”"
   },
+  "sites_newItemsOff": {
+    "message": "Automatically save new items: off"
+  },
+  "sites_newItemsOn": {
+    "message": "Automatically save new items: on"
+  },
+  "sites_newItemsOnly": {
+    "message": "This source provides new items as you browse. They are saved into the configured folders; reading all existing items is unavailable."
+  },
+  "sites_newItemsReady": {
+    "message": "Ready for new source items"
+  },
   "sites_newerChrome": {
     "message": "Site adapters need a newer version of Chrome."
   },
   "sites_noAssociations": {
     "message": "No saved associations yet."
+  },
+  "sites_noCheckRunning": {
+    "message": "No source check is running"
   },
   "sites_noCollections": {
     "message": "You have no collections on $1 yet."
@@ -7061,17 +7229,20 @@
   "sites_noPackagesHintBelow": {
     "message": "Choose a package file below to review it."
   },
+  "sites_noReadablePage": {
+    "message": "No $1 page is connected for reading. Open or reload the website when you want to check its content."
+  },
   "sites_noRecords": {
     "message": "No records need recovery."
   },
   "sites_noRootCandidate": {
     "message": "No root candidate."
   },
+  "sites_noSavingCapability": {
+    "message": "This adapter does not offer collection reading or automatic saving."
+  },
   "sites_noSourceActions": {
     "message": "No source actions are available."
-  },
-  "sites_noTabOpen": {
-    "message": "No $1 tab is open. Open one when you want to read your collections."
   },
   "sites_noneWaiting": {
     "message": "None waiting."
@@ -7082,9 +7253,6 @@
   "sites_notSyncing": {
     "message": "Not syncing yet."
   },
-  "sites_nothingImported": {
-    "message": "Nothing brought in yet"
-  },
   "sites_nothingNew": {
     "message": "Nothing new to add"
   },
@@ -7094,14 +7262,20 @@
   "sites_off": {
     "message": "Off"
   },
-  "sites_omittedItems": {
-    "message": "Omitted items"
-  },
   "sites_on": {
     "message": "On"
   },
+  "sites_oneSourceList": {
+    "message": "One source list"
+  },
   "sites_openAndSignIn": {
     "message": "Open $1 and sign in"
+  },
+  "sites_openFolder": {
+    "message": "Open folder"
+  },
+  "sites_openForCheck": {
+    "message": "$1 will open so this check can continue. Keep its tab open while items are read."
   },
   "sites_openSignedInHint": {
     "message": "Know-N finds your account in an open $1 tab."
@@ -7114,6 +7288,12 @@
   },
   "sites_openToList": {
     "message": "Open $1 in a tab to list your collections."
+  },
+  "sites_openedForCheck": {
+    "message": "The website has been opened. Checking continues automatically once its connection is ready."
+  },
+  "sites_otherLocation": {
+    "message": "Another local folder"
   },
   "sites_ownerMigrationReview": {
     "message": "This mapping already contains bookmarks from another sync account or range. Return to that account and range before continuing."
@@ -7133,32 +7313,29 @@
   "sites_packageVersion": {
     "message": "Version $1"
   },
+  "sites_pageConnectionHint": {
+    "message": "This source uses the current website page. No account connection is needed."
+  },
+  "sites_pageSource": {
+    "message": "Source: $1"
+  },
   "sites_pageTitle": {
     "message": "Site adapters · Know-N"
   },
-  "sites_pauseSyncing": {
-    "message": "Pause syncing"
+  "sites_pauseSourceSaving": {
+    "message": "Pause saving from this source"
+  },
+  "sites_pauseSourceSavingHint": {
+    "message": "Stops current saving and keeps saved bookmarks."
   },
   "sites_paused": {
     "message": "Paused."
   },
-  "sites_pausedAlert": {
-    "message": "Site adapters are paused. Recovery inspection and export remain available."
-  },
   "sites_phaseAttention": {
     "message": "Needs review"
   },
-  "sites_phaseCancelled": {
-    "message": "Import cancelled"
-  },
-  "sites_preparingFound_one": {
-    "message": "Found $1 favorite."
-  },
-  "sites_preparingFound_other": {
-    "message": "Found $1 favorites."
-  },
-  "sites_preparingList": {
-    "message": "Making the list…"
+  "sites_preservedLocations": {
+    "message": "Kept in existing locations"
   },
   "sites_previewBatchShort": {
     "message": "Preview batch"
@@ -7187,17 +7364,122 @@
   "sites_privateDiagnosticHintShort": {
     "message": "Contains private source data and local command receipts. Keep it private. It is read only and can't be imported."
   },
+  "sites_problemAllow": {
+    "message": "Open sync settings and allow the missing access."
+  },
+  "sites_problemAutomatic": {
+    "message": "The background task has scheduled another attempt; no action is needed now."
+  },
+  "sites_problemCapacity": {
+    "message": "This operation reached a size or item limit. Work already saved is kept."
+  },
+  "sites_problemChanged": {
+    "message": "The source or settings changed during this check. Check again before applying the remaining changes."
+  },
+  "sites_problemCheckSettings": {
+    "message": "Review the automation or AI settings before continuing this operation."
+  },
+  "sites_problemConfiguration": {
+    "message": "Saving is blocked by the current automation or AI settings. Existing bookmarks are kept."
+  },
+  "sites_problemConnection": {
+    "message": "The website connection is unavailable. Reading cannot continue yet."
+  },
+  "sites_problemCopied": {
+    "message": "Problem report copied. It excludes account identities, page content and credentials."
+  },
+  "sites_problemCopyManual": {
+    "message": "Copy the selected report below."
+  },
+  "sites_problemCreateFolder": {
+    "message": "The local folder could not be created. Choose an existing folder or try again."
+  },
+  "sites_problemDestination": {
+    "message": "The save location or its association has changed. Check it before saving more items."
+  },
+  "sites_problemDetails": {
+    "message": "Review the operation details or copy the problem report."
+  },
+  "sites_problemInspect": {
+    "message": "Use the operation records to check the save result."
+  },
+  "sites_problemLocation": {
+    "message": "Check the save location in sync settings. Existing bookmarks will stay where they are."
+  },
+  "sites_problemNetwork": {
+    "message": "The connection did not finish. Confirmed bookmarks are kept; unfinished work is still pending."
+  },
+  "sites_problemOpen": {
+    "message": "Open $1 and check its connection to continue."
+  },
+  "sites_problemPermission": {
+    "message": "Bookmark or website access is missing. Saved bookmarks are kept."
+  },
+  "sites_problemRate": {
+    "message": "$1 is limiting requests. Items already read and saved are kept."
+  },
+  "sites_problemRecheck": {
+    "message": "Run a new check to review the current changes."
+  },
+  "sites_problemReduceScope": {
+    "message": "Select fewer collections or a smaller source list, then check again."
+  },
+  "sites_problemRetryConnection": {
+    "message": "Check the connection, then continue the check or retry the original operation."
+  },
+  "sites_problemReviewItems": {
+    "message": "Some items need your review before they can be saved. Confirmed bookmarks are kept."
+  },
+  "sites_problemReviewNext": {
+    "message": "Open Review items below to see which results need a decision."
+  },
+  "sites_problemSourceData": {
+    "message": "The website returned content this adapter could not read. Confirmed bookmarks are kept."
+  },
+  "sites_problemStorage": {
+    "message": "Local records for this source could not be read. Bookmarks already saved in the browser are kept."
+  },
+  "sites_problemStorageNext": {
+    "message": "Try refreshing. If the problem continues, copy the report so this failure can be investigated."
+  },
+  "sites_problemUnconfirmed": {
+    "message": "Some save results could not be confirmed. Check the original operations before creating another copy."
+  },
+  "sites_problemUnknown": {
+    "message": "This operation could not finish, and the cause is not yet classified. Its diagnostic details can be copied for investigation."
+  },
+  "sites_problemUnsupported": {
+    "message": "This operation is unavailable with the current adapter, browser or stored data version."
+  },
+  "sites_problemWait": {
+    "message": "Wait a few minutes before continuing. Unavailable source items are skipped separately."
+  },
   "sites_rateLimited": {
     "message": "$1 asked Know-N to slow down. Try again in a few minutes."
+  },
+  "sites_readAndPreview": {
+    "message": "Read and preview"
   },
   "sites_readCollectionsAgain": {
     "message": "Read collections again"
   },
+  "sites_readInBackground": {
+    "message": "Keep the website tab open. You can leave this page; the list will be ready when you return."
+  },
+  "sites_readNotFinished": {
+    "message": "Some collections have not been read to the end. You can add the favorites in this list first."
+  },
+  "sites_readRateLimited": {
+    "message": "$1 asked us to slow down. Try continuing in a few minutes; favorites already read are kept."
+  },
+  "sites_readSourceLost": {
+    "message": "The website connection was lost. Continue reading to check again; saved bookmarks will not be duplicated."
+  },
+  "sites_readingCollection": {
+    "message": "Reading “$1” · $2 favorites found"
+  },
   "sites_readingCollections": {
     "message": "Reading your collections…"
-  },
-  "sites_readingFavorites": {
-    "message": "Reading your favorites…"
   },
   "sites_readingSoFar_one": {
     "message": "Reading your collections… $1 so far."
@@ -7205,26 +7487,20 @@
   "sites_readingSoFar_other": {
     "message": "Reading your collections… $1 so far."
   },
-  "sites_readingStopped": {
-    "message": "Reading stopped early"
-  },
-  "sites_readingTabs_one": {
-    "message": "Reading $1 open $2 tab."
-  },
-  "sites_readingTabs_other": {
-    "message": "Reading $1 open $2 tabs."
-  },
   "sites_readsWaiting_one": {
     "message": "$1 read waiting."
   },
   "sites_readsWaiting_other": {
     "message": "$1 reads waiting."
   },
-  "sites_readyToAdd_one": {
-    "message": "Ready to add $1 bookmark"
+  "sites_readyToSave_one": {
+    "message": "$1 item can be saved"
   },
-  "sites_readyToAdd_other": {
-    "message": "Ready to add $1 bookmarks"
+  "sites_readyToSave_other": {
+    "message": "$1 items can be saved"
+  },
+  "sites_recentActivity": {
+    "message": "Recent activity"
   },
   "sites_reconcileAccountChanged": {
     "message": "The account or settings changed. Recheck before continuing."
@@ -7319,11 +7595,56 @@
   "sites_reconcileWaiting": {
     "message": "Waiting for bookmark sync; the original operation is kept."
   },
+  "sites_reconnectSource": {
+    "message": "Connect this source in sync settings to continue."
+  },
+  "sites_recordChecked": {
+    "message": "Source check completed"
+  },
+  "sites_recordConfigured": {
+    "message": "Sync settings saved"
+  },
+  "sites_recordConnected": {
+    "message": "Website connection updated"
+  },
+  "sites_recordCounts": {
+    "message": "$1 read · $2 confirmed saved · $3 skipped"
+  },
+  "sites_recordDismissed": {
+    "message": "Closed"
+  },
+  "sites_recordReading": {
+    "message": "Source check started"
+  },
+  "sites_recordRecovered": {
+    "message": "Recovered"
+  },
+  "sites_recordRepeated": {
+    "message": "$1 attempts"
+  },
+  "sites_recordSaved": {
+    "message": "Bookmark saves confirmed"
+  },
+  "sites_recordSaving": {
+    "message": "Saving started"
+  },
+  "sites_recordStopped": {
+    "message": "The operation was stopped; confirmed bookmarks are kept"
+  },
+  "sites_recordWaiting": {
+    "message": "Waiting for bookmark sync; the approved work is kept"
+  },
+  "sites_recordsEmpty": {
+    "message": "New checks, saves and problems will be recorded here."
+  },
   "sites_recordsNeedRecovery_one": {
     "message": "$1 record needs recovery or review."
   },
   "sites_recordsNeedRecovery_other": {
     "message": "$1 records need recovery or review."
+  },
+  "sites_recordsUnavailable": {
+    "message": "Operation records could not be read. You can still copy a problem report."
   },
   "sites_recover": {
     "message": "Recover"
@@ -7358,6 +7679,9 @@
   "sites_repairUnreadable": {
     "message": "Couldn’t read recovery records. The last response is below."
   },
+  "sites_reportCopiedShort": {
+    "message": "Copied"
+  },
   "sites_restoredAccount": {
     "message": "Restored account $1"
   },
@@ -7369,6 +7693,15 @@
   },
   "sites_restoredBlockedHint": {
     "message": "Unresolved restored copies can remain blocked while unrelated new work continues."
+  },
+  "sites_result": {
+    "message": "Result"
+  },
+  "sites_resultNeedsAttention": {
+    "message": "Some results need your attention"
+  },
+  "sites_resumeBeforeImport": {
+    "message": "Resume syncing in settings to continue. Bookmarks already saved are kept."
   },
   "sites_resumeSyncing": {
     "message": "Resume syncing"
@@ -7388,23 +7721,56 @@
   "sites_review": {
     "message": "Review"
   },
+  "sites_reviewBeforeAdding": {
+    "message": "Check the list, then add the bookmarks."
+  },
   "sites_reviewBlocked": {
     "message": "Review keeping this restored scope blocked"
+  },
+  "sites_reviewDifference": {
+    "message": "This item has a bookmark difference that needs to be reviewed before saving."
   },
   "sites_reviewFound": {
     "message": "Review what was found"
   },
+  "sites_reviewItems": {
+    "message": "Review items"
+  },
+  "sites_reviewLocalChange": {
+    "message": "This copy was deleted or changed locally. Your change has been preserved."
+  },
   "sites_reviewPackage": {
     "message": "Review this package"
   },
+  "sites_reviewPolicySkip": {
+    "message": "The current saving policy leaves this item as it is."
+  },
+  "sites_reviewPreservedNext": {
+    "message": "Review the bookmark changes or saving settings, then make the list again when ready."
+  },
+  "sites_reviewPrimary": {
+    "message": "This item belongs to several selected collections. Choose its primary collection in the copy settings."
+  },
   "sites_reviewRollback": {
     "message": "Review rollback to $1"
+  },
+  "sites_reviewSamplesShown": {
+    "message": "$1 items need review. Showing $2 examples; bookmarks already saved are kept."
+  },
+  "sites_reviewSamplesUnavailable": {
+    "message": "Item details are unavailable for this older check. Copy its problem report or make the list again."
+  },
+  "sites_reviewSyncSettings": {
+    "message": "Review sync settings"
   },
   "sites_reviewed": {
     "message": "Reviewed"
   },
   "sites_reviewedSentence": {
     "message": "Reviewed."
+  },
+  "sites_reviewingReadItems": {
+    "message": "Comparing the $1 items read with the bookmarks already saved."
   },
   "sites_revoke": {
     "message": "Revoke"
@@ -7424,11 +7790,23 @@
   "sites_saveIntoHint": {
     "message": "Each collection becomes a folder inside this one."
   },
+  "sites_saveLocation": {
+    "message": "Save location"
+  },
+  "sites_saveSettings": {
+    "message": "Save settings"
+  },
   "sites_savedAssociations": {
     "message": "Saved associations"
   },
   "sites_savedCopies": {
     "message": "Saved copies"
+  },
+  "sites_savedCountUnknown": {
+    "message": "Saved results could not be verified yet."
+  },
+  "sites_savedUnder": {
+    "message": "Save into: $1"
   },
   "sites_savedWithConnected": {
     "message": "Saved with the connected account."
@@ -7436,11 +7814,14 @@
   "sites_savedWithOther": {
     "message": "Saved with another account."
   },
-  "sites_scanningFound_one": {
-    "message": "Found $1 favorite so far. Nothing is added until you approve the list."
+  "sites_savingItems": {
+    "message": "Saving source items"
   },
-  "sites_scanningFound_other": {
-    "message": "Found $1 favorites so far. Nothing is added until you approve the list."
+  "sites_scopeCount_one": {
+    "message": "$1 collection selected"
+  },
+  "sites_scopeCount_other": {
+    "message": "$1 collections selected"
   },
   "sites_semanticChooseFolder": {
     "message": "AI did not choose an available folder outside the website mappings. Check your folders and retry."
@@ -7484,6 +7865,9 @@
   "sites_signedOut": {
     "message": "You’re signed out of $1. Sign in there, then try again."
   },
+  "sites_singleListHint": {
+    "message": "This source provides one list."
+  },
   "sites_siteAccessRequired": {
     "message": "Site access is required."
   },
@@ -7496,6 +7880,45 @@
   "sites_sites": {
     "message": "Sites"
   },
+  "sites_skippedItems_one": {
+    "message": "$1 item skipped"
+  },
+  "sites_skippedItems_other": {
+    "message": "$1 items skipped"
+  },
+  "sites_skippedKept": {
+    "message": "Unavailable items are skipped. Favorites that can be read are still included."
+  },
+  "sites_skippedMissing": {
+    "message": "$1 items were not returned by the website."
+  },
+  "sites_skippedReadProblem": {
+    "message": "Some content could not be read. Continue reading or check again to retry."
+  },
+  "sites_skippedUnavailableItems": {
+    "message": "$1 unavailable or deleted items. Other items continue normally."
+  },
+  "sites_skippedUnsupported": {
+    "message": "$1 items use a format this adapter does not support."
+  },
+  "sites_source": {
+    "message": "Source"
+  },
+  "sites_sourceItem": {
+    "message": "Source item"
+  },
+  "sites_sourceItemsFound_one": {
+    "message": "$1 item found. You can review the result before saving."
+  },
+  "sites_sourceItemsFound_other": {
+    "message": "$1 items found. You can review the result before saving."
+  },
+  "sites_sourceList": {
+    "message": "Source list"
+  },
+  "sites_sourceNeedsConnection": {
+    "message": "$1 connection needs attention"
+  },
   "sites_sourceRule": {
     "message": "Source rule"
   },
@@ -7504,6 +7927,9 @@
   },
   "sites_startSyncing": {
     "message": "Start syncing"
+  },
+  "sites_statusUnreadable": {
+    "message": "Couldn’t read the current sync status. Try again, or open Recovery for details."
   },
   "sites_stepChoose": {
     "message": "Choose what to sync"
@@ -7514,35 +7940,20 @@
   "sites_stepConnect": {
     "message": "Connect your account"
   },
-  "sites_stepImport": {
-    "message": "Bring in existing favorites"
-  },
-  "sites_stepImportWait": {
-    "message": "After you start syncing, Know-N lists what is already in your collections. Nothing is added until you approve the list."
-  },
   "sites_stopAndReview": {
     "message": "Stop and review"
   },
-  "sites_stoppedEarly": {
-    "message": "Reading stopped before the end. $1"
+  "sites_stopImport": {
+    "message": "Stop import"
   },
-  "sites_stoppedRate": {
-    "message": "$1 asked Know-N to slow down. Try again in a few minutes. $2"
-  },
-  "sites_stoppedSignedOut": {
-    "message": "You’re signed out of $1. Sign in, then try again. $2"
-  },
-  "sites_stoppedTab": {
-    "message": "The $1 tab closed or moved to another page. $2"
+  "sites_stopImportHint": {
+    "message": "Bookmarks already added are kept."
   },
   "sites_syncServerUpgrade": {
     "message": "Update COLP Server to support saving website collections into synced folders."
   },
-  "sites_syncingInto_one": {
-    "message": "Syncing $1 collection into $2."
-  },
-  "sites_syncingInto_other": {
-    "message": "Syncing $1 collections into $2."
+  "sites_syncSettings": {
+    "message": "Sync settings"
   },
   "sites_syncingPaused": {
     "message": "Syncing is paused."
@@ -7555,6 +7966,9 @@
   },
   "sites_tabSync": {
     "message": "Sync"
+  },
+  "sites_taskCount": {
+    "message": "$1 / $2"
   },
   "sites_technicalDetails": {
     "message": "Technical details"
@@ -7586,20 +8000,35 @@
   "sites_unsavedChanges": {
     "message": "You have changes to save."
   },
+  "sites_updatingSavedResults": {
+    "message": "Updating confirmed save results…"
+  },
   "sites_userScripts": {
     "message": "User scripts"
   },
   "sites_userScriptsHint": {
     "message": "Chromium 149+ only. In Extensions → Know-N → Details, enable Allow User Scripts, reload the extension, and reopen Site adapters. Chrome 121–148 is unsupported for this runtime."
   },
-  "sites_waitingForBookmarkSync": {
-    "message": "Waiting for bookmark sync…"
+  "sites_verifySavedResults": {
+    "message": "Check saved results"
+  },
+  "sites_viewImportList": {
+    "message": "View favorites and bookmark changes"
   },
   "sites_waitingForBookmarkSyncHint": {
     "message": "Your approved import is kept. It will continue when the sync connection and folder are ready."
   },
   "sites_waitingShort": {
     "message": "Waiting"
+  },
+  "sites_websiteConnected": {
+    "message": "Website connected"
+  },
+  "sites_websiteOff": {
+    "message": "Website saving is off"
+  },
+  "sites_yourCollections": {
+    "message": "Your collections"
   },
   "subscription_acceptedShare": {
     "message": "Don't see a shared collection? Accept the invitation on the Know-N website first."

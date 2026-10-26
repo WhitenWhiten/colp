@@ -4,6 +4,7 @@ import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, expect, test, vi } from 'vitest';
 import { MemoryStorageArea } from '../src/credential-store.js';
+import { createSiteActivity } from '../src/site-adapters/activity.js';
 import { checkRuleDraft } from '../src/automation/rule-conditions.js';
 import { flattenList } from '../src/automation/rule-list-flatten.js';
 import type { LocalRule, RuleListRecord } from '../src/automation/rule-list-record.js';
@@ -50,7 +51,8 @@ async function fixture(copies: import('../src/site-adapters/contracts.js').SaveP
     }, recover: async c => native.get(c.commandId) ?? null, acknowledge: async () => {},
   };
   const executor = createPlannedSaveExecutor(db, execution), sent: HostCommand[] = [];
-  const ports = { source: async () => ({ context, expiresAt: time + 60000 }), send: (_: SourceContext, command: HostCommand) => { sent.push(command); },
+  const activity = createSiteActivity(storage, legacySite, { extensionVersion: 'test' });
+  const ports = { activity, source: async () => ({ context, expiresAt: time + 60000 }), send: (_: SourceContext, command: HostCommand) => { sent.push(command); },
     prioritizeLive: async () => {}, snapshot: async () => ({ browserRules: { storageVersion: 3 as const, listRevision: record.revision, contentVersions: {} }, policyRevision: 1 }),
     execute: (p: string, e: string) => executor.execute(p, e), alarm: (_: number) => {} };
   const scheduler = () => createReadScheduler(storage, 'queue');
@@ -67,7 +69,7 @@ async function fixture(copies: import('../src/site-adapters/contracts.js').SaveP
     nextCursor: null, consistency: 'bestEffort', coverage: partial ? 'partial' : 'complete', ...(partial ? { omissions: [{ id: 'video:av:99', reason: 'invalid' }] } : {}) } });
   async function scan(partial = false) { const id = await importer.start(['101', '102']); await page(catalog); const b = await page(items('101')); await page(items('102', '2', partial)); return { id, b }; }
   async function freeze(id: string) { await importer.freeze(id); await importer.wake(); const status = await importer.status(); expect(status?.phase).toBe('preview'); return status!.preview!; }
-  return { db, ledger, layout, importer, create, executor, execution, context: () => context, counts, nodes, sent, page, catalog, items, scan, freeze,
+  return { db, ledger, layout, importer, create, executor, execution, activity, context: () => context, counts, nodes, sent, page, catalog, items, scan, freeze,
     changeRules: () => { record = { ...record, revision: record.revision + 1 }; },
     setRuleEnabled: (enabled: boolean) => { record = { ...record, revision: record.revision + 1, entries: [{ kind: 'rule', rule: { ...rule, enabled } }] }; },
     renew: async () => { context = { ...context, documentId: 'new-doc', leaseId: 'new-lease' }; await ledger.bindLease(context, time + 10000000); },
@@ -129,12 +131,124 @@ test('cancellation fences approved work and late pages cannot revive a frozen or
   await f.create().wake(); expect((await f.importer.status())?.phase).toBe('cancelled'); expect(f.counts).toEqual({ folder: 0, bookmark: 0 });
   expect((await f.importer.accept(f.context(), b))?.status).toBe('duplicate'); expect((await f.importer.status())?.phase).toBe('cancelled'); await f.db.close();
 });
+test('a new check after cancellation reads a fresh scope and writes only after its own approval', async () => {
+  const f = await fixture(); try {
+    const old = await f.scan(true);
+    await f.importer.cancel(old.id);
+    const id = await f.importer.start(['102']);
+    expect(id).not.toBe(old.id);
+    expect(await f.importer.status()).toMatchObject({ id, phase: 'scanning', edgeCount: 0, pages: 0, omissions: 0, preview: null });
+    await f.page(f.catalog); await f.page(f.items('102', '2'));
+    const preview = await f.freeze(id);
+    expect(preview.counts).toMatchObject({ createFolders: 1, createBookmarks: 1 });
+    expect(f.counts).toEqual({ folder: 0, bookmark: 0 });
+    await f.importer.approve({ jobId: id, previewId: preview.id, revision: preview.revision, digest: preview.digest });
+    await f.importer.wake();
+    expect((await f.importer.status())?.phase).toBe('completed');
+    expect(f.counts).toEqual({ folder: 1, bookmark: 1 });
+  } finally { await f.db.close(); }
+});
+test('background wake prepares a completed scan without the settings page and counts skips separately from saves', async () => {
+  const f = await fixture(); try {
+    await f.scan(true);
+    expect(await f.importer.status()).toMatchObject({ phase: 'paused', reason: 'scanFinished', omissionCounts: { invalid: 1 },
+      progress: { collectionsRead: 2, collectionsTotal: 2, prepared: 0, saved: 0, toSave: 0 } });
+    await f.create().wake();
+    const status = await f.importer.status();
+    expect(status).toMatchObject({ phase: 'preview', progress: { prepared: 2, saved: 0, toSave: 2 },
+      preview: { coverage: 'partial', counts: { createBookmarks: 2, review: 0 }, omissions: { unscannedRemainder: false } } });
+    expect(f.counts).toEqual({ folder: 0, bookmark: 0 });
+    const preview = status!.preview!;
+    await f.importer.approve({ jobId: status!.id, previewId: preview.id, revision: preview.revision, digest: preview.digest });
+    await f.importer.wake();
+    expect(await f.importer.status()).toMatchObject({ phase: 'completed', progress: { saved: 2, toSave: 2 } });
+  } finally { await f.db.close(); }
+});
+test('a collection containing only deleted videos produces an empty finishable preview without blocking or creating folders', async () => {
+  const f = await fixture(); try {
+    const id = await f.importer.start(['101']);
+    await f.page(f.catalog);
+    await f.page({ status: 'ok', kind: 'items', collectionId: '101', page: { items: [], nextCursor: null, coverage: 'partial', consistency: 'bestEffort',
+      omissions: [{ id: 'video:av:9', reason: 'invalid' }] } });
+    await f.create().wake();
+    const status = await f.importer.status(), preview = status!.preview!;
+    expect(status).toMatchObject({ phase: 'preview', scanComplete: true, omissions: 1, omissionCounts: { invalid: 1 } });
+    expect(preview.counts).toEqual({ createFolders: 0, createBookmarks: 0, reuseBookmarks: 0, review: 0 });
+    await f.importer.approve({ jobId: id, previewId: preview.id, revision: preview.revision, digest: preview.digest });
+    await f.importer.wake();
+    expect((await f.importer.status())?.phase).toBe('completed');
+    expect(f.counts).toEqual({ folder: 0, bookmark: 0 });
+  } finally { await f.db.close(); }
+});
+test('live collection titles and failed requests remain distinct from automatically skipped deleted items', async () => {
+  const f = await fixture(); try {
+    await f.importer.start(['101', '102']); await f.page(f.catalog);
+    expect(await f.importer.status()).toMatchObject({ progress: { collectionsRead: 0, collectionsTotal: 2, currentCollection: 'B' } });
+    await f.page({ status: 'failed', error: { code: 'rateLimited' } });
+    expect(await f.importer.status()).toMatchObject({ phase: 'paused', reason: 'rateLimited', omissionCounts: { failed: 1 }, progress: { saved: 0 } });
+    await f.importer.wake();
+    expect((await f.importer.status())?.phase).toBe('paused');
+    expect(f.counts).toEqual({ folder: 0, bookmark: 0 });
+  } finally { await f.db.close(); }
+});
+test('planning refusals have readable source context and redacted reasons in the durable task report', async () => {
+  const f = await fixture(); try {
+    const { id } = await f.scan();
+    vi.spyOn(f.layout, 'plan').mockResolvedValueOnce({ status: 'policySkipped' });
+    const preview = await f.freeze(id), sample = (await f.importer.status())!.preview!.reviewSamples![0]!;
+    expect(sample).toMatchObject({ itemTitle: video.title, collectionTitle: 'B', reason: 'policySkipped' });
+    expect(preview.counts).toMatchObject({ createBookmarks: 1, review: 1 });
+    await f.importer.approve({ jobId: id, previewId: preview.id, revision: preview.revision, digest: preview.digest });
+    await f.importer.wake();
+    expect((await f.importer.status())?.phase).toBe('attention');
+    const incident = (await f.activity.list()).find(e => e.code === 'sourceReviewRequired')!;
+    expect(incident.review).toEqual([{ code: 'policySkipped', itemRef: expect.any(String), collectionRef: expect.any(String) }]);
+    const report = JSON.stringify(await f.activity.report(incident.id));
+    expect(report).not.toContain(video.title); expect(report).not.toContain(sample.itemId);
+    await f.freeze(id);
+    expect((await f.activity.report(incident.id)).incident?.resolution).toBe('dismissed');
+  } finally { await f.db.close(); }
+});
 test('an unknown native result remains attention and never completes or creates a replacement', async () => {
   const f = await fixture(), { id } = await f.scan(), p = await f.freeze(id);
   f.execution.execute = async c => { if (!f.nodes.has('unknown')) { f.counts[c.kind]++; f.nodes.set('unknown', { id: 'unknown', title: c.title, dateAdded: Date.now() }); } return { status: 'unknown', reason: 'nativeOutcomeUnknown' }; };
   await f.importer.approve({ jobId: id, previewId: p.id, revision: p.revision, digest: p.digest }); await f.importer.wake();
   expect(await f.importer.status()).toMatchObject({ phase: 'attention', reason: 'nativeOutcomeUnknown' });
   await f.create().wake(); expect(f.counts.folder).toBe(1); await f.db.close();
+});
+test('retrying approved work checks the original native command, preserves its approval, and never replaces an uncertain write', async () => {
+  const f = await fixture(); try {
+    const { id } = await f.scan(), preview = await f.freeze(id), original = f.execution.execute;
+    const approval = await f.importer.approve({ jobId: id, previewId: preview.id, revision: preview.revision, digest: preview.digest });
+    vi.spyOn(f.execution, 'execute').mockImplementationOnce(async (command, digest, authorize) => {
+      await original(command, digest, authorize); return { status: 'unknown', reason: 'nativeOutcomeUnknown' };
+    });
+    await f.importer.wake();
+    expect(await f.importer.status()).toMatchObject({ phase: 'attention', nextPlan: 0, approvalId: approval });
+    expect(f.counts).toEqual({ folder: 1, bookmark: 0 });
+    const recover = vi.spyOn(f.execution, 'recover').mockResolvedValueOnce({ status: 'unknown', reason: 'nativeOutcomeUnknown' });
+    await f.importer.retry(id); await f.importer.wake();
+    expect((await f.importer.status())?.phase).toBe('attention');
+    expect(f.counts).toEqual({ folder: 1, bookmark: 0 });
+    recover.mockRestore();
+    await f.importer.retry(id); await f.importer.wake();
+    expect(await f.importer.status()).toMatchObject({ phase: 'completed', approvalId: approval, nextPlan: 2 });
+    expect(f.counts).toEqual({ folder: 2, bookmark: 2 });
+    await expect(f.importer.retry(id)).rejects.toThrow('importChanged');
+  } finally { await f.db.close(); }
+});
+test('continuing approved work refuses changed rules and a cancelled approval without writing', async () => {
+  const f = await fixture(); try {
+    const { id } = await f.scan(), preview = await f.freeze(id);
+    await f.importer.approve({ jobId: id, previewId: preview.id, revision: preview.revision, digest: preview.digest });
+    vi.spyOn(f.execution, 'execute').mockResolvedValueOnce({ status: 'unknown', reason: 'nativeOutcomeUnknown' });
+    await f.importer.wake();
+    f.changeRules();
+    await expect(f.importer.retry(id)).rejects.toThrow('previewStale');
+    await f.importer.cancel(id);
+    await expect(f.importer.retry(id)).rejects.toThrow('importChanged');
+    expect(f.counts).toEqual({ folder: 0, bookmark: 0 });
+  } finally { await f.db.close(); }
 });
 test('cancelling discovery aborts its reader and fences an in-flight result before acknowledgment', async () => {
   const f = await fixture(), id = await f.importer.start(['101']); await f.importer.wake();

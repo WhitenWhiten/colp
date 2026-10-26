@@ -11,7 +11,7 @@ import { createConfirmationQueue } from './confirmation-queue.js';
 import { installSourceLayout } from './layout-runtime.js';
 import { semanticJobs, enqueueSourceSemantics, installSemanticRuntime } from './semantic-runtime.js';
 import { currentCaptureScope } from '../sw/capture-native.js';
-import { rows } from './source-db.js';
+import { get, put, rows } from './source-db.js';
 import { flushManagedChanges } from './managed-change-runtime.js';
 import { reconciliationRuns, installReconciliationRuntime, validReconcileRequest, handleReconcileRequest } from './reconcile-runtime.js';
 import { installSiteAdapterEvidence } from './evidence.js';
@@ -32,6 +32,8 @@ import { handleRepairRequest, validRepairRequest } from './repair-runtime.js';
 import { assertSourceRebound } from './portable.js';
 import { createCommunityRuntime, validCommunityManagement } from './community-runtime.js';
 import { assertCommunityArchive } from './community-authority.js';
+import { createSiteActivity, currentSiteProblem, activityCode, siteOperation, sourceActivityCounts } from './activity.js';
+import { installSiteActivity } from './activity-runtime.js';
 function createSiteHost(definition: SiteDefinition) {
   const semanticRetry = object({ kind: literal('known.siteAdapters.semantic.retry'), jobId: str(128), reclassify: v => v === undefined || literal(true, false)(v) });
   const LIMITS = readLimits(definition);
@@ -40,6 +42,23 @@ function createSiteHost(definition: SiteDefinition) {
   const SITE_STATE_KEY = installationKey(BASE_STATE_KEY, definition), SITE_PORT = installationKey(BASE_PORT, definition);
   const recoveryAlarm = installationKey(SITE_RECOVERY_ALARM, definition);
   const browserSupport = () => adapterBrowserSupport(navigator.userAgent);
+  const activity = createSiteActivity(chrome.storage.local, definition,
+    { extensionVersion: chrome.runtime.getManifest?.().version ?? 'unknown', browserMajor: browserSupport().major });
+  installSiteActivity(definition, activity);
+  const activityRequest = object({ kind: literal('known.siteAdapters.activity.list', 'known.siteAdapters.activity.report', 'known.siteAdapters.activity.dismiss'), id: v => v === undefined || str(128)(v) });
+  const checkOperations = object({ kind: literal('known.siteAdapters.operations.check') });
+  async function failed(raw: unknown, error: unknown) {
+    const input = raw as { kind?: string; jobId?: string; id?: string } | null, operation = siteOperation(input?.kind ?? '');
+    const code = error instanceof Error ? error.message : 'unavailable';
+    const incident = await activity.record({ kind: 'problem', operation, code, action: input?.kind, taskId: input?.jobId ?? `management:${operation}` }).catch(() => undefined);
+    return { error: incident?.code ?? activityCode(code), incidentId: incident?.id };
+  }
+  async function settledManagement(raw: unknown, result: unknown) {
+    const response = result as { error?: string } | null;
+    if (typeof response?.error === 'string') return { ...response, ...await failed(raw, new Error(response.error)) };
+    const operation = siteOperation((raw as { kind: string }).kind);
+    await activity.resolve(`management:${operation}`, operation).catch(() => undefined); return result;
+  }
   const grants = { permissions: ['scripting', 'webNavigation'], origins: [...definition.matches] };
   let storageReady: Promise<void> | undefined;
   function trustedStorage(): Promise<void> {
@@ -135,6 +154,9 @@ function createSiteHost(definition: SiteDefinition) {
     }
     await chrome.storage.local.set({ [INSPECTION]: { ...stored, result: message.result }, ...(catalog ? { [CATALOG]: catalog } : {}) });
     const error = message.result.status === 'failed' ? message.result.error : null;
+    if (error) await activity.record({ kind: 'problem', operation: 'inspect', taskId: 'inspection', requestId: message.requestId,
+      code: error.code, httpStatus: error.httpStatus, sourceCode: error.sourceCode }).catch(() => undefined);
+    else await activity.resolve('inspection', 'inspect').catch(() => undefined);
     await reads.finish(message.requestId, error?.retryAfterMs);
     return true;
   }
@@ -183,9 +205,9 @@ function createSiteHost(definition: SiteDefinition) {
     }
     return null;
   }
-  const confirmations = createConfirmationQueue(siteLedger, reads, { source: origin => readableSiteSource(undefined, origin), send: sendSiteCommand, alarm: scheduleSourceWork,
+  const confirmations = createConfirmationQueue(siteLedger, reads, { activity, source: origin => readableSiteSource(undefined, origin), send: sendSiteCommand, alarm: scheduleSourceWork,
     authorizeOrigin: async (context, collectionIds) => { if (context.communityOrigin) await assertCommunityArchive(context.communityOrigin, { connectionId: context.connectionId, collectionIds }); } });
-  const archives = createSourceArchiveRuntime(reads, { source: managementSource, readSource: origin => readableSiteSource(undefined, origin), send: sendSiteCommand, alarm: scheduleSourceWork,
+  const archives = createSourceArchiveRuntime(reads, { activity, source: managementSource, readSource: origin => readableSiteSource(undefined, origin), send: sendSiteCommand, alarm: scheduleSourceWork,
     reconciliation: { valid: validReconcileRequest, handle: handleReconcileRequest, status: reconciliationRuns.status, view: reconciliationRuns.view, cancel: reconciliationRuns.cancel },
     scope: currentCaptureScope,
     prioritizeLive: () => confirmations.wake(),
@@ -208,10 +230,18 @@ function createSiteHost(definition: SiteDefinition) {
         const run = await reconciliationRuns.view(importJob.preview.id);
         if (run?.state === 'completed') {
           const reviews = await siteLedger.db.transaction(['importPages'], 'readonly', tx => rows<{ reviewReason?: string }>(tx, 'importPages', 'frozenEdge', importJob.preview!.id));
-          if (reviews.every(r => !r.reviewReason || ['sourceReconcileCandidate', 'suppressed', 'policySkipped', 'copyPolicyMigrationRequired'].includes(r.reviewReason))) await siteLedger.db.transaction(['meta'], 'readwrite', async tx => {
-            const request = tx.objectStore('meta').get(`importJob:${importJob.id}`);
-            request.onsuccess = () => { if (request.result?.phase === 'attention') tx.objectStore('meta').put({ ...request.result, phase: 'completed', reason: 'reconciledWithExceptions' }, `importJob:${importJob.id}`); };
-          });
+          if (reviews.every(r => !r.reviewReason || ['sourceReconcileCandidate', 'suppressed', 'policySkipped', 'copyPolicyMigrationRequired'].includes(r.reviewReason))) {
+            const completed = await siteLedger.db.transaction(['meta'], 'readwrite', async tx => {
+              const key = `importJob:${importJob.id}`, current = await get<import('./import-coordinator.js').ImportJob>(tx, 'meta', key);
+              if (current?.phase !== 'attention' || current.previewId !== importJob.preview!.id || current.reason !== 'sourceReviewRequired') return false;
+              put(tx, 'meta', key, { ...current, phase: 'completed', reason: 'reconciledWithExceptions' }); return true;
+            });
+            if (completed) {
+              await activity.resolve(importJob.id, 'save').catch(() => undefined);
+              await activity.record({ kind: 'saved', operation: 'save', taskId: importJob.id, phase: 'completed',
+                connectionId: importJob.context.connectionId, counts: sourceActivityCounts(importJob) }).catch(() => undefined);
+            }
+          }
         }
       }
       const authority = await siteLedger.db.read<import('./ledger-types.js').SourceAuthority>('authorities', definition.adapterId);
@@ -310,13 +340,23 @@ function createSiteHost(definition: SiteDefinition) {
         void (validDestinationRequest(raw) ? handleDestinationRequest(raw) : handleContentRequest(raw, definition)).then(respond, e => respond({ ok: false, error: e instanceof Error ? e.message : 'unavailable' })); return true;
       }
       if (management(sender) && validCloudManagement(raw)) {
-        void handleCloudManagement(raw).then(respond, e => respond({ ok: false, error: e instanceof Error ? e.message : 'sourceCloudUnavailable' })); return true;
+        void handleCloudManagement(raw).then(result => settledManagement(raw, result)).then(respond, async e => respond({ ok: false, ...await failed(raw, e) })); return true;
       }
       if (management(sender) && validRepairRequest(raw)) {
-        void handleRepairRequest(raw, definition).then(respond, e => respond({ ok: false, error: e instanceof Error ? e.message : 'unavailable' })); return true;
+        void handleRepairRequest(raw, definition).then(result => settledManagement(raw, result)).then(respond, async e => respond({ ok: false, ...await failed(raw, e) })); return true;
       }
       if (management(sender) && validCommunityManagement(raw)) {
-        void community.management(raw).then(respond, e => respond({ ok: false, error: e instanceof Error ? e.message : 'communityUnavailable' })); return true;
+        void community.management(raw).then(result => settledManagement(raw, result)).then(respond, async e => respond({ ok: false, ...await failed(raw, e) })); return true;
+      }
+      if (management(sender) && activityRequest(raw)) {
+        void (async () => { await trustedStorage(); const r = raw as { kind: string; id?: string };
+          if (r.kind.endsWith('.dismiss')) { if (!r.id) throw new Error('activityMissing'); await activity.dismiss(r.id); return { dismissed: true }; }
+          return r.kind.endsWith('.list') ? { events: await activity.list() } : { report: await activity.report(r.id) };
+        })().then(respond, async e => respond(await failed(raw, e))); return true;
+      }
+      if (management(sender) && checkOperations(raw)) {
+        void trustedStorage().then(() => wakePlannedSaves()).then(() => ({ checked: true }))
+          .then(result => settledManagement(raw, result)).then(respond, async e => respond(await failed(raw, e))); return true;
       }
       if (!management(sender) || !(statusSchema(raw) || enableSchema(raw) || confirmSchema(raw) || inspectSchema(raw) || retrySchema(raw) || semanticRetry(raw) || archives.valid(raw))) return false;
       void (async () => {
@@ -347,17 +387,25 @@ function createSiteHost(definition: SiteDefinition) {
           const q = raw as { operation: 'collections' | 'items' | 'resolve'; collectionId?: string; cursor?: string | null };
           inspectionStatus = await inspect(q.operation, q.collectionId, q.cursor);
         }
+        if (!statusSchema(raw)) {
+          const operation = siteOperation(d?.kind ?? '');
+          await activity.resolve(`management:${operation}`, operation).catch(() => undefined);
+          if (operation === 'configure' || operation === 'connect') await activity.record({ kind: 'configured', operation }).catch(() => undefined);
+        }
         const archiveStatus = await archives.status(statusSchema(raw) ? (raw as { reconcileOffset?: number }).reconcileOffset : 0);
         const archiveState = { ...archiveStatus, semantic: archiveStatus.config ? await semanticJobs.status(archiveStatus.config.connectionId) : null };
         const siteStatus = await siteTransport.status();
         let archiveHold: string | null = archiveState.hold;
         if (archiveState.config) try { await assertSourceRebound(siteLedger.db, archiveState.config.connectionId); } catch (e) { archiveHold = e instanceof Error ? e.message : 'sourceNeedsReview'; }
         const writes = !archiveHold && browserSupport().supported && siteStatus.enabled && siteStatus.connected && archiveState.config?.state === 'active' && await chrome.permissions.contains({ permissions: ['bookmarks'] });
+        if (statusSchema(raw)) await activity.resolve('management:status', 'status').catch(() => undefined);
+        const events = await activity.list().catch(() => []);
+        const problem = currentSiteProblem(events, { connectionId: archiveState.config?.connectionId, taskId: archiveState.import?.id });
         return { ...siteStatus, browser: browserSupport(), grants: { site: await chrome.permissions.contains(grants), bookmarks: await chrome.permissions.contains({ permissions: ['bookmarks'] }) },
-          mode: writes ? 'localArchive' : 'inspector', writes, archiveHold, archive: archiveState, catalog: await catalogStatus(), ...(archiveResult ? { archiveResult } : {}), adapterId: definition.adapterId, features: siteFeatures(definition), capabilities: { itemIdentity: `${definition.siteKey}:${definition.identityVersion}`, observation: siteFeatures(definition).observe ? 'sourceObservations' : 'unavailable', humanActionProof: 'unavailable',
+          mode: writes ? 'localArchive' : 'inspector', writes, archiveHold, activity: { problem, lastEvent: events[0] ?? null }, archive: archiveState, catalog: await catalogStatus(), ...(archiveResult ? { archiveResult } : {}), adapterId: definition.adapterId, features: siteFeatures(definition), capabilities: { itemIdentity: `${definition.siteKey}:${definition.identityVersion}`, observation: siteFeatures(definition).observe ? 'sourceObservations' : 'unavailable', humanActionProof: 'unavailable',
           negativeMembership: definition.negativeReadback ? 'available' : 'unavailable', reconciliation: reconciliationCapability(definition), collectionHierarchy: 'flat', shortLinks: 'unavailable', collectionChanges: siteFeatures(definition).collections ? 'explicitCatalogRead' : siteFeatures(definition).observe ? 'observedCatalog' : 'unavailable', nativeWrites: archiveState.config?.state === 'active' ? 'previewApprovalOrEnabledLivePolicy' : 'unavailable' },
         confirmations: await confirmations.status(), ...(inspectionStatus ? { inspectionStatus } : {}), inspection: (await chrome.storage.local.get(INSPECTION))[INSPECTION] ?? null };
-      })().then(respond, e => respond({ error: e instanceof Error ? e.message : 'unavailable' })); return true;
+      })().then(respond, async e => respond(await failed(raw, e))); return true;
     });
     chrome.runtime.onConnect.addListener(port => {
       if (port.name !== SITE_PORT || !port.sender) return;

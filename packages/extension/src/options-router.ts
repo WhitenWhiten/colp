@@ -25,7 +25,7 @@ function readParams(search: string, pane?: string): URLSearchParams {
   const params = new URLSearchParams();
   for (const [key, value] of new URLSearchParams(search)) {
     if (['task', 'batch', 'chargeId', 'runId', 'mapping', 'event', 'draft'].includes(key) && /^[0-9a-f-]{36}$/u.test(value)) params.set(key, value);
-    else if (['native', 'node', 'collection', 'item'].includes(key) && /^[A-Za-z0-9._~-]{1,128}$/u.test(value)) params.set(key, value);
+    else if (['native', 'node', 'collection', 'item', 'folder'].includes(key) && /^[A-Za-z0-9._~-]{1,128}$/u.test(value)) params.set(key, value);
     else if (['status', 'source', 'days', 'q', 'timezone', 'devices'].includes(key) && value.length <= 100 && !/[\u0000-\u001f]/u.test(value)) params.set(key, value);
     else if (key === 'section' && Object.hasOwn(pane === 'bookmarks' ? BOOKMARK_SECTIONS : PREFERENCE_SECTIONS, value)) params.set(key, value);
     else if (key === 'category' && ['all', 'capture', 'subscriptions', 'sync', 'permissions'].includes(value)) params.set(key, value);

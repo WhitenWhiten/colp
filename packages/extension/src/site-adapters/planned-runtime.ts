@@ -11,6 +11,8 @@ import { acknowledgePlannedNative, assertPlannedNative, assertSourceRoot, execut
 import { managedSaves } from './managed-runtime.js';
 import { assertSemanticSaveTask } from './semantic-authorization.js';
 import { assertReconcileAuthorization } from './reconcile-authorization.js';
+import { activityForSource } from './activity-runtime.js';
+import { activityCode } from './activity.js';
 let scheduleRecovery = (at: number) => chrome.alarms.create(SITE_RECOVERY_ALARM, { when: at });
 export function installSourceRecoveryScheduler(schedule: typeof scheduleRecovery) { scheduleRecovery = schedule; }
 let policyAuthorize: (plan: SavePlan, effect: SaveEffect) => Promise<void> = async () => { throw new Error('sourcePolicyUnavailable'); };
@@ -37,9 +39,28 @@ export function installPlannedSaveRuntime() {
     await assertPlannedNative(task.planned.parent);
   });
 }
-export async function executePlannedSave(planId: string, effectId: string) {
-  scheduleRecovery(Date.now() + 30000);
-  return plannedSaveExecutor.execute(planId, effectId);
+export async function executePlannedSave(planId: string, effectId: string, schedule = true) {
+  if (schedule) scheduleRecovery(Date.now() + 30000);
+  const row = await siteLedger.db.read<StoredSavePlan>('savePlans', planId), effect = row?.plan.effects.find(e => e.effectId === effectId);
+  const activity = row?.plan.trigger.kind !== 'import' && row?.state === 'approved' ? await activityForSource(siteLedger.db, row.plan.connectionId).catch(() => undefined) : undefined;
+  let result: Awaited<ReturnType<typeof plannedSaveExecutor.execute>>;
+  try { result = await plannedSaveExecutor.execute(planId, effectId); }
+  catch (error) {
+    await activity?.record({ kind: 'problem', operation: 'save', taskId: planId, requestId: effectId, commandId: effect?.commandId,
+      connectionId: row?.plan.connectionId, code: activityCode(error instanceof Error ? error.message : 'unavailable') }).catch(() => undefined); throw error;
+  }
+  if (result.status === 'confirmed') {
+    if (effect?.kind === 'createBookmark') {
+      await activity?.record({ kind: 'saved', operation: 'save', taskId: planId, commandId: effect.commandId, connectionId: row?.plan.connectionId,
+        collectionId: effect.representation.sourceCollectionId ?? undefined, counts: { read: 1, saved: 1, skipped: 0 } }).catch(() => undefined);
+      await activity?.resolve(planId, 'save').catch(() => undefined);
+    }
+    return result;
+  }
+  const state = await siteLedger.db.read<{ commandId?: string }>('effects', sourceKey(planId, effectId));
+  await activity?.record({ kind: 'problem', operation: 'save', taskId: planId, requestId: effectId, commandId: state?.commandId ?? effect?.commandId,
+    connectionId: row?.plan.connectionId, code: result.reason }).catch(() => undefined);
+  return { ...result, commandId: state?.commandId ?? effect?.commandId };
 }
 /** Bounded startup/alarm recovery. Unknown commands retain their identities and remain visible. */
 async function recoverPlannedSaves() {
@@ -59,7 +80,7 @@ async function recoverPlannedSaves() {
       const state = await siteLedger.db.read<{ state: string; commandId?: string }>('effects', sourceKey(row.plan.id, effect.effectId));
       const outbox = state?.commandId ? await siteLedger.db.read<import('./planned-types.js').SourceOutbox>('outbox', state.commandId) : undefined;
       if ((state?.state !== 'confirmed' || outbox && !outbox.executorAcknowledged) && row.state !== 'draft') {
-        await plannedSaveExecutor.execute(row.plan.id, effect.effectId); budget--;
+        await executePlannedSave(row.plan.id, effect.effectId, false); budget--;
       }
       if (budget <= 0) { next = { planId: row.plan.id, exclusive: index + 1 === ordered.length, offset: index + 1 === ordered.length ? 0 : index + 1 }; stopped = true; break; }
     }
