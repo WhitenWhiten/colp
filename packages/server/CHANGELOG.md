@@ -4,6 +4,29 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+## [0.1.0-rc.13] - 2026-10-26
+
+### Added
+
+- Managed site copies coordinate source and semantic saves across replicas, retain personal opt-outs and recover existing associations without duplicate writes.
+- Collection reconciliation applies approved bookmark and association changes with durable receipts, ordinary Sync effects and reversible operations in one transaction.
+
+### Changed
+
+- Managed copies, reconciliation receipts and ownership lookups use indexed records instead of a growing account-wide JSON document. Startup applies migration `202611020700_source_archive_managed_records`; existing accounts migrate under their transaction lock.
+
+### Fixed
+
+- Reconciliation and undo protect shared bookmarks, current descendants and personal changes, and reject stale association or location evidence.
+
+### Upgrade notes
+
+From 0.1.0-rc.12, back up the database, update the checkout and deployment
+files from this tag, set `COLP_IMAGE_TAG=0.1.0-rc.13`, and recreate the server.
+Install the matching `extension-v0.1.0-rc.3` ZIP for managed site copies and
+collection reconciliation. Once an account has migrated to indexed managed
+records, migration rollback requires exporting its records first.
+
 ## [0.1.0-rc.12] - 2026-10-25
 
 ### Changed

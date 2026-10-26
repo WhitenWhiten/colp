@@ -4,6 +4,30 @@ All notable changes to the Know-N browser extension are documented here. The for
 
 ## [Unreleased]
 
+## [0.1.0-rc.3] - 2026-10-26
+
+### Added
+
+- Site collections save source copies through ordinary bookmark sync and schedule independent semantic copies with durable retries, destination-aware identities and coordination across replicas.
+- **Check again** previews collection differences for approval. Users can restore a deleted copy, link an existing candidate, choose a source title or move an eligible item; previous checks retain results, retry and undo controls.
+
+### Changed
+
+- Reconciliation previews and history use bounded pages. Pending work and ownership lookups use indexes so larger libraries do not repeatedly scan all prior work.
+- Site adapters declare source archive, semantic copy and reconciliation capabilities explicitly.
+
+### Fixed
+
+- Reconciliation preserves personal edits, shared copies, mapped folders and protected descendants, rechecks source membership and remote changes before dispatch, and records results before finalizing associations.
+- Rule replacement, portable backups and destination reuse preserve copy identities and independent source and semantic scopes. Undo restores prior association choices without immediately recreating opted-out copies.
+- Portable backup exports each stable mapping alias once.
+
+### Upgrade notes
+
+Update COLP Server to `0.1.0-rc.13` alongside this extension for managed site
+copies and collection reconciliation. Chrome uses numeric version `0.1.0.3`
+and displays `0.1.0-rc.3`. Install the GitHub ZIP as an unpacked extension.
+
 ## [0.1.0-rc.2] - 2026-10-25
 
 ### Changed
