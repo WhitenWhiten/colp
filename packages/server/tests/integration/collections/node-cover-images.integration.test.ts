@@ -119,15 +119,15 @@ describe('durable node covers over real PostgreSQL and Product HTTP', () => {
     const nodes = [{ id: BOOKMARK, kind: 'bookmark', url: 'https://example.com/page' },
       { id: OTHER, kind: 'bookmark', url: 'https://example.com/page' }, { id: FOLDER, kind: 'folder' }];
     const read = () => attachBookmarkPreviewImages(createPostgresLinkPreviewReadPort(isolated.runtime.db, { ogEnabled: false }), ORIGIN, nodes);
-    let projected = await read() as Array<{ previewImage?: unknown; coverMode?: string }>;
-    expect(projected[0]?.previewImage).toEqual(asset.image);
-    expect(projected[1]?.previewImage).toBeNull();
-    expect(projected[2]?.previewImage).toEqual(asset.image);
+    let projected = await read() as Array<{ coverImage?: unknown; coverMode?: string }>;
+    expect(projected[0]?.coverImage).toEqual(asset.image);
+    expect(projected[1]?.coverImage).toBeNull();
+    expect(projected[2]?.coverImage).toEqual(asset.image);
     expect((await bind(null, '1', BOOKMARK, 'none')).statusCode).toBe(200);
     projected = await read();
-    expect(projected[0]).toMatchObject({ coverMode: 'none', previewImage: null });
+    expect(projected[0]).toMatchObject({ coverMode: 'none', coverImage: null });
     expect((await bind(null, '2', BOOKMARK, 'auto')).statusCode).toBe(200);
-    expect((await read())[0]).toMatchObject({ coverMode: 'auto', coverRevision: '3', previewImage: null });
+    expect((await read())[0]).toMatchObject({ coverMode: 'auto', coverRevision: '3', coverImage: null });
   });
 
   test('private and ancestor-hidden covers require membership, and conditional requests cannot bypass it', async () => {

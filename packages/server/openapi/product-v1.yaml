@@ -8546,9 +8546,6 @@ paths:
         - cookieAuth: []
         - {}
       parameters:
-        - name: If-None-Match
-          in: header
-          schema: { type: string }
         - $ref: '#/components/parameters/PublicCollectionSlugPath'
         - $ref: '#/components/parameters/PublicCollectionLimit'
         - $ref: '#/components/parameters/PublicCollectionCursor'
@@ -18154,6 +18151,29 @@ components:
         minLength: 1
 
   schemas:
+    GalleryCoverImage:
+      type: object
+      additionalProperties: false
+      description: "Final same-origin gallery cover: a user upload or an automatic
+        webpage image."
+      properties:
+        url:
+          type: string
+          format: uri
+          maxLength: 2048
+          pattern: ^https?://.+/api/v1/(link-preview|images)/[a-f0-9-]{36}$
+        width:
+          type: integer
+          minimum: 1
+          maximum: 4096
+        height:
+          type: integer
+          minimum: 1
+          maximum: 4096
+      required:
+        - url
+        - width
+        - height
     CoverMode:
       type: string
       enum:
@@ -18186,7 +18206,7 @@ components:
           pattern: ^(0|[1-9][0-9]*)$
         image:
           oneOf:
-            - $ref: "#/components/schemas/BookmarkPreviewImage"
+            - $ref: "#/components/schemas/GalleryCoverImage"
             - type: "null"
       required:
         - mode
@@ -18200,7 +18220,7 @@ components:
           type: string
           format: uuid
         image:
-          $ref: "#/components/schemas/BookmarkPreviewImage"
+          $ref: "#/components/schemas/GalleryCoverImage"
       required:
         - assetId
         - image
@@ -28484,7 +28504,7 @@ components:
       type: string
       format: uri
       maxLength: 2048
-      pattern: '^https?://.+/api/v1/(link-preview|images)/[a-f0-9-]{36}$'
+      pattern: '^https?://.+/api/v1/link-preview/[a-f0-9-]{36}$'
       description: >-
         Absolute PRODUCT_ORIGIN URL whose path is exactly
         /api/v1/link-preview/{uuid}. Servers never return a third-party URL here.
@@ -28928,9 +28948,9 @@ components:
         coverRevision:
           type: string
           pattern: ^(0|[1-9][0-9]*)$
-        previewImage:
+        coverImage:
           oneOf:
-            - $ref: "#/components/schemas/BookmarkPreviewImage"
+            - $ref: "#/components/schemas/GalleryCoverImage"
             - type: "null"
         shared: { type: boolean, const: true, description: This folder has a live unlisted share link. }
         id: { $ref: '#/components/schemas/OpaqueId' }
@@ -28979,6 +28999,10 @@ components:
       type: object
       additionalProperties: false
       properties:
+        coverImage:
+          oneOf:
+            - $ref: "#/components/schemas/GalleryCoverImage"
+            - type: "null"
         coverMode:
           $ref: "#/components/schemas/CoverMode"
         coverRevision:
@@ -30498,6 +30522,10 @@ components:
       type: object
       additionalProperties: false
       properties:
+        coverImage:
+          oneOf:
+            - $ref: "#/components/schemas/GalleryCoverImage"
+            - type: "null"
         coverMode:
           $ref: "#/components/schemas/CoverMode"
         coverRevision:

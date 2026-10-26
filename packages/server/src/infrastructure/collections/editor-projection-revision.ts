@@ -33,6 +33,7 @@ export async function loadEditorProjectionRevision(
   return createHash('sha256').update(JSON.stringify(nodes.map((node, index) => [
     node.id, node.shared, icons.get(node.id) ?? null,
     (previews[index] as { previewImage?: unknown } | undefined)?.previewImage ?? null,
+    (previews[index] as { coverImage?: unknown } | undefined)?.coverImage ?? null,
     (previews[index] as { coverRevision?: string } | undefined)?.coverRevision ?? '0',
   ]))).digest('hex');
 }

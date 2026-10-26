@@ -313,6 +313,8 @@ The JSON settings are `mode: auto | custom | none`; `custom` requires the upload
 `assetId`. Send `If-Match: "cover:N"` using the node's `coverRevision` (initially
 `0`). Both mutations use the standard session, CSRF and `Known-Command-Id` rules.
 `custom` overrides automatic OG images or folder mosaics; `auto` restores them.
+Read views expose the selected image as `coverImage`, alongside `coverMode` and
+`coverRevision`. The older `previewImage` field retains its OG-only URL contract.
 
 Uploads never expire and remain stored after replacement. Bytes live in the
 separate `image_asset_bytes` PostgreSQL table and are included in database backups;

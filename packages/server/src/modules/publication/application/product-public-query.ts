@@ -101,6 +101,7 @@ export interface ProductPublicCollectionPage {
 }
 
 export type ProductPublicCollectionNode = Readonly<{
+  coverImage?: BookmarkPreviewImageView | null;
   coverMode?: import('../../collections/index.js').CoverMode;
   coverRevision?: string;
   id: string;

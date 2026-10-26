@@ -70,24 +70,23 @@ export async function attachBookmarkPreviewImages<Node extends PreviewableNode>(
   const covers = productOrigin && port?.findCoverPreferences
     ? await port.findCoverPreferences(nodes.map(node => node.id)) : undefined;
   return nodes.map((node) => {
-    const preference = covers?.get(node.id);
-    const settings = covers === undefined ? {} : {
-      coverMode: preference?.mode ?? 'auto', coverRevision: preference?.revision ?? '0',
-    };
-    // Redacted bookmark views must never regain an image through an upload binding.
+    // A redacted bookmark must never regain an image through an upload binding.
     if (node.kind === 'bookmark' && typeof node.url !== 'string') return { ...node, previewImage: null };
-    if (preference?.mode === 'custom') {
-      const image = preference.image;
-      return { ...node, ...settings, previewImage: image && productOrigin
-        ? { url: imageAssetUrl(productOrigin, image.objectId), width: image.width, height: image.height } : null };
-    }
-    if (preference?.mode === 'none') return { ...node, ...settings, previewImage: null };
-    if (node.kind !== 'bookmark') return { ...node, ...settings };
+    const preference = covers?.get(node.id);
     const urlKey = keyed.get(node.id);
-    const target = urlKey === undefined || vetoed.has(node.id) ? undefined : ready.get(urlKey);
+    const target = urlKey === undefined || vetoed.has(node.id) || preference?.mode === 'none'
+      ? undefined : ready.get(urlKey);
     const previewImage: BookmarkPreviewImageView | null = target === undefined || productOrigin === undefined
       ? null
       : { url: linkPreviewObjectUrl(productOrigin, target.objectId), width: target.width, height: target.height };
-    return { ...node, ...settings, previewImage };
+    if (covers === undefined) return node.kind === 'bookmark' ? { ...node, previewImage } : node;
+    const custom = preference?.image;
+    const coverImage = preference?.mode === 'none' ? null : preference?.mode === 'custom'
+      ? custom && productOrigin
+        ? { url: imageAssetUrl(productOrigin, custom.objectId), width: custom.width, height: custom.height }
+        : null
+      : previewImage;
+    return { ...node, ...(node.kind === 'bookmark' ? { previewImage } : {}),
+      coverMode: preference?.mode ?? 'auto', coverRevision: preference?.revision ?? '0', coverImage };
   });
 }

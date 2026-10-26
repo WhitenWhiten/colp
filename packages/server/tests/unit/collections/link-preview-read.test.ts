@@ -75,9 +75,11 @@ describe('attachBookmarkPreviewImages', () => {
     };
     const result = await attachBookmarkPreviewImages(previews, ORIGIN, nodes);
     const custom = { url: `${ORIGIN}/api/v1/images/${objectId}`, width: 320, height: 200 };
-    assert.deepEqual((result[0] as { previewImage?: unknown }).previewImage, custom);
-    assert.deepEqual((result[1] as { previewImage?: unknown }).previewImage, custom);
-    assert.equal((result[2] as { previewImage?: unknown }).previewImage, null);
-    assert.equal((result[4] as { previewImage?: unknown }).previewImage, null);
+    assert.deepEqual((result[0] as { coverImage?: unknown }).coverImage, custom);
+    assert.deepEqual((result[1] as { coverImage?: unknown }).coverImage, custom);
+    assert.deepEqual((result[1] as { previewImage?: unknown }).previewImage,
+      { url: `${ORIGIN}/api/v1/link-preview/${OBJECT}`, width: 800, height: 400 });
+    assert.equal((result[2] as { coverImage?: unknown }).coverImage, null);
+    assert.equal((result[4] as { coverImage?: unknown }).coverImage ?? null, null);
   });
 });

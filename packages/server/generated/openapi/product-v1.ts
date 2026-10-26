@@ -5321,6 +5321,13 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description Final same-origin gallery cover: a user upload or an automatic webpage image. */
+        GalleryCoverImage: {
+            /** Format: uri */
+            url: string;
+            width: number;
+            height: number;
+        };
         /** @enum {string} */
         CoverMode: "auto" | "custom" | "none";
         /** @description custom requires a collection upload assetId; auto and none require no assetId. */
@@ -5332,12 +5339,12 @@ export interface components {
         CoverPreferenceView: {
             mode: components["schemas"]["CoverMode"];
             revision: string;
-            image: components["schemas"]["BookmarkPreviewImage"] | null;
+            image: components["schemas"]["GalleryCoverImage"] | null;
         };
         ImageUploadView: {
             /** Format: uuid */
             assetId: string;
-            image: components["schemas"]["BookmarkPreviewImage"];
+            image: components["schemas"]["GalleryCoverImage"];
         };
         ActivityAgent: {
             clientId: string;
@@ -9360,7 +9367,7 @@ export interface components {
         FolderNodeView: {
             coverMode?: components["schemas"]["CoverMode"];
             coverRevision?: string;
-            previewImage?: components["schemas"]["BookmarkPreviewImage"] | null;
+            coverImage?: components["schemas"]["GalleryCoverImage"] | null;
             /**
              * @description This folder has a live unlisted share link.
              * @constant
@@ -9390,6 +9397,7 @@ export interface components {
             updatedAt: components["schemas"]["UtcDateTime"];
         };
         BookmarkNodeView: {
+            coverImage?: components["schemas"]["GalleryCoverImage"] | null;
             coverMode?: components["schemas"]["CoverMode"];
             coverRevision?: string;
             id: components["schemas"]["OpaqueId"];
@@ -10116,6 +10124,7 @@ export interface components {
             language?: string | null;
         };
         PublicCollectionNode: {
+            coverImage?: components["schemas"]["GalleryCoverImage"] | null;
             coverMode?: components["schemas"]["CoverMode"];
             coverRevision?: string;
             id: components["schemas"]["OpaqueId"];
@@ -19656,9 +19665,7 @@ export interface operations {
                 /** @description Include permission-filtered relations in the same revision-fenced pagination stream. Graph responses are not cached. */
                 include?: "relations";
             };
-            header?: {
-                "If-None-Match"?: string;
-            };
+            header?: never;
             path: {
                 /** @description Canonical publication slug for GET getPublicCollectionPage. This path segment is not the Collection OpaqueId used by PATCH updateCollection. GET looks up the Collection solely via findCollectionIdBySlug; it does not load by collection id. A UUID-shaped token is still treated as a slug, never as an OpaqueId fallback. */
                 collectionId: components["parameters"]["PublicCollectionSlugPath"];

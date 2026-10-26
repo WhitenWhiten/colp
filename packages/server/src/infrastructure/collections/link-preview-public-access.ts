@@ -65,6 +65,7 @@ export function createPostgresLinkPreviewPublicAccess(
                SELECT 1 FROM bookmark_preview_prefs prefs
                 WHERE prefs.node_id = n.id AND prefs.mode = 'none'
              )
+             AND NOT EXISTS (SELECT 1 FROM node_cover_prefs p WHERE p.node_id = n.id AND p.mode = 'none')
         ) AS readable
       `.execute(db);
       return result.rows[0]?.readable === true;
@@ -98,6 +99,7 @@ async function readServable(executor: Executor, objectId: string): Promise<boole
                SELECT 1 FROM bookmark_preview_prefs prefs
                 WHERE prefs.node_id = n.id AND prefs.mode = 'none'
              )
+             AND NOT EXISTS (SELECT 1 FROM node_cover_prefs p WHERE p.node_id = n.id AND p.mode = 'none')
         ) AS servable
       `.execute(executor);
       return result.rows[0]?.servable === true;
