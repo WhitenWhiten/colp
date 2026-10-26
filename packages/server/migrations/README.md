@@ -7,6 +7,22 @@ Migrations follow expand/contract deployment order: add backward-compatible stru
 deploy readers and writers, validate/backfill, then remove obsolete structures in a later
 release. A migration must not make the currently deployed reader unable to start.
 
+## Managed website copies
+
+Apply `202611020700_source_archive_managed_records` before deploying the new API.
+The migration only adds indexed records. On first use the new API migrates an
+account's v1 managed associations, claims and immutable receipts atomically under
+the existing account lock, then marks its private source state v2. Ordinary Sync
+and canonical bookmarks are unchanged. Subsequent shared operations read and
+update only indexed dependencies, and list cursors are opaque v2 keyset cursors.
+
+Deploy all API writers before enabling this path. Older API binaries fail closed
+on a migrated source account instead of creating competing copies from stale
+associations. Rollback requires a compatible reader/writer or an explicit export
+and conversion; the down migration refuses to discard migrated receipts. A failed
+migration transaction retains the complete v1 state for retry. Account locks still
+serialize source decisions, but no longer copy or rewrite the whole managed history.
+
 ## Sync replica commands
 
 Apply `202611010300_sync_replica_commands` before deploying the API. The additive

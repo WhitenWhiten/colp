@@ -1,3 +1,4 @@
+import { createManagedRecordStore, migrateManagedRecords } from './managed-record-store.js';
 import { randomUUID } from 'node:crypto';
 import { sql, type Kysely } from 'kysely';
 import type { DatabaseSchema } from '../database/runtime.js';
@@ -15,8 +16,8 @@ import { SOURCE_ARCHIVE_PROFILE, SourceArchiveError, object, text, integer, dige
 interface Connection { epoch: number; scope: SourceScope; lease: SourceLease | null }
 interface Plan { sourceAccount: string; scope: SourceScope; epoch: number; digest: string; edges: SourceEdge[]; createdAt: number; receipt?: SourceFinalReceipt; cancelled?: boolean }
 interface Binding { nodeId: string; parentId: string; title: string; url: string | null; revision: string }
-interface State { version: 1; connections: Record<string, Connection>; plans: Record<string, Plan>; folders: Record<string, Binding>; copies: Record<string, Binding>; cancellations: Record<string, string>; managed?: ManagedSaveState }
-const empty = (): State => ({ version: 1, connections: {}, plans: {}, folders: {}, copies: {}, cancellations: {} });
+interface State { version: 1 | 2; connections: Record<string, Connection>; plans: Record<string, Plan>; folders: Record<string, Binding>; copies: Record<string, Binding>; cancellations: Record<string, string>; managed?: ManagedSaveState }
+const empty = (): State => ({ version: 2, connections: {}, plans: {}, folders: {}, copies: {}, cancellations: {} });
 function reject(code: string, status = 409): never { throw new SourceArchiveError(code, status); }
 const key = (...parts: unknown[]) => JSON.stringify(parts);
 const own = <T>(r: Record<string, T>, k: string) => Object.hasOwn(r, k) ? r[k] : undefined;
@@ -40,9 +41,13 @@ export function createPostgresSourceArchives(db: Kysely<DatabaseSchema>, testHoo
       }
       await tx.selectFrom('accounts').select('id').where('id', '=', actor.accountId).forShare().executeTakeFirstOrThrow();
       await sql`INSERT INTO source_archive_accounts(account_id,state_json) VALUES(${actor.accountId},${JSON.stringify(empty())}::jsonb) ON CONFLICT DO NOTHING`.execute(tx);
-      const found = await sql<{ state_json: State }>`SELECT state_json FROM source_archive_accounts WHERE account_id=${actor.accountId} FOR UPDATE`.execute(tx);
-      const state = found.rows[0]!.state_json;
-      if (state.version !== 1) reject('source_schema_unsupported', 503);
+      const found = await sql<{ version: string }>`SELECT state_json->>'version' AS version FROM source_archive_accounts WHERE account_id=${actor.accountId} FOR UPDATE`.execute(tx);
+      if (found.rows[0]?.version === '1') await migrateManagedRecords(tx, actor.accountId);
+      else if (found.rows[0]?.version !== '2') reject('source_schema_unsupported', 503);
+      const managedAction = action.startsWith('managed.'), records = createManagedRecordStore(tx, actor.accountId);
+      const state = managedAction ? empty() : (await sql<{ state_json: State }>`SELECT state_json FROM source_archive_accounts WHERE account_id=${actor.accountId}`.execute(tx)).rows[0]!.state_json;
+      if (managedAction) state.managed = await records.load(action, body.input);
+      else records.trackLegacy(state);
       const account = await tx.selectFrom('accounts').select(['subject_id', 'status', 'deleted_at']).where('id', '=', actor.accountId).executeTakeFirst();
       if (!account || account.status !== 'active' || account.deleted_at || account.subject_id !== actor.subjectId) reject('source_account_unavailable', 403);
       const now = async () => Number((await sql<{ at: string }>`SELECT extract(epoch FROM clock_timestamp()) * 1000 AS at`.execute(tx)).rows[0]!.at);
@@ -108,7 +113,7 @@ export function createPostgresSourceArchives(db: Kysely<DatabaseSchema>, testHoo
           const command = parseManagedSave(body.input);
           await assertReplica(tx, actor, command.replicaId, command.collectionId);
           const managed = state.managed ??= { bindings: {}, receipts: {} };
-          adoptLegacyManagedCopy(managed, state, command);
+          adoptLegacyManagedCopy(managed, records.legacy, command);
           return saveManagedCopy(managed, command, managedSavePorts(tx, actor.subjectId, actor.accountId));
         }
         if (action === 'managed.recover') {
@@ -118,10 +123,7 @@ export function createPostgresSourceArchives(db: Kysely<DatabaseSchema>, testHoo
         if (action === 'managed.list') {
           const i = object(body.input, ['collectionId', 'after']); text(i.collectionId);
           if (i.after !== null) text(i.after, 4096);
-          const bindings = Object.entries(state.managed?.bindings ?? {}).filter(([key, b]) => b.collectionId === i.collectionId && (i.after === null || key > String(i.after)))
-            .sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
-          const page = bindings.slice(0, 100);
-          return { bindings: page.map(([key, value]) => ({ key, ...value })), nextCursor: bindings.length > page.length ? page.at(-1)![0] : null };
+          return records.list(String(i.collectionId), i.after === null ? null : String(i.after));
         }
         if (action === 'status') { object(body.input, []); return { profile: SOURCE_ARCHIVE_PROFILE, connections: Object.values(state.connections).map(c => ({ sourceAccount: c.scope.sourceAccount, site: c.scope.site, identityVersion: c.scope.identityVersion, epoch: c.epoch, scope: c.scope, lease: c.lease ? { replicaId: c.lease.replicaId, expiresAt: c.lease.expiresAt } : null })) }; }
         if (action === 'configure') {
@@ -181,9 +183,7 @@ export function createPostgresSourceArchives(db: Kysely<DatabaseSchema>, testHoo
         }
         if (!previous || sourceConnectionKey(previous.scope) !== connectionKey || previous.sourceAccount !== sourceAccount || previous.digest !== digest(i.digest)) reject('source_command_reused');
         if (previous.receipt) return previous.receipt;
-        if (Object.values(state.managed?.bindings ?? {}).some(binding => binding.collectionId === c.scope.collectionId && (
-          binding.slot.kind === 'folder' ? binding.slot.source.site === c.scope.site && binding.slot.source.sourceAccount === c.scope.sourceAccount
-            : binding.slot.copy.content.site === c.scope.site && binding.slot.copy.purpose === 'sourceArchive' && binding.slot.copy.sourceAccount === c.scope.sourceAccount))) reject('source_managed_copy_review_required');
+        if (await records.hasSource(c.scope.collectionId, c.scope.site, c.scope.sourceAccount)) reject('source_managed_copy_review_required');
         if (previous.cancelled) reject('source_plan_cancelled');
         if (previous.epoch !== c.epoch || sourceHash(previous.scope) !== sourceHash(c.scope) || previous.createdAt + 600_000 <= start) reject('source_plan_stale');
         await lockScope(tx, actor, c.scope);
@@ -229,7 +229,10 @@ export function createPostgresSourceArchives(db: Kysely<DatabaseSchema>, testHoo
         const receipt: SourceFinalReceipt = { version: 1, planId, digest: previous.digest, epoch: c.epoch, collectionId: c.scope.collectionId, classification: 'disabled', effects, effectDigest: sourceHash(effects), mutations, mutationsDigest: sourceHash(mutations) };
         previous.receipt = receipt; return receipt;
       };
-      const result = await run(); const encoded = JSON.stringify(state);
+      const result = await run();
+      await records.flush(managedAction ? undefined : state);
+      if (managedAction) return result;
+      const encoded = JSON.stringify(state);
       if (Buffer.byteLength(encoded) > 32 * 1024 * 1024) reject('source_capacity', 507);
       await sql`UPDATE source_archive_accounts SET state_json=${encoded}::jsonb, updated_at=clock_timestamp() WHERE account_id=${actor.accountId}`.execute(tx);
       return result;
