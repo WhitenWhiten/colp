@@ -1,4 +1,4 @@
-import { readReconcileData } from './reconcile-storage.js';
+import { readReconcilePage } from './reconcile-storage.js';
 import { siteFeatures } from './capabilities.js';
 import { observedCatalog } from './observed-catalog.js';
 import { array, integer, jsonBytes, literal, object, str } from './schema.js';
@@ -20,7 +20,6 @@ import { createLane } from '../automation/lane.js';
 import { sourceAutomationsPaused } from '../sw/automation.js';
 import { createReconcilePreview, reconcileKey } from './reconcile-preview.js';
 import { reconcileInventory } from './reconcile-inventory.js';
-import type { ReconcilePreview } from './reconcile-model.js';
 const configureSchemaFor = (definition: SiteDefinition) => object({ kind: literal('known.siteAdapters.archive.configure'), rootNativeId: str(128),
   collectionIds: array(v => definition.validateCollection(v), 64, 1, v => v), live: literal(true, false),
   copies: v => v === undefined || literal('sourceAndSemantic', 'singlePreferSemantic', 'singleKeepExisting')(v),
@@ -35,6 +34,7 @@ interface ArchiveConfig { connectionId: string; ruleId: string; root: NativeBind
   copies?: import('./contracts.js').SavePolicy['copies']; primarySourceCollectionId?: string | null; aiDestination?: 'excluded' | 'allowed'; semantic?: 'manual' | 'automatic' }
 interface RuntimePorts {
   reconciliation?: { valid(raw: unknown): boolean; handle(raw: unknown, connectionId: string): Promise<unknown>;
+    view?(id: string, differences: readonly string[]): Promise<import('./reconcile-run.js').ReconcileRun | undefined>;
     status(id: string): Promise<import('./reconcile-run.js').ReconcileRun | undefined>; cancel(id: string): Promise<void> };
   scope?(): Promise<import('../capture/contracts.js').CaptureScope>;
   source(): Promise<{ context: SourceContext; expiresAt: number } | null>;
@@ -69,14 +69,15 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
   return {
     importer, live,
     valid: (v: unknown) => !!ports.reconciliation?.valid(v) || jsonBytes(v, 16384) && [configureSchema, disableSchema, startSchema, changeSchema, approveSchema].some(s => s(v)),
-    async status() {
+    async status(offset = 0) {
       const source = !features.collections && features.observe ? await ports.source() : null;
       const current = await config(); let hold: string | null = null;
       if (current?.state === 'active') try { await sourceLayout.validateRoot(current.connectionId, current.ruleId, current.root.nativeId); }
       catch (e) { hold = e instanceof Error ? e.message : 'sourceNeedsReview'; }
       const job = await importer.status();
-      return { config: current ?? null, import: job, hold, reconciliationRun: job?.preview?.id ? await ports.reconciliation?.status(job.preview.id) ?? null : null,
-        reconciliation: job ? await readReconcileData<ReconcilePreview>(db, reconcileKey(job.id)) ?? null : null,
+      const preview = job ? await readReconcilePage(db, reconcileKey(job.id), offset) ?? null : null;
+      return { config: current ?? null, import: job, hold, reconciliationRun: job?.preview?.id ? await (ports.reconciliation?.view ? ports.reconciliation.view(job.preview.id, preview?.differences.map(d => d.id) ?? []) : ports.reconciliation?.status(job.preview.id)) ?? null : null,
+        reconciliation: preview,
         ...(!features.collections && features.observe ? { catalog: source ? await observedCatalog(ledger, source.context) : [], catalogCoverage: 'observedOnly' as const } : {}) };
     },
     async handle(raw: unknown) {

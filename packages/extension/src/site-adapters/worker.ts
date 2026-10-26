@@ -186,7 +186,7 @@ function createSiteHost(definition: SiteDefinition) {
   const confirmations = createConfirmationQueue(siteLedger, reads, { source: origin => readableSiteSource(undefined, origin), send: sendSiteCommand, alarm: scheduleSourceWork,
     authorizeOrigin: async (context, collectionIds) => { if (context.communityOrigin) await assertCommunityArchive(context.communityOrigin, { connectionId: context.connectionId, collectionIds }); } });
   const archives = createSourceArchiveRuntime(reads, { source: managementSource, readSource: origin => readableSiteSource(undefined, origin), send: sendSiteCommand, alarm: scheduleSourceWork,
-    reconciliation: { valid: validReconcileRequest, handle: handleReconcileRequest, status: reconciliationRuns.status, cancel: reconciliationRuns.cancel },
+    reconciliation: { valid: validReconcileRequest, handle: handleReconcileRequest, status: reconciliationRuns.status, view: reconciliationRuns.view, cancel: reconciliationRuns.cancel },
     scope: currentCaptureScope,
     prioritizeLive: () => confirmations.wake(),
     catalog: async () => {
@@ -205,7 +205,7 @@ function createSiteHost(definition: SiteDefinition) {
       await reconciliationRuns.wake();
       const importJob = await archives.importer.status();
       if (importJob?.preview?.id && importJob.phase === 'attention' && importJob.reason === 'sourceReviewRequired') {
-        const run = await reconciliationRuns.status(importJob.preview.id);
+        const run = await reconciliationRuns.view(importJob.preview.id);
         if (run?.state === 'completed') {
           const reviews = await siteLedger.db.transaction(['importPages'], 'readonly', tx => rows<{ reviewReason?: string }>(tx, 'importPages', 'frozenEdge', importJob.preview!.id));
           if (reviews.every(r => !r.reviewReason || ['sourceReconcileCandidate', 'suppressed', 'policySkipped', 'copyPolicyMigrationRequired'].includes(r.reviewReason))) await siteLedger.db.transaction(['meta'], 'readwrite', async tx => {
@@ -240,7 +240,7 @@ function createSiteHost(definition: SiteDefinition) {
     await synchronizeSourceAuthority(s, siteLedger);
     await reconcileBundledScripts(definition, s.enabled && granted);
   }
-  const statusSchema = object({ kind: literal('known.siteAdapters.status') });
+  const statusSchema = object({ kind: literal('known.siteAdapters.status'), reconcileOffset: v => v === undefined || Number.isSafeInteger(v) && Number(v) >= 0 && Number(v) <= 200000 && Number(v) % 100 === 0 });
   const enableSchema = object({ kind: literal('known.siteAdapters.enable'), enabled: literal(true, false) });
   const inspectSchema = object({ kind: literal('known.siteAdapters.inspect'), operation: literal('collections', 'items', 'resolve'), collectionId: v => v === undefined || definition.validateCollection(v), cursor: v => v === undefined || v === null || str(512)(v) });
   const retrySchema = object({ kind: literal('known.siteAdapters.retryConfirmation') });
@@ -347,7 +347,7 @@ function createSiteHost(definition: SiteDefinition) {
           const q = raw as { operation: 'collections' | 'items' | 'resolve'; collectionId?: string; cursor?: string | null };
           inspectionStatus = await inspect(q.operation, q.collectionId, q.cursor);
         }
-        const archiveStatus = await archives.status();
+        const archiveStatus = await archives.status(statusSchema(raw) ? (raw as { reconcileOffset?: number }).reconcileOffset : 0);
         const archiveState = { ...archiveStatus, semantic: archiveStatus.config ? await semanticJobs.status(archiveStatus.config.connectionId) : null };
         const siteStatus = await siteTransport.status();
         let archiveHold: string | null = archiveState.hold;

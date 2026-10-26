@@ -7,7 +7,8 @@ const labels = () => ({ present: t('sites_diffPresent', 'Already mapped'), add: 
   localDeleted: t('sites_diffDeleted', 'Deleted locally; kept deleted'), moved: t('sites_diffMoved', 'Moved or changed locally'), folderMoved: t('sites_diffFolderMoved', 'Collection folder moved; writes paused'), sourceRemoved: t('sites_diffRemoved', 'No longer in the source collection'),
   unverified: t('sites_diffUnverified', 'Source membership could not be verified'), title: t('sites_diffTitle', 'Source title changed'), titleOverride: t('sites_diffTitleOverride', 'Your custom title is preserved'), personal: t('sites_diffPersonal', 'Unassociated personal item'),
   protected: t('sites_diffProtected', 'Used by another mapping or semantic copy') });
-let shown = 100, signature = '';
+let shown = 100, signature = '', offset = 0;
+export const reconcilePageOffset = () => offset;
 let latest: ReconcilePreview | undefined, picker: FolderPicker | undefined, sending: ((message: unknown) => Promise<unknown>) | undefined;
 let changed: (() => void) | undefined;
 const selections = new Map<string, ReconcileDecision>();
@@ -30,13 +31,14 @@ export function paintReconciliation(preview: ReconcilePreview | null | undefined
   const section = document.getElementById('reconcile-preview'); if (!section) return;
   section.hidden = !preview; if (!preview) return;
   if (signature !== preview.digest) { signature = preview.digest; shown = 100; selections.clear(); }
-  latest = preview;
+  latest = preview; offset = preview.page?.offset ?? 0;
   if (!picker && chrome.bookmarks) void chrome.bookmarks.getTree().then(tree => {
     if (picker) return;
     picker = createFolderPicker({ choices: folderChoices(tree), label: t('sites_reconcileDestination', 'History or personal-item destination'), startEmpty: true });
     picker.pill.id = 'reconcile-target'; document.getElementById('reconcile-target-slot')!.append(picker.element);
   }).catch(() => undefined);
-  const counts = new Map<string, number>(); for (const row of preview.differences) counts.set(row.kind, (counts.get(row.kind) ?? 0) + 1);
+  const counts = new Map<string, number>(Object.entries(preview.page?.counts ?? {}));
+  if (!preview.page) for (const row of preview.differences) counts.set(row.kind, (counts.get(row.kind) ?? 0) + 1);
   const names = labels();
   document.getElementById('reconcile-summary')!.textContent = [...counts].map(([kind, count]) => `${names[kind as ReconcileDifference['kind']]}: ${count}`).join(' · ');
   const rows = preview.differences.filter(d => d.kind !== 'present');
@@ -65,12 +67,18 @@ export function paintReconciliation(preview: ReconcilePreview | null | undefined
     }
     return element;
   }));
-  const more = document.getElementById('reconcile-more')! as HTMLButtonElement; more.hidden = shown >= rows.length;
-  more.onclick = () => { shown += 100; paintReconciliation(preview, run, phase); };
+  const more = document.getElementById('reconcile-more')! as HTMLButtonElement;
+  more.hidden = preview.page ? preview.page.next === null : shown >= rows.length;
+  more.textContent = preview.page ? t('common_nextPage', 'Next page') : t('common_loadMore', 'Load more');
+  more.onclick = () => { if (preview.page) { offset = preview.page.next ?? offset; void sending?.({ kind: 'known.siteAdapters.status', reconcileOffset: offset }); }
+    else { shown += 100; paintReconciliation(preview, run, phase); } };
+  const previous = document.getElementById('reconcile-previous') as HTMLButtonElement | null;
+  if (previous) { previous.hidden = !preview.page || offset === 0; previous.onclick = () => { offset = Math.max(0, offset - 100); void sending?.({ kind: 'known.siteAdapters.status', reconcileOffset: offset }); }; }
+
   const apply = document.getElementById('reconcile-apply')! as HTMLButtonElement; apply.hidden = !!run || !['completed', 'attention'].includes(phase ?? '');
   apply.disabled = false;
   apply.onclick = () => { apply.disabled = true; void sending?.({ kind: 'known.siteAdapters.reconcile.apply', importId: latest!.importId, digest: latest!.digest, decisions: reconcileSelections() }); };
-  const retry = document.getElementById('reconcile-retry')! as HTMLButtonElement; retry.hidden = !run?.operations.some(op => op.state === 'attention');
+  const retry = document.getElementById('reconcile-retry')! as HTMLButtonElement; retry.hidden = !(run?.progress?.attention ?? run?.operations.filter(op => op.state === 'attention').length);
   retry.disabled = false;
   retry.onclick = () => { retry.disabled = true; void sending?.({ kind: 'known.siteAdapters.reconcile.retry', id: run!.id, ...(picker?.value() ? { destinationId: picker.value() } : {}) }); };
   const cancel = document.getElementById('reconcile-cancel')! as HTMLButtonElement; cancel.hidden = run?.state !== 'approved';
@@ -83,7 +91,7 @@ export function paintReconciliation(preview: ReconcilePreview | null | undefined
     await sending?.({ kind: 'known.siteAdapters.import.start' });
   })(); };
   document.getElementById('reconcile-result')!.textContent = run ? t('sites_reconcileResult', '$1 applied · $2 need attention · $3 waiting',
-    run.operations.filter(op => op.state === 'completed').length, run.operations.filter(op => op.state === 'attention').length, run.operations.filter(op => op.state === 'pending').length)
+    run.progress?.completed ?? run.operations.filter(op => op.state === 'completed').length, run.progress?.attention ?? run.operations.filter(op => op.state === 'attention').length, run.progress?.pending ?? run.operations.filter(op => op.state === 'pending').length)
       + (run.state === 'completed' ? ` · ${t('sites_reconcileExceptions', 'Checked against this read; $1 unverified items and $2 retained exceptions remain.',
-        preview.differences.filter(d => d.kind === 'unverified').length, preview.differences.filter(d => !['present', 'add', 'unverified'].includes(d.kind) && !run.operations.some(op => op.difference.id === d.id)).length)}` : '') : '';
+        counts.get('unverified') ?? 0, Math.max(0, [...counts].filter(([kind]) => !['present', 'add', 'unverified'].includes(kind)).reduce((n, [, count]) => n + count, 0) - (run.progress ? Object.values(run.progress).reduce((a, b) => a + b, 0) : run.operations.length)))}` : '') : '';
 }

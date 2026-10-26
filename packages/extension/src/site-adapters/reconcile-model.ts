@@ -23,6 +23,8 @@ export interface ReconcileDifference {
 export interface ReconcilePreview {
   version: 1; id: string; importId: string; context: SourceContext; digest: string; createdAt: number;
   policyRevision: number;
+  /** Presentation-only page metadata; never part of the approved stored preview. */
+  page?: { offset: number; next: number | null; total: number; counts: Partial<Record<ReconcileKind, number>> };
   destination?: { root: NativeBinding<'folder'>; owner: import('./copy-identity.js').DestinationOwner | null };
   differences: readonly ReconcileDifference[]; snapshots: readonly ReconcileSnapshot[];
 }

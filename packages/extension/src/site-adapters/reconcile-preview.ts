@@ -16,22 +16,18 @@ export function createReconcilePreview(db: SourceDatabase, definition: SiteDefin
   const cached = (job: ImportJob) => `reconcileInventory:${job.previewId}`;
   let current: { id: string; candidates: Set<string>; positives: Set<string> } | undefined;
   async function build(job: ImportJob, data: ReconcileInventory) {
-    const pages: ReconcilePage[] = [];
-    for (const receipt of job.pageReceipts) {
-      const row = await db.read<ReconcilePage>('importPages', receipt.id);
-      // Page receipts use a receipt ID distinct from the request's persistent page key.
-      if (row) pages.push(row);
-    }
-    if (!pages.length) await db.transaction(['importPages'], 'readonly', tx => new Promise<void>((resolve, reject) => {
-      const request = tx.objectStore('importPages').openCursor(); request.onerror = () => reject(request.error); request.onsuccess = () => {
-        const cursor = request.result; if (!cursor) return resolve();
-        const row = cursor.value as ReconcilePage & { receipt?: { id: string } };
-        if (row.request?.runId === job.id && row.receipt && job.pageReceipts.some(r => r.id === row.receipt!.id)) pages.push(row);
-        cursor.continue();
-      };
-    }));
-    pages.sort((a, b) => job.pageReceipts.findIndex(r => r.id === (a as ReconcilePage & { receipt: { id: string } }).receipt?.id)
-      - job.pageReceipts.findIndex(r => r.id === (b as ReconcilePage & { receipt: { id: string } }).receipt?.id));
+    const pages = await db.transaction(['importPages'], 'readonly', async tx => {
+      const result: ReconcilePage[] = [];
+      for (const receipt of job.pageReceipts) {
+        const row = await new Promise<ReconcilePage | undefined>((resolve, reject) => {
+          const request = tx.objectStore('importPages').index('receiptId').get(receipt.id);
+          request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
+        });
+        if (!row || row.request.runId !== job.id) throw new Error('reconcilePreviewIncomplete');
+        result.push(row);
+      }
+      return result;
+    });
     const restart = pages.findLastIndex(p => p.request.query.kind === 'collections' && p.request.query.cursor === null);
     if (restart > 0) pages.splice(0, restart);
     const snapshots = job.selected.map(id => reconcileSnapshot(definition, id, pages));

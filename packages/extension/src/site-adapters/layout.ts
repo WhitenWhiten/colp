@@ -263,7 +263,7 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
           && sameNativeContentValue('url', node.url, url);
       };
       await db.transaction(['representations', 'folderReservations', 'mounts', 'contentBindings', 'meta'], 'readwrite', async tx => {
-        const bindings = await cursorPage<import('./content-bindings.js').ContentBindingRow>(tx.objectStore('contentBindings'), null, 100001);
+        const bindings = (await Promise.all([...ids].map(id => cursorPage<import('./content-bindings.js').ContentBindingRow>(tx.objectStore('contentBindings').index('nativeId'), IDBKeyRange.only(id), 100001)))).flat();
         for (const b of bindings) if (b.native && ids.has(b.native.nativeId) && !unchanged(b.native, b.title, b.parentId, b.url)) {
           const node = observed.get(b.native.nativeId);
           if (!deleted && node?.dateAdded === b.native.dateAdded && node.parentId === b.parentId && sameNativeContentValue('url', node.url, b.url)) {
@@ -273,7 +273,7 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
           put(tx, 'contentBindings', contentBindingKey(b.content, b.id), { ...b, state: deleted ? 'suppressed' : 'detached' });
         }
         for (const store of ['representations', 'folderReservations', 'mounts'] as const) {
-          const rows = await cursorPage<Representation | SourceFolderReservation | SourceMount>(tx.objectStore(store), null, 100001);
+          const rows = (await Promise.all([...ids].map(id => cursorPage<Representation | SourceFolderReservation | SourceMount>(tx.objectStore(store).index('nativeId'), IDBKeyRange.only(id), 100001)))).flat();
           for (const row of rows) {
             if ('rootRuleId' in row) {
               if (deleted && ids.has(row.root.nativeId)) put(tx, store, keyForMount(row.connectionId, row.rootRuleId), { ...row, state: 'suppressed' });

@@ -7,7 +7,7 @@ export const SOURCE_STORES = ['meta', 'authorities', 'documentLeases', 'connecti
   'readRequests', 'importRuns', 'importPages', 'representations', 'itemReservations', 'folderReservations', 'folderConsumers',
   'savePlans', 'effects', 'outbox', 'contentBindings', 'mounts', 'importPreviews', 'importApprovals', 'semanticJobs', 'semanticIndexes'] as const;
 export type SourceStore = typeof SOURCE_STORES[number];
-export const SOURCE_DATABASE_VERSION = 4;
+export const SOURCE_DATABASE_VERSION = 5;
 export function sourceDigest(value: unknown): string {
   return `sha256:${bytesToHex(sha256(new TextEncoder().encode(canonicalJson(value, () => { throw new Error('invalidData'); }))))}`;
 }
@@ -33,6 +33,15 @@ export function createSourceDatabase(factory?: IDBFactory, name = 'known-site-ad
     const r = available.open(name, SOURCE_DATABASE_VERSION);
     r.onupgradeneeded = () => {
       for (const store of SOURCE_STORES) if (!r.result.objectStoreNames.contains(store)) r.result.createObjectStore(store);
+      const indexes: Partial<Record<SourceStore, Record<string, string>>> = {
+        importPages: { receiptId: 'receipt.id' }, representations: { nativeId: 'native.nativeId' },
+        contentBindings: { nativeId: 'native.nativeId', captureIntentId: 'captureIntentId' },
+        mounts: { id: 'id', nativeId: 'root.nativeId' }, folderReservations: { id: 'id', nativeId: 'native.nativeId' },
+      };
+      for (const [name, definitions] of Object.entries(indexes)) {
+        const store = r.transaction!.objectStore(name);
+        for (const [index, path] of Object.entries(definitions)) if (!store.indexNames.contains(index)) store.createIndex(index, path);
+      }
       const semanticJobs = r.transaction!.objectStore('semanticJobs');
       if (!semanticJobs.indexNames.contains('stateUpdatedAt')) semanticJobs.createIndex('stateUpdatedAt', ['state', 'updatedAt']);
       if (!semanticJobs.indexNames.contains('connections')) semanticJobs.createIndex('connections', 'connections', { multiEntry: true });

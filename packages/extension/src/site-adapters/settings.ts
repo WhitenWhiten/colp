@@ -11,7 +11,7 @@ import './settings-recovery.js';
 import './settings-reconcile-history.js';
 import './community-settings.js';
 import './cloud-settings.js';
-import { paintReconciliation, installReconcileControls, reconcileSelections } from './settings-reconcile.js';
+import { paintReconciliation, installReconcileControls, reconcileSelections, reconcilePageOffset } from './settings-reconcile.js';
 import type { ReconcilePreview } from './reconcile-model.js';
 import type { ReconcileRun } from './reconcile-run.js';
 interface Collection { id: string; title: string }
@@ -95,7 +95,7 @@ let refreshTimer: ReturnType<typeof setTimeout> | undefined, inspectionRetry: Re
 async function request(message: unknown): Promise<SiteStatus> {
   try { return (await sendSiteMessage(message) as SiteStatus | undefined) ?? { error: 'unavailable' }; } catch { return { error: 'unavailable' }; }
 }
-async function refresh() { return apply(await request({ kind: 'known.siteAdapters.status' })); }
+async function refresh() { return apply(await request({ kind: 'known.siteAdapters.status', reconcileOffset: reconcilePageOffset() })); }
 /** Run a step. A refusal is a toast, and the page repaints from a fresh status. */
 async function act(message: unknown, done?: () => void): Promise<boolean> {
   clearTimeout(refreshTimer);
@@ -120,7 +120,7 @@ function schedule() {
   const job = status.archive?.import;
   const busy = job && ['scanning', 'preparing', 'approved'].includes(job.phase) || !!status.confirmations?.pending || !!status.catalog?.reading
     || !!status.inspection && !status.inspection.result && status.inspection.command.deadlineAt > Date.now() || !!status.archive?.semantic?.pending
-    || !!status.archive?.reconciliationRun?.operations.some(op => op.state === 'pending');
+    || !!status.archive?.reconciliationRun?.progress?.pending || !!status.archive?.reconciliationRun?.operations.some(op => op.state === 'pending');
   const waiting = !!status.enabled && (!status.connected || !status.documents);
   if (busy || waiting) refreshTimer = setTimeout(() => { if (document.visibilityState === 'visible') void refresh(); }, busy ? 500 : 2000);
 }

@@ -99,11 +99,10 @@ export function createContentBindings(db: SourceDatabase, assertNative: (native:
         return binding;
       });
     },
-    async forIntent(id: string) { return db.transaction(['contentBindings'], 'readonly', async tx => {
-      const r = tx.objectStore('contentBindings').openCursor(); return new Promise<ContentBindingRow | undefined>((resolve, reject) => {
-        r.onerror = () => reject(r.error); r.onsuccess = () => { const c = r.result; if (!c) return resolve(undefined); if (c.value.captureIntentId === id) return resolve(c.value); c.continue(); };
-      });
-    }); },
+    async forIntent(id: string) { return db.transaction(['contentBindings'], 'readonly', tx => new Promise<ContentBindingRow | undefined>((resolve, reject) => {
+      const r = tx.objectStore('contentBindings').index('captureIntentId').get(id);
+      r.onerror = () => reject(r.error); r.onsuccess = () => resolve(r.result);
+    })); },
     async acknowledge(binding: ContentBindingRow, native: NativeBinding<'bookmark'>, node: { title: string; parentId: string }, mode?: ContentBindingRow['mode']) {
       await assertNative(native, node);
       return db.transaction(['contentBindings', 'representations', 'itemReservations', 'meta'], 'readwrite', async tx => {

@@ -1,3 +1,4 @@
+import { assertReconcileOwnershipRecords } from './reconcile-ownership.js';
 import type { ManagedLibrary } from './copy-identity.js';
 import type { ManagedNode, ManagedSlot, ManagedDestination, ManagedReconcileCommand, ManagedReconcileReceipt } from './managed-client.js';
 import type { ReconcileRun, ReconcileOperation } from './reconcile-run.js';
@@ -16,7 +17,7 @@ import { sameNativeContentValue } from '../native-event-correlation.js';
 import { restoreReconcileProjection } from './reconcile-projection.js';
 import { createBookmarkAnnotationStore } from '../bookmark-annotation-store.js';
 import { nativeEventCorrelation } from '../native-event-correlation.js';
-import { reconcileInventory, reconcileTreeDigest } from './reconcile-inventory.js';
+import { reconcileTreeDigest } from './reconcile-inventory.js';
 import { assertCaptureOwner } from '../sw/capture-native.js';
 import { scheduleSyncEngineWake } from '../sw/engine.js';
 import { representationKey } from './reservations.js';
@@ -47,10 +48,7 @@ async function slot(run: ReconcileRun, op: ReconcileOperation): Promise<ManagedS
 export async function assertReconcileOwnership(run: ReconcileRun, op: ReconcileOperation) {
   const row = op.difference, candidate = op.decision.choice === 'adopt' ? row.candidates?.find(n => n.native.nativeId === op.decision.nativeId) : row.expected;
   if (!candidate) return;
-  const inventory = await reconcileInventory(siteLedger.db, run.preview.context.connectionId, run.preview.snapshots.map(s => s.collectionId));
-  const fresh = inventory.nodes.find(n => n.native.nativeId === candidate.native.nativeId) ?? inventory.movedFolders.find(f => f.node.native.nativeId === candidate.native.nativeId)?.node;
-  if (!fresh || fresh.protected || inventory.representations.some(r => r.native.nativeId === candidate.native.nativeId
-    && (!row.representation || representationKey(r) !== representationKey(row.representation)))) throw new Error('source_copy_protected');
+  await assertReconcileOwnershipRecords(siteLedger.db, run.preview.context.connectionId, row, candidate.native.nativeId);
 }
 async function assertUndoNativeOwnership(run: ReconcileRun, op: ReconcileOperation, native: NativeBinding) {
   const tree = (await chrome.bookmarks.getSubTree(native.nativeId))[0], ids = new Set<string>();

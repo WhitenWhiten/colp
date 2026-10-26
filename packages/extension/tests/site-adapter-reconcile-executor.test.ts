@@ -1,3 +1,4 @@
+vi.mock('../src/site-adapters/reconcile-ownership.js', () => ({ assertReconcileOwnershipRecords: vi.fn() }));
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type { ReconcileRun, ReconcileOperation } from '../src/site-adapters/reconcile-run.js';
 import type { ManagedNode } from '../src/site-adapters/managed-client.js';

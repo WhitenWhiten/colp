@@ -60,13 +60,11 @@ export function createPlannedSaveExecutor(db: SourceDatabase, ports: PlannedExec
   async function owner(plan: SavePlan, effect: SaveEffect) {
     if (effect.kind === 'ensureSourceFolder') {
       if (!plan.mount) throw new Error('mountRequired');
-      const candidates = await db.transaction(['folderReservations'], 'readonly', async tx => {
-        const r = tx.objectStore('folderReservations').openCursor(); return new Promise<SourceFolderReservation | undefined>((resolve, reject) => {
-          r.onerror = () => reject(r.error); r.onsuccess = () => { const c = r.result; if (!c) return resolve(undefined);
-            if (c.value.id === effect.reservationId && c.value.mountId === plan.mount!.id) return resolve(c.value); c.continue(); };
-        });
-      });
-      if (!candidates || effect.folderReservationDigest !== candidates.payloadDigest) throw new Error('mountChanged');
+      const candidates = await db.transaction(['folderReservations'], 'readonly', tx => new Promise<SourceFolderReservation | undefined>((resolve, reject) => {
+        const r = tx.objectStore('folderReservations').index('id').get(effect.reservationId);
+        r.onerror = () => reject(r.error); r.onsuccess = () => resolve(r.result);
+      }));
+      if (!candidates || candidates.mountId !== plan.mount.id || effect.folderReservationDigest !== candidates.payloadDigest) throw new Error('mountChanged');
       return { commandId: candidates.commandId, logicalDigest: candidates.payloadDigest, folder: candidates };
     }
     if (effect.kind === 'createBookmark') {
@@ -81,9 +79,9 @@ export function createPlannedSaveExecutor(db: SourceDatabase, ports: PlannedExec
     const target = folder?.parent ?? (effect.kind === 'createBookmark' ? effect.parent : null);
     if (!target) throw new Error('parentRequired');
     if (target.kind === 'native') return target.binding;
-    const all = await db.transaction(['folderReservations'], 'readonly', async tx => new Promise<SourceFolderReservation | undefined>((resolve, reject) => {
-      const r = tx.objectStore('folderReservations').openCursor(); r.onerror = () => reject(r.error); r.onsuccess = () => { const c = r.result;
-        if (!c) return resolve(undefined); if (c.value.id === target.reservationId) return resolve(c.value); c.continue(); };
+    const all = await db.transaction(['folderReservations'], 'readonly', tx => new Promise<SourceFolderReservation | undefined>((resolve, reject) => {
+      const r = tx.objectStore('folderReservations').index('id').get(target.reservationId);
+      r.onerror = () => reject(r.error); r.onsuccess = () => resolve(r.result);
     }));
     if (all?.payloadDigest !== effect.folderReservationDigest) throw new Error('folderPayloadChanged');
     if (all?.state !== 'confirmed' || !all.native) throw new Error('dependencyUnknown'); return all.native;

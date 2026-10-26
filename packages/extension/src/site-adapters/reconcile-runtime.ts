@@ -173,7 +173,7 @@ export const reconciliationRuns = createReconcileRuns(siteLedger.db, {
 });
 export function installReconciliationRuntime() {
   installReconcileAuthorization(async task => {
-    const run = task.planned && await reconciliationRuns.status(task.planned.planId), op = run?.operations.find(o => o.id === task.commandId);
+    const run = task.planned && await reconciliationRuns.current(task.planned.planId), op = run?.operations.find(o => o.id === task.commandId);
     const command = (op?.command as { command?: PlannedNativeCommand } | undefined)?.command;
     if (!run || !command || sourceDigest(command) !== task.planned?.resolvedDigest) throw new Error('sourceAuthorizationChanged');
     await authorize(run); await assertSourceRoot(command.parent);
@@ -207,7 +207,7 @@ export async function handleReconcileRequest(raw: unknown, connectionId: string)
       for (const row of preview.differences) if (row.kind === 'candidate') put(tx, 'meta', sourceKey('reconcileKeep', mount.id, row.collectionId, row.itemId), { previewId: preview.id });
     }); return;
   }
-  const input = raw as { kind: string; id: string; operationId?: string; destinationId?: string }, run = await reconciliationRuns.status(input.id);
+  const input = raw as { kind: string; id: string; operationId?: string; destinationId?: string }, run = await reconciliationRuns.current(input.id);
   if (!run || run.preview.context.connectionId !== connectionId) throw new Error('reconcileRunMissing');
   await assertCaptureOwner(run.scope);
   if (input.kind.endsWith('.retry')) await reconciliationRuns.retry(input.id, input.destinationId);
