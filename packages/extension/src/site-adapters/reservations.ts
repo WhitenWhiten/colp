@@ -1,3 +1,5 @@
+import { destinationScopeId } from './destination-scope.js';
+import type { SourceMount } from './layout.js';
 import { assertPlanIntentActive, type SourcePlanIntent } from './plan-intents.js';
 import type { NativeBinding, Representation, RepresentationKey, SourceFolderReservation } from './contracts.js';
 import { get, put, rows, sourceDigest, sourceKey, type SourceDatabase } from './source-db.js';
@@ -40,9 +42,13 @@ export function createSourceReservations(db: SourceDatabase, random = () => cryp
         put(tx, 'itemReservations', id, { ...row, state: next });
       });
     },
-    async reserveFolder(input: Omit<SourceFolderReservation, 'id' | 'commandId' | 'payloadDigest' | 'state' | 'native'>, consumer: { planId: string; effectId: string }) {
-      return db.transaction(['folderReservations', 'folderConsumers', 'meta'], 'readwrite', async tx => {
+    async reserveFolder(input: Omit<SourceFolderReservation, 'id' | 'commandId' | 'payloadDigest' | 'state' | 'native'>, consumer: { planId: string; effectId: string }, source?: { connectionId: string; scopeId: string }) {
+      return db.transaction(['folderReservations', 'folderConsumers', 'meta', 'mounts'], 'readwrite', async tx => {
         await assertPlanIntentActive(tx, consumer.planId);
+        if (source) for (const mount of await rows<SourceMount>(tx, 'mounts', source.connectionId)) {
+          if (mount.id !== input.mountId && destinationScopeId(mount.destination, mount.root.deviceId) === source.scopeId
+            && await get(tx, 'folderReservations', sourceKey(mount.id, input.collectionId))) throw new Error('sourceMappingMigrationRequired');
+        }
         const key = sourceKey(input.mountId, input.collectionId), digest = sourceDigest(input);
         let row = await get<SourceFolderReservation>(tx, 'folderReservations', key);
         if (row && row.payloadDigest !== digest) throw new Error('conflict');

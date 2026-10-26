@@ -1,3 +1,4 @@
+import { destinationScopeId } from './destination-scope.js';
 import { beginSourcePlan } from './plan-intents.js';
 import { contentBindingKey } from './content-identity.js';
 import { admitsSiteEdge } from '../automation/site-rule.js';
@@ -82,12 +83,18 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
     const root: NativeBinding<'folder'> = { bindingId: crypto.randomUUID(), nativeId: rootId, kind: 'folder', deviceId: await ports.deviceId(),
       dateAdded: node.dateAdded, proof: { kind: 'explicitAdoption', id: `rule:${ruleId}` } };
     await ports.assertRoot(root);
-    const value: SourceMount = { id: identity({ connectionId, ruleId }), connectionId, rootRuleId: ruleId, root, revision: 1, aiDestination: 'excluded', state: 'active',
-      ...(ports.destination ? { destination: await ports.destination(root) } : {}) };
+    const destination = ports.destination ? await ports.destination(root) : undefined;
+    const value: SourceMount = { id: identity({ connectionId, nativeId: root.nativeId, dateAdded: root.dateAdded, scopeId: destinationScopeId(destination, root.deviceId) }), connectionId, rootRuleId: ruleId, root, revision: 1, aiDestination: 'excluded', state: 'active',
+      ...(ports.destination ? { destination } : {}) };
     return withDestinationPolicyBoundary(async () => { await ports.beforeExclusion?.(); return db.transaction(['mounts'], 'readwrite', async tx => {
       const existing = await get<SourceMount>(tx, 'mounts', key);
       if (existing) { if (existing.root.nativeId !== rootId || existing.root.dateAdded !== root.dateAdded) throw new Error('mountMigrationRequired'); return existing; }
-      put(tx, 'mounts', key, value); return value;
+      const sameRoot = (await rows<SourceMount>(tx, 'mounts', connectionId)).filter(m => m.root.nativeId === root.nativeId && m.root.dateAdded === root.dateAdded
+        && m.root.deviceId === root.deviceId && sameDestinationOwner(m.destination, value.destination));
+      if (new Set(sameRoot.map(m => m.id)).size > 1 || sameRoot.some(m => m.state !== 'active')) throw new Error('mountMigrationRequired');
+      // Preserve historical folder commands and suppression when a rule is replaced.
+      const bound = sameRoot[0] ? { ...sameRoot[0], rootRuleId: ruleId } : value;
+      put(tx, 'mounts', key, bound); return bound;
     }); });
   }
   async function assertFolder(folder: SourceFolderReservation) {
@@ -200,7 +207,7 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
       // Reuse the immutable creation payload after a source rename; names never create identity.
       const folder = await reservations.reserveFolder(oldFolder ? {
         mountId: oldFolder.mountId, collectionId: oldFolder.collectionId, mountRevision: oldFolder.mountRevision, parent: oldFolder.parent, title: oldFolder.title,
-      } : { mountId: m.id, collectionId: input.collectionId, mountRevision: m.revision, parent: { kind: 'native', binding: m.root }, title: facts.collection.title }, { planId: id, effectId: 'folder' });
+      } : { mountId: m.id, collectionId: input.collectionId, mountRevision: m.revision, parent: { kind: 'native', binding: m.root }, title: facts.collection.title }, { planId: id, effectId: 'folder' }, { connectionId: c.connectionId, scopeId: destinationScopeId(m.destination, m.root.deviceId) });
       const ensure: SaveEffect = { kind: 'ensureSourceFolder', effectId: 'folder', commandId: identity({ id, effect: 'folder' }), payloadDigest: '',
         dependsOn: [], reservationId: folder.id, folderReservationDigest: folder.payloadDigest };
       const bookmark: SaveEffect = { kind: 'createBookmark', effectId: 'bookmark', commandId: bookmarkCommandId, payloadDigest: '',

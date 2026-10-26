@@ -1,3 +1,4 @@
+import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
 import { IDBFactory } from 'fake-indexeddb';
 import { checkRuleDraft, type RuleDraft } from '../src/automation/rule-conditions.js';
@@ -183,4 +184,24 @@ describe('deterministic layout and native ownership', () => {
     expect(result.status).toBe('suppressed');
     expect(await f.db.read('representations', representationKey(e.representation))).toMatchObject({ state: 'suppressed', manualRevision: 1 }); await f.db.close();
   });
+});
+
+it('replacing a rule preserves the original mount, command and deleted-copy suppression', async () => {
+  const f = await fixture();
+  try {
+    const first = await f.plan(), effect = first.effects.find(e => e.kind === 'createBookmark')!;
+    const rep: Representation = { ...effect.representation, native: { kind: 'bookmark', nativeId: 'deleted', dateAdded: 10, deviceId: 'device', bindingId: 'proof', proof: { kind: 'writeReceipt', id: 'receipt' } }, state: 'suppressed', manualRevision: 1 };
+    await f.db.transaction(['representations'], 'readwrite', async tx => { tx.objectStore('representations').put(rep, representationKey(rep)); });
+    f.setRecord(list(rule('replacement', ['101'])));
+    expect(await f.layout.plan({ context: f.context, itemId: 'video:av:1', collectionId: '101', entry: 'siteFavorite', trigger: { kind: 'observation', observationId: 'next' } }))
+      .toMatchObject({ status: 'suppressed', representation: rep });
+    expect(await f.db.read('mounts', sourceKey('connection', 'replacement'))).toMatchObject({ id: first.mount!.id });
+  } finally { await f.db.close(); }
+});
+it('a second rule cannot create a competing mapping in the same destination scope', async () => {
+  const f = await fixture();
+  try {
+    await f.plan(); f.setRecord(list(rule('replacement', ['101'], '31')));
+    await expect(f.plan()).rejects.toThrow('sourceMappingMigrationRequired');
+  } finally { await f.db.close(); }
 });
