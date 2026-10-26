@@ -70,6 +70,12 @@ async function parentFor(run: ReconcileRun, op: ReconcileOperation) {
 async function currentOperation(run: ReconcileRun, op: ReconcileOperation, undo: boolean) {
   if (undo) return;
   if ((op.difference.source || op.difference.kind === 'sourceRemoved') && Date.now() - run.preview.createdAt > 10 * 60 * 1000) throw new Error('previewStale');
+  if (op.difference.itemId && (op.difference.source || op.decision.choice === 'archive')) {
+    const baseline = await siteLedger.db.read<{ baselineOrdinal: number }>('importRuns', run.preview.importId);
+    if (!baseline) throw new Error('previewStale');
+    const edge = await siteLedger.db.read<LedgerEdge>('memberships', sourceKey(run.preview.context.connectionId, op.difference.itemId, op.difference.collectionId));
+    if (edge && edge.ordinal > baseline.baselineOrdinal && edge.state !== (op.decision.choice === 'archive' ? 'absent' : 'present')) throw new Error('sourceFactsChanged');
+  }
   if (op.difference.source) {
     const item = await siteLedger.db.read<{ entity: unknown }>('items', sourceKey(run.preview.context.connectionId, op.difference.itemId));
     if (!item || sourceDigest(item.entity) !== sourceDigest(op.difference.source)) throw new Error('sourceFactsChanged');
@@ -79,10 +85,6 @@ export const reconciliationRuns = createReconcileRuns(siteLedger.db, {
   authorize,
   async prepare(run, op, undo) {
     await currentOperation(run, op, undo);
-    if (!undo && op.decision.choice === 'archive') {
-      const edge = await siteLedger.db.read<LedgerEdge>('memberships', sourceKey(run.preview.context.connectionId, op.difference.itemId, op.difference.collectionId));
-      if (edge?.state === 'present' && edge.liveOrdinal > 0 && edge.ordinal > (await siteLedger.db.read<{ baselineOrdinal: number }>('importRuns', run.preview.importId))!.baselineOrdinal) throw new Error('sourceFactsChanged');
-    }
     const parent = undo ? { kind: 'folder', nativeId: '', bindingId: '', deviceId: '', dateAdded: null, proof: { kind: 'explicitAdoption', id: '' } } as NativeBinding<'folder'> : await parentFor(run, op);
     return prepareReconcileCommand(run, op, parent, undo);
   },
