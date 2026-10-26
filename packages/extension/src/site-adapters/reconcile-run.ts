@@ -11,7 +11,7 @@ export interface ReconcileOperation {
 }
 export interface ReconcileRun {
   id: string; preview: ReconcilePreview; scope: CaptureScope; state: 'approved' | 'completed' | 'cancelled';
-  operations: ReconcileOperation[]; updatedAt: number;
+  operations: ReconcileOperation[]; updatedAt: number; operationCursor?: number;
 }
 export interface ReconcileRunPorts {
   authorize(run: ReconcileRun, undo?: boolean): Promise<void>;
@@ -67,20 +67,42 @@ export function createReconcileRuns(db: SourceDatabase, ports: ReconcileRunPorts
     }),
     wake: () => lane(async () => {
       const runs = await records.wakePage(); let budget = 10;
-      for (const run of runs) if (run.state === 'approved' || run.operations.some(op => op.undoPending && op.undoAuthorized)) {
-        for (const op of run.operations) if (op.state === 'pending' && (run.state === 'approved' || op.undoPending && op.undoAuthorized) && budget-- > 0) await advance(run, op, op.undoPending);
-        if (run.state !== 'cancelled' && !run.operations.some(op => op.state === 'pending' || op.state === 'attention')) { run.state = 'completed'; await save(run); }
-        if (run.operations.some(op => op.state === 'pending' && (run.state === 'approved' || op.undoPending && op.undoAuthorized))) ports.schedule();
-        if (budget <= 0) { ports.schedule(); break; }
+      const queues = runs.map(run => {
+        const start = (run.operationCursor ?? 0) % Math.max(1, run.operations.length);
+        const ordered = run.operations.map((op, index) => ({ op, index }));
+        const operations = [...ordered.slice(start), ...ordered.slice(0, start)].filter(({ op }) =>
+          op.state === 'pending' && (run.state === 'approved' || op.undoPending && op.undoAuthorized)
+          || run.state === 'cancelled' && ['pending', 'attention'].includes(op.state) && op.command);
+        return { run, operations };
+      });
+      // Give every run a turn before revisiting one, and persist an operation cursor
+      // so waiting work cannot monopolize the next wake after worker reconstruction.
+      for (let round = 0; budget > 0 && queues.some(q => q.operations[round]); round++) {
+        for (const { run, operations } of queues) {
+          const next = operations[round]; if (!next || budget <= 0) continue;
+          budget--; const { op, index } = next; run.operationCursor = index + 1;
+          if (run.state === 'approved' || op.undoPending && op.undoAuthorized) await advance(run, op, op.undoPending);
+          else {
+            try {
+              const receipt = op.undoPending ? op.undoReceipt : op.receipt;
+              const result = receipt ? { receipt } : await ports.execute(run, op, true, !!op.undoPending);
+              if (result) {
+                if (op.undoPending) op.undoReceipt = result.receipt; else op.receipt = result.receipt;
+                await finish(run, op, !!op.undoPending);
+              }
+            } catch (e) { op.reason = e instanceof Error ? e.message : 'sourceReconcileUnavailable'; }
+            await save(run);
+          }
+        }
       }
-      for (const run of runs) if (run.state === 'cancelled') for (const op of run.operations) if (['pending', 'attention'].includes(op.state) && op.command && budget-- > 0) {
-        try { const receipt = op.undoPending ? op.undoReceipt : op.receipt;
-          const result = receipt ? { receipt } : await ports.execute(run, op, true, !!op.undoPending); if (result) {
-          if (op.undoPending) op.undoReceipt = result.receipt; else op.receipt = result.receipt;
-          await finish(run, op, !!op.undoPending);
-        } } catch (e) { op.reason = e instanceof Error ? e.message : 'sourceReconcileUnavailable'; await save(run); }
+      for (const run of runs) {
+        if (run.state !== 'cancelled' && !run.operations.some(op => op.state === 'pending' || op.state === 'attention')) {
+          run.state = 'completed'; await save(run);
+        }
+        if (run.operations.some(op => op.state === 'pending' && (run.state === 'approved' || op.undoPending && op.undoAuthorized)
+          || run.state === 'cancelled' && ['pending', 'attention'].includes(op.state) && op.command)) ports.schedule();
       }
-      if (runs.length === 10 && budget <= 0) ports.schedule();
+      if (runs.length === 10) ports.schedule();
     }),
     retry: (id: string, destinationId?: string) => lane(async () => { const run = await db.read<ReconcileRun>('meta', key(id)); if (!run) throw new Error('reconcileRunMissing');
       const eligible = run.operations.filter(op => op.state === 'attention' && (run.state !== 'cancelled' || op.undoPending));

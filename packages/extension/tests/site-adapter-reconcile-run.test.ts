@@ -111,3 +111,19 @@ test.each([false, true])('the original receipt is durable before finalization an
     expect((await recovered.status(preview.id))?.operations[0]?.state).toBe(undo ? 'undone' : 'completed');
   } finally { await f.db.close(); }
 });
+
+test('waiting operations cannot starve another run or later operations after restart', async () => {
+  const f = await fixture();
+  try {
+    const differences = Array.from({ length: 11 }, (_, i) => ({ ...preview.differences[0]!, id: String(i) }));
+    await f.runs.approve({ ...preview, id: 'a-waiting', differences }, scope,
+      differences.map(d => ({ id: d.id, choice: 'move', destinationId: 'history' })));
+    await f.runs.approve({ ...preview, id: 'b-ready' }, scope, [{ id: 'personal', choice: 'move', destinationId: 'history' }]);
+    vi.mocked(f.ports.execute).mockImplementation(async (run, op, recover) =>
+      run.id === 'a-waiting' && Number(op.difference.id) < 10 || recover ? null : { receipt: { id: 'saved' } });
+    await f.runs.wake();
+    expect((await f.runs.status('b-ready'))?.state).toBe('completed');
+    await createReconcileRuns(f.db, f.ports).wake();
+    expect((await f.runs.status('a-waiting'))?.operations[10]?.state).toBe('completed');
+  } finally { await f.db.close(); }
+});
