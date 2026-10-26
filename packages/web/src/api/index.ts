@@ -9,6 +9,7 @@ export {
 } from './productClient'
 export type { RecoveryStrategy } from './productClient'
 export type {
+  CoverMode, CoverPreferenceInput, CoverPreferenceView, ImageUploadView,
   AnnotationFormat,
   AnnotationMergePatch,
   AnnotationPage,

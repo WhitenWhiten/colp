@@ -3,6 +3,7 @@ import { type PublicCollectionNode } from '../../api'
 import { FolderEntries } from '../../components/FolderEntries'
 import { Icon } from '../../components/Icon'
 import { plural } from '../../lib/plural'
+import { folderGalleryCovers } from '../../lib/linkPreview'
 import {
   type PublicCollectionFolder,
   type PublicCollectionFolderEntry,
@@ -222,7 +223,7 @@ export function CollectionFolderLayer({ folders, view, searchFor, previews, tota
             to: { search: searchFor(node.id) },
             description: node.description,
             folderCount: preview?.folderCount ?? null,
-            covers: preview?.covers,
+            covers: folderGalleryCovers(node, preview?.covers ?? []),
           }
         })}
       />

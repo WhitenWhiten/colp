@@ -15,7 +15,7 @@ import { BOOKMARK_FILTER_PLACEHOLDER } from '../../lib/searchCopy'
 import { hostOf, rootTitle } from '../../lib/libraryTree'
 import { pluralNoun } from '../../lib/plural'
 import { useBookmarkAnnotations } from '../../lib/useBookmarkAnnotations'
-import { previewCover } from '../../lib/linkPreview'
+import { folderGalleryCovers, nodeGalleryCover } from '../../lib/linkPreview'
 import { useLinkPreviewRequests } from '../../lib/useLinkPreviewRequests'
 import type { useLibrary } from '../../lib/useLibrary'
 import type { useSharedCollections } from '../../lib/useSharedCollections'
@@ -128,19 +128,19 @@ export function BookmarkArea({
         node,
         inside,
         folderCount: snap.nodes.filter((child) => child.kind === 'folder' && child.parentId === node.id).length,
-        covers: inside.flatMap((bookmark) => previewCover(bookmark.previewImage) ?? []).slice(0, FOLDER_COVER_LIMIT),
+        covers: inside.flatMap((bookmark) => nodeGalleryCover(bookmark) ?? []).slice(0, FOLDER_COVER_LIMIT),
       }
     })
   }, [filtering, layer, snap])
   // A folder's mosaic is on screen too: ask for the first few covers inside.
   const folderCoverCandidates = gallery
-    ? folderCards.flatMap(({ inside }) => inside.slice(0, FOLDER_COVER_LIMIT))
+    ? folderCards.filter(({ node }) => (node.coverMode ?? 'auto') === 'auto').flatMap(({ inside }) => inside.slice(0, FOLDER_COVER_LIMIT))
     : []
   useLinkPreviewRequests({
     collectionId: snap?.collection.id ?? null,
     enabled: gallery && caps?.updateNode === true,
     missingNodeIds: [...visibleBookmarks, ...folderCoverCandidates]
-      .filter((node) => !node.previewImage).map((node) => node.id),
+      .filter((node) => !node.previewImage && (node.coverMode ?? 'auto') === 'auto').map((node) => node.id),
     onRefresh: () => {
       if (snap) void loadTree(snap.collection.id, { silent: true })
     },
@@ -295,7 +295,7 @@ export function BookmarkArea({
           }),
           ...(annotationMarks.get(node.id) ?? {}),
           ...bookmarkRowExtras(node, item.detailTo!),
-          cover: gallery ? previewCover(node.previewImage) : null,
+          cover: gallery ? nodeGalleryCover(node) : null,
         }
       })}
     />
@@ -495,7 +495,7 @@ export function BookmarkArea({
                 to: folderPath(node.id),
                 description: node.description,
                 folderCount,
-                covers: gallery ? covers : undefined,
+                covers: gallery ? folderGalleryCovers(node, covers) : undefined,
               }))}
               renderActions={canFolderActions ? (item) => {
                 const node = folderNodes.get(item.id)

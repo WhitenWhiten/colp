@@ -513,7 +513,7 @@ function ResultCard({
       data-resource-kind={item.kind}
       data-node-id={item.id}
     >
-      {cover ? <GalleryCover cover={cover} /> : null}
+      {cover ? <GalleryCover key={cover.url} cover={cover} /> : null}
       <div className="result-card-top">
         {item.selectable && (
           <input

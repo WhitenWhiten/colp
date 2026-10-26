@@ -1,4 +1,5 @@
 import { createProductFolderShareClient } from './product-client-folder-share'
+import { createProductCoverClient } from './product-client-covers'
 import { createProductFaviconClient } from './product-client-favicon'
 /**
  * Canonical Product API client used by Auth, Collection editor, Annotation workflows, and public reads.
@@ -58,6 +59,7 @@ const linkPreviewClient = createProductLinkPreviewClient(productTransport, mutat
 
 /** The sole application-level Product client instance. */
 export const productClient = Object.freeze({
+  ...createProductCoverClient(productTransport, mutationCall),
   ...createProductFolderShareClient(productTransport, mutationCall),
   ...createProductFaviconClient(productTransport, mutationCall),
   uploadBookmarkFavicon: collectionsClient.uploadBookmarkFavicon,

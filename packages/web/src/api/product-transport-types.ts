@@ -172,6 +172,9 @@ export type SearchParams = {
 }
 
 export type ProductTransport = {
+  uploadCollectionImage: (collectionId: string, file: File, opts: MutationCallOptions) => Promise<import('./types').ImageUploadView>
+  updateNodeCover: (collectionId: string, nodeId: string, body: import('./types').CoverPreferenceInput,
+    opts: MutationCallOptions & { revision: string }) => Promise<import('./types').CoverPreferenceView>
   getMyFaviconPolicy: (signal?: AbortSignal) => Promise<FaviconIconPolicy & { etag: string }>
   updateMyFaviconPolicy: (
     patch: FaviconIconPolicyPatch,

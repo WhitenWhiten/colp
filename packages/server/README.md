@@ -306,6 +306,10 @@ displaced image versions for at least the longest cache lifetime before garbage 
 
 ### Custom gallery covers
 
+In the Library, open a bookmark or folder's editor and use **Gallery cover** to
+upload an image, restore the automatic cover, or hide it. Cover changes save
+immediately and appear in both the Library and published collection Gallery.
+
 Owners and editors can upload a PNG, JPEG or WebP (up to 2 MiB and 4096 pixels per
 side) with `POST /api/v1/collections/{collectionId}/images`, then set a bookmark or
 folder cover with `PUT /api/v1/collections/{collectionId}/nodes/{nodeId}/cover`.

@@ -43,6 +43,14 @@ describe('ResourceList gallery mode', () => {
     expect(document.querySelector('[data-gallery-card] h3')?.textContent).toBe('Bookmark a')
   })
 
+  it('shows a replacement cover after the old image failed', async () => {
+    const view = renderWithRouter(<ResourceList mode="gallery" items={[item('a', { cover: COVER })]} />, { route: '/' })
+    await act(async () => document.querySelector('[data-gallery-cover] img')!.dispatchEvent(new Event('error')))
+    const next = { ...COVER, url: COVER.url.replace('/link-preview/', '/images/') }
+    view.rerender(<ResourceList mode="gallery" items={[item('a', { cover: next })]} />)
+    expect(document.querySelector('[data-gallery-cover] img')?.getAttribute('src')).toBe(next.url)
+  })
+
   it('never shows a cover on moderation tombstones or outside gallery mode', () => {
     renderWithRouter(<ResourceList mode="gallery" items={[item('h', { cover: COVER, hidden: true })]} />, { route: '/' })
     expect(document.querySelector('[data-gallery-cover]')).toBeNull()

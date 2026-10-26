@@ -1,4 +1,5 @@
 import { createFolderShareTransport } from './product-transport-folder-share'
+import { createCoverImageTransport } from './product-transport-covers'
 import { createFaviconTransport } from './product-transport-favicon'
 /**
  * Internal Product HTTP transport.
@@ -55,6 +56,7 @@ export function createProductTransport(
 ): ProductTransport {
   const http = createProductTransportHttp(options)
   return {
+    ...createCoverImageTransport(http),
     ...createSessionTransport(http),
     ...createEditorTransport(http),
     ...createFolderShareTransport(http),

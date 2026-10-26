@@ -1,6 +1,8 @@
 import { FaviconDropCard } from '../../components/FaviconDropCard'
+import { CoverImageControl } from '../../components/CoverImageControl'
 import { FaviconSourceControl } from '../../components/FaviconSourceControl'
 import { bookmarkIconSrc } from '../../lib/bookmarkIcon'
+import { nodeGalleryCover } from '../../lib/linkPreview'
 import { useCallback, useRef } from 'react'
 import type { NavigateFunction } from 'react-router-dom'
 import type { EditorSnapshot } from '../../api'
@@ -196,6 +198,12 @@ export function NodeEditDrawer({
              source instead of showing stale radios. */
           refreshKey={node.iconUrl ?? null}
         />
+      )}
+      {snap && node.coverRevision !== undefined && (
+        <CoverImageControl key={`${snap.collection.id}:${node.id}`}
+          collectionId={snap.collection.id} nodeId={node.id} kind={node.kind}
+          mode={node.coverMode ?? 'auto'} revision={node.coverRevision} image={nodeGalleryCover(node)}
+          disabled={!canEdit} onSaved={() => loadTree(snap.collection.id, { silent: true })} />
       )}
       <NodeAnnotationFields
         idPrefix="nd"

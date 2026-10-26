@@ -10,7 +10,7 @@ import { useLibrary } from '../../lib/useLibrary'
 import { bookmarkIconSrc } from '../../lib/bookmarkIcon'
 import { resourceDetailPath } from '../../lib/useResourceNode'
 import { resourceKindLabel } from '../../lib/resourceKind'
-import { previewCover } from '../../lib/linkPreview'
+import { nodeGalleryCover } from '../../lib/linkPreview'
 import { type PublicCollectionResource as CollectionResource } from '../../lib/publicCollectionTree'
 import { type ViewMode } from './format'
 import { UGC_REL } from '../../lib/ugcRel'
@@ -174,7 +174,7 @@ export const CollectionResources = memo(function CollectionResources({ resources
       kind: hidden || kind === 'Link' ? undefined : kind,
       to: hidden ? undefined : resourceDetailPath(resource.node.id, { subjectType: 'node', slug }),
       detailLink: (mode === 'board' || mode === 'gallery') && !hidden,
-      cover: mode === 'gallery' && !hidden ? previewCover(resource.node.previewImage) : null,
+      cover: mode === 'gallery' && !hidden ? nodeGalleryCover(resource.node) : null,
       actions: !hidden && (resource.href || onSave) ? (
         <>
           {onSave && <ResourceSaveButton resource={resource} onSave={onSave} />}

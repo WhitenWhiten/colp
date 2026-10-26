@@ -1,6 +1,6 @@
 /**
- * LP-06: bookmark preview covers. The server only ever sends its own
- * `/api/v1/link-preview/{uuid}` objects; anything else is dropped so a card
+ * Gallery covers use the Product origin's `/api/v1/link-preview/{uuid}` or
+ * `/api/v1/images/{uuid}` objects; anything else is dropped so a card
  * never hotlinks a third party, whatever a stale or foreign payload says.
  */
 export type PreviewCover = {
@@ -9,7 +9,7 @@ export type PreviewCover = {
   readonly height: number
 }
 
-const LINK_PREVIEW_PATH = /^\/api\/v1\/link-preview\/[a-f0-9-]{36}$/
+const LINK_PREVIEW_PATH = /^\/api\/v1\/(?:link-preview|images)\/[a-f0-9-]{36}$/
 const MAX_SIDE = 4096
 
 export function previewCover(value: unknown): PreviewCover | null {
@@ -31,4 +31,19 @@ export function previewCover(value: unknown): PreviewCover | null {
 
 function isSide(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= MAX_SIDE
+}
+
+/** Prefer the final cover field; older servers only supply the OG preview field. */
+export function nodeGalleryCover(node: { coverImage?: unknown; previewImage?: unknown }): PreviewCover | null {
+  return previewCover(node.coverImage === undefined ? node.previewImage : node.coverImage)
+}
+
+/** A folder's explicit cover takes precedence over its automatic descendant mosaic. */
+export function folderGalleryCovers(node: { coverMode?: 'auto' | 'custom' | 'none'; coverImage?: unknown }, automatic: readonly PreviewCover[]): readonly PreviewCover[] {
+  if (node.coverMode === 'none') return []
+  if (node.coverMode === 'custom') {
+    const custom = previewCover(node.coverImage)
+    return custom ? [custom] : []
+  }
+  return automatic
 }

@@ -1,5 +1,5 @@
 import type { PublicCollectionNode, PublicCollectionSnapshot } from '../api'
-import { previewCover, type PreviewCover } from './linkPreview'
+import { nodeGalleryCover, type PreviewCover } from './linkPreview'
 
 export function safeExternalUrl(value: string | null): string | null {
   if (!value) return null
@@ -264,7 +264,7 @@ export function folderPreviews(
         } else if (node.kind === 'bookmark') {
           preview.bookmarkCount += 1
           if (preview.covers.length < coverLimit) {
-            const cover = previewCover(node.previewImage)
+            const cover = nodeGalleryCover(node)
             if (cover) preview.covers.push(cover)
           }
           if (preview.sample.length < sampleSize) {

@@ -5,6 +5,10 @@
 import type { components } from '../generated/product-v1'
 
 export type Schemas = components['schemas']
+export type CoverMode = Schemas['CoverMode']
+export type CoverPreferenceInput = Schemas['CoverPreferenceInput']
+export type CoverPreferenceView = Schemas['CoverPreferenceView']
+export type ImageUploadView = Schemas['ImageUploadView']
 
 export type CsrfToken = Schemas['CsrfToken']
 
