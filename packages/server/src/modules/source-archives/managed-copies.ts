@@ -7,6 +7,7 @@ export type ManagedCopy = { content: ManagedContent } & (
 export interface ManagedFolder { site: string; identityVersion: number; sourceAccount: string; sourceCollectionId: string }
 export type ManagedSlot = { kind: 'bookmark'; copy: ManagedCopy } | { kind: 'folder'; source: ManagedFolder };
 export interface ManagedSaveCommand {
+  copyPolicy?: 'sourceAndSemantic' | 'singlePreferSemantic' | 'singleKeepExisting';
   commandId: string; replicaId: string; collectionId: string;
   parentId: string; parentRevision: string; slot: ManagedSlot; title: string; url: string | null;
   semanticClaim?: { ownerId: string; revision: number };
@@ -14,6 +15,7 @@ export interface ManagedSaveCommand {
 }
 export interface ManagedNode { nodeId: string; parentId: string; title: string; url: string | null; revision: string; deleted?: boolean }
 export interface ManagedSaveReceipt {
+  reusedFrom?: 'sourceArchive' | 'semantic';
   controlRevision?: number;
   version: 1; commandId: string; digest: string; key: string; node: ManagedNode;
   disposition: 'created' | 'reused' | 'detached' | 'suppressed';
@@ -86,7 +88,8 @@ export function managedSlotKey(collectionId: string, slot: ManagedSlot): string 
 export function parseManagedSave(raw: unknown): ManagedSaveCommand {
   const c = object(raw, ['commandId', 'replicaId', 'collectionId', 'parentId', 'parentRevision', 'slot', 'title', 'url',
     ...raw && typeof raw === 'object' && Object.hasOwn(raw, 'semanticClaim') ? ['semanticClaim'] : [],
-    ...raw && typeof raw === 'object' && Object.hasOwn(raw, 'adopt') ? ['adopt'] : []]);
+    ...raw && typeof raw === 'object' && Object.hasOwn(raw, 'adopt') ? ['adopt'] : [],
+    ...raw && typeof raw === 'object' && Object.hasOwn(raw, 'copyPolicy') ? ['copyPolicy'] : []]);
   for (const k of ['commandId', 'replicaId', 'collectionId', 'parentId', 'parentRevision']) text(c[k]);
   if (!/^[A-Za-z0-9][A-Za-z0-9:_-]{0,127}$/.test(String(c.commandId)) || ['constructor', 'prototype'].includes(String(c.commandId))) fail('invalid_managed_command');
   if (typeof c.title !== 'string' || c.title.length > 512 || /[\u0000-\u001f]/u.test(c.title)) fail('invalid_managed_command');
@@ -102,6 +105,7 @@ export function parseManagedSave(raw: unknown): ManagedSaveCommand {
     text(s.site, 512); integer(s.identityVersion); text(s.sourceAccount, 512); text(s.sourceCollectionId, 512);
     if (c.url !== null) fail('invalid_managed_url');
   } else fail('invalid_managed_copy');
+  if (c.copyPolicy !== undefined && !['sourceAndSemantic', 'singlePreferSemantic', 'singleKeepExisting'].includes(String(c.copyPolicy))) fail('invalid_managed_copy');
   if (c.semanticClaim !== undefined) {
     const claim = object(c.semanticClaim, ['ownerId', 'revision']); text(claim.ownerId); integer(claim.revision);
     if (kind !== 'bookmark' || (c.slot as { copy: ManagedCopy }).copy.purpose !== 'semantic') fail('invalid_managed_copy');
@@ -117,7 +121,20 @@ export async function saveManagedCopy(state: ManagedSaveState, command: ManagedS
     return previous;
   }
   await ports.assertTarget(command);
-  const key = managedSlotKey(command.collectionId, command.slot), binding = await observeManagedCopy(state, command.collectionId, command.slot, ports);
+  const key = managedSlotKey(command.collectionId, command.slot);
+  let binding = await observeManagedCopy(state, command.collectionId, command.slot, ports);
+  const single = command.copyPolicy !== undefined && command.copyPolicy !== 'sourceAndSemantic' && command.slot.kind === 'bookmark';
+  if (single && command.slot.kind === 'bookmark') {
+    const content = command.slot.copy.content, matches: ManagedBinding[] = [];
+    for (const candidate of Object.values(state.bindings)) {
+      if (candidate.collectionId !== command.collectionId || candidate.slot.kind !== 'bookmark') continue;
+      const c = candidate.slot.copy.content;
+      if (c.site !== content.site || c.identityVersion !== content.identityVersion || c.itemId !== content.itemId || c.accountId !== content.accountId) continue;
+      const current = await observeManagedCopy(state, command.collectionId, candidate.slot, ports); if (current) matches.push(current);
+    }
+    if (new Set(matches.map(b => b.node.nodeId)).size > 1) fail('source_copy_policy_needs_review');
+    binding = matches.find(b => b.state === 'suppressed') ?? matches.find(b => b.state === 'detached') ?? binding ?? matches[0] ?? null;
+  }
   const identity = command.slot.kind === 'folder' ? { site: command.slot.source.site, version: command.slot.source.identityVersion, account: command.slot.source.sourceAccount }
     : { site: command.slot.copy.content.site, version: command.slot.copy.content.identityVersion, account: command.slot.copy.purpose === 'sourceArchive' ? command.slot.copy.sourceAccount : command.slot.copy.content.accountId };
   if (!binding && Object.values(state.bindings).some(b => {
@@ -134,7 +151,7 @@ export async function saveManagedCopy(state: ManagedSaveState, command: ManagedS
     else if (binding.state === 'detached' || node.parentId !== binding.node.parentId || node.title !== binding.node.title
       || node.url !== binding.node.url) disposition = 'detached';
     else {
-      if (binding.node.parentId !== command.parentId && !(command.slot.kind === 'bookmark' && command.slot.copy.purpose === 'semantic')) fail('source_mapping_migration_required');
+      if (binding.node.parentId !== command.parentId && !single && !(command.slot.kind === 'bookmark' && command.slot.copy.purpose === 'semantic')) fail('source_mapping_migration_required');
       disposition = 'reused';
     }
   } else {
@@ -149,7 +166,8 @@ export async function saveManagedCopy(state: ManagedSaveState, command: ManagedS
       node = existing; disposition = 'reused';
     } else { node = await ports.create(command); disposition = 'created'; }
   }
-  const receipt: ManagedSaveReceipt = { version: 1, commandId: command.commandId, digest, key, node, disposition, controlRevision: binding?.controlRevision ?? 0 };
+  const receipt: ManagedSaveReceipt = { version: 1, commandId: command.commandId, digest, key, node, disposition, controlRevision: binding?.controlRevision ?? 0,
+    ...(disposition === 'reused' && binding?.slot.kind === 'bookmark' ? { reusedFrom: binding.slot.copy.purpose } : {}) };
   state.bindings[key] = { ...binding, slot: command.slot, collectionId: command.collectionId, node,
     state: disposition === 'suppressed' || disposition === 'detached' ? disposition : 'active' };
   state.receipts[command.commandId] = receipt;

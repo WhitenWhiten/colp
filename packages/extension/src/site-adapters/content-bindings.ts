@@ -104,16 +104,16 @@ export function createContentBindings(db: SourceDatabase, assertNative: (native:
         r.onerror = () => reject(r.error); r.onsuccess = () => { const c = r.result; if (!c) return resolve(undefined); if (c.value.captureIntentId === id) return resolve(c.value); c.continue(); };
       });
     }); },
-    async acknowledge(binding: ContentBindingRow, native: NativeBinding<'bookmark'>, node: { title: string; parentId: string }) {
+    async acknowledge(binding: ContentBindingRow, native: NativeBinding<'bookmark'>, node: { title: string; parentId: string }, mode?: ContentBindingRow['mode']) {
       await assertNative(native, node);
       return db.transaction(['contentBindings', 'representations', 'itemReservations', 'meta'], 'readwrite', async tx => {
         const key = contentKey(binding.content, binding.id), old = await get<ContentBindingRow>(tx, 'contentBindings', key);
         if (!old || old.native && old.native.nativeId !== native.nativeId || old.state === 'suppressed' || old.state === 'detached') throw new Error('content_binding_changed');
         const shared = old.shared ?? await managedReference(tx, old.managed);
-        put(tx, 'contentBindings', key, { ...old, ...(shared ? { shared } : {}), native, ...node, state: 'active', intentPending: false });
+        put(tx, 'contentBindings', key, { ...old, ...(shared ? { shared } : {}), native, ...node, mode: mode ?? old.mode, state: 'active', intentPending: false });
         if (old.connectionId) {
           const rep = semanticKey(old.connectionId, old.content.itemId, old.scopeId);
-          if (old.mode !== 'suggest') put(tx, 'representations', representationKey(rep), { ...rep, ...(shared ? { shared } : {}), native, state: 'active', manualRevision: 0, lastWritten: { ...node, url: old.url } } satisfies Representation);
+          if ((mode ?? old.mode) !== 'suggest') put(tx, 'representations', representationKey(rep), { ...rep, ...(shared ? { shared } : {}), native, state: 'active', manualRevision: 0, lastWritten: { ...node, url: old.url } } satisfies Representation);
           const reservation = await get<ItemReservation>(tx, 'itemReservations', representationKey(rep));
           if (reservation) put(tx, 'itemReservations', representationKey(rep), { ...reservation, state: 'confirmed' });
         }

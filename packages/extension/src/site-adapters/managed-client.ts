@@ -5,6 +5,7 @@ export type ManagedSlot = { kind: 'bookmark'; copy: ManagedCopy } | { kind: 'fol
   site: string; identityVersion: number; sourceAccount: string; sourceCollectionId: string;
 } };
 export interface ManagedSaveCommand {
+  copyPolicy?: 'sourceAndSemantic' | 'singlePreferSemantic' | 'singleKeepExisting';
   commandId: string; replicaId: string; collectionId: string; parentId: string; parentRevision: string;
   slot: ManagedSlot; title: string; url: string | null;
   semanticClaim?: { ownerId: string; revision: number };
@@ -21,6 +22,7 @@ export interface ManagedReconcileReceipt {
   afterState?: 'active' | 'suppressed'; keepPhysical?: boolean;
 }
 export interface ManagedSaveReceipt {
+  reusedFrom?: 'sourceArchive' | 'semantic';
   controlRevision?: number;
   version: 1; commandId: string; digest: string; key: string; node: ManagedNode; disposition: 'created' | 'reused' | 'detached' | 'suppressed';
 }
@@ -47,7 +49,8 @@ export function createManagedCopyClient(ports: { origin: string; fetch: typeof f
     await ports.assertCurrent(); return data;
   }
   return {
-    async profile() { if ((await request() as { managedCopies?: number })?.managedCopies !== 1) throw new Error('sourceSyncUpgradeRequired'); },
+    async profile(copyPolicy?: ManagedSaveCommand['copyPolicy']) { const profile = await request() as { managedCopies?: number; managedCopyPolicy?: number };
+      if (profile.managedCopies !== 1 || copyPolicy && copyPolicy !== 'sourceAndSemantic' && profile.managedCopyPolicy !== 1) throw new Error('sourceSyncUpgradeRequired'); },
     async semanticProfile() { const profile = await request() as { managedCopies?: number; managedSemantic?: number };
       if (profile?.managedCopies !== 1 || profile.managedSemantic !== 1) throw new Error('sourceSyncUpgradeRequired'); },
     async reconcileProfile() { if ((await request() as { managedReconcile?: number }).managedReconcile !== 1) throw new Error('sourceSyncUpgradeRequired'); },

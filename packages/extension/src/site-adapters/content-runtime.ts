@@ -139,7 +139,7 @@ export function installContentBindings() {
       const b = await contentBindings.forIntent(task.captureId); if (!b || b.supersededBy) return;
       const node = (await chrome.bookmarks.get(task.nativeId))[0]; if (!node?.parentId) throw new Error('content_binding_needs_review');
       await contentBindings.acknowledge(b, b.native ?? { nativeId: node.id, dateAdded: task.nativeDateAdded, deviceId: await captureDeviceId(), kind: 'bookmark',
-        bindingId: crypto.randomUUID(), proof: { kind: 'writeReceipt', id: task.nativeIntentId ?? task.commandId } }, { title: node.title, parentId: node.parentId });
+        bindingId: crypto.randomUUID(), proof: { kind: 'writeReceipt', id: task.nativeIntentId ?? task.commandId } }, { title: node.title, parentId: node.parentId }, task.contentIntent.mode);
       if (!b.managed && b.scopeId && !b.scopeId.startsWith('["local",')) {
         const saved = await contentBindings.forIntent(task.captureId);
         if (saved && !(saved.shared?.slot.kind === 'bookmark' && saved.shared.slot.copy.purpose === 'semantic')) {

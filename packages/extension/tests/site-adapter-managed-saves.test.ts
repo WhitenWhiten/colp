@@ -89,3 +89,11 @@ test('offline requests remain pending and an old server requires an update witho
   const refreshing = createManagedCopyClient({ origin: library.serverOrigin, fetch: async () => Response.json({ error: { code: 'source_replica_unavailable' } }, { status: 403 }), headers: async () => ({}), assertCurrent: async () => {} });
   await expect(refreshing.call('managed.save', {})).rejects.toThrow('sourceSyncPending');
 });
+
+test('single-copy dispatch requires explicit server policy support', async () => {
+  let profile = { managedCopies: 1, managedCopyPolicy: 0 };
+  const client = createManagedCopyClient({ origin: library.serverOrigin, fetch: async () => Response.json(profile), headers: async () => ({}), assertCurrent: async () => {} });
+  await expect(client.profile('singleKeepExisting')).rejects.toThrow('sourceSyncUpgradeRequired');
+  profile = { ...profile, managedCopyPolicy: 1 };
+  await expect(client.profile('singleKeepExisting')).resolves.toBeUndefined();
+});

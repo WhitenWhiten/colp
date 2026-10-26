@@ -7,7 +7,7 @@ export interface PlannedNativeCommand {
   managed?: import('./managed-client.js').ManagedDestination;
   bookmark?: { planId: string; effectId: string; representation: RepresentationKey; url: string; scope: CaptureScope; source: CaptureSource };
 }
-export type PlannedNativeResult = { status: 'confirmed'; native: NativeBinding; written?: { title: string; parentId: string; url?: string } } | { status: 'unknown' | 'blocked'; reason: string };
+export type PlannedNativeResult = { status: 'confirmed'; reusedFrom?: 'sourceArchive' | 'semantic'; native: NativeBinding; written?: { title: string; parentId: string; url?: string } } | { status: 'unknown' | 'blocked'; reason: string };
 export interface SourceOutbox { command: PlannedNativeCommand; digest: string; state: 'reserved' | 'submitted' | 'unknown' | 'acknowledged'; native?: NativeBinding; executorAcknowledged?: boolean }
 export interface PlannedExecutionPorts {
   deviceId(): Promise<string>; scope(): Promise<CaptureScope>;

@@ -1,3 +1,5 @@
+import { siteLedger } from './source-runtime.js';
+import { identityDefinition } from './registry.js';
 import type { CaptureScope, CaptureTask } from '../capture/contracts.js';
 import type { ContentIdentity, NativeBinding } from './contracts.js';
 import type { ManagedDestination, SemanticClaimResult } from './managed-client.js';
@@ -18,7 +20,9 @@ export async function prepareSemanticCapture(input: { commandId: string; capture
   const command: PlannedNativeCommand = { commandId: input.commandId, ownerId: input.captureIntentId, connectionId: '', kind: 'bookmark', parent,
     title: input.title, logicalDigest: sourceDigest(input), deviceId: parent.deviceId,
     bookmark: { planId: input.captureIntentId, effectId: 'semantic', representation: { connectionId: '', itemId: content.itemId, purpose: 'semantic', sourceCollectionId: null, mountId: null }, url: input.url, scope, source: 'site-import' } };
-  const prepared = await managedSaves.prepareForSlot(command, { kind: 'bookmark', copy: { purpose: 'semantic', content: managedContent(content) } });
+  const authority = await siteLedger.db.read<import('./ledger-types.js').SourceAuthority>('authorities', identityDefinition(content.siteKey, content.identityVersion).adapterId);
+  const policy = authority?.enabled && authority.connectionId ? await siteLedger.db.read<import('./layout.js').SourcePolicyRecord>('meta', `policy:${authority.connectionId}`) : undefined;
+  const prepared = await managedSaves.prepareForSlot(command, { kind: 'bookmark', copy: { purpose: 'semantic', content: managedContent(content) } }, policy?.enabled ? policy.policy.copies : undefined);
   const managed = prepared.managed;
   if (!managed) return {};
   const client = await managedClientForLibrary(managed.library); await client.semanticProfile();
@@ -43,5 +47,6 @@ export async function saveSemanticCapture(task: CaptureTask, recover: boolean) {
   let result = recover ? await managedSaves.recover(command) : null;
   if (!result) { await authorize(); result = await managedSaves.execute(command, authorize); }
   if (result.status === 'blocked') throw new Error(result.reason);
-  return result.status === 'confirmed' ? { nativeId: result.native.nativeId, savedAt: result.native.dateAdded! } : null;
+  return result.status === 'confirmed' ? { nativeId: result.native.nativeId, savedAt: result.native.dateAdded!,
+    ...(result.reusedFrom ? { reuseMode: result.reusedFrom === 'semantic' ? 'reuse' as const : intent.managed.command.copyPolicy === 'singlePreferSemantic' ? 'reclassify' as const : 'suggest' as const } : {}) } : null;
 }

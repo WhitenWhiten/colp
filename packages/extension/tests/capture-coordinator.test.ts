@@ -165,3 +165,20 @@ describe('capture admission', () => {
     expect(validCaptureRequest({ ...start, folderChoice: 'rule' })).toBe(false);
   });
 });
+
+it.each(['reuse', 'suggest', 'reclassify'] as const)('shared reuse receipts preserve the %s classification policy through recovery', async reuseMode => {
+  const { store, ports } = harness();
+  try {
+    const input = { ...task, automaticIntent: true, classification: 'waiting' as const, contentIntent: {
+      bindingId: 'binding', itemId: 'item', connectionId: 'source', mode: 'create' as const, captureIntentId: task.captureId,
+      title: task.title, url: task.url, parentId: task.targetNativeId,
+    } };
+    ports.create = async (_task, reserved) => { await reserved('managed'); throw new Error('response-lost'); };
+    const coordinator = createCaptureCoordinator(ports); await coordinator.start(input);
+    expect((await coordinator.resume(task.scope, task.captureId)).save).toBe('unknown');
+    ports.receipt = async () => ({ nativeId: '1', location, sync: 'pending', reuseMode });
+    const saved = await createCaptureCoordinator(ports).resume(task.scope, task.captureId);
+    expect(saved).toMatchObject({ disposition: 'existing', save: 'local-saved', contentIntent: { mode: reuseMode },
+      automaticIntent: reuseMode === 'reclassify', classification: reuseMode === 'reclassify' ? 'waiting' : 'none' });
+  } finally { await store.close(); }
+});

@@ -2,7 +2,7 @@ import type { CaptureExistence, CaptureLocation, CaptureScope, CaptureTask, Sync
 import { transitionCapture } from './state.js';
 import type { CaptureStore } from './store.js';
 
-export interface CaptureReceipt { readonly nativeId: string; readonly location: CaptureLocation; readonly sync: SyncState; readonly savedAt?: number; readonly nativeDateAdded?: number }
+export interface CaptureReceipt { readonly nativeId: string; readonly location: CaptureLocation; readonly sync: SyncState; readonly savedAt?: number; readonly nativeDateAdded?: number; readonly reuseMode?: 'reuse' | 'suggest' | 'reclassify' }
 export interface CapturePorts {
   readonly store: CaptureStore;
   now(): number;

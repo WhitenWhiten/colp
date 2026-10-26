@@ -82,7 +82,7 @@ export async function createNativeCapture(task: CaptureTask, reserved: (intentId
     await reserved(`managed:${task.commandId}`);
     const result = await (await import('../site-adapters/semantic-capture.js')).saveSemanticCapture(task, false);
     if (!result) throw new Error('sourceSyncPending');
-    const receipt = { ...await receiptFor(result.nativeId, task.scope, result.savedAt), nativeDateAdded: result.savedAt };
+    const receipt = { ...await receiptFor(result.nativeId, task.scope, result.savedAt), nativeDateAdded: result.savedAt, ...(result.reuseMode ? { reuseMode: result.reuseMode } : {}) };
     await browserHistoryStore.remember({ ...task, savedAt: result.savedAt }, result.nativeId).catch(() => undefined);
     await saved(receipt); return receipt;
   }
@@ -116,7 +116,7 @@ export async function recoverNativeCapture(task: CaptureTask): Promise<CaptureRe
   if (task.contentIntent?.managed) {
     const result = await (await import('../site-adapters/semantic-capture.js')).saveSemanticCapture(task, true);
     if (!result) return null;
-    return { ...await receiptFor(result.nativeId, task.scope, result.savedAt), nativeDateAdded: result.savedAt };
+    return { ...await receiptFor(result.nativeId, task.scope, result.savedAt), nativeDateAdded: result.savedAt, ...(result.reuseMode ? { reuseMode: result.reuseMode } : {}) };
   }
   const reservation = await createBookmarkCreatePlacementStore().get(task.nativeIntentId);
   const key = `${BOOKMARK_CREATE_RECEIPT_KEY_PREFIX}${task.nativeIntentId}`;

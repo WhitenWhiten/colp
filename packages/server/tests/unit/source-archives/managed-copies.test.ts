@@ -122,3 +122,34 @@ test('the generic protocol accepts an unregistered site without accepting page c
   const c = command(); if (c.slot.kind !== 'bookmark') throw new Error('fixture');
   expect(() => parseManagedSave({ ...c, slot: { kind: 'bookmark', copy: { ...c.slot.copy, content: { ...c.slot.copy.content, accountId: 'other' } } } })).toThrow('invalid_managed_copy');
 });
+
+test.each(['singleKeepExisting', 'singlePreferSemantic'] as const)('concurrent source and semantic plans obey %s regardless of commit order', async copyPolicy => {
+  for (const semanticFirst of [false, true]) {
+    const f = fixture(), source = { ...command(), copyPolicy };
+    if (source.slot.kind !== 'bookmark') throw new Error('fixture');
+    const semantic: ManagedSaveCommand = { ...source, commandId: 'semantic', replicaId: 'device-b', parentId: 'topics',
+      slot: { kind: 'bookmark', copy: { purpose: 'semantic', content: source.slot.copy.content } } };
+    if (semantic.slot.kind !== 'bookmark') throw new Error('fixture');
+    const claim = claimManagedSemantic(f.state, 'library', semantic.slot.copy, 'semantic');
+    if (claim.status !== 'claimed') throw new Error('fixture');
+    semantic.semanticClaim = { ownerId: 'semantic', revision: claim.claim.revision };
+    const ordered = semanticFirst ? [semantic, source] : [source, semantic];
+    const first = await saveManagedCopy(f.state, ordered[0]!, f.ports);
+    const next = await saveManagedCopy(f.state, ordered[1]!, f.ports);
+    expect(next.node.nodeId).toBe(first.node.nodeId); expect(next.disposition).toBe('reused');
+    expect(next.reusedFrom).toBe(semanticFirst ? 'semantic' : 'sourceArchive');
+    expect(f.ports.create).toHaveBeenCalledTimes(1);
+    expect(recoverManagedCopy(f.state, next.commandId, next.digest)).toEqual(next);
+  }
+});
+test('single-copy arbitration preserves suppression and rejects an existing multi-copy migration', async () => {
+  const f = fixture(), c = command(); if (c.slot.kind !== 'bookmark' || c.slot.copy.purpose !== 'sourceArchive') throw new Error('fixture');
+  const first = await saveManagedCopy(f.state, c, f.ports);
+  markManagedChange(f.state, 'library', c.slot, first.node.nodeId, 'suppressed');
+  const other = { ...c, commandId: 'other', copyPolicy: 'singleKeepExisting' as const,
+    slot: { kind: 'bookmark' as const, copy: { ...c.slot.copy, sourceCollectionId: 'other' } } };
+  expect((await saveManagedCopy(f.state, other, f.ports)).disposition).toBe('suppressed');
+  await saveManagedCopy(f.state, { ...other, commandId: 'explicit-multiple', copyPolicy: 'sourceAndSemantic',
+    slot: { kind: 'bookmark', copy: { ...c.slot.copy, sourceCollectionId: 'third' } } }, f.ports);
+  await expect(saveManagedCopy(f.state, { ...other, commandId: 'single-again' }, f.ports)).rejects.toThrow('source_copy_policy_needs_review');
+});

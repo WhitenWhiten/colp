@@ -7,7 +7,7 @@ import { sourceDigest, type SourceDatabase } from './source-db.js';
 export interface ManagedSavePorts {
   destination(parent: NativeBinding<'folder'>): Promise<{ library: ManagedLibrary; replicaId: string; parentId: string; parentRevision: string } | null>;
   slot(plan: SavePlan, effect: SaveEffect): Promise<ManagedSlot>;
-  client(library: ManagedLibrary): Promise<{ profile(): Promise<void>; call<T>(action: 'managed.save' | 'managed.recover' | 'managed.lookup', input: unknown): Promise<T> }>;
+  client(library: ManagedLibrary): Promise<{ profile(copyPolicy?: ManagedSaveCommand['copyPolicy']): Promise<void>; call<T>(action: 'managed.save' | 'managed.recover' | 'managed.lookup', input: unknown): Promise<T> }>;
   projection(destination: ManagedDestination, receipt: ManagedSaveReceipt): Promise<{ native: NativeBinding; parentId: string } | null>;
   wake(): void;
 }
@@ -24,16 +24,16 @@ export function assertManagedReceipt(value: ManagedSaveReceipt, command: Managed
     || !['created', 'reused', 'detached', 'suppressed'].includes(value.disposition)
     || ['created', 'reused'].includes(value.disposition) && (n.deleted
       || value.disposition === 'created' && (n.parentId !== command.parentId || n.url !== command.url)
-      || n.parentId !== command.parentId && !(command.slot.kind === 'bookmark' && command.slot.copy.purpose === 'semantic'))) throw new Error('sourceSyncInvalid');
+      || n.parentId !== command.parentId && !(command.slot.kind === 'bookmark' && (command.slot.copy.purpose === 'semantic' || command.copyPolicy && command.copyPolicy !== 'sourceAndSemantic')))) throw new Error('sourceSyncInvalid');
 }
 /** Shared creation is complete before ordinary Sync projects a native node. No competing local create. */
 export function createManagedSaves(db: SourceDatabase, ports: ManagedSavePorts) {
-  async function prepareForSlot(command: PlannedNativeCommand, slot: () => Promise<ManagedSlot>) {
+  async function prepareForSlot(command: PlannedNativeCommand, slot: () => Promise<ManagedSlot>, copyPolicy?: ManagedSaveCommand['copyPolicy']) {
     const target = await ports.destination(command.parent); if (!target) return command;
     const title = siteDisplayTitle(command.title); if (!title) throw new Error('invalidSourceTitle');
     const managed: ManagedDestination = { library: target.library, command: { commandId: command.commandId, replicaId: target.replicaId,
       collectionId: target.library.collectionId, parentId: target.parentId, parentRevision: target.parentRevision,
-      slot: await slot(), title, url: command.bookmark?.url ?? null } };
+      slot: await slot(), title, url: command.bookmark?.url ?? null, ...(copyPolicy && copyPolicy !== 'sourceAndSemantic' ? { copyPolicy } : {}) } };
     return { ...command, title, managed };
   }
   const receiptKey = (d: ManagedDestination) => `managedReceipt:${managedLibraryKey(d.library)}:${d.command.commandId}`;
@@ -51,21 +51,22 @@ export function createManagedSaves(db: SourceDatabase, ports: ManagedSavePorts) 
       const { binding } = await (await ports.client(d.library)).call<{ binding: ManagedBinding | null }>('managed.lookup', { collectionId: d.command.collectionId, slot: d.command.slot });
       if (binding && (binding.state === 'suppressed' || binding.state === 'detached')) return { status: 'blocked', reason: binding.state === 'suppressed' ? 'sourceCopySuppressed' : 'sourceCopyDetached' };
     }
-    return projected ? { status: 'confirmed', native: projected.native, written: { title: receipt.node.title, parentId: projected.parentId, ...(receipt.node.url === null ? {} : { url: receipt.node.url }) } }
+    return projected ? { status: 'confirmed', native: projected.native, ...(receipt.reusedFrom ? { reusedFrom: receipt.reusedFrom } : {}), written: { title: receipt.node.title, parentId: projected.parentId, ...(receipt.node.url === null ? {} : { url: receipt.node.url }) } }
       : { status: 'unknown', reason: 'sourceSyncPending' };
   }
   return {
     async prepare(command: PlannedNativeCommand, plan: SavePlan, effect: SaveEffect) {
-      return prepareForSlot(command, () => ports.slot(plan, effect));
+      const policy = await db.read<import('./layout.js').SourcePolicyRecord>('meta', `policy:${plan.connectionId}`);
+      return prepareForSlot(command, () => ports.slot(plan, effect), policy?.policy.copies);
     },
-    prepareForSlot: (command: PlannedNativeCommand, slot: ManagedSlot) => prepareForSlot(command, async () => slot),
+    prepareForSlot: (command: PlannedNativeCommand, slot: ManagedSlot, copyPolicy?: ManagedSaveCommand['copyPolicy']) => prepareForSlot(command, async () => slot, copyPolicy),
     async execute(command: PlannedNativeCommand, authorize: () => Promise<void>): Promise<PlannedNativeResult> {
       const d = command.managed; if (!d) throw new Error('managedDestinationRequired');
       const client = await ports.client(d.library);
       let receipt = await db.read<ManagedSaveReceipt>('meta', receiptKey(d));
       if (!receipt) {
         try {
-          await client.profile(); await authorize();
+          await client.profile(d.command.copyPolicy); await authorize();
           receipt = await remember(d, await client.call<ManagedSaveReceipt>('managed.save', d.command));
         } catch (error) { if (error instanceof Error && error.message === 'sourceSyncPending') ports.wake(); throw error; }
       }
