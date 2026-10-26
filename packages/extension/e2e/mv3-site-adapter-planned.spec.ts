@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { openExtensionOptions } from './extension-auth.js';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
+import { openSiteAdapterTab } from './site-adapter-ui.js';
 const extensionPath = resolve(import.meta.dirname, '../dist/development');
 const extensionId = 'pplpnpegpnghcddhmpgkbfkdfadjiaen';
 async function call<T = any>(page: Page, request: Record<string, unknown>): Promise<T> {
@@ -21,6 +22,7 @@ test('planned native commands survive worker cuts or expose unknown without repl
   const context = await chromium.launchPersistentContext(profile, { headless: false, channel: 'chromium', args: [
     `--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`,
   ] });
+  context.setDefaultTimeout(20_000);
   let modelCalls = 0;
   const cuts: { point: string; commandId: string; resumedStatus: string; folders: number; bookmarks: number }[] = [];
   try {
@@ -83,7 +85,7 @@ test('planned native commands survive worker cuts or expose unknown without repl
     expect(await page.evaluate(id => chrome.bookmarks.getChildren(id), layoutFolders[0]!.id)).toHaveLength(1);
     expect(await page.evaluate(id => chrome.bookmarks.getChildren(id), layoutRoot.id)).toHaveLength(0);
     expect(modelCalls).toBe(0);
-    await page.locator('#tab-recovery').click(); await page.locator('#repair-status').click();
+    await openSiteAdapterTab(page, 'recovery'); await page.locator('#repair-status').click();
     await expect(page.locator('#repair-summary')).toContainText('replacement creates are blocked');
     const repair = JSON.parse((await page.locator('#repair-summary').textContent())!);
     // A worker cut leaves the durable outbox submitted even when native recovery reports unknown.

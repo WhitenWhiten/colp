@@ -91,28 +91,20 @@ describe('Library', () => {
     expect(document.querySelector('[data-testid="library-workspace"]')).not.toBeNull()
   })
 
-  it('re-pages an open collection on tab return only once it is stale (R15-29)', async () => {
+  it('revalidates the open collection on tab return using the rendered snapshot', async () => {
     mocks.collections.items = [entry('one', 'One')]
     mount('/library/one')
     await waitForDom(domFinishedLoading)
     await waitForDom(() => mocks.loadEditorSnapshot.mock.calls.length > 0)
     const initial = mocks.loadEditorSnapshot.mock.calls.length
-    const settle = () => new Promise((resolve) => { setTimeout(resolve, 400) })
-
     window.dispatchEvent(new Event('focus'))
     document.dispatchEvent(new Event('visibilitychange'))
-    await act(settle)
-    expect(mocks.loadEditorSnapshot.mock.calls.length).toBe(initial)
-
-    // A clock 61 s ahead that keeps ticking, so the refresh debounce can flush.
-    const realNow = Date.now.bind(Date)
-    const clock = vi.spyOn(Date, 'now').mockImplementation(() => realNow() + 61_000)
-    try {
-      document.dispatchEvent(new Event('visibilitychange'))
-      await waitForDom(() => mocks.loadEditorSnapshot.mock.calls.length > initial)
-    } finally {
-      clock.mockRestore()
-    }
+    await waitForDom(() => mocks.loadEditorSnapshot.mock.calls.length > initial)
+    expect(mocks.loadEditorSnapshot.mock.calls.length).toBe(initial + 1)
+    expect(mocks.loadEditorSnapshot).toHaveBeenLastCalledWith('one', expect.objectContaining({
+      cachedSnapshot: snapshot('one', 'One'),
+      signal: expect.any(AbortSignal),
+    }))
   })
 
   it('switches Comfort and Compact bookmark layouts without a refresh', async () => {

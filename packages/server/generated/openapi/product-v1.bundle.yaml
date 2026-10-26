@@ -102,6 +102,11 @@ paths:
       responses:
         '201':
           description: Uploaded image.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -169,6 +174,11 @@ paths:
       responses:
         '200':
           description: Updated cover settings.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -234,14 +244,17 @@ paths:
           description: Validated image bytes.
           headers:
             Cache-Control:
-              schema:
-                type: string
+              $ref: '#/components/headers/UploadedImageCache'
             ETag:
-              schema:
-                type: string
+              $ref: '#/components/headers/ETag'
             Vary:
               schema:
                 type: string
+                const: Cookie
+            X-Content-Type-Options:
+              $ref: '#/components/headers/XContentTypeOptions'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
           content:
             image/png:
               schema:
@@ -257,6 +270,19 @@ paths:
                 format: binary
         '304':
           description: Image unchanged after current authorization.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/UploadedImageCache'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Vary:
+              schema:
+                type: string
+                const: Cookie
+            X-Content-Type-Options:
+              $ref: '#/components/headers/XContentTypeOptions'
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
         '404':
           $ref: '#/components/responses/NotFound'
         '429':
@@ -9675,6 +9701,17 @@ paths:
                 $ref: '#/components/schemas/PublicCollectionPage'
         '304':
           description: Current authorized public projection is unchanged.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PublicOrPrivateCache'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Vary:
+              schema:
+                type: string
+                const: Cookie
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
@@ -20152,6 +20189,13 @@ components:
       schema:
         type: string
         const: public, max-age=30, must-revalidate
+    UploadedImageCache:
+      description: Immutable uploaded image bytes; shared publicly for one year or cached privately for seven days.
+      schema:
+        type: string
+        enum:
+          - public, max-age=31536000, immutable
+          - private, max-age=604800, immutable
     PublicOrPrivateCache:
       description: Public shared cache for anonymous reads; private no-store for Session reads.
       schema:

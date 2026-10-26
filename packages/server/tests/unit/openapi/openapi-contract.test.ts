@@ -220,7 +220,7 @@ test('cache, request ID, errors, and stable response headers remain reusable ref
       );
       assert.match(
         String((headers['Cache-Control'] as UnknownRecord)?.$ref),
-        /^#\/components\/headers\/(?:PrivateNoStore|NoStore|PublicRevalidate|PublicOrPrivateCache|PublicProfileCache|PublicImmutableImageCache|PublicRevocableImageCache|PublicShortCache)$/,
+        /^#\/components\/headers\/(?:PrivateNoStore|NoStore|PublicRevalidate|PublicOrPrivateCache|PublicProfileCache|PublicImmutableImageCache|PublicRevocableImageCache|PublicShortCache|UploadedImageCache)$/,
         `${method.toUpperCase()} ${path} ${status} must reference a cache policy`,
       );
     }

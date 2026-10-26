@@ -322,7 +322,7 @@ function routeChunks(source: string): Array<{ method: string; call: string }> {
   return chunks;
 }
 
-function collectGets(file: string, source: string): GetSite[] {
+function collectGets(file: string, source: string, imageDeliveryPaths: readonly string[]): GetSite[] {
   const stripped = stripComments(source);
   const consts = constMap(stripped);
   const alternatives = new Map<string, readonly string[]>();
@@ -348,7 +348,8 @@ function collectGets(file: string, source: string): GetSite[] {
     if (chunk.method === 'ROUTE') continue;
     if (chunk.method !== 'GET' && chunk.method !== 'HEAD') continue;
     const arg = firstArg(chunk.call);
-    for (const route of alternatives.get(arg) ?? [resolveRoute(arg, consts, stripped)]) {
+    const paths = arg === 'options.path' ? imageDeliveryPaths : alternatives.get(arg) ?? [resolveRoute(arg, consts, stripped)];
+    for (const route of paths) {
       sites.push({ file, route, method: chunk.method, auth: readAuth(chunk.call, stripped) });
     }
   }
@@ -365,7 +366,23 @@ function collectTransportFiles(directory: string, prefix = ''): string[] {
 
 function collectTransportGets(): GetSite[] {
   const files = collectTransportFiles(transportDir).sort();
-  return files.flatMap((name) => collectGets(name, readFileSync(join(transportDir, name), 'utf8')));
+  const sources = files.map((name) => ({ name, source: readFileSync(join(transportDir, name), 'utf8') }));
+  const imageDeliveryPaths: string[] = [];
+  for (const { name, source } of sources) {
+    const syntax = ts.createSourceFile(name, source, ts.ScriptTarget.Latest, true);
+    const visit = (node: ts.Node): void => {
+      if (ts.isCallExpression(node) && node.expression.getText(syntax) === 'registerImageDeliveryRoute') {
+        const options = node.arguments[2];
+        assert.ok(options && ts.isObjectLiteralExpression(options), 'image delivery options must be statically readable');
+        const path = options.properties.find((property) => ts.isPropertyAssignment(property) && property.name.getText(syntax) === 'path');
+        assert.ok(path && ts.isPropertyAssignment(path) && ts.isStringLiteral(path.initializer), 'image delivery path must be a literal');
+        imageDeliveryPaths.push(path.initializer.text);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(syntax);
+  }
+  return sources.flatMap(({ name, source }) => collectGets(name, source, imageDeliveryPaths));
 }
 
 test('requireSessionActor requires an explicit touch boolean (no silent default)', () => {
@@ -471,6 +488,7 @@ const SESSION_GATED_GET_GOLD = [
   '/api/v1/collections/:collectionId/relations',
   '/api/v1/collections/:collectionId/relations/:relationId',
   '/api/v1/favicon/:faviconId',
+  '/api/v1/images/:imageId',
   '/api/v1/link-preview/:previewId',
   '/api/v1/mcp/approvals',
   '/api/v1/mcp/approvals/:planId',

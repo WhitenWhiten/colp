@@ -3,6 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
+import { openSiteAdapterTab } from './site-adapter-ui.js';
 const extensionPath = resolve(import.meta.dirname, '../dist/development');
 
 test('bundled inspector scopes worlds, reconnects routes and fences revocation without native effects', async () => {
@@ -11,6 +12,7 @@ test('bundled inspector scopes worlds, reconnects routes and fences revocation w
   const context = await chromium.launchPersistentContext(profile, { headless: false, channel: 'chromium', ignoreDefaultArgs: ['--disable-back-forward-cache'], args: [
     `--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`,
   ] });
+  context.setDefaultTimeout(20_000);
   try {
     const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
     const extensionOrigin = `chrome-extension://${new URL(worker.url()).hostname}`;
@@ -80,7 +82,7 @@ test('bundled inspector scopes worlds, reconnects routes and fences revocation w
       const q = (await chrome.storage.local.get('known.siteAdapters.readQueue.v1'))['known.siteAdapters.readQueue.v1'] as { nextAt: number; active: unknown };
       return !q.active && q.nextAt <= Date.now();
     })).toBe(true);
-    await page.locator('#tab-recovery').click(); await page.locator('#read-item').click();
+    await openSiteAdapterTab(page, 'recovery'); await page.locator('#read-item').click();
     await expect.poll(() => page.evaluate(async () => {
       const s = (await chrome.storage.local.get('known.siteAdapters.inspection.v1'))['known.siteAdapters.inspection.v1'] as { result?: { status: string; item?: { id: string } } };
       return s.result?.item?.id;
@@ -132,7 +134,7 @@ test('bundled inspector scopes worlds, reconnects routes and fences revocation w
     });
     expect(observations).toEqual(['catalog.upsert', 'membership.observed', 'membership.observed', 'membership.observed']);
     const oldGeneration = (await readState()).generation;
-    await page.locator('#tab-sync').click(); await page.locator('#disable').click();
+    await openSiteAdapterTab(page, 'sync'); await page.locator('#disable').click();
     await expect.poll(async () => (await readState()).generation).toBeGreaterThan(oldGeneration);
     expect((await readState()).leases).toEqual([]);
     const scripts = await page.evaluate(() => chrome.scripting.getRegisteredContentScripts({ ids: ['known-site-adapter', 'known-site-probe'] }));

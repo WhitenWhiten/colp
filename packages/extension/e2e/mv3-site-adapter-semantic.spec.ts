@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { openExtensionOptions } from './extension-auth.js';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
+import { openSiteAdapterConfiguration } from './site-adapter-ui.js';
 import { capturePopupTarget } from './capture-popup-cdp.js';
 const extensionPath = resolve(import.meta.dirname, '../dist/development'), id = 'pplpnpegpnghcddhmpgkbfkdfadjiaen';
 const state = (p: Page): Promise<any> => p.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.siteAdapters.status' }));
@@ -17,6 +18,7 @@ test('both action orders follow all copy policies; a real toolbar semantic inten
   const profile = await mkdtemp(resolve(tmpdir(), 'known-site-semantic-'));
   const context = await chromium.launchPersistentContext(profile, { headless: false, channel: 'chromium', args: ['--remote-debugging-port=0',
     `--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`] });
+  context.setDefaultTimeout(20_000);
   let modelCalls = 0, providerFails = false; let heldResponse: Promise<void> | null = null, releaseHeld: (() => void) | undefined; const members: number[] = [], modelBodies: string[] = [];
   const cors = { 'access-control-allow-origin': 'https://www.bilibili.com', 'access-control-allow-credentials': 'true' };
   try {
@@ -55,10 +57,12 @@ test('both action orders follow all copy policies; a real toolbar semantic inten
     async function configure(policy: string) {
       await expect.poll(async () => (await state(page)).documents).toBe(1);
       const previous = (await state(page)).inspection?.command?.pageRequestId;
+      if (await page.locator('#site-configure').isVisible()) await openSiteAdapterConfiguration(page);
       await page.locator('#read-catalog').click();
       await expect.poll(async () => { const s = await state(page); return s.inspection?.command?.pageRequestId !== previous && s.inspection?.result?.kind === 'collections'; }, { timeout: 45000 }).toBe(true);
       const result = await page.evaluate(async ({ roots, policy }) => chrome.runtime.sendMessage({ kind: 'known.siteAdapters.archive.configure', rootNativeId: roots.archive,
         collectionIds: ['101'], live: true, copies: policy, aiDestination: 'excluded' }), { roots, policy }); expect(result).not.toHaveProperty('error');
+      if (await page.locator('#site-settings-dialog').isVisible()) await page.locator('#site-settings-dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
     }
     async function favorite(aid: number) {
       await site.evaluate(n => fetch('https://api.bilibili.com/x/v3/fav/resource/deal', { method: 'POST', body: new URLSearchParams({ rid: String(n), type: '2', add_media_ids: '101' }) }), aid);

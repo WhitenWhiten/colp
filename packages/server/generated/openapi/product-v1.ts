@@ -12197,6 +12197,8 @@ export interface components {
         PrivateNoStore: "private, no-store";
         /** @description Anonymous public report projection cache policy. */
         PublicRevalidate: "public, max-age=30, must-revalidate";
+        /** @description Immutable uploaded image bytes; shared publicly for one year or cached privately for seven days. */
+        UploadedImageCache: "public, max-age=31536000, immutable" | "private, max-age=604800, immutable";
         /** @description Public shared cache for anonymous reads; private no-store for Session reads. */
         PublicOrPrivateCache: string;
         /** @description Shared cache policy for the principal-invariant public Profile representation. */
@@ -12260,6 +12262,8 @@ export interface operations {
             /** @description Uploaded image. */
             201: {
                 headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -12319,6 +12323,8 @@ export interface operations {
             /** @description Updated cover settings. */
             200: {
                 headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -12367,9 +12373,11 @@ export interface operations {
             /** @description Validated image bytes. */
             200: {
                 headers: {
-                    "Cache-Control"?: string;
-                    ETag?: string;
-                    Vary?: string;
+                    "Cache-Control": components["headers"]["UploadedImageCache"];
+                    ETag: components["headers"]["ETag"];
+                    Vary?: "Cookie";
+                    "X-Content-Type-Options": components["headers"]["XContentTypeOptions"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -12381,6 +12389,11 @@ export interface operations {
             /** @description Image unchanged after current authorization. */
             304: {
                 headers: {
+                    "Cache-Control": components["headers"]["UploadedImageCache"];
+                    ETag: components["headers"]["ETag"];
+                    Vary?: "Cookie";
+                    "X-Content-Type-Options": components["headers"]["XContentTypeOptions"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content?: never;
@@ -19690,6 +19703,10 @@ export interface operations {
             /** @description Current authorized public projection is unchanged. */
             304: {
                 headers: {
+                    "Cache-Control": components["headers"]["PublicOrPrivateCache"];
+                    ETag: components["headers"]["ETag"];
+                    Vary?: "Cookie";
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content?: never;

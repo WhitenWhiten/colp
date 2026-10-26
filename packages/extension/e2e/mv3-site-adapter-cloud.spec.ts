@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { startRealStack, type RealStack } from './real-stack.js';
 import { openExtensionOptions, installFixtureReplicaBinding, signInExtension, showOptionsPane } from './extension-auth.js';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
+import { openSiteAdapterTab, openSiteAdapterConfiguration } from './site-adapter-ui.js';
 import { sourceHash, SOURCE_ARCHIVE_PROFILE, type SourceScope, type SourceLease, type SourceFinalReceipt } from '../../server/src/modules/source-archives/index.js';
 const extensionId = 'pplpnpegpnghcddhmpgkbfkdfadjiaen', extensionOrigin = `chrome-extension://${extensionId}`;
 // Fixture-only private data. No external site/session or provider is contacted.
@@ -71,7 +72,7 @@ test('COLP source archives commit actual final parents, recover lost results and
     const review = await cloud<{ digest: string }>(a.page, 'review'); expect(review.digest).toMatch(/^sha256:/);
     expect(await cloud(a.page, 'approve', { digest: review.digest })).toMatchObject({ approved: true });
     const cancelled = await cloud<{ digest: string }>(a.page, 'preview');
-    await a.page.locator('#tab-cloud').click(); await a.page.locator('#cloud-cancel').click(); await expect(a.page.locator('pre#cloud-status')).toContainText('"state": "cancelled"');
+    await openSiteAdapterTab(a.page, 'cloud'); await a.page.locator('#cloud-cancel').click(); await expect(a.page.locator('pre#cloud-status')).toContainText('"state": "cancelled"');
     await expect(a.page.locator('#cloud-commit')).toBeDisabled();
     expect(await cloud(a.page, 'commit', { digest: cancelled.digest })).toMatchObject({ error: 'sourceCloudPlanMissing' });
     const preview = await cloud<{ digest: string; edges: { collectionId: string }[] }>(a.page, 'preview'); expect(preview.edges.map(e => e.collectionId)).toEqual(['101']);
@@ -84,7 +85,7 @@ test('COLP source archives commit actual final parents, recover lost results and
     stack.setSourceArchiveFault!('lost-response'); const lost = await cloud(a.page, 'commit', { digest: preview.digest }); expect(lost).toHaveProperty('error'); stack.setSourceArchiveFault!('none');
     const cdp = await a.context.newCDPSession(a.page), targets = await cdp.send('Target.getTargets');
     const worker = targets.targetInfos.find(t => t.type === 'service_worker' && t.url.includes(extensionId)); await cdp.send('Target.closeTarget', { targetId: worker!.targetId }); await cdp.detach();
-    await a.page.locator('#tab-sync').click(); await a.page.locator('#disable').click();
+    await openSiteAdapterConfiguration(a.page); await a.page.locator('#disable').click();
     const recovered = await cloud<{ state: string; receipt: SourceFinalReceipt }>(a.page, 'recover'); expect(recovered.state).toBe('committed');
     const effect = recovered.receipt.effects[0]!; expect(effect.finalParentId).not.toBe('p3-27-bookmarks-bar');
     const nodes = (await stack.observations()).canonicalNodes as { id: string; parent_id: string | null; title: string; url: string | null }[];

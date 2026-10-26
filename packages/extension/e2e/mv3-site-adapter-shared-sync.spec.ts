@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import { startRealStack, type RealStack } from './real-stack.js';
 import { openExtensionOptions, installFixtureReplicaBinding, signInExtension, showOptionsPane } from './extension-auth.js';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
+import { openSiteAdapterChanges } from './site-adapter-ui.js';
 import { scopeFacts } from './kns-08-harness.js';
 const extensionId = 'pplpnpegpnghcddhmpgkbfkdfadjiaen', origin = `chrome-extension://${extensionId}`;
 const status = (page: Page): Promise<any> => page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.siteAdapters.status' }));
@@ -25,6 +26,7 @@ test('source and automatic semantic copies share ordinary sync, retry independen
     async function open(index: 0 | 1) {
       const context = await chromium.launchPersistentContext(resolve(directory, `profile-${index}`), { headless: false, channel: 'chromium', ignoreHTTPSErrors: true,
         args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`, `--host-resolver-rules=${stack!.browserHostResolverRules}`, '--no-proxy-server', '--ignore-certificate-errors'] });
+      context.setDefaultTimeout(20_000);
       contexts.push(context);
       const cors = { 'access-control-allow-origin': 'https://www.bilibili.com', 'access-control-allow-credentials': 'true' };
       await context.route('https://www.bilibili.com/**', r => r.fulfill({ contentType: 'text/html', body: '<title>Shared source fixture</title>' }));
@@ -119,6 +121,7 @@ test('source and automatic semantic copies share ordinary sync, retry independen
     await a.locator('#reconcile-list select[data-difference-id]').evaluateAll((nodes, id) => {
       const select = nodes.find(n => (n as HTMLSelectElement).dataset.differenceId === id) as HTMLSelectElement; select.value = 'move'; select.dispatchEvent(new Event('change'));
     }, difference.id);
+    await openSiteAdapterChanges(a);
     await a.locator('#reconcile-target').click(); await a.locator('#reconcile-target-slot [data-folder-id="2"]').click();
     await a.locator('#approve-import').click();
     await expect.poll(async () => (await status(a)).archive.reconciliationRun?.operations.map((op: any) => ({ state: op.state, reason: op.reason })), { timeout: 60000 }).toEqual([{ state: 'completed', reason: null }]);

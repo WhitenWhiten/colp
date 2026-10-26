@@ -4,11 +4,13 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { openExtensionOptions } from './extension-auth.js';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
+import { openSiteAdapterTab, openSiteAdapterChanges } from './site-adapter-ui.js';
 const extension = resolve(import.meta.dirname, '../dist/development'), origin = 'chrome-extension://pplpnpegpnghcddhmpgkbfkdfadjiaen';
 const status = (page: Page): Promise<any> => page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.siteAdapters.status' }));
 test('rechecking preserves user order, pins and titles, links candidates, restores selected deletions and moves only selected personal items', async () => {
   test.setTimeout(300000); const profile = await mkdtemp(resolve(tmpdir(), 'known-reconcile-'));
   const context = await chromium.launchPersistentContext(profile, { headless: false, channel: 'chromium', args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`] });
+  context.setDefaultTimeout(20_000);
   let members = [1, 2, 5, 7];
   const cors = { 'access-control-allow-origin': 'https://www.bilibili.com', 'access-control-allow-credentials': 'true' };
   try {
@@ -61,6 +63,7 @@ test('rechecking preserves user order, pins and titles, links candidates, restor
         const select = nodes.find(n => (n as HTMLSelectElement).dataset.differenceId === input.id) as HTMLSelectElement; select.value = input.choice; select.dispatchEvent(new Event('change'));
       }, { id: difference.id, choice });
     }
+    await openSiteAdapterChanges(page);
     await page.locator('#reconcile-target').click(); await page.locator(`#reconcile-target-slot [data-folder-id="${roots.history}"]`).click();
     await page.locator('#approve-import').click();
     await expect.poll(async () => (await status(page)).archive.reconciliationRun?.operations.map((op: any) => ({ state: op.state, reason: op.reason })), { timeout: 60000 })
@@ -99,7 +102,7 @@ test('rechecking preserves user order, pins and titles, links candidates, restor
     await page.locator('#approve-import').click();
     await expect.poll(() => page.evaluate(async () => (await chrome.bookmarks.search({ url: 'https://www.bilibili.com/video/av6' }))[0]?.parentId), { timeout: 60000 }).toBe(before.folder);
     expect(await page.evaluate(() => chrome.bookmarks.search({ url: 'https://www.bilibili.com/video/av1' }))).toMatchObject([{ id: one.id, title: 'My video title' }]);
-    await page.locator('#tab-recovery').click(); await page.locator('#reconcile-history-load').click();
+    await openSiteAdapterTab(page, 'recovery'); await page.locator('#reconcile-history-load').click();
     await page.locator(`#reconcile-history-list [data-run-id="${initialRun.id}"]`).click();
     const restored = initialRun.operations.find((op: any) => op.decision.choice === 'restore');
     await page.locator(`#reconcile-history-detail [data-operation-id="${restored.id}"] button`).click();

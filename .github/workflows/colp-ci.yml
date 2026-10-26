@@ -348,7 +348,8 @@ jobs:
           cache: npm
           cache-dependency-path: packages/server/package-lock.json
       - name: Frozen package install
-        run: npm ci
+        # Finish unpacking binaries before esbuild validates its executable.
+        run: npm ci --ignore-scripts && npm rebuild esbuild --ignore-scripts=false
         working-directory: packages/server
       # Product Sync Center integration tests execute the real extension store and workers.
       - name: Frozen extension harness install

@@ -72,7 +72,7 @@ describeWithPostgres('P2-12 PostgreSQL Product public Collection evidence', () =
         assert.equal(response.json().collection.access, 'public');
         assert.equal(response.json().collection.viewCount, 0);
         assert.equal('viewCount' in response.json().collection, true);
-        assert.equal(response.headers['cache-control'], 'public, max-age=60, stale-while-revalidate=300');
+        assert.equal(response.headers['cache-control'], 'public, max-age=0, must-revalidate');
         assertVary(response.headers.vary, ['Cookie']);
         if (slug === 'public-page') {
           assert.equal(response.json().nodes.some((node: { id: string }) => node.id === 'public-secret'), false);
@@ -301,13 +301,13 @@ describeWithPostgres('P2-12 PostgreSQL Product public Collection evidence', () =
       assert.equal(publicPage.statusCode, 200);
       assert.equal(publicPage.json().collection.viewCount, 9);
       assert.equal('viewCount' in publicPage.json().collection, true);
-      assert.equal(publicPage.headers['cache-control'], 'public, max-age=60, stale-while-revalidate=300');
+      assert.equal(publicPage.headers['cache-control'], 'public, max-age=0, must-revalidate');
 
       const unlisted = await app.inject({ method: 'GET', url: '/api/v1/collections/unlisted-page' });
       assert.equal(unlisted.statusCode, 200);
       assert.equal(unlisted.json().collection.access, 'public');
       assert.equal(unlisted.json().collection.viewCount, 2);
-      assert.equal(unlisted.headers['cache-control'], 'public, max-age=60, stale-while-revalidate=300');
+      assert.equal(unlisted.headers['cache-control'], 'public, max-age=0, must-revalidate');
 
       const anonymousPrivate = await app.inject({ method: 'GET', url: '/api/v1/collections/private-page' });
       assert.equal(anonymousPrivate.statusCode, 404);
