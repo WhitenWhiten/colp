@@ -1,3 +1,4 @@
+import { validSiteTitle } from './title.js';
 import type { AdapterMessage, BootstrapRequest, HostCommand, MembershipReadResult, PageResult, SiteObservation, MembershipHint } from './contracts.js';
 import { LIMITS as L } from './limits.js';
 import { array, integer, jsonBytes, literal, object, optional, str, union, type Check } from './schema.js';
@@ -8,8 +9,8 @@ const safeUrl: Check = v => {
   try { const u = new URL(v as string); return u.protocol === 'https:' && !u.username && !u.password; } catch { return false; }
 };
 export const itemSchema = object({ id, identity: literal('siteId', 'canonicalUrl'),
-  kind: literal('video', 'article', 'post', 'product', 'repository', 'other'), url: safeUrl, title: str(L.title) });
-export const collectionSchema = object({ id, identity: literal('siteId', 'labelOnly'), title: str(L.title), parentId: optional(union(id, literal(null))) });
+  kind: literal('video', 'article', 'post', 'product', 'repository', 'other'), url: safeUrl, title: validSiteTitle });
+export const collectionSchema = object({ id, identity: literal('siteId', 'labelOnly'), title: validSiteTitle, parentId: optional(union(id, literal(null))) });
 const delta = object({ mode: literal('delta'), added: ids, removed: ids }, v => {
   const d = v as { added: string[]; removed: string[] }; return !d.added.some(x => d.removed.includes(x));
 });

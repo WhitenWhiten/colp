@@ -1,3 +1,5 @@
+import { siteDisplayTitle } from '../src/site-adapters/title.js';
+import { parseManagedSave } from '../../server/src/modules/source-archives/managed-copies.js';
 import { describe, expect, test } from 'vitest';
 import { validAdapterMessage, validBootstrap, validHostCommand, validMembershipResult, validObservation, validPageResult } from '../src/site-adapters/schemas.js';
 import { jsonBytes } from '../src/site-adapters/schema.js';
@@ -60,4 +62,14 @@ describe('site adapter v1 trust boundary', () => {
     expect(validateCollectionGraph([{ id: '1', identity: 'siteId', title: 'A', parentId: '1' }])).toBe(false);
     expect(validateCollectionGraph([{ id: '1', identity: 'siteId', title: 'A' }])).toBe(false);
   });
+});
+
+test.each(['x'.repeat(600), 'Line one\nLine two', 'x'.repeat(511) + '😀'])('source display projection satisfies the shared save contract', raw => {
+  const title = siteDisplayTitle(raw)!;
+  const result = detail({ id: 1, type: 2, title: raw });
+  expect(result).toMatchObject({ status: 'ok', item: { title } });
+  expect(validObservation({ ...observation, item: { ...video, title } })).toBe(true);
+  expect(() => parseManagedSave({ commandId: 'save', replicaId: 'replica', collectionId: 'library', parentId: 'folder', parentRevision: 'r1', title, url: video.url,
+    slot: { kind: 'bookmark', copy: { purpose: 'sourceArchive', sourceAccount: '42', sourceCollectionId: '101', content: { site: 'bilibili', identityVersion: 1, itemId: video.id, accountId: null } } } })).not.toThrow();
+  expect(validObservation({ ...observation, item: { ...video, title: raw } })).toBe(false);
 });

@@ -40,6 +40,7 @@ export interface SiteItem {
   identity: 'siteId' | 'canonicalUrl';
   kind: 'video' | 'article' | 'post' | 'product' | 'repository' | 'other';
   url: string;
+  /** Nonblank display title, at most 512 UTF-16 units, without C0 controls. */
   title: string;
 }
 

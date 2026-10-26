@@ -69,7 +69,7 @@ The server advertises supported identities in `profile.sites`. New identities mu
 
 ## Adding a future adapter
 
-1. Implement the bounded `SiteAdapter` in a site-local directory, with a canonical identity codec and validated message semantics.
+1. Normalize source labels with `siteDisplayTitle` (nonblank, no C0 controls, at most 512 UTF-16 units; truncation preserves surrogate pairs). Titles are display values, never identity. Implement the bounded `SiteAdapter` in a site-local directory, with a canonical identity codec and validated message semantics.
 2. Register its audited `SiteDefinition` and page factory. Add a classic build entry only if the site needs a separate entry/probe bundle. The current shared page bundle may compose multiple factories.
 3. Declare only implemented/qualified capabilities, exact origins/paths, read budgets and resume behavior. The settings, ledger, import, native planner and semantic binding code need no site-specific branches.
 4. If cloud support is desired, register the corresponding audited server identity codec and qualify that capability separately. Community support likewise requires an explicit registered network/identity profile.

@@ -1,5 +1,5 @@
 import type { SiteCollection, SiteItem } from '../contracts.js';
-import { LIMITS } from '../limits.js';
+import { siteDisplayTitle } from '../title.js';
 export const BILIBILI = Object.freeze({ adapterId: 'bundled.bilibili', version: '1.0.0', siteKey: 'bilibili', identityVersion: 1,
   origin: 'https://www.bilibili.com', matches: ['https://www.bilibili.com/*'] });
 /** Decimal source IDs are opaque strings. Reject unsafe JSON numbers rather than rounding. */
@@ -24,19 +24,20 @@ export function resolveBvUrl(value: string): string | null {
 }
 export function collection(raw: unknown): SiteCollection | null {
   if (!raw || typeof raw !== 'object') return null;
-  const r = raw as Record<string, unknown>, id = decimal(r.id);
-  return id && typeof r.title === 'string' && r.title.trim() && r.title.length <= LIMITS.title
-    ? { id, identity: 'siteId', title: r.title.trim(), parentId: null } : null;
+  const r = raw as Record<string, unknown>, id = decimal(r.id), title = siteDisplayTitle(r.title);
+  return id && title
+    ? { id, identity: 'siteId', title, parentId: null } : null;
 }
 export type Detail = { status: 'ok'; item: SiteItem } | { status: 'invalid' | 'unsupported' | 'missing' };
 export function detail(raw: unknown): Detail {
   if (!raw || typeof raw !== 'object') return { status: 'missing' };
   const r = raw as Record<string, unknown>, aid = decimal(r.id);
   if (r.type !== 2) return { status: 'unsupported' };
-  if (!aid || typeof r.title !== 'string' || !r.title.trim() || r.title.length > LIMITS.title) return { status: 'missing' };
+  const title = siteDisplayTitle(r.title);
+  if (!aid || !title) return { status: 'missing' };
   if (r.attr === 9 || r.title === '已失效视频') return { status: 'invalid' };
   return { status: 'ok', item: { id: itemId(aid), identity: 'siteId', kind: 'video',
-    url: `${BILIBILI.origin}/video/av${aid}`, title: r.title.trim() } };
+    url: `${BILIBILI.origin}/video/av${aid}`, title } };
 }
 /** Validate namespace and canonical URL together; equal URL or labels never establish identity. */
 export function validBilibiliItem(item: SiteItem): boolean {

@@ -1,3 +1,4 @@
+import { siteDisplayTitle } from './title.js';
 import { managedCopyKey, managedLibraryKey, type ManagedLibrary } from './copy-identity.js';
 import type { ManagedDestination, ManagedSaveCommand, ManagedSaveReceipt, ManagedSlot, ManagedBinding } from './managed-client.js';
 import type { PlannedNativeCommand, PlannedNativeResult } from './planned-types.js';
@@ -29,10 +30,11 @@ export function assertManagedReceipt(value: ManagedSaveReceipt, command: Managed
 export function createManagedSaves(db: SourceDatabase, ports: ManagedSavePorts) {
   async function prepareForSlot(command: PlannedNativeCommand, slot: () => Promise<ManagedSlot>) {
     const target = await ports.destination(command.parent); if (!target) return command;
+    const title = siteDisplayTitle(command.title); if (!title) throw new Error('invalidSourceTitle');
     const managed: ManagedDestination = { library: target.library, command: { commandId: command.commandId, replicaId: target.replicaId,
       collectionId: target.library.collectionId, parentId: target.parentId, parentRevision: target.parentRevision,
-      slot: await slot(), title: command.title, url: command.bookmark?.url ?? null } };
-    return { ...command, managed };
+      slot: await slot(), title, url: command.bookmark?.url ?? null } };
+    return { ...command, title, managed };
   }
   const receiptKey = (d: ManagedDestination) => `managedReceipt:${managedLibraryKey(d.library)}:${d.command.commandId}`;
   async function remember(d: ManagedDestination, receipt: ManagedSaveReceipt) {
