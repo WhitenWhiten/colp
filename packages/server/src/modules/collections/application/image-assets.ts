@@ -69,7 +69,7 @@ export function parseCoverPreference(raw: unknown): { readonly mode: CoverMode; 
   }
   const value = raw as Record<string, unknown>;
   if (Object.keys(value).some(key => key !== 'mode' && key !== 'assetId')
-    || !['auto', 'custom', 'none'].includes(String(value.mode))) {
+    || typeof value.mode !== 'string' || !['auto', 'custom', 'none'].includes(value.mode)) {
     throw new CoverImageError('invalid_document', 'Choose auto, custom or none.');
   }
   const assetId = value.assetId ?? null;

@@ -18,7 +18,8 @@ describe('durable cover images', () => {
     const id = '12345678-1234-4234-8234-123456789abc';
     expect(parseCoverPreference({ mode: 'custom', assetId: id })).toEqual({ mode: 'custom', assetId: id });
     expect(parseCoverPreference({ mode: 'auto' })).toEqual({ mode: 'auto', assetId: null });
-    for (const value of [{ mode: 'custom' }, { mode: 'none', assetId: id }, { mode: 'fallback' }, { mode: 'auto', url: 'https://outside' }]) {
+    for (const value of [{ mode: 'custom' }, { mode: 'none', assetId: id }, { mode: 'fallback' },
+      { mode: ['auto'] }, { mode: {} }, { mode: 'auto', url: 'https://outside' }]) {
       expect(() => parseCoverPreference(value)).toThrow();
     }
     expect(imageAssetUrl('https://known.example', id)).toBe(`https://known.example/api/v1/images/${id}`);
