@@ -1,3 +1,4 @@
+import { copiesInScope } from './copy-scope.js';
 import type { CaptureContentBinding, NativeBinding, Representation, RepresentationKey, SavePolicy } from './contracts.js';
 import { get, put, rows, sourceDigest, type SourceDatabase } from './source-db.js';
 import { representationKey, type ItemReservation } from './reservations.js';
@@ -17,7 +18,6 @@ export interface ContentBindingRow extends CaptureContentBinding {
   title: string; url: string; parentId: string; reuse?: Representation;
 }
 const semanticKey = (connectionId: string, itemId: string, scopeId?: string): RepresentationKey => ({ connectionId, itemId, purpose: 'semantic', sourceCollectionId: null, mountId: null, ...(scopeId ? { scopeId } : {}) });
-const inScope = (r: RepresentationKey, scopeId?: string) => r.purpose !== 'semantic' || !scopeId || r.scopeId === scopeId;
 export const contentIdentityFromUrl = resolveContentIdentity;
 /** One source-store transaction arbitrates semantic and source intents, including account-independent pending saves. */
 export function createContentBindings(db: SourceDatabase, assertNative: (native: NativeBinding<'bookmark'>, expected?: { title: string; parentId: string; url?: string }) => Promise<void>) {
@@ -39,14 +39,14 @@ export function createContentBindings(db: SourceDatabase, assertNative: (native:
       const connectionId = settings?.enabled ? settings.connectionId : candidates[0]?.connectionId ?? null;
       if (connectionId) await assertSourceRebound(db, connectionId);
       if (connectionId) await assertRestoredItemAvailable(db, connectionId, input.itemId);
-      const reps = connectionId ? await db.transaction(['representations'], 'readonly', async tx => (await rows<Representation>(tx, 'representations', connectionId, input.itemId)).filter(r => inScope(r, input.scopeId))) : [];
+      const reps = connectionId ? await db.transaction(['representations', 'mounts'], 'readonly', async tx => await copiesInScope(tx, await rows<Representation>(tx, 'representations', connectionId, input.itemId), input.scopeId, r => r)) : [];
       for (const r of reps) {
         // Independent semantic saves do not reuse or repair source-archive copies.
         if (settings?.policy.copies === 'sourceAndSemantic' && r.purpose === 'sourceArchive') continue;
         if (r.state !== 'active') throw new Error('content_binding_needs_review');
         await assertNative(r.native, r.lastWritten ? { ...r.lastWritten, url: r.lastWritten.url ?? definition.itemUrl(r.itemId) ?? undefined } : undefined);
       }
-      return db.transaction(['contentBindings', 'itemReservations', 'representations', 'meta', 'authorities', 'semanticJobs', 'semanticIndexes'], 'readwrite', async tx => {
+      return db.transaction(['contentBindings', 'itemReservations', 'representations', 'meta', 'authorities', 'semanticJobs', 'semanticIndexes', 'mounts'], 'readwrite', async tx => {
         const history = (await rows<ContentBindingRow>(tx, 'contentBindings', identity.siteKey, identity.identityVersion, input.itemId))
           .filter(b => sameContentIdentity(b.content, identity) && (input.scopeId === undefined || b.scopeId === input.scopeId));
         if (input.scopeId) {
@@ -65,15 +65,14 @@ export function createContentBindings(db: SourceDatabase, assertNative: (native:
         if (old?.native === null || old?.intentPending) throw new Error('semantic_save_pending');
         const policy = settings?.policy;
         if (connectionId && settings && sourceDigest(await get(tx, 'meta', `policy:${connectionId}`)) !== sourceDigest(settings)) throw new Error('source_policy_changed');
-        const latest = connectionId ? (await rows<Representation>(tx, 'representations', connectionId, input.itemId)).filter(r => inScope(r, input.scopeId)) : [];
+        const latest = connectionId ? await copiesInScope(tx, await rows<Representation>(tx, 'representations', connectionId, input.itemId), input.scopeId, r => r) : [];
         if (sourceDigest(latest) !== sourceDigest(reps)) throw new Error('content_binding_changed');
         const semantic = latest.find(r => r.purpose === 'semantic');
         const copies = [...new Map(latest.map(r => [r.native.nativeId, r])).values()];
         if (policy && policy.copies !== 'sourceAndSemantic' && copies.length > 1) throw new Error('multiple_copies_need_review');
         const reuse = semantic ?? (policy && policy.copies !== 'sourceAndSemantic' ? copies[0] : undefined);
         const native = reuse?.native ?? old?.native ?? null;
-        const pending = !native && connectionId ? (await rows<ItemReservation>(tx, 'itemReservations', connectionId, input.itemId))
-          .filter(r => inScope(r.representation, input.scopeId)) : [];
+        const pending = !native && connectionId ? await copiesInScope(tx, await rows<ItemReservation>(tx, 'itemReservations', connectionId, input.itemId), input.scopeId, r => r.representation) : [];
         if (pending.some(r => r.representation.purpose === 'semantic' || policy?.copies !== 'sourceAndSemantic')) throw new Error('source_save_pending');
         // A source bookmark can already exist while its representation receipt is still committing.
         const sourceCopy = copies.length > 0 || pending.some(r => r.representation.purpose === 'sourceArchive' && r.state !== 'blocked');
@@ -124,7 +123,7 @@ export function createContentBindings(db: SourceDatabase, assertNative: (native:
       if (native.proof.kind !== 'explicitAdoption') throw new Error('explicit_adoption_required');
       if (binding.connectionId && binding.connectionId !== connectionId && !allowAccountChange) throw new Error('content_account_adoption_required');
       await assertNative(native, node);
-      return db.transaction(['contentBindings', 'representations', 'itemReservations'], 'readwrite', async tx => {
+      return db.transaction(['contentBindings', 'representations', 'itemReservations', 'mounts'], 'readwrite', async tx => {
         const key = contentKey(binding.content, binding.id), current = await get<ContentBindingRow>(tx, 'contentBindings', key);
         if (!current || sourceDigest(current) !== sourceDigest(binding) || current.supersededBy) throw new Error('content_binding_changed');
         const next: ContentBindingRow = { ...current, ...node, native, connectionId, state: 'active', mode: 'suggest' };
@@ -147,17 +146,17 @@ export function createContentBindings(db: SourceDatabase, assertNative: (native:
       const bindings = await db.transaction(['contentBindings'], 'readonly', async tx => (await rows<ContentBindingRow>(tx, 'contentBindings', identity.siteKey, identity.identityVersion, input.itemId))
         .filter(b => !b.supersededBy && sameContentIdentity(b.content, content) && (input.scopeId === undefined || b.scopeId === input.scopeId)));
       for (const b of bindings) if (input.policy.copies !== 'sourceAndSemantic' || !['detached', 'suppressed'].includes(b.state)) await validate(b);
-      const representations = await db.transaction(['representations'], 'readonly', async tx => (await rows<Representation>(tx, 'representations', input.connectionId, input.itemId)).filter(r => inScope(r, input.scopeId)));
+      const representations = await db.transaction(['representations', 'mounts'], 'readonly', async tx => await copiesInScope(tx, await rows<Representation>(tx, 'representations', input.connectionId, input.itemId), input.scopeId, r => r));
       for (const r of input.policy.copies === 'sourceAndSemantic' ? [] : representations) {
         if (r.state !== 'active') throw new Error('content_binding_needs_review');
         await assertNative(r.native, r.lastWritten ? { ...r.lastWritten, url: r.lastWritten.url ?? definition.itemUrl(r.itemId) ?? undefined } : undefined);
       }
-      return db.transaction(['contentBindings', 'representations', 'itemReservations'], 'readwrite', async tx => {
+      return db.transaction(['contentBindings', 'representations', 'itemReservations', 'mounts'], 'readwrite', async tx => {
         const history = (await rows<ContentBindingRow>(tx, 'contentBindings', identity.siteKey, identity.identityVersion, input.itemId))
           .filter(b => sameContentIdentity(b.content, content) && (input.scopeId === undefined || b.scopeId === input.scopeId));
         const current = history.filter(b => !b.supersededBy);
         if (sourceDigest(current) !== sourceDigest(bindings)) throw new Error('content_binding_changed');
-        if (sourceDigest((await rows<Representation>(tx, 'representations', input.connectionId, input.itemId)).filter(r => inScope(r, input.scopeId))) !== sourceDigest(representations)) throw new Error('content_binding_changed');
+        if (sourceDigest(await copiesInScope(tx, await rows<Representation>(tx, 'representations', input.connectionId, input.itemId), input.scopeId, r => r)) !== sourceDigest(representations)) throw new Error('content_binding_changed');
         if (current.length > 1 || current.some(b => b.connectionId && b.connectionId !== input.connectionId
           && !(input.scopeId && b.scopeId === input.scopeId && !content.accountId && input.policy.copies === 'sourceAndSemantic'))) throw new Error('content_account_adoption_required');
         for (const b of current) {
@@ -172,7 +171,7 @@ export function createContentBindings(db: SourceDatabase, assertNative: (native:
             payloadDigest: sourceDigest(b.content), state: 'unknown' } satisfies ItemReservation);
         }
         if (input.policy.copies === 'sourceAndSemantic') return { status: 'create' } as const;
-        const existing = (await rows<Representation>(tx, 'representations', input.connectionId, input.itemId)).filter(r => inScope(r, input.scopeId));
+        const existing = await copiesInScope(tx, await rows<Representation>(tx, 'representations', input.connectionId, input.itemId), input.scopeId, r => r);
         const unique = [...new Map(existing.map(r => [r.native.nativeId, r])).values()];
         if (unique.length > 1) throw new Error('multiple_copies_need_review');
         if (unique.length) {
@@ -180,7 +179,7 @@ export function createContentBindings(db: SourceDatabase, assertNative: (native:
           put(tx, 'representations', representationKey(input.representation), { ...rep, ...input.representation });
           return { status: 'reuse', representation: rep } as const;
         }
-        const reservations = await rows<ItemReservation>(tx, 'itemReservations', input.connectionId, input.itemId);
+        const reservations = await copiesInScope(tx, await rows<ItemReservation>(tx, 'itemReservations', input.connectionId, input.itemId), input.scopeId, r => r.representation);
         if (reservations.some(r => representationKey(r.representation) !== representationKey(input.representation))) return { status: 'dependency' } as const;
         return { status: 'create' } as const;
       });

@@ -29,7 +29,7 @@ export interface LayoutPorts {
   assertRoot(binding: NativeBinding<'folder'>): Promise<void>;
   destination?(binding: NativeBinding<'folder'>): Promise<DestinationOwner | null>;
   beforeExclusion?(): Promise<void>;
-  sourceCopies?(input: { connectionId: string; itemId: string; policy: SavePolicy; representation: import('./contracts.js').RepresentationKey }): Promise<
+  sourceCopies?(input: { root: NativeBinding<'folder'>; scopeId: string; connectionId: string; itemId: string; policy: SavePolicy; representation: import('./contracts.js').RepresentationKey }): Promise<
     { status: 'create' | 'dependency' } | { status: 'reuse'; representation: Representation }>;
 }
 interface PlanFence { edge: LedgerEdge; item: SiteItem; collection: SiteCollection; ruleDigest: string; representation?: import('./contracts.js').RepresentationKey; entry: SiteRuleEdge['entry'] }
@@ -159,7 +159,7 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
       const m = await mount(c.connectionId, decision.item.id, decision.folder.nativeId);
       if (c.communityOrigin) { if (!ports.authorizeCommunity) throw new Error('communityArchiveRevoked');
         await ports.authorizeCommunity(c.communityOrigin, { connectionId: c.connectionId, collectionIds: [input.collectionId], rootNativeId: m.root.nativeId }); }
-      const representation = { connectionId: c.connectionId, itemId: input.itemId, purpose: 'sourceArchive' as const, sourceCollectionId: input.collectionId, mountId: m.id };
+      const representation = { connectionId: c.connectionId, itemId: input.itemId, purpose: 'sourceArchive' as const, sourceCollectionId: input.collectionId, mountId: m.id, scopeId: destinationScopeId(m.destination, m.root.deviceId) };
       const existing = await db.read<Representation>('representations', representationKey(representation));
       if (existing) {
         const node = await ports.lookup(existing.native.nativeId);
@@ -180,7 +180,7 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
         return { status: existing.state === 'active' ? 'represented' : 'suppressed', representation: existing } as const;
       }
       if (await db.read('meta', sourceKey('reconcileKeep', m.id, input.collectionId, input.itemId))) return { status: 'policySkipped' } as const;
-      const copy = await ports.sourceCopies?.({ connectionId: c.connectionId, itemId: input.itemId, policy: settings.policy, representation });
+      const copy = await ports.sourceCopies?.({ root: m.root, scopeId: representation.scopeId, connectionId: c.connectionId, itemId: input.itemId, policy: settings.policy, representation });
       if (copy?.status === 'dependency') throw new Error('sourceDependencyPending');
       if (copy?.status === 'reuse') return { status: 'represented', representation: copy.representation } as const;
       if (settings.policy.copies !== 'sourceAndSemantic') {

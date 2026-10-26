@@ -149,3 +149,26 @@ test.each(policies.flatMap(copies => (['detached', 'suppressed'] as const).map(s
     } finally { await f.db.close(); }
   },
 );
+
+test.each(['singleKeepExisting', 'singlePreferSemantic'] as const)('%s only reuses source copies in the requested destination scope', async policy => {
+  const f = await fixture(policy);
+  try {
+    const library = { serverOrigin: 'https://sync.test', accountId: 'owner', collectionId: 'library' };
+    const copy = { purpose: 'sourceArchive' as const, sourceAccount: '42', sourceCollectionId: '101', content: { site: 'bilibili', identityVersion: 1, itemId: request.itemId, accountId: null } };
+    await createSourceReservations(f.db).bindRepresentation({ ...f.representation, native, state: 'active', manualRevision: 0, lastWritten: node,
+      shared: { library, nodeId: 'canonical', slot: { kind: 'bookmark', copy } } });
+    const local = await f.bindings.prepare({ ...request, scopeId: JSON.stringify(['local', 'device']) });
+    expect(local).toMatchObject({ mode: 'create', native: null });
+    const synced = await f.bindings.prepare({ ...request, commandId: 'synced', captureIntentId: 'synced', scopeId: JSON.stringify(['https://sync.test', 'owner', 'library']) });
+    expect(synced.native).toEqual(native);
+  } finally { await f.db.close(); }
+});
+test('single-copy reservations in separate scopes do not block each other', async () => {
+  const f = await fixture('singleKeepExisting'), reservations = createSourceReservations(f.db);
+  try {
+    const semantic = { ...f.representation, purpose: 'semantic' as const, sourceCollectionId: null, mountId: null, scopeId: 'library' };
+    await reservations.reserveItem(semantic, { title: 'pending semantic' }, 'singleKeepExisting', 'semantic');
+    const result = await reservations.reserveItem({ ...f.representation, scopeId: JSON.stringify(['local', 'device']) }, { title: 'local source' }, 'singleKeepExisting', 'source');
+    expect(result.status).toBe('reserved');
+  } finally { await f.db.close(); }
+});

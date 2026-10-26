@@ -26,7 +26,7 @@ export const sourceLayout = createSourceLayout(siteLedger.db, {
     const { semanticContext, scopedSemanticBindings, importSharedSemantic } = await import('./semantic-associations.js');
     const { readSourceConnection } = await import('./content-identity.js');
     const { identityDefinition } = await import('./registry.js');
-    const context = await semanticContext(), connection = await readSourceConnection(siteLedger.db, input.connectionId);
+    const context = await semanticContext(input.root.nativeId), connection = await readSourceConnection(siteLedger.db, input.connectionId);
     const definition = identityDefinition(connection.siteKey, connection.identityVersion);
     const content = { siteKey: connection.siteKey, identityVersion: connection.identityVersion, itemId: input.itemId,
       ...(definition.contentIdScope !== 'site' ? { accountId: connection.accountId } : {}) };

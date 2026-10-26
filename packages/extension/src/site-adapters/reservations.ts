@@ -1,3 +1,4 @@
+import { copiesInScope } from './copy-scope.js';
 import { destinationScopeId } from './destination-scope.js';
 import type { SourceMount } from './layout.js';
 import { assertPlanIntentActive, type SourcePlanIntent } from './plan-intents.js';
@@ -14,7 +15,7 @@ const compatibleProof = (b: NativeBinding) => !!b.bindingId && !!b.nativeId && !
 export function createSourceReservations(db: SourceDatabase, random = () => crypto.randomUUID()) {
   return {
     async reserveItem(representation: RepresentationKey, payload: unknown, policy: 'sourceAndSemantic' | 'singlePreferSemantic' | 'singleKeepExisting', commandId?: string, planId?: string) {
-      return db.transaction(['itemReservations', 'representations', 'meta'], 'readwrite', async tx => {
+      return db.transaction(['itemReservations', 'representations', 'meta', 'mounts'], 'readwrite', async tx => {
         if (planId) await assertPlanIntentActive(tx, planId);
         const key = representationKey(representation), digest = sourceDigest(payload);
         const bound = await get<Representation>(tx, 'representations', key);
@@ -25,8 +26,8 @@ export function createSourceReservations(db: SourceDatabase, random = () => cryp
           return { status: 'reserved', reservation: old } as const;
         }
         if (policy !== 'sourceAndSemantic') {
-          const existing = await rows<ItemReservation>(tx, 'itemReservations', representation.connectionId, representation.itemId);
-          const copies = await rows<Representation>(tx, 'representations', representation.connectionId, representation.itemId);
+          const existing = await copiesInScope(tx, await rows<ItemReservation>(tx, 'itemReservations', representation.connectionId, representation.itemId), representation.scopeId, r => r.representation);
+          const copies = await copiesInScope(tx, await rows<Representation>(tx, 'representations', representation.connectionId, representation.itemId), representation.scopeId, r => r);
           if (copies.length) return { status: 'existingCopy', representation: copies[0]! } as const;
           // Unknown/pending/confirmed historic copies remain dependencies; no blind replacement.
           if (existing.length) return { status: 'dependency', reservation: existing[0]! } as const;
