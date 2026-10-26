@@ -7,6 +7,7 @@ import {
   EditorInputError,
   SnapshotExpiredError,
   getCollectionEditorPage,
+  getCollectionEditorReadRevision,
   type EditorPage,
 } from '../../modules/collections/index.js';
 import {
@@ -53,6 +54,13 @@ export function registerEditorRoutes(
 
     let page: EditorPage;
     try {
+      if (request.method === 'HEAD') {
+        const revision = await editorRead.execute(ports => getCollectionEditorReadRevision(ports, {
+          collectionId, actor: { principalId: account.id, subjectId: account.subjectId },
+        }));
+        if (revision) reply.header('Known-Editor-Revision', revision);
+        return reply.code(200).send();
+      }
       page = await editorRead.execute((ports) =>
         getCollectionEditorPage(ports, {
           collectionId,
@@ -68,10 +76,12 @@ export function registerEditorRoutes(
       throw mapEditorError(error);
     }
 
+    const { readRevision, ...body } = page;
+    if (readRevision) reply.header('Known-Editor-Revision', readRevision);
     return reply
       .code(200)
       .type('application/json; charset=utf-8')
-      .send(page);
+      .send(body);
   });
 }
 

@@ -77,6 +77,8 @@ interface EditorMemoryState {
   cursorKey: string;
   productOrigin: string;
   iconObjectIds: Map<string, string>;
+  projectionRevision: string;
+  snapshotReads: number;
 }
 
 function createEditorState(): EditorMemoryState {
@@ -90,6 +92,8 @@ function createEditorState(): EditorMemoryState {
     cursorKey: CURSOR_KEY,
     productOrigin: 'https://app.example.test',
     iconObjectIds: new Map(),
+    projectionRevision: 'projection-1',
+    snapshotReads: 0,
   };
 }
 
@@ -214,7 +218,9 @@ function createEditorPorts(state: EditorMemoryState): GetCollectionEditorPagePor
       },
     },
     loadSnapshot: {
+      loadProjectionRevision: async () => state.projectionRevision,
       async loadCollectionEditorSnapshot(input) {
+        state.snapshotReads += 1;
         if (!state.collection || state.collection.id !== input.collectionId) return null;
         if (!state.root) return null;
         let rows = state.nodes
@@ -373,6 +379,45 @@ afterEach(async () => {
 // ---------------------------------------------------------------------------
 
 describe('GET /api/v1/collections/{collectionId}/editor HTTP', () => {
+  test('HEAD validates the whole read model without loading node payloads', async () => {
+    const harness = createHarness(); apps.push(harness.app);
+    const client = await issueSession(harness);
+    seedEditorCollection(harness.editorState, { ownerSubjectId: client.subjectId });
+    const read = (method: 'GET' | 'HEAD') => harness.app.inject({
+      method, url: `/api/v1/collections/${COLLECTION_ID}/editor`, headers: { cookie: client.cookie },
+    });
+    const first = await read('GET');
+    const revision = first.headers['known-editor-revision'];
+    assert.equal(first.statusCode, 200);
+    assert.match(String(revision), /^[a-f0-9]{64}$/u);
+    assert.equal(first.json().readRevision, undefined, 'validator is a header, not an EditorPage property');
+    harness.editorState.snapshotReads = 0;
+    const unchanged = await read('HEAD');
+    assert.equal(unchanged.statusCode, 200);
+    assert.equal(unchanged.body, '');
+    assert.equal(unchanged.headers['cache-control'], 'private, no-store');
+    assert.equal(unchanged.headers['known-editor-revision'], revision);
+    assert.equal(harness.editorState.snapshotReads, 0);
+    harness.editorState.projectionRevision = 'new-preview-or-icon';
+    const newImage = await read('HEAD');
+    assert.notEqual(newImage.headers['known-editor-revision'], revision);
+    harness.editorState.collection = { ...harness.editorState.collection!, contentRevision: 'new-content' };
+    const newContent = await read('HEAD');
+    assert.notEqual(newContent.headers['known-editor-revision'], newImage.headers['known-editor-revision']);
+    assert.equal(harness.editorState.snapshotReads, 0);
+  });
+
+  test('HEAD rechecks current access and never returns a revision to an unauthorized reader', async () => {
+    const harness = createHarness(); apps.push(harness.app);
+    const client = await issueSession(harness);
+    seedEditorCollection(harness.editorState, { ownerSubjectId: 'another-owner' });
+    const response = await harness.app.inject({ method: 'HEAD',
+      url: `/api/v1/collections/${COLLECTION_ID}/editor`, headers: { cookie: client.cookie } });
+    assert.equal(response.statusCode, 404);
+    assert.equal(response.headers['known-editor-revision'], undefined);
+    assert.equal(harness.editorState.snapshotReads, 0);
+  });
+
   test('401 without session', async () => {
     const harness = createHarness();
     apps.push(harness.app);

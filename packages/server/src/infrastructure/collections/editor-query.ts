@@ -8,6 +8,7 @@ import type {
   LoadCollectionEditorSnapshotInput,
 } from '../../modules/collections/index.js';
 import { isBookmarkPinned } from '../../modules/collections/index.js';
+import { loadEditorProjectionRevision, type EditorProjectionOptions } from './editor-projection-revision.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import type { Metrics } from '../telemetry/index.js';
 import {
@@ -27,8 +28,10 @@ export const editorNodeIdKey = sql<string>`id COLLATE "C"`;
 export function createPostgresCollectionEditorSnapshotPort(
   transaction: DatabaseTransaction,
   metrics?: Metrics,
+  projectionOptions: EditorProjectionOptions = {},
 ): CollectionEditorSnapshotPort {
   return {
+    loadProjectionRevision: collectionId => loadEditorProjectionRevision(transaction, collectionId, projectionOptions),
     async loadCollectionEditorSnapshot(input) {
       const collection = await loadCollection(transaction, input.collectionId, metrics);
       if (!collection) return null;

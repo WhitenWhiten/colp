@@ -40,7 +40,7 @@ export type MoveNodeRequest = Schemas['MoveNodeRequest']
 export type MoveNodeResult = Schemas['MoveNodeResult']
 export type DeleteNodeResult = Schemas['DeleteNodeResult']
 
-export type EditorPage = Schemas['EditorPage']
+export type EditorPage = Schemas['EditorPage'] & { readRevision?: string }
 export type EditorPageState = Schemas['EditorPageState']
 export type PublicCollectionPage = Schemas['PublicCollectionPage']
 export type PublicCollectionNode = Schemas['PublicCollectionNode']
@@ -150,6 +150,8 @@ export type ProductErrorCode = Schemas['ProductErrorCode'] | DriftedProductError
 
 /** Assembled editor snapshot after all pages are loaded (hasMore=false). */
 export type EditorSnapshot = {
+  /** Whole read-model version from Known-Editor-Revision; absent on older servers. */
+  readRevision?: string
   collection: CollectionView
   root: RootNodeView
   nodes: EditableNodeView[]

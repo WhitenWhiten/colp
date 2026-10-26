@@ -27,6 +27,7 @@ let authenticated = false
 let verificationRequired = false
 let me: MeView | null = null
 let sessionEpoch = 0
+let actorEpoch = -1
 const listeners = new Set<Listener>()
 
 function snapshot(): SessionSnapshot {
@@ -53,6 +54,11 @@ export function getSessionSnapshot(): SessionSnapshot {
 /** Cache key for private GETs that may start after /session, before /me. */
 export function privateSessionIdentity(snapshot: SessionSnapshot = getSessionSnapshot()): string {
   return `${snapshot.authenticated ? 'session' : 'anonymous'}:${snapshot.sessionEpoch}`
+}
+
+/** The account /me has verified for this session, rather than a retained profile from an older session. */
+export function verifiedSessionAccountId(): string | undefined {
+  return authenticated && actorEpoch === sessionEpoch ? me?.account.id : undefined
 }
 
 export function getCsrfToken(): CsrfToken | null {
@@ -103,6 +109,7 @@ export function applyMeView(view: MeView | null, options?: { preserveFeatures?: 
   me = options?.preserveFeatures && view && previousId === nextId && view.features === undefined && me?.features
     ? { ...view, features: me.features }
     : view
+  actorEpoch = view ? sessionEpoch : -1
   emit()
 }
 
@@ -113,6 +120,7 @@ export function clearSession(): void {
   idleExpiresAt = null
   absoluteExpiresAt = null
   me = null
+  actorEpoch = -1
   verificationRequired = false
   emit()
 }

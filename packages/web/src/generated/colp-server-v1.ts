@@ -1238,7 +1238,7 @@ export interface paths {
         };
         /**
          * Get one revision-fenced Editor page
-         * @description The first page accepts limit. A continuation request accepts cursor and must omit limit. The cursor is scoped to the principal, Collection, content revision, policy revision, comparator, and page size. The client publishes the assembled tree only after hasMore is false.
+         * @description The first page accepts limit. A continuation request accepts cursor and must omit limit. The cursor is scoped to the principal, Collection, content revision, policy revision, comparator, and page size. The client publishes the assembled tree only after hasMore is false. The first page includes Known-Editor-Revision for the complete read model, including current favicon, preview-image and folder-share references. HEAD on this route checks current authorization and returns that revision without loading canonical node payloads or generating pagination cursors.
          */
         get: operations["getCollectionEditorPage"];
         put?: never;
@@ -8739,6 +8739,8 @@ export interface operations {
             /** @description One consistent Editor page. */
             200: {
                 headers: {
+                    /** @description Whole authorized Editor read-model revision. Present on the first page and HEAD; compare before fetching a cached tree again. */
+                    "Known-Editor-Revision"?: string;
                     /** @description Public session identifier binding this page to its authenticated request; never a credential. */
                     "Known-Editor-Session"?: string;
                     "Cache-Control": components["headers"]["PrivateNoStore"];

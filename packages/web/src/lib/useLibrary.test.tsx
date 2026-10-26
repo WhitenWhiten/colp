@@ -5,6 +5,7 @@ import type { LibraryCollection } from '../api/types'
 import { applyMeView, applySessionView, clearSession } from '../api/sessionStore'
 import { cleanup, mountTree, settled, waitForDom } from '../test/render'
 import { useLibrary } from './useLibrary'
+import { clearRouteCache, readRouteCache, writeRouteCache } from './routeCache'
 const mocks = vi.hoisted(() => ({ library: vi.fn(), editor: vi.fn() }))
 vi.mock('../api', async original => {
   const actual = await original<typeof import('../api')>()
@@ -44,4 +45,35 @@ test('failed discovery shows an actionable error without fabricating a library',
   mocks.library.mockRejectedValue(new Error('offline')); mountTree(<Harness />)
   await waitForDom(() => document.querySelector('[data-state="error"]') !== null)
   expect(document.getElementById('ids')?.textContent).toBe('')
+})
+
+test('a page opened before /me hydrates restores its Library while discovery revalidates', async () => {
+  writeRouteCache('account-library', { library: library('cached'), state: 'ready', message: 'Your library' })
+  window.dispatchEvent(new Event('pagehide'))
+  const stored = localStorage.getItem('known.library.read-cache.v1:account-library')!
+  clearSession()
+  clearRouteCache()
+  localStorage.setItem('known.library.read-cache.v1:account-library', stored)
+  mocks.library.mockImplementation(() => new Promise(() => {}))
+  mountTree(<Harness />)
+  await act(async () => {
+    applySessionView({ authenticated: true, csrfToken: 'csrf-new', idleExpiresAt: '2099-01-01', absoluteExpiresAt: '2099-01-02' })
+  })
+  expect(document.getElementById('ids')?.textContent).toBe('')
+  expect(mocks.library).not.toHaveBeenCalled()
+  await act(async () => {
+    applyMeView({ account: { id: 'a', email: 'a@test' }, profile: { id: 'a', handle: 'a', displayName: 'A', avatarUrl: null } })
+  })
+  expect(document.getElementById('ids')?.textContent).toBe('cached')
+  expect(mocks.library).toHaveBeenCalled()
+})
+
+test('an access denial drops the cached Library instead of retaining its private read model', async () => {
+  const { ProductApiError } = await import('../api/errors')
+  writeRouteCache('account-library', { library: library('cached'), state: 'ready', message: 'Your library' })
+  mocks.library.mockRejectedValue(new ProductApiError({ status: 403, code: 'forbidden', message: 'Access denied', recovery: 'none' }))
+  mountTree(<Harness />)
+  await waitForDom(() => document.querySelector('[data-state="error"]') !== null)
+  expect(document.getElementById('ids')?.textContent).toBe('')
+  expect(readRouteCache('account-library')).toBeUndefined()
 })

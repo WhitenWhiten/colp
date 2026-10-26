@@ -270,6 +270,7 @@ export type ProductTransport = {
     opts: MutationCallOptions,
   ) => Promise<CreateCollectionResult>
   getEditorPage: (collectionId: string, params?: EditorPageParams) => Promise<EditorPage>
+  getEditorRevision: (collectionId: string, signal?: AbortSignal) => Promise<string | undefined>
   getPublicCollectionPage: (
     slug: string,
     params?: PublicCollectionPageParams,

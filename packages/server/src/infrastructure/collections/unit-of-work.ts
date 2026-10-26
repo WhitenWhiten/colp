@@ -114,6 +114,7 @@ export function createPostgresCollectionsEditorReadUnitOfWork(
             loadSnapshot: createPostgresCollectionEditorSnapshotPort(
               transaction,
               options.metrics,
+              { linkPreviews: options.linkPreviews, productOrigin: options.productOrigin },
             ),
             accessPolicy: createPostgresAccessPolicyFactsPort(transaction),
             clock: createPostgresCollectionsClock(transaction),

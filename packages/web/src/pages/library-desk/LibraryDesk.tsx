@@ -114,8 +114,9 @@ export function LibraryDesk() {
   }, [data.selectedId, folderId, resetCompose, resetSelection, cancelConfirm])
 
   useEffect(() => {
+    if (bootstrapping || !isLoggedIn) return
     persistDeskCache(data.trees, data.expanded, order.collapsedSections, data.userCollapsed)
-  }, [order.collapsedSections, data.expanded, data.trees, data.userCollapsed])
+  }, [bootstrapping, isLoggedIn, order.collapsedSections, data.expanded, data.trees, data.userCollapsed])
 
   const onAcceptInvite = async (inviteId: string, collectionIdToOpen: string) => {
     try {

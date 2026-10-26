@@ -23,7 +23,7 @@ export type TreeEntry = {
   message?: string
 }
 
-/** What the desk restores when a sub-route sends it through a remount. */
+/** Complete read models and view preferences restored on remount or page reload. */
 export type CachedDesk = {
   snaps: Record<string, EditorSnapshot>
   expanded: string[]
@@ -33,9 +33,6 @@ export type CachedDesk = {
 }
 
 export const DESK_CACHE_KEY = 'library-desk'
-
-/** R15-29: a tree loaded less than this long ago is not re-paged on tab return. */
-export const TREE_STALE_AFTER_MS = 60_000
 
 export function restoreTrees(cached: CachedDesk | undefined): Record<string, TreeEntry> {
   const entries: Record<string, TreeEntry> = {}
@@ -112,9 +109,6 @@ export function useLibraryDeskData(options: {
   )
   const loaders = useRef(new Map<string, AbortController>())
   const refreshed = useRef(new Set<string>())
-  /* R15-29: when each tree last loaded, so returning to the tab does not
-     re-page collections that are still fresh. */
-  const loadedAt = useRef(new Map<string, number>())
   const treesRef = useRef(trees)
   treesRef.current = trees
 
@@ -126,7 +120,7 @@ export function useLibraryDeskData(options: {
 
   const sharedSidebarItems = shared.items
 
-  const loadTree = useCallback(async (key: string, opts?: { silent?: boolean; propagate?: boolean }) => {
+  const loadTree = useCallback(async (key: string, opts?: { silent?: boolean; propagate?: boolean; revalidate?: boolean }) => {
     loaders.current.get(key)?.abort()
     const identity = privateSessionIdentity()
     const controller = new AbortController()
@@ -141,10 +135,10 @@ export function useLibraryDeskData(options: {
       const next = await productClient.loadEditorSnapshot(key, {
         signal: controller.signal,
         maxRetries: 0,
+        ...(opts?.revalidate && treesRef.current[key]?.snap ? { cachedSnapshot: treesRef.current[key].snap } : {}),
       })
       if (controller.signal.aborted || identity !== privateSessionIdentity()) return
       if (opts?.propagate && document.querySelector('[role="dialog"], dialog[open], .library-compose')) throw new Error('refresh_deferred')
-      loadedAt.current.set(key, Date.now())
       setTrees((current) => ({ ...current, [key]: { status: 'ready', snap: next } }))
     } catch (err) {
       if (controller.signal.aborted || identity !== privateSessionIdentity() || isAbort(err)) return
@@ -177,19 +171,15 @@ export function useLibraryDeskData(options: {
     const refresh = createScopedRefresh<string>({
       canRun: key => navigator.onLine !== false && document.visibilityState !== 'hidden' && visible.current.has(key)
         && !document.querySelector('[role="dialog"], dialog[open], .library-compose'),
-      refresh: key => loadTree(key, { silent: true, propagate: true }),
+      refresh: key => loadTree(key, { silent: true, propagate: true, revalidate: true }),
       retryAfter: error => isProductApiError(error) && [401, 403, 404].includes(error.status) ? null
         : isProductApiError(error) ? (error.retryAfterSeconds ?? 0) * 1000 : 0,
     })
     const unsubscribe = subscribeLibraryInvalidation(event => refresh.invalidate(event.collectionId))
-    /* R15-29: tab return and reconnect revalidate only trees older than the
-       staleness window; edits invalidate through subscribeLibraryInvalidation.
-       `visibilitychange` alone covers tab switches (no window `focus`). */
+    // Returning or reconnecting verifies versions. An unchanged tree needs no pages.
     const onReturn = () => {
-      const now = Date.now()
-      for (const key of visible.current) {
-        if (now - (loadedAt.current.get(key) ?? 0) >= TREE_STALE_AFTER_MS) refresh.invalidate(key)
-      }
+      if (document.visibilityState === 'hidden') return
+      for (const key of visible.current) refresh.invalidate(key)
       refresh.wake()
     }
     const onInputExit = () => refresh.wake()
@@ -201,11 +191,24 @@ export function useLibraryDeskData(options: {
       if (identity === privateSessionIdentity()) return
       identity = privateSessionIdentity(); refresh.reset()
       for (const controller of loaders.current.values()) controller.abort()
-      loaders.current.clear(); refreshed.current.clear(); loadedAt.current.clear(); treesRef.current = {}; setTrees({})
+      loaders.current.clear(); refreshed.current.clear(); treesRef.current = {}; setTrees({})
     })
     return () => { refresh.dispose(); unsubscribe(); unsubscribeSession(); observer.disconnect()
       window.removeEventListener('online', onReturn); document.removeEventListener('visibilitychange', onReturn) }
   }, [loadTree])
+
+  useEffect(() => {
+    // A direct /library visit mounts before /session + /me finish. Restore
+    // only once the verified account can read its persisted snapshot.
+    if (bootstrapping || !isLoggedIn) return
+    const cached = readDeskCache()
+    if (!cached || Object.keys(treesRef.current).length > 0) return
+    const restored = restoreTrees(cached)
+    treesRef.current = restored
+    setTrees(restored)
+    setExpanded(new Set(cached.expanded))
+    setUserCollapsed(new Set(cached.userCollapsed ?? []))
+  }, [bootstrapping, isLoggedIn, libraryId])
 
   useEffect(() => {
     if (!selectedId || !folderId) return
@@ -230,7 +233,7 @@ export function useLibraryDeskData(options: {
         // snapshot instead of replaying the skeleton.
         if (refreshed.current.has(id)) continue
         refreshed.current.add(id)
-        void loadTree(id, { silent: true })
+        void loadTree(id, { silent: true, revalidate: true })
         continue
       }
       refreshed.current.add(id)
@@ -241,6 +244,7 @@ export function useLibraryDeskData(options: {
   useEffect(() => () => {
     for (const controller of loaders.current.values()) controller.abort()
     loaders.current.clear()
+    refreshed.current.clear()
   }, [])
 
   const toggleExpanded = (id: string, collapsing: boolean) => {

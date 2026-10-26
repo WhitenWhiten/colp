@@ -25,6 +25,12 @@ import type {
 export function createEditorTransport(http: ProductTransportHttp) {
   const { request, mutationHeaders } = http
   return {
+    getEditorRevision(collectionId: string, signal?: AbortSignal) {
+      return request<string | undefined>({
+        method: 'HEAD', path: `/api/v1/collections/${encodeURIComponent(collectionId)}/editor`,
+        signal, editorRevision: 'only',
+      })
+    },
     getLibrary(signal?: AbortSignal) {
       return request<import('./types').LibraryCollection>({ method: 'GET', path: '/api/v1/me/library', signal })
     },
@@ -49,6 +55,7 @@ export function createEditorTransport(http: ProductTransportHttp) {
       return request<EditorPage>({
         method: 'GET',
         path: `/api/v1/collections/${encodeURIComponent(collectionId)}/editor`,
+        editorRevision: 'include',
         query,
         signal: params?.signal,
       })

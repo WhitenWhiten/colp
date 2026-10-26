@@ -23,16 +23,19 @@ function browserRoots() {
 }
 
 /** The owner's one-tree library holding `nodes`; folder creates append to it and land in `writes`. */
-async function routeLibrary(page: Page, nodes: ReturnType<typeof folder>[], writes: Record<string, unknown>[] = []) {
+async function routeLibrary(page: Page, nodes: ReturnType<typeof folder>[], writes: Record<string, unknown>[] = [], readRevision = () => 'library-read-1') {
   await page.route('**/api/v1/**', async route => {
     const path = new URL(route.request().url()).pathname
     const json = (body: unknown) => route.fulfill({ json: body })
     if (path === '/api/v1/session') return json({ authenticated: true, csrfToken: 'csrf', idleExpiresAt: '2099-01-01T00:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z' })
     if (path === '/api/v1/me') return json({ account: { id: 'owner', email: 'owner@example.test' }, profile: { id: 'owner', handle: 'owner', displayName: 'Owner', avatarUrl: null } })
     if (path === '/api/v1/me/library') return json({ id: 'library', title: 'Bookmarks', rootNodeId: 'root', library: true, bookmarksBarId: 'bar', otherBookmarksId: 'other' })
-    if (path === '/api/v1/collections/library/editor') return json({ collection, capabilities,
+    if (path === '/api/v1/collections/library/editor' && route.request().method() === 'HEAD') {
+      return route.fulfill({ status: 200, headers: { 'Known-Editor-Revision': readRevision() }, body: '' })
+    }
+    if (path === '/api/v1/collections/library/editor') return route.fulfill({ headers: { 'Known-Editor-Revision': readRevision() }, json: { collection, capabilities,
       root: { ...folder('root', '', 'Bookmarks', 0, 'root'), parentId: null, position: null }, nodes,
-      page: { snapshotId: 'snapshot', contentRevision: 'c1', policyRevision: 'p1', comparatorVersion: '1', expiresAt: '2099-01-01T00:00:00Z', returnedCount: nodes.length, hasMore: false, nextCursor: null } })
+      page: { snapshotId: 'snapshot', contentRevision: 'c1', policyRevision: 'p1', comparatorVersion: '1', expiresAt: '2099-01-01T00:00:00Z', returnedCount: nodes.length, hasMore: false, nextCursor: null } } })
     if (path === '/api/v1/collections/library/nodes' && route.request().method() === 'POST') {
       const body = route.request().postDataJSON(); writes.push(body)
       const node = { ...nodes[0]!, ...body.node, id: `folder-${writes.length}`, parentId: body.parentId }
@@ -115,4 +118,62 @@ test('opening and closing a folder never flashes the rail scrollbar', async ({ p
   expect(await overflowFrames('Expand Bookmarks bar')).toEqual([])
   await expect(nav.getByRole('link', { name: /Folder 2/ })).toBeVisible()
   expect(await overflowFrames('Collapse Bookmarks bar')).toEqual([])
+})
+
+test('Library cache survives reload and paints before background tree revalidation', async ({ page }) => {
+  const nodes = [...browserRoots(), folder('cached-folder', 'bar', 'Cached research folder', 0)]
+  let revision = 'library-read-1'
+  await routeLibrary(page, nodes, [], () => revision)
+  let editorReads = 0
+  let versionReads = 0
+  let holdReads = false
+  let release = () => {}
+  const gate = new Promise<void>(resolve => { release = resolve })
+  await page.route('**/api/v1/**', async route => {
+    const path = new URL(route.request().url()).pathname
+    const editorGet = path === '/api/v1/collections/library/editor' && route.request().method() === 'GET'
+    if (editorGet) editorReads += 1
+    if (path === '/api/v1/collections/library/editor' && route.request().method() === 'HEAD') versionReads += 1
+    if (holdReads && (path === '/api/v1/me/library' || editorGet)) await gate
+    await route.fallback()
+  })
+  await page.goto('/library?folder=bar')
+  const main = page.getByTestId('library-main')
+  await expect(main.getByText('Cached research folder', { exact: true })).toBeVisible()
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('known.library.read-cache.v1:library-desk'))).not.toBeNull()
+  const initialReads = editorReads
+  // The age of a local read model never forces a full tree download.
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event('pagehide'))
+    const key = 'known.library.read-cache.v1:library-desk'
+    const cached = JSON.parse(localStorage.getItem(key)!)
+    cached.savedAt = Date.now() - 30 * 24 * 60 * 60 * 1000
+    localStorage.setItem(key, JSON.stringify(cached))
+  })
+  holdReads = true
+  try {
+    // Both discovery and full-tree responses stay blocked. A new document
+    // must still render the verified account's cached folders immediately.
+    const unchangedProbe = page.waitForResponse(response => response.request().method() === 'HEAD'
+      && new URL(response.url()).pathname === '/api/v1/collections/library/editor')
+    await page.reload()
+    await expect(main.getByText('Cached research folder', { exact: true })).toBeVisible()
+    await expect.poll(() => versionReads).toBeGreaterThan(0)
+    expect((await unchangedProbe).headers()['known-editor-revision']).toBe('library-read-1')
+    expect(editorReads).toBe(initialReads)
+
+    // A changed version triggers a new tree behind the rendered snapshot.
+    revision = 'library-read-2'
+    nodes.push(folder('new-folder', 'bar', 'New research folder', 1))
+    const changedProbe = page.waitForResponse(response => response.request().method() === 'HEAD'
+      && new URL(response.url()).pathname === '/api/v1/collections/library/editor')
+    await page.reload()
+    expect((await changedProbe).headers()['known-editor-revision']).toBe('library-read-2')
+    await expect(main.getByText('Cached research folder', { exact: true })).toBeVisible()
+    await expect.poll(() => editorReads).toBeGreaterThan(initialReads)
+    await expect(page.getByText('Loading bookmarks…', { exact: true })).toHaveCount(0)
+  } finally {
+    release()
+  }
+  await expect(main.getByText('New research folder', { exact: true })).toBeVisible()
 })

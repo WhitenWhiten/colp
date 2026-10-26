@@ -249,6 +249,7 @@ async function assembleEditorPages(
     if (!current.page.hasMore) {
       throwIfEditorAborted(signal)
       return {
+        ...(first.readRevision ? { readRevision: first.readRevision } : {}),
         collection: current.collection,
         root: current.root,
         nodes,
@@ -380,6 +381,8 @@ export function createProductCollectionsClient(
   async function loadEditorSnapshot(
     collectionId: string,
     options?: ReadOptions & {
+      /** A passive refresh probes the whole read-model version before fetching pages. */
+      cachedSnapshot?: EditorSnapshot
       limit?: number
       maxSnapshotRestarts?: number
       /**
@@ -400,6 +403,18 @@ export function createProductCollectionsClient(
     const maxNodes = EDITOR_SNAPSHOT_MAX_NODES
     const maxBytes = editorBudgetLimit(options?.maxBytes, EDITOR_SNAPSHOT_MAX_BYTES)
     let restarts = 0
+
+    const cached = options?.cachedSnapshot
+    if (cached?.readRevision && cached.collection.id === collectionId) {
+      try {
+        const revision = await withSameRequestRetry(() => transport.getEditorRevision(collectionId, options?.signal), options ?? {})
+        throwIfEditorAborted(options?.signal)
+        if (revision === cached.readRevision) return cached
+      } catch (error) {
+        // An older deployment may not implement HEAD; it still supports a full load.
+        if (!(error instanceof ProductApiError) || ![405, 501].includes(error.status)) throw error
+      }
+    }
 
     for (;;) {
       try {

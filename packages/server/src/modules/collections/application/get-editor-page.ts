@@ -1,4 +1,5 @@
-import { authorizeCapability, capabilitiesForRole, type AccessPolicyFactsPort, type MembershipRole } from '../../access-policy/index.js';
+import { capabilitiesForRole, type AccessPolicyFactsPort, type MembershipRole } from '../../access-policy/index.js';
+import { authorizeEditorRead, editorReadRevision } from './editor-read-revision.js';
 import {
   EditorAuthorizationError,
   EditorCursorError,
@@ -155,6 +156,8 @@ export interface EditorPageState {
 }
 
 export interface EditorPage {
+  /** Internal read-model validator; transport sends it as Known-Editor-Revision, outside the JSON body. */
+  readonly readRevision?: string;
   readonly collection: CollectionView;
   readonly root: RootNodeView;
   readonly nodes: readonly EditableNodeView[];
@@ -232,6 +235,8 @@ export interface CollectionEditorSnapshot {
 }
 
 export interface CollectionEditorSnapshotPort {
+  /** Current icon/preview/share references, without loading the canonical node payloads. */
+  loadProjectionRevision?(collectionId: string): Promise<string>;
   /**
    * Load collection + root + live non-root nodes page.
    * Returns null when the collection row is absent.
@@ -320,26 +325,7 @@ export async function getCollectionEditorPage(
     expiresAt = formatUtcDateTime(new Date(now.getTime() + ttlMs));
   }
 
-  const locked = await ports.collections.lockForShare(collectionId);
-  if (!locked || locked.deletedAt !== null) {
-    throw new EditorAuthorizationError({
-      outcome: 'conceal',
-      reasonCategory: 'resource_missing',
-    });
-  }
-
-  const decision = await authorizeCapability(ports.accessPolicy, {
-    collectionId,
-    actor: { principalId, subjectId, kind: 'account' },
-    capability: 'read_editor',
-  });
-
-  if (decision.outcome !== 'allow') {
-    throw new EditorAuthorizationError({
-      outcome: decision.outcome,
-      reasonCategory: decision.reasonCategory,
-    });
-  }
+  const { role } = await authorizeEditorRead(ports, { collectionId, actor: { principalId, subjectId } });
 
   const snapshot = await ports.loadSnapshot.loadCollectionEditorSnapshot({
     collectionId,
@@ -366,7 +352,10 @@ export async function getCollectionEditorPage(
 
   const collection = mapCollectionView(snapshot.collection);
   const root = mapRootNodeView(snapshot.root);
-  const capabilities = mapCapabilities(decision.effectiveRole, snapshot.collection.isLibrary === true);
+  const capabilities = mapCapabilities(role, snapshot.collection.isLibrary === true);
+  const readRevision = !continuation && ports.loadSnapshot.loadProjectionRevision
+    ? editorReadRevision(snapshot.collection, role, await ports.loadSnapshot.loadProjectionRevision(collectionId), ports.productOrigin)
+    : undefined;
 
   const iconObjectIds = await loadBookmarkIconObjectIds(
     ports.bookmarkIcons,
@@ -412,6 +401,7 @@ export async function getCollectionEditorPage(
   }
 
   return {
+    ...(readRevision ? { readRevision } : {}),
     collection,
     root,
     nodes: selection.nodes,

@@ -1,5 +1,7 @@
 /**
- * Module-scoped read cache for page data that has to survive a route change.
+ * Identity-stamped read cache for page data that survives a route change.
+ * Library read models also persist across page loads after /me verifies the
+ * account; other routes remain in memory only.
  *
  * Every route here is a separate route element, so React Router unmounts the
  * page component on any navigation away from it — the `<main key={pageKey}>`
@@ -18,6 +20,7 @@
  * (published collections, search) is keyed by its own identifier instead.
  */
 import { privateSessionIdentity, subscribeSession } from '../api/sessionStore'
+import { deletePersistentRouteCache, readPersistentRouteCache, writePersistentRouteCache } from './persistentRouteCache'
 
 /**
  * The identity is stamped per entry rather than tracked for the map as a whole:
@@ -36,16 +39,24 @@ subscribeSession(() => {
 
 export function readRouteCache<T>(key: string): T | undefined {
   const entry = entries.get(key)
-  if (entry === undefined || entry.identity !== privateSessionIdentity()) return undefined
-  return entry.value as T
+  if (entry !== undefined && entry.identity === privateSessionIdentity()) return entry.value as T
+  const restored = readPersistentRouteCache<T>(key)
+  if (restored !== undefined) entries.set(key, { identity: privateSessionIdentity(), value: restored })
+  return restored
 }
 
 export function writeRouteCache<T>(key: string, value: T, identity = privateSessionIdentity()): void {
   if (identity !== privateSessionIdentity()) return
   entries.set(key, { identity, value })
+  writePersistentRouteCache(key, value, identity)
 }
 
-/** Test helper: drop every cached entry without touching the session store. */
+export function deleteRouteCache(key: string): void {
+  entries.delete(key)
+  deletePersistentRouteCache(key)
+}
+
+/** Test helper: drop in-memory entries, leaving browser storage and the session alone. */
 export function clearRouteCache(): void {
   entries.clear()
 }

@@ -375,7 +375,7 @@ export function buildApiApp(input: AppDependencies) {
         'Access-Control-Allow-Headers',
         'Authorization, Content-Type, Origin, Known-Command-Id, If-Match, Known-Favicon-Policy-Revision',
       );
-      reply.header('Access-Control-Expose-Headers', 'ETag, Cache-Control, X-Request-Id, RateLimit-Policy, Retry-After');
+      reply.header('Access-Control-Expose-Headers', 'ETag, Cache-Control, X-Request-Id, RateLimit-Policy, Retry-After, Known-Editor-Revision');
       reply.header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
     }
     if (request.method === 'OPTIONS' && bookmarkFaviconHelperOrigin) {

@@ -27,6 +27,7 @@ export type ProductRequestInit = {
   timeoutMs?: number
   emptyOk?: boolean
   includeEtag?: boolean
+  editorRevision?: 'only' | 'include'
 }
 
 export type ProductTransportHttp = {
@@ -126,6 +127,11 @@ export function createProductTransportHttp(
 
     invalidate()
     if (status === 204) return undefined as T
+    const editorRevision = responseHeaders.get('known-editor-revision')
+    if (init.editorRevision === 'only') return (editorRevision || undefined) as T
+    if (init.editorRevision === 'include' && editorRevision && body && typeof body === 'object') {
+      return { ...body, readRevision: editorRevision } as T
+    }
     if (init.includeEtag) {
       const etag = asStrongEntityTag(responseHeaders.get('etag') ?? '')
       if (!etag || !body || typeof body !== 'object') {

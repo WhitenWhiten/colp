@@ -8042,6 +8042,10 @@ paths:
         must omit limit. The cursor is scoped to the principal, Collection,
         content revision, policy revision, comparator, and page size. The client
         publishes the assembled tree only after hasMore is false.
+        The first page includes Known-Editor-Revision for the complete read model,
+        including current favicon, preview-image and folder-share references.
+        HEAD on this route checks current authorization and returns that revision
+        without loading canonical node payloads or generating pagination cursors.
       security:
         - cookieAuth: []
       parameters:
@@ -8052,6 +8056,10 @@ paths:
         '200':
           description: One consistent Editor page.
           headers:
+            Known-Editor-Revision:
+              required: false
+              description: Whole authorized Editor read-model revision. Present on the first page and HEAD; compare before fetching a cached tree again.
+              schema: { type: string, pattern: '^[a-f0-9]{64}$' }
             Known-Editor-Session:
               required: false
               description: Public session identifier binding this page to its authenticated request; never a credential.

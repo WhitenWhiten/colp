@@ -11,6 +11,7 @@ import {
   isAuthenticated,
   privateSessionIdentity,
   subscribeSession,
+  verifiedSessionAccountId,
 } from './sessionStore'
 import {
   createMemorySessionStorage,
@@ -150,5 +151,20 @@ describe('sessionStore', () => {
 
     applyMeView(null)
     expect(getSessionSnapshot().sessionEpoch).toBe(afterSession + 2)
+  })
+
+  it('requires /me to verify the account again after the browser session changes', () => {
+    const session = { authenticated: true as const, csrfToken: 'csrf-1', idleExpiresAt: '2099-01-01', absoluteExpiresAt: '2099-01-02' }
+    const actor = { account: { id: 'a', email: null }, profile: { id: 'a', handle: 'a', displayName: 'A', avatarUrl: null } }
+    applySessionView(session)
+    expect(verifiedSessionAccountId()).toBeUndefined()
+    applyMeView(actor)
+    expect(verifiedSessionAccountId()).toBe('a')
+    applySessionView({ ...session, csrfToken: 'csrf-2' })
+    expect(verifiedSessionAccountId()).toBeUndefined()
+    applyMeView(actor)
+    expect(verifiedSessionAccountId()).toBe('a')
+    clearSession()
+    expect(verifiedSessionAccountId()).toBeUndefined()
   })
 })

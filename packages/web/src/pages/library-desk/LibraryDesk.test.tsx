@@ -2,6 +2,9 @@
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { readFolderRecents } from '../../lib/folderRecents'
+import { clearRouteCache, readRouteCache, writeRouteCache } from '../../lib/routeCache'
+import { applyMeView, applySessionView, clearSession } from '../../api/sessionStore'
+import { DESK_CACHE_KEY, type CachedDesk } from './data'
 import { cleanup, domFinishedLoading, waitForDom } from '../../test/render'
 import {
   extraBookmark,
@@ -155,19 +158,69 @@ describe('LibraryDesk', () => {
     await waitForDom(domFinishedLoading)
   })
 
-  it('revalidates a restored desk snapshot without showing a loading state', async () => {
+  it('passes the cached snapshot into passive version revalidation on remount', async () => {
     mount()
     await waitForDom(domFinishedLoading)
-    const firstPass = mocks.loadEditorSnapshot.mock.calls.length
+    const cached = readRouteCache<CachedDesk>(DESK_CACHE_KEY)!.snaps['col-1']
 
     cleanup()
         document.body.innerHTML = '<div id="root"></div>'
     mount()
     await waitForDom(domFinishedLoading)
 
-    expect(mocks.loadEditorSnapshot.mock.calls.length).toBeGreaterThan(firstPass)
+    expect(mocks.loadEditorSnapshot).toHaveBeenCalledWith('col-1', expect.objectContaining({ cachedSnapshot: cached }))
+    const last = mocks.loadEditorSnapshot.mock.calls.filter(([id]) => id === 'col-1').at(-1)!
+    expect(last[1].signal.aborted).toBe(false)
     expect(document.body.textContent).not.toContain('Loading bookmarks…')
     expect(document.querySelector('[data-testid="library-bookmarks"]')?.textContent).toContain('Loose bookmark')
+  })
+
+  it('keeps the rendered bookmarks while a version revalidation is pending', async () => {
+    mount()
+    await waitForDom(domFinishedLoading)
+    cleanup()
+    const firstPass = mocks.loadEditorSnapshot.mock.calls.length
+    mocks.loadEditorSnapshot.mockImplementation(() => new Promise(() => {}))
+    mount()
+    expect(mocks.loadEditorSnapshot.mock.calls.length).toBeGreaterThan(firstPass)
+    expect(document.querySelector('[data-testid="library-bookmarks"]')?.textContent).toContain('Loose bookmark')
+    expect(document.body.textContent).not.toContain('Loading bookmarks…')
+  })
+
+  it('restores a persisted tree after session bootstrap without erasing it during startup', async () => {
+    const signIn = () => {
+      applySessionView({ authenticated: true, csrfToken: 'csrf', idleExpiresAt: '2099-01-01', absoluteExpiresAt: '2099-01-02' })
+      applyMeView({ account: { id: 'a', email: null }, profile: { id: 'a', handle: 'a', displayName: 'A', avatarUrl: null } })
+    }
+    signIn()
+    const snap = snapshot()
+    snap.nodes.push(extraBookmark('last-page', 'col-1', snap.root.id, 'z', 'Cached last page'))
+    writeRouteCache<CachedDesk>(DESK_CACHE_KEY, {
+      snaps: { 'col-1': snap }, expanded: [],
+    })
+    window.dispatchEvent(new Event('pagehide'))
+    const stored = localStorage.getItem('known.library.read-cache.v1:library-desk')!
+    // A new JS document starts without an authenticated actor or memory cache.
+    clearSession()
+    localStorage.setItem('known.library.read-cache.v1:library-desk', stored)
+    clearRouteCache()
+    mocks.auth.bootstrapping = true
+    mocks.auth.isLoggedIn = false
+    mount()
+    window.dispatchEvent(new Event('pagehide'))
+    expect(localStorage.getItem('known.library.read-cache.v1:library-desk')).toBe(stored)
+    expect(document.body.textContent).not.toContain('Cached last page')
+
+    mocks.loadEditorSnapshot.mockImplementation(() => new Promise(() => {}))
+    act(signIn)
+    mocks.auth.bootstrapping = false
+    mocks.auth.isLoggedIn = true
+    mount()
+    expect(document.querySelector('[data-testid="library-bookmarks"]')?.textContent).toContain('Cached last page')
+    expect(document.body.textContent).not.toContain('Loading bookmarks…')
+    expect(mocks.loadEditorSnapshot).toHaveBeenCalledWith('col-1', expect.anything())
+    cleanup()
+    clearSession()
   })
 
   it('lists the library as the rail’s top level, with no control that folds it away', async () => {

@@ -87,6 +87,7 @@ export {
 export * from './domain/snapshot-tree-capacity.js';
 export * from './domain/bookmark-pin.js';
 export * from './application/index.js';
+export { getCollectionEditorReadRevision } from './application/editor-read-revision.js';
 
 export * from './application/actor-bookmark-read.js';
 export * from './application/link-preview-exports.js';
