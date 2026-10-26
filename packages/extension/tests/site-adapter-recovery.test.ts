@@ -122,3 +122,29 @@ test('explicitly retaining unresolved restored scope blocks its items and collec
     await assertRestoredItemAvailable(f.db, 'other-connection', 'video:av:1', '101');
   } finally { await f.db.close(); }
 });
+
+test('backup round trips distinct local and synced semantic copies without executable scope authority', async () => {
+  const db = createSourceDatabase(new IDBFactory());
+  try {
+    await db.transaction(['connections', 'representations'], 'readwrite', async tx => {
+      tx.objectStore('connections').put({ id: 'source', siteKey: 'bilibili', accountId: '7', identityVersion: 1 }, 'source');
+      for (const scopeId of ['local-device', 'synced-library']) {
+        const rep = { connectionId: 'source', itemId: 'video:av:1', purpose: 'semantic', sourceCollectionId: null, mountId: null, scopeId,
+          state: 'active', manualRevision: 0, native: { nativeId: scopeId, deviceId: 'device' } };
+        tx.objectStore('representations').put(rep, scopeId);
+      }
+    });
+    const exported = (await exportPortableSources(db, new Set(['local-device', 'synced-library'])))!;
+    expect(exported.version).toBe(3);
+    const copies = exported.connections[0]!.associations;
+    expect(copies).toHaveLength(2); expect(copies[0]!.scopeRef).not.toBe(copies[1]!.scopeRef);
+    expect(JSON.stringify(exported)).not.toContain('scopeId');
+    const restored = createSourceDatabase(new IDBFactory());
+    try {
+      await restorePortableSources(restored, 'restored', exported, new Map([['local-device', 'new-local'], ['synced-library', 'new-synced']]));
+      const again = (await exportPortableSources(restored, new Set(['new-local', 'new-synced'])))!;
+      expect(again.connections[0]!.associations.map(a => a.scopeRef)).toEqual(copies.map(a => a.scopeRef));
+      expect(again.connections[0]!.associations.map(a => a.nativeSourceId)).toEqual(['new-local', 'new-synced']);
+    } finally { await restored.close(); }
+  } finally { await db.close(); }
+});

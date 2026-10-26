@@ -10,27 +10,28 @@ import { array, literal, object, str, jsonBytes } from './schema.js';
 import { representationKey } from './reservations.js';
 
 interface PortableAssociation { itemId: string; collectionId: string | null; mountRef: string | null; purpose: 'sourceArchive' | 'semantic';
-  nativeSourceId: string | null; state: 'active' | 'detached' | 'suppressed' }
+  nativeSourceId: string | null; state: 'active' | 'detached' | 'suppressed'; scopeRef?: string }
 interface PortableMount { ref: string; rootSourceId: string | null; aiDestination: 'excluded' | 'allowed';
   folders: { collectionId: string; nativeSourceId: string | null; state: string }[] }
-export interface PortableSources { version: 1 | 2; connections: { ref: string; siteKey?: string; accountId: string; identityVersion: number;
+export interface PortableSources { version: 1 | 2 | 3; connections: { ref: string; siteKey?: string; accountId: string; identityVersion: number;
   copies: 'sourceAndSemantic' | 'singlePreferSemantic' | 'singleKeepExisting'; mounts: PortableMount[]; associations: PortableAssociation[] }[] }
 const nullable = (v: unknown) => v === null || str(256)(v);
 const association = object({ itemId: str(128), collectionId: nullable, mountRef: nullable,
-  purpose: literal('sourceArchive', 'semantic'), nativeSourceId: nullable, state: literal('active', 'detached', 'suppressed') }, v => {
+  scopeRef: v => v === undefined || str(128)(v), purpose: literal('sourceArchive', 'semantic'), nativeSourceId: nullable, state: literal('active', 'detached', 'suppressed') }, v => {
   const a = v as PortableAssociation; return a.purpose === 'semantic' ? a.collectionId === null && a.mountRef === null : !!a.collectionId && !!a.mountRef;
 });
 const mountSchema = object({ ref: str(256), rootSourceId: nullable, aiDestination: literal('excluded', 'allowed'),
   folders: array(object({ collectionId: str(256), nativeSourceId: nullable, state: literal('reserved', 'submitted', 'unknown', 'confirmed', 'blocked') }), 100_000, 0, v => (v as { collectionId: string }).collectionId) });
 export function parsePortableSources(value: unknown): PortableSources {
-  if (!jsonBytes(value, 32 * 1024 * 1024) || !object({ version: literal(1, 2), connections: array(object({ ref: str(256),
+  if (!jsonBytes(value, 32 * 1024 * 1024) || !object({ version: literal(1, 2, 3), connections: array(object({ ref: str(256),
     siteKey: v => v === undefined || str(128)(v), accountId: str(128), identityVersion: v => Number.isSafeInteger(v) && Number(v) > 0,
     copies: literal('sourceAndSemantic', 'singlePreferSemantic', 'singleKeepExisting'), mounts: array(mountSchema, 1000, 0, v => (v as PortableMount).ref),
     associations: array(association, 100_000) }), 1000, 0, v => (v as { ref: string }).ref) })(value)) throw new Error('sourceBackupInvalid');
   const result = value as PortableSources;
   for (const c of result.connections) {
-    if (result.version === 1 && (c.siteKey !== undefined || c.identityVersion !== legacySite.identityVersion || !legacySite.validateAccount(c.accountId)) || result.version === 2 && !c.siteKey) throw new Error('sourceBackupInvalid');
-    if (new Set(c.associations.map(a => sourceKey(a.itemId, a.purpose, a.collectionId, a.mountRef))).size !== c.associations.length
+    if (result.version === 1 && (c.siteKey !== undefined || c.identityVersion !== legacySite.identityVersion || !legacySite.validateAccount(c.accountId)) || result.version >= 2 && !c.siteKey) throw new Error('sourceBackupInvalid');
+    if (c.associations.some(a => result.version < 3 ? a.scopeRef !== undefined : a.purpose === 'semantic' && !a.scopeRef)) throw new Error('sourceBackupInvalid');
+    if (new Set(c.associations.map(a => sourceKey(a.itemId, a.purpose, a.collectionId, a.mountRef, a.scopeRef ?? null))).size !== c.associations.length
       || c.associations.some(a => a.mountRef && !c.mounts.some(m => m.ref === a.mountRef))) throw new Error('sourceBackupInvalid');
   }
   return structuredClone(result);
@@ -44,14 +45,15 @@ export async function exportPortableSources(db: SourceDatabase, nativeSourceIds:
   const [connections, mounts, reps, folders] = await Promise.all([all<SourceConnection>(db, 'connections'), all<SourceMount>(db, 'mounts'),
     all<Representation>(db, 'representations'), all<SourceFolderReservation>(db, 'folderReservations')]);
   const sourceRef = (id: string | undefined) => id && nativeSourceIds.has(id) ? id : null;
-  const result: PortableSources = { version: 2, connections: [] };
+  const result: PortableSources = { version: 3, connections: [] };
   for (const c of connections) {
     const policy = await db.read<SourcePolicyRecord>('meta', `policy:${c.id}`);
     result.connections.push({ ref: c.id, siteKey: c.siteKey ?? legacySite.siteKey, accountId: c.accountId, identityVersion: c.identityVersion, copies: policy?.policy.copies ?? 'sourceAndSemantic',
       mounts: mounts.filter(m => m.connectionId === c.id).map(m => ({ ref: m.id, rootSourceId: sourceRef(m.root.nativeId), aiDestination: m.aiDestination,
         folders: folders.filter(f => f.mountId === m.id).map(f => ({ collectionId: f.collectionId, nativeSourceId: sourceRef(f.native?.nativeId), state: f.state })) })),
       associations: reps.filter(r => r.connectionId === c.id).map(r => ({ itemId: r.itemId, collectionId: r.sourceCollectionId, mountRef: r.mountId,
-        purpose: r.purpose, nativeSourceId: sourceRef(r.native.nativeId), state: r.state })) });
+        purpose: r.purpose, nativeSourceId: sourceRef(r.native.nativeId), state: r.state,
+        ...(r.purpose === 'semantic' ? { scopeRef: sourceDigest(r.scopeId ?? ['legacy', r.native.deviceId]) } : {}) })) });
   }
   // A second backup must also preserve associations still awaiting review after the first restore.
   const inert = (await all<unknown>(db, 'meta', IDBKeyRange.bound('restoredSources:', 'restoredSources:\uffff'))).filter((v): v is RestoredSources => !!v && typeof v === 'object' && 'data' in v && 'nativeIds' in v && 'reviewed' in v && (v as RestoredSources).state === 'disabled');
@@ -64,7 +66,7 @@ export async function exportPortableSources(db: SourceDatabase, nativeSourceIds:
     const mapNative = (ref: string | null) => ref && Object.hasOwn(restore.nativeIds, ref) ? sourceRef(restore.nativeIds[ref]) : null;
     result.connections.push({ ref: sourceDigest([restore.id, c.ref]), siteKey: c.siteKey ?? legacySite.siteKey, accountId: c.accountId, identityVersion: c.identityVersion, copies: c.copies,
       mounts: pending.map(m => ({ ...m, ref: mapRef(m.ref), rootSourceId: mapNative(m.rootSourceId), folders: m.folders.map(f => ({ ...f, nativeSourceId: mapNative(f.nativeSourceId) })) })),
-      associations: associations.map(r => ({ ...r, mountRef: r.mountRef && mapRef(r.mountRef), nativeSourceId: mapNative(r.nativeSourceId) })) });
+      associations: associations.map(r => ({ ...r, ...(r.purpose === 'semantic' ? { scopeRef: r.scopeRef ?? sourceDigest([restore.id, c.ref, 'legacy']) } : {}), mountRef: r.mountRef && mapRef(r.mountRef), nativeSourceId: mapNative(r.nativeSourceId) })) });
   }
   if (!result.connections.length) return undefined;
   return parsePortableSources(result);
