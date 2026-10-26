@@ -129,7 +129,7 @@ function decodePng(body: Buffer, maxDecompressedBytes: number): DecodedFaviconIm
       if (length > 0) {
         idatChunks.push(body.subarray(dataOffset, endOffset));
         idatTotal += length;
-        if (idatTotal > BOOKMARK_FAVICON_MAX_BYTES * 4) invalid('PNG compressed data too large');
+        // Disjoint IDAT chunks are bounded by decodeFaviconImage's caller-specific wire cap.
       }
     } else if (type === 'IEND') {
       sawIend = true;
