@@ -2,17 +2,19 @@
  * R15 global evidence/proof maintenance port.
  *
  * The maintenance worker is a standalone schedule independent of Pull that sweeps
- * terminal Ack receipts, terminated Sessions past their grace window, expired/
- * consumed/retired recovery proofs, expired pull-cursor evidence and expired
- * bootstrap Snapshot evidence across all replicas. Row-level concurrency comes
- * from a candidate CTE using FOR UPDATE SKIP LOCKED; there is deliberately no
+ * terminal Ack receipts, terminated Sessions past their grace window, retired
+ * Replica sequence authority, expired/consumed/retired recovery proofs, expired
+ * pull-cursor evidence, floor-fenced revision history and expired bootstrap
+ * Snapshot evidence across all replicas. Row-level concurrency comes from a
+ * candidate CTE using FOR UPDATE SKIP LOCKED; there is deliberately no
  * per-collection lease, so candidate rows are the only unit of claim.
  *
  * Metric contract (counters/gauges wired in bootstrap/worker.ts):
  * - attempted : actionable proof/evidence/lineage/page candidates (capped by batchSize),
- *               bounded Snapshot/Session candidates, and terminal Ack receipts
- * - deleted   : deleted Ack receipts, terminal Session authority rows, proof/evidence/
- *               lineage/page rows plus expired Snapshot evidence rows
+ *               bounded Snapshot/Session/sequence candidates, and terminal Ack receipts
+ * - deleted   : deleted Ack receipts, terminal Session authority rows, retired Replica
+ *               sequence rows, proof/evidence/lineage/page rows, revision history below
+ *               a verified floor and expired Snapshot evidence rows
  * - redacted  : cursor evidence rows whose checkpoint-referenced cursor was redacted to NULL
  * - skipped   : claimed evidence/pages protected by a concurrent authority change
  * - errors    : run-level failures (a throw is reported through the job's onError)

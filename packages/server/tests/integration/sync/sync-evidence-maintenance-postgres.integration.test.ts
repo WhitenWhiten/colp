@@ -189,6 +189,35 @@ describeWithPostgres('R15 global evidence/proof maintenance worker', () => {
       where session_id=$1`, [sessionId]);
   }
 
+  async function seedSequenceAuthority(value: Awaited<ReturnType<typeof context>>, label: string) {
+    const operationId = `r15-sequence-op-${label}`;
+    const sequenceScope = `collection:${value.session.collection_id}`;
+    await isolated.runtime.pool.query(`insert into resource_id_ledger(resource_id,resource_type)
+      values ($1,'operation') on conflict do nothing`, [operationId]);
+    await isolated.runtime.pool.query(`insert into sync_sequence_lanes
+      (replica_id,collection_id,sequence_scope,next_sequence) values ($1,$2,$3,1)`,
+    [value.replica.replicaId, value.session.collection_id, sequenceScope]);
+    await isolated.runtime.pool.query(`insert into sync_sequence_operation_claims
+      (operation_id,replica_id,collection_id,sequence_scope,sequence_number,canonical_digest)
+      values ($1,$2,$3,$4,1,$5)`,
+    [operationId, value.replica.replicaId, value.session.collection_id, sequenceScope, digest(label)]);
+    await isolated.runtime.pool.query(`insert into sync_sequence_receipts
+      (replica_id,collection_id,sequence_scope,sequence_number,operation_id,canonical_digest,
+       session_id,lease_generation,server_batch_id,media_type,endpoint_identity,status,
+       result_json,result_digest,finalized_at)
+      values ($1,$2,$3,1,$4,$5,$6,$7,$6,'application/json','r15-endpoint','applied',
+        '{}'::jsonb,$8,current_timestamp)`,
+    [value.replica.replicaId, value.session.collection_id, sequenceScope, operationId, digest(label),
+      value.sessionId, BigInt(value.replica.leaseGeneration), digest(`result-${label}`)]);
+    return { operationId, sequenceScope };
+  }
+
+  async function retireReplica(replicaId: string) {
+    await isolated.runtime.pool.query(`update sync_replicas
+      set status='retired', retired_at=current_timestamp, lifecycle_revision=lifecycle_revision+1
+      where replica_id=$1`, [replicaId]);
+  }
+
   async function seedProof(value: Awaited<ReturnType<typeof context>>, label: string,
     cursor: string, proofExpiresAt: Date, consumedAt?: Date) {
     const issuedAt = new Date(proofExpiresAt.getTime() - 7_200_000);
@@ -681,6 +710,36 @@ describeWithPostgres('R15 global evidence/proof maintenance worker', () => {
       'select 1 from sync_session_scopes where session_id=$1', [value.sessionId])).rowCount, 1);
     assert.equal((await isolated.runtime.pool.query(
       'select 1 from sync_session_idempotency_receipts where session_id=$1', [value.sessionId])).rowCount, 1);
+  });
+
+  test('retired Replicas release their Sequence lanes, claims and receipts', async () => {
+    const value = await context('sequence-retired');
+    const seeded = await seedSequenceAuthority(value, 'retired');
+    await retireReplica(value.replica.replicaId);
+    const result = await coordinator().runBatch();
+    assert.ok(result.deleted >= 3);
+    assert.equal((await isolated.runtime.pool.query(
+      'select 1 from sync_sequence_receipts where operation_id=$1', [seeded.operationId])).rowCount, 0);
+    assert.equal((await isolated.runtime.pool.query(
+      'select 1 from sync_sequence_operation_claims where operation_id=$1', [seeded.operationId])).rowCount, 0);
+    assert.equal((await isolated.runtime.pool.query(
+      'select 1 from sync_sequence_lanes where replica_id=$1 and sequence_scope=$2',
+      [value.replica.replicaId, seeded.sequenceScope])).rowCount, 0);
+  });
+
+  test('active Replica Sequence authority stays immutable', async () => {
+    const value = await context('sequence-active');
+    const seeded = await seedSequenceAuthority(value, 'active');
+    await assert.rejects(isolated.runtime.pool.query(
+      'delete from sync_sequence_receipts where operation_id=$1', [seeded.operationId]), /immutable/u);
+    await coordinator().runBatch();
+    assert.equal((await isolated.runtime.pool.query(
+      'select 1 from sync_sequence_receipts where operation_id=$1', [seeded.operationId])).rowCount, 1);
+    assert.equal((await isolated.runtime.pool.query(
+      'select 1 from sync_sequence_operation_claims where operation_id=$1', [seeded.operationId])).rowCount, 1);
+    assert.equal((await isolated.runtime.pool.query(
+      'select 1 from sync_sequence_lanes where replica_id=$1 and sequence_scope=$2',
+      [value.replica.replicaId, seeded.sequenceScope])).rowCount, 1);
   });
 
   test('the cleanup index bounds the expiry-first evidence candidate scan at production scale', async () => {

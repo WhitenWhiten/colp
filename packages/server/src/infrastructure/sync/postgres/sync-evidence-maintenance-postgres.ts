@@ -34,6 +34,9 @@ const ACK_RECEIPT_CLEANUP_LIMIT = 500;
 /** Keep terminal Session authority for one day after termination, then reclaim it. */
 const SESSION_CLEANUP_LIMIT = 100;
 const SESSION_CLEANUP_GRACE_MS = 24 * 60 * 60 * 1000;
+/** Retired Replica sequence authority and floor-fenced revision history are small but unbounded. */
+const SEQUENCE_CLEANUP_LIMIT = 50;
+const REVISION_HISTORY_CLEANUP_LIMIT = 5_000;
 
 /** A terminated Session with no protocol child reference is safe to reclaim. */
 function reclaimableTerminalSessions(now: Date) {
@@ -103,29 +106,33 @@ function actionableSnapshots(now: Date) {
  * 1. Terminal Ack receipts (terminated Session or retired Replica) are deleted
  *    first, bounded by ACK_RECEIPT_CLEANUP_LIMIT. Their RESTRICT evidence can
  *    then be reclaimed by the same run.
- * 2. Terminated Sessions past the one-day grace window and without protocol
+ * 2. Retired Replicas have their sequence receipts, claims and lanes deleted,
+ *    bounded by SEQUENCE_CLEANUP_LIMIT. Active Replica authority is untouched.
+ * 3. Terminated Sessions past the one-day grace window and without protocol
  *    child references have their binding/scope/idempotency rows and Session row
  *    deleted, bounded by SESSION_CLEANUP_LIMIT.
- * 3. A candidate CTE over proofs, next-cursor evidence, lineage, and page
+ * 4. A candidate CTE over proofs, next-cursor evidence, lineage, and page
  *    envelopes selects the oldest expired/consumed/retired rows, oldest-first,
  *    and locks the batch with FOR UPDATE SKIP LOCKED so concurrent workers never
  *    process the same rows. batchSize caps the total candidate rows per run.
- * 4. Proofs are deleted first: the candidate predicate mirrors exactly the
+ * 5. Proofs are deleted first: the candidate predicate mirrors exactly the
  *    guard_sync_pull_cursor_recovery_proof() DELETE allowance
  *    (proof_expires_at <= now OR consumed_at IS NOT NULL OR retired status).
- * 5. Evidence whose cursor is neither an Ack receipt target nor a checkpoint
+ * 6. Evidence whose cursor is neither an Ack receipt target nor a checkpoint
  *    reference is deleted; the predicate mirrors guard_sync_pull_cursor_evidence_retention()
  *    DELETE allowance (expired-or-retired AND NOT EXISTS ack AND NOT EXISTS checkpoint).
- * 6. Expired checkpoint-referenced evidence is only redacted (cursor -> NULL),
+ * 7. Expired checkpoint-referenced evidence is only redacted (cursor -> NULL),
  *    keeping cursor_digest + tuple authority; the UPDATE predicate mirrors the
  *    trigger's UPDATE allowance. Redacted rows are excluded from future runs
  *    (cursor IS NOT NULL), so repeated runs are idempotent.
- * 7. Live-Ack-protected evidence and protected page envelopes stay intact and
+ * 8. Live-Ack-protected evidence and protected page envelopes stay intact and
  *    do not occupy candidate slots. A protection race is still classified at write time.
- * 8. Expired bootstrap Snapshot evidence is reclaimed after the active stores:
+ * 9. Expired bootstrap Snapshot evidence is reclaimed after the active stores:
  *    page and node rows and expired capabilities are deleted for Snapshots past
  *    their expiry fence, then the Snapshot header is deleted unless a recovery
  *    Ack receipt needs it for Replica-lifetime replay.
+ * 10. Node revision history is deleted only below a materialized, archived
+ *     history floor; a zero floor retains every revision.
  *
  * Every DML statement re-checks the full trigger-allowed predicate so the
  * retention triggers are always satisfied and never reject a worker statement.
@@ -178,6 +185,48 @@ export class PostgresSyncEvidenceMaintenanceCoordinator implements SyncEvidenceM
               WHERE replica.replica_id = receipt.replica_id AND replica.status = 'retired'))
         RETURNING principal_id, idempotency_key
       `.execute(transaction);
+
+      const sequenceReplicas = await sql<{ replica_id: string }>`
+        SELECT replica.replica_id
+        FROM sync_replicas AS replica
+        WHERE replica.status = 'retired'
+          AND (EXISTS (SELECT 1 FROM sync_sequence_receipts AS receipt
+                WHERE receipt.replica_id = replica.replica_id)
+            OR EXISTS (SELECT 1 FROM sync_sequence_operation_claims AS claim
+                WHERE claim.replica_id = replica.replica_id)
+            OR EXISTS (SELECT 1 FROM sync_sequence_lanes AS lane
+                WHERE lane.replica_id = replica.replica_id))
+        ORDER BY replica.replica_id
+        LIMIT ${Math.min(this.options.batchSize, SEQUENCE_CLEANUP_LIMIT)}
+        FOR UPDATE SKIP LOCKED
+      `.execute(transaction);
+
+      let sequenceRowsDeleted = 0;
+      if (sequenceReplicas.rows.length > 0) {
+        const replicaIds = sequenceReplicas.rows.map((row) => row.replica_id);
+        const retired = sql<{ replica_id: string }>`EXISTS (SELECT 1 FROM sync_replicas AS replica
+          WHERE replica.replica_id = retired_replica.replica_id AND replica.status = 'retired')`;
+        const receiptsDeleted = await sql<{ replica_id: string }>`
+          DELETE FROM sync_sequence_receipts AS retired_replica
+          WHERE retired_replica.replica_id = ANY(${replicaIds}::text[])
+            AND ${retired}
+          RETURNING replica_id
+        `.execute(transaction);
+        const claimsDeleted = await sql<{ replica_id: string }>`
+          DELETE FROM sync_sequence_operation_claims AS retired_replica
+          WHERE retired_replica.replica_id = ANY(${replicaIds}::text[])
+            AND ${retired}
+          RETURNING replica_id
+        `.execute(transaction);
+        const lanesDeleted = await sql<{ replica_id: string }>`
+          DELETE FROM sync_sequence_lanes AS retired_replica
+          WHERE retired_replica.replica_id = ANY(${replicaIds}::text[])
+            AND ${retired}
+          RETURNING replica_id
+        `.execute(transaction);
+        sequenceRowsDeleted = receiptsDeleted.rows.length + claimsDeleted.rows.length
+          + lanesDeleted.rows.length;
+      }
 
       const sessionCandidates = await sql<{ session_id: string }>`
         SELECT session.session_id
@@ -359,6 +408,7 @@ export class PostgresSyncEvidenceMaintenanceCoordinator implements SyncEvidenceM
       // Proofs FIRST: expired, consumed, or retired-replica proofs are all deletable.
       let deleted = 0;
       deleted += ackReceiptsDeleted.rows.length;
+      deleted += sequenceRowsDeleted;
       deleted += terminalSessionRowsDeleted;
       if (proofIds.length > 0) {
         const proofDeleted = await sql<{ proof_id: bigint | string }>`
@@ -505,12 +555,36 @@ export class PostgresSyncEvidenceMaintenanceCoordinator implements SyncEvidenceM
         deleted += snapshotHeadersDeleted.rows.length;
       }
 
+      // Revision history is only reclaimable below a verified history floor. A
+      // zero/unmaterialised floor deliberately retains every revision.
+      const revisionRowsDeleted = await sql<{ collection_id: string }>`
+        WITH candidates AS MATERIALIZED (
+          SELECT history.collection_id, history.resource_id, history.revision
+          FROM sync_node_revision_history AS history
+          JOIN sync_history_floors AS floor ON floor.collection_id = history.collection_id
+          WHERE floor.floor_commit_ordinal > 0
+            AND floor.archive_segment_id IS NOT NULL
+            AND history.commit_ordinal < floor.floor_commit_ordinal
+          ORDER BY history.commit_ordinal, history.collection_id, history.resource_id, history.revision
+          LIMIT ${REVISION_HISTORY_CLEANUP_LIMIT}
+          FOR UPDATE OF history SKIP LOCKED
+        )
+        DELETE FROM sync_node_revision_history AS history
+        USING candidates
+        WHERE history.collection_id = candidates.collection_id
+          AND history.resource_id = candidates.resource_id
+          AND history.revision = candidates.revision
+        RETURNING history.collection_id
+      `.execute(transaction);
+      deleted += revisionRowsDeleted.rows.length;
+
       const oldestExpiredAgeMs = await computeOldestExpiredAgeMs(transaction, now);
       await this.options.faultInjector?.afterPhase?.('before_commit');
 
       return Object.freeze({
         attempted: candidates.rows.length + snapshotCandidates.rows.length
-          + ackReceiptsDeleted.rows.length + sessionCandidates.rows.length,
+          + ackReceiptsDeleted.rows.length + sessionCandidates.rows.length
+          + sequenceReplicas.rows.length,
         deleted,
         redacted,
         skipped,
