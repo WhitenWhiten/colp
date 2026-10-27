@@ -35,6 +35,8 @@ async function setup(definition = observer) {
   const a = await ledger.setAuthority({ enabled: true, accountId: 'acct:reader', installationGeneration: 1, sourceSessionGeneration: 1, negativeReadback: false });
   const context = { installationId: definition.adapterId, connectionId: a.connectionId!, documentId: 'doc', tabId: 1, routeEpoch: 0, leaseId: 'lease', installationGeneration: 1, sourceSessionGeneration: 1 };
   await ledger.bindLease(context, Date.now() + 600000); state.rules = createRuleListStore(memoryStateArea());
+  // Catalog inspection persists validated facts before archive configuration.
+  if (siteFeatures(definition).collections) expect((await ledger.acceptCatalog(context, 'catalog', [saved])).status).toBe('accepted');
   const node = { id: 'root', title: 'Root', dateAdded: 10 };
   state.layout = createSourceLayout(db, { rules: async () => flattenList(await state.rules!.load()), paused: async () => false, deviceId: async () => 'device', lookup: async id => id === 'root' ? node : null, assertRoot: async () => {} });
   vi.stubGlobal('chrome', { permissions: { contains: async () => true }, bookmarks: { get: async () => [node] } });

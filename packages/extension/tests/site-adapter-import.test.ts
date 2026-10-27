@@ -144,6 +144,8 @@ test('renewal during an approved save retains confirmed folders, invalidates the
     expect(f.counts).toEqual({ folder: 2, bookmark: 2 });
   } finally { await f.db.close(); }
 });
+// The full emulator-backed recovery/save path shares CI CPU with the unit suite;
+// preparation and approval alone take about 100 seconds on the hosted runner.
 test('all 4917 retained favorites across 22 collections recover after renewal and save without another website read', async () => {
   const f = await fixture(); try {
     const started = performance.now();
@@ -190,8 +192,9 @@ test('all 4917 retained favorites across 22 collections recover after renewal an
     for (let batch = 0; batch < 492 && (await f.importer.status())?.phase === 'approved'; batch++) await f.importer.wake();
     expect(await f.importer.status()).toMatchObject({ phase: 'completed', nextPlan: 4917, authorization: 'current' });
     expect(f.counts).toEqual({ folder: 22, bookmark: 4917 }); expect(source).not.toHaveBeenCalled();
+    console.info('4917-item regression: all saves completed in', Math.round(performance.now() - started), 'ms');
   } finally { await f.db.close(); }
-}, 120000);
+}, 300000);
 test('a mapping failure pauses preparation once instead of turning every video into an item review', async () => {
   const f = await fixture(); try {
     await f.scan();
