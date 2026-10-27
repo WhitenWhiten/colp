@@ -1,4 +1,5 @@
 import { bundledSites, legacySite, siteDefinition, type SiteDefinition } from './registry.js';
+import { createSiteMark } from './site-icon.js';
 import { t } from '../i18n.js';
 export const selectedSite = siteDefinition(new URL(location.href).searchParams.get('adapterId') ?? legacySite.adapterId);
 export const SITE_PROBLEM_EVENT = 'known:site-adapter-problem';
@@ -38,9 +39,9 @@ export function paintSiteNav(adapterId: string, status: SiteNavStatus | undefine
 export function mountSiteNav() {
   const list = document.querySelector<HTMLElement>('#site-list')!;
   for (const site of bundledSites) {
-    const item = document.createElement('a'), mark = document.createElement('span'), text = document.createElement('span'), name = document.createElement('span'), state = document.createElement('span');
+    const item = document.createElement('a'), mark = createSiteMark({ label: site.label, origin: site.origin, icon: site.icon, size: 20 }),
+      text = document.createElement('span'), name = document.createElement('span'), state = document.createElement('span');
     item.className = 'side-item sites-nav-item'; item.href = siteHref(site); item.dataset.adapterId = site.adapterId;
-    mark.className = 'sites-mark'; mark.setAttribute('aria-hidden', 'true'); mark.textContent = site.label.slice(0, 1).toLocaleUpperCase();
     text.className = 'sites-nav-text'; name.className = 'sites-nav-name'; name.textContent = site.label;
     state.className = 'sites-nav-state'; state.hidden = true; state.append(Object.assign(document.createElement('span'), { className: 'set-dot' }), document.createElement('span'));
     text.append(name, state); item.append(mark, text); list.append(item); navItems.set(site.adapterId, item);

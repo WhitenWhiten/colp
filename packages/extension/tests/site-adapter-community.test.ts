@@ -56,8 +56,13 @@ test('package inspection is inert and hashes exact bytes; unsupported authority 
   const value = JSON.parse(text);
   for (const manifest of [{ ...value.manifest, official: true }, { ...value.manifest, bundledProbeIds: ['probe'] },
     { ...value.manifest, capabilities: ['mountCaptureControl'] }, { ...value.manifest, identityVersion: 2 },
-    { ...value.manifest, matches: ['https://*/*'] }, { ...value.manifest, execution: { ...value.manifest.execution, mode: 'bundled' } }])
+    { ...value.manifest, matches: ['https://*/*'] }, { ...value.manifest, execution: { ...value.manifest.execution, mode: 'bundled' } },
+    { ...value.manifest, icon: { kind: 'asset', path: 'icons/icon-32.png' } }, { ...value.manifest, icon: { kind: 'url', url: 'https://icons.example/b.svg' } },
+    { ...value.manifest, icon: { kind: 'data', dataUrl: 'data:image/svg+xml;base64,AAAA' } }, { ...value.manifest, icon: { kind: 'favicon', extra: true } }])
     expect(() => inspectCommunityPackage(JSON.stringify({ ...value, manifest }))).toThrow('packageUnsupported');
+  const withIcon = { ...value, manifest: { ...value.manifest, icon: { kind: 'data', dataUrl: 'data:image/png;base64,iVBORw0KGgo=' } } };
+  expect(inspectCommunityPackage(JSON.stringify(withIcon)).package.manifest.icon).toEqual(withIcon.manifest.icon);
+  expect(inspectCommunityPackage(JSON.stringify(withIcon)).digest).not.toBe(p.digest);
   expect(() => inspectCommunityPackage(JSON.stringify({ ...value, provenance: { ...value.provenance, revision: 'main' } }))).toThrow('packageUnsupported');
   expect(() => inspectCommunityPackage(JSON.stringify({ ...value, provenance: { ...value.provenance, sourceUrl: 'https://x.test/?secret=bad' } }))).toThrow('packageUnsupported');
   expect(() => inspectCommunityPackage(' '.repeat(512 * 1024 + 1))).toThrow('packageTooLarge');

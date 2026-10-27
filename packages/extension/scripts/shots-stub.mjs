@@ -345,8 +345,8 @@ export function installStub(messages) {
     adapterId: 'bundled.bilibili', confirmations: { pending: 0 },
     inspection: siteOn ? { command: { deadlineAt: now - 1, pageRequestId: 'p1', query: { cursor: null } }, result: { status: 'ok', kind: 'collections', page: { items: siteCollections, nextCursor: null } } } : null };
   const sitePackages = () => has('site-packages') ? [
-    { id: 'i-1', generation: 2, enabled: true, digest: 'sha256:9f2c41d07a6be3e8', manifest: { adapterId: 'community.bili-hints', version: '1.2.0' }, previous: [{ digest: 'sha256:51aa', version: '1.1.0' }], archive: { rootNativeId: 'f-research' }, documents: 1, lastReport: null, error: null },
-    { id: 'i-2', generation: 1, enabled: false, digest: 'sha256:0d7e88b2c1f4a9e6', manifest: { adapterId: 'community.watch-later', version: '0.3.1' }, previous: [], archive: null, documents: 0, lastReport: null, error: null }] : [];
+    { id: 'i-1', generation: 2, enabled: true, digest: 'sha256:9f2c41d07a6be3e8', manifest: { apiVersion: 'known.site-adapter/v1', adapterId: 'community.bili-hints', version: '1.2.0', siteKey: 'bilibili', identityVersion: 1 }, previous: [{ digest: 'sha256:51aa', version: '1.1.0' }], archive: { rootNativeId: 'f-research' }, documents: 1, lastReport: null, error: null },
+    { id: 'i-2', generation: 1, enabled: false, digest: 'sha256:0d7e88b2c1f4a9e6', manifest: { apiVersion: 'known.site-adapter/v1', adapterId: 'community.watch-later', version: '0.3.1', siteKey: 'bilibili', identityVersion: 1 }, previous: [], archive: null, documents: 0, lastReport: null, error: null }] : [];
   const sites = (msg) => {
     const kind = msg.kind;
     if (kind === 'known.community.status') return { ok: true, available: has('site-packages'), unavailable: has('site-packages') ? null : 'userScriptsUnavailable', supportedMinimum: 149, installations: sitePackages() };

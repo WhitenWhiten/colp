@@ -1,8 +1,12 @@
-import type { AdapterManifest, AdapterMessage, ContentIdentity, SiteItem } from './contracts.js';
+import type { AdapterIcon, AdapterManifest, AdapterMessage, ContentIdentity, SiteItem } from './contracts.js';
+/** Host-authored mark. Package icons stay data URLs; bundled adapters may point at a packaged asset. */
+export type SiteIcon = AdapterIcon | { readonly kind: 'asset'; readonly path: string } | { readonly kind: 'url'; readonly url: string };
 /** Audited host metadata. Page/package claims never populate this registry. */
 export interface SiteDefinition {
   adapterId: string; version: string; siteKey: string; identityVersion: number;
   label: string; origin: string; matches: readonly string[];
+  /** Missing means the supported site's favicon. */
+  icon?: SiteIcon;
   /** Page sources use a verified opaque source identity without an account-connection UI. */
   connectionKind?: 'account' | 'page';
   /** A qualified single-list source can enumerate items without exposing a collection catalog. */

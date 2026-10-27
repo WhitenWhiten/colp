@@ -13,6 +13,7 @@ export interface NamedReader {
   read(recipeId: string, params: Readonly<Record<string, string | number | boolean | null>>): Promise<JsonValue>;
 }
 
+export type AdapterIcon = { readonly kind: 'favicon' } | { readonly kind: 'data'; readonly dataUrl: string };
 export interface AdapterManifest {
   apiVersion: 'known.site-adapter/v1';
   adapterId: Id;
@@ -29,6 +30,7 @@ export interface AdapterManifest {
     runAt: 'document_start' | 'document_idle';
   };
   capabilities: readonly ('observeFavorites' | 'resolveItem' | 'readMemberships' | 'enumerateCollections' | 'enumerateItems' | 'mountCaptureControl')[];
+  /** Missing means the supported site's favicon. Custom package icons are self-contained data URLs. */ icon?: AdapterIcon;
   /** Refers only to audited probes shipped with the extension. */
   bundledProbeIds?: readonly string[];
   /** Refers only to audited, named operations implemented by the host. */

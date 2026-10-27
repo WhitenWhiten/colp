@@ -1,6 +1,7 @@
 import type { AdapterMessage, SiteAdapter } from './contracts.js';
 import type { SiteDefinition } from './registry-types.js';
 import { readLimits } from './read-policy.js';
+import { validSiteIcon } from './icon-spec.js';
 const available = new Set(['observeFavorites', 'resolveItem', 'readMemberships', 'enumerateCollections', 'enumerateItems']);
 /** Unsupported host capabilities cannot become available merely through a manifest claim. */
 export function validateSiteDefinitions(sites: readonly SiteDefinition[]): readonly SiteDefinition[] {
@@ -8,6 +9,7 @@ export function validateSiteDefinitions(sites: readonly SiteDefinition[]): reado
   for (const site of sites) {
     const namespace = JSON.stringify([site.siteKey, site.identityVersion]);
     if (ids.has(site.adapterId) || namespaces.has(namespace) || !site.adapterId || !site.siteKey || !Number.isSafeInteger(site.identityVersion) || site.identityVersion < 1) throw new Error('invalidSiteRegistry');
+    if (site.icon !== undefined && !validSiteIcon(site.icon)) throw new Error('invalidSiteIcon');
     if (site.readScope !== undefined && !['document', 'account'].includes(site.readScope)) throw new Error('invalidReadScope');
     if (site.connectionKind !== undefined && !['account', 'page'].includes(site.connectionKind)) throw new Error('invalidConnectionKind');
     if (site.defaultCollection && (!site.capabilities.includes('enumerateItems') || site.capabilities.includes('enumerateCollections')

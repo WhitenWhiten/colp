@@ -17,6 +17,8 @@ export const manifest = {
   // The audited MAIN probe is registered separately at document_start.
   execution: { mode: 'bundled', entry: 'bilibili.js', runAt: 'document_idle' },
   capabilities: ['observeFavorites', 'resolveItem', 'readMemberships', 'enumerateCollections', 'enumerateItems', 'mountCaptureControl'],
+  // Missing means the supported site's favicon; bundled definitions may use a packaged asset too.
+  icon: { kind: 'favicon' },
 } satisfies AdapterManifest;
 
 export const collections = {

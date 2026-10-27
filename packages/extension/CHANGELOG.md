@@ -4,6 +4,10 @@ All notable changes to the Know-N browser extension are documented here. The for
 
 ## [Unreleased]
 
+### Added
+
+- Site adapter authors can declare an icon for the Sites list, page header and installed package rows. Bundled sites use the supported site's browser favicon by default and may supply a packaged asset or audited HTTPS image; community packages use the favicon or a self-contained image data URL. A failed image falls back to the favicon and then the site's first letter.
+
 ## [0.1.0-rc.4] - 2026-10-27
 
 ### Added

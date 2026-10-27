@@ -1,13 +1,16 @@
 import { selectedSite, siteButton, siteRow } from './settings-client.js';
 import { COMMUNITY_PACKAGE_BYTES } from './community-package.js';
+import { bundledSites } from './registry.js';
+import { createSiteMark } from './site-icon.js';
 import { t } from '../i18n.js';
+import type { AdapterIcon } from './contracts.js';
 const element = <T extends Element>(id: string) => document.querySelector<T>(`#${id}`)!;
 const ack = element<HTMLInputElement>('community-ack'), install = element<HTMLButtonElement>('community-install'), status = element<HTMLPreElement>('community-status');
 let approval: { kind: 'known.community.install' | 'known.community.rollback'; digest: string; installationId?: string } | null = null;
 interface CommunityResponse {
   available?: boolean;
   preview?: { digest: string; rollback?: boolean; readonly [key: string]: unknown };
-  installations?: { id: string; manifest: { adapterId: string; version: string }; enabled: boolean; digest: string; archive: unknown;
+  installations?: { id: string; manifest: { adapterId: string; version: string; siteKey: string; identityVersion: number; icon?: AdapterIcon }; enabled: boolean; digest: string; archive: unknown;
     error: string | null; previous: { digest: string; version: string }[] }[];
 }
 // COMMUNITY_RISK in this page's language (tests/site-adapter-settings-copy.test.ts keeps the English identical).
@@ -35,6 +38,11 @@ async function refresh(reveal = false) {
   }
   for (const row of result.installations ?? []) {
     const { row: block, text, control } = siteRow(row.manifest.adapterId, '', true), meta = document.createElement('p'), digest = document.createElement('span');
+    const definition = bundledSites.find(s => s.siteKey === row.manifest.siteKey && s.identityVersion === row.manifest.identityVersion);
+    const title = text.querySelector<HTMLElement>('.set-row-title')!, titleLine = document.createElement('div');
+    titleLine.className = 'sites-package-title'; title.before(titleLine);
+    titleLine.append(createSiteMark({ label: definition?.label ?? row.manifest.adapterId, origin: definition?.origin ?? '', icon: row.manifest.icon,
+      size: 20, className: 'sites-mark sites-package-mark' }), title);
     meta.className = 'set-row-hint'; digest.className = 'sites-package-digest'; digest.textContent = row.digest;
     meta.append(`${[t('sites_packageVersion', 'Version $1', row.manifest.version), row.enabled ? t('sites_packageEnabled', 'Enabled') : t('sites_packageDisabled', 'Disabled'),
       row.archive ? t('sites_archiveScoped', 'Archive scoped') : t('sites_archiveUnavailable', 'Archive unavailable')].join(' · ')} · `, digest);

@@ -55,6 +55,14 @@ function pick(id: string) {
 }
 afterEach(() => { window.dispatchEvent(new Event('pagehide')); vi.unstubAllGlobals(); document.body.replaceChildren(); });
 
+test('the site sidebar and page head paint the supported site favicon with a letter fallback', async () => {
+  await mount();
+  const nav = document.querySelector('.sites-nav-item .sites-mark');
+  expect(nav?.querySelector('img')?.getAttribute('src')).toBe('https://www.bilibili.com/favicon.ico');
+  expect(document.querySelector('.sites-page-head > .sites-mark')).not.toBeNull();
+  expect(document.querySelector('.sites-page-head .sites-mark-letter')?.textContent).toBe('B');
+});
+
 test('a refused action survives status refresh with the chosen scope intact', async () => {
   const f = await mount('permissionRequired');
   element('configure-archive').click();

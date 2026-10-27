@@ -111,7 +111,7 @@ The adapter has a page DOM context; the background service worker does not. DOM 
 
 For the initial Bilibili path, `detectSource` performs a fixed bounded page-side account read before bootstrap; collection/item/membership reads follow host commands after bootstrap. The adapter-local page reader is distinct from the optional `NamedReader` host-recipe client. Do not require a lease-protected host recipe to obtain the source identity needed to issue that lease. See the [activation sequence](implementation-plan.md#activation-and-injection-sequence).
 
-A package declares its matching sites, entry point, and requested capabilities. Installation establishes host authorization. The first version bundles each entry into one file, avoiding runtime dependency resolution, npm installation, and remote module loading inside the extension.
+A package declares its matching sites, entry point, requested capabilities, and an optional mark. Installation establishes host authorization. The first version bundles each entry into one file, avoiding runtime dependency resolution, npm installation, and remote module loading inside the extension. A site definition may also provide an extension-packaged or HTTPS icon; without one, the Site adapters page uses the supported site's browser favicon and falls back to its first letter.
 
 ### Official and community code
 

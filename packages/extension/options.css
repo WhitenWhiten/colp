@@ -1021,8 +1021,21 @@ body[data-first-run="syncing"] .folder-foot { display: none; }
 
 /* site-adapters.html: the options shell. The sidebar lists the sites (a letter mark, the name and its state) and Add-on
    packages; the main column is one site, its page head, a segmented tab rail and the tab's groups. */
-.sites-mark { display: grid; place-items: center; flex: none; width: 1.5rem; height: 1.5rem; border-radius: var(--radius); background: var(--paper-2); color: var(--ink-2); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
+.sites-mark { display: grid; place-items: center; flex: none; width: 1.5rem; height: 1.5rem; overflow: hidden; border-radius: var(--radius); background: var(--paper-2); color: var(--ink-2); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
+.sites-mark img { display: none; width: 1rem; height: 1rem; object-fit: contain; }
+.sites-mark[data-icon="image"] img { display: block; }
+.sites-mark[data-icon="image"] .sites-mark-letter { display: none; }
+.sites-mark-letter { line-height: 1; }
 .side-item[aria-current="page"] .sites-mark { background: var(--ink); color: var(--surface-raised); }
+.sites-mark--page { width: 2.75rem; height: 2.75rem; border-radius: var(--radius-lg); }
+.sites-mark--page img { width: 1.75rem; height: 1.75rem; }
+.sites-mark--page .sites-mark-letter { font-size: var(--text-lg); }
+.sites-page-head { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: var(--space-3); }
+.sites-page-head > #sites-lede { grid-column: 2; }
+.sites-package-title { display: flex; align-items: center; gap: var(--hair-65); min-width: 0; }
+.sites-package-title .set-row-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sites-package-mark { width: 1.75rem; height: 1.75rem; }
+.sites-package-mark img { width: 1.125rem; height: 1.125rem; }
 .sites-nav-item { min-height: 2.75rem; }
 .sites-nav-text { display: grid; min-width: 0; }
 .sites-nav-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1037,7 +1050,7 @@ body[data-first-run="syncing"] .folder-foot { display: none; }
 @media (max-width: 56rem) {
   .sites-view .set-row-control { justify-content: flex-start; }
   .sites-nav-item { min-height: 2.125rem; }
-  .sites-nav-state, .sites-mark { display: none; }
+  .sites-nav-state, .sites-nav-item .sites-mark { display: none; }
 }
 
 /* Sync: numbered steps. A step that can't start yet keeps only its title and what it waits for; a finished one shows a check. */

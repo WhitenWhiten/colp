@@ -24,6 +24,11 @@ test('cancellation interrupts noncooperating code and clears its deadline timer'
 test('registry rejects duplicate identities and unsupported capabilities and verifies the actual implementation', () => {
   expect(() => validateSiteDefinitions([legacySite, { ...legacySite, adapterId: 'another-installation' }])).toThrow('invalidSiteRegistry');
   expect(() => validateSiteDefinitions([{ ...legacySite, capabilities: ['mountCaptureControl'] }])).toThrow('unsupportedHostCapability');
+  expect(validateSiteDefinitions([{ ...legacySite, icon: { kind: 'favicon' } }])).toHaveLength(1);
+  expect(validateSiteDefinitions([{ ...legacySite, icon: { kind: 'asset', path: 'icons/icon-32.png' } }])).toHaveLength(1);
+  for (const icon of [{ kind: 'asset', path: '../icon.png' }, { kind: 'url', url: 'http://www.bilibili.com/favicon.ico' },
+    { kind: 'data', dataUrl: 'data:text/html;base64,AAAA' }, { kind: 'favicon', extra: true }])
+    expect(() => validateSiteDefinitions([{ ...legacySite, icon } as never])).toThrow('invalidSiteIcon');
   const adapter = createBilibiliAdapter(); validateAdapterImplementation(legacySite, adapter);
   expect(() => validateAdapterImplementation(legacySite, { ...adapter, readItemsPage: undefined })).toThrow('adapterCapabilityMismatch');
   expect(allowsSiteMessage({ ...legacySite, capabilities: [] }, { ...envelope, operation: 'item.result', resolutionId: 'read', result: { status: 'resolved', item: video } })).toBe(false);

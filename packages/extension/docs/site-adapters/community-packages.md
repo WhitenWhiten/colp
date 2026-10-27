@@ -18,7 +18,8 @@ Only Bilibili identity v1 favorite-hint packages are supported initially. Other 
     "identityVersion": 1,
     "matches": ["https://www.bilibili.com/*"],
     "execution": { "mode": "userScript", "entry": "adapter.js", "runAt": "document_start" },
-    "capabilities": ["observeFavorites"]
+    "capabilities": ["observeFavorites"],
+    "icon": { "kind": "data", "dataUrl": "data:image/png;base64,..." }
   },
   "provenance": {
     "maintainer": "Your chosen author (unverified)",
@@ -29,7 +30,7 @@ Only Bilibili identity v1 favorite-hint packages are supported initially. Other 
 }
 ```
 
-`revision` is `local` for authored bytes or an immutable 40–64 character hexadecimal revision. The HTTPS source URL cannot contain credentials, a query or fragment. It establishes no publisher trust. Unknown manifest/package fields fail closed. UTF-8 must round-trip exactly; a leading BOM and invalid Unicode are rejected rather than silently changing hashed bytes. The file limit is 512 KiB and authored code 256 KiB. At most eight installations, three prior reviewed versions each, and 16 MiB of stored package state are retained. A preview expires after ten minutes. Each installation has at most 32 active document leases and 16 bootstrap/hint requests per minute, persisted across worker restarts; the ingress admits at most 16 concurrent messages. The shared confirmation scheduler keeps its existing API pace, queue/deadline and byte limits.
+`revision` is `local` for authored bytes or an immutable 40–64 character hexadecimal revision. The HTTPS source URL cannot contain credentials, a query or fragment. It establishes no publisher trust. Unknown manifest/package fields fail closed. `icon` is optional: omit it or use `{"kind":"favicon"}` for the supported site's browser favicon. A custom icon is a self-contained `data:image/png`, `data:image/jpeg`, `data:image/webp` or `data:image/x-icon` base64 URL of at most 128 KiB; package manifests cannot name a remote image, so opening Settings never contacts an author-controlled host. If the image cannot be decoded the page falls back to the favicon, then to the site's first letter. The icon is part of the reviewed manifest bytes, so changing it requires review like any other package change. UTF-8 must round-trip exactly; a leading BOM and invalid Unicode are rejected rather than silently changing hashed bytes. The file limit is 512 KiB and authored code 256 KiB. At most eight installations, three prior reviewed versions each, and 16 MiB of stored package state are retained. A preview expires after ten minutes. Each installation has at most 32 active document leases and 16 bootstrap/hint requests per minute, persisted across worker restarts; the ingress admits at most 16 concurrent messages. The shared confirmation scheduler keeps its existing API pace, queue/deadline and byte limits.
 
 ## Worlds, source reads and authority
 

@@ -1,6 +1,7 @@
 import { identityDefinition } from './registry.js';
 import type { AdapterManifest } from './contracts.js';
-import { array, jsonBytes, literal, object, str } from './schema.js';
+import { array, jsonBytes, literal, object, optional, str } from './schema.js';
+import { validAdapterIcon } from './icon-spec.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
 export const COMMUNITY_PACKAGE_BYTES = 512 * 1024;
@@ -21,7 +22,8 @@ export function inspectCommunityPackage(text: string): PackagePreview {
       version: v => typeof v === 'string' && /^\d{1,6}\.\d{1,6}\.\d{1,6}$/u.test(v), siteKey: str(128), identityVersion: v => Number.isSafeInteger(v) && Number(v) > 0,
       matches: array(str(2048), 16, 1, v => v),
       execution: object({ mode: literal('userScript'), entry: literal('adapter.js'), runAt: literal('document_start', 'document_idle') }),
-      capabilities: array(literal('observeFavorites'), 1, 1) }),
+      capabilities: array(literal('observeFavorites'), 1, 1),
+      icon: optional(validAdapterIcon) }),
     provenance: object({ maintainer: str(256), revision: v => v === 'local' || typeof v === 'string' && /^[a-f0-9]{40,64}$/u.test(v), sourceUrl: httpsSource }),
     script: str(256 * 1024),
   })(value) || new TextEncoder().encode((value as CommunityPackage).script).byteLength > 256 * 1024) throw new Error('packageUnsupported');
