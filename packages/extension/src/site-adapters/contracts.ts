@@ -1,3 +1,4 @@
+import type { ImportReviewSummary } from './import-problems.js';
 /**
  * Site adapter v1 contracts. Wire values must pass schemas.ts before use.
  * Runtime validation must enforce closed objects, bounds and graph semantics.
@@ -516,8 +517,7 @@ export interface FolderReservationConsumer {
 }
 
 /** Frozen host preview; its digest covers scope, snapshots, counts and logical effects. */
-export interface ImportPreview {
-  reviewSamples?: readonly { itemId: string; collectionId: string; reason: string }[];
+export interface ImportPreview extends ImportReviewSummary {
   id: Id;
   importRunId: Id;
   revision: number;

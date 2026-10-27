@@ -47,6 +47,13 @@ test.each(['navigate', 'disable', 'expire', 'permission', 'document', 'signedOut
   if (kind === 'signedOut') await h.transport.bootstrap({ ...h.hello, source: { state: 'signedOut' } }, h.sender);
   expect(await h.transport.authorize(m, h.sender)).toBeNull();
 });
+test('a temporary unknown account probe grants no lease and preserves other verified tabs and account generations', async () => {
+  const h = harness(), lease = await h.ready(), before = h.state(), write = vi.spyOn(h.deps, 'write');
+  const result = await h.transport.bootstrap({ ...h.hello, source: { state: 'unknown' } }, { ...h.sender, documentId: 'another-tab', tab: { id: 2 } });
+  expect(result).toEqual({ status: 'unavailable', reason: 'sourceUnresolved' });
+  expect(write).not.toHaveBeenCalled(); expect(h.state()).toEqual(before);
+  expect(await h.transport.authorize({ ...envelope, leaseId: lease.leaseId, capability: lease.capability, operation: 'connect' }, h.sender)).not.toBeNull();
+});
 test('private capability and content identity cannot be replaced with authority claims', async () => {
   const h = harness(), l = await h.ready();
   expect(await h.transport.authorize({ ...envelope, leaseId: l.leaseId, operation: 'connect' }, h.sender)).toBeNull();

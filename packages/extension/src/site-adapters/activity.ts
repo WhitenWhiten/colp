@@ -25,7 +25,7 @@ export interface ActivityInput {
 }
 export interface ActivitySink {
   record(input: ActivityInput): Promise<SiteActivity>;
-  resolve(taskId: string, operation: SiteOperation): Promise<void>;
+  resolve(taskId: string, operation: SiteOperation, codes?: readonly string[]): Promise<void>;
 }
 const lanes = new WeakMap<StorageArea, Map<string, Lane>>();
 export const activityReference = (value?: string) => value ? /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(value)
@@ -35,8 +35,9 @@ const token = (value?: string) => value && /^[a-zA-Z0-9_.:-]{1,128}$/u.test(valu
 export const activityCode = (value: string) => token(value) ?? 'unclassified';
 const number = (value: number) => Number.isSafeInteger(value) && value >= 0 ? value : 0;
 /** Closed or superseded import incidents stay in history; current management failures remain actionable. */
-export function currentSiteProblem(events: readonly SiteActivity[], scope: { taskId?: string; connectionId?: string }) {
+export function currentSiteProblem(events: readonly SiteActivity[], scope: { taskId?: string; connectionId?: string; phase?: string }) {
   return events.find(e => e.kind === 'problem' && !e.resolvedAt && (!e.connectionRef || e.connectionRef === ref(scope.connectionId))
+    && !(e.taskRef === ref(scope.taskId) && ['scanning', 'preparing', 'approved'].includes(scope.phase ?? ''))
     && (!e.taskRef || e.taskRef === ref(scope.taskId) || e.taskRef === ref(`management:${e.operation}`)
       || !!e.connectionRef && !e.phase || e.operation === 'inspect')) ?? null;
 }
@@ -116,9 +117,9 @@ export function createSiteActivity(storage: StorageArea, adapter: { adapterId: s
         ...(Number.isFinite(input.retryAt) ? { retryAt: input.retryAt, automatic: input.automatic === true } : {}) };
       events.push(event); await write(events); return structuredClone(event);
     }),
-    resolve: (taskId: string, operation: SiteOperation) => lane(async () => {
+    resolve: (taskId: string, operation: SiteOperation, codes?: readonly string[]) => lane(async () => {
       const events = await read(); let changed = false;
-      for (const event of events) if ((event.kind === 'problem' || event.kind === 'waiting') && !event.resolvedAt && event.taskRef === ref(taskId) && event.operation === operation) {
+      for (const event of events) if ((event.kind === 'problem' || event.kind === 'waiting') && !event.resolvedAt && event.taskRef === ref(taskId) && event.operation === operation && (!codes || !!event.code && codes.includes(event.code))) {
         event.resolvedAt = now(); event.resolution = 'recovered'; changed = true;
       }
       if (changed) await write(events);

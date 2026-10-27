@@ -8,10 +8,12 @@ export function createSiteConfiguration(discard: () => void) {
   const { dialog, body, actions } = createDialog(t('sites_syncSettings', 'Sync settings'), 'sites-config-dialog');
   dialog.id = 'site-settings-dialog'; document.body.append(dialog);
   const cancel = dialogButton(t('common_cancel', 'Cancel')), save = document.getElementById('configure-archive')! as HTMLButtonElement;
-  let configured = false, accepted = false;
+  let configured = false, accepted = false, pending = false;
+  dialog.addEventListener('cancel', event => { if (pending) event.preventDefault(); });
   cancel.onclick = () => dialog.close(); actions.append(cancel);
   dialog.addEventListener('close', () => { if (!accepted) discard(); accepted = false; });
   return {
+    pending(value: boolean) { pending = value; cancel.disabled = value; dialog.setAttribute('aria-busy', String(value)); },
     paint(next: boolean) {
       if (next !== configured) {
         configured = next;

@@ -15,7 +15,7 @@ export function startAdapterRuntime(definition: SiteDefinition, createAdapter: S
   const stopEvent = `known-site-adapter-stop:${definition.adapterId}`, routeEvent = `known-site-route:${definition.adapterId}`;
   const scope = globalThis as typeof globalThis & Record<string, { restart(): void; version?: number } | undefined>;
   if (matchesSiteUrl(definition, location.href) && window.top === window) {
-    if (scope[slot] && scope[slot].version !== 5) window.dispatchEvent(new Event(stopEvent));
+    if (scope[slot] && scope[slot].version !== 6) window.dispatchEvent(new Event(stopEvent));
     if (scope[slot]) scope[slot].restart();
     else {
       let controller: AbortController | null = null, port: chrome.runtime.Port | null = null, timer: ReturnType<typeof setTimeout> | undefined;
@@ -47,7 +47,10 @@ export function startAdapterRuntime(definition: SiteDefinition, createAdapter: S
           const reply = await chrome.runtime.sendMessage({ kind: 'known.siteAdapters.bootstrap', request: {
             protocolVersion: 1, operation: 'hello', adapterId: definition.adapterId, runtime: 'bundled', activationId: activation.activationId, source } }) as BootstrapReply;
           if (epoch !== current) return;
-          if (reply.status !== 'ready' || source.state !== 'signedIn') { deactivate(); return; }
+          if (reply.status !== 'ready' || source.state !== 'signedIn') {
+            if (source.state === 'unknown' && reply.status === 'unavailable' && reply.reason === 'sourceUnresolved') recover(true);
+            else deactivate(); return;
+          }
           if (!reply.readerEpoch || readerEpoch !== reply.readerEpoch) localReader.clear?.();
           readerEpoch = reply.readerEpoch; failures = 0;
           const accountId = source.accountId;
@@ -121,9 +124,9 @@ export function startAdapterRuntime(definition: SiteDefinition, createAdapter: S
           timer = setTimeout(() => begin(true), Math.max(1000, reply.expiresAt - Date.now() - 1000));
         })().catch(() => { if (epoch === current) recover(); });
       };
-      const recover = () => {
+      const recover = (preserve = false) => {
         if (++failures > LIMITS.commandAttempts) { deactivate(); return; }
-        reset(false); timer = setTimeout(() => begin(false), LIMITS.spacingMs * failures);
+        reset(preserve); timer = setTimeout(() => begin(preserve), LIMITS.spacingMs * failures);
       };
       const restart = () => { window.dispatchEvent(new Event(routeEvent)); begin(false); };
       const deactivate = () => {
@@ -133,7 +136,7 @@ export function startAdapterRuntime(definition: SiteDefinition, createAdapter: S
         window.removeEventListener(stopEvent, deactivate);
         delete scope[slot];
       };
-      scope[slot] = { restart, version: 5 };
+      scope[slot] = { restart, version: 6 };
       window.addEventListener(stopEvent, deactivate);
       window.addEventListener('pagehide', stop); window.addEventListener('pageshow', restart);
       window.addEventListener('popstate', restart); window.addEventListener('hashchange', restart);

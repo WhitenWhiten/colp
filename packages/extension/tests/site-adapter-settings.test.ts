@@ -26,6 +26,9 @@ async function mount(error?: string, configured = false) {
     if (message.kind === 'known.siteAdapters.archive.configure') {
       if (message.rootNativeId === 'synced' && error) return { error };
       state.archive.config = { state: 'active', root: { nativeId: message.rootNativeId! }, collectionIds: message.collectionIds!, live: true };
+      if (state.archive.import && ['preview', 'attention'].includes(state.archive.import.phase)) {
+        state.archive.import = { ...state.archive.import, phase: 'preparing', reason: null, preview: null };
+      }
     }
     if (message.kind === 'known.siteAdapters.cloud.configureRule') return { configured: true };
     if (message.kind === 'known.siteAdapters.operations.check') return { checked: true };
@@ -184,6 +187,100 @@ test('a website tab without an adapter connection is reused for a paused check',
   await vi.waitFor(() => expect(f.sendMessage).toHaveBeenCalledWith({ kind: 'known.siteAdapters.import.resume', jobId: 'paused-read', adapterId: 'bundled.bilibili' }));
   expect(query).toHaveBeenCalledWith({ url: ['https://www.bilibili.com/*'] });
   expect(f.openTab).not.toHaveBeenCalled();
+});
+test.each(['preview', 'attention'])('the reported 4917-item destination failure in %s explains one mapping issue and offers a concrete recovery', async phase => {
+  const f = await mount(undefined, true);
+  f.state.archive.config!.collectionIds = ['83459231', ...Array.from({ length: 21 }, (_, i) => String(1000 + i))];
+  f.state.archive.import = { ...pausedCheck(), phase, reason: phase === 'attention' ? 'sourceReviewRequired' : null, edgeCount: 4917,
+    preview: { id: 'blocked-preview', revision: 2, digest: 'digest', coverage: 'partial',
+      counts: { createFolders: 0, createBookmarks: 0, reuseBookmarks: 0, review: 4917 }, reviewCounts: { sourceDestinationNeedsReview: 4917 },
+      reviewSamples: Array.from({ length: 20 }, (_, i) => ({ itemId: `video:av:${i + 1}`, collectionId: '83459231', reason: 'sourceDestinationNeedsReview', itemTitle: `Video ${i + 1}` })) } };
+  element('refresh').click();
+  await vi.waitFor(() => expect(element('import-state').textContent).toContain('blocking this import'));
+  expect(element('import-state').textContent).not.toBe('Nothing new to add');
+  expect(element('approve-import').hidden).toBe(true);
+  expect(element('import-summary').textContent).toContain('not connected to the current save location');
+  expect(element('import-review-summary').textContent).toContain('individual videos do not need review');
+  expect(element('import-review-summary').textContent).toContain('4,917');
+  expect(element('import-review-list').children).toHaveLength(1);
+  expect(element('import-review-list').textContent).not.toContain('Video 1');
+  expect(element('freeze-import').textContent).toBe('Prepare import again');
+  element('import-edit-settings').click();
+  expect(element<HTMLDialogElement>('site-settings-dialog').open).toBe(true);
+  expect(element<HTMLButtonElement>('configure-archive').disabled).toBe(false);
+  expect(element('configure-archive').textContent).toBe('Confirm save location');
+  element('configure-archive').click();
+  await vi.waitFor(() => expect(details().archive.import.phase).toBe('preparing'));
+  expect(f.sendMessage).toHaveBeenCalledWith(expect.objectContaining({ kind: 'known.siteAdapters.archive.configure', collectionIds: f.state.archive.config!.collectionIds }));
+  expect(f.sendMessage.mock.calls.some(([r]) => r.kind === 'known.siteAdapters.import.freeze')).toBe(false);
+  expect(f.sendMessage.mock.calls.some(([r]) => r.kind === 'known.siteAdapters.import.start' || r.kind === 'known.siteAdapters.import.resume')).toBe(false);
+});
+test('confirming an existing mapping without a source tab stays busy through polling, rejects duplicate clicks, and reports failure in the dialog', async () => {
+  const f = await mount(undefined, true);
+  f.state.documents = 0;
+  f.state.archive.import = { ...pausedCheck(), phase: 'attention', reason: 'sourceDestinationNeedsReview' };
+  element('refresh').click();
+  await vi.waitFor(() => expect(element('import-edit-settings').hidden).toBe(false));
+  element('import-edit-settings').click();
+  let finish!: (value: { error: string }) => void;
+  const pending = new Promise<{ error: string }>(resolve => { finish = resolve; }), send = f.sendMessage.getMockImplementation()!;
+  f.sendMessage.mockImplementation(message => message.kind === 'known.siteAdapters.archive.configure' ? pending : send(message));
+  element('configure-archive').click();
+  expect(element('configure-archive').textContent).toBe('Confirming save location…');
+  expect(element<HTMLButtonElement>('configure-archive').disabled).toBe(true);
+  element('refresh').click(); element('configure-archive').dispatchEvent(new Event('click'));
+  expect(f.sendMessage.mock.calls.filter(([r]) => r.kind === 'known.siteAdapters.archive.configure')).toHaveLength(1);
+  finish({ error: 'sourceDestinationMigrationRequired' });
+  await vi.waitFor(() => expect(document.querySelector('.toast-message')?.textContent).toContain('another sync account'));
+  expect(element<HTMLDialogElement>('site-settings-dialog').open).toBe(true);
+  expect(element('site-problem').closest('dialog')?.id).toBe('site-settings-dialog');
+  expect(element('site-problem-what').textContent).toContain('save location');
+  expect(element<HTMLButtonElement>('configure-archive').disabled).toBe(false);
+});
+test('a status reply issued before configuration cannot roll back the configured folder or replace action feedback', async () => {
+  const f = await mount(undefined, true);
+  element('site-configure').click(); pick('local');
+  const before = structuredClone(f.state), send = f.sendMessage.getMockImplementation()!;
+  let finish!: (value: typeof before) => void, holdStatus = true;
+  f.sendMessage.mockImplementation(message => {
+    if (message.kind === 'known.siteAdapters.status' && holdStatus) {
+      holdStatus = false; return new Promise<typeof before>(resolve => { finish = resolve; });
+    }
+    return send(message);
+  });
+  element('refresh').click(); element('configure-archive').click();
+  await vi.waitFor(() => expect(details().archive.config.root.nativeId).toBe('local'));
+  finish(before); await new Promise(resolve => setTimeout(resolve, 20));
+  expect(details().archive.config.root.nativeId).toBe('local');
+});
+test('renewed save authority offers a new preview instead of retrying the obsolete approval', async () => {
+  const f = await mount(undefined, true);
+  f.state.archive.import = { ...pausedCheck(), phase: 'attention', reason: 'sourceAuthorizationChanged', authorization: 'renewed', approvalId: 'old-approval',
+    preview: { id: 'old-preview', revision: 1, digest: 'digest', coverage: 'complete', counts: { createFolders: 1, createBookmarks: 1, reuseBookmarks: 0, review: 0 } } };
+  element('refresh').click();
+  await vi.waitFor(() => expect(element('import-summary').textContent).toContain('confirm the new save plan'));
+  expect(element('retry-import').hidden).toBe(true); expect(element('approve-import').hidden).toBe(true);
+  expect(element('freeze-import').hidden).toBe(false); expect(element('freeze-import').className).toContain('btn-primary');
+});
+test('approval stays pending through polling and an outdated preview requires an explicit refresh instead of restarting itself', async () => {
+  const f = await mount(undefined, true);
+  f.state.archive.import = { ...pausedCheck(), phase: 'preview', reason: null, preview: { id: 'preview', revision: 1, digest: 'digest', coverage: 'complete',
+    counts: { createFolders: 1, createBookmarks: 1, reuseBookmarks: 0, review: 0 } } };
+  element('refresh').click();
+  await vi.waitFor(() => expect(element('approve-import').hidden).toBe(false));
+  let finish!: (value: { error: string }) => void;
+  const pending = new Promise<{ error: string }>(resolve => { finish = resolve; }), send = f.sendMessage.getMockImplementation()!;
+  f.sendMessage.mockImplementation(message => message.kind === 'known.siteAdapters.import.approve' ? pending : send(message));
+  element('approve-import').click(); element('refresh').click();
+  await vi.waitFor(() => expect(element('approve-import').textContent).toBe('Confirming import…'));
+  expect(element<HTMLButtonElement>('approve-import').disabled).toBe(true);
+  element('approve-import').dispatchEvent(new Event('click'));
+  expect(f.sendMessage.mock.calls.filter(([r]) => r.kind === 'known.siteAdapters.import.approve')).toHaveLength(1);
+  finish({ error: 'previewStale' });
+  await vi.waitFor(() => expect(element('approve-import').hidden).toBe(true));
+  expect(f.sendMessage.mock.calls.some(([r]) => r.kind === 'known.siteAdapters.import.freeze')).toBe(false);
+  element('freeze-import').click();
+  await vi.waitFor(() => expect(f.sendMessage).toHaveBeenCalledWith({ kind: 'known.siteAdapters.import.freeze', jobId: 'paused-read', adapterId: 'bundled.bilibili' }));
 });
 
 test('mapping status follows the import through reading, approval and sync waiting without claiming it saved items', async () => {

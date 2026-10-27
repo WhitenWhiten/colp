@@ -82,6 +82,9 @@ export function createSiteTransport(deps: TransportDeps, definition: SiteDefinit
       const s = await deps.read();
       if (!s.enabled) return { status: 'unavailable', reason: 'disabled' };
       const request: BootstrapRequest = raw;
+      // A failed account probe proves neither logout nor an account switch. It
+      // cannot grant a lease, but must not revoke other verified tabs or jobs.
+      if (request.source.state === 'unknown') return { status: 'unavailable', reason: 'sourceUnresolved' };
       if (request.source.state !== 'signedIn' || !definition.validateAccount(request.source.accountId)) {
         fence(s); s.sourceGeneration++; s.sourceUnresolved = true; s.candidateAccount = null; s.candidateLabel = undefined; await deps.write(s);
         return { status: 'unavailable', reason: 'sourceUnresolved' };

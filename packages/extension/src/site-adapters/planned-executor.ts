@@ -31,6 +31,17 @@ export async function persistSavePlan(db: SourceDatabase, plan: SavePlan, state:
 export function createPlannedSaveExecutor(db: SourceDatabase, ports: PlannedExecutionPorts) {
   const commandLocks = new Map<string, Promise<void>>();
   const running = new Map<string, Promise<PlannedNativeResult>>();
+  const previews = new Map<string, { digest: string; revision: number; importRunId: string; planIds: ReadonlySet<string> }>();
+  async function approvedPreview(id: string) {
+    let preview = previews.get(id);
+    if (!preview) {
+      const row = await db.read<ImportPreview>('importPreviews', id); if (!row) return undefined;
+      preview = { digest: row.digest, revision: row.revision, importRunId: row.importRunId, planIds: new Set(row.planIds) };
+      if (previews.size >= 4) previews.delete(previews.keys().next().value!);
+      previews.set(id, preview);
+    }
+    return preview;
+  }
   async function load(planId: string, effectId: string) {
     const row = await db.read<StoredSavePlan>('savePlans', planId), effect = row?.plan.effects.find(e => e.effectId === effectId);
     if (!row || !effect || row.digest !== planDigest(row.plan) || effect.payloadDigest !== effectDigest(effect)) throw new Error('invalidPlan');
@@ -44,9 +55,11 @@ export function createPlannedSaveExecutor(db: SourceDatabase, ports: PlannedExec
     if (plan.purpose !== 'sourceArchive' || plan.classification !== 'disabled') throw new Error('semanticExecutionUnavailable');
     if (plan.trigger.kind === 'import') {
       const approval = plan.importApprovalId && await db.read<ImportApproval>('importApprovals', plan.importApprovalId);
-      const preview = approval && await db.read<ImportPreview>('importPreviews', approval.previewId);
+      // Frozen previews are immutable. The small approval record is still read
+      // for every effect so cancellation and revocation take effect immediately.
+      const preview = approval && await approvedPreview(approval.previewId);
       if (!approval || approval.state === 'cancelled' || !preview || approval.importRunId !== plan.trigger.importRunId || approval.previewId !== plan.trigger.previewId
-        || approval.previewDigest !== preview.digest || approval.previewRevision !== preview.revision || !preview.planIds.includes(plan.id)) throw new Error('importApprovalRequired');
+        || preview.importRunId !== plan.trigger.importRunId || approval.previewDigest !== preview.digest || approval.previewRevision !== preview.revision || !preview.planIds.has(plan.id)) throw new Error('importApprovalRequired');
     }
     for (const id of effect.dependsOn) {
       const prior = await db.read<{ state: string }>('effects', sourceKey(planId, id)); if (prior?.state !== 'confirmed') throw new Error('dependencyPending');

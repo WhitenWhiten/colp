@@ -1,12 +1,11 @@
 import { readLimits } from './read-policy.js';
 import { legacySite } from './registry.js';
 import { installationKey } from './installation.js';
-import { authorityForConnection, readConnectionAuthority } from './ledger.js';
 import { cancelImportPlans } from './plan-cancellation.js';
 import { createLane } from '../automation/lane.js';
 import { cursorPage } from '../sync-state/idb.js';
 import type { AdapterMessage, BrowserRuleSnapshot, HostCommand, ImportApproval, ImportPreview, SavePlan, SourceFolderReservation } from './contracts.js';
-import type { ImportRead, SourceContext, SourceImportRun } from './ledger-types.js';
+import type { ImportRead, SourceAuthority, SourceContext, SourceImportRun } from './ledger-types.js';
 import type { createSourceLedger } from './ledger.js';
 import { requireSourceAuthority } from './ledger.js';
 import { get, put, rows, sourceDigest, sourceKey, sourcePrefixRange } from './source-db.js';
@@ -17,6 +16,9 @@ import type { StoredSavePlan, SourceOutbox } from './planned-types.js';
 import { LIMITS as DEFAULT_LIMITS } from './limits.js';
 import { siteFeatures } from './capabilities.js';
 import { sourceActivityCounts, type ActivitySink, type ActivityInput } from './activity.js';
+import { countImportReviews, importScopeProblems } from './import-problems.js';
+import { importAuthorization, preparationContext } from './import-authorization.js';
+import { readSourceFingerprintSnapshot, sourceMembershipValue } from './source-fingerprints.js';
 type Ledger = ReturnType<typeof createSourceLedger>;
 type Layout = ReturnType<typeof createSourceLayout>;
 export interface Edge { kind: 'collectedEdge'; collectionId: string; itemId: string }
@@ -64,7 +66,7 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
     if (job.nextPlan > (previous?.nextPlan ?? 0)) await ports.activity?.resolve(job.id, 'save').catch(() => undefined);
   };
   async function authority(job: ImportJob, tx?: IDBTransaction) {
-    const a = tx ? await authorityForConnection(tx, job.context.connectionId) : await readConnectionAuthority(db, job.context.connectionId);
+    const a = tx ? await get<SourceAuthority>(tx, 'authorities', ledger.definition.adapterId) : await db.read<SourceAuthority>('authorities', ledger.definition.adapterId);
     if (!a?.enabled || a.connectionId !== job.context.connectionId || a.installationGeneration !== job.context.installationGeneration
       || a.sourceSessionGeneration !== job.context.sourceSessionGeneration) throw new Error('sourceAuthorizationChanged');
   }
@@ -73,9 +75,9 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
       const connection = job.context.connectionId;
       const reps = (await rows<import('./contracts.js').Representation>(tx, 'representations', connection, edge.itemId)).filter(r => r.purpose === 'sourceArchive' && r.sourceCollectionId === edge.collectionId);
       const pending = (await rows<import('./reservations.js').ItemReservation>(tx, 'itemReservations', connection, edge.itemId)).filter(r => r.representation.purpose === 'sourceArchive' && r.representation.sourceCollectionId === edge.collectionId);
-      return sourceDigest({ item: await get(tx, 'items', sourceKey(connection, edge.itemId)) ?? null,
-        collection: await get(tx, 'collections', sourceKey(connection, edge.collectionId)) ?? null,
-        membership: await get(tx, 'memberships', sourceKey(connection, edge.itemId, edge.collectionId)) ?? null,
+      return sourceDigest({ item: (await get<{ entity: unknown }>(tx, 'items', sourceKey(connection, edge.itemId)))?.entity ?? null,
+        collection: (await get<{ entity: unknown }>(tx, 'collections', sourceKey(connection, edge.collectionId)))?.entity ?? null,
+        membership: sourceMembershipValue(await get<import('./ledger-types.js').LedgerEdge>(tx, 'memberships', sourceKey(connection, edge.itemId, edge.collectionId))),
         representations: reps, reservations: pending });
     });
   }
@@ -85,7 +87,7 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
       await authority(job, tx);
       if (job.approvalId) { const a = await get<ImportApproval>(tx, 'importApprovals', job.approvalId); if (a) put(tx, 'importApprovals', a.id, { ...a, state: 'cancelled' }); }
       const run = await get<SourceImportRun>(tx, 'importRuns', job.id); if (!run) throw new Error('importMissing');
-      put(tx, 'importRuns', job.id, { ...run, phase: 'stopped', outstanding: null });
+      put(tx, 'importRuns', job.id, { ...run, context: job.context, phase: 'stopped', outstanding: null });
       put(tx, 'meta', key(job.id), { ...job, outstanding: null });
     });
     if (job.outstanding) {
@@ -119,7 +121,7 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
           else counts.createBookmarks++;
         }
       } catch (e) {
-        if (e instanceof Error && e.message === 'previewStale') throw e;
+        if (e instanceof Error && (e.message === 'previewStale' || importScopeProblems.has(e.message))) throw e;
         counts.review++;
         reviewReason = e instanceof Error ? e.message.slice(0, 256) : 'sourcePlanNeedsReview';
       }
@@ -143,6 +145,7 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
     }
     counts.createFolders = [...folders.values()].filter(f => f.state !== 'confirmed').length;
     const preview: ImportPreview = { id: job.previewId!, importRunId: job.id, revision: job.previewRevision, digest: '', pageReceiptsDigest: sourceDigest(job.pageReceipts),
+      reviewCounts: countImportReviews(frozen),
       reviewSamples: frozen.filter(f => f.reviewReason).slice(0, 20).map(f => ({ itemId: f.edge.itemId, collectionId: f.edge.collectionId, reason: f.reviewReason! })),
       ledgerOrdinal: await db.read<number>('meta', 'ordinal') ?? 0, browserRules: frozenSnapshot.browserRules, policyRevision: frozenSnapshot.policyRevision,
       classificationPolicyDigest: 'disabled', omissions: { count: job.omissions, samples: job.omissionSamples, unscannedRemainder: !job.scanComplete }, mounts: [...mounts].map(([id, revision]) => ({ id, revision })), coverage: job.coverage, planIds, counts };
@@ -151,36 +154,53 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
     preview.digest = previewDigest(preview);
     await ports.reconciliation?.freeze(job);
     await db.transaction(['meta', 'importPreviews'], 'readwrite', async tx => {
-      put(tx, 'importPreviews', preview.id, preview); put(tx, 'meta', key(job.id), { ...job, counts, planIds, phase: 'preview' });
+      // The immutable scope lives in the preview. Progress checkpoints must not
+      // copy thousands of plan IDs again for every saved bookmark.
+      put(tx, 'importPreviews', preview.id, preview); put(tx, 'meta', key(job.id), { ...job, counts, planIds: [], phase: 'preview' });
     });
     await log({ ...job, phase: 'preview' }, { kind: 'checked', operation: 'read', reviewSamples: preview.reviewSamples });
+    await ports.activity?.resolve(job.id, 'save', [...importScopeProblems, 'previewStale', 'sourceAuthorizationChanged']).catch(() => undefined);
   }
   async function validate(job: ImportJob, preview: ImportPreview) {
     await authority(job);
     if (preview.digest !== previewDigest(preview) || preview.id !== job.previewId || sourceDigest(await ports.snapshot()) !== sourceDigest(job.snapshot)) throw new Error('previewStale');
     const frozen = await db.transaction(['importPages'], 'readonly', tx => rows<{ edge: Edge; fingerprint: string; planId: string | null }>(tx, 'importPages', 'frozenEdge', preview.id));
     if (frozen.length !== job.edgeCount || sourceDigest(frozen) !== preview.collectedSetDigest) throw new Error('previewStale');
-    const digests: { id: string; digest: string }[] = [];
-    for (const id of preview.planIds) { const row = await db.read<StoredSavePlan>('savePlans', id); if (!row) throw new Error('previewStale'); digests.push({ id, digest: row.digest }); }
+    const stored = await db.transaction(['savePlans'], 'readonly', tx => Promise.all(preview.planIds.map(id => get<StoredSavePlan>(tx, 'savePlans', id))));
+    const plans = new Map<string, SavePlan>(), digests: { id: string; digest: string }[] = [];
+    for (const [index, id] of preview.planIds.entries()) {
+      const row = stored[index]; if (!row) throw new Error('previewStale'); plans.set(id, row.plan); digests.push({ id, digest: row.digest });
+    }
     if (sourceDigest(digests) !== preview.plansDigest) throw new Error('previewStale');
+    const fingerprint = await readSourceFingerprintSnapshot(db, job.context.connectionId), checkedFolders = new Set<string>();
     for (const f of frozen) {
-      const plan = f.planId ? (await db.read<StoredSavePlan>('savePlans', f.planId))?.plan : undefined;
-      if (f.fingerprint !== await edgeFingerprint(job, f.edge, plan)) throw new Error('previewStale');
-      if (plan) for (const e of plan.effects) await layout.authorize(plan, e);
+      const plan = f.planId ? plans.get(f.planId) : undefined;
+      if (f.fingerprint !== fingerprint(f.edge)) throw new Error('previewStale');
+      if (plan) {
+        const folder = sourceKey(plan.mount?.id, plan.effects.find(e => e.kind === 'ensureSourceFolder')?.folderReservationDigest ?? plan.id);
+        // Native folder checks are shared by all items in a collection. Every
+        // individual effect is authorized again immediately before execution.
+        if (!checkedFolders.has(folder)) { for (const e of plan.effects) await layout.authorize(plan, e); checkedFolders.add(folder); }
+      }
     }
   }
   async function freeze(job: ImportJob) {
     if (['approved', 'cancelled', 'completed'].includes(job.phase)) throw new Error('importChanged');
+    job = { ...job, context: await preparationContext(db, ledger.definition, job.context) };
     await stopScan(job); await cancelPlans(job);
     const next: ImportJob = { ...job, phase: 'preparing', outstanding: null, snapshot: await ports.snapshot(), previewId: crypto.randomUUID(), previewRevision: job.previewRevision + 1,
       nextEdge: 0, prepareAfter: undefined, planIds: [], nextPlan: 0, counts: emptyCounts(), approvalId: null, reason: null,
       coverage: job.scanComplete ? job.coverage : 'partial' };
-    await save(next); ports.alarm(Date.now() + 100); return next;
+    await save(next);
+    await ports.activity?.resolve(job.id, 'read', ['sourceAuthorizationChanged', 'sourceAccountChanged', 'sourceUnresolved', 'restartRequired', 'pageUnavailable']).catch(() => undefined);
+    ports.alarm(Date.now() + 100); return next;
   }
   return {
     status: async () => {
       const job = await load(); if (!job) return null;
       const p = job.previewId ? await db.read<ImportPreview>('importPreviews', job.previewId) : undefined;
+      const reviewCounts = p?.reviewCounts ?? (p?.counts.review ? await db.transaction(['importPages'], 'readonly', async tx =>
+        countImportReviews(await rows<{ reviewReason?: string }>(tx, 'importPages', 'frozenEdge', p.id))) : {});
       const currentId = job.stage === 'items' ? job.found[job.collectionIndex] : undefined;
       const collection = currentId ? await db.read<{ entity: { title: string } }>('collections', sourceKey(job.context.connectionId, currentId)) : undefined;
       const reviewSamples = p?.reviewSamples?.length ? await db.transaction(['items', 'collections'], 'readonly', async tx => {
@@ -192,10 +212,11 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
         }
         return samples;
       }) : p?.reviewSamples;
-      return { ...job, pageReceipts: undefined, context: { connectionId: job.context.connectionId }, planIds: undefined,
+      const authorization = importAuthorization(job.context, await db.read<SourceAuthority>('authorities', ledger.definition.adapterId));
+      return { ...job, authorization, pageReceipts: undefined, context: { connectionId: job.context.connectionId }, planIds: undefined,
         progress: { collectionsRead: job.collectionIndex, collectionsTotal: job.selected.length, currentCollection: collection?.entity.title ?? null,
           prepared: job.nextEdge, saved: job.nextPlan, toSave: p?.planIds.length ?? 0 },
-        preview: p ? { id: p.id, revision: p.revision, digest: p.digest, coverage: p.coverage, counts: p.counts, omissions: p.omissions, reviewSamples } : null };
+        preview: p ? { id: p.id, revision: p.revision, digest: p.digest, coverage: p.coverage, counts: p.counts, omissions: p.omissions, reviewSamples, reviewCounts } : null };
     },
     start: (selected: readonly string[]) => lane(async () => {
       if (!siteFeatures(ledger.definition).import) throw new Error('unsupported');
@@ -274,6 +295,11 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
     approve: (input: { jobId: string; previewId: string; revision: number; digest: string }) => lane(async () => {
       const job = await load(input.jobId), preview = await db.read<ImportPreview>('importPreviews', input.previewId);
       if (!job || job.phase !== 'preview' || !preview || preview.id !== job.previewId || preview.revision !== input.revision || preview.digest !== input.digest) throw new Error('previewStale');
+      if (!preview.planIds.length && preview.counts.review) {
+        const reviews = preview.reviewCounts ?? await db.transaction(['importPages'], 'readonly', async tx => countImportReviews(await rows<{ reviewReason?: string }>(tx, 'importPages', 'frozenEdge', preview.id)));
+        if (Object.keys(reviews).some(code => !['sourceReconcileCandidate', 'policySkipped', 'suppressed', 'noMatch'].includes(code)))
+          throw new Error(Object.keys(reviews).find(code => importScopeProblems.has(code)) ?? 'sourceReviewRequired');
+      }
       await validate(job, preview);
       const approval: ImportApproval = { id: crypto.randomUUID(), state: 'active', importRunId: job.id, previewId: preview.id, previewRevision: preview.revision, previewDigest: preview.digest, approvedAt: Date.now() };
       await db.transaction(['meta', 'importApprovals', 'savePlans', 'authorities'], 'readwrite', async tx => {

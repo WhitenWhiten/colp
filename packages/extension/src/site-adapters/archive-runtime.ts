@@ -22,6 +22,8 @@ import { createReconcilePreview, reconcileKey } from './reconcile-preview.js';
 import { reconcileInventory } from './reconcile-inventory.js';
 import { createSourceOverview } from './overview.js';
 import type { ActivitySink } from './activity.js';
+import type { SourceAuthority } from './ledger-types.js';
+import { get, rows, sourceKey } from './source-db.js';
 const configureSchemaFor = (definition: SiteDefinition) => object({ kind: literal('known.siteAdapters.archive.configure'), rootNativeId: str(128),
   collectionIds: array(v => definition.validateCollection(v), 64, 1, v => v), live: literal(true, false),
   copies: v => v === undefined || literal('sourceAndSemantic', 'singlePreferSemantic', 'singleKeepExisting')(v),
@@ -92,20 +94,32 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
     async handle(raw: unknown) {
       if (ports.reconciliation?.valid(raw)) { const c = await config(); if (!c) throw new Error('chooseArchiveRoot'); return await ports.reconciliation.handle(raw, c.connectionId) ?? {}; }
       if (configureSchema(raw)) return configureLane(async () => {
-        const input = raw as { rootNativeId: string; collectionIds: readonly string[]; live: boolean; copies?: import('./contracts.js').SavePolicy['copies']; primarySourceCollectionId?: string | null; aiDestination?: 'excluded' | 'allowed'; semantic?: 'manual' | 'automatic' }, source = await ports.source();
+        const input = raw as { rootNativeId: string; collectionIds: readonly string[]; live: boolean; copies?: import('./contracts.js').SavePolicy['copies']; primarySourceCollectionId?: string | null; aiDestination?: 'excluded' | 'allowed'; semantic?: 'manual' | 'automatic' };
         if (input.semantic === 'automatic' && input.copies && input.copies !== 'sourceAndSemantic') throw new Error('semanticRequiresTwoCopies');
         if (!features.archive || input.live && !features.liveArchive) throw new Error('unsupported');
-        if (!source) throw new Error('pageUnavailable');
         if (!await chrome.permissions.contains({ permissions: ['bookmarks'] })) throw new Error('permissionRequired');
+        const authority = await db.read<SourceAuthority>('authorities', definition.adapterId);
+        if (!authority?.enabled || !authority.connectionId) throw new Error('sourceUnresolved');
+        const c = { connectionId: authority.connectionId }, old = await db.read<ArchiveConfig>('meta', configKey(c.connectionId));
+        const assertAccount = async (tx: IDBTransaction) => {
+          const current = await get<SourceAuthority>(tx, 'authorities', definition.adapterId);
+          if (!current?.enabled) throw new Error('sourceUnresolved');
+          if (current.connectionId !== c.connectionId) throw new Error('sourceAccountChanged');
+        };
         const node = (await chrome.bookmarks.get(input.rootNativeId))[0];
         if (!node || node.url || !node.dateAdded) throw new Error('bindingUnavailable');
         const binding: NativeBinding<'folder'> = { bindingId: crypto.randomUUID(), nativeId: node.id, kind: 'folder', dateAdded: node.dateAdded,
           deviceId: await captureDeviceId(), proof: { kind: 'explicitAdoption', id: crypto.randomUUID() } };
         await assertSourceRoot(binding);
-        const catalog = definition.defaultCollection ? [definition.defaultCollection] : features.collections ? await ports.catalog() : await observedCatalog(ledger, source.context), selected = catalog.filter(c => input.collectionIds.includes(c.id));
+        // Confirming an existing mapping uses retained account-scoped facts. A
+        // website tab is needed for new reads, not for choosing a local folder.
+        const retained = old && input.collectionIds.every(id => old.collectionIds.includes(id))
+          ? await db.transaction(['collections'], 'readonly', async tx => (await rows<{ entity: SiteCollection }>(tx, 'collections', c.connectionId)).map(r => r.entity)) : [];
+        const catalog = definition.defaultCollection ? [definition.defaultCollection] : retained.length && input.collectionIds.every(id => retained.some(row => row.id === id)) ? retained
+          : features.collections ? await ports.catalog() : await (async () => { const source = await ports.source(); if (!source) throw new Error('pageUnavailable'); return observedCatalog(ledger, source.context); })();
+        const selected = catalog.filter(row => input.collectionIds.includes(row.id));
         if (selected.length !== input.collectionIds.length) throw new Error('refreshCatalogRequired');
         if (input.primarySourceCollectionId && !input.collectionIds.includes(input.primarySourceCollectionId)) throw new Error('invalidPrimaryCollection');
-        const c = source.context, old = await db.read<ArchiveConfig>('meta', configKey(c.connectionId));
         if (old) await sourceLayout.bindRoot(c.connectionId, old.ruleId, node.id, true);
         const saved = await browserRuleStore().saveRule({ ...(old ? { id: old.ruleId } : {}), draft: { name: `${definition.label} source archive`, combinator: 'all',
           conditions: [{ kind: 'siteIs', value: new URL(definition.origin).hostname }], action: { kind: 'file', folderNativeId: node.id },
@@ -114,13 +128,9 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
         if (!saved.ok) throw new Error('ruleRejected');
         let next: ArchiveConfig = { connectionId: c.connectionId, ruleId: saved.rule.id, root: binding, collectionIds: input.collectionIds, live: input.live, state: 'pending',
           copies: input.copies ?? 'sourceAndSemantic', primarySourceCollectionId: input.primarySourceCollectionId ?? null, aiDestination: input.aiDestination ?? 'excluded', semantic: input.semantic ?? 'manual' };
-        await db.transaction(['meta'], 'readwrite', async tx => { tx.objectStore('meta').put(next, configKey(c.connectionId)); });
+        await db.transaction(['meta', 'authorities'], 'readwrite', async tx => { await assertAccount(tx); tx.objectStore('meta').put(next, configKey(c.connectionId)); });
         const mount = await sourceLayout.bindRoot(c.connectionId, saved.rule.id, node.id, true);
         await sourceLayout.configureMount(c.connectionId, saved.rule.id, input.aiDestination ?? 'excluded');
-        for (let offset = 0; offset < selected.length; offset += 32) {
-          const receipt = await ledger.acceptCatalog(c, crypto.randomUUID(), selected.slice(offset, offset + 32));
-          if (receipt.status === 'rejected') throw new Error(receipt.reason);
-        }
         const oldPolicy = await db.read<SourcePolicyRecord>('meta', `policy:${c.connectionId}`);
         const owner = await ports.scope?.();
         await sourceLayout.configure({ connectionId: c.connectionId, enabled: true, liveArchive: input.live,
@@ -129,7 +139,10 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
           policy: { revision: (oldPolicy?.policy.revision ?? 0) + 1, copies: input.copies ?? 'sourceAndSemantic',
             ...(input.primarySourceCollectionId ? { primarySourceCollectionId: input.primarySourceCollectionId } : {}), backgroundClassification: 'disabled', sourceRemoval: 'retainArchive' } });
         next = { ...next, root: mount.root, state: 'active' };
-        await db.transaction(['meta'], 'readwrite', async tx => { tx.objectStore('meta').put(next, configKey(c.connectionId)); });
+        await db.transaction(['meta', 'authorities'], 'readwrite', async tx => { await assertAccount(tx); tx.objectStore('meta').put(next, configKey(c.connectionId)); });
+        const job = await importer.status();
+        if (job && job.context.connectionId === c.connectionId && ['preview', 'attention', 'preparing'].includes(job.phase)
+          && job.selected.length === input.collectionIds.length && job.selected.every(id => input.collectionIds.includes(id))) await importer.freeze(job.id);
         ports.alarm(Date.now() + 100); return { configured: true };
       });
       if (disableSchema(raw)) return configureLane(async () => {

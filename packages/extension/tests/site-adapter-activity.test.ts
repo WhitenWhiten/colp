@@ -58,6 +58,23 @@ test('expected waits remain distinct from failures and close when the original t
   await journal.resolve('original-task', 'save');
   expect((await journal.report(waiting.id)).incident).toMatchObject({ id: waiting.id, resolvedAt: 2, resolution: 'recovered' });
 });
+test('recovering connection or configuration errors never clears an uncertain native write', async () => {
+  const journal = createSiteActivity(new MemoryStorageArea(), adapter, environment);
+  const connection = await journal.record({ kind: 'problem', operation: 'save', taskId: 'task', code: 'sourceAuthorizationChanged' });
+  const unknown = await journal.record({ kind: 'problem', operation: 'save', taskId: 'task', code: 'nativeOutcomeUnknown' });
+  await journal.resolve('task', 'save', ['sourceAuthorizationChanged', 'previewStale']);
+  expect((await journal.report(connection.id)).incident?.resolution).toBe('recovered');
+  expect((await journal.report(unknown.id)).incident?.resolvedAt).toBeUndefined();
+});
+test('recovery progress hides previous task errors while retaining their unresolved history and new configuration failures', async () => {
+  const journal = createSiteActivity(new MemoryStorageArea(), adapter, environment);
+  const task = await journal.record({ kind: 'problem', operation: 'save', taskId: 'task', phase: 'attention', code: 'sourceDestinationNeedsReview' });
+  const scope = { taskId: 'task', phase: 'preparing' };
+  expect(currentSiteProblem(await journal.list(), scope)).toBeNull();
+  expect((await journal.report(task.id)).incident?.resolvedAt).toBeUndefined();
+  const configure = await journal.record({ kind: 'problem', operation: 'configure', taskId: 'management:configure', code: 'sourceAccountChanged' });
+  expect(currentSiteProblem(await journal.list(), scope)?.id).toBe(configure.id);
+});
 test('a new check leaves old incidents in history while failed management retries remain visible until they recover', async () => {
   let now = 1;
   const journal = createSiteActivity(new MemoryStorageArea(), adapter, environment, () => now++);

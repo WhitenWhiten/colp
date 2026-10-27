@@ -10,7 +10,7 @@ import { flattenList } from '../src/automation/rule-list-flatten.js';
 import type { LocalRule, RuleListRecord } from '../src/automation/rule-list-record.js';
 import { createSourceDatabase, sourceKey } from '../src/site-adapters/source-db.js';
 import { createSourceLedger } from '../src/site-adapters/ledger.js';
-import { createSourceLayout, type LayoutNativeNode } from '../src/site-adapters/layout.js';
+import { createSourceLayout, type LayoutNativeNode, type LayoutPorts, type SourceMount } from '../src/site-adapters/layout.js';
 import { createReadScheduler } from '../src/site-adapters/read-scheduler.js';
 import { createSiteImporter } from '../src/site-adapters/import-coordinator.js';
 import { createLiveSourcePlanner } from '../src/site-adapters/live-planner.js';
@@ -34,8 +34,9 @@ async function fixture(copies: import('../src/site-adapters/contracts.js').SaveP
   let record: RuleListRecord = { version: 3, revision: 1, enabled: true, entries: [{ kind: 'rule', rule }] };
   const nodes = new Map<string, LayoutNativeNode>([['root', { id: 'root', title: 'Root', dateAdded: 10 }]]);
   const content = createContentBindings(db, async (b, expected) => { const n = nodes.get(b.nativeId); if (!n || n.dateAdded !== b.dateAdded || expected && (n.title !== expected.title || n.parentId !== expected.parentId)) throw new Error('content_binding_needs_review'); });
-  const layout = createSourceLayout(db, { sourceCopies: input => content.sourceDecision(input), rules: async () => flattenList(record), paused: async () => false, deviceId: async () => 'device',
-    lookup: async id => nodes.get(id) ?? null, assertRoot: async b => { if (nodes.get(b.nativeId)?.dateAdded !== b.dateAdded) throw new Error('bindingUnavailable'); } });
+  const layoutPorts: LayoutPorts = { sourceCopies: input => content.sourceDecision(input), rules: async () => flattenList(record), paused: async () => false, deviceId: async () => 'device',
+    lookup: async id => nodes.get(id) ?? null, assertRoot: async b => { if (nodes.get(b.nativeId)?.dateAdded !== b.dateAdded) throw new Error('bindingUnavailable'); } };
+  const layout = createSourceLayout(db, layoutPorts);
   await layout.configure({ connectionId: context.connectionId, enabled: true, liveArchive: true, policy: { revision: 1, copies, backgroundClassification: 'disabled', sourceRemoval: 'retainArchive' } });
   const native = new Map<string, PlannedNativeResult>(), counts = { folder: 0, bookmark: 0 };
   const execution: PlannedExecutionPorts = {
@@ -69,12 +70,197 @@ async function fixture(copies: import('../src/site-adapters/contracts.js').SaveP
     nextCursor: null, consistency: 'bestEffort', coverage: partial ? 'partial' : 'complete', ...(partial ? { omissions: [{ id: 'video:av:99', reason: 'invalid' }] } : {}) } });
   async function scan(partial = false) { const id = await importer.start(['101', '102']); await page(catalog); const b = await page(items('101')); await page(items('102', '2', partial)); return { id, b }; }
   async function freeze(id: string) { await importer.freeze(id); await importer.wake(); const status = await importer.status(); expect(status?.phase).toBe('preview'); return status!.preview!; }
-  return { db, ledger, layout, importer, create, executor, execution, activity, ports, context: () => context, counts, nodes, sent, page, catalog, items, scan, freeze,
+  return { db, ledger, layout, layoutPorts, importer, create, executor, execution, activity, ports, context: () => context, counts, nodes, sent, page, catalog, items, scan, freeze,
     changeRules: () => { record = { ...record, revision: record.revision + 1 }; },
     setRuleEnabled: (enabled: boolean) => { record = { ...record, revision: record.revision + 1, entries: [{ kind: 'rule', rule: { ...rule, enabled } }] }; },
     renew: async (patch: Partial<SourceContext> = { documentId: 'new-doc' }) => { context = { ...context, leaseId: 'new-lease', ...patch }; await ledger.bindLease(context, time + 10000000); },
     advance: (ms = 2000) => { time += ms; } };
 }
+test('an unused legacy rule mapping adopts the configured root owner and imports into the same mapping identity', async () => {
+  const f = await fixture(); try {
+    const old = await f.layout.bindRoot(f.context().connectionId, 'rule', 'root');
+    expect(old.destination).toBeUndefined();
+    const destination = { serverOrigin: 'https://sync.test', accountId: 'owner', collectionId: 'library' };
+    f.layoutPorts.destination = async () => destination;
+    const configured = await f.layout.bindRoot(f.context().connectionId, 'configured-rule', 'root', true);
+    expect(configured.id).not.toBe(old.id);
+    const { id } = await f.scan(), preview = await f.freeze(id);
+    expect(preview.counts).toMatchObject({ createBookmarks: 2, createFolders: 2, review: 0 });
+    expect(await f.db.read<SourceMount>('mounts', sourceKey(f.context().connectionId, 'rule'))).toMatchObject({ id: configured.id, destination });
+    expect(f.counts).toEqual({ folder: 0, bookmark: 0 });
+    await f.importer.approve({ jobId: id, previewId: preview.id, revision: preview.revision, digest: preview.digest });
+    await f.importer.wake();
+    expect(await f.importer.status()).toMatchObject({ phase: 'completed', nextPlan: 2 });
+    expect(f.counts).toEqual({ folder: 2, bookmark: 2 });
+  } finally { await f.db.close(); }
+});
+test.each(['paused', 'attention', 'preview'] as const)('preparing a %s task after same-account renewal rebinds authority without a source tab or another scan', async phase => {
+  const f = await fixture(); try {
+    const { id } = await f.scan();
+    if (phase === 'preview') await f.freeze(id);
+    if (phase === 'attention') {
+      const plan = vi.spyOn(f.layout, 'plan').mockRejectedValue(new Error('sourceDestinationNeedsReview'));
+      await f.importer.wake(); plan.mockRestore();
+    }
+    await f.activity.record({ kind: 'problem', operation: 'read', taskId: id, code: 'sourceAuthorizationChanged' });
+    await f.ledger.setAuthority({ enabled: true, accountId: '42', installationGeneration: 2, sourceSessionGeneration: 2, negativeReadback: false });
+    const source = vi.spyOn(f.ports, 'source').mockResolvedValue(null);
+    const preview = await f.freeze(id);
+    expect(preview.counts).toMatchObject({ createBookmarks: 2, review: 0 });
+    expect(await f.importer.status()).toMatchObject({ phase: 'preview', edgeCount: 2, pages: 3, authorization: 'current' });
+    expect(source).not.toHaveBeenCalled(); expect(f.counts).toEqual({ folder: 0, bookmark: 0 });
+    expect((await f.activity.list()).find(e => e.code === 'sourceAuthorizationChanged')?.resolvedAt).toBeDefined();
+    await f.importer.approve({ jobId: id, previewId: preview.id, revision: preview.revision, digest: preview.digest });
+    await f.importer.wake(); expect((await f.importer.status())?.phase).toBe('completed');
+    expect(f.counts).toEqual({ folder: 2, bookmark: 2 });
+  } finally { await f.db.close(); }
+});
+test('repreparing discovery for a different confirmed account refuses to adopt the old task', async () => {
+  const f = await fixture(); try {
+    const { id } = await f.scan();
+    await f.ledger.setAuthority({ enabled: true, accountId: '43', installationGeneration: 2, sourceSessionGeneration: 2, negativeReadback: false });
+    await expect(f.importer.freeze(id)).rejects.toThrow('sourceAccountChanged');
+    expect((await f.importer.status())?.edgeCount).toBe(2); expect(f.counts).toEqual({ folder: 0, bookmark: 0 });
+  } finally { await f.db.close(); }
+});
+test('renewal during an approved save retains confirmed folders, invalidates the old approval and requires a new confirmation', async () => {
+  const f = await fixture(); try {
+    const { id } = await f.scan(), preview = await f.freeze(id);
+    const approval = await f.importer.approve({ jobId: id, previewId: preview.id, revision: preview.revision, digest: preview.digest });
+    const original = f.execution.execute;
+    vi.spyOn(f.execution, 'execute').mockImplementationOnce(async (...args) => {
+      const result = await original(...args);
+      await f.ledger.setAuthority({ enabled: true, accountId: '42', installationGeneration: 2, sourceSessionGeneration: 2, negativeReadback: false });
+      return result;
+    });
+    await f.importer.wake();
+    expect(await f.importer.status()).toMatchObject({ phase: 'attention', reason: 'sourceAuthorizationChanged', authorization: 'renewed' });
+    expect(f.counts).toEqual({ folder: 1, bookmark: 0 });
+    const refreshed = await f.freeze(id);
+    expect(await f.db.read('importApprovals', approval)).toMatchObject({ state: 'cancelled' });
+    expect(f.counts).toEqual({ folder: 1, bookmark: 0 });
+    await f.importer.approve({ jobId: id, previewId: refreshed.id, revision: refreshed.revision, digest: refreshed.digest });
+    await f.importer.wake(); expect((await f.importer.status())?.phase).toBe('completed');
+    expect(f.counts).toEqual({ folder: 2, bookmark: 2 });
+  } finally { await f.db.close(); }
+});
+test('all 4917 retained favorites across 22 collections recover after renewal and save without another website read', async () => {
+  const f = await fixture(); try {
+    const started = performance.now();
+    // fake-indexeddb 6 retains every finished transaction and rescans that
+    // history for each new request. Collect only finished emulator objects;
+    // pending transactions, data and all production authorization stay intact.
+    const native = await f.db.open() as IDBDatabase & { _rawDatabase: { transactions: { _state: string }[] } };
+    const transaction = f.db.transaction.bind(f.db);
+    f.db.transaction = ((...args: Parameters<typeof transaction>) => {
+      native._rawDatabase.transactions = native._rawDatabase.transactions.filter(tx => tx._state !== 'finished');
+      return transaction(...args);
+    }) as typeof f.db.transaction;
+    const collections = Array.from({ length: 22 }, (_, i) => ({ id: String(101 + i), identity: 'siteId' as const, title: `Collection ${i + 1}`, parentId: null }));
+    const id = await f.importer.start(collections.map(c => c.id));
+    // Restore retained host facts, matching the reported old task. Website
+    // extraction is covered separately; this test exercises the entire recovery/save path.
+    await f.db.transaction(['meta', 'items', 'collections', 'memberships', 'importPages'], 'readwrite', async tx => {
+      let itemNumber = 0; const context = f.context();
+      for (const [index, collection] of collections.entries()) {
+        tx.objectStore('collections').put({ entity: collection, ordinal: 1 }, sourceKey(context.connectionId, collection.id));
+        for (let number = 0; number < 223 + (index < 11 ? 1 : 0); number++) {
+          const aid = ++itemNumber, item = { ...video, id: `video:av:${aid}`, url: `https://www.bilibili.com/video/av${aid}` };
+          tx.objectStore('items').put({ entity: item, ordinal: 1 }, sourceKey(context.connectionId, item.id));
+          tx.objectStore('memberships').put({ connectionId: context.connectionId, itemId: item.id, collectionId: collection.id,
+            state: 'present', ordinal: 1, liveOrdinal: 0, evidence: 'import', observationId: `receipt-${aid}`, conflicts: [] }, sourceKey(context.connectionId, item.id, collection.id));
+          tx.objectStore('importPages').put({ kind: 'collectedEdge', collectionId: collection.id, itemId: item.id }, sourceKey('edge', id, collection.id, item.id));
+        }
+      }
+      const job = await new Promise<any>(resolve => { const request = tx.objectStore('meta').get(`importJob:${id}`); request.onsuccess = () => resolve(request.result); });
+      tx.objectStore('meta').put({ ...job, phase: 'attention', reason: 'sourceDestinationNeedsReview', stage: 'items', found: collections.map(c => c.id),
+        collectionIndex: 22, edgeCount: 4917, pages: 103, scanComplete: true }, `importJob:${id}`);
+    });
+    expect(await f.importer.status()).toMatchObject({ phase: 'attention', edgeCount: 4917 });
+    await f.ledger.setAuthority({ enabled: true, accountId: '42', installationGeneration: 2, sourceSessionGeneration: 2, negativeReadback: false });
+    const source = vi.spyOn(f.ports, 'source').mockResolvedValue(null);
+    await f.importer.freeze(id);
+    for (let batch = 0; batch < 247 && (await f.importer.status())?.phase === 'preparing'; batch++) await f.importer.wake();
+    console.info('4917-item regression: plans prepared in', Math.round(performance.now() - started), 'ms');
+    const ready = (await f.importer.status())!, preview = ready.preview!;
+    expect(ready.phase).toBe('preview'); expect(preview.counts).toEqual({ createBookmarks: 4917, createFolders: 22, reuseBookmarks: 0, review: 0 });
+    expect(f.counts).toEqual({ folder: 0, bookmark: 0 });
+    await f.importer.approve({ jobId: id, previewId: preview.id, revision: preview.revision, digest: preview.digest });
+    console.info('4917-item regression: approval validated in', Math.round(performance.now() - started), 'ms');
+    for (let batch = 0; batch < 492 && (await f.importer.status())?.phase === 'approved'; batch++) await f.importer.wake();
+    expect(await f.importer.status()).toMatchObject({ phase: 'completed', nextPlan: 4917, authorization: 'current' });
+    expect(f.counts).toEqual({ folder: 22, bookmark: 4917 }); expect(source).not.toHaveBeenCalled();
+  } finally { await f.db.close(); }
+}, 120000);
+test('a mapping failure pauses preparation once instead of turning every video into an item review', async () => {
+  const f = await fixture(); try {
+    await f.scan();
+    const plan = vi.spyOn(f.layout, 'plan').mockRejectedValue(new Error('sourceDestinationNeedsReview'));
+    await f.importer.wake();
+    expect(await f.importer.status()).toMatchObject({ phase: 'attention', reason: 'sourceDestinationNeedsReview', edgeCount: 2, nextEdge: 0, preview: null });
+    expect(plan).toHaveBeenCalledOnce(); expect(f.counts).toEqual({ folder: 0, bookmark: 0 });
+    plan.mockRestore();
+    const status = (await f.importer.status())!, preview = await f.freeze(status.id);
+    expect(preview.counts).toMatchObject({ createBookmarks: 2, review: 0 });
+    expect((await f.importer.status())?.pages).toBe(3);
+  } finally { await f.db.close(); }
+});
+test('a repeated unchanged catalog does not invalidate approval while real source content changes still do', async () => {
+  const f = await fixture(); try {
+    const { id } = await f.scan(), preview = await f.freeze(id);
+    await f.ledger.acceptCatalog(f.context(), 'automatic-catalog-refresh', f.catalog.page.items);
+    await f.importer.approve({ jobId: id, previewId: preview.id, revision: preview.revision, digest: preview.digest });
+    await f.importer.wake(); expect((await f.importer.status())?.phase).toBe('completed');
+    const next = await f.importer.start(['101']); await f.page(f.catalog); await f.page(f.items('101', '3'));
+    const changed = await f.freeze(next);
+    await f.ledger.acceptCatalog(f.context(), 'real-catalog-change', [{ ...f.catalog.page.items[0], title: 'Changed collection' }]);
+    await expect(f.importer.approve({ jobId: next, previewId: changed.id, revision: changed.revision, digest: changed.digest })).rejects.toThrow('previewStale');
+  } finally { await f.db.close(); }
+});
+test('batched approval still checks every item when several plans share one folder', async () => {
+  const f = await fixture(); try {
+    const id = await f.importer.start(['101']); await f.page(f.catalog);
+    const first = f.items('101'); if (first.status !== 'ok' || first.kind !== 'items') throw new Error('items');
+    const second = { ...video, id: 'video:av:2', url: 'https://www.bilibili.com/video/av2' };
+    await f.page({ ...first, page: { ...first.page, items: [...first.page.items, { item: second }] } });
+    const preview = await f.freeze(id);
+    await f.db.transaction(['items'], 'readwrite', async tx => {
+      tx.objectStore('items').put({ entity: { ...second, title: 'Changed after preview' }, ordinal: 100 }, sourceKey(f.context().connectionId, second.id));
+    });
+    await expect(f.importer.approve({ jobId: id, previewId: preview.id, revision: preview.revision, digest: preview.digest })).rejects.toThrow('previewStale');
+    expect(f.counts).toEqual({ folder: 0, bookmark: 0 });
+  } finally { await f.db.close(); }
+});
+test.each(['present', 'absent'] as const)('fresh membership receipts for an %s item are judged by facts instead of bookkeeping timestamps', async state => {
+  const f = await fixture(); try {
+    const { id } = await f.scan(), preview = await f.freeze(id);
+    await f.ledger.acceptObservation(f.context(), 'fresh-read-confirmation', { type: 'membership.observed', item: video,
+      memberships: { mode: 'delta', added: state === 'present' ? ['101'] : [], removed: state === 'absent' ? ['101'] : [] } });
+    const approve = () => f.importer.approve({ jobId: id, previewId: preview.id, revision: preview.revision, digest: preview.digest });
+    if (state === 'absent') { await expect(approve()).rejects.toThrow('previewStale'); expect(f.counts).toEqual({ folder: 0, bookmark: 0 }); }
+    else { await approve(); await f.importer.wake(); expect((await f.importer.status())?.phase).toBe('completed'); expect(f.counts.bookmark).toBe(2); }
+  } finally { await f.db.close(); }
+});
+test('old blocked previews expose all refusal counts and cannot be approved as an empty successful import', async () => {
+  const f = await fixture(); try {
+    const { id } = await f.scan(); vi.spyOn(f.layout, 'plan').mockResolvedValue({ status: 'policySkipped' });
+    const preview = await f.freeze(id);
+    await f.db.transaction(['importPreviews', 'importPages'], 'readwrite', async tx => {
+      const p = await new Promise<any>(resolve => { const r = tx.objectStore('importPreviews').get(preview.id); r.onsuccess = () => resolve(r.result); });
+      delete p.reviewCounts;
+      for (const sample of p.reviewSamples) {
+        sample.reason = 'sourceDestinationNeedsReview';
+        const key = sourceKey('frozenEdge', p.id, sample.collectionId, sample.itemId);
+        const row = await new Promise<any>(resolve => { const r = tx.objectStore('importPages').get(key); r.onsuccess = () => resolve(r.result); });
+        tx.objectStore('importPages').put({ ...row, reviewReason: sample.reason }, key);
+      }
+      tx.objectStore('importPreviews').put(p, p.id);
+    });
+    expect((await f.importer.status())?.preview?.reviewCounts).toEqual({ sourceDestinationNeedsReview: 2 });
+    await expect(f.importer.approve({ jobId: id, previewId: preview.id, revision: preview.revision, digest: preview.digest })).rejects.toThrow('sourceDestinationNeedsReview');
+    expect((await f.importer.status())?.phase).toBe('preview'); expect(f.counts).toEqual({ folder: 0, bookmark: 0 });
+  } finally { await f.db.close(); }
+});
 test('scan, page acknowledgment and a frozen partial preview authorize zero native writes; exact approval executes only covered effects', async () => {
   const f = await fixture(), { id, b } = await f.scan(true);
   expect(f.counts).toEqual({ folder: 0, bookmark: 0 });

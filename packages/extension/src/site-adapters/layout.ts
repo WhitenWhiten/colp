@@ -16,6 +16,8 @@ import { assertSourceRebound, assertRestoredItemAvailable } from './portable.js'
 import { sameNativeContentValue } from '../native-event-correlation.js';
 import { sameDestinationOwner, type DestinationOwner } from './copy-identity.js';
 import { queueManagedChange } from './managed-changes.js';
+import { initializeMountDestination } from './mount-destination.js';
+import { sourceMembershipValue } from './source-fingerprints.js';
 
 export interface SourcePolicyRecord { connectionId: string; enabled: boolean; liveArchive: boolean; semantic?: 'manual' | 'automatic'; semanticOwner?: DestinationOwner; admittedAfterOrdinal?: number; policy: SavePolicy }
 export interface SourceMount extends MountBinding { state: 'active' | 'detached' | 'suppressed'; destination?: DestinationOwner | null }
@@ -64,14 +66,19 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
     }
   }
   async function mount(connectionId: string, ruleId: string, rootId: string, approveDestination = false) {
-    const key = keyForMount(connectionId, ruleId), old = await db.read<SourceMount>('mounts', key);
+    const key = keyForMount(connectionId, ruleId); let old = await db.read<SourceMount>('mounts', key);
     if (old) {
+      if (old.destination === undefined && old.state === 'active' && old.root.nativeId === rootId && ports.destination) {
+        await ports.assertRoot(old.root);
+        old = await initializeMountDestination(db, old, await ports.destination(old.root));
+      }
       if (approveDestination && ports.destination) {
         if (old.state !== 'active' || old.root.nativeId !== rootId) throw new Error('mountMigrationRequired');
         await ports.assertRoot(old.root); const destination = await ports.destination(old.root);
         if (!sameDestinationOwner(old.destination, destination)) {
+          const mountId = old.id;
           if (old.destination !== undefined && (await db.transaction(['folderReservations'], 'readonly', tx => cursorPage(tx.objectStore('folderReservations'),
-            sourcePrefixRange(old.id), 1))).length) throw new Error('sourceDestinationMigrationRequired');
+            sourcePrefixRange(mountId), 1))).length) throw new Error('sourceDestinationMigrationRequired');
           const next = { ...old, destination, revision: old.revision + 1 };
           await db.transaction(['mounts'], 'readwrite', async tx => { put(tx, 'mounts', key, next); }); return next;
         }
@@ -115,7 +122,11 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
     /** Explicit configuration adopts an existing local root without creating native objects. */
     bindRoot: mount,
     async validateRoot(connectionId: string, ruleId: string, rootId: string) {
-      const current = await db.read<SourceMount>('mounts', keyForMount(connectionId, ruleId));
+      let current = await db.read<SourceMount>('mounts', keyForMount(connectionId, ruleId));
+      if (current && current.destination === undefined && current.state === 'active' && current.root.nativeId === rootId && ports.destination) {
+        await ports.assertRoot(current.root);
+        current = await initializeMountDestination(db, current, await ports.destination(current.root));
+      }
       if (!current) throw new Error('bindingNeedsRebind'); await checkMount(current, rootId);
     },
     async configureMount(connectionId: string, ruleId: string, aiDestination: 'excluded' | 'allowed') {
@@ -225,7 +236,7 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
       const fence: PlanFence = { edge: facts.edge, item: facts.item, collection: facts.collection, representation, entry: input.entry, ruleDigest: plan.rule!.source === 'browser' ? plan.rule!.definitionDigest : '' };
       await db.transaction(['meta'], 'readwrite', async tx => {
         const key = `plan-fence:${id}`, old = await get<PlanFence>(tx, 'meta', key);
-        if (old && sourceDigest(old) !== sourceDigest(fence)) throw new Error('sourceFactsChanged');
+        if (old && sourceDigest({ ...old, edge: sourceMembershipValue(old.edge) }) !== sourceDigest({ ...fence, edge: sourceMembershipValue(fence.edge) })) throw new Error('sourceFactsChanged');
         put(tx, 'meta', key, fence);
       });
       await persistSavePlan(db, plan, input.entry === 'siteImport' ? 'draft' : 'approved');
@@ -239,7 +250,7 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
       await assertRestoredItemAvailable(db, plan.connectionId, fence.item.id, fence.collection.id);
       if (plan.trigger.kind === 'import' && fence.representation && await db.read('representations', representationKey(fence.representation))) throw new Error('previewStale');
       const now = await current(plan.connectionId, fence.item.id, fence.collection.id);
-      if (sourceDigest(now) !== sourceDigest({ edge: fence.edge, item: fence.item, collection: fence.collection })) throw new Error('sourceFactsChanged');
+      if (sourceDigest({ ...now, edge: sourceMembershipValue(now.edge) }) !== sourceDigest({ edge: sourceMembershipValue(fence.edge), item: fence.item, collection: fence.collection })) throw new Error('sourceFactsChanged');
       const { flat, decision } = await evaluate({ entry: fence.entry, purpose: 'sourceArchive', connectionId: plan.connectionId, collectionId: fence.collection.id }, fence.item);
       if (sourceDigest(snapshot(flat)) !== sourceDigest(plan.browserRules) || decision?.outcome !== 'placed' || !decision.folder
         || sourceDigest({ definition: decision.item.definition, site: decision.item.site }) !== fence.ruleDigest) throw new Error('rulesChanged');

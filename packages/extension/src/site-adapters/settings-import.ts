@@ -3,14 +3,17 @@ import type { SiteActivity } from './activity.js';
 import { activityReference } from './activity.js';
 import { paintSyncBar } from '../sync-progress-ui.js';
 import { offer } from './settings-client.js';
+import { importBlocker } from './import-problems.js';
 
 export interface ImportStatus {
   id: string; phase: string; edgeCount: number; pages: number; omissions: number; coverage: string; reason: string | null; nextEdge: number; nextPlan: number;
   scanComplete?: boolean; omissionCounts?: Record<string, number>;
   approvalId?: string | null;
+  authorization?: import('./import-authorization.js').ImportAuthorization;
   stage?: 'collections' | 'items';
   progress?: { collectionsRead: number; collectionsTotal: number; currentCollection: string | null; prepared: number; saved: number; toSave: number };
   preview: { id: string; revision: number; digest: string; coverage: string;
+    reviewCounts?: Record<string, number>;
     counts: { createFolders: number; createBookmarks: number; reuseBookmarks: number; review: number };
     reviewSamples?: readonly { itemId: string; collectionId: string; reason: string; itemTitle?: string; collectionTitle?: string }[];
     omissions?: { samples: readonly { id: string; reason: string }[]; unscannedRemainder: boolean } } | null;
@@ -21,6 +24,10 @@ interface Input {
   saved?: number; lastEvent: SiteActivity | null;
   problem?: SiteActivity | null;
   checkingSource?: boolean;
+  canApplyChanges?: boolean;
+  approvingImport?: boolean;
+  previewOutdated?: boolean;
+  pendingAction?: string | null;
 }
 const element = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id)! as T;
 const button = (id: string) => element<HTMLButtonElement>(id);
@@ -31,7 +38,8 @@ export function importTitle(job: ImportStatus | null): string {
   switch (job.phase) {
     case 'scanning': case 'preparing': return t('sites_checkingSource', 'Checking source items');
     case 'paused': return job.reason === 'scanFinished' ? t('sites_checkingSource', 'Checking source items') : t('sites_checkNotFinished', 'The source check has not finished');
-    case 'preview': return !job.preview?.counts.createBookmarks && !job.preview?.counts.createFolders
+    case 'preview': return !job.preview?.counts.createBookmarks && !job.preview?.counts.createFolders && job.preview?.counts.review
+      ? t('sites_noItemsReady', 'No items are ready to save') : !job.preview?.counts.createBookmarks && !job.preview?.counts.createFolders
       ? t('sites_nothingNew', 'Nothing new to add') : tn('sites_readyToSave', job.preview?.counts.createBookmarks ?? 0, '$1 item can be saved', '$1 items can be saved');
     case 'approved': return t('sites_savingItems', 'Saving source items');
     case 'cancelled': return t('sites_checkStopped', 'The last check was stopped');
@@ -42,10 +50,12 @@ export function importTitle(job: ImportStatus | null): string {
 
 function detail(input: Input): string {
   const { job, site, errorCopy } = input, p = job?.preview, c = p?.counts;
+  if (job?.authorization === 'differentAccount') return errorCopy('sourceAccountChanged');
   if (input.hold) return errorCopy(input.hold);
   if (!input.bookmarkAccess) return errorCopy('permissionRequired');
   if (input.config?.state !== 'active') return t('sites_resumeBeforeImport', 'Resume syncing in settings to continue. Bookmarks already saved are kept.');
   if (!input.enabled || !input.connected) return t('sites_reconnectSource', 'Connect this source in sync settings to continue.');
+  if (job?.authorization === 'renewed' && ['preview', 'attention'].includes(job.phase)) return t('sites_prepareAfterRenewal', 'The website connection was renewed. Prepare the import again and confirm the new save plan; items already read are kept.');
   if (!input.available && !job) return t('sites_newItemsOnly', 'This source provides new items as you browse. They are saved into the configured folders; reading all existing items is unavailable.');
   if (!job) return input.saved ? t('sites_checkSavedUpdates', 'Your saved items are listed below. Check for updates to find anything else that needs saving.')
     : t('sites_checkBeforeSaving', 'Check the selected source lists, then review what will be added. No bookmarks have been added by this check yet.');
@@ -60,7 +70,8 @@ function detail(input: Input): string {
   if (job.phase === 'preview') return [
     c?.createFolders ? tn('sites_listFolders', c.createFolders, '$1 new folder', '$1 new folders') : '',
     c?.reuseBookmarks ? tn('sites_listSaved', c.reuseBookmarks, '$1 already saved', '$1 already saved') : '',
-    !c?.createBookmarks && !c?.createFolders ? t('sites_finishEmptyImport', 'Available favorites are already saved, or this read found only unavailable items. Finish to close this check.')
+    !c?.createBookmarks && !c?.createFolders && c?.review ? t('sites_itemsBlockedHint', 'Items were read, but could not be prepared for saving. Resolve the reasons below, then prepare the import again.')
+      : !c?.createBookmarks && !c?.createFolders ? t('sites_finishEmptyImport', 'Available favorites are already saved, or this read found only unavailable items. Finish to close this check.')
       : t('sites_reviewBeforeAdding', 'Check the list, then add the bookmarks.')
   ].filter(Boolean).join(' · ');
   if (job.phase === 'approved') return job.reason === 'sourceSyncPending'
@@ -78,16 +89,17 @@ function detail(input: Input): string {
 /** One task card, using the same bar and action hierarchy as Sync › Import. */
 export function paintSiteImport(input: Input) {
   const { job, config, site } = input, p = job?.preview, c = p?.counts, progress = job?.progress;
+  const blocker = importBlocker(job), blockedOnly = !!c?.review && !c.createBookmarks && !c.createFolders && !input.canApplyChanges;
   const scanDone = job?.phase === 'paused' && job.reason === 'scanFinished';
   const scanning = job?.phase === 'scanning', preparing = job?.phase === 'preparing' || scanDone, saving = job?.phase === 'approved';
-  const ready = config?.state === 'active' && input.enabled && input.connected && input.bookmarkAccess && !input.hold;
+  const ready = config?.state === 'active' && input.enabled && input.connected && input.bookmarkAccess && !input.hold && job?.authorization !== 'differentAccount' && job?.authorization !== 'unavailable';
   const canRead = ready && input.available;
-  const canRetrySave = ready && job?.phase === 'attention' && !!job.approvalId && job.reason !== 'sourceReviewRequired';
+  const canRetrySave = ready && job?.phase === 'attention' && !!job.approvalId && job.reason !== 'sourceReviewRequired' && job.authorization !== 'renewed';
   const completed = job?.phase === 'completed';
   const idleWithSaved = !job && !!input.saved;
   const start = !job || ['cancelled', 'completed'].includes(job.phase), resume = job?.phase === 'paused' && !scanDone;
   const needsSource = start || resume || scanning;
-  element('import-state').textContent = input.hold ? t('sites_phaseAttention', 'Needs review')
+  element('import-state').textContent = job?.authorization === 'differentAccount' ? t('sites_importOtherAccount', 'This check belongs to another website account') : blocker ? t('sites_importLocationBlocked', 'The save location is blocking this import') : input.hold ? t('sites_phaseAttention', 'Needs review')
     : !input.enabled ? t('sites_websiteOff', 'Website saving is off')
     : !input.connected ? t('sites_connectAccount', 'Connect this account')
     : !input.bookmarkAccess ? t('syncProgress_permissionTitle', 'Bookmark access needed')
@@ -95,7 +107,7 @@ export function paintSiteImport(input: Input) {
       ? t('sites_newItemsReady', 'Ready for new source items') : idleWithSaved ? t('sites_noCheckRunning', 'No source check is running') : importTitle(job);
   const relatedProblem = input.problem && (!job || input.problem.taskRef === job.id || input.problem.taskRef === activityReference(job.id) || !!input.hold);
   element('import-summary').hidden = !!relatedProblem && !job;
-  element('import-summary').textContent = relatedProblem && job ? t('sites_interruptedProgress', '$1 items read · $2 bookmarks confirmed in this check', count(job.edgeCount), count(job.nextPlan)) : detail(input);
+  element('import-summary').textContent = blocker ? input.errorCopy(blocker) : relatedProblem && job ? t('sites_interruptedProgress', '$1 items read · $2 bookmarks confirmed in this check', count(job.edgeCount), count(job.nextPlan)) : detail(input);
   const current = scanning ? progress?.collectionsRead ?? 0 : preparing ? progress?.prepared ?? job?.nextEdge ?? 0 : progress?.saved ?? job?.nextPlan ?? 0;
   const total = scanning ? job.stage === 'collections' ? 0 : progress?.collectionsTotal ?? 0 : preparing ? job?.edgeCount ?? 0 : progress?.toSave ?? c?.createBookmarks ?? 0;
   const active = scanning || preparing || saving;
@@ -115,7 +127,7 @@ export function paintSiteImport(input: Input) {
     : !active && input.lastEvent ? t('sites_lastActivityAt', 'Last activity: $1', formatMoment(input.lastEvent.lastAt)) : '';
   note.hidden = !note.textContent;
   const badge = element('import-badge'); badge.hidden = !c?.review || !['preview', 'attention'].includes(job?.phase ?? '');
-  if (c?.review) { badge.textContent = tn('sites_toReview', c.review, '$1 to review', '$1 to review'); badge.dataset.tone = 'warning'; }
+  if (c?.review) { badge.textContent = tn('sites_notReadyCount', c.review, '$1 item not ready to save', '$1 items not ready to save'); badge.dataset.tone = 'warning'; }
   paintOmissions(job);
   offer(button('start-import'), canRead && start && !!input.documents);
   const hasSaved = completed || !!input.saved;
@@ -126,21 +138,29 @@ export function paintSiteImport(input: Input) {
   offer(button('import-open-source'), canRead && needsSource && !input.documents);
   button('import-open-source').className = hasSaved ? 'btn btn-secondary btn-sm' : 'btn btn-primary btn-sm';
   button('import-open-source').textContent = resume || scanning ? t('sites_continueCheck', 'Continue checking') : hasSaved ? t('sites_checkUpdates', 'Check for updates') : t('sites_continueFirstSave', 'Continue first save');
-  offer(button('import-edit-settings'), !ready && !input.hold);
+  offer(button('import-edit-settings'), (!ready && !input.hold) || !!blocker);
+  button('import-edit-settings').textContent = blocker ? t('sites_confirmSaveLocation', 'Confirm save location') : t('sites_reviewSyncSettings', 'Review sync settings');
   offer(button('import-open-recovery'), !!input.hold);
   offer(button('import-review-items'), ready && (input.hasDifferences || !!c?.review) && job?.phase === 'attention' && !canRetrySave);
   offer(button('retry-import'), !!canRetrySave);
   button('import-review-items').className = 'btn btn-primary btn-sm';
   offer(button('freeze-import'), canRead && !!job && (resume || scanning || ['preview', 'attention'].includes(job.phase)));
-  button('freeze-import').textContent = scanning ? t('sites_stopAndReview', 'Stop and review') : resume ? t('sites_reviewFound', 'Review what was found') : t('sites_makeListAgain', 'Make the list again');
-  offer(button('approve-import'), ready && job?.phase === 'preview' && !!p);
+  button('freeze-import').textContent = scanning ? t('sites_stopAndReview', 'Stop and review') : resume ? t('sites_reviewFound', 'Review what was found') : t('sites_prepareImportAgain', 'Prepare import again');
+  button('freeze-import').className = blocker || blockedOnly || input.previewOutdated || job?.authorization === 'renewed' ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm';
+  offer(button('approve-import'), ready && job?.phase === 'preview' && !!p && !blockedOnly && !input.previewOutdated && job.authorization !== 'renewed');
   button('approve-import').textContent = !c?.createBookmarks && !c?.createFolders ? t('sites_finish', 'Finish') : tn('sites_addBookmarks', c?.createBookmarks ?? 0, 'Add $1 bookmark', 'Add $1 bookmarks');
   offer(button('cancel-import'), !!job && !['cancelled', 'completed'].includes(job.phase));
   element('site-live-status').textContent = !config?.live || config.state !== 'active' ? t('sites_liveOff', 'Automatic saving of new favorites is off.')
     : !input.enabled || !input.connected || !input.bookmarkAccess || input.hold ? t('sites_liveBlocked', 'Automatic saving of new favorites waits until the connection and settings are ready.')
     : !input.documents ? t('sites_liveWaiting', 'New favorites save automatically while $1 is open.', site)
     : t('sites_liveOn', 'New favorites save automatically while you browse $1.', site);
-  element('step-import').setAttribute('aria-busy', String(!!input.checkingSource));
+  element('step-import').setAttribute('aria-busy', String(!!input.checkingSource || !!input.approvingImport));
+  button('approve-import').setAttribute('aria-busy', String(!!input.approvingImport));
+  if (input.approvingImport) {
+    button('approve-import').disabled = true;
+    button('approve-import').textContent = t('sites_confirmingImport', 'Confirming import…');
+    button('freeze-import').disabled = true;
+  }
   for (const id of ['start-import', 'resume-import', 'import-open-source']) {
     const control = button(id); control.setAttribute('aria-busy', String(!!input.checkingSource));
     if (input.checkingSource && !control.hidden) {
@@ -152,6 +172,10 @@ export function paintSiteImport(input: Input) {
     element('import-summary').hidden = false;
     element('import-summary').textContent = t('sites_reconnectingCheck', 'Reconnecting to the website before continuing. Items already read are kept.');
     for (const id of ['freeze-import', 'cancel-import']) button(id).disabled = true;
+  }
+  if (input.pendingAction) {
+    for (const id of ['start-import', 'resume-import', 'import-open-source', 'freeze-import', 'approve-import', 'retry-import', 'cancel-import', 'import-edit-settings']) button(id).disabled = true;
+    if (input.pendingAction === 'known.siteAdapters.import.freeze') button('freeze-import').textContent = t('sites_preparingImport', 'Preparing import…');
   }
 }
 

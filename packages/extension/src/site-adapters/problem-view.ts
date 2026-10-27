@@ -1,10 +1,17 @@
 import { t } from '../i18n.js';
 import { problemFamily, type SiteActivity } from './activity.js';
+import { importScopeProblems } from './import-problems.js';
 
 /** Source-neutral copy. Actions are still gated by host capabilities and the actual outcome of the operation. */
-export function siteProblem(code: string, site: string, event?: SiteActivity | null) {
+export function siteProblem(code: string, site: string, event?: SiteActivity | null): { family: ReturnType<typeof problemFamily>; what: string; next: string } {
+  if (code === 'sourceReviewRequired' && event?.review?.length) {
+    const reason = event.review[0]!.code;
+    if (importScopeProblems.has(reason) && event.review.every(sample => sample.code === reason)) return siteProblem(reason, site);
+  }
   const family = event?.family ?? problemFamily(code);
-  const what = code === 'sourceAuthorizationChanged' ? t('sites_problemAuthorizationChanged', 'The source account or its access changed, so this check paused.')
+  const what = code === 'sourceDestinationNeedsReview' ? t('sites_problemUnboundLocation', 'This mapping is not connected to the current save location, so importing is blocked.')
+    : code === 'previewStale' ? t('sites_problemPreviewOutdated', 'The save plan no longer matches the current import state and cannot be applied yet.')
+    : code === 'sourceAuthorizationChanged' ? t('sites_problemAuthorizationChanged', 'The source account or its access changed, so this check paused.')
     : code === 'sourceAccountChanged' ? t('sites_problemAccountChanged', 'The connected $1 account is different from the account used by this check.', site)
     : code === 'restartRequired' || code === 'navigationChanged' ? t('sites_problemPageChanged', 'The website page changed while source items were being read.')
     : code === 'pageUnavailable' ? t('sites_problemNoReadableTab', 'No readable $1 tab is connected to the extension.', site)
@@ -25,7 +32,9 @@ export function siteProblem(code: string, site: string, event?: SiteActivity | n
     : family === 'capacity' ? t('sites_problemCapacity', 'This operation reached a size or item limit. Work already saved is kept.')
     : family === 'configuration' ? t('sites_problemConfiguration', 'Saving is blocked by the current automation or AI settings. Existing bookmarks are kept.')
     : t('sites_problemUnknown', 'This operation could not finish, and the cause is not yet classified. Its diagnostic details can be copied for investigation.');
-  const next = code === 'sourceAuthorizationChanged' ? t('sites_problemVerifyConnection', 'Continue checking to verify the current connection. If another account is connected, reconnect the original account in sync settings.')
+  const next = code === 'sourceDestinationNeedsReview' ? t('sites_problemPrepareLocation', 'Choose Prepare import again to reconnect an unused mapping. If it remains blocked, confirm the save location in sync settings. Items already read are kept.')
+    : code === 'previewStale' ? t('sites_problemPreparePreview', 'Prepare the import again using the items already read, then confirm the updated list.')
+    : code === 'sourceAuthorizationChanged' ? t('sites_problemVerifyConnection', 'Continue checking to verify the current connection. If another account is connected, reconnect the original account in sync settings.')
     : code === 'sourceAccountChanged' ? t('sites_problemOriginalAccount', 'Reconnect the original account in sync settings, or stop this check and start a new one for the current account.')
     : code === 'sourceUnresolved' ? t('sites_problemConfirmAccount', 'Open sync settings and confirm the detected website account, then continue checking.')
     : ['pageUnavailable', 'restartRequired', 'navigationChanged'].includes(code) ? t('sites_problemReconnectTab', 'Continue checking to reconnect an open $1 tab or open the website. Keep it open while reading; items already found are kept and duplicates are skipped.', site)

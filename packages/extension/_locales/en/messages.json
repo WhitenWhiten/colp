@@ -6776,6 +6776,9 @@
   "sites_chooseCollection": {
     "message": "Choose at least one collection."
   },
+  "sites_chooseCollectionsFirst": {
+    "message": "Choose at least one source collection before saving these settings."
+  },
   "sites_chooseFolder": {
     "message": "Choose a folder."
   },
@@ -6848,6 +6851,9 @@
   "sites_confirmDetectedAccount": {
     "message": "Confirm the account detected on $1"
   },
+  "sites_confirmSaveLocation": {
+    "message": "Confirm save location"
+  },
   "sites_confirmationReads": {
     "message": "Confirmation reads"
   },
@@ -6856,6 +6862,12 @@
   },
   "sites_confirmedSaved_other": {
     "message": "$2 bookmarks saved in this mapping"
+  },
+  "sites_confirmingImport": {
+    "message": "Confirming import…"
+  },
+  "sites_confirmingLocation": {
+    "message": "Confirming save location…"
   },
   "sites_connectAccount": {
     "message": "Connect this account"
@@ -7043,6 +7055,12 @@
   "sites_importDestination_other": {
     "message": "$1 collections → $2"
   },
+  "sites_importLocationBlocked": {
+    "message": "The save location is blocking this import"
+  },
+  "sites_importOtherAccount": {
+    "message": "This check belongs to another website account"
+  },
   "sites_importReviewRemaining": {
     "message": "$1 bookmarks added; $2 items need a separate review below."
   },
@@ -7072,6 +7090,9 @@
   },
   "sites_interruptedProgress": {
     "message": "$1 items read · $2 bookmarks confirmed in this check"
+  },
+  "sites_itemsBlockedHint": {
+    "message": "Items were read, but could not be prepared for saving. Resolve the reasons below, then prepare the import again."
   },
   "sites_itemsNotIncluded_one": {
     "message": "$1 item not included"
@@ -7129,9 +7150,6 @@
   },
   "sites_liveWaiting": {
     "message": "New favorites save automatically while $1 is open."
-  },
-  "sites_makeListAgain": {
-    "message": "Make the list again"
   },
   "sites_manageScope": {
     "message": "Manage collections"
@@ -7226,6 +7244,9 @@
   "sites_noItem": {
     "message": "No single item was found in the selected source tab."
   },
+  "sites_noItemsReady": {
+    "message": "No items are ready to save"
+  },
   "sites_noPackages": {
     "message": "No packages installed"
   },
@@ -7252,6 +7273,12 @@
   },
   "sites_notReadYet": {
     "message": "Not read yet."
+  },
+  "sites_notReadyCount_one": {
+    "message": "$1 item not ready to save"
+  },
+  "sites_notReadyCount_other": {
+    "message": "$1 items not ready to save"
   },
   "sites_notSyncing": {
     "message": "Not syncing yet."
@@ -7331,6 +7358,15 @@
   "sites_phaseAttention": {
     "message": "Needs review"
   },
+  "sites_prepareAfterRenewal": {
+    "message": "The website connection was renewed. Prepare the import again and confirm the new save plan; items already read are kept."
+  },
+  "sites_prepareImportAgain": {
+    "message": "Prepare import again"
+  },
+  "sites_preparingImport": {
+    "message": "Preparing import…"
+  },
   "sites_preservedLocations": {
     "message": "Kept in existing locations"
   },
@@ -7338,7 +7374,7 @@
     "message": "Preview batch"
   },
   "sites_previewChanged": {
-    "message": "Something changed since the list was made. It has been made again; check it before adding."
+    "message": "The save plan is out of date. Choose Prepare import again to update it using the items already read."
   },
   "sites_previewRebinding": {
     "message": "Preview account and root rebinding"
@@ -7430,6 +7466,15 @@
   "sites_problemPermission": {
     "message": "Bookmark or website access is missing. Saved bookmarks are kept."
   },
+  "sites_problemPrepareLocation": {
+    "message": "Choose Prepare import again to reconnect an unused mapping. If it remains blocked, confirm the save location in sync settings. Items already read are kept."
+  },
+  "sites_problemPreparePreview": {
+    "message": "Prepare the import again using the items already read, then confirm the updated list."
+  },
+  "sites_problemPreviewOutdated": {
+    "message": "The save plan no longer matches the current import state and cannot be applied yet."
+  },
   "sites_problemRate": {
     "message": "$1 is limiting requests. Items already read and saved are kept."
   },
@@ -7459,6 +7504,9 @@
   },
   "sites_problemStorageNext": {
     "message": "Try refreshing. If the problem continues, copy the report so this failure can be investigated."
+  },
+  "sites_problemUnboundLocation": {
+    "message": "This mapping is not connected to the current save location, so importing is blocked."
   },
   "sites_problemUnconfirmed": {
     "message": "Some save results could not be confirmed. Check the original operations before creating another copy."
@@ -7763,6 +7811,9 @@
   "sites_reviewLocalChange": {
     "message": "This copy was deleted or changed locally. Your change has been preserved."
   },
+  "sites_reviewMappingBlocked": {
+    "message": "$1 items were not saved because the save location is unavailable. Resolve this mapping once, then prepare the import again; individual videos do not need review."
+  },
   "sites_reviewPackage": {
     "message": "Review this package"
   },
@@ -7999,12 +8050,6 @@
   },
   "sites_theChosenRoot": {
     "message": "the chosen root"
-  },
-  "sites_toReview_one": {
-    "message": "$1 to review"
-  },
-  "sites_toReview_other": {
-    "message": "$1 to review"
   },
   "sites_tryAgain": {
     "message": "Try again"

@@ -6,7 +6,29 @@ import { startAdapterRuntime } from '../src/site-adapters/page-runtime.js';
 import { validateAdapterImplementation } from '../src/site-adapters/registry-validation.js';
 import type { AdapterMessage, SourcePage, SiteCollection } from '../src/site-adapters/contracts.js';
 import { createPostsAdapter, postsDefinition, saved, post } from './fixtures/site-adapters/posts.js';
+import { SiteReadError } from '../src/site-adapters/read-errors.js';
 afterEach(() => { window.dispatchEvent(new Event('known-site-adapter-stop:bundled.bilibili')); window.dispatchEvent(new Event(`known-site-adapter-stop:${postsDefinition.adapterId}`)); document.body.replaceChildren(); vi.useRealTimers(); vi.unstubAllGlobals(); });
+test('a temporary account probe failure retries renewal without throwing away the reader or its cursors', async () => {
+  vi.useFakeTimers(); vi.setSystemTime(1000); vi.stubGlobal('location', { href: post.url });
+  const listeners: ((raw: unknown) => void)[] = [];
+  const detectSource = vi.fn(async () => ({ state: 'signedIn' as const, accountId: 'acct:reader' })), clear = vi.fn();
+  const factory = vi.fn(() => ({ ...createPostsAdapter(), detectSource, clear }));
+  let lease = 0;
+  const connect = vi.fn(() => ({ onMessage: { addListener: (fn: (raw: unknown) => void) => listeners.push(fn) },
+    onDisconnect: { addListener: () => {} }, disconnect: () => {}, postMessage: () => {} }));
+  vi.stubGlobal('chrome', { runtime: { connect, sendMessage: async (message: { kind: string; request?: { source: { state: string } } }) =>
+    message.kind.endsWith('.activation') ? { status: 'ready', activationId: 'activation', deadlineAt: Date.now() + 10000 }
+      : message.request?.source.state === 'unknown' ? { status: 'unavailable', reason: 'sourceUnresolved' }
+      : { status: 'ready', leaseId: `lease-${++lease}`, capability: 'secret', routeEpoch: 0, expiresAt: Date.now() + 60000, readerEpoch: 'unchanged-reader' } } });
+  startAdapterRuntime(postsDefinition, factory); await vi.advanceTimersByTimeAsync(0);
+  expect(connect).toHaveBeenCalledOnce(); expect(clear).toHaveBeenCalledOnce();
+  detectSource.mockRejectedValueOnce(new SiteReadError({ code: 'network' }));
+  for (const listener of [...listeners]) listener({ operation: 'renewLease', leaseId: 'lease-1' });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(clear).toHaveBeenCalledOnce(); expect(factory).toHaveBeenCalledOnce();
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(connect).toHaveBeenCalledTimes(2); expect(factory).toHaveBeenCalledOnce(); expect(clear).toHaveBeenCalledOnce();
+});
 test('a DOM/post adapter emits confirmed events, replays immutable pages and disposes its SDK listeners', async () => {
   vi.useFakeTimers(); vi.setSystemTime(1000); vi.stubGlobal('location', { href: post.url });
   const listeners: ((raw: unknown) => void)[] = [], sent: AdapterMessage[] = [];

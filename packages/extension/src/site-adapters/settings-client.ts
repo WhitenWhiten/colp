@@ -3,11 +3,11 @@ import { createSiteMark } from './site-icon.js';
 import { t } from '../i18n.js';
 export const selectedSite = siteDefinition(new URL(location.href).searchParams.get('adapterId') ?? legacySite.adapterId);
 export const SITE_PROBLEM_EVENT = 'known:site-adapter-problem';
-export const sendSiteMessage = async (message: unknown) => {
+export const sendSiteMessage = async (message: unknown, options?: { reportErrors?: boolean }) => {
   const input = message as Record<string, unknown>;
   const result = await chrome.runtime.sendMessage({ ...input, adapterId: selectedSite.adapterId }).catch(() => ({ error: 'unavailable' })) ?? { error: 'unavailable' };
   if (result && typeof result === 'object' && typeof (result as { error?: unknown }).error === 'string'
-    && !String(input.kind).includes('.activity.')) document.dispatchEvent(new CustomEvent(SITE_PROBLEM_EVENT,
+    && options?.reportErrors !== false && !String(input.kind).includes('.activity.')) document.dispatchEvent(new CustomEvent(SITE_PROBLEM_EVENT,
       { detail: { kind: input.kind, error: (result as { error: string }).error, incidentId: (result as { incidentId?: string }).incidentId } }));
   return result;
 };

@@ -3,18 +3,31 @@ import { siteProblem } from './problem-view.js';
 import { problemFamily } from './activity.js';
 import type { ImportStatus } from './settings-import.js';
 import type { SiteDefinition } from './registry-types.js';
+import { importBlocker } from './import-problems.js';
 
 /** Planning refusals belong in the same review disclosure as bookmark differences, with no new configuration surface. */
 export function paintImportReview(job: ImportStatus | null, definition: SiteDefinition, hasDifferences: boolean) {
   const section = document.getElementById('import-review')!;
   const samples = (job?.preview?.reviewSamples ?? []).filter(s => !hasDifferences || s.reason !== 'sourceReconcileCandidate');
   const count = job?.preview?.counts.review ?? 0;
-  section.hidden = !count || !job || !['preview', 'attention'].includes(job.phase) || hasDifferences && !samples.length;
+  const blocker = importBlocker(job);
+  section.hidden = !count || !job || !['preview', 'attention'].includes(job.phase) || hasDifferences && !samples.length && !blocker;
   if (section.hidden) return false;
-  document.getElementById('import-review-summary')!.textContent = !samples.length
+  document.getElementById('import-review-summary')!.textContent = blocker
+    ? t('sites_reviewMappingBlocked', '$1 items were not saved because the save location is unavailable. Resolve this mapping once, then prepare the import again; individual videos do not need review.', count.toLocaleString())
+    : !samples.length
     ? t('sites_reviewSamplesUnavailable', 'Item details are unavailable for this older check. Copy its problem report or make the list again.')
     : t('sites_reviewSamplesShown', '$1 items need review. Showing $2 examples; bookmarks already saved are kept.', count.toLocaleString(), samples.length.toLocaleString());
   const list = document.getElementById('import-review-list')!, key = JSON.stringify(samples);
+  document.getElementById('import-review-settings')!.textContent = blocker ? t('sites_confirmSaveLocation', 'Confirm save location') : t('sites_syncSettings', 'Sync settings');
+  if (blocker) {
+    const view = siteProblem(blocker, definition.label), row = document.createElement('div'); row.className = 'set-row';
+    const text = document.createElement('div'); text.className = 'set-row-text';
+    const title = document.createElement('p'); title.className = 'set-row-title'; title.textContent = view.what;
+    const hint = document.createElement('p'); hint.className = 'set-row-hint'; hint.textContent = view.next;
+    text.append(title, hint); row.append(text); list.replaceChildren(row); delete list.dataset.rows;
+    document.getElementById('import-review-check')!.hidden = true; return true;
+  }
   if (list.dataset.rows !== key) {
     list.dataset.rows = key;
     list.replaceChildren(...samples.map(sample => {

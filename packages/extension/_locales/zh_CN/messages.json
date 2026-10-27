@@ -11823,10 +11823,6 @@
     "message": "实时归档",
     "description": "Live archiving"
   },
-  "sites_makeListAgain": {
-    "message": "重新生成列表",
-    "description": "Make the list again"
-  },
   "sites_more": {
     "message": "更多",
     "description": "More"
@@ -11960,8 +11956,8 @@
     "description": "Preview batch"
   },
   "sites_previewChanged": {
-    "message": "列表生成后有内容变化。已重新生成，请在添加前再次检查。",
-    "description": "Something changed since the list was made. It has been made again; check it before adding."
+    "message": "保存清单已过期。请点击“重新准备导入”，使用已读取的内容更新清单。",
+    "description": "The save plan is out of date. Choose Prepare import again to update it using the items already read."
   },
   "sites_previewRebinding": {
     "message": "预览账号和根目录重新绑定",
@@ -12222,10 +12218,6 @@
   "sites_theChosenRoot": {
     "message": "所选根目录",
     "description": "the chosen root"
-  },
-  "sites_toReview_other": {
-    "message": "$1 项待审查",
-    "description": "$1 to review"
   },
   "sites_tryAgain": {
     "message": "重试",
@@ -13366,5 +13358,77 @@
   "sites_reconnectingCheck": {
     "message": "正在重新连接网站，连接后将继续检查。已读取的内容会保留。",
     "description": "Reconnecting to the website before continuing. Items already read are kept."
+  },
+  "sites_noItemsReady": {
+    "message": "当前没有可保存的内容",
+    "description": "No items are ready to save"
+  },
+  "sites_itemsBlockedHint": {
+    "message": "已读取到内容，但未能生成保存清单。请先解决下方列出的原因，再重新准备导入。",
+    "description": "Items were read, but could not be prepared for saving. Resolve the reasons below, then prepare the import again."
+  },
+  "sites_importLocationBlocked": {
+    "message": "保存位置问题阻止了本次导入",
+    "description": "The save location is blocking this import"
+  },
+  "sites_notReadyCount_one": {
+    "message": "$1 项尚无法保存",
+    "description": "$1 item not ready to save"
+  },
+  "sites_notReadyCount_other": {
+    "message": "$1 项尚无法保存",
+    "description": "$1 items not ready to save"
+  },
+  "sites_confirmSaveLocation": {
+    "message": "确认保存位置",
+    "description": "Confirm save location"
+  },
+  "sites_prepareImportAgain": {
+    "message": "重新准备导入",
+    "description": "Prepare import again"
+  },
+  "sites_confirmingImport": {
+    "message": "正在确认导入…",
+    "description": "Confirming import…"
+  },
+  "sites_problemUnboundLocation": {
+    "message": "当前映射尚未关联到所选保存位置，导入无法开始。",
+    "description": "This mapping is not connected to the current save location, so importing is blocked."
+  },
+  "sites_problemPrepareLocation": {
+    "message": "点击“重新准备导入”以修复尚未使用的映射。如果仍然受阻，请在同步设置中确认保存位置。已读取的内容会保留。",
+    "description": "Choose Prepare import again to reconnect an unused mapping. If it remains blocked, confirm the save location in sync settings. Items already read are kept."
+  },
+  "sites_reviewMappingBlocked": {
+    "message": "$1 项内容因保存位置问题尚未保存。只需处理这处映射，再重新准备导入，无需逐个核对视频。",
+    "description": "$1 items were not saved because the save location is unavailable. Resolve this mapping once, then prepare the import again; individual videos do not need review."
+  },
+  "sites_problemPreviewOutdated": {
+    "message": "保存清单与当前导入状态不一致，暂时无法应用。",
+    "description": "The save plan no longer matches the current import state and cannot be applied yet."
+  },
+  "sites_problemPreparePreview": {
+    "message": "请使用已读取的内容重新准备导入，再确认更新后的清单。",
+    "description": "Prepare the import again using the items already read, then confirm the updated list."
+  },
+  "sites_confirmingLocation": {
+    "message": "正在确认保存位置…",
+    "description": "Confirming save location…"
+  },
+  "sites_prepareAfterRenewal": {
+    "message": "网站连接已更新。请重新准备导入，并确认新的保存清单；已读取的内容会保留。",
+    "description": "The website connection was renewed. Prepare the import again and confirm the new save plan; items already read are kept."
+  },
+  "sites_importOtherAccount": {
+    "message": "本次检查属于另一个网站账号",
+    "description": "This check belongs to another website account"
+  },
+  "sites_preparingImport": {
+    "message": "正在准备导入…",
+    "description": "Preparing import…"
+  },
+  "sites_chooseCollectionsFirst": {
+    "message": "请至少选择一个来源收藏夹，再保存设置。",
+    "description": "Choose at least one source collection before saving these settings."
   }
 }

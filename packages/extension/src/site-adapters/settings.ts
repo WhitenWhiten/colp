@@ -15,6 +15,8 @@ import './cloud-settings.js';
 import { paintReconciliation, installReconcileControls, reconcileSelections, reconcilePageOffset } from './settings-reconcile.js';
 import { paintSiteImport, type ImportStatus } from './settings-import.js';
 import { installSiteImportActions } from './settings-import-actions.js';
+import { importBlocker } from './import-problems.js';
+import { createSettingsRequestOrder } from './settings-request-order.js';
 import { createSiteConfiguration } from './settings-configuration.js';
 import { createSiteActivityView } from './settings-activity.js';
 import { paintSourceOverview } from './settings-overview.js';
@@ -66,8 +68,9 @@ function errorCopy(code: string | undefined) {
     case 'bindingUnavailable': return t('sites_folderGone', 'That folder is gone. Choose another one.');
     case 'invalidPrimaryCollection': return t('sites_primaryNotChosen', 'The primary collection must be one of the collections you chose.');
     case 'chooseArchiveRoot': return t('sites_chooseFolder', 'Choose a folder.');
+    case 'invalidScope': return t('sites_chooseCollectionsFirst', 'Choose at least one source collection before saving these settings.');
     case 'importAlreadyActive': return t('sites_importRunning', 'An import is already running.');
-    case 'previewStale': return t('sites_previewChanged', 'Something changed since the list was made. It has been made again; check it before adding.');
+    case 'previewStale': return t('sites_previewChanged', 'The save plan is out of date. Choose Prepare import again to update it using the items already read.');
     case 'signedOut': return t('sites_signedOut', 'You’re signed out of $1. Sign in there, then try again.', site);
     case 'rateLimited': return t('sites_rateLimited', '$1 asked Know-N to slow down. Try again in a few minutes.', site);
     case 'ruleRejected': return t('sites_ruleRejected', 'This browser’s rules couldn’t take the archive rule. Check Automations, then try again.');
@@ -75,7 +78,7 @@ function errorCopy(code: string | undefined) {
     case 'sourceNeedsReview': return t('sites_mappingNeedsReview', 'This mapping needs to be checked before saving can continue. Open Recovery to review it.');
     case 'sourceCloudUnsupported': return t('sites_refreshSyncedPreview', 'This folder now participates in sync. Make the import preview again before saving.');
     case 'sourceSyncUpgradeRequired': return t('sites_syncServerUpgrade', 'Update COLP Server to support saving website collections into synced folders.');
-    case 'sourceDestinationChanged': case 'sourceDestinationNeedsReview': return t('sites_destinationChanged', 'The sync account or folder range changed. Check this folder and save the settings again.');
+    case 'sourceDestinationChanged': return t('sites_destinationChanged', 'The sync account or folder range changed. Check this folder and save the settings again.');
     case 'mountMigrationRequired': return t('sites_mappingMoveReview', 'This mapping already has saved bookmarks. Keep its current folder until those bookmarks can be moved together.');
     case 'sourceDestinationMigrationRequired': return t('sites_ownerMigrationReview', 'This mapping already contains bookmarks from another sync account or range. Return to that account and range before continuing.');
     case 'source_mapping_migration_required': case 'source_identity_migration_required': case 'source_legacy_association_review_required': case 'source_managed_copy_review_required':
@@ -102,6 +105,7 @@ function statusAlert(s: SiteStatus) {
 }
 
 let status: SiteStatus = {};
+const requestOrder = createSettingsRequestOrder(), responseOrder = new WeakMap<object, () => boolean>();
 const activityView = createSiteActivityView(message => sendSiteMessage(message), selectedSite);
 const problemEvent = (event: Event) => { const detail = (event as CustomEvent<{ kind: string; error: string; incidentId?: string }>).detail;
   showActionProblem(detail, detail.kind); };
@@ -118,24 +122,34 @@ installReconcileControls(message => act(message), () => { if (lastImport) paintI
 let lastActionError: { operation: string; error: string; at: number } | undefined;
 let refreshTimer: ReturnType<typeof setTimeout> | undefined, inspectionRetry: ReturnType<typeof setTimeout> | undefined;
 /** The worker answers with the full status; a message nothing answers comes back as a refusal, never as silence. */
-async function request(message: unknown): Promise<SiteStatus> {
-  try { return (await sendSiteMessage(message) as SiteStatus | undefined) ?? { error: 'unavailable' }; } catch { return { error: 'unavailable' }; }
+async function request(message: unknown, current = requestOrder.read()): Promise<SiteStatus> {
+  let result: SiteStatus;
+  try {
+    const reply: unknown = await sendSiteMessage(message, { reportErrors: false });
+    result = reply && typeof reply === 'object' && !Array.isArray(reply) ? reply as SiteStatus : { error: 'unavailable' };
+  } catch { result = { error: 'unavailable' }; }
+  responseOrder.set(result, current); return result;
 }
 async function refresh() { const result = await request({ kind: 'known.siteAdapters.status', reconcileOffset: reconcilePageOffset() });
-  if (!result.error) activityView.succeeded('status'); return apply(result); }
+  if (responseOrder.get(result)?.() && !result.error) activityView.succeeded('status'); return apply(result); }
 /** Run a step. Refusals remain in the operation record while status is refreshed. */
 async function act(message: unknown, done?: () => void): Promise<boolean> {
-  clearTimeout(refreshTimer);
-  const result = await request(message);
-  const action = message as { kind: string };
-  if (result.error) {
-    lastActionError = { operation: action.kind, error: result.error, at: Date.now() };
-    showActionProblem(result, action.kind);
-    if (siteOperation(action.kind) === 'read' || action.kind === 'known.siteAdapters.reconnect') showToast(errorCopy(result.error), 'error', { announce: true });
-    await refresh(); return false;
+  const action = message as { kind: string }, ticket = requestOrder.action(action.kind);
+  if (!ticket) return false;
+  clearTimeout(refreshTimer); paint(); configuration.pending(true);
+  let failed = false;
+  try {
+    const result = await request(message, ticket.current);
+    if (result.error) {
+      failed = true; lastActionError = { operation: action.kind, error: result.error, at: Date.now() };
+      showActionProblem(result, action.kind); showToast(errorCopy(result.error), 'error', { announce: true }); return false;
+    }
+    if (lastActionError?.operation === action.kind) lastActionError = undefined;
+    activityView.succeeded(siteOperation(action.kind)); done?.(); apply(result); activityView.changed(); return true;
+  } finally {
+    ticket.finish(); configuration.pending(false);
+    if (!disposed) { paint(); if (failed) await refresh(); }
   }
-  if (lastActionError?.operation === action.kind) lastActionError = undefined;
-  activityView.succeeded(siteOperation(action.kind)); done?.(); apply(result); activityView.changed(); return true;
 }
 function showActionProblem(result: SiteStatus, kind: string) {
   const job = status.archive?.import;
@@ -143,7 +157,7 @@ function showActionProblem(result: SiteStatus, kind: string) {
     job ? sourceActivityCounts(job) : undefined, siteOperation(kind));
 }
 function apply(result: SiteStatus) {
-  if (disposed) return result;
+  if (disposed || responseOrder.get(result)?.() === false) return result;
   clearTimeout(refreshTimer);
   $('status').textContent = JSON.stringify({ ...result, ...(lastActionError ? { lastActionError } : {}) }, null, 2);
   showAlert(result.error && result.error !== 'browserUnsupported' ? null : statusAlert(result)); paintSiteNav(selectedSite.adapterId, result);
@@ -156,6 +170,7 @@ function apply(result: SiteStatus) {
     return result;
   }
   activityView.paint(result.activity?.problem);
+  if (result.archive?.import?.authorization === 'current' && ['preparing', 'preview'].includes(result.archive.import.phase)) activityView.succeeded('read');
   status = result; paint(); schedule(); return result;
 }
 /** Poll while something moves (a scan, a read, a confirmation) or while waiting for a tab or an account. */
@@ -173,6 +188,7 @@ window.addEventListener('pagehide', () => { disposed = true; clearTimeout(refres
 async function requestInspection(message: unknown, until = Date.now() + 30000, gaveUp?: () => void) {
   clearTimeout(inspectionRetry);
   const result = await request(message);
+  if (!responseOrder.get(result)?.()) { gaveUp?.(); return; }
   if (result.error) { showActionProblem(result, 'known.siteAdapters.inspect'); await refresh(); return; }
   apply(result);
   if (result.inspectionStatus?.status !== 'paused') return;
@@ -238,7 +254,7 @@ primary.addEventListener('change', () => { primaryValue = primary.value; edited(
 const rootValue = () => picker?.value() ?? formRoot;
 const catalogItems = (): readonly Collection[] => features.collections ? status.catalog?.items ?? [] : status.archive?.catalog ?? [];
 /** What Save sends: the ticked collections still in the list (one deleted on the site drops out). */
-const chosenIds = () => { const items = catalogItems(); return items.length ? items.filter(c => selection.has(c.id)).map(c => c.id) : [...selection]; };
+const chosenIds = () => [...selection];
 /** The saved settings fill the form, unless the person has started changing it. */
 function loadConfig(config: ArchiveConfig | null) {
   const signature = JSON.stringify(config); if (signature === configSignature) return; configSignature = signature;
@@ -274,7 +290,7 @@ function paintCollections() {
   text('catalog-summary', selectedSite.defaultCollection ? t('sites_singleListHint', 'This source provides one list.') : !features.collections ? items.length ? t('sites_chosenOf', '$1 of $2 chosen', chosen, items.length) : t('sites_observedCatalogHint', 'Only collections observed in the current source session are shown. Refresh after observing more collections.')
     : c?.reading ? items.length ? tn('sites_readingSoFar', items.length, 'Reading your collections… $1 so far.', 'Reading your collections… $1 so far.') : t('sites_readingCollections', 'Reading your collections…')
     : items.length && c?.nextCursor ? tn('sites_collectionsReadMore', items.length, '$1 collection read; more are available.', '$1 collections read; more are available.')
-    : items.length ? t('sites_chosenOf', '$1 of $2 chosen', chosen, items.length)
+    : items.length && chosen <= items.length ? t('sites_chosenOf', '$1 of $2 chosen', chosen, items.length)
     : chosen ? tn('sites_chosenCount', chosen, '$1 collection chosen.', '$1 collections chosen.') : t('sites_notReadYet', 'Not read yet.'));
   $('collections-empty').hidden = items.length > 0;
   text('collections-empty-text', !connected ? t('sites_connectToList', 'Connect your account to list your collections.')
@@ -310,7 +326,7 @@ function autoCatalog() {
   const connected = !!status.connected && !status.candidateAccount;
   if (connected && !wasConnected) autoRead = false; wasConnected = connected;
   const c = status.catalog;
-  if (!features.collections || !connected || !status.documents || c?.reading || c?.failed || currentRoute().view !== 'site') return;
+  if (requestOrder.pending || !features.collections || !connected || !status.documents || c?.reading || c?.failed || currentRoute().view !== 'site') return;
   if (!c?.current) { if (!autoRead) { autoRead = true; readCatalog(null); } return; }
   if (c.nextCursor && !followed.has(c.nextCursor)) { followed.add(c.nextCursor); readCatalog(c.nextCursor); }
 }
@@ -346,10 +362,14 @@ button('create-root').addEventListener('click', () => { void (async () => {
 function paintForm() {
   const config = status.archive?.config ?? null, active = config?.state === 'active', connected = !!status.connected && !status.candidateAccount;
   const configure = button('configure-archive');
-  configure.textContent = !config || config.state === 'pending' ? features.import ? t('sites_readAndPreview', 'Read and preview') : t('sites_saveSettings', 'Save settings') : config.state === 'disabled' ? t('sites_resumeSyncing', 'Resume syncing') : t('sites_saveChanges', 'Save changes');
+  configure.textContent = importBlocker(status.archive?.import ?? null) ? t('sites_confirmSaveLocation', 'Confirm save location') : !config || config.state === 'pending' ? features.import ? t('sites_readAndPreview', 'Read and preview') : t('sites_saveSettings', 'Save settings') : config.state === 'disabled' ? t('sites_resumeSyncing', 'Resume syncing') : t('sites_saveChanges', 'Save changes');
   configure.className = 'btn btn-primary btn-sm';
   offer(configure, features.archive && connected);
-  configure.disabled = configure.hidden || !!status.catalog?.reading || active && !dirty && !status.archiveHold;
+  const needsCatalog = !config || chosenIds().some(id => !config.collectionIds.includes(id));
+  configure.disabled = configure.hidden || !!status.catalog?.reading && needsCatalog || active && !dirty && !status.archiveHold && !importBlocker(status.archive?.import ?? null);
+  configure.setAttribute('aria-busy', String(requestOrder.pending === 'known.siteAdapters.archive.configure'));
+  if (requestOrder.pending) configure.disabled = true;
+  if (requestOrder.pending === 'known.siteAdapters.archive.configure') configure.textContent = t('sites_confirmingLocation', 'Confirming save location…');
   offer(button('disable-archive'), active);
   button('create-root').hidden = !picker || !!rootValue();
   const rootName = folderNames.get(config?.root.nativeId ?? '') || t('sites_theChosenRoot', 'the chosen root');
@@ -362,8 +382,7 @@ function paintForm() {
 button('configure-archive').addEventListener('click', () => {
   const ids = chosenIds(), root = rootValue();
   $('collections-error').hidden = ids.length > 0; $('root-error').hidden = !!root;
-  if (!ids.length || !root) return;
-  if (!status.documents) { showActionProblem({ error: 'pageUnavailable' }, 'known.siteAdapters.archive.configure'); return; }
+  if (!ids.length || !root) { showToast(errorCopy(!root ? 'chooseArchiveRoot' : 'invalidScope'), 'error', { announce: true }); return; }
   const config = status.archive?.config, job = status.archive?.import, first = config?.state !== 'active';
   button('configure-archive').disabled = true;
   void (async () => {
@@ -383,11 +402,14 @@ button('disable-archive').addEventListener('click', () => { void act({ kind: 'kn
 
 // ---- Step 3: bring in what is already in the collections
 let lastImport: ImportStatus | null = null;
+let approvingImport = false, outdatedPreview: string | null = null;
 function paintImport(job: ImportStatus | null) {
   paintSiteImport({ job, site, documents: status.documents ?? 0, enabled: !!status.enabled,
     connected: !!status.connected && !status.candidateAccount, bookmarkAccess: status.grants?.bookmarks ?? false, hold: status.archiveHold ?? null,
     config: status.archive?.config ?? null, saved: status.archive?.overview?.saved, lastEvent: status.activity?.lastEvent ?? null,
-    problem: status.activity?.problem ?? null, available: features.import, hasDifferences: !!status.archive?.reconciliation, checkingSource: importActions.pending, errorCopy });
+    problem: status.activity?.problem ?? null, available: features.import, hasDifferences: !!status.archive?.reconciliation, checkingSource: importActions.pending,
+    canApplyChanges: reconcileSelections().some(d => d.choice !== 'keep'), approvingImport, pendingAction: requestOrder.pending,
+    previewOutdated: !!job?.preview && job.preview.id === outdatedPreview, errorCopy });
   const selectedChanges = reconcileSelections().filter(d => d.choice !== 'keep').length;
   if (selectedChanges) button('approve-import').textContent = t('sites_reconcileApprove', 'Approve saving and $1 chosen changes', selectedChanges);
 }
@@ -396,7 +418,7 @@ const importActions = installSiteImportActions(selectedSite, { status: () => sta
   failed: (error, kind) => { showActionProblem({ error }, kind); showToast(errorCopy(error), 'error', { announce: true }); } });
 button('import-open-recovery').addEventListener('click', () => { showTab('recovery'); });
 button('import-review-items').addEventListener('click', () => { $<HTMLDetailsElement>('reconcile-details').open = true; $('reconcile-details').scrollIntoView({ block: 'start', behavior: 'smooth' }); });
-button('import-review-settings').addEventListener('click', () => configuration.open('collections'));
+button('import-review-settings').addEventListener('click', () => configuration.open(importBlocker(lastImport) ? 'destination' : 'collections'));
 button('import-review-check').addEventListener('click', () => { const job = lastImport; if (!job) return;
   const button = document.getElementById('import-review-check')! as HTMLButtonElement; button.disabled = true;
   void (async () => {
@@ -409,20 +431,18 @@ button('import-review-check').addEventListener('click', () => { const job = last
     }
   })().finally(() => { button.disabled = false; });
 });
-button('import-edit-settings').addEventListener('click', () => configuration.open('connection'));
+button('import-edit-settings').addEventListener('click', () => configuration.open(importBlocker(lastImport) ? 'destination' : 'connection'));
 button('freeze-import').addEventListener('click', () => { if (lastImport) void act({ kind: 'known.siteAdapters.import.freeze', jobId: lastImport.id }); });
 button('retry-import').addEventListener('click', () => { if (lastImport) void act({ kind: 'known.siteAdapters.import.retry', jobId: lastImport.id }); });
 button('cancel-import').addEventListener('click', () => { if (lastImport) void act({ kind: 'known.siteAdapters.import.cancel', jobId: lastImport.id }); });
-button('approve-import').addEventListener('click', () => { const job = lastImport, p = job?.preview; if (!job || !p) return; button('approve-import').disabled = true;
+button('approve-import').addEventListener('click', () => { const job = lastImport, p = job?.preview; if (!job || !p || approvingImport) return;
+  approvingImport = true; paintImport(job);
   void (async () => {
-    const result = await request({ kind: 'known.siteAdapters.import.approve', jobId: job.id, previewId: p.id, revision: p.revision, digest: p.digest });
-    // A list that changed under the person is made again, never approved in its place.
-    if (result.error === 'previewStale') { showToast(errorCopy('previewStale'), 'info', { announce: true }); await act({ kind: 'known.siteAdapters.import.freeze', jobId: job.id }); return; }
-    if (result.error) { showActionProblem(result, 'known.siteAdapters.import.approve'); await refresh(); return; }
-    apply(result);
+    const saved = await act({ kind: 'known.siteAdapters.import.approve', jobId: job.id, previewId: p.id, revision: p.revision, digest: p.digest });
+    if (!saved) { if (lastActionError?.error === 'previewStale') outdatedPreview = p.id; return; }
     if (status.archive?.reconciliation && !status.archive.reconciliationRun) await act({ kind: 'known.siteAdapters.reconcile.apply',
       importId: job.id, digest: status.archive.reconciliation.digest, decisions: reconcileSelections() });
-  })(); });
+  })().finally(() => { approvingImport = false; if (!disposed) paintImport(lastImport); }); });
 
 // ---- Recovery tab: the inspector rows
 button('read-item').addEventListener('click', () => { void requestInspection({ kind: 'known.siteAdapters.inspect', operation: 'resolve' }); });
