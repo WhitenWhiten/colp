@@ -4,9 +4,30 @@ All notable changes to the Know-N browser extension are documented here. The for
 
 ## [Unreleased]
 
+## [0.1.0-rc.5] - 2026-10-27
+
 ### Added
 
 - Site adapter authors can declare an icon for the Sites list, page header and installed package rows. Bundled sites use the supported site's browser favicon by default and may supply a packaged asset or audited HTTPS image; community packages use the favicon or a self-contained image data URL. A failed image falls back to the favicon and then the site's first letter.
+
+### Changed
+
+- Managed site copies wait while Sync is pending or recovering and re-check that state immediately before saving, so an approved import resumes automatically instead of failing or forcing recovery. The extension requires a server that advertises `managedCreateEffects`.
+
+### Fixed
+
+- Reconnecting a site reuses an open tab, resumes the paused check, cancels the previous page request and clears its deadline, so the check no longer waits on a stale read.
+- Confirming an existing mapping uses the retained account collections and the confirmed account's generation, so choosing a local folder no longer requires an open website tab. A changed account or session is reported instead of saving with stale authorization.
+- Import previews keep their frozen scope without copying every plan ID into each progress checkpoint. Mapping, permission and automation problems block approval with their specific reason, while review counts and samples remain available.
+- Folder destination checks are shared by the items in a collection, and each effect is still authorized immediately before execution.
+
+### Upgrade notes
+
+Update COLP Server to `0.1.0-rc.15` alongside this extension: managed site
+copies now require the server's `managedCreateEffects` Sync profile, and the
+connection recovery and import authorization flow use the current server
+contracts. Chrome uses numeric version `0.1.0.5` and displays `0.1.0-rc.5`.
+Install the GitHub ZIP as an unpacked extension.
 
 ## [0.1.0-rc.4] - 2026-10-27
 

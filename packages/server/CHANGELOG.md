@@ -4,6 +4,23 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+## [0.1.0-rc.15] - 2026-10-27
+
+### Changed
+
+- Managed site imports publish their bookmark and folder creates as ordinary server-origin Sync operations in the same transaction, and the source-archive profile advertises `managedCreateEffects`. Replicas apply the resulting `create_node` effects directly, so an import no longer rebuilds every replica or interrupts an in-flight recovery Snapshot.
+
+### Fixed
+
+- The OpenAPI description documents the cover upload and image responses' cache, validator, content-type and request headers with reusable components, including the immutable public/private image cache policy.
+
+### Upgrade notes
+
+From 0.1.0-rc.14, update the checkout and deployment files from this tag, set
+`COLP_IMAGE_TAG=0.1.0-rc.15`, and recreate the server. There are no new database
+migrations. Install the matching `extension-v0.1.0-rc.5` ZIP; managed site copies
+now require the `managedCreateEffects` profile.
+
 ## [0.1.0-rc.14] - 2026-10-27
 
 ### Added
