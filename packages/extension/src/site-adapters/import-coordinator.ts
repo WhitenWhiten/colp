@@ -46,6 +46,7 @@ interface Ports {
 const key = (id: string) => `importJob:${id}`;
 const EDGE_LIMIT = DEFAULT_LIMITS.importItems, PAGE_LIMIT = 2000;
 const emptyCounts = () => ({ createFolders: 0, createBookmarks: 0, reuseBookmarks: 0, review: 0 });
+const syncWaiting = (reason: string | null) => reason === 'sourceSyncPending' || reason === 'sourceSyncRecovering';
 /** Scan facts, freeze exact scope, then approve: none of the first two phases grants native writes. */
 export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: ReturnType<typeof createReadScheduler>, ports: Ports) {
   const db = ledger.db, lane = createLane(), LIMITS = readLimits(ledger.definition), ACTIVE = installationKey('activeImport:v1', ledger.definition);
@@ -58,10 +59,10 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
     const previous = await db.transaction(['meta'], 'readwrite', async tx => { const old = await get<ImportJob>(tx, 'meta', key(job.id)); put(tx, 'meta', key(job.id), job); return old; });
     if (previous?.phase !== job.phase || previous?.reason !== job.reason) {
       if (job.phase === 'completed') { await log(job, { kind: 'saved', operation: 'save' }); await ports.activity?.resolve(job.id, 'save').catch(() => undefined); }
-      else if (job.phase === 'attention' || job.phase === 'paused' && job.reason !== 'scanFinished' || job.reason === 'sourceSyncPending')
-        await log(job, { ...details, kind: job.reason === 'sourceSyncPending' ? 'waiting' : 'problem', operation: job.phase === 'paused' ? 'read' : 'save', code: job.reason ?? 'unavailable',
+      else if (job.phase === 'attention' || job.phase === 'paused' && job.reason !== 'scanFinished' || syncWaiting(job.reason))
+        await log(job, { ...details, kind: syncWaiting(job.reason) ? 'waiting' : 'problem', operation: job.phase === 'paused' ? 'read' : 'save', code: job.reason ?? 'unavailable',
           ...(job.reason === 'sourceReviewRequired' && job.previewId ? { reviewSamples: (await db.read<ImportPreview>('importPreviews', job.previewId))?.reviewSamples } : {}),
-          ...(job.reason === 'sourceSyncPending' ? { automatic: true, retryAt: Date.now() + 3000 } : {}) });
+          ...(syncWaiting(job.reason) ? { automatic: true, retryAt: Date.now() + 3000 } : {}) });
     }
     if (job.nextPlan > (previous?.nextPlan ?? 0)) await ports.activity?.resolve(job.id, 'save').catch(() => undefined);
   };
@@ -415,8 +416,8 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
         await save({ ...job, outstanding: id });
         ports.send(source.context, { operation: 'readPage', leaseId: source.context.leaseId, readSessionId: job.id, pageRequestId: id, deadlineAt, query }); ports.alarm(deadlineAt + LIMITS.spacingMs);
       } catch (e) {
-        if (job.phase === 'approved' && e instanceof Error && e.message === 'sourceSyncPending') {
-          await save({ ...job, reason: 'sourceSyncPending' }, failedEffect); ports.alarm(Date.now() + 3000); return;
+        if (job.phase === 'approved' && e instanceof Error && syncWaiting(e.message)) {
+          await save({ ...job, reason: e.message }, failedEffect); ports.alarm(Date.now() + 3000); return;
         }
         await save({ ...job, phase: job.phase === 'scanning' ? 'paused' : 'attention', coverage: job.phase === 'scanning' ? 'partial' : job.coverage,
         reason: e instanceof Error ? e.message : 'unavailable' }, failedEffect); }

@@ -45,6 +45,12 @@ async function assertOwner(library: ManagedLibrary) {
   return scope;
 }
 export const managedSaves = createManagedSaves(siteLedger.db, {
+  async assertReady(library) {
+    const scope = await assertOwner(library);
+    const [record, engine] = await Promise.all([syncState.getScope(scope), syncState.getEngineState(scope)]);
+    if (record?.lifecycle === 'recovery_required' || engine?.recoveryFrozen || engine?.authorityRefreshRequired) throw new Error('sourceSyncRecovering');
+    if (record?.lifecycle !== 'active') throw new Error('sourceSyncPending');
+  },
   async destination(parent) {
     const target = await assertSourceRoot(parent); if (!target.inRange) return null;
     const scope = await currentSyncScope();

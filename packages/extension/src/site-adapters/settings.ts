@@ -89,6 +89,7 @@ function errorCopy(code: string | undefined) {
     case 'semanticResultUnknown': case 'local_result_unavailable': return t('sites_semanticUnknown', 'The classification result was not received. Retry explicitly to make a new attempt.');
     case 'semanticChooseFolder': case 'semanticDestinationMapped': return t('sites_semanticChooseFolder', 'AI did not choose an available folder outside the website mappings. Check your folders and retry.');
     case 'semanticOffline': case 'sourceSyncPending': return t('sites_semanticWaiting', 'Waiting for the connection and bookmark sync.');
+    case 'sourceSyncRecovering': return t('sites_waitingForSyncRecovery', 'Bookmark sync is recovering');
     case 'sourceCopySuppressed': return t('sites_semanticSuppressed', 'This copy was deleted. It will stay deleted.');
     case 'sourceCopyDetached': case 'semanticBindingNeedsReview': return t('sites_semanticReview', 'This copy was changed or its old association needs review. Existing bookmarks are kept.');
     case 'semanticPaused': return t('sites_semanticPaused', 'Paused because the source account or settings changed.');

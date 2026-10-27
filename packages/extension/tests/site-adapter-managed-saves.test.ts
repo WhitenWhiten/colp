@@ -12,7 +12,7 @@ const slot: ManagedSlot = { kind: 'folder', source: { site: 'fixture.posts', ide
 async function fixture() {
   const db = createSourceDatabase(new IDBFactory());
   const sent: { action: string; input: unknown }[] = [];
-  let projected = false, failReply = false, removed = false, saved: ManagedSaveReceipt | null = null;
+  let projected = false, failReply = false, removed = false, recovering = false, saved: ManagedSaveReceipt | null = null;
   const call = async <T>(action: 'managed.save' | 'managed.recover' | 'managed.lookup', input: unknown): Promise<T> => {
     sent.push({ action, input });
     if (action === 'managed.recover') return { receipt: saved } as T;
@@ -26,14 +26,37 @@ async function fixture() {
   const client = { profile: vi.fn(async () => {}), call };
   const wake = vi.fn();
   const managed = createManagedSaves(db, {
+    assertReady: async () => { if (recovering) throw new Error('sourceSyncRecovering'); },
     destination: async () => ({ library, replicaId: 'replica', parentId: 'canonical-root', parentRevision: 'r1' }), slot: async () => slot,
     client: async () => client, wake,
     projection: async () => projected ? { native: { ...parent, bindingId: 'folder-command', nativeId: 'native-folder', proof: { kind: 'writeReceipt', id: 'managed:canonical-folder' } }, parentId: 'root' } : null,
   });
   const raw: PlannedNativeCommand = { commandId: 'folder-command', kind: 'folder', ownerId: 'reservation', logicalDigest: 'digest', connectionId: 'local-connection', parent, title: 'Saved', deviceId: 'device' };
   const command = await managed.prepare(raw, {} as SavePlan, {} as SaveEffect);
-  return { db, managed, command, sent, wake, client, project: () => { projected = true; }, remove: () => { removed = true; }, loseReply: () => { failReply = true; }, saved: () => saved };
+  return { db, managed, command, sent, wake, client, project: () => { projected = true; }, recover: (value: boolean) => { recovering = value; }, remove: () => { removed = true; }, loseReply: () => { failReply = true; }, saved: () => saved };
 }
+test('sync recovery stops new dispatches and resumes the same approved command after recovery', async () => {
+  const f = await fixture(); try {
+    f.recover(true);
+    await expect(f.managed.prepare(f.command, {} as SavePlan, {} as SaveEffect)).rejects.toThrow('sourceSyncRecovering');
+    expect(f.wake).toHaveBeenCalled();
+    await expect(f.managed.execute(f.command, async () => {})).rejects.toThrow('sourceSyncRecovering');
+    expect(f.sent).toEqual([]); expect(f.wake).toHaveBeenCalled();
+    f.recover(false); await f.managed.execute(f.command, async () => {});
+    f.recover(true);
+    await expect(f.managed.recover(f.command)).rejects.toThrow('sourceSyncRecovering');
+    f.project();
+    expect(await f.managed.recover(f.command)).toMatchObject({ status: 'confirmed' });
+    expect(f.sent.filter(s => s.action === 'managed.save')).toHaveLength(1);
+  } finally { await f.db.close(); }
+});
+test('recovery beginning during profile negotiation prevents the following server create', async () => {
+  const f = await fixture(); try {
+    f.client.profile.mockImplementation(async () => { f.recover(true); });
+    await expect(f.managed.execute(f.command, async () => {})).rejects.toThrow('sourceSyncRecovering');
+    expect(f.sent).toEqual([]);
+  } finally { await f.db.close(); }
+});
 test('a synced source create waits for ordinary projection and worker reconstruction reuses its persisted receipt', async () => {
   const f = await fixture(); try {
     const authorize = vi.fn(async () => {});
@@ -73,7 +96,7 @@ test('revocation after capability negotiation blocks dispatch and changed receip
   } finally { await f.db.close(); }
 });
 test('generic shared saves qualify capabilities independently from website-specific cloud archive profiles', async () => {
-  const fetch = vi.fn(async (_: RequestInfo | URL, init?: RequestInit) => Response.json(init?.method === 'POST' ? { receipt: null } : { managedCopies: 1 }));
+  const fetch = vi.fn(async (_: RequestInfo | URL, init?: RequestInit) => Response.json(init?.method === 'POST' ? { receipt: null } : { managedCopies: 1, managedCreateEffects: 1 }));
   const client = createManagedCopyClient({ origin: library.serverOrigin, fetch, headers: async () => ({}), assertCurrent: async () => {} });
   await client.profile(); expect(await client.call('managed.recover', { commandId: 'one', digest: 'digest' })).toEqual({ receipt: null });
   expect(fetch).toHaveBeenCalledTimes(2);
@@ -86,12 +109,14 @@ test('offline requests remain pending and an old server requires an update witho
   await expect(offline.profile()).rejects.toThrow('sourceSyncPending');
   const old = createManagedCopyClient({ origin: library.serverOrigin, fetch: async () => Response.json({ version: 1 }), headers: async () => ({}), assertCurrent: async () => {} });
   await expect(old.profile()).rejects.toThrow('sourceSyncUpgradeRequired');
+  const noEffects = createManagedCopyClient({ origin: library.serverOrigin, fetch: async () => Response.json({ managedCopies: 1 }), headers: async () => ({}), assertCurrent: async () => {} });
+  await expect(noEffects.profile()).rejects.toThrow('sourceSyncUpgradeRequired');
   const refreshing = createManagedCopyClient({ origin: library.serverOrigin, fetch: async () => Response.json({ error: { code: 'source_replica_unavailable' } }, { status: 403 }), headers: async () => ({}), assertCurrent: async () => {} });
   await expect(refreshing.call('managed.save', {})).rejects.toThrow('sourceSyncPending');
 });
 
 test('single-copy dispatch requires explicit server policy support', async () => {
-  let profile = { managedCopies: 1, managedCopyPolicy: 0 };
+  let profile = { managedCopies: 1, managedCreateEffects: 1, managedCopyPolicy: 0 };
   const client = createManagedCopyClient({ origin: library.serverOrigin, fetch: async () => Response.json(profile), headers: async () => ({}), assertCurrent: async () => {} });
   await expect(client.profile('singleKeepExisting')).rejects.toThrow('sourceSyncUpgradeRequired');
   profile = { ...profile, managedCopyPolicy: 1 };

@@ -5,6 +5,7 @@ import type { PlannedNativeCommand, PlannedNativeResult } from './planned-types.
 import type { NativeBinding, SaveEffect, SavePlan } from './contracts.js';
 import { sourceDigest, type SourceDatabase } from './source-db.js';
 export interface ManagedSavePorts {
+  assertReady?(library: ManagedLibrary): Promise<void>;
   destination(parent: NativeBinding<'folder'>): Promise<{ library: ManagedLibrary; replicaId: string; parentId: string; parentRevision: string } | null>;
   slot(plan: SavePlan, effect: SaveEffect): Promise<ManagedSlot>;
   client(library: ManagedLibrary): Promise<{ profile(copyPolicy?: ManagedSaveCommand['copyPolicy']): Promise<void>; call<T>(action: 'managed.save' | 'managed.recover' | 'managed.lookup', input: unknown): Promise<T> }>;
@@ -28,8 +29,13 @@ export function assertManagedReceipt(value: ManagedSaveReceipt, command: Managed
 }
 /** Shared creation is complete before ordinary Sync projects a native node. No competing local create. */
 export function createManagedSaves(db: SourceDatabase, ports: ManagedSavePorts) {
+  async function assertReady(library: ManagedLibrary) {
+    try { await ports.assertReady?.(library); }
+    catch (error) { ports.wake(); throw error; }
+  }
   async function prepareForSlot(command: PlannedNativeCommand, slot: () => Promise<ManagedSlot>, copyPolicy?: ManagedSaveCommand['copyPolicy']) {
     const target = await ports.destination(command.parent); if (!target) return command;
+    await assertReady(target.library);
     const title = siteDisplayTitle(command.title); if (!title) throw new Error('invalidSourceTitle');
     const managed: ManagedDestination = { library: target.library, command: { commandId: command.commandId, replicaId: target.replicaId,
       collectionId: target.library.collectionId, parentId: target.parentId, parentRevision: target.parentRevision,
@@ -48,6 +54,7 @@ export function createManagedSaves(db: SourceDatabase, ports: ManagedSavePorts) 
     ports.wake();
     const projected = await ports.projection(d, receipt);
     if (!projected) {
+      await assertReady(d.library);
       const { binding } = await (await ports.client(d.library)).call<{ binding: ManagedBinding | null }>('managed.lookup', { collectionId: d.command.collectionId, slot: d.command.slot });
       if (binding && (binding.state === 'suppressed' || binding.state === 'detached')) return { status: 'blocked', reason: binding.state === 'suppressed' ? 'sourceCopySuppressed' : 'sourceCopyDetached' };
     }
@@ -66,9 +73,10 @@ export function createManagedSaves(db: SourceDatabase, ports: ManagedSavePorts) 
       let receipt = await db.read<ManagedSaveReceipt>('meta', receiptKey(d));
       if (!receipt) {
         try {
-          await client.profile(d.command.copyPolicy); await authorize();
+          await assertReady(d.library);
+          await client.profile(d.command.copyPolicy); await authorize(); await assertReady(d.library);
           receipt = await remember(d, await client.call<ManagedSaveReceipt>('managed.save', d.command));
-        } catch (error) { if (error instanceof Error && error.message === 'sourceSyncPending') ports.wake(); throw error; }
+        } catch (error) { if (error instanceof Error && ['sourceSyncPending', 'sourceSyncRecovering'].includes(error.message)) ports.wake(); throw error; }
       }
       assertManagedReceipt(receipt, d.command);
       return project(command, receipt);

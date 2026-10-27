@@ -12343,6 +12343,26 @@
     "message": "已保留你批准的导入。同步连接和目录就绪后会继续。",
     "description": "Your approved import is kept. It will continue when the sync connection and folder are ready."
   },
+  "sites_waitingForSyncRecovery": {
+    "message": "书签同步正在恢复",
+    "description": "Bookmark sync is recovering"
+  },
+  "sites_openBookmarkSync": {
+    "message": "查看书签同步",
+    "description": "Open bookmark sync"
+  },
+  "sites_syncEffectsUpgrade": {
+    "message": "同步服务器需要更新，才能可靠保存网站收藏。你已批准的导入会保留。",
+    "description": "The sync server needs an update before website imports can be saved reliably. Your approved import is kept."
+  },
+  "sites_syncEffectsUpgradeNext": {
+    "message": "更新 COLP Server 后，点击“检查并继续保存”即可恢复此导入。",
+    "description": "Update COLP Server, then choose Check and continue saving to resume this import."
+  },
+  "sites_waitingForSyncRecoveryHint": {
+    "message": "书签同步正在重建此浏览器的记录，恢复完成前已暂停提交新的导入。你的确认和已提交的内容都会保留；创建目录不计入书签的保存进度。",
+    "description": "Bookmark sync is rebuilding this browser’s records. New import submissions are paused until recovery finishes. Your approval and items already submitted are kept; folder creation does not count as a saved bookmark."
+  },
   "sites_autoSemantic": {
     "message": "按主题再存一份",
     "description": "Also save one copy by topic"

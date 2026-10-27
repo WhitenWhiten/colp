@@ -41,7 +41,7 @@ export function importTitle(job: ImportStatus | null): string {
     case 'preview': return !job.preview?.counts.createBookmarks && !job.preview?.counts.createFolders && job.preview?.counts.review
       ? t('sites_noItemsReady', 'No items are ready to save') : !job.preview?.counts.createBookmarks && !job.preview?.counts.createFolders
       ? t('sites_nothingNew', 'Nothing new to add') : tn('sites_readyToSave', job.preview?.counts.createBookmarks ?? 0, '$1 item can be saved', '$1 items can be saved');
-    case 'approved': return t('sites_savingItems', 'Saving source items');
+    case 'approved': return job.reason === 'sourceSyncRecovering' ? t('sites_waitingForSyncRecovery', 'Bookmark sync is recovering') : t('sites_savingItems', 'Saving source items');
     case 'cancelled': return t('sites_checkStopped', 'The last check was stopped');
     case 'completed': return t('sites_checkComplete', 'This check is complete');
     default: return t('sites_resultNeedsAttention', 'Some results need your attention');
@@ -74,7 +74,9 @@ function detail(input: Input): string {
       : !c?.createBookmarks && !c?.createFolders ? t('sites_finishEmptyImport', 'Available favorites are already saved, or this read found only unavailable items. Finish to close this check.')
       : t('sites_reviewBeforeAdding', 'Check the list, then add the bookmarks.')
   ].filter(Boolean).join(' · ');
-  if (job.phase === 'approved') return job.reason === 'sourceSyncPending'
+  if (job.phase === 'approved') return job.reason === 'sourceSyncRecovering'
+    ? t('sites_waitingForSyncRecoveryHint', 'Bookmark sync is rebuilding this browser’s records. New import submissions are paused until recovery finishes. Your approval and items already submitted are kept; folder creation does not count as a saved bookmark.')
+    : job.reason === 'sourceSyncPending'
     ? t('sites_waitingForBookmarkSyncHint', 'Your approved import is kept. It will continue when the sync connection and folder are ready.')
     : t('sites_addingInto', 'Adding them to your folder. You can leave this page.');
   if (job.phase === 'cancelled') return !p && job.nextPlan === 0
@@ -113,7 +115,7 @@ export function paintSiteImport(input: Input) {
   const active = scanning || preparing || saving;
   const counter = element('import-count'); counter.hidden = !active || !total;
   counter.textContent = scanning ? t('sites_collectionsRead', '$1 / $2 collections read', count(current), count(total)) : t('sites_taskCount', '$1 / $2', count(current), count(total));
-  const waiting = !ready || saving && job?.reason === 'sourceSyncPending' || scanning && (!input.documents || job?.reason === 'reconnectingSource');
+  const waiting = !ready || saving && ['sourceSyncPending', 'sourceSyncRecovering'].includes(job?.reason ?? '') || scanning && (!input.documents || job?.reason === 'reconnectingSource');
   const bar = element('import-progress-bar');
   element('import-progress').hidden = !active;
   const title = element('import-state').textContent!;
@@ -141,6 +143,7 @@ export function paintSiteImport(input: Input) {
   offer(button('import-edit-settings'), (!ready && !input.hold) || !!blocker);
   button('import-edit-settings').textContent = blocker ? t('sites_confirmSaveLocation', 'Confirm save location') : t('sites_reviewSyncSettings', 'Review sync settings');
   offer(button('import-open-recovery'), !!input.hold);
+  element('import-open-bookmark-sync').hidden = !saving || !['sourceSyncPending', 'sourceSyncRecovering'].includes(job?.reason ?? '');
   offer(button('import-review-items'), ready && (input.hasDifferences || !!c?.review) && job?.phase === 'attention' && !canRetrySave);
   offer(button('retry-import'), !!canRetrySave);
   button('import-review-items').className = 'btn btn-primary btn-sm';

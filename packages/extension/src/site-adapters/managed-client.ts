@@ -49,8 +49,9 @@ export function createManagedCopyClient(ports: { origin: string; fetch: typeof f
     await ports.assertCurrent(); return data;
   }
   return {
-    async profile(copyPolicy?: ManagedSaveCommand['copyPolicy']) { const profile = await request() as { managedCopies?: number; managedCopyPolicy?: number };
-      if (profile.managedCopies !== 1 || copyPolicy && copyPolicy !== 'sourceAndSemantic' && profile.managedCopyPolicy !== 1) throw new Error('sourceSyncUpgradeRequired'); },
+    async profile(copyPolicy?: ManagedSaveCommand['copyPolicy']) { const profile = await request() as { managedCopies?: number; managedCreateEffects?: number; managedCopyPolicy?: number };
+      if (profile.managedCopies !== 1 || profile.managedCreateEffects !== 1
+        || copyPolicy && copyPolicy !== 'sourceAndSemantic' && profile.managedCopyPolicy !== 1) throw new Error('sourceSyncUpgradeRequired'); },
     async semanticProfile() { const profile = await request() as { managedCopies?: number; managedSemantic?: number };
       if (profile?.managedCopies !== 1 || profile.managedSemantic !== 1) throw new Error('sourceSyncUpgradeRequired'); },
     async reconcileProfile() { if ((await request() as { managedReconcile?: number }).managedReconcile !== 1) throw new Error('sourceSyncUpgradeRequired'); },

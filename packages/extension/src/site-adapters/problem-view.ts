@@ -10,6 +10,7 @@ export function siteProblem(code: string, site: string, event?: SiteActivity | n
   }
   const family = event?.family ?? problemFamily(code);
   const what = code === 'sourceDestinationNeedsReview' ? t('sites_problemUnboundLocation', 'This mapping is not connected to the current save location, so importing is blocked.')
+    : code === 'sourceSyncUpgradeRequired' ? t('sites_syncEffectsUpgrade', 'The sync server needs an update before website imports can be saved reliably. Your approved import is kept.')
     : code === 'previewStale' ? t('sites_problemPreviewOutdated', 'The save plan no longer matches the current import state and cannot be applied yet.')
     : code === 'sourceAuthorizationChanged' ? t('sites_problemAuthorizationChanged', 'The source account or its access changed, so this check paused.')
     : code === 'sourceAccountChanged' ? t('sites_problemAccountChanged', 'The connected $1 account is different from the account used by this check.', site)
@@ -33,6 +34,7 @@ export function siteProblem(code: string, site: string, event?: SiteActivity | n
     : family === 'configuration' ? t('sites_problemConfiguration', 'Saving is blocked by the current automation or AI settings. Existing bookmarks are kept.')
     : t('sites_problemUnknown', 'This operation could not finish, and the cause is not yet classified. Its diagnostic details can be copied for investigation.');
   const next = code === 'sourceDestinationNeedsReview' ? t('sites_problemPrepareLocation', 'Choose Prepare import again to reconnect an unused mapping. If it remains blocked, confirm the save location in sync settings. Items already read are kept.')
+    : code === 'sourceSyncUpgradeRequired' ? t('sites_syncEffectsUpgradeNext', 'Update COLP Server, then choose Check and continue saving to resume this import.')
     : code === 'previewStale' ? t('sites_problemPreparePreview', 'Prepare the import again using the items already read, then confirm the updated list.')
     : code === 'sourceAuthorizationChanged' ? t('sites_problemVerifyConnection', 'Continue checking to verify the current connection. If another account is connected, reconnect the original account in sync settings.')
     : code === 'sourceAccountChanged' ? t('sites_problemOriginalAccount', 'Reconnect the original account in sync settings, or stop this check and start a new one for the current account.')

@@ -60,6 +60,20 @@ test('configuration failures stay in the open dialog, offer manual copying, and 
   expect(element('site-problem').hidden).toBe(true);
 });
 
+test('a server missing source create effects names the required update and keeps the original approval retryable', async () => {
+  const f = mount(), journal = createSiteActivity(f.storage, postsDefinition, { extensionVersion: 'test' });
+  const failed = await journal.record({ kind: 'problem', operation: 'save', taskId: 'task', code: 'sourceSyncUpgradeRequired' });
+  const view = createSiteActivityView(async () => ({}), postsDefinition); view.paint(failed);
+  expect(element('site-problem-what').textContent).toContain('sync server needs an update');
+  expect(element('site-problem-next').textContent).toContain('Check and continue saving');
+  paintSiteImport({ job: { id: 'task', phase: 'attention', reason: 'sourceSyncUpgradeRequired', approvalId: 'kept-approval',
+    edgeCount: 1, pages: 1, omissions: 0, coverage: 'complete', nextEdge: 1, nextPlan: 0,
+    preview: { id: 'preview', revision: 1, digest: 'digest', coverage: 'complete', counts: { createFolders: 1, createBookmarks: 1, reuseBookmarks: 0, review: 0 } } },
+    site: postsDefinition.label, documents: 0, enabled: true, connected: true, bookmarkAccess: true, hold: null,
+    config: { state: 'active', live: true }, available: true, hasDifferences: false, lastEvent: null, errorCopy: () => 'Update COLP Server' });
+  expect(element('retry-import').hidden).toBe(false); expect(element('approve-import').hidden).toBe(true);
+});
+
 test('the same components support page-based single lists and observation-only sources without inventing account or import capabilities', () => {
   mount();
   const definition = { ...postsDefinition, connectionKind: 'page' as const, negativeReadback: false, defaultCollection: saved, capabilities: ['enumerateItems'] as const };

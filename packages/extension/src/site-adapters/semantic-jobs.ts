@@ -32,7 +32,7 @@ export interface SemanticPorts {
   schedule(): void;
 }
 export const semanticIndexKey = (scopeId: string, content: ManagedContent) => sourceKey(scopeId, content.site, content.identityVersion, content.accountId, content.itemId);
-const waiting = new Set(['sourceSyncPending', 'semanticOtherDevice', 'semanticOffline', 'local_call_in_progress']);
+const waiting = new Set(['sourceSyncPending', 'sourceSyncRecovering', 'semanticOtherDevice', 'semanticOffline', 'local_call_in_progress']);
 /** One durable task per content/library. Collection copies and classification failures are independent. */
 export function createSemanticJobs(db: SourceDatabase, ports: SemanticPorts) {
   const enqueueLane = createLane(); let running: Promise<void> | undefined;

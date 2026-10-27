@@ -307,6 +307,14 @@ test('mapping status follows the import through reading, approval and sync waiti
   await vi.waitFor(() => expect(element('import-state').textContent).toBe('Saving source items'));
   expect(element('import-summary').textContent).toContain('sync connection and folder');
   expect(element('import-progress-bar').dataset.state).toBe('stalled');
+  f.state.archive.import.reason = 'sourceSyncRecovering'; element('refresh').click();
+  await vi.waitFor(() => expect(element('import-state').textContent).toBe('Bookmark sync is recovering'));
+  expect(element('import-summary').textContent).toContain('New import submissions are paused');
+  expect(element('import-summary').textContent).toContain('folder creation does not count');
+  expect(element('import-open-bookmark-sync').hidden).toBe(false);
+  expect(element('import-open-bookmark-sync').getAttribute('href')).toBe('options.html#sync');
+  expect(element('approve-import').hidden).toBe(true);
+  expect(element('cancel-import').hidden).toBe(false);
   expect(f.create).not.toHaveBeenCalled();
 });
 

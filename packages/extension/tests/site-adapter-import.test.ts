@@ -272,13 +272,13 @@ test('scan, page acknowledgment and a frozen partial preview authorize zero nati
   await f.importer.approve({ jobId: id, previewId: preview.id, revision: preview.revision, digest: preview.digest });
   await f.importer.wake(); expect((await f.importer.status())?.phase).toBe('completed'); expect(f.counts).toEqual({ folder: 2, bookmark: 2 }); await f.db.close();
 });
-test('approved shared saves wait for sync and resume without another approval or duplicate native effects', async () => {
+test.each(['sourceSyncPending', 'sourceSyncRecovering'])('approved shared saves wait for %s and resume without another approval or duplicate native effects', async reason => {
   const f = await fixture(); try {
     const { id } = await f.scan(), preview = await f.freeze(id);
     await f.importer.approve({ jobId: id, previewId: preview.id, revision: preview.revision, digest: preview.digest });
-    vi.spyOn(f.execution, 'execute').mockResolvedValueOnce({ status: 'unknown', reason: 'sourceSyncPending' });
+    vi.spyOn(f.execution, 'execute').mockResolvedValueOnce({ status: 'unknown', reason });
     await f.importer.wake();
-    expect(await f.importer.status()).toMatchObject({ phase: 'approved', reason: 'sourceSyncPending', nextPlan: 0 });
+    expect(await f.importer.status()).toMatchObject({ phase: 'approved', reason, nextPlan: 0 });
     expect(f.counts).toEqual({ folder: 0, bookmark: 0 });
     await f.importer.wake();
     expect((await f.importer.status())?.phase).toBe('completed');

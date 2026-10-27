@@ -1,5 +1,30 @@
 import { test, expect } from '@playwright/test';
 import { startRealStack } from './real-stack.js';
+test('managed source folder and bookmark creates publish ordinary Sync effects without forcing replica recovery', async () => {
+  test.setTimeout(120000); const stack = await startRealStack();
+  try {
+    const fixture = await stack.seedCanonicalFixture(false, true);
+    await stack.sourceArchiveProbe!(undefined, stack.extensionBinding);
+    const canonical = (await stack.observations()).canonicalNodes as any[];
+    const source = { site: 'bilibili', identityVersion: 1, sourceAccount: '42', sourceCollectionId: '101' };
+    const save = async (commandId: string, parentId: string, parentRevision: string, slot: unknown, url: string | null) => {
+      const input = { commandId, replicaId: stack.extensionBinding.replicaId, collectionId: stack.collectionId,
+        parentId, parentRevision, slot, title: commandId, url };
+      const result = await stack.sourceArchiveProbe!({ version: 1, action: 'managed.save', input });
+      expect(result.status, JSON.stringify(result.body)).toBe(200);
+      expect(await stack.sourceArchiveProbe!({ version: 1, action: 'managed.save', input })).toEqual(result);
+      return result.body as any;
+    };
+    const folder = await save('source-folder', fixture.folderId, canonical.find(n => n.id === fixture.folderId).resource_revision, { kind: 'folder', source }, null);
+    expect((await stack.observations()).replicaStatus).toBe('active');
+    for (let i = 0; i < 40; i++) await save(`source-bookmark-${i}`, folder.node.nodeId, folder.node.revision,
+      { kind: 'bookmark', copy: { purpose: 'sourceArchive', sourceAccount: '42', sourceCollectionId: '101',
+        content: { site: 'bilibili', identityVersion: 1, itemId: `video:av:${i + 1}`, accountId: null } } }, `https://www.bilibili.com/video/av${i + 1}`);
+    const result = await stack.observations();
+    expect(result.replicaStatus).toBe('active');
+    expect((result.canonicalNodes as any[]).filter(n => n.title.startsWith('source-bookmark-'))).toHaveLength(40);
+  } finally { await stack.close(); }
+});
 test('server reconciliation publishes ordinary Sync effects for move, rename, restore and undo without invalidating replicas', async () => {
   test.setTimeout(120000); const stack = await startRealStack();
   try {

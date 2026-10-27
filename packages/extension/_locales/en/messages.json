@@ -7301,6 +7301,9 @@
   "sites_openAndSignIn": {
     "message": "Open $1 and sign in"
   },
+  "sites_openBookmarkSync": {
+    "message": "Open bookmark sync"
+  },
   "sites_openFolder": {
     "message": "Open folder"
   },
@@ -8024,6 +8027,12 @@
   "sites_stopImportHint": {
     "message": "Bookmarks already added are kept."
   },
+  "sites_syncEffectsUpgrade": {
+    "message": "The sync server needs an update before website imports can be saved reliably. Your approved import is kept."
+  },
+  "sites_syncEffectsUpgradeNext": {
+    "message": "Update COLP Server, then choose Check and continue saving to resume this import."
+  },
   "sites_syncServerUpgrade": {
     "message": "Update COLP Server to support saving website collections into synced folders."
   },
@@ -8086,6 +8095,12 @@
   },
   "sites_waitingForBookmarkSyncHint": {
     "message": "Your approved import is kept. It will continue when the sync connection and folder are ready."
+  },
+  "sites_waitingForSyncRecovery": {
+    "message": "Bookmark sync is recovering"
+  },
+  "sites_waitingForSyncRecoveryHint": {
+    "message": "Bookmark sync is rebuilding this browser’s records. New import submissions are paused until recovery finishes. Your approval and items already submitted are kept; folder creation does not count as a saved bookmark."
   },
   "sites_waitingShort": {
     "message": "Waiting"
