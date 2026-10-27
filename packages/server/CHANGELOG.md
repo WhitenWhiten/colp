@@ -7,6 +7,7 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 ### Fixed
 
 - Expired bootstrap Snapshots no longer retain their page evidence, capabilities and node rows forever. The evidence maintenance worker reclaims them after the Snapshot expiry fence and keeps only the small header and receipt needed for Replica-lifetime replay.
+- Terminal Sync Session and retired Replica Ack receipts no longer pin their Pull cursor and page evidence forever. The evidence maintenance worker reclaims the receipt and then the expired evidence in the same run, while live receipts remain immutable.
 
 ## [0.1.0-rc.15] - 2026-10-27
 

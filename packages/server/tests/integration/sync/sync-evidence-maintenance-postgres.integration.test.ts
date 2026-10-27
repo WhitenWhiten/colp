@@ -168,6 +168,26 @@ describeWithPostgres('R15 global evidence/proof maintenance worker', () => {
       'b'.repeat(64), new Date('2026-07-26T10:00:00.000Z'), new Date('2026-07-26T10:00:01.000Z')]);
   }
 
+  async function seedPageEvidence(value: Awaited<ReturnType<typeof context>>,
+    evidence: { cursorDigest: string }, label: string) {
+    await isolated.runtime.pool.query(`insert into sync_pull_page_evidence
+      (page_digest,next_cursor_digest,session_id,account_id,collection_id,replica_id,lease_generation,
+       lifecycle_revision,policy_revision,protocol_version,page_limit,event_count,
+       lower_commit_ordinal,lower_stream_kind,lower_stable_id,upper_commit_ordinal,upper_stream_kind,
+       upper_stable_id,purge_commit_ordinal,purge_stream_kind,purge_stable_id,page_expires_at,issued_at)
+      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,'0.1',100,0,0,0,'',1,0,'upper-stable',0,0,'',$10,$11)`,
+    [digest(`page-${label}`), evidence.cursorDigest, value.sessionId, value.session.account_id,
+      value.session.collection_id, value.replica.replicaId, BigInt(value.replica.leaseGeneration),
+      BigInt(value.session.lifecycle_revision), value.session.policy_revision,
+      new Date(BASE_TIME.getTime() - 3_600_000), new Date(BASE_TIME.getTime() - 7_200_000)]);
+  }
+
+  async function terminateSession(sessionId: string) {
+    await isolated.runtime.pool.query(`update sync_sessions
+      set status='terminated', termination_reason='administrative', terminated_at=current_timestamp
+      where session_id=$1`, [sessionId]);
+  }
+
   async function seedProof(value: Awaited<ReturnType<typeof context>>, label: string,
     cursor: string, proofExpiresAt: Date, consumedAt?: Date) {
     const issuedAt = new Date(proofExpiresAt.getTime() - 7_200_000);
@@ -565,6 +585,45 @@ describeWithPostgres('R15 global evidence/proof maintenance worker', () => {
 
     const result = await coordinator().runBatch({ now: BASE_TIME });
     assert.equal(result.deleted, 2);
+  });
+
+  test('terminal Session Ack receipts release pinned cursor and page evidence', async () => {
+    const value = await context('ack-terminal');
+    const evidence = await seedEvidence(value, 'ack-terminal', 'ack-terminal-cursor',
+      new Date(BASE_TIME.getTime() - 3_600_000));
+    await seedAck(value, evidence, 'terminal');
+    await seedPageEvidence(value, evidence, 'terminal');
+    await terminateSession(value.sessionId);
+
+    const result = await coordinator().runBatch({ now: BASE_TIME });
+    assert.ok(result.deleted >= 3);
+    assert.equal((await isolated.runtime.pool.query(
+      'select 1 from sync_ack_receipts where principal_id=$1 and idempotency_key=$2',
+      [ACCOUNT, 'r15-ack-terminal'])).rowCount, 0);
+    assert.equal((await isolated.runtime.pool.query(
+      'select 1 from sync_pull_cursor_evidence where evidence_id=$1', [evidence.evidenceId])).rowCount, 0);
+    assert.equal((await isolated.runtime.pool.query(
+      'select 1 from sync_pull_page_evidence where next_cursor_digest=$1', [evidence.cursorDigest])).rowCount, 0);
+  });
+
+  test('live Session Ack receipts stay immutable and keep their evidence', async () => {
+    const value = await context('ack-live');
+    const evidence = await seedEvidence(value, 'ack-live', 'ack-live-cursor',
+      new Date(BASE_TIME.getTime() - 3_600_000));
+    await seedAck(value, evidence, 'live');
+    await seedPageEvidence(value, evidence, 'live');
+    await assert.rejects(isolated.runtime.pool.query(
+      'delete from sync_ack_receipts where principal_id=$1 and idempotency_key=$2',
+      [ACCOUNT, 'r15-ack-live']), /immutable/u);
+
+    await coordinator().runBatch({ now: BASE_TIME });
+    assert.equal((await isolated.runtime.pool.query(
+      'select 1 from sync_ack_receipts where principal_id=$1 and idempotency_key=$2',
+      [ACCOUNT, 'r15-ack-live'])).rowCount, 1);
+    assert.equal((await isolated.runtime.pool.query(
+      'select 1 from sync_pull_cursor_evidence where evidence_id=$1', [evidence.evidenceId])).rowCount, 1);
+    assert.equal((await isolated.runtime.pool.query(
+      'select 1 from sync_pull_page_evidence where next_cursor_digest=$1', [evidence.cursorDigest])).rowCount, 1);
   });
 
   test('the cleanup index bounds the expiry-first evidence candidate scan at production scale', async () => {

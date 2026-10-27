@@ -29,6 +29,8 @@ interface SnapshotCleanupCandidateRow {
 /** Bound bootstrap Snapshot reclamation by both header count and cascaded node rows. */
 const SNAPSHOT_CLEANUP_LIMIT = 25;
 const SNAPSHOT_NODE_BUDGET = 100_000;
+/** Terminal Ack receipts are small; a wider batch releases their pinned evidence sooner. */
+const ACK_RECEIPT_CLEANUP_LIMIT = 500;
 
 /** Retained Ack evidence must not consume every slot ahead of reclaimable work. */
 function actionableEvidence(now: Date) {
@@ -75,23 +77,26 @@ function actionableSnapshots(now: Date) {
  * R15 global evidence/proof maintenance coordinator.
  *
  * One transaction per run:
- * 1. A candidate CTE over proofs, next-cursor evidence, lineage, and page
+ * 1. Terminal Ack receipts (terminated Session or retired Replica) are deleted
+ *    first, bounded by ACK_RECEIPT_CLEANUP_LIMIT. Their RESTRICT evidence can
+ *    then be reclaimed by the same run.
+ * 2. A candidate CTE over proofs, next-cursor evidence, lineage, and page
  *    envelopes selects the oldest expired/consumed/retired rows, oldest-first,
  *    and locks the batch with FOR UPDATE SKIP LOCKED so concurrent workers never
  *    process the same rows. batchSize caps the total candidate rows per run.
- * 2. Proofs are deleted first: the candidate predicate mirrors exactly the
+ * 3. Proofs are deleted first: the candidate predicate mirrors exactly the
  *    guard_sync_pull_cursor_recovery_proof() DELETE allowance
  *    (proof_expires_at <= now OR consumed_at IS NOT NULL OR retired status).
- * 3. Evidence whose cursor is neither an Ack receipt target nor a checkpoint
+ * 4. Evidence whose cursor is neither an Ack receipt target nor a checkpoint
  *    reference is deleted; the predicate mirrors guard_sync_pull_cursor_evidence_retention()
  *    DELETE allowance (expired-or-retired AND NOT EXISTS ack AND NOT EXISTS checkpoint).
- * 4. Expired checkpoint-referenced evidence is only redacted (cursor -> NULL),
+ * 5. Expired checkpoint-referenced evidence is only redacted (cursor -> NULL),
  *    keeping cursor_digest + tuple authority; the UPDATE predicate mirrors the
  *    trigger's UPDATE allowance. Redacted rows are excluded from future runs
  *    (cursor IS NOT NULL), so repeated runs are idempotent.
- * 5. Ack-protected-only evidence and protected page envelopes stay intact and
+ * 6. Live-Ack-protected evidence and protected page envelopes stay intact and
  *    do not occupy candidate slots. A protection race is still classified at write time.
- * 6. Expired bootstrap Snapshot evidence is reclaimed after the active stores:
+ * 7. Expired bootstrap Snapshot evidence is reclaimed after the active stores:
  *    page and node rows and expired capabilities are deleted for Snapshots past
  *    their expiry fence, then the Snapshot header is deleted unless a recovery
  *    Ack receipt needs it for Replica-lifetime replay.
@@ -122,6 +127,31 @@ export class PostgresSyncEvidenceMaintenanceCoordinator implements SyncEvidenceM
       // Debug context in pg_stat_activity / current_setting() during the run.
       await sql`select set_config('known.sync_evidence_maintenance_worker',
         ${this.options.workerId}, true)`.execute(transaction);
+
+      // Release terminal Ack receipts first so the evidence candidate pass below
+      // can reclaim the cursor/page rows they were pinning in the same run.
+      const ackReceiptsDeleted = await sql<{ principal_id: string; idempotency_key: string }>`
+        WITH receipts AS MATERIALIZED (
+          SELECT receipt.principal_id AS ack_principal_id, receipt.idempotency_key AS ack_idempotency_key
+          FROM sync_ack_receipts AS receipt
+          WHERE EXISTS (SELECT 1 FROM sync_sessions AS session
+              WHERE session.session_id = receipt.session_id AND session.status = 'terminated')
+            OR EXISTS (SELECT 1 FROM sync_replicas AS replica
+              WHERE replica.replica_id = receipt.replica_id AND replica.status = 'retired')
+          ORDER BY receipt.completed_at, receipt.principal_id, receipt.idempotency_key
+          LIMIT ${Math.min(this.options.batchSize, ACK_RECEIPT_CLEANUP_LIMIT)}
+          FOR UPDATE SKIP LOCKED
+        )
+        DELETE FROM sync_ack_receipts AS receipt
+        USING receipts
+        WHERE receipt.principal_id = receipts.ack_principal_id
+          AND receipt.idempotency_key = receipts.ack_idempotency_key
+          AND (EXISTS (SELECT 1 FROM sync_sessions AS session
+                WHERE session.session_id = receipt.session_id AND session.status = 'terminated')
+            OR EXISTS (SELECT 1 FROM sync_replicas AS replica
+              WHERE replica.replica_id = receipt.replica_id AND replica.status = 'retired'))
+        RETURNING principal_id, idempotency_key
+      `.execute(transaction);
 
       const candidates = await sql<MaintenanceCandidateRow>`
         WITH proofs AS MATERIALIZED (
@@ -262,6 +292,7 @@ export class PostgresSyncEvidenceMaintenanceCoordinator implements SyncEvidenceM
 
       // Proofs FIRST: expired, consumed, or retired-replica proofs are all deletable.
       let deleted = 0;
+      deleted += ackReceiptsDeleted.rows.length;
       if (proofIds.length > 0) {
         const proofDeleted = await sql<{ proof_id: bigint | string }>`
           DELETE FROM sync_pull_cursor_recovery_proofs AS proof
@@ -411,7 +442,7 @@ export class PostgresSyncEvidenceMaintenanceCoordinator implements SyncEvidenceM
       await this.options.faultInjector?.afterPhase?.('before_commit');
 
       return Object.freeze({
-        attempted: candidates.rows.length + snapshotCandidates.rows.length,
+        attempted: candidates.rows.length + snapshotCandidates.rows.length + ackReceiptsDeleted.rows.length,
         deleted,
         redacted,
         skipped,
@@ -455,6 +486,14 @@ async function computeOldestExpiredAgeMs(transaction: DatabaseTransaction, now: 
       FROM sync_pull_page_evidence AS page
       WHERE ${actionablePages(now)} AND page.page_expires_at <= ${now}
       ORDER BY page.page_expires_at LIMIT 1)
+      UNION ALL
+      (SELECT receipt.completed_at AS expiry
+      FROM sync_ack_receipts AS receipt
+      WHERE EXISTS (SELECT 1 FROM sync_sessions AS session
+          WHERE session.session_id = receipt.session_id AND session.status = 'terminated')
+        OR EXISTS (SELECT 1 FROM sync_replicas AS replica
+          WHERE replica.replica_id = receipt.replica_id AND replica.status = 'retired')
+      ORDER BY receipt.completed_at LIMIT 1)
       UNION ALL
       (SELECT snapshot.expires_at AS expiry
       FROM sync_bootstrap_snapshots AS snapshot

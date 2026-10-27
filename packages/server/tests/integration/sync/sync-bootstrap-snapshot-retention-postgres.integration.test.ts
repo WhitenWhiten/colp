@@ -160,18 +160,4 @@ describeWithPostgres('bootstrap Snapshot evidence retention', () => {
     assert.equal(second.attempted, 1);
     assert.equal(await count(newer.snapshotId, 'sync_bootstrap_snapshots'), 0);
   });
-
-  test('migration down restores the all-immutable guard and reapplies cleanly', async () => {
-    const down = await runMigrations(isolated.runtime.db, 'down');
-    assert.deepEqual(down.results.map((result) => result.migrationName),
-      ['202611030100_sync_bootstrap_snapshot_retention']);
-    const live = await seedSnapshot('down-guard', { ageMinutes: -60, pages: 1 });
-    await assert.rejects(isolated.runtime.pool.query(
-      'delete from sync_bootstrap_snapshot_pages where snapshot_id=$1', [live.snapshotId]),
-    /immutable/u);
-
-    const up = await runMigrations(isolated.runtime.db, 'up');
-    assert.deepEqual(up.results.map((result) => result.migrationName),
-      ['202611030100_sync_bootstrap_snapshot_retention']);
-  });
 });

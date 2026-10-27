@@ -2,16 +2,17 @@
  * R15 global evidence/proof maintenance port.
  *
  * The maintenance worker is a standalone schedule independent of Pull that sweeps
- * expired/consumed/retired recovery proofs, expired pull-cursor evidence and
- * expired bootstrap Snapshot evidence across all replicas. Row-level concurrency
- * comes from a candidate CTE using FOR UPDATE SKIP LOCKED; there is deliberately
- * no per-collection lease, so candidate rows are the only unit of claim.
+ * terminal Ack receipts, expired/consumed/retired recovery proofs, expired
+ * pull-cursor evidence and expired bootstrap Snapshot evidence across all
+ * replicas. Row-level concurrency comes from a candidate CTE using
+ * FOR UPDATE SKIP LOCKED; there is deliberately no per-collection lease, so
+ * candidate rows are the only unit of claim.
  *
  * Metric contract (counters/gauges wired in bootstrap/worker.ts):
- * - attempted : actionable proof/evidence/lineage/page candidates (capped by batchSize)
- *               plus independently bounded Snapshot candidates
- * - deleted   : deleted recovery proof/evidence/lineage/page rows plus expired Snapshot
- *               page, capability and header rows
+ * - attempted : actionable proof/evidence/lineage/page candidates (capped by batchSize),
+ *               independently bounded Snapshot candidates, and terminal Ack receipts
+ * - deleted   : deleted Ack receipts, proof/evidence/lineage/page rows plus expired
+ *               Snapshot page, capability, node and header rows
  * - redacted  : cursor evidence rows whose checkpoint-referenced cursor was redacted to NULL
  * - skipped   : claimed evidence/pages protected by a concurrent authority change
  * - errors    : run-level failures (a throw is reported through the job's onError)
@@ -31,9 +32,9 @@ export type SyncEvidenceMaintenanceMetricName
   = typeof SYNC_EVIDENCE_MAINTENANCE_METRICS[keyof typeof SYNC_EVIDENCE_MAINTENANCE_METRICS];
 
 export interface SyncEvidenceMaintenanceResult {
-  /** Actionable proof/evidence/lineage/page candidates (batchSize-capped) plus bounded Snapshot candidates. */
+  /** Actionable proof/evidence/lineage/page candidates, bounded Snapshot candidates and terminal Ack receipts. */
   readonly attempted: number;
-  /** Deleted proof/evidence/lineage/page rows plus expired Snapshot evidence rows. */
+  /** Deleted Ack receipts, proof/evidence/lineage/page rows plus expired Snapshot evidence rows. */
   readonly deleted: number;
   /** Cursor evidence rows whose checkpoint-referenced cursor was redacted to NULL. */
   readonly redacted: number;
