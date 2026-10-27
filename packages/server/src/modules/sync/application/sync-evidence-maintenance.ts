@@ -5,9 +5,10 @@
  * terminal Ack receipts, terminated Sessions past their grace window, retired
  * Replica sequence authority, expired/consumed/retired recovery proofs, expired
  * pull-cursor evidence, floor-fenced revision history and expired bootstrap
- * Snapshot evidence across all replicas. Row-level concurrency comes from a
- * candidate CTE using FOR UPDATE SKIP LOCKED; there is deliberately no
- * per-collection lease, so candidate rows are the only unit of claim.
+ * Snapshot evidence across all
+ * replicas. Row-level concurrency comes from a candidate CTE using
+ * FOR UPDATE SKIP LOCKED; there is deliberately no per-collection lease, so
+ * candidate rows are the only unit of claim.
  *
  * Metric contract (counters/gauges wired in bootstrap/worker.ts):
  * - attempted : actionable proof/evidence/lineage/page candidates (capped by batchSize),

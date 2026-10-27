@@ -10,6 +10,7 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 - Terminal Sync Session and retired Replica Ack receipts no longer pin their Pull cursor and page evidence forever. The evidence maintenance worker reclaims the receipt and then the expired evidence in the same run, while live receipts remain immutable.
 - Terminated Sync Sessions older than one day no longer accumulate bindings, scopes and idempotency receipts forever. The maintenance worker deletes those authority rows and the Session only when no protocol child still references it.
 - Retired Replicas no longer retain Sequence lanes, claims and receipts for the lifetime of the deployment. The maintenance worker deletes that authority after retirement, and Node revision history is reclaimed only below a materialized, archived history floor.
+- Documented the append-only retention boundary: operations and audit authority remain archive-gated, and completed Outbox queue rows are deletable only through a fenced payload purge job. Dispatch claims remain permanent duplicate-delivery identity.
 
 ## [0.1.0-rc.15] - 2026-10-27
 
