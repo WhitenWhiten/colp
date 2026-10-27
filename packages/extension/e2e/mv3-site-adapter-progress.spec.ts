@@ -22,14 +22,20 @@ test('favorites become a preview in the background, skip deleted videos, and sho
     await context.route('https://api.bilibili.com/**', route => {
       const url = new URL(route.request().url());
       if (limitReads && url.pathname.endsWith('/ids')) return route.fulfill({ status: 429, headers: { ...cors, 'retry-after': '2' }, contentType: 'application/json', body: '{"private":"not-for-diagnostics"}' });
+      const videos = [{ id: 1, type: 2, title: 'A useful video', attr: 0 }, { id: 9, type: 2, title: '已失效视频', attr: 9 }];
+      if (sharedItems) {
+        videos.push({ id: 2, type: 2, title: 'A shared video', attr: 0 });
+        if (url.searchParams.get('media_id') === '101' || url.searchParams.get('resources')?.split(',').includes('3:2'))
+          videos.push({ id: 3, type: 2, title: 'A new video', attr: 0 });
+      }
       const data = url.pathname.endsWith('/nav') ? { isLogin: true, mid: 42 }
         : url.pathname.endsWith('/list-all') ? { list: [{ id: 101, title: 'Favorites' }, ...sharedItems ? [{ id: 102, title: 'Shared favorites' }] : []] }
-        : url.pathname.endsWith('/ids') ? url.searchParams.get('pn') === '1' ? [{ id: 1, type: 2 }, { id: 9, type: 2 }, ...sharedItems ? [{ id: 2, type: 2 }] : []] : []
-        : url.pathname.endsWith('/infos') ? [{ id: 1, type: 2, title: 'A useful video', attr: 0 }, { id: 9, type: 2, title: '已失效视频', attr: 9 },
-          ...sharedItems ? [{ id: 2, type: 2, title: 'A shared video', attr: 0 }] : []] : {};
+        : url.pathname.endsWith('/ids') ? url.searchParams.get('pn') === '1' ? videos.map(({ id, type }) => ({ id, type })) : []
+        : url.pathname.endsWith('/infos') ? videos : {};
       return route.fulfill({ contentType: 'application/json', headers: cors, body: JSON.stringify({ code: 0, data }) });
     });
     const { page } = await openExtensionOptions(context);
+    page.setDefaultTimeout(15000);
     const grants = { permissions: ['bookmarks', 'scripting', 'webNavigation'], origins: ['https://www.bilibili.com/*'] };
     await page.evaluate(g => {
       const b = document.createElement('button'); b.id = 'grant-site-progress'; b.textContent = 'Allow controlled favorites';
@@ -95,7 +101,8 @@ test('favorites become a preview in the background, skip deleted videos, and sho
     const recovered = await page.evaluate(id => chrome.runtime.sendMessage({ kind: 'known.siteAdapters.activity.report', id }), report.incident.id) as { report: { incident: { firstAt: number; resolvedAt: number } } };
     expect(recovered.report.incident.firstAt).toBe(report.incident.firstAt);
     expect(recovered.report.incident.resolvedAt).toBeGreaterThanOrEqual(report.incident.firstAt);
-    // A single-copy conflict has a readable item list and a durable reason, not a dead-end attention label.
+    // Keep one executable item alongside the single-copy conflicts: a preview
+    // containing only refusals cannot be approved. Partial saves retain review details.
     await page.locator('#cancel-import').click();
     sharedItems = true;
     await page.locator('#site-configure').click();
@@ -107,6 +114,7 @@ test('favorites become a preview in the background, skip deleted videos, and sho
     await page.locator('#configure-archive').click();
     await page.locator('#start-import').click();
     await expect.poll(async () => (await status(page)).archive.import?.phase, { timeout: 45000 }).toBe('preview');
+    expect((await status(page)).archive.import).toMatchObject({ preview: { counts: { createBookmarks: 1, review: 2 } } });
     await page.locator('#approve-import').click();
     await expect.poll(async () => (await status(page)).archive.import?.phase).toBe('attention');
     await page.locator('#import-review-items').click();
@@ -118,5 +126,10 @@ test('favorites become a preview in the background, skip deleted videos, and sho
     const reviewReport = await page.evaluate(() => (globalThis as unknown as { siteReport: string }).siteReport);
     expect(JSON.parse(reviewReport).incident.review).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'primarySourceCollectionRequired' })]));
     expect(reviewReport).not.toContain('A shared video');
+    const saved = await page.evaluate(async id => {
+      const folders = await chrome.bookmarks.getChildren(id);
+      return (await Promise.all(folders.map(folder => chrome.bookmarks.getChildren(folder.id)))).flat().map(bookmark => bookmark.url).sort();
+    }, root.id);
+    expect(saved).toEqual(['https://www.bilibili.com/video/av1', 'https://www.bilibili.com/video/av3']);
   } finally { await context.close(); await rm(profile, { recursive: true, force: true }); }
 });
