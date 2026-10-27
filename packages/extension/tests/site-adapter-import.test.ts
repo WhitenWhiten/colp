@@ -143,16 +143,69 @@ test('temporary lease renewal preserves a document-local cursor and accepted pro
     expect(f.counts).toEqual({ folder: 0, bookmark: 0 });
   } finally { await f.db.close(); }
 });
+test.each([[2, 1], [1, 2], [2, 2]])('a confirmed same-account reconnection adopts generations %i/%i without losing progress or accepting the old page', async (installationGeneration, sourceSessionGeneration) => {
+  const f = await fixture(); try {
+    const id = await f.importer.start(['101', '102']); await f.page(f.catalog);
+    const first = f.items('101'); if (first.status !== 'ok' || first.kind !== 'items') throw new Error('items');
+    await f.page({ ...first, page: { ...first.page, nextCursor: 'old-cursor' } });
+    f.advance(); await f.importer.wake();
+    const oldContext = f.context(), outstanding = f.sent.at(-1)!;
+    if (outstanding.operation !== 'readPage') throw new Error('noPage');
+    const authority = await f.ledger.setAuthority({ enabled: true, accountId: '42', installationGeneration, sourceSessionGeneration, negativeReadback: false });
+    expect(authority.connectionId).toBe(oldContext.connectionId);
+    await f.renew({ installationGeneration, sourceSessionGeneration });
+    await f.importer.wake();
+    expect(await f.importer.status()).toMatchObject({ id, phase: 'paused', reason: 'sourceAuthorizationChanged', edgeCount: 1 });
+    await f.create().resume(id);
+    expect(await f.importer.status()).toMatchObject({ id, phase: 'scanning', edgeCount: 1, cursor: null });
+    expect(f.sent.at(-1)).toEqual({ operation: 'cancelRead', readSessionId: id });
+    const late = await f.importer.accept(oldContext, { protocolVersion: 1, operation: 'page.result', requestId: outstanding.pageRequestId,
+      leaseId: outstanding.leaseId, capability: 'host-validated', readSessionId: id, pageRequestId: outstanding.pageRequestId, result: f.items('101', '99') });
+    expect(late).toMatchObject({ status: 'rejected', reason: 'staleContext' });
+    await f.page(f.catalog); await f.page(f.items('101')); await f.page(f.items('102', '2'));
+    const preview = await f.freeze(id);
+    expect(preview.counts).toMatchObject({ createBookmarks: 2, createFolders: 2 });
+    expect(f.counts).toEqual({ folder: 0, bookmark: 0 });
+    expect((await f.activity.list()).find(e => e.code === 'sourceAuthorizationChanged')?.resolution).toBe('recovered');
+  } finally { await f.db.close(); }
+});
+test('resuming refuses a different confirmed account and preserves the original paused task', async () => {
+  const f = await fixture(); try {
+    const id = await f.importer.start(['101']); await f.page(f.catalog); await f.page(f.items('101'));
+    const other = await f.ledger.setAuthority({ enabled: true, accountId: '43', installationGeneration: 2, sourceSessionGeneration: 2, negativeReadback: false });
+    await f.renew({ connectionId: other.connectionId!, installationGeneration: 2, sourceSessionGeneration: 2 });
+    // scanFinished is still discovery and must not cross the account boundary.
+    await expect(f.importer.resume(id)).rejects.toThrow('sourceAccountChanged');
+    expect(await f.importer.status()).toMatchObject({ id, phase: 'paused', edgeCount: 1 });
+    expect(f.counts).toEqual({ folder: 0, bookmark: 0 });
+  } finally { await f.db.close(); }
+});
+test('resuming reports a missing page precisely and revalidates the current lease inside the transaction', async () => {
+  const f = await fixture(); try {
+    const id = await f.importer.start(['101']); await f.page(f.catalog); await f.page(f.items('101'));
+    const source = vi.spyOn(f.ports, 'source').mockResolvedValueOnce(null);
+    await expect(f.importer.resume(id)).rejects.toThrow('pageUnavailable');
+    await f.ledger.revokeLease(f.context().leaseId);
+    source.mockRestore();
+    await expect(f.importer.resume(id)).rejects.toThrow('staleContext');
+    expect(await f.importer.status()).toMatchObject({ phase: 'paused', edgeCount: 1 });
+    expect(f.counts).toEqual({ folder: 0, bookmark: 0 });
+  } finally { await f.db.close(); }
+});
 test('an unavailable import document pauses after the bounded reconnection window and preserves accepted progress', async () => {
   const f = await fixture(); try {
     await f.importer.start(['101']); await f.page(f.catalog);
     const first = f.items('101'); if (first.status !== 'ok' || first.kind !== 'items') throw new Error('items');
     await f.page({ ...first, page: { ...first.page, nextCursor: 'document-cursor' } });
-    vi.spyOn(f.ports, 'source').mockResolvedValue(null);
+    const source = vi.spyOn(f.ports, 'source').mockResolvedValue(null);
     f.advance(); await f.importer.wake();
     expect(await f.importer.status()).toMatchObject({ phase: 'scanning', reason: 'reconnectingSource' });
     f.advance(30001); await f.importer.wake();
     expect(await f.importer.status()).toMatchObject({ phase: 'paused', reason: 'pageUnavailable', edgeCount: 1, cursor: 'document-cursor' });
+    source.mockRestore(); await f.importer.resume((await f.importer.status())!.id);
+    vi.spyOn(f.ports, 'source').mockResolvedValueOnce(null);
+    f.advance(); await f.importer.wake();
+    expect(await f.importer.status()).toMatchObject({ phase: 'scanning', reason: 'reconnectingSource', edgeCount: 1 });
     expect(f.counts).toEqual({ folder: 0, bookmark: 0 });
   } finally { await f.db.close(); }
 });

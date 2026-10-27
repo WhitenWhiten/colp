@@ -41,7 +41,7 @@ export function currentSiteProblem(events: readonly SiteActivity[], scope: { tas
       || !!e.connectionRef && !e.phase || e.operation === 'inspect')) ?? null;
 }
 export function problemFamily(code: string): ProblemFamily {
-  if (['signedOut', 'sourceUnresolved', 'sourceAuthorizationChanged', 'pageUnavailable', 'navigationChanged', 'restartRequired'].includes(code)) return 'connection';
+  if (['signedOut', 'sourceUnresolved', 'sourceAuthorizationChanged', 'sourceAccountChanged', 'pageUnavailable', 'navigationChanged', 'restartRequired'].includes(code)) return 'connection';
   if (['permissionRequired', 'storageBoundaryUnavailable'].includes(code)) return 'permission';
   if (['rateLimited', 'challenge'].includes(code)) return 'rate';
   if (['network', 'timeout', 'sourceSyncPending', 'semanticOffline'].includes(code)) return 'network';
@@ -65,7 +65,7 @@ export function siteOperation(kind: string): SiteOperation {
   if (kind.includes('.cloud.')) return kind.includes('configure') ? 'configure' : 'save';
   if (kind.startsWith('known.community.')) return 'configure';
   if (kind.includes('.archive.')) return 'configure';
-  if (/\.(enable|confirm)$/u.test(kind)) return 'connect';
+  if (/\.(enable|confirm|reconnect)$/u.test(kind)) return 'connect';
   if (/\.(inspect|retryConfirmation)$/u.test(kind)) return 'inspect';
   return 'status';
 }

@@ -20,6 +20,7 @@ interface Input {
   config: { state: string; live: boolean } | null; available: boolean; hasDifferences: boolean; errorCopy(code: string | undefined): string;
   saved?: number; lastEvent: SiteActivity | null;
   problem?: SiteActivity | null;
+  checkingSource?: boolean;
 }
 const element = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id)! as T;
 const button = (id: string) => element<HTMLButtonElement>(id);
@@ -54,7 +55,6 @@ function detail(input: Input): string {
   if (job.phase === 'preparing' || job.phase === 'paused' && job.reason === 'scanFinished') return t('sites_reviewingReadItems', 'Comparing the $1 items read with the bookmarks already saved.', count(job.edgeCount));
   if (job.phase === 'paused') {
     if (job.reason === 'rateLimited') return t('sites_readRateLimited', '$1 asked us to slow down. Try continuing in a few minutes; favorites already read are kept.', site);
-    if (['pageUnavailable', 'restartRequired', 'navigationChanged'].includes(job.reason ?? '')) return t('sites_readSourceLost', 'The website connection was lost. Continue reading to check again; saved bookmarks will not be duplicated.');
     return errorCopy(job.reason ?? undefined);
   }
   if (job.phase === 'preview') return [
@@ -140,6 +140,19 @@ export function paintSiteImport(input: Input) {
     : !input.enabled || !input.connected || !input.bookmarkAccess || input.hold ? t('sites_liveBlocked', 'Automatic saving of new favorites waits until the connection and settings are ready.')
     : !input.documents ? t('sites_liveWaiting', 'New favorites save automatically while $1 is open.', site)
     : t('sites_liveOn', 'New favorites save automatically while you browse $1.', site);
+  element('step-import').setAttribute('aria-busy', String(!!input.checkingSource));
+  for (const id of ['start-import', 'resume-import', 'import-open-source']) {
+    const control = button(id); control.setAttribute('aria-busy', String(!!input.checkingSource));
+    if (input.checkingSource && !control.hidden) {
+      control.disabled = true; control.textContent = t('sites_checkingConnection', 'Checking connection…');
+    }
+  }
+  if (input.checkingSource) {
+    element('import-state').textContent = t('sites_checkingSourceConnection', 'Checking the $1 connection…', site);
+    element('import-summary').hidden = false;
+    element('import-summary').textContent = t('sites_reconnectingCheck', 'Reconnecting to the website before continuing. Items already read are kept.');
+    for (const id of ['freeze-import', 'cancel-import']) button(id).disabled = true;
+  }
 }
 
 function paintOmissions(job: ImportStatus | null) {

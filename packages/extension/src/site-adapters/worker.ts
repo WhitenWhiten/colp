@@ -276,6 +276,7 @@ function createSiteHost(definition: SiteDefinition) {
   const inspectSchema = object({ kind: literal('known.siteAdapters.inspect'), operation: literal('collections', 'items', 'resolve'), collectionId: v => v === undefined || definition.validateCollection(v), cursor: v => v === undefined || v === null || str(512)(v) });
   const retrySchema = object({ kind: literal('known.siteAdapters.retryConfirmation') });
   const confirmSchema = object({ kind: literal('known.siteAdapters.confirm'), accountId: str(128) });
+  const reconnectSchema = object({ kind: literal('known.siteAdapters.reconnect') });
   async function resolve(url: string, tabId?: number) {
       if (tabId === undefined) return null;
       const source = await currentSiteSource(tabId);
@@ -359,7 +360,7 @@ function createSiteHost(definition: SiteDefinition) {
         void trustedStorage().then(() => wakePlannedSaves()).then(() => ({ checked: true }))
           .then(result => settledManagement(raw, result)).then(respond, async e => respond(await failed(raw, e))); return true;
       }
-      if (!management(sender) || !(statusSchema(raw) || enableSchema(raw) || confirmSchema(raw) || inspectSchema(raw) || retrySchema(raw) || semanticRetry(raw) || archives.valid(raw))) return false;
+      if (!management(sender) || !(statusSchema(raw) || enableSchema(raw) || confirmSchema(raw) || reconnectSchema(raw) || inspectSchema(raw) || retrySchema(raw) || semanticRetry(raw) || archives.valid(raw))) return false;
       void (async () => {
         if (!browserSupport().supported && !statusSchema(raw) && !(enableSchema(raw) && !d!.enabled)) throw new Error('browserUnsupported');
         if (enableSchema(raw)) {
@@ -374,6 +375,11 @@ function createSiteHost(definition: SiteDefinition) {
           await reconcile(); if (d!.enabled) await injectOpen();
         }
         if (confirmSchema(raw)) { await siteTransport.confirm(d!.accountId!); await synchronizeSourceAuthority(await read(), siteLedger); disconnectAll(); await injectOpen(); }
+        if (reconnectSchema(raw)) {
+          if (!await chrome.permissions.contains(grants)) throw new Error('permissionRequired');
+          if (!await managementSource()) throw new Error((await read()).sourceUnresolved ? 'sourceUnresolved' : 'pageUnavailable');
+          scheduleSourceWork(Date.now() + 100);
+        }
         let archiveResult: unknown;
         if (archives.valid(raw)) archiveResult = await archives.handle(raw);
         if (semanticRetry(raw)) {

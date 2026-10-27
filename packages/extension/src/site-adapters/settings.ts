@@ -14,6 +14,7 @@ import './community-settings.js';
 import './cloud-settings.js';
 import { paintReconciliation, installReconcileControls, reconcileSelections, reconcilePageOffset } from './settings-reconcile.js';
 import { paintSiteImport, type ImportStatus } from './settings-import.js';
+import { installSiteImportActions } from './settings-import-actions.js';
 import { createSiteConfiguration } from './settings-configuration.js';
 import { createSiteActivityView } from './settings-activity.js';
 import { paintSourceOverview } from './settings-overview.js';
@@ -61,7 +62,6 @@ function errorCopy(code: string | undefined) {
   switch (code) {
     case 'permissionRequired': return t('sites_accessRequired', 'Know-N needs access first. Allow it, then try again.');
     case 'browserUnsupported': return t('sites_newerChrome', 'Site adapters need a newer version of Chrome.');
-    case 'pageUnavailable': case 'restartRequired': case 'navigationChanged': return t('sites_openSiteFirst', 'Open $1 in a tab, then try again.', site);
     case 'refreshCatalogRequired': case 'staleCursor': return t('sites_collectionsChanged', 'Your collections changed. Check the list, then try again.');
     case 'bindingUnavailable': return t('sites_folderGone', 'That folder is gone. Choose another one.');
     case 'invalidPrimaryCollection': return t('sites_primaryNotChosen', 'The primary collection must be one of the collections you chose.');
@@ -130,7 +130,9 @@ async function act(message: unknown, done?: () => void): Promise<boolean> {
   const action = message as { kind: string };
   if (result.error) {
     lastActionError = { operation: action.kind, error: result.error, at: Date.now() };
-    showActionProblem(result, action.kind); await refresh(); return false;
+    showActionProblem(result, action.kind);
+    if (siteOperation(action.kind) === 'read' || action.kind === 'known.siteAdapters.reconnect') showToast(errorCopy(result.error), 'error', { announce: true });
+    await refresh(); return false;
   }
   if (lastActionError?.operation === action.kind) lastActionError = undefined;
   activityView.succeeded(siteOperation(action.kind)); done?.(); apply(result); activityView.changed(); return true;
@@ -385,42 +387,13 @@ function paintImport(job: ImportStatus | null) {
   paintSiteImport({ job, site, documents: status.documents ?? 0, enabled: !!status.enabled,
     connected: !!status.connected && !status.candidateAccount, bookmarkAccess: status.grants?.bookmarks ?? false, hold: status.archiveHold ?? null,
     config: status.archive?.config ?? null, saved: status.archive?.overview?.saved, lastEvent: status.activity?.lastEvent ?? null,
-    problem: status.activity?.problem ?? null, available: features.import, hasDifferences: !!status.archive?.reconciliation, errorCopy });
-  if (waitingForSource) {
-    text('import-state', t('sites_connectingForCheck', 'Connecting to $1 to continue the check', site));
-    $('import-summary').hidden = false;
-    text('import-summary', t('sites_openedForCheck', 'The website has been opened. Checking continues automatically once its connection is ready.'));
-    for (const id of ['import-open-source', 'start-import', 'resume-import']) button(id).disabled = true;
-  }
+    problem: status.activity?.problem ?? null, available: features.import, hasDifferences: !!status.archive?.reconciliation, checkingSource: importActions.pending, errorCopy });
   const selectedChanges = reconcileSelections().filter(d => d.choice !== 'keep').length;
   if (selectedChanges) button('approve-import').textContent = t('sites_reconcileApprove', 'Approve saving and $1 chosen changes', selectedChanges);
 }
-button('start-import').addEventListener('click', () => { void act({ kind: 'known.siteAdapters.import.start' }); });
-button('import-open-source').addEventListener('click', () => { void continueWithSource(); });
-let waitingForSource = false;
-async function continueWithSource() {
-  if (waitingForSource) return;
-  waitingForSource = true; button('import-open-source').disabled = true;
-  const original = status.archive?.import, config = JSON.stringify(status.archive?.config);
-  try {
-    await chrome.tabs.create({ url: selectedSite.origin });
-    for (let attempt = 0; attempt < 30 && !disposed; attempt++) {
-      const next = await request({ kind: 'known.siteAdapters.status' });
-      if (disposed) return;
-      apply(next);
-      if (next.error) return;
-      if (JSON.stringify(next.archive?.config) !== config || next.archive?.import?.id !== original?.id) return;
-      if (next.candidateAccount) { configuration.open('connection'); return; }
-      if (next.documents) {
-        const job = next.archive?.import;
-        if (job && !['paused', 'cancelled', 'completed'].includes(job.phase)) return;
-        await act(job?.phase === 'paused' ? { kind: 'known.siteAdapters.import.resume', jobId: job.id } : { kind: 'known.siteAdapters.import.start' }); return;
-      }
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-    if (!disposed) showActionProblem({ error: 'pageUnavailable' }, 'known.siteAdapters.import.start');
-  } finally { waitingForSource = false; if (!disposed) paintImport(lastImport); }
-}
+const importActions = installSiteImportActions(selectedSite, { status: () => status, refresh, act, disposed: () => disposed,
+  paint: () => paintImport(lastImport), connect: () => configuration.open('connection'),
+  failed: (error, kind) => { showActionProblem({ error }, kind); showToast(errorCopy(error), 'error', { announce: true }); } });
 button('import-open-recovery').addEventListener('click', () => { showTab('recovery'); });
 button('import-review-items').addEventListener('click', () => { $<HTMLDetailsElement>('reconcile-details').open = true; $('reconcile-details').scrollIntoView({ block: 'start', behavior: 'smooth' }); });
 button('import-review-settings').addEventListener('click', () => configuration.open('collections'));
@@ -438,7 +411,6 @@ button('import-review-check').addEventListener('click', () => { const job = last
 });
 button('import-edit-settings').addEventListener('click', () => configuration.open('connection'));
 button('freeze-import').addEventListener('click', () => { if (lastImport) void act({ kind: 'known.siteAdapters.import.freeze', jobId: lastImport.id }); });
-button('resume-import').addEventListener('click', () => { if (lastImport) void act({ kind: 'known.siteAdapters.import.resume', jobId: lastImport.id }); });
 button('retry-import').addEventListener('click', () => { if (lastImport) void act({ kind: 'known.siteAdapters.import.retry', jobId: lastImport.id }); });
 button('cancel-import').addEventListener('click', () => { if (lastImport) void act({ kind: 'known.siteAdapters.import.cancel', jobId: lastImport.id }); });
 button('approve-import').addEventListener('click', () => { const job = lastImport, p = job?.preview; if (!job || !p) return; button('approve-import').disabled = true;

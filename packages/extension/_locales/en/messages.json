@@ -6764,8 +6764,14 @@
   "sites_checkUpdates": {
     "message": "Check for updates"
   },
+  "sites_checkingConnection": {
+    "message": "Checking connection…"
+  },
   "sites_checkingSource": {
     "message": "Checking source items"
+  },
+  "sites_checkingSourceConnection": {
+    "message": "Checking the $1 connection…"
   },
   "sites_chooseCollection": {
     "message": "Choose at least one collection."
@@ -6868,9 +6874,6 @@
   },
   "sites_connectedSource": {
     "message": "$1 account connected"
-  },
-  "sites_connectingForCheck": {
-    "message": "Connecting to $1 to continue the check"
   },
   "sites_connectionNeedsAttention": {
     "message": "Needs attention"
@@ -7283,14 +7286,8 @@
   "sites_openSite": {
     "message": "Open $1"
   },
-  "sites_openSiteFirst": {
-    "message": "Open $1 in a tab, then try again."
-  },
   "sites_openToList": {
     "message": "Open $1 in a tab to list your collections."
-  },
-  "sites_openedForCheck": {
-    "message": "The website has been opened. Checking continues automatically once its connection is ready."
   },
   "sites_otherLocation": {
     "message": "Another local folder"
@@ -7364,8 +7361,14 @@
   "sites_privateDiagnosticHintShort": {
     "message": "Contains private source data and local command receipts. Keep it private. It is read only and can't be imported."
   },
+  "sites_problemAccountChanged": {
+    "message": "The connected $1 account is different from the account used by this check."
+  },
   "sites_problemAllow": {
     "message": "Open sync settings and allow the missing access."
+  },
+  "sites_problemAuthorizationChanged": {
+    "message": "The source account or its access changed, so this check paused."
   },
   "sites_problemAutomatic": {
     "message": "The background task has scheduled another attempt; no action is needed now."
@@ -7381,6 +7384,9 @@
   },
   "sites_problemConfiguration": {
     "message": "Saving is blocked by the current automation or AI settings. Existing bookmarks are kept."
+  },
+  "sites_problemConfirmAccount": {
+    "message": "Open sync settings and confirm the detected website account, then continue checking."
   },
   "sites_problemConnection": {
     "message": "The website connection is unavailable. Reading cannot continue yet."
@@ -7409,8 +7415,17 @@
   "sites_problemNetwork": {
     "message": "The connection did not finish. Confirmed bookmarks are kept; unfinished work is still pending."
   },
+  "sites_problemNoReadableTab": {
+    "message": "No readable $1 tab is connected to the extension."
+  },
   "sites_problemOpen": {
     "message": "Open $1 and check its connection to continue."
+  },
+  "sites_problemOriginalAccount": {
+    "message": "Reconnect the original account in sync settings, or stop this check and start a new one for the current account."
+  },
+  "sites_problemPageChanged": {
+    "message": "The website page changed while source items were being read."
   },
   "sites_problemPermission": {
     "message": "Bookmark or website access is missing. Saved bookmarks are kept."
@@ -7420,6 +7435,9 @@
   },
   "sites_problemRecheck": {
     "message": "Run a new check to review the current changes."
+  },
+  "sites_problemReconnectTab": {
+    "message": "Continue checking to reconnect an open $1 tab or open the website. Keep it open while reading; items already found are kept and duplicates are skipped."
   },
   "sites_problemReduceScope": {
     "message": "Select fewer collections or a smaller source list, then check again."
@@ -7445,11 +7463,17 @@
   "sites_problemUnconfirmed": {
     "message": "Some save results could not be confirmed. Check the original operations before creating another copy."
   },
+  "sites_problemUnconfirmedAccount": {
+    "message": "The website account needs to be confirmed in sync settings."
+  },
   "sites_problemUnknown": {
     "message": "This operation could not finish, and the cause is not yet classified. Its diagnostic details can be copied for investigation."
   },
   "sites_problemUnsupported": {
     "message": "This operation is unavailable with the current adapter, browser or stored data version."
+  },
+  "sites_problemVerifyConnection": {
+    "message": "Continue checking to verify the current connection. If another account is connected, reconnect the original account in sync settings."
   },
   "sites_problemWait": {
     "message": "Wait a few minutes before continuing. Unavailable source items are skipped separately."
@@ -7471,9 +7495,6 @@
   },
   "sites_readRateLimited": {
     "message": "$1 asked us to slow down. Try continuing in a few minutes; favorites already read are kept."
-  },
-  "sites_readSourceLost": {
-    "message": "The website connection was lost. Continue reading to check again; saved bookmarks will not be duplicated."
   },
   "sites_readingCollection": {
     "message": "Reading “$1” · $2 favorites found"
@@ -7597,6 +7618,9 @@
   },
   "sites_reconnectSource": {
     "message": "Connect this source in sync settings to continue."
+  },
+  "sites_reconnectingCheck": {
+    "message": "Reconnecting to the website before continuing. Items already read are kept."
   },
   "sites_recordChecked": {
     "message": "Source check completed"

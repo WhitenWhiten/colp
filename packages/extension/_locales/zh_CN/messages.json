@@ -11919,10 +11919,6 @@
     "message": "打开 $1",
     "description": "Open $1"
   },
-  "sites_openSiteFirst": {
-    "message": "请在标签页中打开 $1，然后重试。",
-    "description": "Open $1 in a tab, then try again."
-  },
   "sites_openToList": {
     "message": "在标签页中打开 $1 即可列出你的收藏夹。",
     "description": "Open $1 in a tab to list your collections."
@@ -12675,10 +12671,6 @@
     "message": "$1 要求放慢读取速度。请几分钟后继续，已读取的收藏会保留。",
     "description": "$1 asked us to slow down. Try continuing in a few minutes; favorites already read are kept."
   },
-  "sites_readSourceLost": {
-    "message": "与源网站的连接已断开。继续读取可重新检查，不会重复添加已保存的书签。",
-    "description": "The website connection was lost. Continue reading to check again; saved bookmarks will not be duplicated."
-  },
   "sites_readingCollection": {
     "message": "正在读取“$1” · 已找到 $2 个收藏",
     "description": "Reading “$1” · $2 favorites found"
@@ -13239,10 +13231,6 @@
     "message": "核对并继续保存",
     "description": "Check and continue saving"
   },
-  "sites_connectingForCheck": {
-    "message": "正在连接 $1 以继续检查",
-    "description": "Connecting to $1 to continue the check"
-  },
   "sites_existingCopyLocation": {
     "message": "按你的副本设置保留原有位置",
     "description": "Existing copies keep their locations under your copy policy"
@@ -13254,10 +13242,6 @@
   "sites_noReadablePage": {
     "message": "尚未连接可供读取的 $1 页面。需要检查内容时，请打开或刷新网站。",
     "description": "No $1 page is connected for reading. Open or reload the website when you want to check its content."
-  },
-  "sites_openedForCheck": {
-    "message": "网站已打开，连接就绪后会自动继续检查。",
-    "description": "The website has been opened. Checking continues automatically once its connection is ready."
   },
   "sites_otherLocation": {
     "message": "其他本地文件夹",
@@ -13334,5 +13318,53 @@
   "sites_sourceItem": {
     "message": "来源内容",
     "description": "Source item"
+  },
+  "sites_checkingConnection": {
+    "message": "正在检查连接…",
+    "description": "Checking connection…"
+  },
+  "sites_checkingSourceConnection": {
+    "message": "正在检查与 $1 的连接…",
+    "description": "Checking the $1 connection…"
+  },
+  "sites_problemAccountChanged": {
+    "message": "当前连接的 $1 账号与本次检查使用的账号不同。",
+    "description": "The connected $1 account is different from the account used by this check."
+  },
+  "sites_problemAuthorizationChanged": {
+    "message": "源网站的账号或访问授权发生了变化，检查已暂停。",
+    "description": "The source account or its access changed, so this check paused."
+  },
+  "sites_problemConfirmAccount": {
+    "message": "打开同步设置，确认检测到的网站账号后，再继续检查。",
+    "description": "Open sync settings and confirm the detected website account, then continue checking."
+  },
+  "sites_problemNoReadableTab": {
+    "message": "插件尚未连接到可读取的 $1 标签页。",
+    "description": "No readable $1 tab is connected to the extension."
+  },
+  "sites_problemOriginalAccount": {
+    "message": "请在同步设置中重新连接原账号；也可以停止本次检查，再为当前账号开始新的检查。",
+    "description": "Reconnect the original account in sync settings, or stop this check and start a new one for the current account."
+  },
+  "sites_problemPageChanged": {
+    "message": "读取内容期间，源网站页面发生了变化。",
+    "description": "The website page changed while source items were being read."
+  },
+  "sites_problemReconnectTab": {
+    "message": "点击“继续检查”以重新连接已打开的 $1 标签页，或打开网站。读取期间请保持标签页打开；已读取的内容会保留，并自动去重。",
+    "description": "Continue checking to reconnect an open $1 tab or open the website. Keep it open while reading; items already found are kept and duplicates are skipped."
+  },
+  "sites_problemUnconfirmedAccount": {
+    "message": "请在同步设置中确认源网站账号。",
+    "description": "The website account needs to be confirmed in sync settings."
+  },
+  "sites_problemVerifyConnection": {
+    "message": "点击“继续检查”以验证当前连接。如果连接了其他账号，请在同步设置中重新连接原账号。",
+    "description": "Continue checking to verify the current connection. If another account is connected, reconnect the original account in sync settings."
+  },
+  "sites_reconnectingCheck": {
+    "message": "正在重新连接网站，连接后将继续检查。已读取的内容会保留。",
+    "description": "Reconnecting to the website before continuing. Items already read are kept."
   }
 }

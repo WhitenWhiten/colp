@@ -257,7 +257,8 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
         }
         put(tx, 'meta', key(job.id), next);
       });
-      if (receipt.status === 'rejected' && job.phase === 'scanning') await save({ ...job, phase: 'paused', reason: receipt.reason, coverage: 'partial' });
+      if (receipt.status === 'rejected' && job.phase === 'scanning' && job.outstanding === message.pageRequestId)
+        await save({ ...job, phase: 'paused', reason: receipt.reason, coverage: 'partial' });
       if (receipt.status === 'accepted') {
         if (message.result.status === 'failed') await log(await load(job.id) ?? job, { kind: 'problem', operation: 'read', requestId: message.pageRequestId,
           code: message.result.error.code, httpStatus: message.result.error.httpStatus, sourceCode: message.result.error.sourceCode,
@@ -315,16 +316,27 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
       await log({ ...job, phase: 'cancelled' }, { kind: 'stopped', operation: job.approvalId ? 'save' : 'read' });
     }),
     resume: (id: string) => lane(async () => {
-      const job = await load(id), source = await ports.source();
-      if (!job || job.phase !== 'paused' || !source) throw new Error('importChanged'); await authority(job);
+      const job = await load(id);
+      if (!job || job.phase !== 'paused') throw new Error('importChanged');
+      const source = await ports.source();
+      if (!source) throw new Error('pageUnavailable');
+      // A confirmed reconnection may renew both generations. Only discovery can
+      // adopt it, and only for the same installation and durable account identity.
+      if ((source.context.installationId ?? legacySite.adapterId) !== ledger.definition.adapterId) throw new Error('sourceAuthorizationChanged');
+      if (source.context.connectionId !== job.context.connectionId) throw new Error('sourceAccountChanged');
       const restart = ledger.definition.importResume !== 'stableCursor' || job.reason === 'staleCursor';
       await db.transaction(['importRuns', 'meta', 'authorities', 'documentLeases'], 'readwrite', async tx => {
         await requireSourceAuthority(tx, source.context);
         const run = await get<SourceImportRun>(tx, 'importRuns', id); if (!run) throw new Error('importMissing');
         put(tx, 'importRuns', id, { ...run, phase: 'scanning', context: source.context, outstanding: null, ...(restart ? { cursor: null, seenCursors: [] } : {}) });
-        put(tx, 'meta', key(id), { ...job, context: source.context, phase: 'scanning', ...(restart ? { stage: ledger.definition.defaultCollection ? 'items' : 'collections', found: ledger.definition.defaultCollection ? [ledger.definition.defaultCollection.id] : [], collectionIndex: 0, cursor: null } : {}), outstanding: null,
+        put(tx, 'meta', key(id), { ...job, context: source.context, phase: 'scanning', ...(restart ? { stage: ledger.definition.defaultCollection ? 'items' : 'collections', found: ledger.definition.defaultCollection ? [ledger.definition.defaultCollection.id] : [], collectionIndex: 0, cursor: null } : {}), outstanding: null, pageWaitUntil: undefined,
           coverage: 'partial', scanComplete: false, reason: restart ? 'restartAndDeduplicate' : 'stableCursor' });
-      }); await log({ ...job, phase: 'scanning' }, { kind: 'started', operation: 'read' }); ports.alarm(Date.now() + 100);
+      });
+      if (job.outstanding) {
+        try { ports.send(job.context, { operation: 'cancelRead', readSessionId: job.id }); } catch { /* the old page is already gone */ }
+        await scheduler.finish(job.outstanding);
+      }
+      await log({ ...job, context: source.context, phase: 'scanning' }, { kind: 'started', operation: 'read' }); ports.alarm(Date.now() + 100);
     }),
     wake: () => lane(async () => {
       let job = await load(); if (!job) return;

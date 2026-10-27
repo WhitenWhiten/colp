@@ -38,7 +38,7 @@ async function mount(error?: string, configured = false) {
   const openTab = vi.fn();
   vi.stubGlobal('chrome', { runtime: { sendMessage, getURL: (path: string) => `https://extension.test/${path}` },
     storage: { local: new MemoryStorageArea(), onChanged: { addListener: () => {}, removeListener: () => {} } },
-    tabs: { create: openTab }, permissions: { contains: async () => true }, bookmarks: { create,
+    tabs: { create: openTab, query: async () => [] }, permissions: { contains: async () => true }, bookmarks: { create,
     getTree: async () => [{ id: '0', title: '', children: [{ id: '2', title: 'Other bookmarks', children: [
       { id: 'synced', title: 'Synced source' }, { id: 'local', title: 'Local source' },
     ] }] }],
@@ -123,7 +123,7 @@ test('a cancelled 4914-item import with no source document reports the stop and 
   expect(element('start-import').hidden).toBe(true);
   expect(element('import-open-source').hidden).toBe(false);
   element('import-open-source').click();
-  expect(f.openTab).toHaveBeenCalledWith({ url: 'https://www.bilibili.com' });
+  await vi.waitFor(() => expect(f.openTab).toHaveBeenCalledWith({ url: 'https://www.bilibili.com' }));
   expect(element('approve-import').hidden).toBe(true);
   expect(element('import-progress').hidden).toBe(true);
   expect(f.sendMessage.mock.calls.some(([r]) => r.kind === 'known.siteAdapters.import.start')).toBe(false);
@@ -131,6 +131,59 @@ test('a cancelled 4914-item import with no source document reports the stop and 
   element('refresh').click();
   await vi.waitFor(() => expect(f.sendMessage).toHaveBeenCalledWith({ kind: 'known.siteAdapters.import.start', adapterId: 'bundled.bilibili' }), { timeout: 3000 });
   expect(f.create).not.toHaveBeenCalled();
+});
+
+function pausedCheck(): ImportStatus {
+  return { id: 'paused-read', phase: 'paused', reason: 'restartRequired', edgeCount: 385, pages: 12, omissions: 15,
+    coverage: 'partial', nextEdge: 0, nextPlan: 0, preview: null };
+}
+test('continuing a paused read immediately shows progress, survives polling, and prevents duplicate submissions', async () => {
+  const f = await mount(undefined, true);
+  f.state.archive.import = pausedCheck(); element('refresh').click();
+  await vi.waitFor(() => expect(element('resume-import').hidden).toBe(false));
+  let finish!: (value: typeof f.state) => void;
+  const pending = new Promise<typeof f.state>(resolve => { finish = resolve; }), send = f.sendMessage.getMockImplementation()!;
+  f.sendMessage.mockImplementation(message => message.kind === 'known.siteAdapters.import.resume' ? pending : send(message));
+  element('resume-import').click();
+  expect(element('import-state').textContent).toBe('Checking the Bilibili connection…');
+  expect(element<HTMLButtonElement>('resume-import').disabled).toBe(true);
+  expect(element('resume-import').getAttribute('aria-busy')).toBe('true');
+  element('refresh').click();
+  await vi.waitFor(() => expect(element('step-import').getAttribute('aria-busy')).toBe('true'));
+  element('resume-import').dispatchEvent(new Event('click'));
+  expect(f.sendMessage.mock.calls.filter(([r]) => r.kind === 'known.siteAdapters.import.resume')).toHaveLength(1);
+  f.state.archive.import.phase = 'scanning'; finish(structuredClone(f.state));
+  await vi.waitFor(() => expect(element('step-import').getAttribute('aria-busy')).toBe('false'));
+  expect(element('import-state').textContent).toBe('Checking source items');
+  expect(element('import-summary').textContent).toContain('385');
+  expect(f.openTab).not.toHaveBeenCalled(); expect(f.create).not.toHaveBeenCalled();
+});
+test('each failed continuation gives visible feedback and explains changed authorization without asking to open an already connected site', async () => {
+  const f = await mount(undefined, true);
+  f.state.archive.import = pausedCheck(); element('refresh').click();
+  await vi.waitFor(() => expect(element('resume-import').hidden).toBe(false));
+  const send = f.sendMessage.getMockImplementation()!;
+  f.sendMessage.mockImplementation(message => message.kind === 'known.siteAdapters.import.resume' ? Promise.resolve({ error: 'sourceAuthorizationChanged' }) : send(message));
+  element('resume-import').click();
+  await vi.waitFor(() => expect(document.querySelector('.toast-message')?.textContent).toContain('access changed'));
+  await vi.waitFor(() => expect(element<HTMLButtonElement>('resume-import').disabled).toBe(false));
+  expect(element('site-problem-next').textContent).toContain('verify the current connection');
+  const toast = document.querySelector('.toast:not(.is-closing)');
+  element('resume-import').click();
+  await vi.waitFor(() => expect(document.querySelector('.toast:not(.is-closing)')).not.toBe(toast));
+  expect(element('site-problem-what').textContent).not.toContain('connection is unavailable');
+  expect(f.openTab).not.toHaveBeenCalled();
+});
+test('a website tab without an adapter connection is reused for a paused check', async () => {
+  const f = await mount(undefined, true);
+  f.state.archive.import = pausedCheck(); f.state.documents = 0;
+  const query = vi.fn(async () => [{ id: 17, incognito: false }]); chrome.tabs.query = query;
+  element('refresh').click();
+  await vi.waitFor(() => expect(element('import-open-source').hidden).toBe(false));
+  element('import-open-source').click();
+  await vi.waitFor(() => expect(f.sendMessage).toHaveBeenCalledWith({ kind: 'known.siteAdapters.import.resume', jobId: 'paused-read', adapterId: 'bundled.bilibili' }));
+  expect(query).toHaveBeenCalledWith({ url: ['https://www.bilibili.com/*'] });
+  expect(f.openTab).not.toHaveBeenCalled();
 });
 
 test('mapping status follows the import through reading, approval and sync waiting without claiming it saved items', async () => {
