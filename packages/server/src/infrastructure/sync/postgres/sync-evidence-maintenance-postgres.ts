@@ -31,6 +31,29 @@ const SNAPSHOT_CLEANUP_LIMIT = 25;
 const SNAPSHOT_NODE_BUDGET = 100_000;
 /** Terminal Ack receipts are small; a wider batch releases their pinned evidence sooner. */
 const ACK_RECEIPT_CLEANUP_LIMIT = 500;
+/** Keep terminal Session authority for one day after termination, then reclaim it. */
+const SESSION_CLEANUP_LIMIT = 100;
+const SESSION_CLEANUP_GRACE_MS = 24 * 60 * 60 * 1000;
+
+/** A terminated Session with no protocol child reference is safe to reclaim. */
+function reclaimableTerminalSessions(now: Date) {
+  const cutoff = new Date(now.getTime() - SESSION_CLEANUP_GRACE_MS);
+  return sql`session.status = 'terminated'
+    AND session.terminated_at <= ${cutoff}
+    AND NOT EXISTS (SELECT 1 FROM sync_pull_cursor_evidence child WHERE child.session_id = session.session_id)
+    AND NOT EXISTS (SELECT 1 FROM sync_pull_page_evidence child WHERE child.session_id = session.session_id)
+    AND NOT EXISTS (SELECT 1 FROM sync_ack_receipts child WHERE child.session_id = session.session_id)
+    AND NOT EXISTS (SELECT 1 FROM sync_conflicts child WHERE child.session_id = session.session_id)
+    AND NOT EXISTS (SELECT 1 FROM sync_recovery_capabilities child WHERE child.session_id = session.session_id)
+    AND NOT EXISTS (SELECT 1 FROM sync_bootstrap_snapshots child WHERE child.session_id = session.session_id)
+    AND NOT EXISTS (SELECT 1 FROM sync_bootstrap_snapshot_pages child WHERE child.session_id = session.session_id)
+    AND NOT EXISTS (SELECT 1 FROM sync_recovery_ack_receipts child WHERE child.session_id = session.session_id)
+    AND NOT EXISTS (SELECT 1 FROM sync_replica_retirement_receipts child WHERE child.session_id = session.session_id)
+    AND NOT EXISTS (SELECT 1 FROM sync_sequence_receipts child WHERE child.session_id = session.session_id)
+    AND NOT EXISTS (SELECT 1 FROM sync_bootstrap_snapshot_conflict_receipts child WHERE child.session_id = session.session_id)
+    AND NOT EXISTS (SELECT 1 FROM sync_pull_cursor_recovery_proofs child WHERE child.authority_session_id = session.session_id)
+    AND NOT EXISTS (SELECT 1 FROM sync_pull_cursor_lineage child WHERE child.session_id = session.session_id)`;
+}
 
 /** Retained Ack evidence must not consume every slot ahead of reclaimable work. */
 function actionableEvidence(now: Date) {
@@ -80,23 +103,26 @@ function actionableSnapshots(now: Date) {
  * 1. Terminal Ack receipts (terminated Session or retired Replica) are deleted
  *    first, bounded by ACK_RECEIPT_CLEANUP_LIMIT. Their RESTRICT evidence can
  *    then be reclaimed by the same run.
- * 2. A candidate CTE over proofs, next-cursor evidence, lineage, and page
+ * 2. Terminated Sessions past the one-day grace window and without protocol
+ *    child references have their binding/scope/idempotency rows and Session row
+ *    deleted, bounded by SESSION_CLEANUP_LIMIT.
+ * 3. A candidate CTE over proofs, next-cursor evidence, lineage, and page
  *    envelopes selects the oldest expired/consumed/retired rows, oldest-first,
  *    and locks the batch with FOR UPDATE SKIP LOCKED so concurrent workers never
  *    process the same rows. batchSize caps the total candidate rows per run.
- * 3. Proofs are deleted first: the candidate predicate mirrors exactly the
+ * 4. Proofs are deleted first: the candidate predicate mirrors exactly the
  *    guard_sync_pull_cursor_recovery_proof() DELETE allowance
  *    (proof_expires_at <= now OR consumed_at IS NOT NULL OR retired status).
- * 4. Evidence whose cursor is neither an Ack receipt target nor a checkpoint
+ * 5. Evidence whose cursor is neither an Ack receipt target nor a checkpoint
  *    reference is deleted; the predicate mirrors guard_sync_pull_cursor_evidence_retention()
  *    DELETE allowance (expired-or-retired AND NOT EXISTS ack AND NOT EXISTS checkpoint).
- * 5. Expired checkpoint-referenced evidence is only redacted (cursor -> NULL),
+ * 6. Expired checkpoint-referenced evidence is only redacted (cursor -> NULL),
  *    keeping cursor_digest + tuple authority; the UPDATE predicate mirrors the
  *    trigger's UPDATE allowance. Redacted rows are excluded from future runs
  *    (cursor IS NOT NULL), so repeated runs are idempotent.
- * 6. Live-Ack-protected evidence and protected page envelopes stay intact and
+ * 7. Live-Ack-protected evidence and protected page envelopes stay intact and
  *    do not occupy candidate slots. A protection race is still classified at write time.
- * 7. Expired bootstrap Snapshot evidence is reclaimed after the active stores:
+ * 8. Expired bootstrap Snapshot evidence is reclaimed after the active stores:
  *    page and node rows and expired capabilities are deleted for Snapshots past
  *    their expiry fence, then the Snapshot header is deleted unless a recovery
  *    Ack receipt needs it for Replica-lifetime replay.
@@ -152,6 +178,46 @@ export class PostgresSyncEvidenceMaintenanceCoordinator implements SyncEvidenceM
               WHERE replica.replica_id = receipt.replica_id AND replica.status = 'retired'))
         RETURNING principal_id, idempotency_key
       `.execute(transaction);
+
+      const sessionCandidates = await sql<{ session_id: string }>`
+        SELECT session.session_id
+        FROM sync_sessions AS session
+        WHERE ${reclaimableTerminalSessions(now)}
+        ORDER BY session.terminated_at, session.session_id
+        LIMIT ${Math.min(this.options.batchSize, SESSION_CLEANUP_LIMIT)}
+        FOR UPDATE SKIP LOCKED
+      `.execute(transaction);
+
+      let terminalSessionRowsDeleted = 0;
+      if (sessionCandidates.rows.length > 0) {
+        const sessionIds = sessionCandidates.rows.map((row) => row.session_id);
+        const receiptsDeleted = await sql<{ session_id: string }>`
+          DELETE FROM sync_session_idempotency_receipts
+          WHERE session_id = ANY(${sessionIds}::text[])
+          RETURNING session_id
+        `.execute(transaction);
+        const bindingsDeleted = await sql<{ session_id: string }>`
+          DELETE FROM sync_session_bindings
+          WHERE session_id = ANY(${sessionIds}::text[])
+          RETURNING session_id
+        `.execute(transaction);
+        const scopesDeleted = await sql<{ session_id: string }>`
+          DELETE FROM sync_session_scopes
+          WHERE session_id = ANY(${sessionIds}::text[])
+          RETURNING session_id
+        `.execute(transaction);
+        const sessionsDeleted = await sql<{ session_id: string }>`
+          DELETE FROM sync_sessions AS session
+          WHERE session.session_id = ANY(${sessionIds}::text[])
+            AND ${reclaimableTerminalSessions(now)}
+          RETURNING session.session_id
+        `.execute(transaction);
+        if (sessionsDeleted.rows.length !== sessionIds.length) {
+          throw new Error('Sync Session cleanup authority changed during reclamation');
+        }
+        terminalSessionRowsDeleted = receiptsDeleted.rows.length + bindingsDeleted.rows.length
+          + scopesDeleted.rows.length + sessionsDeleted.rows.length;
+      }
 
       const candidates = await sql<MaintenanceCandidateRow>`
         WITH proofs AS MATERIALIZED (
@@ -293,6 +359,7 @@ export class PostgresSyncEvidenceMaintenanceCoordinator implements SyncEvidenceM
       // Proofs FIRST: expired, consumed, or retired-replica proofs are all deletable.
       let deleted = 0;
       deleted += ackReceiptsDeleted.rows.length;
+      deleted += terminalSessionRowsDeleted;
       if (proofIds.length > 0) {
         const proofDeleted = await sql<{ proof_id: bigint | string }>`
           DELETE FROM sync_pull_cursor_recovery_proofs AS proof
@@ -442,7 +509,8 @@ export class PostgresSyncEvidenceMaintenanceCoordinator implements SyncEvidenceM
       await this.options.faultInjector?.afterPhase?.('before_commit');
 
       return Object.freeze({
-        attempted: candidates.rows.length + snapshotCandidates.rows.length + ackReceiptsDeleted.rows.length,
+        attempted: candidates.rows.length + snapshotCandidates.rows.length
+          + ackReceiptsDeleted.rows.length + sessionCandidates.rows.length,
         deleted,
         redacted,
         skipped,
@@ -494,6 +562,11 @@ async function computeOldestExpiredAgeMs(transaction: DatabaseTransaction, now: 
         OR EXISTS (SELECT 1 FROM sync_replicas AS replica
           WHERE replica.replica_id = receipt.replica_id AND replica.status = 'retired')
       ORDER BY receipt.completed_at LIMIT 1)
+      UNION ALL
+      (SELECT session.terminated_at AS expiry
+      FROM sync_sessions AS session
+      WHERE ${reclaimableTerminalSessions(now)}
+      ORDER BY session.terminated_at LIMIT 1)
       UNION ALL
       (SELECT snapshot.expires_at AS expiry
       FROM sync_bootstrap_snapshots AS snapshot

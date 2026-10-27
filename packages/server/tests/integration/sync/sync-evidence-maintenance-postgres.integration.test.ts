@@ -184,7 +184,8 @@ describeWithPostgres('R15 global evidence/proof maintenance worker', () => {
 
   async function terminateSession(sessionId: string) {
     await isolated.runtime.pool.query(`update sync_sessions
-      set status='terminated', termination_reason='administrative', terminated_at=current_timestamp
+      set status='terminated', termination_reason='administrative',
+        terminated_at=current_timestamp - interval '2 days'
       where session_id=$1`, [sessionId]);
   }
 
@@ -624,6 +625,62 @@ describeWithPostgres('R15 global evidence/proof maintenance worker', () => {
       'select 1 from sync_pull_cursor_evidence where evidence_id=$1', [evidence.evidenceId])).rowCount, 1);
     assert.equal((await isolated.runtime.pool.query(
       'select 1 from sync_pull_page_evidence where next_cursor_digest=$1', [evidence.cursorDigest])).rowCount, 1);
+  });
+
+  test('terminated Sessions outside the grace window release their authority rows', async () => {
+    const value = await context('session-cleanup');
+    await terminateSession(value.sessionId);
+    const before = await Promise.all([
+      isolated.runtime.pool.query('select 1 from sync_session_bindings where session_id=$1', [value.sessionId]),
+      isolated.runtime.pool.query('select 1 from sync_session_scopes where session_id=$1', [value.sessionId]),
+      isolated.runtime.pool.query('select 1 from sync_session_idempotency_receipts where session_id=$1', [value.sessionId]),
+    ]);
+    assert.ok(before.every((result) => result.rowCount === 1));
+
+    const result = await coordinator().runBatch();
+    assert.ok(result.deleted >= 4);
+    assert.equal((await isolated.runtime.pool.query(
+      'select 1 from sync_sessions where session_id=$1', [value.sessionId])).rowCount, 0);
+    assert.equal((await isolated.runtime.pool.query(
+      'select 1 from sync_session_bindings where session_id=$1', [value.sessionId])).rowCount, 0);
+    assert.equal((await isolated.runtime.pool.query(
+      'select 1 from sync_session_scopes where session_id=$1', [value.sessionId])).rowCount, 0);
+    assert.equal((await isolated.runtime.pool.query(
+      'select 1 from sync_session_idempotency_receipts where session_id=$1', [value.sessionId])).rowCount, 0);
+  });
+
+  test('a terminated Session with a protocol child stays until the child is swept', async () => {
+    const value = await context('session-child');
+    await terminateSession(value.sessionId);
+    const proof = await seedProof(value, 'session-child', 'session-child-cursor',
+      new Date(Date.now() + 30 * 24 * 60 * 60 * 1_000));
+    await coordinator().runBatch();
+    assert.equal((await isolated.runtime.pool.query(
+      'select 1 from sync_sessions where session_id=$1', [value.sessionId])).rowCount, 1);
+    assert.equal((await isolated.runtime.pool.query(
+      'select 1 from sync_pull_cursor_recovery_proofs where proof_id=$1', [proof.proofId])).rowCount, 1);
+  });
+
+  test('active Sessions and their binding, scope and replay rows stay immutable', async () => {
+    const value = await context('session-active');
+    await assert.rejects(isolated.runtime.pool.query(
+      'delete from sync_sessions where session_id=$1', [value.sessionId]), /cannot be deleted/u);
+    await assert.rejects(isolated.runtime.pool.query(
+      'delete from sync_session_bindings where session_id=$1', [value.sessionId]), /immutable/u);
+    await assert.rejects(isolated.runtime.pool.query(
+      'delete from sync_session_scopes where session_id=$1', [value.sessionId]), /immutable/u);
+    await assert.rejects(isolated.runtime.pool.query(
+      'delete from sync_session_idempotency_receipts where session_id=$1', [value.sessionId]), /immutable/u);
+
+    await coordinator().runBatch({ now: BASE_TIME });
+    assert.equal((await isolated.runtime.pool.query(
+      'select 1 from sync_sessions where session_id=$1', [value.sessionId])).rowCount, 1);
+    assert.equal((await isolated.runtime.pool.query(
+      'select 1 from sync_session_bindings where session_id=$1', [value.sessionId])).rowCount, 1);
+    assert.equal((await isolated.runtime.pool.query(
+      'select 1 from sync_session_scopes where session_id=$1', [value.sessionId])).rowCount, 1);
+    assert.equal((await isolated.runtime.pool.query(
+      'select 1 from sync_session_idempotency_receipts where session_id=$1', [value.sessionId])).rowCount, 1);
   });
 
   test('the cleanup index bounds the expiry-first evidence candidate scan at production scale', async () => {
