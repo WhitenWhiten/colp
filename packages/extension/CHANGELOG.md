@@ -4,6 +4,31 @@ All notable changes to the Know-N browser extension are documented here. The for
 
 ## [Unreleased]
 
+## [0.1.0-rc.4] - 2026-10-27
+
+### Added
+
+- The Site adapters page shows one mapping table per configured source: each selected collection with its save location and confirmed bookmark count, including missing destinations and copies kept elsewhere. Source, destination and the current operation are configured and reviewed in one place.
+- The current read, preview or save task uses the same progress card and actions as Sync Import. Previews are prepared in the background, an approved save continues after settings are closed, and a stopped task keeps its read and confirmed counts.
+- A bounded operation record keeps reading, approval, confirmed saves, stopping and waiting across settings closes and worker restarts. A problem explains what happened and what to do next, and a redacted diagnostic report can be copied per incident.
+
+### Changed
+
+- Site configuration reuses the setup form in a dialog. Single-list, page, account and observation-only sources share the same components and hide fields they do not use; advanced COLP Server, recovery and add-on tools are folded below the main view.
+- An uncertain save checks the original approved command before continuing instead of creating a replacement command or asking for a broader approval.
+
+### Fixed
+
+- Multi-tab imports keep their document-local read cursor through repeated lease renewals, so a worker restart or a second tab no longer restarts the read or mixes pages from another source document.
+- Item reviews keep their reasons, preserved local changes and original-operation recovery actions together with the affected source items.
+
+### Upgrade notes
+
+Update COLP Server to `0.1.0-rc.14` alongside this extension for the current
+site adapter view and the server gallery covers. Chrome uses numeric version
+`0.1.0.4` and displays `0.1.0-rc.4`. Install the GitHub ZIP as an unpacked
+extension.
+
 ## [0.1.0-rc.3] - 2026-10-26
 
 ### Added

@@ -4,6 +4,29 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+## [0.1.0-rc.14] - 2026-10-27
+
+### Added
+
+- Bookmarks and folders can have a gallery cover. Upload a PNG, JPEG or WebP image up to 2 MiB, keep the automatic preview, or turn the cover off. Uploads are durable immutable assets with long-lived caching, separate from the expiring link-preview cache, and the bundled web app exposes the control in the bookmark and folder editor.
+- Cover uploads and per-node cover choices use command receipts and revision checks, so retrying an upload or a change does not create a second image or overwrite a newer choice.
+
+### Changed
+
+- The bundled web app reuses its persisted Library read model after a reload and revalidates through a lightweight editor revision, fetching the pages only when the revision changed. Large libraries open on the saved tree instead of reading every collection again.
+
+### Fixed
+
+- Cover requests reject malformed modes and unsupported formats, enforce the 2 MiB upload limit before decoding, and leave the existing Open Graph preview contracts unchanged.
+
+### Upgrade notes
+
+From 0.1.0-rc.13, back up the database, update the checkout and deployment
+files from this tag, set `COLP_IMAGE_TAG=0.1.0-rc.14`, and recreate the server.
+Startup applies `202611020800_node_cover_images`; uploaded covers are stored in
+these tables, so dropping them discards the uploads. Install the matching
+`extension-v0.1.0-rc.4` ZIP for the current site adapter view.
+
 ## [0.1.0-rc.13] - 2026-10-26
 
 ### Added
