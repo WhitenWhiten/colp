@@ -35,8 +35,10 @@ export async function readSnapshotParentRevisions(client: PoolClient, snapshotId
 }
 
 /**
- * Best-effort bounded cleanup of expired Snapshots. Evidence-bearing rows are
- * never candidates; a concurrent FK race only skips this round.
+ * Best-effort bounded cleanup of expired Snapshots without evidence. The
+ * evidence maintenance worker reclaims expiry-fenced pages/capabilities and the
+ * Snapshot headers that retain them; this inline path only removes headers that
+ * are already free of evidence. A concurrent FK race only skips this round.
  */
 export async function cleanupExpiredSnapshots(client: PoolClient, collectionId: string,
   snapshotId: string): Promise<void> {

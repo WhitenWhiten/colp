@@ -20,6 +20,16 @@ interface EvidenceClassificationRow {
   ack_protected: boolean;
 }
 
+interface SnapshotCleanupCandidateRow {
+  snapshot_id: string;
+  expires_at: Date;
+  receipt_pinned: boolean;
+}
+
+/** Bound bootstrap Snapshot reclamation by both header count and cascaded node rows. */
+const SNAPSHOT_CLEANUP_LIMIT = 25;
+const SNAPSHOT_NODE_BUDGET = 100_000;
+
 /** Retained Ack evidence must not consume every slot ahead of reclaimable work. */
 function actionableEvidence(now: Date) {
   return sql`evidence.cursor IS NOT NULL
@@ -43,6 +53,24 @@ function actionablePages(now: Date) {
       WHERE replica.replica_id=page.replica_id AND evidence.cursor_digest=page.next_cursor_digest)`;
 }
 
+/** A Snapshot can only be reclaimed after its expiry fence and without a live capability. */
+function actionableSnapshots(now: Date) {
+  return sql`snapshot.expires_at <= ${now}
+    AND NOT EXISTS (
+      SELECT 1 FROM sync_recovery_capabilities AS capability
+      WHERE capability.snapshot_id = snapshot.snapshot_id
+        AND capability.expires_at > ${now}
+    )
+    AND (
+      NOT EXISTS (SELECT 1 FROM sync_recovery_ack_receipts AS receipt
+        WHERE receipt.snapshot_id = snapshot.snapshot_id)
+      OR EXISTS (SELECT 1 FROM sync_bootstrap_snapshot_pages AS page
+        WHERE page.snapshot_id = snapshot.snapshot_id)
+      OR EXISTS (SELECT 1 FROM sync_bootstrap_snapshot_nodes AS node
+        WHERE node.snapshot_id = snapshot.snapshot_id)
+    )`;
+}
+
 /**
  * R15 global evidence/proof maintenance coordinator.
  *
@@ -63,6 +91,10 @@ function actionablePages(now: Date) {
  *    (cursor IS NOT NULL), so repeated runs are idempotent.
  * 5. Ack-protected-only evidence and protected page envelopes stay intact and
  *    do not occupy candidate slots. A protection race is still classified at write time.
+ * 6. Expired bootstrap Snapshot evidence is reclaimed after the active stores:
+ *    page and node rows and expired capabilities are deleted for Snapshots past
+ *    their expiry fence, then the Snapshot header is deleted unless a recovery
+ *    Ack receipt needs it for Replica-lifetime replay.
  *
  * Every DML statement re-checks the full trigger-allowed predicate so the
  * retention triggers are always satisfied and never reject a worker statement.
@@ -143,6 +175,28 @@ export class PostgresSyncEvidenceMaintenanceCoordinator implements SyncEvidenceM
         SELECT kind, id, expiry FROM candidates
         ORDER BY expiry
         LIMIT ${this.options.batchSize}
+      `.execute(transaction);
+
+      const snapshotCandidates = await sql<SnapshotCleanupCandidateRow>`
+        WITH snapshots AS MATERIALIZED (
+          SELECT snapshot.snapshot_id, snapshot.expires_at, coalesce(snapshot.node_count, 1) AS node_count,
+            EXISTS (SELECT 1 FROM sync_recovery_ack_receipts AS receipt
+              WHERE receipt.snapshot_id = snapshot.snapshot_id) AS receipt_pinned
+          FROM sync_bootstrap_snapshots AS snapshot
+          WHERE ${actionableSnapshots(now)}
+          ORDER BY snapshot.expires_at, snapshot.snapshot_id
+          LIMIT ${Math.min(this.options.batchSize, SNAPSHOT_CLEANUP_LIMIT)}
+          FOR UPDATE SKIP LOCKED
+        )
+        SELECT snapshot_id, expires_at, receipt_pinned
+        FROM (
+          SELECT snapshot_id, expires_at, receipt_pinned, node_count,
+            sum(node_count) OVER (ORDER BY expires_at, snapshot_id ROWS UNBOUNDED PRECEDING) AS cumulative_nodes
+          FROM snapshots
+        ) AS ranked
+        WHERE cumulative_nodes <= ${SNAPSHOT_NODE_BUDGET}
+          OR cumulative_nodes = node_count
+        ORDER BY expires_at, snapshot_id
       `.execute(transaction);
 
       const proofIds = candidates.rows
@@ -302,11 +356,62 @@ export class PostgresSyncEvidenceMaintenanceCoordinator implements SyncEvidenceM
         deleted += pagesDeleted.rows.length;
       }
 
+      // A Snapshot is unusable past expires_at: page reads, capability issuance
+      // and Ack all reject it. Reclaim its page and node bytes, then delete the
+      // header when no Ack receipt pins it. A receipt keeps only the small header
+      // and capability row needed for idempotent replay.
+      if (snapshotCandidates.rows.length > 0) {
+        const snapshotIds = snapshotCandidates.rows.map((row) => row.snapshot_id);
+        const snapshotPagesDeleted = await sql<{ snapshot_id: string }>`
+          DELETE FROM sync_bootstrap_snapshot_pages AS page
+          USING sync_bootstrap_snapshots AS snapshot
+          WHERE page.snapshot_id = snapshot.snapshot_id
+            AND page.snapshot_id = ANY(${snapshotIds}::text[])
+            AND snapshot.expires_at <= current_timestamp
+          RETURNING page.snapshot_id
+        `.execute(transaction);
+        deleted += snapshotPagesDeleted.rows.length;
+
+        const snapshotNodesDeleted = await sql<{ snapshot_id: string }>`
+          DELETE FROM sync_bootstrap_snapshot_nodes AS snapshot_node
+          USING sync_bootstrap_snapshots AS snapshot
+          WHERE snapshot_node.snapshot_id = snapshot.snapshot_id
+            AND snapshot_node.snapshot_id = ANY(${snapshotIds}::text[])
+            AND snapshot.expires_at <= current_timestamp
+          RETURNING snapshot_node.snapshot_id
+        `.execute(transaction);
+        deleted += snapshotNodesDeleted.rows.length;
+
+        const snapshotCapabilitiesDeleted = await sql<{ capability_digest: string }>`
+          DELETE FROM sync_recovery_capabilities AS capability
+          WHERE capability.snapshot_id = ANY(${snapshotIds}::text[])
+            AND capability.expires_at <= current_timestamp
+            AND NOT EXISTS (SELECT 1 FROM sync_recovery_ack_receipts AS receipt
+              WHERE receipt.capability_digest = capability.capability_digest)
+          RETURNING capability.capability_digest
+        `.execute(transaction);
+        deleted += snapshotCapabilitiesDeleted.rows.length;
+
+        const snapshotHeadersDeleted = await sql<{ snapshot_id: string }>`
+          DELETE FROM sync_bootstrap_snapshots AS snapshot
+          WHERE snapshot.snapshot_id = ANY(${snapshotIds}::text[])
+            AND snapshot.expires_at <= current_timestamp
+            AND NOT EXISTS (SELECT 1 FROM sync_bootstrap_snapshot_pages AS page
+              WHERE page.snapshot_id = snapshot.snapshot_id)
+            AND NOT EXISTS (SELECT 1 FROM sync_recovery_capabilities AS capability
+              WHERE capability.snapshot_id = snapshot.snapshot_id)
+            AND NOT EXISTS (SELECT 1 FROM sync_recovery_ack_receipts AS receipt
+              WHERE receipt.snapshot_id = snapshot.snapshot_id)
+          RETURNING snapshot.snapshot_id
+        `.execute(transaction);
+        deleted += snapshotHeadersDeleted.rows.length;
+      }
+
       const oldestExpiredAgeMs = await computeOldestExpiredAgeMs(transaction, now);
       await this.options.faultInjector?.afterPhase?.('before_commit');
 
       return Object.freeze({
-        attempted: candidates.rows.length,
+        attempted: candidates.rows.length + snapshotCandidates.rows.length,
         deleted,
         redacted,
         skipped,
@@ -350,6 +455,11 @@ async function computeOldestExpiredAgeMs(transaction: DatabaseTransaction, now: 
       FROM sync_pull_page_evidence AS page
       WHERE ${actionablePages(now)} AND page.page_expires_at <= ${now}
       ORDER BY page.page_expires_at LIMIT 1)
+      UNION ALL
+      (SELECT snapshot.expires_at AS expiry
+      FROM sync_bootstrap_snapshots AS snapshot
+      WHERE ${actionableSnapshots(now)}
+      ORDER BY snapshot.expires_at LIMIT 1)
     ) AS expired_candidates
     WHERE expiry <= ${now}
   `.execute(transaction);

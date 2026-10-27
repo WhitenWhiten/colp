@@ -4,6 +4,10 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Fixed
+
+- Expired bootstrap Snapshots no longer retain their page evidence, capabilities and node rows forever. The evidence maintenance worker reclaims them after the Snapshot expiry fence and keeps only the small header and receipt needed for Replica-lifetime replay.
+
 ## [0.1.0-rc.15] - 2026-10-27
 
 ### Changed

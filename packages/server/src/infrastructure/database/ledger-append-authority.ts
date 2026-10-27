@@ -356,8 +356,8 @@ const LEDGER_APPEND_AUTHORITY: readonly LedgerAppendAuthority[] = Object.freeze(
       sourceDeletionAuthorized: false, requiredEligibilityGates: PROTOCOL_GATES,
     }),
   row('sync_bootstrap_snapshot_pages', 'sync', 'protocol_retained_source',
-    'immutable page evidence is read to validate recovery completion and retains its snapshot',
-    'bootstrap Snapshot pages', 'fenced Snapshot retention',
+    'immutable page evidence validates recovery completion while its Snapshot is live; expired evidence is reclaimed by maintenance',
+    'bootstrap Snapshot pages', 'Snapshot expiry fence',
     'sync_bootstrap_snapshot_pages_pkey',
     'Snapshot recovery completion', {
       accountableOwnerRole: 'sync_protocol_governance',
