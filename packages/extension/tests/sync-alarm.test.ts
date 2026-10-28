@@ -40,4 +40,31 @@ describe('MV3 sync wake deadlines', () => {
     await h.schedule(1_000);
     expect(h.due()).toBe(30_000);
   });
+
+  it('waits for asynchronous creation before reading the next deadline', async () => {
+    let scheduledTime: number | undefined;
+    let finish!: () => void;
+    const alarms = {
+      get: vi.fn(async () => scheduledTime === undefined ? undefined : { scheduledTime }),
+      create: vi.fn((_name: string, info: { when: number }) => new Promise<void>(resolve => {
+        finish = () => { scheduledTime = info.when; resolve(); };
+      })),
+    };
+    const schedule = createSyncAlarmScheduler(alarms, () => 0);
+    const first = schedule(30_000), second = schedule(120_000);
+    await vi.waitFor(() => expect(alarms.create).toHaveBeenCalledTimes(1));
+    expect(alarms.get).toHaveBeenCalledTimes(1);
+    finish();
+    await Promise.all([first, second]);
+    expect(scheduledTime).toBe(30_000);
+    expect(alarms.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports an asynchronous creation failure and permits a later retry', async () => {
+    const create = vi.fn().mockRejectedValueOnce(new Error('unavailable')).mockResolvedValue(undefined);
+    const schedule = createSyncAlarmScheduler({ get: async () => undefined, create }, () => 0);
+    await expect(schedule(1_000)).rejects.toThrow('unavailable');
+    await expect(schedule(1_000)).resolves.toBeUndefined();
+    expect(create).toHaveBeenCalledTimes(2);
+  });
 });
