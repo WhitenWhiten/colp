@@ -12,11 +12,11 @@ async function fixture() {
   });
   return { db, add };
 }
-test('completed history is never read before new work, including a later lower-key insert', async () => {
+test.each([5000, 50000])('%i completed plans never delay new work or a later lower-key insert', async history => {
   const f = await fixture();
   try {
     await f.db.transaction(['savePlans'], 'readwrite', async tx => {
-      for (let i = 0; i < 5000; i++) tx.objectStore('savePlans').put({ state: 'approved', plan: { id: `old-${i}`, effects: [] } }, `old-${i}`);
+      for (let i = 0; i < history; i++) tx.objectStore('savePlans').put({ state: 'approved', plan: { id: `old-${i}`, effects: [] } }, `old-${i}`);
     });
     const read = vi.spyOn(f.db, 'read'), execute = vi.fn(async () => ({ status: 'confirmed' })), schedule = vi.fn();
     const run = createSourceWorkQueue(f.db, { execute, schedule });
@@ -50,6 +50,30 @@ test('an interrupted claim becomes ready after its durable lease expires', async
     let time = 1; const execute = vi.fn(async () => ({ status: 'confirmed' })), schedule = vi.fn();
     await createSourceWorkQueue(f.db, { execute, schedule, now: () => time })(); expect(execute).not.toHaveBeenCalled();
     time = 30001; await createSourceWorkQueue(f.db, { execute, schedule, now: () => time })(); expect(execute).toHaveBeenCalledOnce();
+  } finally { await f.db.close(); }
+});
+test('revoked authorization is parked for review while another task can still complete', async () => {
+  const f = await fixture();
+  try {
+    await f.add('revoked'); await f.add('valid');
+    const execute = vi.fn(async (id: string) => id === 'revoked' ? { status: 'blocked', reason: 'sourceAuthorizationChanged' } : { status: 'confirmed' });
+    const run = createSourceWorkQueue(f.db, { execute, schedule: vi.fn() }); await run(); await run();
+    expect(await f.db.read('work', 'revoked')).toMatchObject({ reason: 'sourceAuthorizationChanged', dueAt: Number.MAX_SAFE_INTEGER });
+    expect(await f.db.read('work', 'valid')).toBeUndefined(); expect(execute).toHaveBeenCalledTimes(2);
+  } finally { await f.db.close(); }
+});
+test('revoked work with a submitted command keeps its late-receipt recovery wake', async () => {
+  const f = await fixture(); let now = 100;
+  try {
+    await f.add('late');
+    await f.db.transaction(['effects', 'outbox'], 'readwrite', async tx => {
+      tx.objectStore('effects').put({ state: 'unknown', commandId: 'issued' }, JSON.stringify(['late', 'bookmark']));
+      tx.objectStore('outbox').put({ state: 'submitted' }, 'issued');
+    });
+    const execute = vi.fn().mockResolvedValueOnce({ status: 'blocked', reason: 'sourceAuthorizationChanged' }).mockResolvedValue({ status: 'confirmed' });
+    const run = createSourceWorkQueue(f.db, { execute, schedule: vi.fn(), now: () => now }); await run();
+    expect(await f.db.read('work', 'late')).toMatchObject({ dueAt: 30100 });
+    now = 30101; await run(); expect(await f.db.read('work', 'late')).toBeUndefined(); expect(execute).toHaveBeenCalledTimes(2);
   } finally { await f.db.close(); }
 });
 test('later alarm producers cannot postpone an earlier pending wake', async () => {

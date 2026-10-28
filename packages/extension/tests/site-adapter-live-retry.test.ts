@@ -1,3 +1,4 @@
+import { retrySourceObservations } from '../src/site-adapters/local-source-problems.js';
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { expect, test, vi } from 'vitest';
@@ -24,6 +25,12 @@ test('transient planning failure remains recoverable and does not hide another r
     online = true;
     await db.transaction(['observations'], 'readwrite', async tx => { const r = tx.objectStore('observations').get('0'); r.onsuccess = () => tx.objectStore('observations').put({ ...r.result, readyAt: 0 }, '0'); });
     await planner.wake(); expect(await db.read('observations', '0')).toMatchObject({ state: 'settled', planning: { reason: 'noMatch' } });
+    await db.transaction(['observations'], 'readwrite', async tx => { const r = tx.objectStore('observations').get('1'); r.onsuccess = () => tx.objectStore('observations').put({ ...r.result, readyAt: 0 }, '1'); });
+    plan.mockRejectedValueOnce(Error('sourceFactsUnresolved')); await planner.wake();
+    expect(await db.read('work', 'observation:1')).toMatchObject({ dueAt: Number.MAX_SAFE_INTEGER, reason: 'sourceFactsUnresolved' });
+    await retrySourceObservations(db, 'source');
+    expect(await db.read('work', 'observation:1')).toBeUndefined();
+    await planner.wake(); expect(await db.read('observations', '1')).toMatchObject({ state: 'settled', planning: { reason: 'noMatch' } });
   } finally { await db.close(); }
 });
 test('hint admission retries the original interaction and respects pause and deadline', async () => {

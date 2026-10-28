@@ -20,7 +20,7 @@ import { queueManagedChange } from './managed-changes.js';
 import { initializeMountDestination } from './mount-destination.js';
 import { sourceMembershipValue } from './source-fingerprints.js';
 
-export interface SourcePolicyRecord { connectionId: string; enabled: boolean; liveArchive: boolean; semantic?: 'manual' | 'automatic'; semanticOwner?: DestinationOwner; admittedAfterOrdinal?: number; policy: SavePolicy }
+export interface SourcePolicyRecord { localDeviceId?: string; connectionId: string; enabled: boolean; liveArchive: boolean; semantic?: 'manual' | 'automatic'; semanticOwner?: DestinationOwner; admittedAfterOrdinal?: number; policy: SavePolicy }
 export interface SourceMount extends MountBinding { state: 'active' | 'detached' | 'suppressed'; destination?: DestinationOwner | null }
 export interface LayoutNativeNode { id: string; title: string; parentId?: string; url?: string; dateAdded?: number }
 export interface LayoutPorts {
@@ -142,6 +142,7 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
       }); });
     },
     async configure(record: SourcePolicyRecord) {
+      if (ports.localFirst) record = { ...record, localDeviceId: record.localDeviceId ?? await ports.deviceId() };
       if (record.semantic === 'automatic' && record.policy.copies !== 'sourceAndSemantic') throw new Error('semanticRequiresTwoCopies');
       if (!Number.isSafeInteger(record.policy.revision) || record.policy.revision < 1 || record.policy.backgroundClassification !== 'disabled'
         || record.policy.sourceRemoval !== 'retainArchive' || !['sourceAndSemantic', 'singlePreferSemantic', 'singleKeepExisting'].includes(record.policy.copies)) throw new Error('invalidPolicy');
@@ -181,13 +182,17 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
       }
       if (existing) {
         const node = await ports.lookup(existing.native.nativeId);
+        if (ports.localFirst && existing.native.deviceId === m.root.deviceId && existing.scopeId !== representation.scopeId) {
+          existing = { ...existing, scopeId: representation.scopeId };
+          await db.transaction(['representations'], 'readwrite', async tx => put(tx, 'representations', representationKey(existing!), existing));
+        }
         if (settings.policy.copies === 'sourceAndSemantic' && existing.state === 'active') {
           const folder = await db.read<SourceFolderReservation>('folderReservations', sourceKey(m.id, input.collectionId));
           if (folder?.native && node?.parentId !== folder.native.nativeId) throw new Error('copyPolicyMigrationRequired');
         }
         if (existing.state === 'active' && node?.dateAdded === existing.native.dateAdded && node.parentId === existing.lastWritten?.parentId
           && sameNativeContentValue('url', node.url, existing.lastWritten?.url ?? facts.item.url) && node.title !== (existing.localTitle ?? existing.lastWritten?.title)) {
-          await db.transaction(['representations'], 'readwrite', async tx => put(tx, 'representations', representationKey(existing), { ...existing, localTitle: node.title }));
+          await db.transaction(['representations'], 'readwrite', async tx => put(tx, 'representations', representationKey(existing!), { ...existing, localTitle: node.title }));
           return { status: 'represented', representation: { ...existing, localTitle: node.title } } as const;
         }
         if (existing.state === 'active' && (!node || node.dateAdded !== existing.native.dateAdded || !sameNativeContentValue('url', node.url, existing.lastWritten?.url ?? facts.item.url)

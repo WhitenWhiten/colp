@@ -45,13 +45,14 @@ export async function assertSemanticDestination(binding: NativeBinding<'folder'>
   await classificationDestinationPolicy.assertAllowed(binding.nativeId, digest);
 }
 async function authorize(job: SemanticJob) {
-  await assertCaptureScope(job.scope);
+  const deviceId = await captureDeviceId();
+  if (job.command && job.command.deviceId !== deviceId) throw new Error('semanticPaused');
   const current = await siteLedger.db.read<SemanticJob>('semanticJobs', job.id);
   if (!current || current.controlRevision !== job.controlRevision) throw new Error('semanticJobChanged');
   for (const source of current.sources) {
     const a = await readConnectionAuthority(siteLedger.db, source.connectionId), p = await siteLedger.db.read<SourcePolicyRecord>('meta', `policy:${source.connectionId}`);
     if (a?.enabled && p?.enabled && p.semantic === 'automatic' && p.policy.copies === 'sourceAndSemantic' && p.policy.revision === source.policyRevision
-      && sameDestinationOwner(p.semanticOwner, job.scope)
+      && (p.localDeviceId ? p.localDeviceId === deviceId : sameDestinationOwner(p.semanticOwner, job.scope))
       && a.installationGeneration === source.installationGeneration && a.sourceSessionGeneration === source.sourceSessionGeneration) {
       await assertSourceRebound(siteLedger.db, source.connectionId); await assertRestoredItemAvailable(siteLedger.db, source.connectionId, job.content.itemId); return;
     }
@@ -129,6 +130,7 @@ export const semanticJobs = createSemanticJobs(siteLedger.db, {
   async finish(job, native, written, shared) {
     const current = await siteLedger.db.read<SemanticJob>('semanticJobs', job.id);
     if (!current || current.controlRevision !== job.controlRevision) throw new Error('semanticJobChanged');
+    shared ??= job.command?.local ? await siteLedger.db.read<import('./managed-client.js').ManagedReference>('meta', `localShared:${job.command.commandId}`) : undefined;
     await attachSemanticAssociation({ identity: captureContent(job.content), scopeId: job.scopeId, id: job.id, connections: current.connections, native, written, managed: job.command?.managed, shared });
     if (!job.command?.managed && job.claim) {
       const context = await semanticContext();
@@ -150,7 +152,7 @@ export async function enqueueSourceSemantics(connectionId: string) {
   const authority = await readConnectionAuthority(siteLedger.db, connectionId), policy = await siteLedger.db.read<SourcePolicyRecord>('meta', `policy:${connectionId}`);
   if (!authority?.enabled || !policy?.enabled || policy.semantic !== 'automatic' || policy.policy.copies !== 'sourceAndSemantic') return;
   const context = await semanticContext();
-  if (!sameDestinationOwner(policy.semanticOwner, context.scope)) return false;
+  if (policy.localDeviceId && policy.localDeviceId !== await captureDeviceId()) return false;
   const connection = await readSourceConnection(siteLedger.db, connectionId), definition = identityDefinition(connection.siteKey, connection.identityVersion);
   const revision = await siteLedger.db.read<number>('meta', `semanticSourceRevision:${connectionId}`) ?? 0;
   const scanKey = `semanticScan:${connectionId}`, signature = sourceDigest({ scopeId: context.scopeId, policy: policy.policy.revision, authority });

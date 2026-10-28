@@ -16,6 +16,22 @@ The local-first contract in runtime-foundation.md supersedes historical online-f
 | LF-08 | End-to-end status and timings | Native saved and cloud pending are shown independently; source work participates in pending status |
 | LF-09 | Focused acceptance and compatibility | Unavailable server, restart cuts, duplicate delivery, history growth and manual-edit protection pass |
 
+The October 28 implementation is delivered in nine separate commits. Controlled acceptance and its limits are recorded in [local-first evidence](evidence/local-first-controlled.json).
+
+| Task | Commit | Delivered behavior |
+| --- | --- | --- |
+| LF-01 | `0210a52b` | Local-first contract and independent latency boundaries |
+| LF-02 | `23e26667` | Device-local save identity and immutable transport owner |
+| LF-03 | `96cd8709` | Indexed active work, restart leases and earliest-deadline wakes |
+| LF-04 | `749f3164` | Delayed membership readback and classified intake/planning retries |
+| LF-05 | `1e537733` | Native-first source, import, popup and semantic saving |
+| LF-06 | `9d8e384f` | Async adoption of nodes uploaded by ordinary Sync |
+| LF-07 | `4d1f7302` | Bounded proof-based migration with immutable receipt recovery |
+| LF-08 | `4408a835` | Local save and pending association status shown independently |
+| LF-09 | This evidence commit | Browser acceptance, ownership race protection, retained-error retry and stage diagnostics |
+
+The controlled tests qualify local saving and association request/recovery behavior. They do **not** qualify automatic convergence of two distinct nodes created on two offline devices: the current adoption contract reports those conflicts for review and preserves the local copies. No automatic destructive merge is implemented. Real-site live-trigger coverage, a new real two-device/COLP run, and a statistically sampled native-save p95 remain separate acceptance gaps; historical server-first browser evidence cannot close them for this implementation.
+
 Performance acceptance measures source-facts-ready to native-receipt latency separately from website readback and cloud transport. Target native-save p95 is at most one second in the fixed browser fixture. New-task dispatch rounds must not grow with 5,000 or 50,000 completed plans. Browser acceptance runs under xvfb and closes its services. Existing native/unknown receipts must never be replaced by URL/title guesses. Product sources are enabled together only after local writes and their asynchronous association path are both implemented.
 
 

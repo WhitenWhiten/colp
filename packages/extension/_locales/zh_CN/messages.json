@@ -13476,7 +13476,15 @@
     "description": "Checking the website favorite"
   },
   "sites_retryLocalAssociation": {
-    "message": "重试关联",
-    "description": "Retry association"
+    "message": "重试保存与关联",
+    "description": "Retry saving and association"
+  },
+  "sites_localSaveReview": {
+    "message": "本地保存需要复核",
+    "description": "Local saving needs review"
+  },
+  "sites_localServerUpgrade": {
+    "message": "已保存到本地 · 更新 COLP Server 后可共享副本关联",
+    "description": "Saved locally · update COLP Server to share copy associations"
   }
 }

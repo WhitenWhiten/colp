@@ -42,6 +42,7 @@ async function harness() {
 }
 test('planned execution resolves a shared folder receipt before creating the bookmark and retains exact replay', async () => {
   const h = await harness(), p = await h.plan('plan'), runner = h.executor();
+  await h.db.transaction(['observations'], 'readwrite', async tx => { tx.objectStore('observations').put({ acceptedAt: 40 }, 'observation'); });
   expect(await runner.execute('plan', p.bookmark.effectId)).toMatchObject({ status: 'blocked', reason: 'dependencyPending' });
   expect((await runner.execute('plan', 'folder')).status).toBe('confirmed');
   expect((await runner.execute('plan', p.bookmark.effectId)).status).toBe('confirmed');
@@ -49,6 +50,7 @@ test('planned execution resolves a shared folder receipt before creating the boo
   expect(h.counts).toMatchObject({ folder: 1, bookmark: 1 });
   const outbox = await h.db.read<SourceOutbox>('outbox', p.bookmark.commandId);
   expect(outbox?.state).toBe('acknowledged'); expect(outbox?.command.parent.nativeId).toBe(`native-${p.folder.commandId}`);
+  expect(await h.db.read('meta', 'localPipelineLast:connection')).toMatchObject({ readyAt: 40, at: 100, readyToLocalMs: 60, localConfirmedAt: expect.any(Number), plannedAt: expect.any(Number) });
 });
 test('two approved item plans share one folder command; cancelling a consumer preserves the other', async () => {
   const h = await harness(), one = await h.plan('one'), two = await h.plan('two', '2'), runner = h.executor();

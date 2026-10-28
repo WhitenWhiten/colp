@@ -24,7 +24,9 @@ export function paintSourceOverview(status: OverviewStatus, definition: SiteDefi
   if (retry) retry.hidden = !progress?.attention;
   if (pipeline) pipeline.textContent = !progress ? '' : !progress.available ? t('sites_localProgressUnavailable', 'Save progress could not be verified')
     : progress.pendingConfirmation ? t('sites_localConfirming', 'Checking the website favorite')
+    : progress.localAttention ? t('sites_localSaveReview', 'Local saving needs review')
     : progress.pendingLocal ? t('sites_localSaving', 'Waiting for local bookmark saving')
+    : progress.reason === 'sourceSyncUpgradeRequired' ? t('sites_localServerUpgrade', 'Saved locally · update COLP Server to share copy associations')
     : progress.attention ? t('sites_localAssociationReview', 'Saved locally · shared association needs review')
     : progress.pendingSync ? t('sites_localPendingSync', 'Saved locally · waiting for sync and association')
     : overview?.saved ? t('sites_localSavingComplete', 'Local bookmark saving complete') : '';

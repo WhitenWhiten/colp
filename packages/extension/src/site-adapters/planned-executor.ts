@@ -27,6 +27,7 @@ export async function persistSavePlan(db: SourceDatabase, plan: SavePlan, state:
     const prior = await get<StoredSavePlan>(tx, 'savePlans', plan.id);
     if (prior && (prior.digest !== row.digest || prior.state === 'cancelled' && state !== 'cancelled')) throw new Error('conflict');
     put(tx, 'savePlans', plan.id, row);
+    if (!await get(tx, 'meta', `sourcePlanTiming:${plan.id}`)) put(tx, 'meta', `sourcePlanTiming:${plan.id}`, { plannedAt: Date.now() });
     if (state === 'approved') await enqueueSourcePlan(tx, plan.id, plan.connectionId);
   });
 }
@@ -103,10 +104,11 @@ export function createPlannedSaveExecutor(db: SourceDatabase, ports: PlannedExec
   }
   async function finish(plan: SavePlan, effect: SaveEffect, outbox: SourceOutbox, native: NativeBinding, folder?: SourceFolderReservation, written?: { title: string; parentId: string; url?: string }) {
     if (native.kind !== outbox.command.kind || native.deviceId !== outbox.command.deviceId || native.dateAdded === null) throw new Error('unprovenReceipt');
-    await db.transaction(['outbox', 'effects', 'folderReservations', 'representations', 'itemReservations', 'meta'], 'readwrite', async tx => {
+    await db.transaction(['outbox', 'effects', 'folderReservations', 'representations', 'itemReservations', 'meta', 'observations', 'importApprovals'], 'readwrite', async tx => {
       const current = await get<SourceOutbox>(tx, 'outbox', outbox.command.commandId);
       if (!current || current.digest !== outbox.digest || current.native && current.native.bindingId !== native.bindingId) throw new Error('conflict');
-      const shared = await managedReference(tx, outbox.command.managed);
+      const shared = await managedReference(tx, outbox.command.managed)
+        ?? (outbox.command.local ? await get<import('./managed-client.js').ManagedReference>(tx, 'meta', `localShared:${outbox.command.commandId}`) : undefined);
       if (folder) { const key = sourceKey(folder.mountId, folder.collectionId), latest = await get<SourceFolderReservation>(tx, 'folderReservations', key);
         if (!latest || latest.payloadDigest !== folder.payloadDigest) throw new Error('conflict');
         put(tx, 'folderReservations', key, { ...latest, ...(shared ? { shared } : {}), state: latest.state === 'blocked' ? 'blocked' : 'confirmed', native, ...(written ? { nativeTitle: written.title } : {}) }); }
@@ -115,7 +117,12 @@ export function createPlannedSaveExecutor(db: SourceDatabase, ports: PlannedExec
         if (existing && existing.native.bindingId !== native.bindingId) throw new Error('representationConflict');
         put(tx, 'representations', key, existing ?? { ...effect.representation, native, ...(shared ? { shared } : {}), state: 'active', manualRevision: 0,
           lastWritten: written ?? { title: outbox.command.title, parentId: outbox.command.parent.nativeId, url: outbox.command.bookmark!.url } });
-        put(tx, 'meta', `localPipelineLast:${plan.connectionId}`, { at: native.dateAdded, commandId: outbox.command.commandId });
+        const source = plan.trigger.kind === 'observation' ? await get<{ acceptedAt: number }>(tx, 'observations', plan.trigger.observationId) : undefined;
+        const approval = plan.importApprovalId ? await get<{ approvedAt: number }>(tx, 'importApprovals', plan.importApprovalId) : undefined;
+        const timing = await get<{ plannedAt: number }>(tx, 'meta', `sourcePlanTiming:${plan.id}`);
+        const readyAt = source?.acceptedAt ?? approval?.approvedAt;
+        put(tx, 'meta', `localPipelineLast:${plan.connectionId}`, { at: native.dateAdded, commandId: outbox.command.commandId, localConfirmedAt: Date.now(),
+          ...(timing ? timing : {}), ...(readyAt !== undefined ? { readyAt, ...(typeof native.dateAdded === 'number' && native.dateAdded >= readyAt ? { readyToLocalMs: native.dateAdded - readyAt } : {}) } : {}) });
         if (!existing && effect.representation.purpose === 'sourceArchive') {
           const revisionKey = `semanticSourceRevision:${plan.connectionId}`;
           put(tx, 'meta', revisionKey, (await get<number>(tx, 'meta', revisionKey) ?? 0) + 1);
@@ -183,7 +190,7 @@ export function createPlannedSaveExecutor(db: SourceDatabase, ports: PlannedExec
     await db.transaction(['outbox', 'effects', 'folderReservations', 'itemReservations'], 'readwrite', async tx => {
       const row = await get<SourceOutbox>(tx, 'outbox', command.commandId); if (!row || row.digest !== outbox!.digest) throw new Error('conflict');
       put(tx, 'outbox', command.commandId, { ...row, state: 'unknown' });
-      put(tx, 'effects', sourceKey(plan.id, effectId), { state: 'unknown', reason: result.reason });
+      put(tx, 'effects', sourceKey(plan.id, effectId), { state: 'unknown', reason: result.reason, commandId: command.commandId });
       if (who.folder) put(tx, 'folderReservations', sourceKey(who.folder.mountId, who.folder.collectionId), { ...who.folder, state: 'unknown' });
       else if (effect.kind === 'createBookmark') { const key = representationKey(effect.representation), r = await get<ItemReservation>(tx, 'itemReservations', key); if (r) put(tx, 'itemReservations', key, { ...r, state: 'unknown' }); }
     });

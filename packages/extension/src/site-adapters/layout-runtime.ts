@@ -1,3 +1,4 @@
+import { settleLocalTransferOwnership } from './local-transfer-ownership.js';
 import { scheduleSourceAlarm } from './wake-scheduler.js';
 import { createSourceLayout } from './layout.js';
 import { siteLedger, SITE_RECOVERY_ALARM } from './source-runtime.js';
@@ -44,12 +45,16 @@ export function installSourceLayout() {
   installBookmarkOwnershipObserver(async event => {
     if (['changed', 'moved', 'removed'].includes(event.kind) && await isReconcileNativeMutation(event.nativeId, event.kind === 'removed' ? event.removal.node?.dateAdded : undefined)) return;
     if (event.kind === 'moved' && await isManagedContentMove(event.nativeId, event.move.parentId, event.move.oldParentId)) return;
-    if (event.kind === 'changed' || event.kind === 'moved') await sourceLayout.nativeChanged([event.nativeId], false);
+    if (event.kind === 'changed' || event.kind === 'moved') {
+      await sourceLayout.nativeChanged([event.nativeId], false);
+      await settleLocalTransferOwnership(siteLedger.db, [event.nativeId], false, nativeFolderLookup);
+    }
     if (event.kind === 'removed') {
       const ids = [event.nativeId];
       const add = (n: { id: string; children?: readonly { id: string }[] }) => { ids.push(n.id); for (const child of n.children ?? []) add(child); };
       if (event.removal.node) add(event.removal.node);
       await sourceLayout.nativeChanged(ids, true);
+      await settleLocalTransferOwnership(siteLedger.db, ids, true, nativeFolderLookup);
     }
     scheduleSourceAlarm(Date.now() + 1000, SITE_RECOVERY_ALARM);
   });

@@ -41,11 +41,13 @@ async function pendingObservations(tx: IDBTransaction): Promise<number> {
   return await requestValue(store.count()) - await requestValue(store.index('state').count('settled'));
 }
 /** Settling work retains its receipt and complete facts; it frees only pending admission capacity. */
-export async function settleSourceObservation(db: SourceDatabase, id: string, result: { reason: string; planIds: readonly string[]; edges?: readonly { collectionId: string; status: string }[] }) {
-  await db.transaction(['observations', 'meta'], 'readwrite', async tx => {
+export async function settleSourceObservation(db: SourceDatabase, id: string, result: { reason: string; planIds: readonly string[]; edges?: readonly { collectionId: string; status: string }[]; problem?: string }) {
+  await db.transaction(['observations', 'meta', 'work'], 'readwrite', async tx => {
     const row = await get<ObservationRow>(tx, 'observations', id); if (!row || row.state === 'settled') return;
     const count = await pendingObservations(tx);
     put(tx, 'observations', id, { ...row, state: 'settled', planning: result }); put(tx, 'meta', 'pendingObservations', Math.max(0, count - 1));
+    if (result.problem) put(tx, 'work', `observation:${row.id}`, { id: `observation:${row.id}`, connectionId: row.context.connectionId,
+      dueAt: Number.MAX_SAFE_INTEGER, attempts: 0, reason: result.problem });
   });
 }
 const rejected = (e: unknown): LedgerAdmission => ({ status: 'rejected', reason: e instanceof Error

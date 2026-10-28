@@ -7163,11 +7163,17 @@
   "sites_localProgressUnavailable": {
     "message": "Save progress could not be verified"
   },
+  "sites_localSaveReview": {
+    "message": "Local saving needs review"
+  },
   "sites_localSaving": {
     "message": "Waiting for local bookmark saving"
   },
   "sites_localSavingComplete": {
     "message": "Local bookmark saving complete"
+  },
+  "sites_localServerUpgrade": {
+    "message": "Saved locally · update COLP Server to share copy associations"
   },
   "sites_manageScope": {
     "message": "Manage collections"
@@ -7800,7 +7806,7 @@
     "message": "Resume syncing"
   },
   "sites_retryLocalAssociation": {
-    "message": "Retry association"
+    "message": "Retry saving and association"
   },
   "sites_retryPaused": {
     "message": "Retry paused reads"

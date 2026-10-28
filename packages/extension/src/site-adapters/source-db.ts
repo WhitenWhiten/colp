@@ -5,9 +5,9 @@ import { bytesToHex } from '@noble/hashes/utils.js';
 import { canonicalJson } from '../canonical-json.js';
 export const SOURCE_STORES = ['meta', 'authorities', 'documentLeases', 'connections', 'observations', 'receipts', 'items', 'collections', 'memberships',
   'readRequests', 'importRuns', 'importPages', 'representations', 'itemReservations', 'folderReservations', 'folderConsumers',
-  'savePlans', 'effects', 'outbox', 'contentBindings', 'mounts', 'importPreviews', 'importApprovals', 'semanticJobs', 'semanticIndexes', 'work', 'transfers'] as const;
+  'savePlans', 'effects', 'outbox', 'contentBindings', 'mounts', 'importPreviews', 'importApprovals', 'semanticJobs', 'semanticIndexes', 'work', 'transfers', 'unboundTransfers'] as const;
 export type SourceStore = typeof SOURCE_STORES[number];
-export const SOURCE_DATABASE_VERSION = 9;
+export const SOURCE_DATABASE_VERSION = 12;
 export function sourceDigest(value: unknown): string {
   return `sha256:${bytesToHex(sha256(new TextEncoder().encode(canonicalJson(value, () => { throw new Error('invalidData'); }))))}`;
 }
@@ -42,13 +42,18 @@ export function createSourceDatabase(factory?: IDBFactory, name = 'known-site-ad
         const store = r.transaction!.objectStore(name);
         for (const [index, path] of Object.entries(definitions)) if (!store.indexNames.contains(index)) store.createIndex(index, path);
       }
+      const unbound = r.transaction!.objectStore('unboundTransfers');
+      if (!unbound.indexNames.contains('dueAt')) unbound.createIndex('dueAt', 'dueAt');
+      if (!unbound.indexNames.contains('nativeId')) unbound.createIndex('nativeId', 'native.nativeId');
       const transfers = r.transaction!.objectStore('transfers');
       if (!transfers.indexNames.contains('dueAt')) transfers.createIndex('dueAt', 'dueAt');
+      if (!transfers.indexNames.contains('nativeId')) transfers.createIndex('nativeId', 'native.nativeId');
       for (const [name, path] of Object.entries({ state: 'state', connectionState: ['connectionId', 'state'], ownerState: ['ownerKey', 'state'] }))
         if (!transfers.indexNames.contains(name)) transfers.createIndex(name, path);
       const work = r.transaction!.objectStore('work');
       if (!work.indexNames.contains('dueAt')) work.createIndex('dueAt', 'dueAt');
       if (!work.indexNames.contains('connectionId')) work.createIndex('connectionId', 'connectionId');
+      if (!work.indexNames.contains('connectionDue')) work.createIndex('connectionDue', ['connectionId', 'dueAt']);
       const semanticJobs = r.transaction!.objectStore('semanticJobs');
       if (!semanticJobs.indexNames.contains('stateUpdatedAt')) semanticJobs.createIndex('stateUpdatedAt', ['state', 'updatedAt']);
       if (!semanticJobs.indexNames.contains('connections')) semanticJobs.createIndex('connections', 'connections', { multiEntry: true });

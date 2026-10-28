@@ -1,3 +1,4 @@
+import { retrySourceObservations } from './local-source-problems.js';
 import { retryLocalTransfers } from './local-transfer-queue.js';
 import { localSourceProgress } from './local-progress.js';
 import { migrateLocalFirstBatch } from './local-first-migration.js';
@@ -369,7 +370,9 @@ function createSiteHost(definition: SiteDefinition) {
       if (management(sender) && checkOperations(raw)) {
         void trustedStorage().then(async () => {
           const authority = await siteLedger.db.read<import('./ledger-types.js').SourceAuthority>('authorities', definition.adapterId);
-          if (authority?.enabled && authority.connectionId) await retryLocalTransfers(siteLedger.db, authority.connectionId);
+          if (authority?.enabled && authority.connectionId) {
+            await retryLocalTransfers(siteLedger.db, authority.connectionId); await retrySourceObservations(siteLedger.db, authority.connectionId);
+          }
           scheduleSourceWork(Date.now() + 50); await wakePlannedSaves(); return { checked: true };
         })
           .then(result => settledManagement(raw, result)).then(respond, async e => respond(await failed(raw, e))); return true;
@@ -490,7 +493,7 @@ function createSiteHost(definition: SiteDefinition) {
       navigationInstalled = true;
     };
     installNavigation();
-    chrome.storage.onChanged.addListener((changes, area) => { if (area === 'local' && changes[AUTOMATION_CHANGED_KEY]) scheduleSourceWork(Date.now() + 50); });
+    chrome.storage.onChanged.addListener((changes, area) => { if (area === 'local' && changes[AUTOMATION_CHANGED_KEY] || Object.keys(changes).some(key => key.startsWith('known.auth.') || key.startsWith('known.personal-sync.') || key === 'known.sync.collection.v1')) scheduleSourceWork(Date.now() + 50); });
     chrome.permissions.onAdded.addListener(() => { installNavigation(); void reconcile().catch(() => undefined); });
     chrome.tabs.onRemoved.addListener(id => { void siteTransport.removeTab(id).then(relevant => relevant ? siteLedger.revokeDocuments(id) : undefined).catch(() => undefined); });
     chrome.permissions.onRemoved.addListener(removed => {

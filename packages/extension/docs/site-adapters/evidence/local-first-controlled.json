@@ -1,0 +1,139 @@
+{
+  "version": 1,
+  "date": "2026-10-28",
+  "reviewBaseline": "6bb3d3e3",
+  "implementationRevision": "LF-09 is the commit containing this evidence; LF-01 through LF-08 are recorded in implementation-plan.md.",
+  "sourceDatabaseVersion": 12,
+  "changes": [
+    "New source, import, popup and semantic saves use native receipts before any COLP dependency; previously submitted managed commands recover their immutable legacy receipts.",
+    "Native dispatch reads durable indexed active work, not retained save-plan history; readiness, claim leases and earliest-deadline wakes survive worker cuts.",
+    "Unknown membership reads retry within the source command budget; transient dependency failures stay pending; permanent observation problems remain visible and explicitly retryable under the original authority.",
+    "Ordinary Sync uploads the local node. Shared association uses an immutable adopt-only command for that exact canonical node, retaining its original transport owner.",
+    "Unbound local-only receipts acquire a separate transport command only after a selected Sync mapping proves an owner. Deletion during owner lookup cannot enqueue a new association.",
+    "Manual native edits/deletions close pending work. A late association receipt retains that closure and queues the corresponding shared ownership change.",
+    "Migration v2 is bounded and proof-based, retaining immutable command/native evidence and recovering only currently authorized observations or already-issued legacy commands.",
+    "Settings distinguish local saving, waiting for Sync/association, review and unknown progress; diagnostic timestamps separate accepted facts, planning, local native confirmation, uploaded mapping observation and association."
+  ],
+  "checks": [
+    {
+      "cwd": "packages/extension",
+      "command": "npm run typecheck",
+      "result": "passed"
+    },
+    {
+      "cwd": "packages/extension",
+      "command": "npx vitest run tests/site-adapter-*.test.ts tests/capture-coordinator.test.ts tests/capture-planned.test.ts",
+      "result": "passed",
+      "files": 56,
+      "tests": 396
+    },
+    {
+      "cwd": "packages/extension",
+      "command": "npx eslint src/site-adapters src/sw/capture.ts src/sw/capture-native.ts src/sw/capture-target.ts src/sw/planned-capture.ts src/capture/coordinator.ts tests/site-adapter-*.test.ts e2e/mv3-site-adapter-local-first.spec.ts",
+      "result": "passed"
+    },
+    {
+      "cwd": "packages/extension",
+      "command": "npm run check:i18n && npm run check:source-size && npm run check:tokens",
+      "result": "passed",
+      "sourceFiles": 945
+    },
+    {
+      "cwd": "packages/extension",
+      "command": "npm run build:development && node scripts/with-xvfb.mjs npx playwright test --project=core e2e/mv3-site-adapter-local-first.spec.ts e2e/mv3-site-adapter-planned.spec.ts e2e/mv3-site-adapter-import.spec.ts e2e/mv3-site-adapter-semantic.spec.ts",
+      "result": "passed",
+      "tests": 4,
+      "durationSecondsApprox": 246,
+      "note": "Controlled Chromium fixtures; no real Bilibili account mutations or running COLP service."
+    },
+    {
+      "cwd": "packages/extension",
+      "command": "npm run build:development && node scripts/with-xvfb.mjs npx playwright test --project=core e2e/mv3-site-adapter-local-first.spec.ts e2e/mv3-site-adapter-planned.spec.ts",
+      "result": "passed",
+      "tests": 2,
+      "durationSeconds": 25.5,
+      "note": "Final runtime rerun after stage diagnostics and unbound ownership race protection."
+    },
+    {
+      "cwd": "packages/server",
+      "command": "npx vitest run tests/unit/source-archives/managed-copies.test.ts -t 'proven legacy nodes can be adopted'",
+      "result": "passed",
+      "tests": 1,
+      "skipped": 16,
+      "note": "Existing server adoption contract; no server code changed by this task."
+    },
+    {
+      "cwd": "packages/extension",
+      "command": "npm run build && node scripts/verify-release-artifact.mjs dist/production",
+      "result": "passed",
+      "files": 41,
+      "sourceMaps": false,
+      "secretScan": "passed",
+      "runtimeChecksRequired": true
+    },
+    {
+      "cwd": "repository root",
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "focusedCoverage": [
+    "5000 and 50000 retained completed plans do not get read or add dispatch rounds for new work; a newly inserted lower key runs on the next wake.",
+    "Failed work does not block unrelated tasks; claimed batches have restart recovery; later alarm scheduling cannot postpone an earlier wake.",
+    "Revoked unsent commands park for review while submitted/unknown commands continue recovering original late receipts.",
+    "Hint retries preserve identity; delayed unknown membership readback is not treated as absence; transient planner failures do not settle observations or starve later work.",
+    "Real native folders/bookmarks are created with no server, in an offline synced range, and while Sync is paused. Repeating execution creates no duplicate native bookmark.",
+    "Import/live overlap, restart-and-deduplicate, native crash recovery and unknown-without-replacement behavior pass.",
+    "Both source/semantic action orders and all copy policies pass, including real toolbar classification and independent provider failure/retry.",
+    "Lost adoption responses repeat the exact immutable command despite a changed parent projection. Range revocation during profile negotiation prevents dispatch.",
+    "Manual deletion during association dispatch or later owner lookup cannot reactivate or requeue the removed copy.",
+    "Migration preserves original submitted commands, native proof and reservations while rebuilding bounded active indexes.",
+    "Progress distinguishes local work from ordinary Sync idleness, remains scoped to source/owner, and reports unavailable storage honestly."
+  ],
+  "nativeTiming": {
+    "boundary": "After controlled plan preparation, sequential native folder and bookmark execution through the real MV3 capture kernel; excludes website readback, plan preparation, ordinary Sync and shared association.",
+    "samplesMs": [
+      {
+        "mode": "no-server",
+        "nativeMs": 366
+      },
+      {
+        "mode": "offline-synced",
+        "nativeMs": 554
+      },
+      {
+        "mode": "paused",
+        "nativeMs": 528
+      }
+    ],
+    "previousCombinedRunSamplesMs": [
+      {
+        "mode": "no-server",
+        "nativeMs": 402
+      },
+      {
+        "mode": "offline-synced",
+        "nativeMs": 565
+      },
+      {
+        "mode": "paused",
+        "nativeMs": 542
+      }
+    ],
+    "testGuardMs": 5000,
+    "p95Qualified": false,
+    "note": "These are fixture samples, not a statistically established p95 or real-site end-to-end measurement. The one-second p95 design target remains a separate performance gate."
+  },
+  "limits": {
+    "realSiteRequests": false,
+    "s2DeploymentOrUserBrowserUpgrade": false,
+    "realTwoDeviceLocalFirstConvergenceQualified": false,
+    "concurrentDistinctNodes": "Preserved locally and surfaced as association conflicts for explicit review. No automatic destructive cross-device merge is implemented or claimed.",
+    "ordinarySync": "This task uses the existing upload/Pull engine; the full unrelated Sync test matrix was not rerun.",
+    "legacyCloudOperations": "Explicit legacy cloud archive/reconciliation commands retain their server protocol. New normal saves do not depend on it.",
+    "siteCoverage": "Bilibili remains the only implemented adapter. Positive readback and source pacing limits still apply; negative readback and complete real-site live-trigger coverage are not newly qualified.",
+    "compatibility": "Older servers can leave native results intact while asynchronous association waits or reports an upgrade/review requirement.",
+    "userServerEdits": "Pre-existing changes in sync-evidence-maintenance-postgres.ts and sync-terminal-authority-cleanup.ts are excluded from these commits."
+  },
+  "cleanup": "All task-owned browser contexts and temporary profiles were closed/removed. No task-owned server or development service remains running."
+}

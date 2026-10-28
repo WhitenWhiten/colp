@@ -18,7 +18,7 @@ export async function captureTarget(scope: CaptureScope, requestedId?: string) {
   const seen = new Set<string>();
   while (current && !seen.has(current.id)) { seen.add(current.id); if (current.title) path.unshift(current.title);
     current = current.parentId ? (await chrome.bookmarks.get(current.parentId))[0] : undefined; }
-  const syncScope = await currentSyncScope().catch(() => null);
+  const syncScope = await currentSyncScope({ allowStopped: true }).catch(() => null);
   const boundary = syncScope ? await resolveIngressBoundary(syncState, syncScope).catch(() => null) : null;
   const inRange = Boolean(boundary && folderIsInSyncRange(nativeId,
     await walkAncestorIds(nativeId, async id => (await chrome.bookmarks.get(id).catch(() => []))[0]?.parentId), boundary.selectedNative, boundary.privateNative));

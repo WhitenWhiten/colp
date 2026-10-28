@@ -30,7 +30,7 @@ export interface LocalCopyTransfer {
   /** Immutable transport destination. Never infer this from a later login. */
   owner: ManagedLibrary | null;
   copyPolicy?: import('./managed-client.js').ManagedSaveCommand['copyPolicy'];
-  state: 'pending' | 'registered' | 'attention';
+  state: 'pending' | 'registered' | 'attention' | 'suppressed' | 'detached';
   createdAt: number;
   updatedAt: number;
   reason?: string;

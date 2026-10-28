@@ -17,9 +17,11 @@ export function createSourceWorkQueue(db: SourceDatabase, ports: {
       for (const row of ready) put(tx, 'work', row.id, { ...row, dueAt: now() + 30000 });
       return ready;
     });
+    // Persist a wake before the first effect: termination must not strand a claimed batch.
+    if (batch.length) ports.schedule(now() + 30000);
     let budget = 20;
     for (const work of batch) {
-      let complete = true, reason: string | undefined;
+      let complete = true, recoveringStarted = false, reason: string | undefined;
       try {
         const row = await db.read<StoredSavePlan>('savePlans', work.id);
         if (row && row.state !== 'draft' && !await db.read('meta', `evidence-plan:${work.id}`)) {
@@ -33,8 +35,16 @@ export function createSourceWorkQueue(db: SourceDatabase, ports: {
           for (const effect of row.plan.effects) visit(effect.effectId);
           for (const effect of ordered.values()) {
             const state = await db.read<{ state: string; commandId?: string }>('effects', sourceKey(work.id, effect.effectId));
-            const outbox = state?.commandId ? await db.read<{ executorAcknowledged?: boolean }>('outbox', state.commandId) : undefined;
+            let commandId = state?.commandId ?? effect.commandId;
+            if (!state?.commandId && effect.kind === 'ensureSourceFolder') {
+              const folder = await db.transaction(['folderReservations'], 'readonly', tx => new Promise<{ commandId: string } | undefined>((resolve, reject) => {
+                const r = tx.objectStore('folderReservations').index('id').get(effect.reservationId); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error);
+              }));
+              commandId = folder?.commandId ?? commandId;
+            }
+            const outbox = commandId ? await db.read<{ executorAcknowledged?: boolean; state?: string }>('outbox', commandId) : undefined;
             if (state?.state === 'confirmed' && (!outbox || outbox.executorAcknowledged)) continue;
+            recoveringStarted ||= !!outbox && outbox.state !== 'reserved';
             if (!budget) { complete = false; break; }
             budget--;
             const result = await ports.execute(work.id, effect.effectId);
@@ -44,10 +54,11 @@ export function createSourceWorkQueue(db: SourceDatabase, ports: {
       } catch (error) { complete = false; reason = error instanceof Error ? error.message : 'executionUnavailable'; }
       await db.transaction(['work'], 'readwrite', async tx => {
         if (complete) tx.objectStore('work').delete(work.id);
-        else put(tx, 'work', work.id, { ...work, attempts: work.attempts + 1, dueAt: reason ? now() + 30000 : 0, ...(reason ? { reason } : {}) });
+        else put(tx, 'work', work.id, { ...work, attempts: work.attempts + 1, dueAt: reason && !recoveringStarted && ['sourceAuthorizationChanged', 'rulesChanged', 'sourcePolicyChanged', 'mountChanged', 'sourceFactsChanged', 'consumerCancelled',
+          'invalidPlan', 'sourceCopySuppressed', 'sourceCopyDetached', 'nativeIdentityChanged'].includes(reason) ? Number.MAX_SAFE_INTEGER : reason ? now() + 30000 : 0, ...(reason ? { reason } : {}) });
       });
     }
     const next = await db.transaction(['work'], 'readonly', async tx => (await cursorPage<SourceWork>(tx.objectStore('work').index('dueAt'), null, 1))[0]);
-    if (next) ports.schedule(Math.max(now() + 50, next.dueAt));
+    if (next && next.dueAt < Number.MAX_SAFE_INTEGER) ports.schedule(Math.max(now() + 50, next.dueAt));
   };
 }

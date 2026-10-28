@@ -5,7 +5,7 @@ import { localSourceCopyKey, localTransferKey, transferOwner, type LocalCopyTran
 import { sourceSlotForPlan } from './managed-runtime.js';
 import type { SourceMount } from './layout.js';
 import type { PlannedNativeCommand, PlannedNativeResult } from './planned-types.js';
-import type { SaveEffect, SavePlan, NativeBinding } from './contracts.js';
+import type { SaveEffect, SavePlan } from './contracts.js';
 import type { ManagedSlot } from './managed-client.js';
 import { currentCaptureScope } from '../sw/capture-native.js';
 import { assertSourceRoot } from '../sw/planned-capture.js';
@@ -32,18 +32,15 @@ export async function rememberLocalSourceSave(command: PlannedNativeCommand, res
   const transfer: LocalCopyTransfer = { version: 1, commandId: command.commandId, connectionId: command.connectionId, ...(local.owner ? { ownerKey: managedLibraryKey(local.owner) } : {}), key: localSourceCopyKey(local.root, local.slot),
     native: result.native, parent: command.parent, title: command.title, url: command.bookmark?.url ?? null, slot: local.slot,
     owner: local.owner, ...(local.copyPolicy ? { copyPolicy: local.copyPolicy } : {}), state: 'pending', createdAt: now, updatedAt: now };
-  await siteLedger.db.transaction(['meta', 'transfers'], 'readwrite', async tx => {
+  await siteLedger.db.transaction(['meta', 'transfers', 'unboundTransfers'], 'readwrite', async tx => {
     const old = await get<LocalCopyTransfer>(tx, 'meta', key);
     if (old && (old.key !== transfer.key || sourceDigest(old.native) !== sourceDigest(transfer.native))) throw new Error('localReceiptChanged');
     if (!old) {
       put(tx, 'meta', key, transfer);
       if (transfer.owner) put(tx, 'transfers', transfer.commandId, { ...transfer, dueAt: 0, attempts: 0 });
+      else put(tx, 'unboundTransfers', transfer.commandId, { ...transfer, dueAt: 0 });
     }
   });
   scheduleSourceAlarm(now + 50);
   return result;
-}
-export function localNativeBinding(node: { id: string; dateAdded?: number }, deviceId: string, commandId: string): NativeBinding<'bookmark'> {
-  if (!node.dateAdded) throw new Error('nativeIdentityUnproven');
-  return { nativeId: node.id, dateAdded: node.dateAdded, deviceId, bindingId: commandId, kind: 'bookmark', proof: { kind: 'writeReceipt', id: commandId } };
 }

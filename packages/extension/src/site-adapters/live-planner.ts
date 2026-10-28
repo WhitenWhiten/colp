@@ -16,7 +16,7 @@ export function createLiveSourcePlanner(db: SourceDatabase, layout: ReturnType<t
     const batch = await db.transaction(['observations'], 'readonly', tx => cursorPage<ObservationRow>(tx.objectStore('observations').index('installationReady'), IDBKeyRange.bound([definition.adapterId, 'pending', 0], [definition.adapterId, 'pending', Date.now(), Number.MAX_SAFE_INTEGER]), 20));
     for (const row of batch) {
       if (row.state === 'settled') continue;
-      const plans: string[] = [], edges: { collectionId: string; status: string }[] = []; let reason = 'noPositiveMembership', deferred = false;
+      const plans: string[] = [], edges: { collectionId: string; status: string }[] = []; let reason = 'noPositiveMembership', deferred = false, failed = false; let deferredReason: string | undefined, failureReason: string | undefined;
       if (row.context.connectionId !== authority.connectionId || row.context.installationGeneration !== authority.installationGeneration || row.context.sourceSessionGeneration !== authority.sourceSessionGeneration) reason = 'sourceAuthorizationChanged';
       else if (row.ordinal <= (policy.admittedAfterOrdinal ?? 0)) reason = 'beforeSourceActivation';
       else if (row.observation.type === 'membership.observed' || row.observation.type === 'favorite.confirmed') {
@@ -28,16 +28,16 @@ export function createLiveSourcePlanner(db: SourceDatabase, layout: ReturnType<t
             reason = result.status; edges.push({ collectionId: id, status: result.status }); if (result.status === 'planned') plans.push(result.plan.id);
           } catch (e) {
             reason = e instanceof Error ? e.message : 'sourceNeedsReview';
-            if (retryableSourceDependency(reason)) { deferred = true; alarm(30000); continue; }
-            edges.push({ collectionId: id, status: reason });
+            if (retryableSourceDependency(reason)) { deferred = true; deferredReason ??= reason; alarm(30000); continue; }
+            failed = true; failureReason ??= reason; edges.push({ collectionId: id, status: reason });
           }
         }
       }
       if (deferred) await db.transaction(['observations'], 'readwrite', async tx => {
         const current = await get<ObservationRow>(tx, 'observations', row.id);
-        if (current?.state === 'pending') put(tx, 'observations', row.id, { ...current, readyAt: Date.now() + 30000, retryReason: reason });
+        if (current?.state === 'pending') put(tx, 'observations', row.id, { ...current, readyAt: Date.now() + 30000, retryReason: deferredReason ?? reason });
       });
-      else await settleSourceObservation(db, row.id, { reason, planIds: plans, edges });
+      else await settleSourceObservation(db, row.id, { reason, planIds: plans, edges, ...(failed ? { problem: failureReason ?? reason } : {}) });
       if (plans.length) alarm();
     }
     const next = await db.transaction(['observations'], 'readonly', async tx => (await cursorPage<ObservationRow>(tx.objectStore('observations').index('installationReady'),
