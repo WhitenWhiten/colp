@@ -1,5 +1,24 @@
 # Site adapter implementation and acceptance plan
 
+## LF remediation and acceptance (October 28, 2026)
+
+The local-first contract in runtime-foundation.md supersedes historical online-first acceptance. Each LF task is implemented and committed separately. Native success, transport success and shared-association success are independent facts; source confirmation still observes the website's read/authorization limits.
+
+| Task | Delivery | Required acceptance |
+| --- | --- | --- |
+| LF-01 | Saving contract and acceptance baseline | No COLP dependency before native success; offline concurrency converges after reconnect |
+| LF-02 | Stable local identity and separate transport ownership | Login/range changes never retag another owner's pending transfer |
+| LF-03 | Durable active work index and earliest-deadline scheduler | Completed history and lower-key inserts cannot delay or hide new work; restart resumes pending work |
+| LF-04 | Reliable intake and classified retries | Delayed positive readback retries within bounds; rejection is visible; transient planning errors remain pending |
+| LF-05 | One native save path | Live/import/popup/semantic saves work while COLP is unavailable or paused; original native receipts recover after cuts |
+| LF-06 | Asynchronous shared associations | Ordinary Sync uploads once; association adopts that exact node; Pull does not create a competing native |
+| LF-07 | Bounded migration | Existing natives and immutable commands survive; only proven eligible failed work is restored |
+| LF-08 | End-to-end status and timings | Native saved and cloud pending are shown independently; source work participates in pending status |
+| LF-09 | Focused acceptance and compatibility | Unavailable server, restart cuts, duplicate delivery, history growth and manual-edit protection pass |
+
+Performance acceptance measures source-facts-ready to native-receipt latency separately from website readback and cloud transport. Target native-save p95 is at most one second in the fixed browser fixture. New-task dispatch rounds must not grow with 5,000 or 50,000 completed plans. Browser acceptance runs under xvfb and closes its services. Existing native/unknown receipts must never be replaced by URL/title guesses. Product sources are enabled together only after local writes and their asynchronous association path are both implemented.
+
+
 Status: SA-00–SA-10 are complete for the qualified profiles recorded in [execution evidence](execution-evidence.md). The subsequent public-foundation review and remediation are documented in [runtime foundation](runtime-foundation.md) and its focused validation evidence. Bilibili is the only implemented adapter.
 
 Use this document to choose and finish the next implementation task. [README](README.md) owns architecture and invariants; [contracts.ts](contracts.ts) and [examples.ts](examples.ts) are draft protocol shapes; [Bilibili evidence](bilibili-feasibility.md) records observations, not integration acceptance. Change those documents together if implementation changes a contract. None of these documents grants permission to mutate a real site's account or a user's bookmark tree during testing.
