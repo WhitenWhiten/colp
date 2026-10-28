@@ -1,0 +1,755 @@
+{
+  "version": 1,
+  "recordedAt": "2026-10-28T14:07:35.350623+00:00",
+  "sourceRevision": "8d905a7210a9ef5a70836f736957bd1b6e024ab3",
+  "acceptanceMode": "isolated environment, explicitly selected by the user",
+  "shippedSites": [
+    "bilibili"
+  ],
+  "newSitesAdded": 0,
+  "realSiteRequests": false,
+  "commits": [
+    {
+      "commit": "48e954a4",
+      "subject": "fix(site-adapters): preserve destination isolation in local-first saves"
+    },
+    {
+      "commit": "c778707f",
+      "subject": "fix(site-adapters): reuse synced copies through a local association cache"
+    },
+    {
+      "commit": "6d010b5a",
+      "subject": "feat(site-adapters): converge pristine offline copies with durable receipts"
+    },
+    {
+      "commit": "e99ba37b",
+      "subject": "fix(site-adapters): retain live hints and isolate semantic progress"
+    },
+    {
+      "commit": "b45e1dde",
+      "subject": "feat(site-adapters): derive bundles and qualification from the site registry"
+    },
+    {
+      "commit": "30054f00",
+      "subject": "fix(site-adapters): finalize local-to-sync role ownership atomically"
+    },
+    {
+      "commit": "89dd51e9",
+      "subject": "perf(site-adapters): bound active work and qualify native save latency"
+    },
+    {
+      "commit": "8d905a72",
+      "subject": "fix(site-adapters): honor single-copy policy across device roles"
+    }
+  ],
+  "checks": [
+    {
+      "name": "extension focused regression",
+      "result": "passed",
+      "files": 69,
+      "tests": 498,
+      "scope": "site adapters, capture coordinator/native recovery, classification destination policy, and directly affected range/ingress guards"
+    },
+    {
+      "name": "server source-archive domain tests",
+      "result": "passed",
+      "files": 3,
+      "tests": 31
+    },
+    {
+      "name": "PostgreSQL convergence integration",
+      "result": "passed",
+      "files": 1,
+      "tests": 9,
+      "command": "KNOWN_POSTGRES_IMAGE=postgres:16.4-alpine node scripts/with-postgres.mjs --isolated-owner -- npx vitest run tests/integration/postgres/source-local-convergence.integration.test.ts"
+    },
+    {
+      "name": "extension and server typecheck",
+      "result": "passed"
+    },
+    {
+      "name": "focused ESLint, extension i18n and source-size",
+      "result": "passed"
+    },
+    {
+      "name": "production build and release artifact verification",
+      "result": "passed",
+      "files": 42,
+      "sourceMaps": false,
+      "secretScan": "passed",
+      "allRegisteredClassicBundlesChecked": true
+    },
+    {
+      "name": "development build",
+      "result": "passed"
+    },
+    {
+      "name": "final combined xvfb browser regression",
+      "result": "passed",
+      "command": "SITE_ADAPTER_PERF_SAMPLES=30 SITE_ADAPTER_PERF_HISTORY=50000 KNOWN_POSTGRES_IMAGE=postgres:16.4-alpine KNOWN_E2E_HEADED=0 node ../server/scripts/with-postgres.mjs --isolated-owner -- node scripts/with-xvfb.mjs npx playwright test --project=core e2e/mv3-site-adapter-shared-sync.spec.ts e2e/mv3-site-adapter-local-first.spec.ts e2e/mv3-site-adapter-planned.spec.ts --grep-invert 'singleKeepExisting|singlePreferSemantic'",
+      "stats": {
+        "startTime": "2026-10-28T13:52:31.906Z",
+        "duration": 491891.456,
+        "expected": 4,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "cases": [
+        {
+          "title": "source native saves finish without a server, inside an offline sync range, and while sync is paused",
+          "status": "expected",
+          "results": [
+            {
+              "status": "passed",
+              "durationMs": 84245
+            }
+          ]
+        },
+        {
+          "title": "planned native commands survive worker cuts or expose unknown without replacement or model calls",
+          "status": "expected",
+          "results": [
+            {
+              "status": "passed",
+              "durationMs": 13741
+            }
+          ]
+        },
+        {
+          "title": "source and automatic semantic copies share ordinary sync, retry independently and converge across devices",
+          "status": "expected",
+          "results": [
+            {
+              "status": "passed",
+              "durationMs": 169075
+            }
+          ]
+        },
+        {
+          "title": "offline concurrent: source and automatic semantic copies share ordinary sync, retry independently and converge across devices",
+          "status": "expected",
+          "results": [
+            {
+              "status": "passed",
+              "durationMs": 221372
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "second-device singleKeepExisting",
+      "result": "passed in selected H-08 run",
+      "durationSecondsApprox": 132
+    },
+    {
+      "name": "second-device toolbar singlePreferSemantic",
+      "result": "passed in selected H-08 run",
+      "durationSecondsApprox": 174
+    },
+    {
+      "name": "page lifecycle and document-local lease renewal",
+      "result": "passed in H-04 run",
+      "tests": 2,
+      "durationSecondsApprox": 186
+    }
+  ],
+  "performance": {
+    "version": 1,
+    "boundary": "controlled facts and native root ready -> plan preparation, sequential native folder/bookmark dispatch and confirmation; excludes website reads and cloud transport",
+    "browser": "149.0.7827.55",
+    "platform": "linux",
+    "architecture": "x64",
+    "retainedCompletedPlans": 50000,
+    "summary": [
+      {
+        "mode": "no-server",
+        "samples": 30,
+        "p50Ms": 403,
+        "p95Ms": 460,
+        "maxMs": 469
+      },
+      {
+        "mode": "offline-synced",
+        "samples": 30,
+        "p50Ms": 757,
+        "p95Ms": 853,
+        "maxMs": 912
+      },
+      {
+        "mode": "paused",
+        "samples": 30,
+        "p50Ms": 842,
+        "p95Ms": 952,
+        "maxMs": 984
+      }
+    ],
+    "timings": [
+      {
+        "mode": "no-server",
+        "sample": 0,
+        "nativeMs": 360,
+        "readyToLocalMs": 389
+      },
+      {
+        "mode": "no-server",
+        "sample": 1,
+        "nativeMs": 313,
+        "readyToLocalMs": 332
+      },
+      {
+        "mode": "no-server",
+        "sample": 2,
+        "nativeMs": 311,
+        "readyToLocalMs": 328
+      },
+      {
+        "mode": "no-server",
+        "sample": 3,
+        "nativeMs": 313,
+        "readyToLocalMs": 329
+      },
+      {
+        "mode": "no-server",
+        "sample": 4,
+        "nativeMs": 324,
+        "readyToLocalMs": 340
+      },
+      {
+        "mode": "no-server",
+        "sample": 5,
+        "nativeMs": 318,
+        "readyToLocalMs": 336
+      },
+      {
+        "mode": "no-server",
+        "sample": 6,
+        "nativeMs": 333,
+        "readyToLocalMs": 348
+      },
+      {
+        "mode": "no-server",
+        "sample": 7,
+        "nativeMs": 321,
+        "readyToLocalMs": 336
+      },
+      {
+        "mode": "no-server",
+        "sample": 8,
+        "nativeMs": 339,
+        "readyToLocalMs": 354
+      },
+      {
+        "mode": "no-server",
+        "sample": 9,
+        "nativeMs": 348,
+        "readyToLocalMs": 364
+      },
+      {
+        "mode": "no-server",
+        "sample": 10,
+        "nativeMs": 378,
+        "readyToLocalMs": 397
+      },
+      {
+        "mode": "no-server",
+        "sample": 11,
+        "nativeMs": 385,
+        "readyToLocalMs": 402
+      },
+      {
+        "mode": "no-server",
+        "sample": 12,
+        "nativeMs": 401,
+        "readyToLocalMs": 420
+      },
+      {
+        "mode": "no-server",
+        "sample": 13,
+        "nativeMs": 399,
+        "readyToLocalMs": 417
+      },
+      {
+        "mode": "no-server",
+        "sample": 14,
+        "nativeMs": 388,
+        "readyToLocalMs": 403
+      },
+      {
+        "mode": "no-server",
+        "sample": 15,
+        "nativeMs": 396,
+        "readyToLocalMs": 415
+      },
+      {
+        "mode": "no-server",
+        "sample": 16,
+        "nativeMs": 420,
+        "readyToLocalMs": 439
+      },
+      {
+        "mode": "no-server",
+        "sample": 17,
+        "nativeMs": 404,
+        "readyToLocalMs": 425
+      },
+      {
+        "mode": "no-server",
+        "sample": 18,
+        "nativeMs": 388,
+        "readyToLocalMs": 406
+      },
+      {
+        "mode": "no-server",
+        "sample": 19,
+        "nativeMs": 416,
+        "readyToLocalMs": 434
+      },
+      {
+        "mode": "no-server",
+        "sample": 20,
+        "nativeMs": 373,
+        "readyToLocalMs": 389
+      },
+      {
+        "mode": "no-server",
+        "sample": 21,
+        "nativeMs": 370,
+        "readyToLocalMs": 387
+      },
+      {
+        "mode": "no-server",
+        "sample": 22,
+        "nativeMs": 403,
+        "readyToLocalMs": 420
+      },
+      {
+        "mode": "no-server",
+        "sample": 23,
+        "nativeMs": 398,
+        "readyToLocalMs": 416
+      },
+      {
+        "mode": "no-server",
+        "sample": 24,
+        "nativeMs": 387,
+        "readyToLocalMs": 404
+      },
+      {
+        "mode": "no-server",
+        "sample": 25,
+        "nativeMs": 394,
+        "readyToLocalMs": 411
+      },
+      {
+        "mode": "no-server",
+        "sample": 26,
+        "nativeMs": 416,
+        "readyToLocalMs": 436
+      },
+      {
+        "mode": "no-server",
+        "sample": 27,
+        "nativeMs": 426,
+        "readyToLocalMs": 444
+      },
+      {
+        "mode": "no-server",
+        "sample": 28,
+        "nativeMs": 449,
+        "readyToLocalMs": 469
+      },
+      {
+        "mode": "no-server",
+        "sample": 29,
+        "nativeMs": 441,
+        "readyToLocalMs": 460
+      },
+      {
+        "mode": "offline-synced",
+        "sample": 0,
+        "nativeMs": 744,
+        "readyToLocalMs": 773
+      },
+      {
+        "mode": "offline-synced",
+        "sample": 1,
+        "nativeMs": 725,
+        "readyToLocalMs": 750
+      },
+      {
+        "mode": "offline-synced",
+        "sample": 2,
+        "nativeMs": 676,
+        "readyToLocalMs": 699
+      },
+      {
+        "mode": "offline-synced",
+        "sample": 3,
+        "nativeMs": 641,
+        "readyToLocalMs": 667
+      },
+      {
+        "mode": "offline-synced",
+        "sample": 4,
+        "nativeMs": 631,
+        "readyToLocalMs": 652
+      },
+      {
+        "mode": "offline-synced",
+        "sample": 5,
+        "nativeMs": 714,
+        "readyToLocalMs": 750
+      },
+      {
+        "mode": "offline-synced",
+        "sample": 6,
+        "nativeMs": 659,
+        "readyToLocalMs": 683
+      },
+      {
+        "mode": "offline-synced",
+        "sample": 7,
+        "nativeMs": 689,
+        "readyToLocalMs": 715
+      },
+      {
+        "mode": "offline-synced",
+        "sample": 8,
+        "nativeMs": 681,
+        "readyToLocalMs": 703
+      },
+      {
+        "mode": "offline-synced",
+        "sample": 9,
+        "nativeMs": 710,
+        "readyToLocalMs": 733
+      },
+      {
+        "mode": "offline-synced",
+        "sample": 10,
+        "nativeMs": 667,
+        "readyToLocalMs": 690
+      },
+      {
+        "mode": "offline-synced",
+        "sample": 11,
+        "nativeMs": 889,
+        "readyToLocalMs": 912
+      },
+      {
+        "mode": "offline-synced",
+        "sample": 12,
+        "nativeMs": 678,
+        "readyToLocalMs": 703
+      },
+      {
+        "mode": "offline-synced",
+        "sample": 13,
+        "nativeMs": 673,
+        "readyToLocalMs": 696
+      },
+      {
+        "mode": "offline-synced",
+        "sample": 14,
+        "nativeMs": 708,
+        "readyToLocalMs": 731
+      },
+      {
+        "mode": "offline-synced",
+        "sample": 15,
+        "nativeMs": 721,
+        "readyToLocalMs": 743
+      },
+      {
+        "mode": "offline-synced",
+        "sample": 16,
+        "nativeMs": 821,
+        "readyToLocalMs": 846
+      },
+      {
+        "mode": "offline-synced",
+        "sample": 17,
+        "nativeMs": 731,
+        "readyToLocalMs": 757
+      },
+      {
+        "mode": "offline-synced",
+        "sample": 18,
+        "nativeMs": 748,
+        "readyToLocalMs": 774
+      },
+      {
+        "mode": "offline-synced",
+        "sample": 19,
+        "nativeMs": 759,
+        "readyToLocalMs": 785
+      },
+      {
+        "mode": "offline-synced",
+        "sample": 20,
+        "nativeMs": 768,
+        "readyToLocalMs": 809
+      },
+      {
+        "mode": "offline-synced",
+        "sample": 21,
+        "nativeMs": 763,
+        "readyToLocalMs": 786
+      },
+      {
+        "mode": "offline-synced",
+        "sample": 22,
+        "nativeMs": 757,
+        "readyToLocalMs": 781
+      },
+      {
+        "mode": "offline-synced",
+        "sample": 23,
+        "nativeMs": 764,
+        "readyToLocalMs": 786
+      },
+      {
+        "mode": "offline-synced",
+        "sample": 24,
+        "nativeMs": 789,
+        "readyToLocalMs": 814
+      },
+      {
+        "mode": "offline-synced",
+        "sample": 25,
+        "nativeMs": 794,
+        "readyToLocalMs": 820
+      },
+      {
+        "mode": "offline-synced",
+        "sample": 26,
+        "nativeMs": 829,
+        "readyToLocalMs": 853
+      },
+      {
+        "mode": "offline-synced",
+        "sample": 27,
+        "nativeMs": 803,
+        "readyToLocalMs": 827
+      },
+      {
+        "mode": "offline-synced",
+        "sample": 28,
+        "nativeMs": 811,
+        "readyToLocalMs": 842
+      },
+      {
+        "mode": "offline-synced",
+        "sample": 29,
+        "nativeMs": 818,
+        "readyToLocalMs": 848
+      },
+      {
+        "mode": "paused",
+        "sample": 0,
+        "nativeMs": 721,
+        "readyToLocalMs": 749
+      },
+      {
+        "mode": "paused",
+        "sample": 1,
+        "nativeMs": 716,
+        "readyToLocalMs": 740
+      },
+      {
+        "mode": "paused",
+        "sample": 2,
+        "nativeMs": 729,
+        "readyToLocalMs": 754
+      },
+      {
+        "mode": "paused",
+        "sample": 3,
+        "nativeMs": 720,
+        "readyToLocalMs": 747
+      },
+      {
+        "mode": "paused",
+        "sample": 4,
+        "nativeMs": 747,
+        "readyToLocalMs": 773
+      },
+      {
+        "mode": "paused",
+        "sample": 5,
+        "nativeMs": 745,
+        "readyToLocalMs": 770
+      },
+      {
+        "mode": "paused",
+        "sample": 6,
+        "nativeMs": 760,
+        "readyToLocalMs": 790
+      },
+      {
+        "mode": "paused",
+        "sample": 7,
+        "nativeMs": 958,
+        "readyToLocalMs": 984
+      },
+      {
+        "mode": "paused",
+        "sample": 8,
+        "nativeMs": 756,
+        "readyToLocalMs": 784
+      },
+      {
+        "mode": "paused",
+        "sample": 9,
+        "nativeMs": 768,
+        "readyToLocalMs": 794
+      },
+      {
+        "mode": "paused",
+        "sample": 10,
+        "nativeMs": 784,
+        "readyToLocalMs": 812
+      },
+      {
+        "mode": "paused",
+        "sample": 11,
+        "nativeMs": 800,
+        "readyToLocalMs": 842
+      },
+      {
+        "mode": "paused",
+        "sample": 12,
+        "nativeMs": 802,
+        "readyToLocalMs": 827
+      },
+      {
+        "mode": "paused",
+        "sample": 13,
+        "nativeMs": 806,
+        "readyToLocalMs": 832
+      },
+      {
+        "mode": "paused",
+        "sample": 14,
+        "nativeMs": 805,
+        "readyToLocalMs": 835
+      },
+      {
+        "mode": "paused",
+        "sample": 15,
+        "nativeMs": 831,
+        "readyToLocalMs": 858
+      },
+      {
+        "mode": "paused",
+        "sample": 16,
+        "nativeMs": 813,
+        "readyToLocalMs": 842
+      },
+      {
+        "mode": "paused",
+        "sample": 17,
+        "nativeMs": 881,
+        "readyToLocalMs": 906
+      },
+      {
+        "mode": "paused",
+        "sample": 18,
+        "nativeMs": 792,
+        "readyToLocalMs": 823
+      },
+      {
+        "mode": "paused",
+        "sample": 19,
+        "nativeMs": 817,
+        "readyToLocalMs": 844
+      },
+      {
+        "mode": "paused",
+        "sample": 20,
+        "nativeMs": 830,
+        "readyToLocalMs": 856
+      },
+      {
+        "mode": "paused",
+        "sample": 21,
+        "nativeMs": 845,
+        "readyToLocalMs": 872
+      },
+      {
+        "mode": "paused",
+        "sample": 22,
+        "nativeMs": 904,
+        "readyToLocalMs": 934
+      },
+      {
+        "mode": "paused",
+        "sample": 23,
+        "nativeMs": 859,
+        "readyToLocalMs": 888
+      },
+      {
+        "mode": "paused",
+        "sample": 24,
+        "nativeMs": 904,
+        "readyToLocalMs": 932
+      },
+      {
+        "mode": "paused",
+        "sample": 25,
+        "nativeMs": 878,
+        "readyToLocalMs": 905
+      },
+      {
+        "mode": "paused",
+        "sample": 26,
+        "nativeMs": 885,
+        "readyToLocalMs": 913
+      },
+      {
+        "mode": "paused",
+        "sample": 27,
+        "nativeMs": 869,
+        "readyToLocalMs": 896
+      },
+      {
+        "mode": "paused",
+        "sample": 28,
+        "nativeMs": 900,
+        "readyToLocalMs": 926
+      },
+      {
+        "mode": "paused",
+        "sample": 29,
+        "nativeMs": 926,
+        "readyToLocalMs": 952
+      }
+    ]
+  },
+  "performanceInterpretation": "Empirical p95 in a controlled native-save fixture, including synthetic plan preparation and host dispatch. Live website intake/readback, real rule matching/classifier selection and cloud transport are outside this latency claim. No warm-up samples were discarded.",
+  "productionDigests": {
+    "service-worker.js": "d27f537e2321f1d96163b397eea968b9a07e4fe567328c6d86f890afc5136d33",
+    "site-adapter.js": "71fbab3f84376deaefd263eec9f9ffaf118ac04c164f0b2b8bc033eae0dc9c3c",
+    "site-probe.js": "9dbef920e60ad1d25143cb3edb80d5547f0174d48400747605faee89012b7217",
+    "site-adapter-bundles.json": "3e7cef3c348b71f104c91914e87d98a1f11c4d9dd27f330c1cf4cae4b74eb31b"
+  },
+  "capabilityLimits": [
+    "Bilibili only; no additional real-site coverage claimed.",
+    "Flat collections and membership sets; unsupported hierarchy/ordered-entry declarations fail closed.",
+    "Bilibili best-effort absence never authorizes source-removal cleanup.",
+    "Only pristine provisional duplicates converge automatically; personal data or uncertain ownership remains reviewable.",
+    "Shared convergence requires the accompanying server capability managedLocalConvergence: 1; older servers retain native results.",
+    "Ordinary Sync deletion preferences remain in effect; the adapter does not directly delete native bookmarks to bypass them."
+  ],
+  "cleanup": {
+    "taskBrowserContextsAndProfilesClosed": true,
+    "taskServicesAndPostgresContainersStopped": true,
+    "processAndContainerChecksPassed": true
+  },
+  "preExistingUserFilesExcluded": [
+    "packages/server/src/infrastructure/sync/postgres/sync-evidence-maintenance-postgres.ts",
+    "packages/server/src/infrastructure/sync/postgres/sync-terminal-authority-cleanup.ts"
+  ]
+}

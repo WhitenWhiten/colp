@@ -60,6 +60,27 @@ If two offline devices missed that cache, conservative semantic-preferred conver
 
 Validation: focused capture/content/cache/transfer/projection tests; all 31 source-archive domain tests; 9 real PostgreSQL convergence tests, including preservation of tags/extensions during semantic-preferred movement; xvfb/real-server second-device keep-existing (passed, about 2.2 minutes) and real-toolbar semantic preference (passed, about 2.9 minutes). Final combined regression and build checks follow below.
 
+## Final isolated acceptance — H-01–H-08
+
+Source revision: `8d905a72`. All eight implementation items are committed separately; the current scope remains Bilibili. The user explicitly chose isolated acceptance. [Machine-readable checks and final performance samples](evidence/hardening-controlled.json) retain the commands, scope, timings, artifact digests and qualification limits.
+
+| Commit | Change |
+| --- | --- |
+| 48e954a4 | fix(site-adapters): preserve destination isolation in local-first saves |
+| c778707f | fix(site-adapters): reuse synced copies through a local association cache |
+| 6d010b5a | feat(site-adapters): converge pristine offline copies with durable receipts |
+| e99ba37b | fix(site-adapters): retain live hints and isolate semantic progress |
+| b45e1dde | feat(site-adapters): derive bundles and qualification from the site registry |
+| 30054f00 | fix(site-adapters): finalize local-to-sync role ownership atomically |
+| 89dd51e9 | perf(site-adapters): bound active work and qualify native save latency |
+| 8d905a72 | fix(site-adapters): honor single-copy policy across device roles |
+
+Final checks: **69 extension test files / 498 tests**, **31 source-archive domain tests**, **9 real PostgreSQL integration tests**, extension/server typecheck, focused lint, i18n, source-size and both builds passed. Production verification checked all 42 files and every registered classic bundle, with no source maps or test RPC. The final combined xvfb browser run passed **4/4** in 491.9 seconds, with **zero skipped, unexpected or flaky tests**; separate single-copy policy, lifecycle and renewal evidence is listed in the JSON.
+
+The final 90-save fixture retained 50,000 completed plans. Empirical ready-to-local p95 was **460 ms** without a server, **853 ms** in an offline Sync range, and **952 ms** with Sync paused. This controlled native-path measurement does not include live website reading, real rule matching/classifier selection or cloud transport. Personal edits remain protected and best-effort reads still do not prove source deletion.
+
+All task-owned browser contexts, temporary profiles and services were closed. No task-owned Chromium/xvfb/test service or PostgreSQL container remains running. The two pre-existing server-maintenance files were excluded from the commits. No deployment or additional site activation was performed.
+
 ## LF remediation and acceptance (October 28, 2026)
 
 The local-first contract in runtime-foundation.md supersedes historical online-first acceptance. Each LF task is implemented and committed separately. Native success, transport success and shared-association success are independent facts; source confirmation still observes the website's read/authorization limits.
