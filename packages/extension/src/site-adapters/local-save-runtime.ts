@@ -21,19 +21,23 @@ export async function prepareLocalSourceSave(command: PlannedNativeCommand, plan
   });
   const slot = await sourceSlotForPlan(plan, effect), root = mounts?.root ?? command.parent;
   const prepared = await prepareLocalSlot(command, slot, root);
+  const policy = await siteLedger.db.read<import('./layout.js').SourcePolicyRecord>('meta', `policy:${plan.connectionId}`);
   // A disconnected mapping retains its original target; a later login cannot retag this work.
-  return { ...prepared, local: { ...prepared.local, owner: transferOwner(mounts?.destination) ?? prepared.local.owner } };
+  return { ...prepared, local: { ...prepared.local, owner: transferOwner(mounts?.destination) ?? prepared.local.owner, ...(policy ? { copyPolicy: policy.policy.copies } : {}) } };
 }
 export async function rememberLocalSourceSave(command: PlannedNativeCommand, result: PlannedNativeResult) {
   if (!command.local || result.status !== 'confirmed') return result;
   const local = command.local, now = Date.now(), key = localTransferKey(command.commandId);
   const transfer: LocalCopyTransfer = { version: 1, commandId: command.commandId, key: localSourceCopyKey(local.root, local.slot),
     native: result.native, parent: command.parent, title: command.title, url: command.bookmark?.url ?? null, slot: local.slot,
-    owner: local.owner, state: 'pending', createdAt: now, updatedAt: now };
-  await siteLedger.db.transaction(['meta'], 'readwrite', async tx => {
+    owner: local.owner, ...(local.copyPolicy ? { copyPolicy: local.copyPolicy } : {}), state: 'pending', createdAt: now, updatedAt: now };
+  await siteLedger.db.transaction(['meta', 'transfers'], 'readwrite', async tx => {
     const old = await get<LocalCopyTransfer>(tx, 'meta', key);
     if (old && (old.key !== transfer.key || sourceDigest(old.native) !== sourceDigest(transfer.native))) throw new Error('localReceiptChanged');
-    if (!old) put(tx, 'meta', key, transfer);
+    if (!old) {
+      put(tx, 'meta', key, transfer);
+      if (transfer.owner) put(tx, 'transfers', transfer.commandId, { ...transfer, dueAt: 0, attempts: 0 });
+    }
   });
   scheduleSourceAlarm(now + 50);
   return result;

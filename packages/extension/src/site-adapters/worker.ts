@@ -1,3 +1,4 @@
+import { flushLocalTransfers } from './local-transfer-runtime.js';
 import { scheduleSourceAlarm } from './wake-scheduler.js';
 import { selectReadLease } from './read-source.js';
 import { siteFeatures, reconciliationCapability } from './capabilities.js';
@@ -224,6 +225,7 @@ function createSiteHost(definition: SiteDefinition) {
     if (working) { workWanted = true; return working; }
     return working = (async () => {
       void flushManagedChanges().catch(() => undefined);
+      void flushLocalTransfers().catch(() => undefined);
       if ((await read()).enabled) { await confirmations.wake(); await archives.live.wake(); }
       await wakePlannedSaves();
       importing ??= archives.importer.wake().catch(() => undefined).finally(() => { importing = undefined; });

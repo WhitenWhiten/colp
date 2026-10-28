@@ -5,7 +5,7 @@ export interface PlannedNativeCommand {
   commandId: string; kind: 'folder' | 'bookmark'; ownerId: string; logicalDigest: string; connectionId: string;
   parent: NativeBinding<'folder'>; title: string; deviceId: string;
   managed?: import('./managed-client.js').ManagedDestination;
-  local?: { slot: import('./managed-client.js').ManagedSlot; owner: import('./copy-identity.js').ManagedLibrary | null; root: NativeBinding<'folder'> };
+  local?: { slot: import('./managed-client.js').ManagedSlot; owner: import('./copy-identity.js').ManagedLibrary | null; root: NativeBinding<'folder'>; copyPolicy?: import('./managed-client.js').ManagedSaveCommand['copyPolicy'] };
   bookmark?: { planId: string; effectId: string; representation: RepresentationKey; url: string; scope: CaptureScope; source: CaptureSource };
 }
 export type PlannedNativeResult = { status: 'confirmed'; reusedFrom?: 'sourceArchive' | 'semantic'; native: NativeBinding; written?: { title: string; parentId: string; url?: string } } | { status: 'unknown' | 'blocked'; reason: string };

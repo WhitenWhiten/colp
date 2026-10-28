@@ -26,6 +26,7 @@ export interface LocalCopyTransfer {
   slot: ManagedSlot;
   /** Immutable transport destination. Never infer this from a later login. */
   owner: ManagedLibrary | null;
+  copyPolicy?: import('./managed-client.js').ManagedSaveCommand['copyPolicy'];
   state: 'pending' | 'registered' | 'attention';
   createdAt: number;
   updatedAt: number;
