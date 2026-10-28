@@ -5,9 +5,9 @@ import { bytesToHex } from '@noble/hashes/utils.js';
 import { canonicalJson } from '../canonical-json.js';
 export const SOURCE_STORES = ['meta', 'authorities', 'documentLeases', 'connections', 'observations', 'receipts', 'items', 'collections', 'memberships',
   'readRequests', 'importRuns', 'importPages', 'representations', 'itemReservations', 'folderReservations', 'folderConsumers',
-  'savePlans', 'effects', 'outbox', 'contentBindings', 'mounts', 'importPreviews', 'importApprovals', 'semanticJobs', 'semanticIndexes'] as const;
+  'savePlans', 'effects', 'outbox', 'contentBindings', 'mounts', 'importPreviews', 'importApprovals', 'semanticJobs', 'semanticIndexes', 'work'] as const;
 export type SourceStore = typeof SOURCE_STORES[number];
-export const SOURCE_DATABASE_VERSION = 5;
+export const SOURCE_DATABASE_VERSION = 6;
 export function sourceDigest(value: unknown): string {
   return `sha256:${bytesToHex(sha256(new TextEncoder().encode(canonicalJson(value, () => { throw new Error('invalidData'); }))))}`;
 }
@@ -42,6 +42,8 @@ export function createSourceDatabase(factory?: IDBFactory, name = 'known-site-ad
         const store = r.transaction!.objectStore(name);
         for (const [index, path] of Object.entries(definitions)) if (!store.indexNames.contains(index)) store.createIndex(index, path);
       }
+      const work = r.transaction!.objectStore('work');
+      if (!work.indexNames.contains('dueAt')) work.createIndex('dueAt', 'dueAt');
       const semanticJobs = r.transaction!.objectStore('semanticJobs');
       if (!semanticJobs.indexNames.contains('stateUpdatedAt')) semanticJobs.createIndex('stateUpdatedAt', ['state', 'updatedAt']);
       if (!semanticJobs.indexNames.contains('connections')) semanticJobs.createIndex('connections', 'connections', { multiEntry: true });

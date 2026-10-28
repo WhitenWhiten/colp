@@ -1,3 +1,4 @@
+import { scheduleSourceAlarm } from './wake-scheduler.js';
 import { createManagedSaves } from './managed-saves.js';
 import { createManagedCopyClient, type ManagedBinding, type ManagedNode } from './managed-client.js';
 import type { ManagedLibrary } from './copy-identity.js';
@@ -79,7 +80,7 @@ export const managedSaves = createManagedSaves(siteLedger.db, {
     return projectManagedNode(destination.library, receipt.node, destination.command.slot.kind, destination.command.commandId);
   },
   wake() {
-    chrome.alarms.create(SITE_RECOVERY_ALARM, { when: Date.now() + 30000 });
+    scheduleSourceAlarm(Date.now() + 30000, SITE_RECOVERY_ALARM);
     void scheduleSyncEngineWake('manual').catch(() => undefined);
   },
 });

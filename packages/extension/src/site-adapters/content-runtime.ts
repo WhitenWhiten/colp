@@ -1,3 +1,4 @@
+import { scheduleSourceAlarm } from './wake-scheduler.js';
 import { contentBindingKey, listContentBindings } from './content-identity.js';
 import { legacySite, identityDefinition, type SiteDefinition } from './registry.js';
 import { readConnectionAuthority } from './ledger.js';
@@ -145,7 +146,7 @@ export function installContentBindings() {
         if (saved && !(saved.shared?.slot.kind === 'bookmark' && saved.shared.slot.copy.purpose === 'semantic')) {
           const key = `semanticAdoptPending:${saved.scopeId}:${saved.id}`, pending = { bindingKey: contentBindingKey(saved.content, saved.id), scope: task.scope };
           await siteLedger.db.transaction(['meta'], 'readwrite', async tx => put(tx, 'meta', key, pending));
-          chrome.alarms.create(SITE_RECOVERY_ALARM, { when: Date.now() + 1000 });
+          scheduleSourceAlarm(Date.now() + 1000, SITE_RECOVERY_ALARM);
           try {
             await adoptSemanticAssociation(saved, task.scope);
             await siteLedger.db.transaction(['meta'], 'readwrite', async tx => { tx.objectStore('meta').delete(key); });
@@ -184,7 +185,7 @@ export function installContentBindings() {
           reference: b.shared, native: b.native, nativeParent: target, expected: { nodeId: b.shared.nodeId, ...relocate, title: b.title, url: b.url } });
       });
       await contentBindings.acknowledge({ ...b, parentId: target }, b.native, { title: b.title, parentId: target });
-      if (relocate) chrome.alarms.create(SITE_RECOVERY_ALARM, { when: Date.now() + 1000 });
+      if (relocate) scheduleSourceAlarm(Date.now() + 1000, SITE_RECOVERY_ALARM);
     },
   });
 }

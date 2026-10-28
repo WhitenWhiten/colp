@@ -1,3 +1,4 @@
+import { scheduleSourceAlarm } from './wake-scheduler.js';
 import { createSourceLayout } from './layout.js';
 import { siteLedger, SITE_RECOVERY_ALARM } from './source-runtime.js';
 import { currentFlat, nativeFolderLookup } from '../sw/automation-browser.js';
@@ -51,7 +52,7 @@ export function installSourceLayout() {
       if (event.removal.node) add(event.removal.node);
       await sourceLayout.nativeChanged(ids, true);
     }
-    chrome.alarms.create(SITE_RECOVERY_ALARM, { when: Date.now() + 1000 });
+    scheduleSourceAlarm(Date.now() + 1000, SITE_RECOVERY_ALARM);
   });
 }
 

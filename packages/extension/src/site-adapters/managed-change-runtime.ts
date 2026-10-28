@@ -1,3 +1,4 @@
+import { scheduleSourceAlarm } from './wake-scheduler.js';
 import { siteLedger, SITE_RECOVERY_ALARM } from './source-runtime.js';
 import { managedClientForLibrary } from './managed-runtime.js';
 import { managedLibraryKey } from './copy-identity.js';
@@ -31,7 +32,7 @@ export function flushManagedChanges(): Promise<void> {
       expected: { nodeId: string; from: string; to: string; title: string; url: string } }>(`managedRelocate:${owner}:`);
     const adoptions = await scan<{ bindingKey: string; scope: CaptureScope }>(`semanticAdoptPending:${owner}:`);
     if (!entries.length && !relocations.length && !adoptions.length) return;
-    chrome.alarms.create(SITE_RECOVERY_ALARM, { when: Date.now() + 30000 });
+    scheduleSourceAlarm(Date.now() + 30000, SITE_RECOVERY_ALARM);
     const client = await managedClientForLibrary(library);
     for (const { key, value } of entries) {
       const { reference, state } = value;

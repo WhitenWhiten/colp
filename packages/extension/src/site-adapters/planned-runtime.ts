@@ -1,7 +1,8 @@
+import { createSourceWorkQueue } from './work-queue.js';
+import { scheduleSourceAlarm } from './wake-scheduler.js';
 import { createPlannedSaveExecutor } from './planned-executor.js';
-import { siteLedger, SITE_RECOVERY_ALARM } from './source-runtime.js';
+import { siteLedger } from './source-runtime.js';
 import { sourceKey, sourceDigest } from './source-db.js';
-import { cursorPage } from '../sync-state/idb.js';
 import type { SaveEffect, SavePlan } from './contracts.js';
 import type { StoredSavePlan } from './planned-types.js';
 import { installPlannedCaptureGuard, plannedNativeFault } from '../capture/planned.js';
@@ -13,7 +14,7 @@ import { assertSemanticSaveTask } from './semantic-authorization.js';
 import { assertReconcileAuthorization } from './reconcile-authorization.js';
 import { activityForSource } from './activity-runtime.js';
 import { activityCode } from './activity.js';
-let scheduleRecovery = (at: number) => chrome.alarms.create(SITE_RECOVERY_ALARM, { when: at });
+let scheduleRecovery = (at: number) => scheduleSourceAlarm(at);
 export function installSourceRecoveryScheduler(schedule: typeof scheduleRecovery) { scheduleRecovery = schedule; }
 let policyAuthorize: (plan: SavePlan, effect: SaveEffect) => Promise<void> = async () => { throw new Error('sourcePolicyUnavailable'); };
 /** Only host rule/import code may install this; no adapter/management RPC accepts a plan. */
@@ -62,37 +63,8 @@ export async function executePlannedSave(planId: string, effectId: string, sched
     connectionId: row?.plan.connectionId, code: result.reason }).catch(() => undefined);
   return { ...result, commandId: state?.commandId ?? effect?.commandId };
 }
-/** Bounded startup/alarm recovery. Unknown commands retain their identities and remain visible. */
-async function recoverPlannedSaves() {
-  const cursor = await siteLedger.db.read<{ planId: string; exclusive: boolean; offset: number }>('meta', 'planRecoveryCursor');
-  const page = await siteLedger.db.transaction(['savePlans'], 'readonly', tx => cursorPage<StoredSavePlan>(tx.objectStore('savePlans'),
-    cursor ? IDBKeyRange.lowerBound(cursor.planId, cursor.exclusive) : null, 20));
-  let next: typeof cursor, budget = 20, stopped = false;
-  for (const row of page) {
-    // Evidence fixtures are manually driven so a worker-cut test controls its exact boundary.
-    if (await siteLedger.db.read('meta', `evidence-plan:${row.plan.id}`)) { next = { planId: row.plan.id, exclusive: true, offset: 0 }; continue; }
-    const byId = new Map(row.plan.effects.map(e => [e.effectId, e])), ordered: SaveEffect[] = [], visited = new Set<string>();
-    const visit = (e: SaveEffect) => { if (visited.has(e.effectId)) return; visited.add(e.effectId); for (const id of e.dependsOn) { const parent = byId.get(id); if (parent) visit(parent); } ordered.push(e); };
-    for (const e of row.plan.effects) visit(e);
-    const offset = cursor?.planId === row.plan.id && !cursor.exclusive ? cursor.offset : 0;
-    for (let index = offset; index < ordered.length; index++) {
-      const effect = ordered[index]!;
-      const state = await siteLedger.db.read<{ state: string; commandId?: string }>('effects', sourceKey(row.plan.id, effect.effectId));
-      const outbox = state?.commandId ? await siteLedger.db.read<import('./planned-types.js').SourceOutbox>('outbox', state.commandId) : undefined;
-      if ((state?.state !== 'confirmed' || outbox && !outbox.executorAcknowledged) && row.state !== 'draft') {
-        await executePlannedSave(row.plan.id, effect.effectId, false); budget--;
-      }
-      if (budget <= 0) { next = { planId: row.plan.id, exclusive: index + 1 === ordered.length, offset: index + 1 === ordered.length ? 0 : index + 1 }; stopped = true; break; }
-    }
-    if (stopped) break;
-    next = { planId: row.plan.id, exclusive: true, offset: 0 };
-  }
-  if (!stopped && page.length < 20) next = undefined;
-  await siteLedger.db.transaction(['meta'], 'readwrite', async tx => {
-    if (next) tx.objectStore('meta').put(next, 'planRecoveryCursor'); else tx.objectStore('meta').delete('planRecoveryCursor');
-  });
-  if (next) scheduleRecovery(Date.now() + 100);
-}
+/** Active work is independent of retained history and immutable plan key order. */
+const recoverPlannedSaves = createSourceWorkQueue(siteLedger.db, { execute: (id, effect) => executePlannedSave(id, effect, false), schedule: at => scheduleRecovery(at) });
 
 let recovering: Promise<void> | undefined, recoveryRequested = false;
 /** All installations share the executor/outbox: coalesce wakes instead of racing its durable cursor. */

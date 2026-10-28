@@ -1,3 +1,4 @@
+import { scheduleSourceAlarm } from './wake-scheduler.js';
 import { readReconcileData } from './reconcile-storage.js';
 import { createReconcileRuns, type ReconcileRun, type ReconcileOperation } from './reconcile-run.js';
 import { executeReconcileCommand, prepareReconcileCommand, assertReconcileOwnership, assertReconcileUndoState, type ReconcileReceipt } from './reconcile-executor.js';
@@ -22,7 +23,7 @@ import { managedDestinations } from './managed-destinations.js';
 import { scheduleNativeFoldersFirst } from '../sw/bookmark-folders-first.js';
 import { sameNativeContentValue } from '../native-event-correlation.js';
 import { reconcileTreeDigest } from './reconcile-inventory.js';
-const schedule = () => { chrome.alarms.create(SITE_RECOVERY_ALARM, { when: Date.now() + 1000 }); };
+const schedule = () => { scheduleSourceAlarm(Date.now() + 1000, SITE_RECOVERY_ALARM); };
 async function authorize(run: ReconcileRun, undo = false) {
   if (undo) { await assertCaptureOwner(run.scope); return; } await assertCaptureScope(run.scope);
   const a = await readConnectionAuthority(siteLedger.db, run.preview.context.connectionId), c = run.preview.context;

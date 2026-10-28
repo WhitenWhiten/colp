@@ -1,3 +1,4 @@
+import { scheduleSourceAlarm } from './wake-scheduler.js';
 import { createSemanticJobs, type SemanticJob } from './semantic-jobs.js';
 import { semanticContext, scopedSemanticBindings, attachSemanticAssociation, sharedSemanticBinding, adoptSemanticAssociation } from './semantic-associations.js';
 import { captureContent } from './semantic-scope.js';
@@ -29,7 +30,7 @@ import { classificationDestinationPolicy } from '../sw/classification-destinatio
 import { assertSourceRebound, assertRestoredItemAvailable } from './portable.js';
 import { cursorPage } from '../sync-state/idb.js';
 import { managedDestinations } from './managed-destinations.js';
-const schedule = () => { chrome.alarms.create(SITE_RECOVERY_ALARM, { when: Date.now() + 30000 }); };
+const schedule = () => { scheduleSourceAlarm(Date.now() + 30000, SITE_RECOVERY_ALARM); };
 async function mounts() { return managedDestinations(siteLedger.db); }
 export async function assertSemanticDestination(binding: NativeBinding<'folder'>, digest?: string) {
   await assertSourceRoot(binding);

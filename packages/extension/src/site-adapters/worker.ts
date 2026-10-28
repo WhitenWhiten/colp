@@ -1,3 +1,4 @@
+import { scheduleSourceAlarm } from './wake-scheduler.js';
 import { selectReadLease } from './read-source.js';
 import { siteFeatures, reconciliationCapability } from './capabilities.js';
 import { reconcileBundledScripts } from './browser-registration.js';
@@ -165,7 +166,7 @@ function createSiteHost(definition: SiteDefinition) {
   function scheduleSourceWork(at: number) {
     if (workTimer && at >= workAt) return;
     workAt = at; clearTimeout(workTimer);
-    chrome.alarms.create(recoveryAlarm, { when: at });
+    scheduleSourceAlarm(at, recoveryAlarm);
     workTimer = setTimeout(() => { workAt = Infinity; workTimer = undefined; void wakeSourceWork().catch(() => undefined); }, Math.max(50, at - Date.now()));
   }
   async function currentSiteSource(tabId?: number, origin?: import('./ledger-types.js').SourceContext, readScope = definition.readScope) {
@@ -218,14 +219,15 @@ function createSiteHost(definition: SiteDefinition) {
       return cache.items;
     },
   }, siteLedger, definition);
-  let working: Promise<void> | undefined, workWanted = false;
+  let working: Promise<void> | undefined, importing: Promise<unknown> | undefined, reconciling: Promise<unknown> | undefined, workWanted = false;
   function wakeSourceWork(): Promise<void> {
     if (working) { workWanted = true; return working; }
     return working = (async () => {
-      await flushManagedChanges().catch(() => undefined);
+      void flushManagedChanges().catch(() => undefined);
       if ((await read()).enabled) { await confirmations.wake(); await archives.live.wake(); }
-      await archives.importer.wake(); await wakePlannedSaves();
-      await reconciliationRuns.wake();
+      await wakePlannedSaves();
+      importing ??= archives.importer.wake().catch(() => undefined).finally(() => { importing = undefined; });
+      reconciling ??= reconciliationRuns.wake().catch(() => undefined).finally(() => { reconciling = undefined; });
       const importJob = await archives.importer.status();
       if (importJob?.preview?.id && importJob.phase === 'attention' && importJob.reason === 'sourceReviewRequired') {
         const run = await reconciliationRuns.view(importJob.preview.id);
@@ -443,7 +445,7 @@ function createSiteHost(definition: SiteDefinition) {
           }
           if (raw.operation === 'connect') { scheduleSourceWork(Date.now() + 50); port.postMessage({ operation: 'reply', requestId: raw.requestId, reply: { status: 'readResult', value: 'connected' } }); return; }
           if (raw.operation === 'emit') {
-            chrome.alarms.create(recoveryAlarm, { when: Date.now() + 30000 });
+            scheduleSourceAlarm(Date.now() + 30000, recoveryAlarm);
             const receipt = await siteLedger.acceptObservation(await sourceContext(lease, siteLedger), raw.requestId, raw.data);
             port.postMessage({ operation: 'reply', requestId: raw.requestId, reply: receipt }); return;
           }
@@ -493,7 +495,7 @@ function createSiteHost(definition: SiteDefinition) {
 
   return { definition, install: installHandlers, ready: trustedStorage, resolve, source: currentSiteSource,
     enqueue: (c: import('./ledger-types.js').SourceContext, id: string, hint: import('./contracts.js').MembershipHint) => confirmations.enqueue(c, id, hint),
-    wake: () => scheduleSourceWork(Date.now() + 50) };
+    wakeAt: scheduleSourceWork, wake: () => scheduleSourceWork(Date.now() + 50) };
 }
 const hosts = bundledSites.map(createSiteHost);
 const community = createCommunityRuntime({ ready: () => hosts[0]!.ready(),
@@ -506,7 +508,7 @@ export function installSiteAdapters() {
   community.install(); installContentBindings(); installPlannedSaveRuntime(); installSourceLayout();
   installSemanticRuntime();
   installReconciliationRuntime();
-  installSourceRecoveryScheduler(at => chrome.alarms.create(SITE_RECOVERY_ALARM, { when: at }));
+  installSourceRecoveryScheduler(at => hosts[0]!.wakeAt(at));
   installContentResolver(async (url, tabId) => {
     for (const host of hosts) { const id = await host.resolve(url, tabId); if (id) return { siteKey: host.definition.siteKey, identityVersion: host.definition.identityVersion, itemId: id }; }
     return null;
