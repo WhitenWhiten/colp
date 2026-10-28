@@ -35,7 +35,7 @@ test('conflicting adoption is reviewable and never replaces or deletes the local
     });
     const register = vi.fn(async () => { throw Error('source_copy_adoption_conflict'); });
     const run = createLocalTransferQueue(db, { register, schedule: vi.fn() }); await run(); await run();
-    expect(register).toHaveBeenCalledOnce(); expect(await db.read('transfers', 'command')).toBeUndefined();
+    expect(register).toHaveBeenCalledOnce(); expect(await db.read('transfers', 'command')).toMatchObject({ state: 'attention' });
     expect(await db.read('meta', localTransferKey('command'))).toMatchObject({ state: 'attention', native, owner, reason: 'source_copy_adoption_conflict' });
   } finally { await db.close(); }
 });

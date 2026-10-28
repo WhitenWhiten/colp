@@ -18,6 +18,9 @@ export function transferOwner(owner?: DestinationOwner | null): ManagedLibrary |
 export interface LocalCopyTransfer {
   version: 1;
   commandId: string;
+  connectionId?: string;
+  ownerKey?: string;
+  associatedAt?: number;
   key: string;
   native: NativeBinding;
   parent: NativeBinding<'folder'>;

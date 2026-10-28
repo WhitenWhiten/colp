@@ -27,7 +27,7 @@ export async function persistSavePlan(db: SourceDatabase, plan: SavePlan, state:
     const prior = await get<StoredSavePlan>(tx, 'savePlans', plan.id);
     if (prior && (prior.digest !== row.digest || prior.state === 'cancelled' && state !== 'cancelled')) throw new Error('conflict');
     put(tx, 'savePlans', plan.id, row);
-    if (state === 'approved') await enqueueSourcePlan(tx, plan.id);
+    if (state === 'approved') await enqueueSourcePlan(tx, plan.id, plan.connectionId);
   });
 }
 export function createPlannedSaveExecutor(db: SourceDatabase, ports: PlannedExecutionPorts) {
@@ -115,6 +115,7 @@ export function createPlannedSaveExecutor(db: SourceDatabase, ports: PlannedExec
         if (existing && existing.native.bindingId !== native.bindingId) throw new Error('representationConflict');
         put(tx, 'representations', key, existing ?? { ...effect.representation, native, ...(shared ? { shared } : {}), state: 'active', manualRevision: 0,
           lastWritten: written ?? { title: outbox.command.title, parentId: outbox.command.parent.nativeId, url: outbox.command.bookmark!.url } });
+        put(tx, 'meta', `localPipelineLast:${plan.connectionId}`, { at: native.dateAdded, commandId: outbox.command.commandId });
         if (!existing && effect.representation.purpose === 'sourceArchive') {
           const revisionKey = `semanticSourceRevision:${plan.connectionId}`;
           put(tx, 'meta', revisionKey, (await get<number>(tx, 'meta', revisionKey) ?? 0) + 1);

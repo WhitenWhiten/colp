@@ -30,7 +30,7 @@ interface Collection { id: string; title: string }
 interface ArchiveConfig { root: { nativeId: string }; collectionIds: readonly string[]; live: boolean; state: string; copies?: string; primarySourceCollectionId?: string | null; aiDestination?: string; semantic?: string }
 interface SemanticStatus { pending: number; attention: number; completed: number; suppressed: number;
   jobs: { id: string; title: string; state: string; reason: string | null; takeover: boolean }[] }
-interface SiteStatus { inspectionStatus?: { status: string; retryAfterMs?: number }; enabled?: boolean; connected?: boolean; accountId?: string | null; documents?: number; candidateAccount?: string | null; error?: string; incidentId?: string;
+interface SiteStatus { pipeline?: import('./local-progress.js').LocalSourceProgress; inspectionStatus?: { status: string; retryAfterMs?: number }; enabled?: boolean; connected?: boolean; accountId?: string | null; documents?: number; candidateAccount?: string | null; error?: string; incidentId?: string;
   accountLabel?: string; candidateLabel?: string;
   activity?: { problem: SiteActivity | null; lastEvent: SiteActivity | null };
   confirmations?: { pending: number; paused?: unknown }; archiveHold?: string | null;
@@ -447,6 +447,7 @@ button('approve-import').addEventListener('click', () => { const job = lastImpor
 
 // ---- Recovery tab: the inspector rows
 button('read-item').addEventListener('click', () => { void requestInspection({ kind: 'known.siteAdapters.inspect', operation: 'resolve' }); });
+document.getElementById('source-pipeline-retry')?.addEventListener('click', () => { void act({ kind: 'known.siteAdapters.operations.check' }); });
 button('retry-confirmation').addEventListener('click', () => { void act({ kind: 'known.siteAdapters.retryConfirmation' }); });
 button('open-recovery').addEventListener('click', () => { showTab('recovery'); });
 function paintInspector() {

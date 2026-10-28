@@ -7151,6 +7151,24 @@
   "sites_liveWaiting": {
     "message": "New favorites save automatically while $1 is open."
   },
+  "sites_localAssociationReview": {
+    "message": "Saved locally · shared association needs review"
+  },
+  "sites_localConfirming": {
+    "message": "Checking the website favorite"
+  },
+  "sites_localPendingSync": {
+    "message": "Saved locally · waiting for sync and association"
+  },
+  "sites_localProgressUnavailable": {
+    "message": "Save progress could not be verified"
+  },
+  "sites_localSaving": {
+    "message": "Waiting for local bookmark saving"
+  },
+  "sites_localSavingComplete": {
+    "message": "Local bookmark saving complete"
+  },
   "sites_manageScope": {
     "message": "Manage collections"
   },
@@ -7780,6 +7798,9 @@
   },
   "sites_resumeSyncing": {
     "message": "Resume syncing"
+  },
+  "sites_retryLocalAssociation": {
+    "message": "Retry association"
   },
   "sites_retryPaused": {
     "message": "Retry paused reads"

@@ -1,9 +1,11 @@
+import type { LocalSourceProgress } from './local-progress.js';
 import { t, tn } from '../i18n.js';
 import type { SiteDefinition } from './registry-types.js';
 import type { SourceOverview, CollectionOverview } from './overview.js';
 import { siteFeatures } from './capabilities.js';
 
 export interface OverviewStatus {
+  pipeline?: LocalSourceProgress;
   accountLabel?: string;
   enabled?: boolean; connected?: boolean; candidateAccount?: string | null; documents?: number;
   archive?: { config: { state: string; root: { nativeId: string }; collectionIds: readonly string[]; live: boolean } | null;
@@ -17,6 +19,16 @@ const count = (n: number) => n.toLocaleString();
 export function paintSourceOverview(status: OverviewStatus, definition: SiteDefinition, folderNames: ReadonlyMap<string, string>,
   edit: (part: 'collections' | 'destination' | 'connection', collectionId?: string) => void, folderPaths?: ReadonlyMap<string, string>) {
   const config = status.archive?.config, overview = status.archive?.overview, features = siteFeatures(definition);
+  const pipeline = document.getElementById('source-pipeline-status'), progress = status.pipeline;
+  const retry = document.getElementById('source-pipeline-retry');
+  if (retry) retry.hidden = !progress?.attention;
+  if (pipeline) pipeline.textContent = !progress ? '' : !progress.available ? t('sites_localProgressUnavailable', 'Save progress could not be verified')
+    : progress.pendingConfirmation ? t('sites_localConfirming', 'Checking the website favorite')
+    : progress.pendingLocal ? t('sites_localSaving', 'Waiting for local bookmark saving')
+    : progress.attention ? t('sites_localAssociationReview', 'Saved locally · shared association needs review')
+    : progress.pendingSync ? t('sites_localPendingSync', 'Saved locally · waiting for sync and association')
+    : overview?.saved ? t('sites_localSavingComplete', 'Local bookmark saving complete') : '';
+
   element('source-overview').hidden = !config;
   element('source-identification').hidden = features.archive;
   const identify = element<HTMLButtonElement>('overview-identify');

@@ -1,10 +1,10 @@
 import { cursorPage } from '../sync-state/idb.js';
 import { get, put, sourceKey, type SourceDatabase } from './source-db.js';
 import type { StoredSavePlan } from './planned-types.js';
-export interface SourceWork { id: string; dueAt: number; attempts: number; reason?: string }
+export interface SourceWork { id: string; dueAt: number; attempts: number; connectionId?: string; reason?: string }
 /** Derived active index. Deleting a completed entry never deletes its plan, command or receipt. */
-export async function enqueueSourcePlan(tx: IDBTransaction, id: string) {
-  if (!await get(tx, 'work', id)) put(tx, 'work', id, { id, dueAt: 0, attempts: 0 } satisfies SourceWork);
+export async function enqueueSourcePlan(tx: IDBTransaction, id: string, connectionId?: string) {
+  if (!await get(tx, 'work', id)) put(tx, 'work', id, { id, dueAt: 0, attempts: 0, ...(connectionId ? { connectionId } : {}) } satisfies SourceWork);
 }
 export function createSourceWorkQueue(db: SourceDatabase, ports: {
   execute(planId: string, effectId: string): Promise<{ status: string; reason?: string }>;

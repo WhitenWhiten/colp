@@ -1,3 +1,4 @@
+import { managedLibraryKey } from './copy-identity.js';
 import { siteLedger } from './source-runtime.js';
 import { get, put, sourceDigest } from './source-db.js';
 import { localSourceCopyKey, localTransferKey, transferOwner, type LocalCopyTransfer } from './local-identity.js';
@@ -28,7 +29,7 @@ export async function prepareLocalSourceSave(command: PlannedNativeCommand, plan
 export async function rememberLocalSourceSave(command: PlannedNativeCommand, result: PlannedNativeResult) {
   if (!command.local || result.status !== 'confirmed') return result;
   const local = command.local, now = Date.now(), key = localTransferKey(command.commandId);
-  const transfer: LocalCopyTransfer = { version: 1, commandId: command.commandId, key: localSourceCopyKey(local.root, local.slot),
+  const transfer: LocalCopyTransfer = { version: 1, commandId: command.commandId, connectionId: command.connectionId, ...(local.owner ? { ownerKey: managedLibraryKey(local.owner) } : {}), key: localSourceCopyKey(local.root, local.slot),
     native: result.native, parent: command.parent, title: command.title, url: command.bookmark?.url ?? null, slot: local.slot,
     owner: local.owner, ...(local.copyPolicy ? { copyPolicy: local.copyPolicy } : {}), state: 'pending', createdAt: now, updatedAt: now };
   await siteLedger.db.transaction(['meta', 'transfers'], 'readwrite', async tx => {

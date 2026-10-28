@@ -22,7 +22,7 @@ export function createLocalTransferQueue(db: SourceDatabase, ports: {
           const current = await get<LocalCopyTransfer>(tx, 'meta', localTransferKey(transfer.commandId));
           if (!current || current.native.nativeId !== transfer.native.nativeId || current.native.dateAdded !== transfer.native.dateAdded) throw Error('localReceiptChanged');
           await ports.attach?.(tx, current, reference);
-          put(tx, 'meta', localTransferKey(transfer.commandId), { ...current, state: 'registered', updatedAt: now(), reason: undefined });
+          put(tx, 'meta', localTransferKey(transfer.commandId), { ...current, state: 'registered', updatedAt: now(), associatedAt: now(), reason: undefined });
           tx.objectStore('transfers').delete(transfer.commandId);
         });
       } catch (error) {
@@ -31,12 +31,23 @@ export function createLocalTransferQueue(db: SourceDatabase, ports: {
         await db.transaction(['meta', 'transfers'], 'readwrite', async tx => {
           const current = await get<LocalCopyTransfer>(tx, 'meta', localTransferKey(transfer.commandId));
           if (current) put(tx, 'meta', localTransferKey(transfer.commandId), { ...current, state: attention ? 'attention' : 'pending', reason, updatedAt: now() });
-          if (attention) tx.objectStore('transfers').delete(transfer.commandId);
+          if (attention) put(tx, 'transfers', transfer.commandId, { ...transfer, state: 'attention', reason, dueAt: Number.MAX_SAFE_INTEGER });
           else put(tx, 'transfers', transfer.commandId, { ...transfer, dueAt: now() + 30000, attempts: transfer.attempts + 1, reason });
         });
       }
     }
     const next = await db.transaction(['transfers'], 'readonly', async tx => (await cursorPage<PendingLocalTransfer>(tx.objectStore('transfers').index('dueAt'), null, 1))[0]);
-    if (next) ports.schedule(Math.max(now() + 1000, next.dueAt));
+    if (next && next.dueAt < Number.MAX_SAFE_INTEGER) ports.schedule(Math.max(now() + 1000, next.dueAt));
   };
+}
+/** An explicit user retry changes derived work only, retaining the original owner and command identity. */
+export async function retryLocalTransfers(db: SourceDatabase, connectionId: string) {
+  await db.transaction(['transfers', 'meta'], 'readwrite', async tx => {
+    const rows = await cursorPage<PendingLocalTransfer>(tx.objectStore('transfers').index('connectionState'), IDBKeyRange.only([connectionId, 'attention']), 50);
+    for (const row of rows) {
+      put(tx, 'transfers', row.commandId, { ...row, state: 'pending', dueAt: 0, reason: undefined });
+      const record = await get<LocalCopyTransfer>(tx, 'meta', localTransferKey(row.commandId));
+      if (record) put(tx, 'meta', localTransferKey(row.commandId), { ...record, state: 'pending', reason: undefined });
+    }
+  });
 }

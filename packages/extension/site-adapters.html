@@ -51,8 +51,8 @@
               <button id="overview-manage-connection" class="btn btn-ghost btn-sm" type="button" data-i18n="sites_connectionSettings">Connection</button>
             </div>
             <div class="set-row">
-              <div class="set-row-text"><p id="overview-destination" class="set-row-title"></p><p id="overview-result" class="set-row-hint"></p></div>
-              <div class="set-row-control"><a id="overview-open-folder" class="btn btn-ghost btn-sm" data-i18n="sites_openFolder">Open folder</a><button id="overview-edit-destination" class="btn btn-ghost btn-sm" type="button" data-i18n="common_change">Change</button></div>
+              <div class="set-row-text"><p id="overview-destination" class="set-row-title"></p><p id="overview-result" class="set-row-hint"></p><p id="source-pipeline-status" class="set-row-hint" aria-live="polite"></p></div>
+              <div class="set-row-control"><button id="source-pipeline-retry" class="btn btn-ghost btn-sm" type="button" data-i18n="sites_retryLocalAssociation" hidden>Retry association</button><a id="overview-open-folder" class="btn btn-ghost btn-sm" data-i18n="sites_openFolder">Open folder</a><button id="overview-edit-destination" class="btn btn-ghost btn-sm" type="button" data-i18n="common_change">Change</button></div>
             </div>
         <section id="step-import" class="sites-task" data-step="current" aria-labelledby="import-state">
           <p id="import-destination" hidden></p>

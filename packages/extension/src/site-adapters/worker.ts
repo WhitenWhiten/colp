@@ -1,3 +1,5 @@
+import { retryLocalTransfers } from './local-transfer-queue.js';
+import { localSourceProgress } from './local-progress.js';
 import { migrateLocalFirstBatch } from './local-first-migration.js';
 import { captureDeviceId } from '../sw/capture-history.js';
 import { flushLocalTransfers } from './local-transfer-runtime.js';
@@ -365,7 +367,11 @@ function createSiteHost(definition: SiteDefinition) {
         })().then(respond, async e => respond(await failed(raw, e))); return true;
       }
       if (management(sender) && checkOperations(raw)) {
-        void trustedStorage().then(() => wakePlannedSaves()).then(() => ({ checked: true }))
+        void trustedStorage().then(async () => {
+          const authority = await siteLedger.db.read<import('./ledger-types.js').SourceAuthority>('authorities', definition.adapterId);
+          if (authority?.enabled && authority.connectionId) await retryLocalTransfers(siteLedger.db, authority.connectionId);
+          scheduleSourceWork(Date.now() + 50); await wakePlannedSaves(); return { checked: true };
+        })
           .then(result => settledManagement(raw, result)).then(respond, async e => respond(await failed(raw, e))); return true;
       }
       if (!management(sender) || !(statusSchema(raw) || enableSchema(raw) || confirmSchema(raw) || reconnectSchema(raw) || inspectSchema(raw) || retrySchema(raw) || semanticRetry(raw) || archives.valid(raw))) return false;
@@ -417,7 +423,7 @@ function createSiteHost(definition: SiteDefinition) {
         const events = await activity.list().catch(() => []);
         const problem = currentSiteProblem(events, { connectionId: archiveState.config?.connectionId, taskId: archiveState.import?.id, phase: archiveState.import?.phase });
         return { ...siteStatus, browser: browserSupport(), grants: { site: await chrome.permissions.contains(grants), bookmarks: await chrome.permissions.contains({ permissions: ['bookmarks'] }) },
-          mode: writes ? 'localArchive' : 'inspector', writes, archiveHold, activity: { problem, lastEvent: events[0] ?? null }, archive: archiveState, catalog: await catalogStatus(), ...(archiveResult ? { archiveResult } : {}), adapterId: definition.adapterId, features: siteFeatures(definition), capabilities: { itemIdentity: `${definition.siteKey}:${definition.identityVersion}`, observation: siteFeatures(definition).observe ? 'sourceObservations' : 'unavailable', humanActionProof: 'unavailable',
+          mode: writes ? 'localArchive' : 'inspector', writes, archiveHold, pipeline: await localSourceProgress(siteLedger.db, archiveState.config?.connectionId), activity: { problem, lastEvent: events[0] ?? null }, archive: archiveState, catalog: await catalogStatus(), ...(archiveResult ? { archiveResult } : {}), adapterId: definition.adapterId, features: siteFeatures(definition), capabilities: { itemIdentity: `${definition.siteKey}:${definition.identityVersion}`, observation: siteFeatures(definition).observe ? 'sourceObservations' : 'unavailable', humanActionProof: 'unavailable',
           negativeMembership: definition.negativeReadback ? 'available' : 'unavailable', reconciliation: reconciliationCapability(definition), collectionHierarchy: 'flat', shortLinks: 'unavailable', collectionChanges: siteFeatures(definition).collections ? 'explicitCatalogRead' : siteFeatures(definition).observe ? 'observedCatalog' : 'unavailable', nativeWrites: archiveState.config?.state === 'active' ? 'previewApprovalOrEnabledLivePolicy' : 'unavailable' },
         confirmations: await confirmations.status(), ...(inspectionStatus ? { inspectionStatus } : {}), inspection: (await chrome.storage.local.get(INSPECTION))[INSPECTION] ?? null };
       })().then(respond, async e => respond(await failed(raw, e))); return true;

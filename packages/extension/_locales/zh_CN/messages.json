@@ -13450,5 +13450,33 @@
   "sites_chooseCollectionsFirst": {
     "message": "请至少选择一个来源收藏夹，再保存设置。",
     "description": "Choose at least one source collection before saving these settings."
+  },
+  "sites_localProgressUnavailable": {
+    "message": "暂时无法确认保存进度",
+    "description": "Save progress could not be verified"
+  },
+  "sites_localSaving": {
+    "message": "等待保存到本地收藏夹",
+    "description": "Waiting for local bookmark saving"
+  },
+  "sites_localAssociationReview": {
+    "message": "已保存到本地 · 共享关联需要复核",
+    "description": "Saved locally · shared association needs review"
+  },
+  "sites_localPendingSync": {
+    "message": "已保存到本地 · 等待同步和关联",
+    "description": "Saved locally · waiting for sync and association"
+  },
+  "sites_localSavingComplete": {
+    "message": "本地收藏夹保存完成",
+    "description": "Local bookmark saving complete"
+  },
+  "sites_localConfirming": {
+    "message": "正在确认站点收藏",
+    "description": "Checking the website favorite"
+  },
+  "sites_retryLocalAssociation": {
+    "message": "重试关联",
+    "description": "Retry association"
   }
 }

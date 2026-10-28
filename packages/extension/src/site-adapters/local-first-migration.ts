@@ -43,8 +43,8 @@ export async function migrateLocalFirstBatch(db: SourceDatabase, ports: {
           if (row.state === 'cancelled' && (!outbox || outbox.state === 'reserved')) continue;
           if (state?.state !== 'confirmed' || outbox && !outbox.executorAcknowledged) pending = true;
         }
-        if (pending) { await enqueueSourcePlan(tx, row.plan.id);
-          if (row.plan.trigger.kind === 'import') put(tx, 'work', row.plan.id, { id: row.plan.id, dueAt: Date.now(), attempts: 0 }); }
+        if (pending) { await enqueueSourcePlan(tx, row.plan.id, row.plan.connectionId);
+          if (row.plan.trigger.kind === 'import') put(tx, 'work', row.plan.id, { id: row.plan.id, dueAt: Date.now(), attempts: 0, connectionId: row.plan.connectionId }); }
       } else if (progress.stage === 'observations') {
         const row = await get<ObservationRow & { planning?: { reason: string; planIds: string[] } }>(tx, 'observations', entry.key);
         if (!row || row.state !== 'settled' || !row.planning || row.planning.planIds.length || !retryableSourceDependency(row.planning.reason)) continue;

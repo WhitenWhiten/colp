@@ -7,7 +7,7 @@ export const SOURCE_STORES = ['meta', 'authorities', 'documentLeases', 'connecti
   'readRequests', 'importRuns', 'importPages', 'representations', 'itemReservations', 'folderReservations', 'folderConsumers',
   'savePlans', 'effects', 'outbox', 'contentBindings', 'mounts', 'importPreviews', 'importApprovals', 'semanticJobs', 'semanticIndexes', 'work', 'transfers'] as const;
 export type SourceStore = typeof SOURCE_STORES[number];
-export const SOURCE_DATABASE_VERSION = 8;
+export const SOURCE_DATABASE_VERSION = 9;
 export function sourceDigest(value: unknown): string {
   return `sha256:${bytesToHex(sha256(new TextEncoder().encode(canonicalJson(value, () => { throw new Error('invalidData'); }))))}`;
 }
@@ -44,8 +44,11 @@ export function createSourceDatabase(factory?: IDBFactory, name = 'known-site-ad
       }
       const transfers = r.transaction!.objectStore('transfers');
       if (!transfers.indexNames.contains('dueAt')) transfers.createIndex('dueAt', 'dueAt');
+      for (const [name, path] of Object.entries({ state: 'state', connectionState: ['connectionId', 'state'], ownerState: ['ownerKey', 'state'] }))
+        if (!transfers.indexNames.contains(name)) transfers.createIndex(name, path);
       const work = r.transaction!.objectStore('work');
       if (!work.indexNames.contains('dueAt')) work.createIndex('dueAt', 'dueAt');
+      if (!work.indexNames.contains('connectionId')) work.createIndex('connectionId', 'connectionId');
       const semanticJobs = r.transaction!.objectStore('semanticJobs');
       if (!semanticJobs.indexNames.contains('stateUpdatedAt')) semanticJobs.createIndex('stateUpdatedAt', ['state', 'updatedAt']);
       if (!semanticJobs.indexNames.contains('connections')) semanticJobs.createIndex('connections', 'connections', { multiEntry: true });
@@ -57,6 +60,7 @@ export function createSourceDatabase(factory?: IDBFactory, name = 'known-site-ad
         const b = c.value, key = sourceKey(b.content.siteKey, b.content.identityVersion, b.content.itemId, b.id);
         if (c.key !== key) { bindings.put(b, key); c.delete(); } c.continue(); };
       const observations = r.transaction!.objectStore('observations');
+      if (!observations.indexNames.contains('connectionState')) observations.createIndex('connectionState', ['context.connectionId', 'state']);
       if (!observations.indexNames.contains('installationReady')) {
         observations.createIndex('installationReady', ['installationId', 'state', 'readyAt', 'ordinal']);
         const ready = observations.openCursor();

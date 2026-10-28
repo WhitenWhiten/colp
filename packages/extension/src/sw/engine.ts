@@ -1,3 +1,5 @@
+import { localSourceProgress } from '../site-adapters/local-progress.js';
+import { siteLedger } from '../site-adapters/source-runtime.js';
 import { createQueueRecapture } from '../queue-recapture.js';
 import { repairOwnCreateFromNative } from '../bookmark-own-create-repair.js';
 import { recoverLocalSaveFreeze, recoverMappedIdentityFreeze } from '../local-save-freeze-recovery.js';
@@ -547,6 +549,7 @@ export async function publicSyncEngineState(scope: SyncScope, credential: Stored
     projectNativeWaits(syncState, scope).catch(() => []),
   ]);
   const nativeWaitPending = nativeWaits.length > 0;
+  const siteWork = await localSourceProgress(siteLedger.db, undefined, scope);
   const { hasPendingWork, conflictPending, rejectedPending, queueProjection } = pendingWork;
   const scopeKey = value?.scopeKey ?? recorded?.scopeKey ?? JSON.stringify([
     scope.environment, scope.serverId, scope.serverOrigin, scope.accountId,
@@ -565,7 +568,7 @@ export async function publicSyncEngineState(scope: SyncScope, credential: Stored
       errorCode: value?.lastError, engineNotBefore: value?.notBefore ?? 0 }),
     engineWakeInFlight: workCoordinator.hasInFlight('engine'),
     authorityRefreshInFlight: workCoordinator.hasInFlight('auth') || workCoordinator.hasInFlight('session'),
-    credentialReady, sessionReady, hasPendingWork: hasPendingWork || nativeWaitPending, conflictPending, rejectedPending, queueProjection,
+    credentialReady, sessionReady, hasPendingWork: hasPendingWork || nativeWaitPending || !siteWork.available || (siteWork.pendingConfirmation ?? 0) > 0 || siteWork.pendingLocal > 0 || siteWork.pendingSync > 0 || siteWork.attention > 0, siteWork, conflictPending, rejectedPending, queueProjection,
     // K4: this computer's clock minus the server's, only when it is far enough off to tell the person.
     ...(clockSkewIsSignificant(clockSkew) ? { clockSkewMilliseconds: clockSkew } : {}) };
   const bookmarkIngressStatus = bookmarkListenerLifecycle.status();
