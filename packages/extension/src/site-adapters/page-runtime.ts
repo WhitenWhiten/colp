@@ -15,7 +15,7 @@ export function startAdapterRuntime(definition: SiteDefinition, createAdapter: S
   const stopEvent = `known-site-adapter-stop:${definition.adapterId}`, routeEvent = `known-site-route:${definition.adapterId}`;
   const scope = globalThis as typeof globalThis & Record<string, { restart(): void; version?: number } | undefined>;
   if (matchesSiteUrl(definition, location.href) && window.top === window) {
-    if (scope[slot] && scope[slot].version !== 7) window.dispatchEvent(new Event(stopEvent));
+    if (scope[slot] && scope[slot].version !== 8) window.dispatchEvent(new Event(stopEvent));
     if (scope[slot]) scope[slot].restart();
     else {
       let controller: AbortController | null = null, port: chrome.runtime.Port | null = null, timer: ReturnType<typeof setTimeout> | undefined;
@@ -127,6 +127,9 @@ export function startAdapterRuntime(definition: SiteDefinition, createAdapter: S
                 const after = await withReadDeadline(() => localReader.detectSource(ctx), ctx);
                 if (after.state !== 'signedIn' || after.accountId !== accountId) throw new SiteReadError({ code: 'signedOut' });
               } catch (e) {
+                // Cancellation belongs to the retired route/lease. It must not
+                // clear a reused reader or restart the runtime that replaced it.
+                if (epoch !== current) return;
                 const error: ReadFailure = e instanceof SiteReadError ? e.failure : { code: ctx.signal.aborted ? 'timeout' : 'invalidData' };
                 localReader.clear?.(); // An unverified/aborted command cannot leave a partially advanced cursor.
                 result = { status: 'failed', error };
@@ -158,7 +161,7 @@ export function startAdapterRuntime(definition: SiteDefinition, createAdapter: S
         window.removeEventListener(stopEvent, deactivate);
         delete scope[slot];
       };
-      scope[slot] = { restart, version: 7 };
+      scope[slot] = { restart, version: 8 };
       window.addEventListener(stopEvent, deactivate);
       window.addEventListener('pagehide', stop); window.addEventListener('pageshow', restart);
       window.addEventListener('popstate', restart); window.addEventListener('hashchange', restart);

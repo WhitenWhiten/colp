@@ -8,6 +8,27 @@ import type { AdapterMessage, SourcePage, SiteCollection } from '../src/site-ada
 import { createPostsAdapter, postsDefinition, saved, post } from './fixtures/site-adapters/posts.js';
 import { SiteReadError } from '../src/site-adapters/read-errors.js';
 afterEach(() => { window.dispatchEvent(new Event('known-site-adapter-stop:bundled.bilibili')); window.dispatchEvent(new Event(`known-site-adapter-stop:${postsDefinition.adapterId}`)); document.body.replaceChildren(); vi.useRealTimers(); vi.unstubAllGlobals(); });
+test('a cancelled read from a retired route cannot restart the replacement runtime', async () => {
+  vi.useFakeTimers(); vi.setSystemTime(1000); vi.stubGlobal('location', { href: post.url });
+  const listeners: ((raw: unknown) => void)[] = [];
+  const read = vi.fn(() => new Promise<SourcePage<SiteCollection>>(() => {}));
+  const factory = vi.fn(() => ({ ...createPostsAdapter(), readCollectionsPage: read }));
+  const sendMessage = vi.fn(async (m: { kind: string }) => m.kind.endsWith('.activation')
+    ? { status: 'ready', activationId: 'activation', deadlineAt: Date.now() + 10000 }
+    : { status: 'ready', leaseId: 'lease', capability: 'secret', routeEpoch: 0, expiresAt: Date.now() + 60000, readerEpoch: 'epoch' });
+  vi.stubGlobal('chrome', { runtime: { sendMessage, connect: () => ({
+    onMessage: { addListener: (fn: (raw: unknown) => void) => listeners.push(fn) },
+    onDisconnect: { addListener: () => {} }, disconnect: () => {}, postMessage: () => {},
+  }) } });
+  startAdapterRuntime(postsDefinition, factory); await vi.advanceTimersByTimeAsync(0);
+  for (const listener of [...listeners]) listener({ operation: 'readPage', leaseId: 'lease', readSessionId: 'run',
+    pageRequestId: 'page', deadlineAt: 31000, query: { kind: 'collections', cursor: null } });
+  await vi.advanceTimersByTimeAsync(0); expect(read).toHaveBeenCalledOnce();
+  window.dispatchEvent(new Event('popstate'));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(factory).toHaveBeenCalledTimes(2);
+  expect(sendMessage.mock.calls.filter(([m]) => m.kind.endsWith('.activation'))).toHaveLength(2);
+});
 test('a temporary account probe failure retries renewal without throwing away the reader or its cursors', async () => {
   vi.useFakeTimers(); vi.setSystemTime(1000); vi.stubGlobal('location', { href: post.url });
   const listeners: ((raw: unknown) => void)[] = [];
