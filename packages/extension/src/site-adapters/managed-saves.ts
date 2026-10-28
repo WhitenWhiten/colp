@@ -8,7 +8,7 @@ export interface ManagedSavePorts {
   assertReady?(library: ManagedLibrary): Promise<void>;
   destination(parent: NativeBinding<'folder'>): Promise<{ library: ManagedLibrary; replicaId: string; parentId: string; parentRevision: string } | null>;
   slot(plan: SavePlan, effect: SaveEffect): Promise<ManagedSlot>;
-  client(library: ManagedLibrary): Promise<{ profile(copyPolicy?: ManagedSaveCommand['copyPolicy']): Promise<void>; call<T>(action: 'managed.save' | 'managed.recover' | 'managed.lookup', input: unknown): Promise<T> }>;
+  client(library: ManagedLibrary): Promise<{ profile(copyPolicy?: ManagedSaveCommand['copyPolicy']): Promise<unknown>; call<T>(action: 'managed.save' | 'managed.recover' | 'managed.lookup', input: unknown): Promise<T> }>;
   projection(destination: ManagedDestination, receipt: ManagedSaveReceipt): Promise<{ native: NativeBinding; parentId: string } | null>;
   wake(): void;
 }

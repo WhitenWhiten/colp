@@ -4,9 +4,12 @@ import { get, put, type SourceDatabase } from './source-db.js';
 import { localTransferKey, type LocalCopyTransfer } from './local-identity.js';
 import type { ManagedReference } from './managed-client.js';
 export interface PendingLocalTransfer extends LocalCopyTransfer { dueAt: number; attempts: number }
+export interface LocalTransferRegistration extends ManagedReference {
+  projection?: { native: import('./contracts.js').NativeBinding; parentId: string; title: string; url: string | null };
+}
 export function createLocalTransferQueue(db: SourceDatabase, ports: {
-  register(transfer: LocalCopyTransfer): Promise<ManagedReference>;
-  attach?(tx: IDBTransaction, transfer: LocalCopyTransfer, reference: ManagedReference): Promise<void>;
+  register(transfer: LocalCopyTransfer): Promise<LocalTransferRegistration>;
+  attach?(tx: IDBTransaction, transfer: LocalCopyTransfer, reference: LocalTransferRegistration): Promise<void>;
   schedule(at: number): void; now?(): number;
 }) {
   const now = ports.now ?? Date.now;
@@ -31,7 +34,7 @@ export function createLocalTransferQueue(db: SourceDatabase, ports: {
         });
       } catch (error) {
         const reason = error instanceof Error ? error.message : 'sourceSyncPending';
-        const attention = ['sourceCopyDetached', 'sourceCopySuppressed', 'source_copy_adoption_conflict', 'source_mapping_migration_required', 'sourceSyncInvalid', 'sourceSyncUpgradeRequired'].includes(reason);
+        const attention = ['sourceCopyDetached', 'sourceCopySuppressed', 'source_copy_adoption_conflict', 'source_copy_convergence_review', 'source_copy_protected', 'source_mapping_migration_required', 'sourceSyncInvalid', 'sourceSyncUpgradeRequired'].includes(reason);
         await db.transaction(['meta', 'transfers'], 'readwrite', async tx => {
           const current = await get<LocalCopyTransfer>(tx, 'meta', localTransferKey(transfer.commandId));
           const closed = current?.state === 'suppressed' || current?.state === 'detached' ? current.state : undefined;

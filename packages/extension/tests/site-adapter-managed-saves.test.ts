@@ -120,5 +120,5 @@ test('single-copy dispatch requires explicit server policy support', async () =>
   const client = createManagedCopyClient({ origin: library.serverOrigin, fetch: async () => Response.json(profile), headers: async () => ({}), assertCurrent: async () => {} });
   await expect(client.profile('singleKeepExisting')).rejects.toThrow('sourceSyncUpgradeRequired');
   profile = { ...profile, managedCopyPolicy: 1 };
-  await expect(client.profile('singleKeepExisting')).resolves.toBeUndefined();
+  await expect(client.profile('singleKeepExisting')).resolves.toEqual(profile);
 });

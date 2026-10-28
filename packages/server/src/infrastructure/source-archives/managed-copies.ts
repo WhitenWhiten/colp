@@ -7,6 +7,7 @@ import { lockActiveSyncReplicasForCollection } from '../database/lock-order.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { SourceArchiveError, type ManagedNode, type ManagedSavePorts } from '../../modules/source-archives/index.js';
 import { persistAuthoritativeOperationEffect } from '../sync/index.js';
+import { convergeLocalCopy } from './local-convergence.js';
 export async function lockManagedLibrary(tx: DatabaseTransaction, subjectId: string, collectionId: string) {
   await lockActiveSyncReplicasForCollection(tx, collectionId);
   const collection = await createPostgresCollectionWritePort(tx).lockForUpdate(collectionId);
@@ -18,6 +19,7 @@ export function managedSavePorts(tx: DatabaseTransaction, subjectId: string, acc
   const nodes = createPostgresNodeWritePort(tx);
   const canonical = createCanonicalMutationApplication(createPostgresCanonicalMutationPorts(tx, { replicaLocksAlreadyHeld: () => true }));
   return {
+    converge: (command, winner) => convergeLocalCopy(tx, subjectId, accountId, command, winner),
     async assertTarget(c) {
       const collection = await lockManagedLibrary(tx, subjectId, c.collectionId);
       const parent = await nodes.getNode(c.collectionId, c.parentId);

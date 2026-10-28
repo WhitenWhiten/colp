@@ -54,3 +54,9 @@ COLP_ADAPTER_POSTGRES=1 node packages/extension/scripts/with-orbstack.mjs e2e e2
 ```
 
 The E2E fixture uses the actual COLP Fastify/auth/canonical/Sync stack and real PostgreSQL, with Bilibili/provider responses controlled in Chromium. It does not use a separate Know-N service or the user's real account/site state. Exact passing results and limitations belong to [execution evidence](execution-evidence.md); code or a prepared environment alone is not acceptance.
+
+## Local adoption convergence capability
+
+`managedLocalConvergence: 1` adds optional `converge: { fromParentId }` to an adopt-only `managed.save` command. The original uploaded node/revision, source parent and immutable command digest remain mandatory. A convergence receipt may carry `convergedFrom` for a retired provisional node. The server never creates another node for this path. Canonical mutation, tombstone, Sync effect, binding and receipt commit in one transaction. A client recovers that receipt before inspecting a native node removed by the merge. Unsupported servers receive ordinary adoption commands only.
+
+Only pristine provisional copies qualify. Annotation, relation, extension/pin, description/tag, revision or ownership changes require review. A source child may move only into the shared folder for the same site/version/account/collection, with matching root provenance. A duplicate folder containing children waits; personal children require review. Original native save receipts survive replacement of the current projection association.

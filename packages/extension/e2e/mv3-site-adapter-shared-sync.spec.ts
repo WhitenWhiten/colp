@@ -10,7 +10,7 @@ import { scopeFacts } from './kns-08-harness.js';
 const extensionId = 'pplpnpegpnghcddhmpgkbfkdfadjiaen', origin = `chrome-extension://${extensionId}`;
 const status = (page: Page): Promise<any> => page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.siteAdapters.status' }));
 test.use({ trace: 'off' });
-test('source and automatic semantic copies share ordinary sync, retry independently and converge across devices', async () => {
+for (const concurrent of [false, true]) test(`${concurrent ? 'offline concurrent: ' : ''}source and automatic semantic copies share ordinary sync, retry independently and converge across devices`, async () => {
   test.setTimeout(360000);
   const directory = await mkdtemp(resolve(tmpdir(), 'colp-shared-site-')), extension = resolve(directory, 'extension');
   const contexts: BrowserContext[] = []; let stack: RealStack | undefined; let providerFails = true; const modelCalls = [0, 0];
@@ -72,6 +72,7 @@ test('source and automatic semantic copies share ordinary sync, retry independen
       await page.locator('#refresh').click(); await page.locator('#confirm').click();
       await expect(page.locator('#archive-collections input')).toHaveCount(2, { timeout: 30000 });
       await page.locator('#select-all').click();
+      if (concurrent) await page.locator('#archive-collections input').nth(1).uncheck();
       await page.locator('#archive-root').click(); await page.locator('#archive-root-picker [data-folder-id="1"]').click();
       await page.locator('#archive-options').evaluate(e => { (e as HTMLDetailsElement).open = true; });
       await page.locator('#archive-semantic').click();
@@ -81,6 +82,41 @@ test('source and automatic semantic copies share ordinary sync, retry independen
       return page;
     }
     const a = await open(0);
+    if (concurrent) {
+      providerFails = false;
+      const b = await open(1);
+      await expect.poll(() => b.evaluate(() => chrome.bookmarks.search({ title: 'Semantic' }).then(rows => rows.length)), { timeout: 30000 }).toBe(1);
+      for (const context of contexts) await context.serviceWorkers()[0]!.evaluate(() => {
+        const original = globalThis.fetch;
+        (globalThis as typeof globalThis & { reconnectSource?: () => void }).reconnectSource = () => { globalThis.fetch = original; };
+        globalThis.fetch = (input, init) => {
+          const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
+          return url.origin === 'https://known.example' ? Promise.reject(new TypeError('Controlled COLP outage')) : original(input, init);
+        };
+      });
+      for (const page of [a, b]) {
+        await page.locator('#approve-import').click();
+        await expect.poll(async () => (await status(page)).archive.import?.phase, { timeout: 30000 }).toBe('completed');
+        await expect.poll(async () => (await status(page)).archive.semantic?.completed, { timeout: 30000 }).toBe(1);
+        expect(await page.evaluate(() => chrome.bookmarks.search({ title: 'Shared source video' }))).toHaveLength(2);
+      }
+      expect(modelCalls.every(count => count > 0)).toBe(true);
+      stack.setSourceArchiveFault!('lost-response');
+      for (const context of contexts) await context.serviceWorkers()[0]!.evaluate(() => {
+        (globalThis as typeof globalThis & { reconnectSource?: () => void }).reconnectSource?.();
+      });
+      for (const page of [a, b]) await page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.sync.engine.retry' }));
+      await expect.poll(async () => {
+        const nodes = ((await stack!.observations()).canonicalNodes as { title: string; deleted_at: unknown }[]).filter(n => !n.deleted_at);
+        return ['Shared A', 'Shared B', 'Shared source video'].map(title => nodes.filter(n => n.title === title).length);
+      }, { timeout: 150000 }).toEqual([1, 0, 2]);
+      stack.setSourceArchiveFault!('none');
+      for (const page of [a, b]) {
+        await expect.poll(() => page.evaluate(() => chrome.bookmarks.search({ title: 'Shared source video' }).then(rows => rows.length)), { timeout: 60000 }).toBe(2);
+        await expect.poll(async () => { const s = await status(page); return { pending: s.pipeline.pendingSync, attention: s.pipeline.attention }; }, { timeout: 60000 }).toEqual({ pending: 0, attention: 0 });
+      }
+      return;
+    }
     expect(await a.evaluate(() => chrome.bookmarks.search({ title: 'Shared source video' }))).toHaveLength(0);
     stack.setSourceArchiveFault!('lost-response'); await a.locator('#approve-import').click();
     await expect.poll(async () => ((await stack!.observations()).canonicalNodes as { title: string }[]).filter(n => n.title === 'Shared A').length, { timeout: 45000 }).toBe(1);

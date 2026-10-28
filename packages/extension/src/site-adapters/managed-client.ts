@@ -10,6 +10,7 @@ export interface ManagedSaveCommand {
   slot: ManagedSlot; title: string; url: string | null;
   semanticClaim?: { ownerId: string; revision: number };
   adopt?: { nodeId: string; revision: string };
+  converge?: { fromParentId: string };
 }
 export interface ManagedNode { nodeId: string; parentId: string; title: string; url: string | null; revision: string; deleted?: boolean }
 export interface ManagedReconcileCommand {
@@ -22,6 +23,7 @@ export interface ManagedReconcileReceipt {
   afterState?: 'active' | 'suppressed'; keepPhysical?: boolean;
 }
 export interface ManagedSaveReceipt {
+  convergedFrom?: string;
   reusedFrom?: 'sourceArchive' | 'semantic';
   controlRevision?: number;
   version: 1; commandId: string; digest: string; key: string; node: ManagedNode; disposition: 'created' | 'reused' | 'detached' | 'suppressed';
@@ -49,9 +51,9 @@ export function createManagedCopyClient(ports: { origin: string; fetch: typeof f
     await ports.assertCurrent(); return data;
   }
   return {
-    async profile(copyPolicy?: ManagedSaveCommand['copyPolicy']) { const profile = await request() as { managedCopies?: number; managedCreateEffects?: number; managedCopyPolicy?: number };
+    async profile(copyPolicy?: ManagedSaveCommand['copyPolicy']) { const profile = await request() as { managedCopies?: number; managedCreateEffects?: number; managedCopyPolicy?: number; managedLocalConvergence?: number };
       if (profile.managedCopies !== 1 || profile.managedCreateEffects !== 1
-        || copyPolicy && copyPolicy !== 'sourceAndSemantic' && profile.managedCopyPolicy !== 1) throw new Error('sourceSyncUpgradeRequired'); },
+        || copyPolicy && copyPolicy !== 'sourceAndSemantic' && profile.managedCopyPolicy !== 1) throw new Error('sourceSyncUpgradeRequired'); return profile; },
     async semanticProfile() { const profile = await request() as { managedCopies?: number; managedSemantic?: number };
       if (profile?.managedCopies !== 1 || profile.managedSemantic !== 1) throw new Error('sourceSyncUpgradeRequired'); },
     async reconcileProfile() { if ((await request() as { managedReconcile?: number }).managedReconcile !== 1) throw new Error('sourceSyncUpgradeRequired'); },

@@ -71,6 +71,7 @@ export function createManagedRecordStore(tx: DatabaseTransaction, accountId: str
       if (action === 'managed.save') {
         const c = parseManagedSave(raw); await exact('receipts', c.commandId); if (Object.hasOwn(state.receipts, c.commandId)) return state;
         await exact('bindings', managedSlotKey(c.collectionId, c.slot));
+        if (c.converge && c.adopt) await aliases(c.collectionId, c.adopt.nodeId);
         if (c.slot.kind === 'bookmark' && c.copyPolicy && c.copyPolicy !== 'sourceAndSemantic')
           await read('bindings', sql`content_hash=${bindingContent(c.collectionId, c.slot)}`);
         const identity = slotIdentity(c.collectionId, c.slot);

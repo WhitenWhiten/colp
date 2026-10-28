@@ -12,9 +12,11 @@ export interface ManagedSaveCommand {
   parentId: string; parentRevision: string; slot: ManagedSlot; title: string; url: string | null;
   semanticClaim?: { ownerId: string; revision: number };
   adopt?: { nodeId: string; revision: string };
+  converge?: { fromParentId: string };
 }
 export interface ManagedNode { nodeId: string; parentId: string; title: string; url: string | null; revision: string; deleted?: boolean }
 export interface ManagedSaveReceipt {
+  convergedFrom?: string;
   reusedFrom?: 'sourceArchive' | 'semantic';
   controlRevision?: number;
   version: 1; commandId: string; digest: string; key: string; node: ManagedNode;
@@ -28,6 +30,7 @@ export interface ManagedSavePorts {
   assertTarget(command: ManagedSaveCommand): Promise<void>;
   read(collectionId: string, nodeId: string): Promise<ManagedNode | null>;
   create(command: ManagedSaveCommand): Promise<ManagedNode>;
+  converge?(command: ManagedSaveCommand, winner: ManagedNode | null): Promise<ManagedNode>;
 }
 const fail = (code: string): never => { throw new SourceArchiveError(code); };
 const own = <T>(r: Record<string, T>, key: string) => Object.hasOwn(r, key) ? r[key] : undefined;
@@ -89,6 +92,7 @@ export function parseManagedSave(raw: unknown): ManagedSaveCommand {
   const c = object(raw, ['commandId', 'replicaId', 'collectionId', 'parentId', 'parentRevision', 'slot', 'title', 'url',
     ...raw && typeof raw === 'object' && Object.hasOwn(raw, 'semanticClaim') ? ['semanticClaim'] : [],
     ...raw && typeof raw === 'object' && Object.hasOwn(raw, 'adopt') ? ['adopt'] : [],
+    ...raw && typeof raw === 'object' && Object.hasOwn(raw, 'converge') ? ['converge'] : [],
     ...raw && typeof raw === 'object' && Object.hasOwn(raw, 'copyPolicy') ? ['copyPolicy'] : []]);
   for (const k of ['commandId', 'replicaId', 'collectionId', 'parentId', 'parentRevision']) text(c[k]);
   if (!/^[A-Za-z0-9][A-Za-z0-9:_-]{0,127}$/.test(String(c.commandId)) || ['constructor', 'prototype'].includes(String(c.commandId))) fail('invalid_managed_command');
@@ -111,6 +115,7 @@ export function parseManagedSave(raw: unknown): ManagedSaveCommand {
     if (kind !== 'bookmark' || (c.slot as { copy: ManagedCopy }).copy.purpose !== 'semantic') fail('invalid_managed_copy');
   }
   if (c.adopt !== undefined) { const adopt = object(c.adopt, ['nodeId', 'revision']); text(adopt.nodeId); text(adopt.revision); }
+  if (c.converge !== undefined) { text(object(c.converge, ['fromParentId']).fromParentId); if (!c.adopt) fail('invalid_managed_command'); }
   return c as unknown as ManagedSaveCommand;
 }
 /** Run in the same transaction as canonical creation. The durable key is shared by all replicas. */
@@ -145,7 +150,7 @@ export async function saveManagedCopy(state: ManagedSaveState, command: ManagedS
   if (Object.keys(state.receipts).length >= 50000 || !binding && Object.keys(state.bindings).length >= 50000) fail('source_capacity');
   let node: ManagedNode, disposition: ManagedSaveReceipt['disposition'];
   if (binding) {
-    if (command.adopt && command.adopt.nodeId !== binding.node.nodeId) fail('source_copy_adoption_conflict');
+    if (command.adopt && command.adopt.nodeId !== binding.node.nodeId && !command.converge) fail('source_copy_adoption_conflict');
     node = await ports.read(command.collectionId, binding.node.nodeId) ?? { ...binding.node, deleted: true };
     if (binding.state === 'suppressed' || node.deleted) disposition = 'suppressed';
     else if (binding.state === 'detached' || node.parentId !== binding.node.parentId || node.title !== binding.node.title
@@ -153,6 +158,10 @@ export async function saveManagedCopy(state: ManagedSaveState, command: ManagedS
     else {
       if (binding.node.parentId !== command.parentId && !single && !(command.slot.kind === 'bookmark' && command.slot.copy.purpose === 'semantic')) fail('source_mapping_migration_required');
       disposition = 'reused';
+      if (command.converge && command.adopt!.nodeId !== node.nodeId) {
+        if (!ports.converge || Object.values(state.bindings).some(b => b.collectionId === command.collectionId && b.node.nodeId === command.adopt!.nodeId)) fail('source_copy_protected');
+        node = await ports.converge!(command, node);
+      }
     }
   } else {
     if (command.slot.kind === 'bookmark' && command.slot.copy.purpose === 'semantic' && !command.adopt) {
@@ -161,12 +170,15 @@ export async function saveManagedCopy(state: ManagedSaveState, command: ManagedS
     }
     if (command.adopt) {
       const existing = await ports.read(command.collectionId, command.adopt.nodeId);
-      if (!existing || existing.deleted || existing.revision !== command.adopt.revision || existing.parentId !== command.parentId
+      if (!existing || existing.deleted || existing.revision !== command.adopt.revision || existing.parentId !== (command.converge?.fromParentId ?? command.parentId)
         || existing.title !== command.title || existing.url !== command.url) return fail('source_copy_adoption_conflict');
-      node = existing; disposition = 'reused';
+      node = command.converge && existing.parentId !== command.parentId
+        ? ports.converge ? await ports.converge(command, null) : fail('source_copy_protected') : existing;
+      disposition = 'reused';
     } else { node = await ports.create(command); disposition = 'created'; }
   }
   const receipt: ManagedSaveReceipt = { version: 1, commandId: command.commandId, digest, key, node, disposition, controlRevision: binding?.controlRevision ?? 0,
+    ...(command.converge && command.adopt!.nodeId !== node.nodeId && disposition === 'reused' ? { convergedFrom: command.adopt!.nodeId } : {}),
     ...(disposition === 'reused' && binding?.slot.kind === 'bookmark' ? { reusedFrom: binding.slot.copy.purpose } : {}) };
   state.bindings[key] = { ...binding, slot: command.slot, collectionId: command.collectionId, node,
     state: disposition === 'suppressed' || disposition === 'detached' ? disposition : 'active' };

@@ -16,6 +16,14 @@ A bounded background catalog stores shared associations separately for each dest
 
 Validation: shared-catalog outage/paging/isolation tests and durable native-reuse tests; real PostgreSQL/COLP plus two Chromium profiles under xvfb (`mv3-site-adapter-shared-sync.spec.ts`, 1 passed, approximately 2.9 minutes) covers source/semantic reuse, failed provider retry, ordinary Sync, manual suppression and reconciliation/undo. Website/model replies are fixtures. Offline simultaneous creation is covered by the next work item.
 
+### H-03 — conservative offline convergence
+
+Servers advertise `managedLocalConvergence: 1`. Uploaded local copies retain their immutable native receipts and owner. A negotiated adoption can merge an unchanged provisional bookmark into the established shared identity, or move a new source item from a duplicate source folder into its proven canonical folder. Empty duplicate folders are retired only after their source children converge. Merges use canonical mutations, ordinary Sync effects and durable tombstones; no adapter directly deletes a browser bookmark. Pins/extensions, annotations, relations, descriptions, tags, title/revision changes, protected aliases and personal folder children stop for review. Older servers keep the existing non-destructive conflict behavior.
+
+Recovery fetches the original adoption receipt before checking a provisional native that the committed merge may already have removed. Native evidence remains immutable; a separate projection association updates the current folder/content representation. Failed and partial folder merges retain their original command and retry independently.
+
+Validation: source-archive unit tests; real PostgreSQL mutation/rollback and seven user-data guards (8 passing tests); xvfb two-browser COLP-outage test (1 passed, approximately 3.3 minutes) with independent local source/semantic saves, concurrent reconnection, intentionally lost server replies, canonical convergence, native convergence and no pending association errors. Source/model data are controlled fixtures.
+
 ## LF remediation and acceptance (October 28, 2026)
 
 The local-first contract in runtime-foundation.md supersedes historical online-first acceptance. Each LF task is implemented and committed separately. Native success, transport success and shared-association success are independent facts; source confirmation still observes the website's read/authorization limits.

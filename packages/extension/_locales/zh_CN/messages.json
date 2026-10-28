@@ -13486,5 +13486,9 @@
   "sites_localServerUpgrade": {
     "message": "已保存到本地 · 更新 COLP Server 后可共享副本关联",
     "description": "Saved locally · update COLP Server to share copy associations"
+  },
+  "sites_localConvergenceReview": {
+    "message": "已保存在本地 · 有个人改动的副本需要检查后才能合并",
+    "description": "Saved locally · copies with personal changes need review before combining"
   }
 }

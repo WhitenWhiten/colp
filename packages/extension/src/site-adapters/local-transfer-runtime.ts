@@ -1,53 +1,16 @@
 import { bindUnownedLocalTransfers } from './local-unbound-transfers.js';
-import { nativeIsLocallyExcluded } from '../remote-delete-exclusion.js';
-import { assertSourceRoot } from '../sw/planned-capture.js';
 import { createLocalTransferQueue } from './local-transfer-queue.js';
 import { siteLedger } from './source-runtime.js';
-import { sourceDigest, get, put } from './source-db.js';
-import { managedLibraryKey } from './copy-identity.js';
-import { managedClientForLibrary } from './managed-runtime.js';
-import { assertManagedReceipt } from './managed-saves.js';
-import type { ManagedReference, ManagedSaveCommand, ManagedSaveReceipt } from './managed-client.js';
-import type { LocalCopyTransfer } from './local-identity.js';
+import { get, put } from './source-db.js';
+import { assertTransferCurrent } from './local-transfer-authority.js';
+import { registerLocalTransfer } from './local-registration-runtime.js';
+export { registerLocalTransfer } from './local-registration-runtime.js';
 import { currentSyncScope } from '../sw/scope.js';
 import { syncState } from '../sw/runtime.js';
 import { scheduleSourceAlarm } from './wake-scheduler.js';
-async function assertTransferCurrent(transfer: LocalCopyTransfer) {
-  if (!transfer.owner) throw Error('sourceSyncOwnerChanged');
-  const scope = await currentSyncScope();
-  if (managedLibraryKey(scope) !== managedLibraryKey(transfer.owner)) throw Error('sourceSyncOwnerChanged');
-  if (await nativeIsLocallyExcluded(syncState, scope, transfer.native.nativeId, [transfer.parent.nativeId])) throw Error('sourceSyncOwnerChanged');
-  if (!(await assertSourceRoot(transfer.parent)).inRange) throw Error('sourceSyncOwnerChanged');
-  const native = (await chrome.bookmarks.get(transfer.native.nativeId).catch(() => []))[0];
-  if (!native) throw Error('sourceCopySuppressed');
-  if (native.dateAdded !== transfer.native.dateAdded || native.parentId !== transfer.parent.nativeId || native.title !== transfer.title
-    || (native.url ?? null) !== transfer.url) throw Error('sourceCopyDetached');
-  return { scope, native, owner: transfer.owner };
-}
-export async function registerLocalTransfer(transfer: LocalCopyTransfer): Promise<ManagedReference> {
-  const { scope, native, owner } = await assertTransferCurrent(transfer);
-  const [mapping, parent] = await Promise.all([syncState.getMappingByNativeId(scope, native.id), syncState.getMappingByNativeId(scope, transfer.parent.nativeId)]);
-  if (!mapping || !parent || mapping.quarantine || parent.quarantine || mapping.colpId.startsWith('pending-') || parent.colpId.startsWith('pending-')) throw Error('sourceSyncPending');
-  await siteLedger.db.transaction(['meta'], 'readwrite', async tx => {
-    if (!await get(tx, 'meta', `localUploadObserved:${transfer.commandId}`)) put(tx, 'meta', `localUploadObserved:${transfer.commandId}`, Date.now());
-  });
-  // Ordinary Sync has already created this exact canonical node. This request may only adopt it.
-  const candidate: ManagedSaveCommand = { commandId: `local-adopt:${sourceDigest({ owner: transfer.owner, command: transfer.commandId, node: mapping.colpId }).slice(7)}`,
-    replicaId: scope.replicaId, collectionId: scope.collectionId, parentId: parent.colpId, parentRevision: parent.projection.resourceRevision ?? parent.projection.revision,
-    slot: transfer.slot, ...(transfer.copyPolicy ? { copyPolicy: transfer.copyPolicy } : {}), title: transfer.title, url: transfer.url,
-    adopt: { nodeId: mapping.colpId, revision: mapping.projection.resourceRevision ?? mapping.projection.revision } };
-  const key = `localAdoptCommand:${candidate.commandId}`, old = await siteLedger.db.read<ManagedSaveCommand>('meta', key), command = old ?? candidate;
-  if (!old) await siteLedger.db.transaction(['meta'], 'readwrite', async tx => put(tx, 'meta', key, candidate));
-  const client = await managedClientForLibrary(owner); await client.profile();
-  await assertTransferCurrent(transfer);
-  const receipt = await client.call<ManagedSaveReceipt>('managed.save', command);
-  assertManagedReceipt(receipt, command);
-  if (receipt.node.nodeId !== command.adopt!.nodeId) throw Error('source_copy_adoption_conflict');
-  if (receipt.disposition === 'suppressed' || receipt.disposition === 'detached') throw Error(receipt.disposition === 'suppressed' ? 'sourceCopySuppressed' : 'sourceCopyDetached');
-  return { library: owner, slot: transfer.slot, nodeId: receipt.node.nodeId, controlRevision: receipt.controlRevision ?? 0 };
-}
 const run = createLocalTransferQueue(siteLedger.db, { register: registerLocalTransfer, schedule: scheduleSourceAlarm,
   async attach(tx, transfer, reference) {
+    const { projection, ...shared } = reference;
     const stores = transfer.slot.kind === 'folder' ? ['folderReservations'] as const : transfer.slot.copy.purpose === 'semantic'
       ? ['representations', 'contentBindings'] as const : ['representations'] as const;
     for (const name of stores) {
@@ -57,15 +20,20 @@ const run = createLocalTransferQueue(siteLedger.db, { register: registerLocalTra
           const row = cursor.value;
           const sameRole = transfer.slot.kind === 'folder' || row.purpose === transfer.slot.copy.purpose
             && (transfer.slot.copy.purpose !== 'sourceArchive' || row.sourceCollectionId === transfer.slot.copy.sourceCollectionId);
-          if (sameRole && row.native?.dateAdded === transfer.native.dateAdded && row.native.deviceId === transfer.native.deviceId)
-            cursor.update({ ...row, shared: reference });
+          if (sameRole && row.native?.dateAdded === transfer.native.dateAdded && row.native.deviceId === transfer.native.deviceId) {
+            const replacement = projection && !['suppressed', 'detached'].includes(transfer.state) && !['suppressed', 'detached', 'blocked'].includes(row.state)
+              ? { native: projection.native, ...(name === 'contentBindings' ? { parentId: projection.parentId, title: projection.title, url: projection.url }
+                : name === 'representations' ? { lastWritten: { parentId: projection.parentId, title: projection.title, url: projection.url } } : { nativeTitle: projection.title }) } : {};
+            cursor.update({ ...row, ...replacement, shared });
+          }
           cursor.continue();
         };
       });
     }
     // Persist the receipt for recovery tools; native success never waits for it.
     const key = `localShared:${transfer.commandId}`;
-    if (!await get(tx, 'meta', key)) put(tx, 'meta', key, reference);
+    if (!await get(tx, 'meta', key)) put(tx, 'meta', key, shared);
+    if (projection) put(tx, 'meta', `localConverged:${transfer.commandId}`, { original: transfer.native, projection, shared });
   },
 });
 let running: Promise<void> | undefined;

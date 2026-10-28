@@ -4,6 +4,12 @@ import { assertSourceRoot, executePlannedNative, recoverPlannedNative } from '..
 import { rememberLocalSourceSave } from './local-save-runtime.js';
 import type { PlannedNativeCommand, PlannedNativeResult } from './planned-types.js';
 export async function recoverLocalSave(command: PlannedNativeCommand, digest: string): Promise<PlannedNativeResult | null> {
+  if (sourceDigest(command) !== digest) throw Error('capture_command_reused');
+  const converged = await siteLedger.db.read<{ original: import('./contracts.js').NativeBinding; projection: { native: import('./contracts.js').NativeBinding; parentId: string; title: string; url: string | null } }>('meta', `localConverged:${command.commandId}`);
+  if (converged && converged.original.deviceId === command.deviceId) {
+    const p = converged.projection;
+    return { status: 'confirmed', native: p.native, written: { parentId: p.parentId, title: p.title, ...(p.url === null ? {} : { url: p.url }) } };
+  }
   if (!command.local?.reuse) {
     const result = await recoverPlannedNative(command, digest);
     return result ? rememberLocalSourceSave(command, result) : null;

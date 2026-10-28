@@ -27,5 +27,8 @@ test('cached canonical projection produces a durable local reuse receipt and nev
     expect(await f.db.read('meta', 'localShared:reuse')).toEqual(reuse.shared);
     expect(f.create).not.toHaveBeenCalled();
     await expect(recoverLocalSave(command, 'different')).rejects.toThrow('capture_command_reused');
+    await f.db.transaction(['meta'], 'readwrite', async tx => { tx.objectStore('meta').put({ original: native,
+      projection: { native: { ...native, nativeId: 'winner' }, parentId: 'root', title: 'Saved', url: null } }, 'localConverged:reuse'); });
+    expect(await recoverLocalSave(command, digest)).toMatchObject({ status: 'confirmed', native: { nativeId: 'winner' } });
   } finally { await f.db.close(); }
 });

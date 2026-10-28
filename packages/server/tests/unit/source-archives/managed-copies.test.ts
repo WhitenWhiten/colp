@@ -153,3 +153,31 @@ test('single-copy arbitration preserves suppression and rejects an existing mult
     slot: { kind: 'bookmark', copy: { ...c.slot.copy, sourceCollectionId: 'third' } } }, f.ports);
   await expect(saveManagedCopy(f.state, { ...other, commandId: 'single-again' }, f.ports)).rejects.toThrow('source_copy_policy_needs_review');
 });
+
+test('negotiated local convergence keeps one shared role and recovers the exact merge receipt', async () => {
+  const f = fixture(), c = command();
+  const winner = await saveManagedCopy(f.state, c, f.ports);
+  const loser = { ...winner.node, nodeId: 'offline-b', revision: 'uploaded-b' }; f.nodes.set(loser.nodeId, loser);
+  const converge = vi.fn(async (_: ManagedSaveCommand, target: ManagedNode | null) => {
+    if (!target) throw Error('fixture'); f.nodes.set(loser.nodeId, { ...loser, deleted: true }); return target;
+  });
+  const next = parseManagedSave({ ...command('offline-adopt'), replicaId: 'device-b', adopt: { nodeId: loser.nodeId, revision: loser.revision }, converge: { fromParentId: c.parentId } });
+  const receipt = await saveManagedCopy(f.state, next, { ...f.ports, converge });
+  expect(receipt).toMatchObject({ disposition: 'reused', convergedFrom: loser.nodeId, node: { nodeId: winner.node.nodeId } });
+  expect(await saveManagedCopy(f.state, next, { ...f.ports, converge })).toEqual(receipt);
+  expect(recoverManagedCopy(f.state, next.commandId, sourceHash(next))).toEqual(receipt);
+  expect(converge).toHaveBeenCalledOnce(); expect(f.ports.create).toHaveBeenCalledOnce();
+  expect(() => parseManagedSave({ ...command(), converge: { fromParentId: 'root' } })).toThrow('invalid_managed_command');
+});
+test('manual suppression and protected aliases never authorize destructive convergence', async () => {
+  const f = fixture(), c = command(), winner = await saveManagedCopy(f.state, c, f.ports);
+  const converge = vi.fn(async () => winner.node);
+  const next = { ...command('offline'), adopt: { nodeId: 'other', revision: 'r2' }, converge: { fromParentId: c.parentId } };
+  markManagedChange(f.state, c.collectionId, c.slot, winner.node.nodeId, 'suppressed');
+  expect((await saveManagedCopy(f.state, next, { ...f.ports, converge })).disposition).toBe('suppressed');
+  expect(converge).not.toHaveBeenCalled();
+  f.state.bindings[winner.key]!.state = 'active';
+  f.state.bindings.protected = { ...f.state.bindings[winner.key]!, node: { ...winner.node, nodeId: 'other' } };
+  await expect(saveManagedCopy(f.state, { ...next, commandId: 'protected' }, { ...f.ports, converge })).rejects.toThrow('source_copy_protected');
+  expect(converge).not.toHaveBeenCalled();
+});

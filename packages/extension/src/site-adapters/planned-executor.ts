@@ -104,9 +104,15 @@ export function createPlannedSaveExecutor(db: SourceDatabase, ports: PlannedExec
   }
   async function finish(plan: SavePlan, effect: SaveEffect, outbox: SourceOutbox, native: NativeBinding, folder?: SourceFolderReservation, written?: { title: string; parentId: string; url?: string }) {
     if (native.kind !== outbox.command.kind || native.deviceId !== outbox.command.deviceId || native.dateAdded === null) throw new Error('unprovenReceipt');
+    const receiptNative = native;
+    const converged = await db.read<{ original: NativeBinding; projection: { native: NativeBinding; title: string; parentId: string; url: string | null } }>('meta', `localConverged:${outbox.command.commandId}`);
+    if (converged && converged.original.nativeId === native.nativeId && converged.original.dateAdded === native.dateAdded) {
+      native = converged.projection.native;
+      written = { title: converged.projection.title, parentId: converged.projection.parentId, ...(converged.projection.url === null ? {} : { url: converged.projection.url }) };
+    }
     await db.transaction(['outbox', 'effects', 'folderReservations', 'representations', 'itemReservations', 'meta', 'observations', 'importApprovals'], 'readwrite', async tx => {
       const current = await get<SourceOutbox>(tx, 'outbox', outbox.command.commandId);
-      if (!current || current.digest !== outbox.digest || current.native && current.native.bindingId !== native.bindingId) throw new Error('conflict');
+      if (!current || current.digest !== outbox.digest || current.native && current.native.bindingId !== receiptNative.bindingId) throw new Error('conflict');
       const shared = await managedReference(tx, outbox.command.managed)
         ?? (outbox.command.local ? await get<import('./managed-client.js').ManagedReference>(tx, 'meta', `localShared:${outbox.command.commandId}`) : undefined);
       if (folder) { const key = sourceKey(folder.mountId, folder.collectionId), latest = await get<SourceFolderReservation>(tx, 'folderReservations', key);
@@ -131,7 +137,7 @@ export function createPlannedSaveExecutor(db: SourceDatabase, ports: PlannedExec
         if (reserved) put(tx, 'itemReservations', key, { ...reserved, state: 'confirmed' });
       }
       put(tx, 'effects', sourceKey(plan.id, effect.effectId), { state: 'confirmed', native, commandId: outbox.command.commandId });
-      put(tx, 'outbox', outbox.command.commandId, { ...current, state: 'acknowledged', native });
+      put(tx, 'outbox', outbox.command.commandId, { ...current, state: 'acknowledged', native: receiptNative });
     });
     if (!outbox.executorAcknowledged) {
       await ports.acknowledge(outbox.command, outbox.digest);

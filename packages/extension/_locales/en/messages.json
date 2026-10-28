@@ -7157,6 +7157,9 @@
   "sites_localConfirming": {
     "message": "Checking the website favorite"
   },
+  "sites_localConvergenceReview": {
+    "message": "Saved locally · copies with personal changes need review before combining"
+  },
   "sites_localPendingSync": {
     "message": "Saved locally · waiting for sync and association"
   },
