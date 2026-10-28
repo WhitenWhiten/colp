@@ -25,6 +25,9 @@ export async function registerLocalTransfer(transfer: LocalCopyTransfer): Promis
     const { scope, native } = await assertTransferCurrent(transfer);
     const [mapping, parent] = await Promise.all([syncState.getMappingByNativeId(scope, native.id), syncState.getMappingByNativeId(scope, transfer.parent.nativeId)]);
     if (!mapping || !parent || mapping.quarantine || parent.quarantine || mapping.colpId.startsWith('pending-') || parent.colpId.startsWith('pending-')) throw Error('sourceSyncPending');
+    // Complete an explicitly authorized move before the server observes this node for another role.
+    // Otherwise its intermediate placement could become an immutable detached adoption receipt.
+    if (await siteLedger.db.read('meta', `managedRelocate:${managedLibraryKey(owner)}:${mapping.colpId}`)) throw Error('sourceSyncPending');
     await siteLedger.db.transaction(['meta'], 'readwrite', async tx => {
       if (!await get(tx, 'meta', `localUploadObserved:${transfer.commandId}`)) put(tx, 'meta', `localUploadObserved:${transfer.commandId}`, Date.now());
     });

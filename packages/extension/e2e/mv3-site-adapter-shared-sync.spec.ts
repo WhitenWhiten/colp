@@ -6,14 +6,17 @@ import { startRealStack, type RealStack } from './real-stack.js';
 import { openExtensionOptions, installFixtureReplicaBinding, signInExtension, showOptionsPane } from './extension-auth.js';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
 import { openSiteAdapterChanges } from './site-adapter-ui.js';
+import { capturePopupTarget } from './capture-popup-cdp.js';
 import { scopeFacts } from './kns-08-harness.js';
 const extensionId = 'pplpnpegpnghcddhmpgkbfkdfadjiaen', origin = `chrome-extension://${extensionId}`;
 const status = (page: Page): Promise<any> => page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.siteAdapters.status' }));
 test.use({ trace: 'off' });
-for (const concurrent of [false, true]) test(`${concurrent ? 'offline concurrent: ' : ''}source and automatic semantic copies share ordinary sync, retry independently and converge across devices`, async () => {
+for (const scenario of ['online', 'offline', 'singleKeepExisting', 'singlePreferSemantic'] as const) {
+const concurrent = scenario === 'offline', single = scenario === 'singleKeepExisting' || scenario === 'singlePreferSemantic' ? scenario : null;
+test(`${concurrent ? 'offline concurrent: ' : single ? `${single}: ` : ''}source and automatic semantic copies share ordinary sync, retry independently and converge across devices`, async () => {
   test.setTimeout(360000);
   const directory = await mkdtemp(resolve(tmpdir(), 'colp-shared-site-')), extension = resolve(directory, 'extension');
-  const contexts: BrowserContext[] = []; let stack: RealStack | undefined; let providerFails = true; const modelCalls = [0, 0];
+  const contexts: BrowserContext[] = []; let stack: RealStack | undefined; let providerFails = !single; const modelCalls = [0, 0];
   await cp(resolve(import.meta.dirname, '../dist/development'), extension, { recursive: true });
   await cp(resolve(import.meta.dirname, '../config/e2e-fixture.json'), resolve(extension, 'generated-config.json'));
   const manifest = JSON.parse(await readFile(resolve(extension, 'manifest.json'), 'utf8'));
@@ -25,7 +28,7 @@ for (const concurrent of [false, true]) test(`${concurrent ? 'offline concurrent
     for (const binding of stack.extensionBindings) await stack.forceFixtureReplicaRecovery(binding.replicaId);
     async function open(index: 0 | 1) {
       const context = await chromium.launchPersistentContext(resolve(directory, `profile-${index}`), { headless: false, channel: 'chromium', ignoreHTTPSErrors: true,
-        args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`, `--host-resolver-rules=${stack!.browserHostResolverRules}`, '--no-proxy-server', '--ignore-certificate-errors'] });
+        args: ['--remote-debugging-port=0', `--disable-extensions-except=${extension}`, `--load-extension=${extension}`, `--host-resolver-rules=${stack!.browserHostResolverRules}`, '--no-proxy-server', '--ignore-certificate-errors'] });
       context.setDefaultTimeout(20_000);
       contexts.push(context);
       const cors = { 'access-control-allow-origin': 'https://www.bilibili.com', 'access-control-allow-credentials': 'true' };
@@ -72,15 +75,51 @@ for (const concurrent of [false, true]) test(`${concurrent ? 'offline concurrent
       await page.locator('#refresh').click(); await page.locator('#confirm').click();
       await expect(page.locator('#archive-collections input')).toHaveCount(2, { timeout: 30000 });
       await page.locator('#select-all').click();
+      if (single) await page.locator('#archive-collections input').nth(1).uncheck();
       await page.locator('#archive-root').click(); await page.locator('#archive-root-picker [data-folder-id="1"]').click();
       await page.locator('#archive-options').evaluate(e => { (e as HTMLDetailsElement).open = true; });
-      await page.locator('#archive-semantic').click();
+      if (single) await page.locator('#archive-copies').selectOption(single);
+      else await page.locator('#archive-semantic').click();
       await page.locator('#configure-archive').click();
       await expect.poll(async () => (await status(page)).archive.config?.state).toBe('active');
       await expect.poll(async () => { const s = await status(page); return { phase: s.archive.import?.phase, reason: s.archive.import?.reason }; }, { timeout: 90000 }).toMatchObject({ phase: 'preview' });
       return page;
     }
     const a = await open(0);
+    if (single) {
+      await a.locator('#approve-import').click();
+      await expect.poll(async () => (await status(a)).archive.import?.phase, { timeout: 60000 }).toBe('completed');
+      await expect.poll(async () => (await status(a)).pipeline.pendingSync, { timeout: 60000 }).toBe(0);
+      const before = ((await stack.observations()).canonicalNodes as { id: string; title: string }[]).find(n => n.title === 'Shared source video')!;
+      expect(before).toBeTruthy();
+      const b = await open(1);
+      const initial = await b.evaluate(async () => {
+        const copy = (await chrome.bookmarks.search({ url: 'https://www.bilibili.com/video/av1' }))[0]!;
+        const target = (await chrome.bookmarks.search({ title: 'Semantic' }))[0]!;
+        await chrome.storage.local.set({ 'known.sync.folder.v1': { collectionId: 'local', folderNativeId: target.id } });
+        return { nativeId: copy.id, parentId: copy.parentId, target: target.id };
+      });
+      await b.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.bookmark.preferences.update', captureMode: 'automatic', aiTagMode: 'off', resultPanelAutoDismissMs: 0, userGesture: true }));
+      if (single === 'singlePreferSemantic') {
+        const site = contexts[1]!.pages().find(p => p.url().startsWith('https://www.bilibili.com/'))!;
+        const popup = await capturePopupTarget(contexts[1]!, resolve(directory, 'profile-1'), site);
+        await expect.poll(() => b.evaluate(async id => (await chrome.bookmarks.get(id))[0]?.parentId, initial.nativeId), { timeout: 60000 }).toBe(initial.target);
+        await popup.evaluate('window.close()').catch(() => undefined); expect(modelCalls[1]).toBeGreaterThan(0);
+      } else {
+        const result = await b.evaluate(async target => chrome.runtime.sendMessage({ kind: 'known.capture.start', trigger: 'manual-popup', userGesture: true,
+          commandId: crypto.randomUUID(), title: 'Alias', url: 'https://www.bilibili.com/video/av1', parentNativeId: target, folderChoice: 'default', saveAnother: false, allowUnverifiedCloud: true }), initial.target);
+        expect(result).toMatchObject({ ok: true, task: { contentIntent: { mode: 'suggest', nativeId: initial.nativeId } } });
+        expect(modelCalls[1]).toBe(0);
+      }
+      await expect.poll(async () => {
+        const result = (await stack!.sourceArchiveProbe!({ version: 1, action: 'managed.list', input: { collectionId: stack!.collectionId, after: null } })).body as any;
+        return result.bindings.filter((entry: any) => entry.slot.kind === 'bookmark').map((entry: any) => entry.node.nodeId);
+      }, { timeout: 60000 }).toEqual([before.id, before.id]);
+      expect(await b.evaluate(() => chrome.bookmarks.search({ url: 'https://www.bilibili.com/video/av1' }))).toHaveLength(1);
+      const expectedParent = single === 'singlePreferSemantic' ? initial.target : initial.parentId;
+      expect(await b.evaluate(async id => (await chrome.bookmarks.get(id))[0]?.parentId, initial.nativeId)).toBe(expectedParent);
+      return;
+    }
     if (concurrent) {
       providerFails = false;
       const b = await open(1);
@@ -203,3 +242,4 @@ for (const concurrent of [false, true]) test(`${concurrent ? 'offline concurrent
     throw error;
   } finally { for (const context of contexts) await context.close(); await stack?.close(); await rm(directory, { recursive: true, force: true }); }
 });
+}

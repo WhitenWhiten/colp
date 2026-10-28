@@ -18,6 +18,7 @@ describeWithPostgres('local source convergence protects user data', () => {
     principals: [{ principalId: account, subjectId: account }], collection: { id: collectionId, ownerSubjectId: account, rootNodeId: 'root',
       resourceRevision: 'collection-r1', contentRevision: 'content-r1', policyRevision: 'policy-r1', commitOrdinal: 1n },
     nodes: [{ id: 'root', parentId: null, kind: 'folder', isRoot: true, title: 'Root', positionToken: null, resourceRevision: 'root-r1', childrenRevision: 'root-children-r1' },
+      { id: 'topics', parentId: 'root', kind: 'folder', title: 'Topics', positionToken: 'T', resourceRevision: 'topics-r1', childrenRevision: 'topics-children-r1' },
       ...['winner', 'loser'].map((id, i) => ({ id, parentId: 'root', kind: 'bookmark' as const, title: 'Saved', url: 'https://example.org', positionToken: i ? 'V' : 'U', resourceRevision: `${id}-r1`, childrenRevision: `${id}-children-r1` }))],
   }); });
   const merge = (cut = false) => isolated.runtime.db.transaction().execute(async tx => {
@@ -54,4 +55,20 @@ describeWithPostgres('local source convergence protects user data', () => {
     }
     await expect(merge()).rejects.toThrow('source_copy_convergence_review'); expect((await loser()).deleted_at).toBeNull();
   });
+  test('semantic preference moves the original source identity and preserves its personal data', async () => {
+    const db = isolated.runtime.db;
+    await sql`UPDATE nodes SET parent_id='topics',payload_json=jsonb_set(payload_json,'{parentId}','"topics"'::jsonb) WHERE id='loser'`.execute(db);
+    await sql`UPDATE nodes SET tags='["keep"]'::jsonb,payload_json=jsonb_set(jsonb_set(payload_json,'{tags}','["keep"]'::jsonb),'{extensions}','{"https://example.test/personal":{"keep":true}}'::jsonb) WHERE id='winner'`.execute(db);
+    const preferred = { ...command, parentId: 'topics', parentRevision: 'topics-r1', copyPolicy: 'singlePreferSemantic' as const, converge: { fromParentId: 'topics' } };
+    const result = await db.transaction().execute(async tx => {
+      const ports = managedSavePorts(tx, account, account); await ports.assertTarget(preferred);
+      return convergeLocalCopy(tx, account, account, preferred, await ports.read(collectionId, 'winner'), { kind: 'bookmark', copy: {
+        purpose: 'sourceArchive', sourceAccount: '42', sourceCollectionId: '101', content: { site: 'bilibili', identityVersion: 1, itemId: 'video:av:1', accountId: null } } });
+    });
+    expect(result).toMatchObject({ nodeId: 'winner', parentId: 'topics' });
+    const winner = await db.selectFrom('nodes').selectAll().where('id', '=', 'winner').executeTakeFirstOrThrow();
+    expect(winner.tags).toEqual(['keep']); expect(winner.payload_json.extensions).toEqual({ 'https://example.test/personal': { keep: true } });
+    expect((await loser()).deleted_at).not.toBeNull();
+  });
+
 });

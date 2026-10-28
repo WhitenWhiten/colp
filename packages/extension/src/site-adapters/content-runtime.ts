@@ -106,7 +106,7 @@ export function installContentBindings() {
       const context = await semanticContext(input.parentId);
       await scopedSemanticBindings(identity, context.scope, context.scopeId);
       if (context.library) await importSharedSemantic(identity, context.scope, context.scopeId, [], input.captureIntentId);
-      const prepared = await prepareSemanticCapture(input, identity, context.scope);
+      const prepared = await prepareSemanticCapture(input, identity, context.scope, context.library);
       const itemId = identity.itemId;
       let b;
       try { b = await contentBindings.prepare({ ...input, itemId, content: identity, scopeId: context.scopeId, ...prepared }); }
@@ -138,10 +138,13 @@ export function installContentBindings() {
     async acknowledge(task) {
       if (!task.contentIntent || task.save !== 'local-saved' || !task.nativeId || !task.nativeDateAdded) return;
       const b = await contentBindings.forIntent(task.captureId); if (!b || b.supersededBy) return;
+      const placementPending = ['waiting', 'running'].includes(task.classification)
+        || !!task.contentIntent.desiredParentId && task.contentIntent.desiredParentId !== task.targetNativeId;
+      if (placementPending && b.native) return;
       const node = (await chrome.bookmarks.get(task.nativeId))[0]; if (!node?.parentId) throw new Error('content_binding_needs_review');
       await contentBindings.acknowledge(b, b.native ?? { nativeId: node.id, dateAdded: task.nativeDateAdded, deviceId: await captureDeviceId(), kind: 'bookmark',
         bindingId: crypto.randomUUID(), proof: { kind: 'writeReceipt', id: task.nativeIntentId ?? task.commandId } }, { title: node.title, parentId: node.parentId }, task.contentIntent.mode);
-      if (!b.managed) {
+      if (!b.managed && !placementPending) {
         const saved = await contentBindings.forIntent(task.captureId);
         if (saved?.native) await queueLocalSemanticAssociation(saved, task.scope);
       }

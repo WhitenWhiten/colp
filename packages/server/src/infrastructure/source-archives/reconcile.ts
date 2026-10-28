@@ -5,10 +5,10 @@ import { createPostgresCanonicalMutationPorts } from '../collections/canonical-m
 import { createPostgresNodeWritePort } from '../collections/repositories.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { SourceArchiveError, type ManagedReconcilePorts } from '../../modules/source-archives/index.js';
-import { lockManagedLibrary, managedSavePorts } from './managed-copies.js';
+import { lockManagedLibrary, readManagedNode } from './managed-library.js';
 import { persistAuthoritativeOperationEffect, createPostgresSyncNodeTombstonePort } from '../sync/index.js';
 export function managedReconcilePorts(tx: DatabaseTransaction, subjectId: string, accountId: string): ManagedReconcilePorts {
-  const nodes = createPostgresNodeWritePort(tx), read = managedSavePorts(tx, subjectId, accountId).read;
+  const nodes = createPostgresNodeWritePort(tx), read = (collectionId: string, nodeId: string) => readManagedNode(tx, collectionId, nodeId);
   const canonical = createCanonicalMutationApplication(createPostgresCanonicalMutationPorts(tx, { replicaLocksAlreadyHeld: () => true }));
   const conflict = (e: unknown): never => { if (e instanceof CollectionsError) throw new SourceArchiveError('source_reconcile_conflict'); throw e; };
   return { read, async mutate(c, undoDelete = false) {

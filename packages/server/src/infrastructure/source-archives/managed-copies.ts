@@ -2,24 +2,19 @@ import { randomUUID, createHash } from 'node:crypto';
 import type { Operation } from '@know-n/colp/types';
 import { createCanonicalMutationApplication, assertLibraryDestination, type JsonObject } from '../../modules/collections/index.js';
 import { createPostgresCanonicalMutationPorts } from '../collections/canonical-mutation-postgres-ports.js';
-import { createPostgresNodeWritePort, createPostgresCollectionWritePort } from '../collections/repositories.js';
-import { lockActiveSyncReplicasForCollection } from '../database/lock-order.js';
+import { createPostgresNodeWritePort } from '../collections/repositories.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { SourceArchiveError, type ManagedNode, type ManagedSavePorts } from '../../modules/source-archives/index.js';
 import { persistAuthoritativeOperationEffect } from '../sync/index.js';
 import { convergeLocalCopy } from './local-convergence.js';
-export async function lockManagedLibrary(tx: DatabaseTransaction, subjectId: string, collectionId: string) {
-  await lockActiveSyncReplicasForCollection(tx, collectionId);
-  const collection = await createPostgresCollectionWritePort(tx).lockForUpdate(collectionId);
-  if (!collection || collection.deletedAt || collection.ownerSubjectId !== subjectId) throw new SourceArchiveError('source_root_unavailable', 403);
-  return collection;
-}
+import { lockManagedLibrary, readManagedNode } from './managed-library.js';
+export { lockManagedLibrary } from './managed-library.js';
 /** Called under the existing source account transaction; source strings are opaque authenticated user data. */
 export function managedSavePorts(tx: DatabaseTransaction, subjectId: string, accountId: string): ManagedSavePorts {
   const nodes = createPostgresNodeWritePort(tx);
   const canonical = createCanonicalMutationApplication(createPostgresCanonicalMutationPorts(tx, { replicaLocksAlreadyHeld: () => true }));
   return {
-    converge: (command, winner) => convergeLocalCopy(tx, subjectId, accountId, command, winner),
+    converge: (command, winner, winnerSlot) => convergeLocalCopy(tx, subjectId, accountId, command, winner, winnerSlot),
     async assertTarget(c) {
       const collection = await lockManagedLibrary(tx, subjectId, c.collectionId);
       const parent = await nodes.getNode(c.collectionId, c.parentId);
@@ -27,10 +22,7 @@ export function managedSavePorts(tx: DatabaseTransaction, subjectId: string, acc
         || parent.kind !== 'folder' || parent.resourceRevision !== c.parentRevision) throw new SourceArchiveError('source_root_changed');
       await assertLibraryDestination({ nodes }, collection, parent);
     },
-    async read(collectionId, nodeId) {
-      const n = await nodes.getNode(collectionId, nodeId);
-      return n ? { nodeId: n.id, parentId: n.parentId!, title: n.title, url: n.url, revision: n.resourceRevision, deleted: !!n.deletedAt } : null;
-    },
+    read: (collectionId, nodeId) => readManagedNode(tx, collectionId, nodeId),
     async create(c): Promise<ManagedNode> {
       const nodeId = randomUUID(), operationId = randomUUID();
       // Source imports are ordinary server-origin creates. Publish their exact

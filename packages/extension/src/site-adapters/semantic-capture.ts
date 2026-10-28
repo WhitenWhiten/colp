@@ -10,13 +10,18 @@ import { managedSaves, managedClientForLibrary } from './managed-runtime.js';
 import { captureDeviceId } from '../sw/capture-history.js';
 import { assertCaptureContent } from '../capture/content-binding.js';
 import { assertCaptureScope } from '../sw/capture-native.js';
+import { cachedSingleCopy } from './shared-catalog-runtime.js';
 
 /** A popup and an automatic task reserve the same shared role before either can create it. */
-export async function prepareSemanticCapture(input: { commandId: string; captureIntentId: string; parentId: string; title: string; url: string }, content: ContentIdentity, scope: CaptureScope) {
+export async function prepareSemanticCapture(input: { commandId: string; captureIntentId: string; parentId: string; title: string; url: string }, content: ContentIdentity, scope: CaptureScope, library: import('./copy-identity.js').ManagedLibrary | null = null) {
   const node = (await chrome.bookmarks.get(input.parentId))[0];
   if (!node || node.url || !node.dateAdded) throw new Error('bindingUnavailable');
-  void content; void scope;
-  return {} as { managed?: ManagedDestination; managedParent?: NativeBinding<'folder'> };
+  void scope;
+  const authority = await siteLedger.db.read<import('./ledger-types.js').SourceAuthority>('authorities', identityDefinition(content.siteKey, content.identityVersion).adapterId);
+  const policy = authority?.enabled && authority.connectionId ? await siteLedger.db.read<import('./layout.js').SourcePolicyRecord>('meta', `policy:${authority.connectionId}`) : undefined;
+  const cached = library && policy?.enabled && policy.policy.copies !== 'sourceAndSemantic'
+    ? await cachedSingleCopy(library, managedContent(content), input.captureIntentId) : null;
+  return { ...(cached ? { cached } : {}) } as { cached?: import('./content-bindings.js').CachedContentCopy; managed?: ManagedDestination; managedParent?: NativeBinding<'folder'> };
 }
 
 export async function releaseSemanticCaptureClaim(managed?: ManagedDestination) {

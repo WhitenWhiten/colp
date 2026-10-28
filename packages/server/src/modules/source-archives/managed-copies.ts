@@ -30,7 +30,7 @@ export interface ManagedSavePorts {
   assertTarget(command: ManagedSaveCommand): Promise<void>;
   read(collectionId: string, nodeId: string): Promise<ManagedNode | null>;
   create(command: ManagedSaveCommand): Promise<ManagedNode>;
-  converge?(command: ManagedSaveCommand, winner: ManagedNode | null): Promise<ManagedNode>;
+  converge?(command: ManagedSaveCommand, winner: ManagedNode | null, winnerSlot?: ManagedSlot): Promise<ManagedNode>;
 }
 const fail = (code: string): never => { throw new SourceArchiveError(code); };
 const own = <T>(r: Record<string, T>, key: string) => Object.hasOwn(r, key) ? r[key] : undefined;
@@ -160,7 +160,9 @@ export async function saveManagedCopy(state: ManagedSaveState, command: ManagedS
       disposition = 'reused';
       if (command.converge && command.adopt!.nodeId !== node.nodeId) {
         if (!ports.converge || Object.values(state.bindings).some(b => b.collectionId === command.collectionId && b.node.nodeId === command.adopt!.nodeId)) fail('source_copy_protected');
-        node = await ports.converge!(command, node);
+        node = await ports.converge!(command, node, binding.slot);
+        for (const [alias, value] of Object.entries(state.bindings)) if (value.collectionId === command.collectionId && value.node.nodeId === node.nodeId && value.state === 'active')
+          state.bindings[alias] = { ...value, node };
       }
     }
   } else {

@@ -182,3 +182,16 @@ it.each(['reuse', 'suggest', 'reclassify'] as const)('shared reuse receipts pres
       automaticIntent: reuseMode === 'reclassify', classification: reuseMode === 'reclassify' ? 'waiting' : 'none' });
   } finally { await store.close(); }
 });
+
+it('acknowledges an existing site copy so its new semantic role can be associated without a native create', async () => {
+  const { store, ports } = harness(); ports.acknowledge = vi.fn(async () => {});
+  const saved = { ...task, disposition: 'existing' as const, save: 'local-saved' as const, nativeId: '1', nativeDateAdded: 10,
+    contentIntent: { bindingId: 'source-copy', itemId: 'video:av:1', connectionId: 'source', mode: 'suggest' as const,
+      captureIntentId: task.captureId, nativeId: '1', dateAdded: 10, title: task.title, url: task.url, parentId: task.targetNativeId } };
+  const coordinator = createCaptureCoordinator(ports);
+  try {
+    await coordinator.start(saved); expect(await coordinator.resume(saved.scope, saved.captureId)).toMatchObject({ nativeId: '1', disposition: 'existing' });
+    expect(ports.acknowledge).toHaveBeenCalledOnce(); expect(ports.create).not.toHaveBeenCalled();
+    expect((await store.get(saved.scope, saved.captureId))?.commandId).toBe(saved.commandId);
+  } finally { await store.close(); }
+});

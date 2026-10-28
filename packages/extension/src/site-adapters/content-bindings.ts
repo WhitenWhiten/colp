@@ -1,4 +1,5 @@
 import { copiesInScope } from './copy-scope.js';
+import { managedLibraryKey } from './copy-identity.js';
 import type { CaptureContentBinding, NativeBinding, Representation, RepresentationKey, SavePolicy } from './contracts.js';
 import { get, put, rows, sourceDigest, type SourceDatabase } from './source-db.js';
 import { representationKey, type ItemReservation } from './reservations.js';
@@ -11,12 +12,17 @@ import type { SourcePolicyRecord } from './layout.js';
 import type { SourceAuthority } from './ledger-types.js';
 import { assertSourceRebound, assertRestoredItemAvailable } from './portable.js';
 export interface ContentBindingRow extends CaptureContentBinding {
+  copyPolicy?: SavePolicy['copies'];
   scopeVersion?: 2;
   shared?: import('./managed-client.js').ManagedReference;
   managed?: import('./managed-client.js').ManagedDestination; managedParent?: NativeBinding<'folder'>;
   intentPending?: boolean; requestDigest: string; sourceGeneration?: readonly [number, number]; supersededBy?: string; commandId: string; state: 'pending' | 'active' | 'detached' | 'suppressed';
   forceAnother?: boolean; mode: 'create' | 'reuse' | 'reclassify' | 'suggest'; policyRevision: number | null;
   title: string; url: string; parentId: string; reuse?: Representation;
+}
+export interface CachedContentCopy {
+  native: NativeBinding<'bookmark'>; purpose: 'sourceArchive' | 'semantic'; shared: import('./managed-client.js').ManagedReference;
+  title: string; url: string; parentId: string;
 }
 const semanticKey = (connectionId: string, itemId: string, scopeId?: string): RepresentationKey => ({ connectionId, itemId, purpose: 'semantic', sourceCollectionId: null, mountId: null, ...(scopeId ? { scopeId } : {}) });
 export const contentIdentityFromUrl = resolveContentIdentity;
@@ -27,7 +33,7 @@ export function createContentBindings(db: SourceDatabase, assertNative: (native:
     if (binding.native) await assertNative(binding.native, { title: binding.title, parentId: binding.parentId, url: binding.url });
   }
   return {
-    async prepare(input: { content?: import('./contracts.js').ContentIdentity; scopeId?: string; managed?: ContentBindingRow['managed']; managedParent?: NativeBinding<'folder'>; itemId: string; commandId: string; captureIntentId: string; title: string; url: string; parentId: string; automatic: boolean }) {
+    async prepare(input: { cached?: CachedContentCopy; content?: import('./contracts.js').ContentIdentity; scopeId?: string; managed?: ContentBindingRow['managed']; managedParent?: NativeBinding<'folder'>; itemId: string; commandId: string; captureIntentId: string; title: string; url: string; parentId: string; automatic: boolean }) {
       const identity = input.content ?? resolveContentIdentity(input.url);
       if (!identity || identity.itemId !== input.itemId) throw new Error('content_identity_unresolved');
       const definition = identityDefinition(identity.siteKey, identity.identityVersion);
@@ -37,6 +43,10 @@ export function createContentBindings(db: SourceDatabase, assertNative: (native:
       const a = await db.read<SourceAuthority>('authorities', definition.adapterId);
       if (identity.accountId && (!a?.enabled || a.accountId !== identity.accountId)) throw new Error('content_identity_unresolved');
       const settings = a?.enabled && a.connectionId ? await db.read<SourcePolicyRecord>('meta', `policy:${a.connectionId}`) : undefined;
+      if (input.cached && settings?.enabled && settings.policy.copies !== 'sourceAndSemantic') {
+        if (input.scopeId !== managedLibraryKey(input.cached.shared.library)) throw Error('content_binding_needs_review');
+        await assertNative(input.cached.native, input.cached);
+      }
       const connectionId = settings?.enabled ? settings.connectionId : candidates[0]?.connectionId ?? null;
       if (connectionId) await assertSourceRebound(db, connectionId);
       if (connectionId) await assertRestoredItemAvailable(db, connectionId, input.itemId);
@@ -72,21 +82,23 @@ export function createContentBindings(db: SourceDatabase, assertNative: (native:
         const copies = [...new Map(latest.map(r => [r.native.nativeId, r])).values()];
         if (policy && policy.copies !== 'sourceAndSemantic' && copies.length > 1) throw new Error('multiple_copies_need_review');
         const reuse = semantic ?? (policy && policy.copies !== 'sourceAndSemantic' ? copies[0] : undefined);
-        const native = reuse?.native ?? old?.native ?? null;
+        const cached = !reuse && !old?.native && policy && policy.copies !== 'sourceAndSemantic' ? input.cached : undefined;
+        const native = reuse?.native ?? old?.native ?? cached?.native ?? null;
         const pending = !native && connectionId ? await copiesInScope(tx, await rows<ItemReservation>(tx, 'itemReservations', connectionId, input.itemId), input.scopeId, r => r.representation) : [];
         if (pending.some(r => r.representation.purpose === 'semantic' || policy?.copies !== 'sourceAndSemantic')) throw new Error('source_save_pending');
         // A source bookmark can already exist while its representation receipt is still committing.
         const sourceCopy = copies.length > 0 || pending.some(r => r.representation.purpose === 'sourceArchive' && r.state !== 'blocked');
-        const mode = !native ? 'create' : semantic || old?.native ? 'reuse' : policy?.copies === 'singlePreferSemantic' ? 'reclassify' : 'suggest';
+        const mode = !native ? 'create' : semantic || old?.native || cached?.purpose === 'semantic' ? 'reuse' : policy?.copies === 'singlePreferSemantic' ? 'reclassify' : 'suggest';
         const id = crypto.randomUUID();
         const binding: ContentBindingRow = { id, ...(input.scopeId ? { scopeId: input.scopeId, scopeVersion: 2 } : {}),
-          ...(old?.shared ?? reuse?.shared ? { shared: old?.shared ?? reuse?.shared } : {}),
+          ...(old?.shared ?? reuse?.shared ?? cached?.shared ? { shared: old?.shared ?? reuse?.shared ?? cached?.shared } : {}),
           ...(!native && input.managed ? { managed: input.managed, managedParent: input.managedParent } : {}),
           sourceConnections: [...new Set([...old?.sourceConnections ?? [], ...old?.connectionId ? [old.connectionId] : [], ...connectionId ? [connectionId] : []])],
           intentPending: mode === 'reclassify' && input.automatic, requestDigest, ...(connectionId && a ? { sourceGeneration: [a.installationGeneration, a.sourceSessionGeneration] as const } : {}), content: identity,
           captureIntentId: input.captureIntentId, commandId: input.commandId, purpose: 'semantic', connectionId, native, state: native ? 'active' : 'pending', mode,
-          forceAnother: !native && sourceCopy && policy?.copies === 'sourceAndSemantic', policyRevision: policy?.revision ?? null, title: reuse?.lastWritten?.title ?? old?.title ?? input.title, url: old?.url ?? reuse?.lastWritten?.url ?? (reuse ? definition.itemUrl(input.itemId) ?? input.url : input.url),
-          parentId: reuse?.lastWritten?.parentId ?? old?.parentId ?? input.parentId, ...(reuse ? { reuse } : {}) };
+          forceAnother: !native && sourceCopy && policy?.copies === 'sourceAndSemantic', policyRevision: policy?.revision ?? null, ...(policy ? { copyPolicy: policy.copies } : {}),
+          title: reuse?.lastWritten?.title ?? old?.title ?? cached?.title ?? input.title, url: old?.url ?? reuse?.lastWritten?.url ?? cached?.url ?? (reuse ? definition.itemUrl(input.itemId) ?? input.url : input.url),
+          parentId: reuse?.lastWritten?.parentId ?? old?.parentId ?? cached?.parentId ?? input.parentId, ...(reuse ? { reuse } : {}) };
         // Reuse one content binding, preserving its original creation receipt separately from this semantic intent.
         if (old) put(tx, 'contentBindings', contentKey(identity, old.id), { ...old, supersededBy: id });
         put(tx, 'contentBindings', contentKey(identity, id), binding);

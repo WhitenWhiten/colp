@@ -34,7 +34,10 @@ export function createCaptureCoordinator(ports: CapturePorts) {
       // so both release consumer retention instead of holding it until its TTL.
       if (next.save === 'local-saved' || next.save === 'failed') await acknowledge();
     };
-    if (task.disposition !== 'new' || task.save === 'failed') return task;
+    if (task.disposition !== 'new' || task.save === 'failed') {
+      if (task.save === 'local-saved' && task.contentIntent) await acknowledge();
+      return task;
+    }
     if (task.save === 'local-saved' && task.annotation && !task.annotationPersisted) { await acknowledge(); return task; }
     if (task.save === 'unknown') {
       const receipt = await ports.receipt(task);

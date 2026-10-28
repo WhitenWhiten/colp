@@ -181,3 +181,17 @@ test('manual suppression and protected aliases never authorize destructive conve
   await expect(saveManagedCopy(f.state, { ...next, commandId: 'protected' }, { ...f.ports, converge })).rejects.toThrow('source_copy_protected');
   expect(converge).not.toHaveBeenCalled();
 });
+
+test('semantic-preferred convergence refreshes every role while retaining the original source receipt', async () => {
+  const f = fixture(), source = command(), original = await saveManagedCopy(f.state, source, f.ports);
+  if (source.slot.kind !== 'bookmark') throw Error('fixture');
+  const semantic: ManagedSaveCommand = { ...command('semantic-offline'), parentId: 'topics', copyPolicy: 'singlePreferSemantic',
+    slot: { kind: 'bookmark', copy: { purpose: 'semantic', content: source.slot.copy.content } },
+    adopt: { nodeId: 'provisional', revision: 'local-r1' }, converge: { fromParentId: 'topics' } };
+  const converge = vi.fn(async (_: ManagedSaveCommand, winner: ManagedNode | null) => ({ ...winner!, parentId: 'topics', revision: 'moved-r1' }));
+  const result = await saveManagedCopy(f.state, semantic, { ...f.ports, converge });
+  expect(result).toMatchObject({ node: { nodeId: original.node.nodeId, parentId: 'topics' }, reusedFrom: 'sourceArchive' });
+  expect(f.state.bindings[original.key]?.node.parentId).toBe('topics');
+  expect(converge).toHaveBeenCalledWith(semantic, original.node, source.slot);
+  expect(f.state.receipts[original.commandId]?.node.parentId).toBe('folder');
+});

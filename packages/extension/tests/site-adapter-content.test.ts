@@ -178,3 +178,18 @@ test('single-copy reservations in separate scopes do not block each other', asyn
     expect(result.status).toBe('reserved');
   } finally { await f.db.close(); }
 });
+
+test.each(['singleKeepExisting', 'singlePreferSemantic', 'sourceAndSemantic'] as const)('a cached source role from another device follows %s before a semantic role exists', async copies => {
+  const f = await fixture(copies), library = { serverOrigin: 'https://sync.test', accountId: 'owner', collectionId: 'library' };
+  const scopeId = JSON.stringify([library.serverOrigin, library.accountId, library.collectionId]);
+  const cached = { native, purpose: 'sourceArchive' as const, ...node, shared: { library, nodeId: 'canonical-source', slot: { kind: 'bookmark' as const,
+    copy: { purpose: 'sourceArchive' as const, sourceAccount: '42', sourceCollectionId: '101', content: { site: 'bilibili', identityVersion: 1, itemId: request.itemId, accountId: null } } } } };
+  try {
+    if (copies === 'sourceAndSemantic') f.invalid();
+    const result = await f.bindings.prepare({ ...request, scopeId, cached });
+    expect(result.copyPolicy).toBe(copies);
+    expect(result.mode).toBe(copies === 'sourceAndSemantic' ? 'create' : copies === 'singleKeepExisting' ? 'suggest' : 'reclassify');
+    expect(result.native).toEqual(copies === 'sourceAndSemantic' ? null : native);
+    if (copies !== 'sourceAndSemantic') await expect(f.bindings.prepare({ ...request, scopeId: 'another-library', commandId: 'other', cached })).rejects.toThrow('content_binding_needs_review');
+  } finally { await f.db.close(); }
+});

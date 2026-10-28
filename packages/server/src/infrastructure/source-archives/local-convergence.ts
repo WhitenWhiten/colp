@@ -3,9 +3,9 @@ import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { createPostgresNodeWritePort } from '../collections/repositories.js';
 import { managedReconcilePorts } from './reconcile.js';
 import { recordHash } from './managed-record-codec.js';
-import { managedSlotKey, SourceArchiveError, type ManagedSaveCommand, type ManagedNode, type ManagedBinding } from '../../modules/source-archives/index.js';
+import { managedSlotKey, SourceArchiveError, type ManagedSaveCommand, type ManagedNode, type ManagedBinding, type ManagedSlot } from '../../modules/source-archives/index.js';
 /** Merge only an unchanged, unannotated provisional copy. Every mutation emits ordinary Sync effects. */
-export async function convergeLocalCopy(tx: DatabaseTransaction, subjectId: string, accountId: string, command: ManagedSaveCommand, winner: ManagedNode | null) {
+export async function convergeLocalCopy(tx: DatabaseTransaction, subjectId: string, accountId: string, command: ManagedSaveCommand, winner: ManagedNode | null, winnerSlot?: ManagedSlot) {
   const fail = (reason = 'source_copy_convergence_review'): never => { throw new SourceArchiveError(reason); };
   if (!command.adopt || !command.converge) return fail();
   const nodes = createPostgresNodeWritePort(tx), node = await nodes.getNode(command.collectionId, command.adopt.nodeId);
@@ -40,5 +40,10 @@ export async function convergeLocalCopy(tx: DatabaseTransaction, subjectId: stri
   const expected = { nodeId: node.id, parentId: node.parentId!, title: node.title, url: node.url, revision: node.resourceRevision };
   const changed = await ports.mutate({ commandId: command.commandId, collectionId: command.collectionId, replicaId: command.replicaId,
     action: 'move', expected, slot: null, parentId: winner ? node.parentId! : command.parentId, title: node.title, retire: false }, !!winner);
+  if (winner && command.copyPolicy === 'singlePreferSemantic' && command.slot.kind === 'bookmark' && command.slot.copy.purpose === 'semantic'
+    && winnerSlot?.kind === 'bookmark' && winnerSlot.copy.purpose === 'sourceArchive' && winner.parentId !== command.parentId) {
+    return ports.mutate({ commandId: command.commandId, collectionId: command.collectionId, replicaId: command.replicaId, action: 'move',
+      expected: winner, slot: winnerSlot, parentId: command.parentId, title: winner.title, retire: false });
+  }
   return winner ?? changed;
 }

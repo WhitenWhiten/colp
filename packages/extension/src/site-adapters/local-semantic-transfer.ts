@@ -17,5 +17,5 @@ export async function queueLocalSemanticAssociation(binding: ContentBindingRow, 
     bookmark: { planId: binding.id, effectId: 'semantic', representation: { connectionId: binding.connectionId ?? '', itemId: binding.content.itemId,
       purpose: 'semantic', sourceCollectionId: null, mountId: null, scopeId: binding.scopeId }, url: binding.url, scope, source: 'site-import' } },
   { kind: 'bookmark', copy: { purpose: 'semantic', content: managedContent(binding.content) } });
-  await rememberLocalSourceSave(command, { status: 'confirmed', native: binding.native });
+  await rememberLocalSourceSave({ ...command, local: { ...command.local, ...(binding.copyPolicy ? { copyPolicy: binding.copyPolicy } : {}) } }, { status: 'confirmed', native: binding.native });
 }

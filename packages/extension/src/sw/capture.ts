@@ -123,6 +123,7 @@ export function resumeCapture(task: CaptureTask): Promise<CaptureTask> {
         const next = { ...saved, targetNativeId: target, localLocation: await import('./capture-native.js').then(m => m.nativeCaptureLocation(saved.nativeId!, saved.scope)), revision: saved.revision + 1, updatedAt: Date.now() };
         await captureStore.update(next, saved.revision); saved = next;
       }
+      await acknowledgeCaptureContent(saved);
       if (!classificationTriggerReason({ kind: 'saved-capture', task: saved })) void classifySavedCapture(saved, captureStore).then(async result => { await acknowledgeCaptureContent(result); return result; }).catch(() => undefined); return saved; });
 }
 

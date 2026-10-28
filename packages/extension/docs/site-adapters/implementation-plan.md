@@ -52,6 +52,14 @@ The initial larger run exposed linear range-count overhead (offline p95 1,311 ms
 
 Validation: 9 focused source-work tests; ingress/range/target regressions plus the new read-count guard; typecheck/lint; 90-save xvfb performance gate passed. Final combined browser/real-stack regression is recorded below.
 
+### H-08 — single-copy policy across devices
+
+The local shared catalog also indexes complete content identity, so a semantic save on another device can reuse a source role before a semantic role exists. Keep-existing produces a suggestion without a provider call; semantic preference reclassifies/moves the same native identity. The selected copy policy is pinned on the content binding and forwarded to asynchronous adoption. Existing-site captures acknowledge their new role without issuing a native create. Association waits for pending classification/placement and an authorized shared relocation instead of treating the intermediate location as a manual detach.
+
+If two offline devices missed that cache, conservative semantic-preferred convergence moves the original shared source identity into the chosen semantic location, preserving its personal data and refreshing all role aliases in the same server transaction. A bounded background projection refresh updates existing active local aliases after a proven remote host move; it does not adopt lookalikes or override local opt-outs.
+
+Validation: focused capture/content/cache/transfer/projection tests; all 31 source-archive domain tests; 9 real PostgreSQL convergence tests, including preservation of tags/extensions during semantic-preferred movement; xvfb/real-server second-device keep-existing (passed, about 2.2 minutes) and real-toolbar semantic preference (passed, about 2.9 minutes). Final combined regression and build checks follow below.
+
 ## LF remediation and acceptance (October 28, 2026)
 
 The local-first contract in runtime-foundation.md supersedes historical online-first acceptance. Each LF task is implemented and committed separately. Native success, transport success and shared-association success are independent facts; source confirmation still observes the website's read/authorization limits.
@@ -82,7 +90,7 @@ The October 28 implementation is delivered in nine separate commits. Controlled 
 | LF-08 | `4408a835` | Local save and pending association status shown independently |
 | LF-09 | This evidence commit | Browser acceptance, ownership race protection, retained-error retry and stage diagnostics |
 
-The controlled tests qualify local saving and association request/recovery behavior. They do **not** qualify automatic convergence of two distinct nodes created on two offline devices: the current adoption contract reports those conflicts for review and preserves the local copies. No automatic destructive merge is implemented. Real-site live-trigger coverage, a new real two-device/COLP run, and a statistically sampled native-save p95 remain separate acceptance gaps; historical server-first browser evidence cannot close them for this implementation.
+At the original LF-09 baseline, controlled tests qualified local saving and association recovery but did not qualify offline two-device convergence or sampled p95. H-03, H-07 and H-08 above supply the subsequent conservative-convergence, performance and copy-policy evidence. Real-site acceptance remains separate; the user selected isolated-environment acceptance for this hardening pass.
 
 Performance acceptance measures source-facts-ready to native-receipt latency separately from website readback and cloud transport. Target native-save p95 is at most one second in the fixed browser fixture. New-task dispatch rounds must not grow with 5,000 or 50,000 completed plans. Browser acceptance runs under xvfb and closes its services. Existing native/unknown receipts must never be replaced by URL/title guesses. Product sources are enabled together only after local writes and their asynchronous association path are both implemented.
 

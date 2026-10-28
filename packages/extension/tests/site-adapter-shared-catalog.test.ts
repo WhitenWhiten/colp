@@ -25,3 +25,16 @@ test('cached shared roles survive outages and partial refreshes without crossing
     await cache.refresh(library); expect(await cache.read(library, binding.slot)).toEqual(binding);
   } finally { await db.close(); }
 });
+
+test('cross-role lookup is indexed by complete content and destination identity', async () => {
+  const db = createSourceDatabase(new IDBFactory()), content = { site: 'fixture', identityVersion: 1, itemId: 'one', accountId: null };
+  const source: ManagedBinding = { ...binding, slot: { kind: 'bookmark', copy: { purpose: 'sourceArchive', sourceAccount: 'reader', sourceCollectionId: 'saved', content } } };
+  const semantic: ManagedBinding = { ...source, slot: { kind: 'bookmark', copy: { purpose: 'semantic', content } } };
+  const cache = createSharedCatalog(db, { list: async () => ({ bindings: [source, semantic], nextCursor: null }), schedule: () => {} });
+  try {
+    await cache.refresh(library); expect(await cache.content(library, content)).toHaveLength(2);
+    expect(await cache.content({ ...library, accountId: 'other' }, content)).toEqual([]);
+    expect(await cache.content(library, { ...content, accountId: 'private' })).toEqual([]);
+    expect(await cache.content(library, { ...content, site: 'other' })).toEqual([]);
+  } finally { await db.close(); }
+});

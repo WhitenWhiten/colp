@@ -59,3 +59,11 @@ test('a lost committed merge recovers before checking its removed provisional na
     expect(f.calls).toHaveLength(1); expect(f.calls[0]!.converge).toEqual({ fromParentId: 'canonical-parent' });
   } finally { vi.unstubAllGlobals(); await f.db.close(); }
 });
+
+test('semantic adoption waits for the original authorized relocation to finish', async () => {
+  await setup();
+  try {
+    await f.db.transaction(['meta'], 'readwrite', async tx => { tx.objectStore('meta').put({ pending: true }, `managedRelocate:${JSON.stringify(['https://sync.test', 'owner', 'library'])}:canonical-native`); });
+    await expect(registerLocalTransfer(transfer)).rejects.toThrow('sourceSyncPending'); expect(f.calls).toEqual([]);
+  } finally { vi.unstubAllGlobals(); await f.db.close(); }
+});
