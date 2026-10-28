@@ -6,7 +6,7 @@ import { startRealStack } from './real-stack.js';
 import { openExtensionOptions, installFixtureReplicaBinding, signInExtension, showOptionsPane } from './extension-auth.js';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
 
-test('an approved source import waits for real Sync recovery then fills its folders without another scan or approval', async () => {
+test('an approved source import saves locally during Sync recovery then uploads without another scan or approval', async () => {
   test.setTimeout(240000);
   const directory = await mkdtemp(resolve(tmpdir(), 'known-source-sync-recovery-')), extension = resolve(directory, 'extension');
   await cp(resolve(import.meta.dirname, '../dist/development'), extension, { recursive: true });
@@ -57,7 +57,7 @@ test('an approved source import waits for real Sync recovery then fills its fold
     const jobId = (await status()).archive.import.id, reads = sourceReads;
     await source.close();
     // Delay a real Snapshot response while the server requests recovery. This
-    // preserves the real Session/Snapshot/Ack path and makes the wait observable.
+    // preserves the real Session/Snapshot/Ack path while local saves finish.
     await worker.evaluate(() => {
       const state = globalThis as typeof globalThis & { releaseSourceRecovery?: () => void };
       const original = fetch;
@@ -71,18 +71,29 @@ test('an approved source import waits for real Sync recovery then fills its fold
     const retry = page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.sync.engine.retry' }));
     await expect.poll(() => page.evaluate(async () => (await chrome.runtime.sendMessage({ kind: 'known.sync.engine.status' }) as any).engine?.recoveryFrozen)).toBe(true);
     await page.locator('#approve-import').click();
-    await expect.poll(async () => (await status()).archive.import?.reason).toBe('sourceSyncRecovering');
-    await expect(page.locator('#import-state')).toHaveText('Bookmark sync is recovering');
+    await expect.poll(async () => { const job = (await status()).archive.import; return { phase: job?.phase, saved: job?.progress.saved }; }, { timeout: 60000 }).toEqual({ phase: 'completed', saved: 24 });
+    expect((await status()).archive.import.id).toBe(jobId); expect(sourceReads).toBe(reads);
+    const nativeItems = () => page.evaluate(async () => {
+      const folders = (await chrome.bookmarks.getChildren('1')).filter(n => /^Source 10[123]$/.test(n.title));
+      return Promise.all(folders.map(async folder => ({ id: folder.id, title: folder.title,
+        children: (await chrome.bookmarks.getChildren(folder.id)).map(n => ({ id: n.id, title: n.title, url: n.url })) })));
+    });
+    const local = await nativeItems();
+    expect(local.map(n => n.title).sort()).toEqual(['Source 101', 'Source 102', 'Source 103']);
+    for (const folder of local) expect(folder.children).toHaveLength(8);
+    expect(await page.evaluate(async () => (await chrome.runtime.sendMessage({ kind: 'known.sync.engine.status' }) as any).engine)).toMatchObject({ recoveryFrozen: true });
     expect((await stack.observations()).canonicalNodes).not.toEqual(expect.arrayContaining([expect.objectContaining({ title: 'Source 101' })]));
     await worker.evaluate(() => { (globalThis as typeof globalThis & { releaseSourceRecovery?: () => void }).releaseSourceRecovery?.(); });
     await retry;
-    await expect.poll(async () => ({ phase: (await status()).archive.import?.phase, saved: (await status()).archive.import?.progress.saved }), { timeout: 120000 }).toEqual({ phase: 'completed', saved: 24 });
+    await expect.poll(async () => {
+      const nodes = (await stack.observations()).canonicalNodes as { title: string; deleted_at: unknown }[];
+      const live = nodes.filter(n => !n.deleted_at);
+      return { folders: live.filter(n => /^Source 10[123]$/.test(n.title)).length,
+        bookmarks: live.filter(n => /^Imported \d+$/.test(n.title)).length };
+    }, { timeout: 120000 }).toEqual({ folders: 3, bookmarks: 24 });
+    await expect.poll(async () => { const s = await status(); return { pending: s.pipeline.pendingSync, attention: s.pipeline.attention }; }, { timeout: 60000 }).toEqual({ pending: 0, attention: 0 });
     expect((await status()).archive.import.id).toBe(jobId); expect(sourceReads).toBe(reads);
-    const folders = await page.evaluate(() => chrome.bookmarks.getChildren('1'));
-    for (const id of [101, 102, 103]) {
-      const folder = folders.filter(n => n.title === `Source ${id}`); expect(folder).toHaveLength(1);
-      expect(await page.evaluate(id => chrome.bookmarks.getChildren(id), folder[0]!.id)).toHaveLength(8);
-    }
+    expect(await nativeItems()).toEqual(local);
     expect((await stack.observations()).replicaStatus).toBe('active');
   } finally { await context?.close(); await stack.close(); await rm(directory, { recursive: true, force: true }); }
 });

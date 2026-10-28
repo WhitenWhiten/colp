@@ -142,7 +142,7 @@ describe('P4B-R01 SDK N/N-1 lock (client/server/core 2.3.1, legacy SDK absent)',
     };
     assert.equal(packageJson.devDependencies['@modelcontextprotocol/client'], '2.3.1');
     assert.equal(packageJson.dependencies?.['@modelcontextprotocol/server'], '2.3.1');
-    assert.equal(packageJson.dependencies?.['@modelcontextprotocol/node'], '2.0.0');
+    assert.equal(packageJson.dependencies?.['@modelcontextprotocol/node'], '2.1.1');
     assert.equal(packageJson.devDependencies['@modelcontextprotocol/server'], undefined);
     assert.equal(packageJson.dependencies?.['@modelcontextprotocol/client'], undefined);
   });
@@ -154,7 +154,7 @@ describe('P4B-R01 SDK N/N-1 lock (client/server/core 2.3.1, legacy SDK absent)',
       assert.equal(lock.packages[`node_modules/${name}`].version, MCP_SDK_CORE_VERSION);
     }
     assert.equal(colp.dependencies['@modelcontextprotocol/core'], MCP_SDK_CORE_VERSION);
-    assert.equal(lock.packages['node_modules/@modelcontextprotocol/node'].version, '2.0.0');
+    assert.equal(lock.packages['node_modules/@modelcontextprotocol/node'].version, '2.1.1');
   });
 
   test('legacy @modelcontextprotocol/sdk (N-1) is absent from manifests, lockfile, source and tests', () => {

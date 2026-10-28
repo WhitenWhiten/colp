@@ -73,7 +73,7 @@
     "@better-auth/mcp": "1.7.7",
     "@better-auth/oauth-provider": "1.7.7",
     "@know-n/colp": "0.3.0",
-    "@modelcontextprotocol/node": "2.0.0",
+    "@modelcontextprotocol/node": "2.1.1",
     "@modelcontextprotocol/server": "2.3.1",
     "@node-rs/argon2": "2.1.0",
     "better-auth": "1.7.7",
