@@ -6,7 +6,9 @@ import { openExtensionOptions } from './extension-auth.js';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
 const extensionId = 'pplpnpegpnghcddhmpgkbfkdfadjiaen', extensionPath = resolve(import.meta.dirname, '../dist/development');
 test('source native saves finish without a server, inside an offline sync range, and while sync is paused', async () => {
-  test.setTimeout(120000);
+  const samples = Number(process.env.SITE_ADAPTER_PERF_SAMPLES ?? 1), history = Number(process.env.SITE_ADAPTER_PERF_HISTORY ?? 0);
+  if (!Number.isSafeInteger(samples) || samples < 1 || samples > 100 || ![0, 5000, 50000].includes(history)) throw Error('Invalid performance fixture size');
+  test.setTimeout(Math.max(120000, samples * 6000 + 60000));
   const profile = await mkdtemp(resolve(tmpdir(), 'site-local-first-'));
   const context = await chromium.launchPersistentContext(profile, { headless: false, channel: 'chromium', args: [
     `--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`,
@@ -34,8 +36,15 @@ test('source native saves finish without a server, inside an offline sync range,
     await expect.poll(() => page.evaluate(async () => ((await chrome.runtime.sendMessage({ kind: 'known.siteAdapters.status' })) as { candidateAccount?: string }).candidateAccount)).toBe('42');
     await page.locator('#refresh').click(); await page.locator('#confirm').click();
     await expect.poll(() => page.evaluate(async () => ((await chrome.runtime.sendMessage({ kind: 'known.siteAdapters.status' })) as { documents?: number }).documents)).toBe(1);
-    const timings: { mode: string; nativeMs: number }[] = [];
-    for (const mode of ['no-server', 'offline-synced', 'paused']) {
+    if (history) await page.evaluate(async count => {
+      const db = await new Promise<IDBDatabase>((resolve, reject) => { const r = indexedDB.open('known-site-adapters'); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
+      try { for (let offset = 0; offset < count; offset += 1000) await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction('savePlans', 'readwrite'); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error);
+        for (let i = offset; i < Math.min(count, offset + 1000); i++) tx.objectStore('savePlans').put({ state: 'approved', plan: { id: `retained-history-${i}`, effects: [] } }, `retained-history-${i}`);
+      }); } finally { db.close(); }
+    }, history);
+    const timings: { mode: string; sample: number; nativeMs: number; readyToLocalMs: number }[] = [];
+    for (const mode of ['no-server', 'offline-synced', 'paused']) for (let sample = 0; sample < samples; sample++) {
       const root = await page.evaluate(async title => chrome.bookmarks.create({ parentId: (await chrome.bookmarks.getTree())[0]!.children![0]!.id, title }), mode);
       if (mode !== 'no-server') {
         const scope = await page.evaluate(async () => {
@@ -45,6 +54,10 @@ test('source native saves finish without a server, inside an offline sync range,
           await chrome.storage.session.set({ 'known.auth.credential.v1': { accessToken: 'offline-fixture', tokenType: 'Bearer', expiresAt: Date.now() + 3600000,
             scope: config.scopes, issuer: config.issuer, audience: config.audience, clientId: config.clientId, serverOrigin: config.serverOrigin, subject: accountId, authorityGeneration: generation } });
           await chrome.storage.local.set({ 'known.auth.binding.v1': { replicaId: 'replica-local-first', browserProfileId: 'profile-local-first', generation: '1' }, 'known.sync.collection.v1': collectionId });
+          // Configure the next isolated sample before pausing its actual save phase.
+          await chrome.storage.local.set({ ['known.personal-sync.v1:' + JSON.stringify([config.serverOrigin, accountId])]: {
+            version: 1, mode: 'enabled', collectionId, revision: crypto.randomUUID(), reason: 'user',
+          } });
           return { environment: config.environment, serverId: config.serverOrigin, serverOrigin: config.serverOrigin, accountId, collectionId, replicaId: 'replica-local-first', browserProfileId: 'profile-local-first', generation: 1 };
         });
         await page.evaluate(scope => chrome.runtime.sendMessage({ kind: 'known.sync-state.evidence', method: 'registerEvidenceScope', args: [scope] }), scope);
@@ -56,12 +69,17 @@ test('source native saves finish without a server, inside an offline sync range,
         }), scope);
       }
       const call = async (operation: string, extra: Record<string, string>) => await page.evaluate(r => chrome.runtime.sendMessage({ kind: 'known.siteAdapters.evidence', ...r }), { operation, ...extra }) as { status?: string; planId?: string };
+      await expect.poll(() => page.evaluate(async () => {
+        const state = (await chrome.storage.local.get('known.siteAdapters.runtime.v1'))['known.siteAdapters.runtime.v1'] as { leases?: { expiresAt: number }[] };
+        return state.leases?.some(l => l.expiresAt > Date.now() + 1000) ?? false;
+      }), { timeout: 15000 }).toBe(true);
+      const ready = Date.now();
       const prepared = await call('prepare', { rootNativeId: root.id }); expect(prepared.planId).toBeTruthy();
       if (!prepared.planId) throw Error(JSON.stringify(prepared));
       const started = Date.now();
       expect(await call('execute', { planId: prepared.planId, effectId: 'folder' })).toMatchObject({ status: 'confirmed' });
       expect(await call('execute', { planId: prepared.planId, effectId: 'bookmark' })).toMatchObject({ status: 'confirmed' });
-      timings.push({ mode, nativeMs: Date.now() - started });
+      timings.push({ mode, sample, nativeMs: Date.now() - started, readyToLocalMs: Date.now() - ready });
       expect(timings.at(-1)!.nativeMs).toBeLessThan(5000);
       const saved = await page.evaluate(async rootId => {
         const folder = (await chrome.bookmarks.getChildren(rootId))[0]!;
@@ -79,6 +97,13 @@ test('source native saves finish without a server, inside an offline sync range,
         expect(transfers.some(t => t.native.nativeId === saved.children[0]!.id && t.owner.accountId === 'a'.repeat(32))).toBe(true);
       }
     }
-    await test.info().attach('native-save-timings', { contentType: 'application/json', body: JSON.stringify(timings) });
+    const summary = ['no-server', 'offline-synced', 'paused'].map(mode => {
+      const values = timings.filter(t => t.mode === mode).map(t => t.readyToLocalMs).sort((a, b) => a - b);
+      return { mode, samples: values.length, p50Ms: values[Math.ceil(values.length * 0.5) - 1]!, p95Ms: values[Math.ceil(values.length * 0.95) - 1]!, maxMs: values.at(-1)! };
+    });
+    await test.info().attach('native-save-timings', { contentType: 'application/json', body: JSON.stringify({ version: 1,
+      boundary: 'controlled facts and native root ready -> plan preparation, sequential native folder/bookmark dispatch and confirmation; excludes website reads and cloud transport',
+      browser: context.browser()?.version(), platform: process.platform, architecture: process.arch, retainedCompletedPlans: history, summary, timings }) });
+    if (samples >= 20) for (const result of summary) expect(result.p95Ms, JSON.stringify(result)).toBeLessThanOrEqual(1000);
   } finally { await context.close(); await rm(profile, { recursive: true, force: true }); }
 });

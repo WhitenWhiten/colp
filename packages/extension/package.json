@@ -27,6 +27,7 @@
     "i18n:write": "node scripts/i18n-catalog.mjs --write",
     "test": "vitest run --dir tests && node scripts/test-local-first.mjs",
     "test:site-adapters": "vitest run tests/site-adapter-*.test.ts tests/classification-destination-policy.test.ts tests/capture-planned.test.ts tests/capture-coordinator.test.ts",
+    "test:site-adapters:performance": "npm run build:development && SITE_ADAPTER_PERF_SAMPLES=30 SITE_ADAPTER_PERF_HISTORY=50000 KNOWN_E2E_HEADED=0 node scripts/with-xvfb.mjs npx playwright test --project=core e2e/mv3-site-adapter-local-first.spec.ts",
     "test:local-first-lifecycle": "node scripts/test-local-first.mjs",
     "test:sync-model": "vitest run model-tests && tsc -p model-tests/tsconfig.json",
     "test:sync-real-stack": "vitest run tests/effect-page-download.test.ts tests/pull-applier.test.ts tests/pull-applier.contract.test.ts tests/recovery-store.test.ts tests/recovery-projection-executor.test.ts tests/recovery-overlay.test.ts tests/recovery-projection-siblings.test.ts tests/authority-fence.test.ts",

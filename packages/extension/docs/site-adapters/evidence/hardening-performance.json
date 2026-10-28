@@ -1,0 +1,587 @@
+{
+  "version": 1,
+  "boundary": "controlled facts and native root ready -> plan preparation, sequential native folder/bookmark dispatch and confirmation; excludes website reads and cloud transport",
+  "browser": "149.0.7827.55",
+  "platform": "linux",
+  "architecture": "x64",
+  "retainedCompletedPlans": 50000,
+  "summary": [
+    {
+      "mode": "no-server",
+      "samples": 30,
+      "p50Ms": 383,
+      "p95Ms": 418,
+      "maxMs": 419
+    },
+    {
+      "mode": "offline-synced",
+      "samples": 30,
+      "p50Ms": 810,
+      "p95Ms": 868,
+      "maxMs": 891
+    },
+    {
+      "mode": "paused",
+      "samples": 30,
+      "p50Ms": 825,
+      "p95Ms": 916,
+      "maxMs": 936
+    }
+  ],
+  "timings": [
+    {
+      "mode": "no-server",
+      "sample": 0,
+      "nativeMs": 334,
+      "readyToLocalMs": 354
+    },
+    {
+      "mode": "no-server",
+      "sample": 1,
+      "nativeMs": 301,
+      "readyToLocalMs": 318
+    },
+    {
+      "mode": "no-server",
+      "sample": 2,
+      "nativeMs": 307,
+      "readyToLocalMs": 323
+    },
+    {
+      "mode": "no-server",
+      "sample": 3,
+      "nativeMs": 308,
+      "readyToLocalMs": 324
+    },
+    {
+      "mode": "no-server",
+      "sample": 4,
+      "nativeMs": 319,
+      "readyToLocalMs": 337
+    },
+    {
+      "mode": "no-server",
+      "sample": 5,
+      "nativeMs": 312,
+      "readyToLocalMs": 330
+    },
+    {
+      "mode": "no-server",
+      "sample": 6,
+      "nativeMs": 317,
+      "readyToLocalMs": 332
+    },
+    {
+      "mode": "no-server",
+      "sample": 7,
+      "nativeMs": 332,
+      "readyToLocalMs": 351
+    },
+    {
+      "mode": "no-server",
+      "sample": 8,
+      "nativeMs": 348,
+      "readyToLocalMs": 366
+    },
+    {
+      "mode": "no-server",
+      "sample": 9,
+      "nativeMs": 358,
+      "readyToLocalMs": 376
+    },
+    {
+      "mode": "no-server",
+      "sample": 10,
+      "nativeMs": 366,
+      "readyToLocalMs": 385
+    },
+    {
+      "mode": "no-server",
+      "sample": 11,
+      "nativeMs": 341,
+      "readyToLocalMs": 358
+    },
+    {
+      "mode": "no-server",
+      "sample": 12,
+      "nativeMs": 378,
+      "readyToLocalMs": 394
+    },
+    {
+      "mode": "no-server",
+      "sample": 13,
+      "nativeMs": 366,
+      "readyToLocalMs": 383
+    },
+    {
+      "mode": "no-server",
+      "sample": 14,
+      "nativeMs": 383,
+      "readyToLocalMs": 401
+    },
+    {
+      "mode": "no-server",
+      "sample": 15,
+      "nativeMs": 379,
+      "readyToLocalMs": 398
+    },
+    {
+      "mode": "no-server",
+      "sample": 16,
+      "nativeMs": 384,
+      "readyToLocalMs": 403
+    },
+    {
+      "mode": "no-server",
+      "sample": 17,
+      "nativeMs": 401,
+      "readyToLocalMs": 418
+    },
+    {
+      "mode": "no-server",
+      "sample": 18,
+      "nativeMs": 364,
+      "readyToLocalMs": 381
+    },
+    {
+      "mode": "no-server",
+      "sample": 19,
+      "nativeMs": 362,
+      "readyToLocalMs": 380
+    },
+    {
+      "mode": "no-server",
+      "sample": 20,
+      "nativeMs": 365,
+      "readyToLocalMs": 383
+    },
+    {
+      "mode": "no-server",
+      "sample": 21,
+      "nativeMs": 354,
+      "readyToLocalMs": 371
+    },
+    {
+      "mode": "no-server",
+      "sample": 22,
+      "nativeMs": 379,
+      "readyToLocalMs": 395
+    },
+    {
+      "mode": "no-server",
+      "sample": 23,
+      "nativeMs": 381,
+      "readyToLocalMs": 400
+    },
+    {
+      "mode": "no-server",
+      "sample": 24,
+      "nativeMs": 382,
+      "readyToLocalMs": 400
+    },
+    {
+      "mode": "no-server",
+      "sample": 25,
+      "nativeMs": 383,
+      "readyToLocalMs": 401
+    },
+    {
+      "mode": "no-server",
+      "sample": 26,
+      "nativeMs": 379,
+      "readyToLocalMs": 395
+    },
+    {
+      "mode": "no-server",
+      "sample": 27,
+      "nativeMs": 370,
+      "readyToLocalMs": 387
+    },
+    {
+      "mode": "no-server",
+      "sample": 28,
+      "nativeMs": 374,
+      "readyToLocalMs": 391
+    },
+    {
+      "mode": "no-server",
+      "sample": 29,
+      "nativeMs": 402,
+      "readyToLocalMs": 419
+    },
+    {
+      "mode": "offline-synced",
+      "sample": 0,
+      "nativeMs": 623,
+      "readyToLocalMs": 647
+    },
+    {
+      "mode": "offline-synced",
+      "sample": 1,
+      "nativeMs": 136,
+      "readyToLocalMs": 166
+    },
+    {
+      "mode": "offline-synced",
+      "sample": 2,
+      "nativeMs": 661,
+      "readyToLocalMs": 683
+    },
+    {
+      "mode": "offline-synced",
+      "sample": 3,
+      "nativeMs": 617,
+      "readyToLocalMs": 638
+    },
+    {
+      "mode": "offline-synced",
+      "sample": 4,
+      "nativeMs": 634,
+      "readyToLocalMs": 656
+    },
+    {
+      "mode": "offline-synced",
+      "sample": 5,
+      "nativeMs": 767,
+      "readyToLocalMs": 788
+    },
+    {
+      "mode": "offline-synced",
+      "sample": 6,
+      "nativeMs": 632,
+      "readyToLocalMs": 654
+    },
+    {
+      "mode": "offline-synced",
+      "sample": 7,
+      "nativeMs": 670,
+      "readyToLocalMs": 694
+    },
+    {
+      "mode": "offline-synced",
+      "sample": 8,
+      "nativeMs": 659,
+      "readyToLocalMs": 684
+    },
+    {
+      "mode": "offline-synced",
+      "sample": 9,
+      "nativeMs": 819,
+      "readyToLocalMs": 844
+    },
+    {
+      "mode": "offline-synced",
+      "sample": 10,
+      "nativeMs": 859,
+      "readyToLocalMs": 891
+    },
+    {
+      "mode": "offline-synced",
+      "sample": 11,
+      "nativeMs": 804,
+      "readyToLocalMs": 830
+    },
+    {
+      "mode": "offline-synced",
+      "sample": 12,
+      "nativeMs": 842,
+      "readyToLocalMs": 868
+    },
+    {
+      "mode": "offline-synced",
+      "sample": 13,
+      "nativeMs": 802,
+      "readyToLocalMs": 828
+    },
+    {
+      "mode": "offline-synced",
+      "sample": 14,
+      "nativeMs": 717,
+      "readyToLocalMs": 742
+    },
+    {
+      "mode": "offline-synced",
+      "sample": 15,
+      "nativeMs": 804,
+      "readyToLocalMs": 829
+    },
+    {
+      "mode": "offline-synced",
+      "sample": 16,
+      "nativeMs": 713,
+      "readyToLocalMs": 738
+    },
+    {
+      "mode": "offline-synced",
+      "sample": 17,
+      "nativeMs": 752,
+      "readyToLocalMs": 789
+    },
+    {
+      "mode": "offline-synced",
+      "sample": 18,
+      "nativeMs": 781,
+      "readyToLocalMs": 807
+    },
+    {
+      "mode": "offline-synced",
+      "sample": 19,
+      "nativeMs": 814,
+      "readyToLocalMs": 839
+    },
+    {
+      "mode": "offline-synced",
+      "sample": 20,
+      "nativeMs": 796,
+      "readyToLocalMs": 822
+    },
+    {
+      "mode": "offline-synced",
+      "sample": 21,
+      "nativeMs": 785,
+      "readyToLocalMs": 810
+    },
+    {
+      "mode": "offline-synced",
+      "sample": 22,
+      "nativeMs": 812,
+      "readyToLocalMs": 837
+    },
+    {
+      "mode": "offline-synced",
+      "sample": 23,
+      "nativeMs": 775,
+      "readyToLocalMs": 799
+    },
+    {
+      "mode": "offline-synced",
+      "sample": 24,
+      "nativeMs": 773,
+      "readyToLocalMs": 812
+    },
+    {
+      "mode": "offline-synced",
+      "sample": 25,
+      "nativeMs": 818,
+      "readyToLocalMs": 846
+    },
+    {
+      "mode": "offline-synced",
+      "sample": 26,
+      "nativeMs": 799,
+      "readyToLocalMs": 824
+    },
+    {
+      "mode": "offline-synced",
+      "sample": 27,
+      "nativeMs": 804,
+      "readyToLocalMs": 833
+    },
+    {
+      "mode": "offline-synced",
+      "sample": 28,
+      "nativeMs": 808,
+      "readyToLocalMs": 839
+    },
+    {
+      "mode": "offline-synced",
+      "sample": 29,
+      "nativeMs": 811,
+      "readyToLocalMs": 842
+    },
+    {
+      "mode": "paused",
+      "sample": 0,
+      "nativeMs": 736,
+      "readyToLocalMs": 783
+    },
+    {
+      "mode": "paused",
+      "sample": 1,
+      "nativeMs": 732,
+      "readyToLocalMs": 764
+    },
+    {
+      "mode": "paused",
+      "sample": 2,
+      "nativeMs": 794,
+      "readyToLocalMs": 824
+    },
+    {
+      "mode": "paused",
+      "sample": 3,
+      "nativeMs": 755,
+      "readyToLocalMs": 783
+    },
+    {
+      "mode": "paused",
+      "sample": 4,
+      "nativeMs": 752,
+      "readyToLocalMs": 779
+    },
+    {
+      "mode": "paused",
+      "sample": 5,
+      "nativeMs": 734,
+      "readyToLocalMs": 766
+    },
+    {
+      "mode": "paused",
+      "sample": 6,
+      "nativeMs": 891,
+      "readyToLocalMs": 916
+    },
+    {
+      "mode": "paused",
+      "sample": 7,
+      "nativeMs": 742,
+      "readyToLocalMs": 766
+    },
+    {
+      "mode": "paused",
+      "sample": 8,
+      "nativeMs": 739,
+      "readyToLocalMs": 765
+    },
+    {
+      "mode": "paused",
+      "sample": 9,
+      "nativeMs": 743,
+      "readyToLocalMs": 768
+    },
+    {
+      "mode": "paused",
+      "sample": 10,
+      "nativeMs": 732,
+      "readyToLocalMs": 760
+    },
+    {
+      "mode": "paused",
+      "sample": 11,
+      "nativeMs": 789,
+      "readyToLocalMs": 828
+    },
+    {
+      "mode": "paused",
+      "sample": 12,
+      "nativeMs": 758,
+      "readyToLocalMs": 784
+    },
+    {
+      "mode": "paused",
+      "sample": 13,
+      "nativeMs": 792,
+      "readyToLocalMs": 820
+    },
+    {
+      "mode": "paused",
+      "sample": 14,
+      "nativeMs": 789,
+      "readyToLocalMs": 814
+    },
+    {
+      "mode": "paused",
+      "sample": 15,
+      "nativeMs": 787,
+      "readyToLocalMs": 812
+    },
+    {
+      "mode": "paused",
+      "sample": 16,
+      "nativeMs": 864,
+      "readyToLocalMs": 891
+    },
+    {
+      "mode": "paused",
+      "sample": 17,
+      "nativeMs": 802,
+      "readyToLocalMs": 828
+    },
+    {
+      "mode": "paused",
+      "sample": 18,
+      "nativeMs": 798,
+      "readyToLocalMs": 825
+    },
+    {
+      "mode": "paused",
+      "sample": 19,
+      "nativeMs": 825,
+      "readyToLocalMs": 852
+    },
+    {
+      "mode": "paused",
+      "sample": 20,
+      "nativeMs": 845,
+      "readyToLocalMs": 873
+    },
+    {
+      "mode": "paused",
+      "sample": 21,
+      "nativeMs": 849,
+      "readyToLocalMs": 874
+    },
+    {
+      "mode": "paused",
+      "sample": 22,
+      "nativeMs": 824,
+      "readyToLocalMs": 850
+    },
+    {
+      "mode": "paused",
+      "sample": 23,
+      "nativeMs": 850,
+      "readyToLocalMs": 877
+    },
+    {
+      "mode": "paused",
+      "sample": 24,
+      "nativeMs": 864,
+      "readyToLocalMs": 891
+    },
+    {
+      "mode": "paused",
+      "sample": 25,
+      "nativeMs": 845,
+      "readyToLocalMs": 873
+    },
+    {
+      "mode": "paused",
+      "sample": 26,
+      "nativeMs": 910,
+      "readyToLocalMs": 936
+    },
+    {
+      "mode": "paused",
+      "sample": 27,
+      "nativeMs": 842,
+      "readyToLocalMs": 870
+    },
+    {
+      "mode": "paused",
+      "sample": 28,
+      "nativeMs": 876,
+      "readyToLocalMs": 912
+    },
+    {
+      "mode": "paused",
+      "sample": 29,
+      "nativeMs": 862,
+      "readyToLocalMs": 900
+    }
+  ],
+  "recordedAt": "2026-10-28T12:43:13.674776+00:00",
+  "command": "npm run test:site-adapters:performance",
+  "empiricalP95LimitMs": 1000,
+  "qualification": "90 measured saves, no discarded warm-up samples; controlled Chromium fixture, not real-site end-to-end latency",
+  "buildDigests": {
+    "service-worker.js": "7fd26bed1bcae2ac0151a585cb0ba588a4af52f684206bad94990f8e4f3069e6",
+    "site-adapter.js": "908807d071a1fa08422af4f44e785fed5ad87deec860dbeac621c7170acf4258",
+    "site-probe.js": "d52787b9c2d75f50d772d8670de6f4b69dced4eeb986e800191473cd16e64b2d"
+  },
+  "beforeOptimization": {
+    "offlineSyncedP95Ms": 1311,
+    "pausedP95Ms": 1797,
+    "cause": "Sequential rejoin-plan reads for every already-active Sync range on each native save guard."
+  }
+}

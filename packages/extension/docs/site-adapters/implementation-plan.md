@@ -44,6 +44,14 @@ When a previously local-only copy acquires a proven Sync owner, association fina
 
 Validation: 11 focused association/transfer/unbound tests, including actual content-binding reuse after handoff, original-command retention and rejection of a different existing mount owner; extension typecheck, lint and source-size checks passed. Final real-stack regression also exercises the extracted association finalizer.
 
+### H-07 — measured latency and fair active work
+
+`npm run test:site-adapters:performance` samples 30 native saves per mode (no server, offline Sync range, paused Sync), retaining 50,000 completed plans. It measures controlled facts/root ready through plan preparation and sequential native folder/bookmark confirmation; website reads and cloud transport remain separate. No warm-up sample is discarded. [Recorded empirical p95](evidence/hardening-performance.json): **418 / 868 / 916 ms**, all within the one-second fixture target (Chromium 149.0.7827.55, Linux x64). These are fixture statistics, not a real-site latency promise.
+
+The initial larger run exposed linear range-count overhead (offline p95 1,311 ms; paused 1,797 ms). Native ingress now skips rejoin-record reads for already-proven active ranges; unresolved, detached and rejoining ranges keep their existing checks. A 200-active-range test verifies only the two unresolved ranges need rejoin reads. Active source work uses admission time instead of a zero timestamp so a stream of lower-key newcomers cannot starve older work; large plans yield after four effects within the shared batch budget. Unattempted work keeps its retry count and age. Disabled sources do not start recurring shared-catalog refreshes.
+
+Validation: 9 focused source-work tests; ingress/range/target regressions plus the new read-count guard; typecheck/lint; 90-save xvfb performance gate passed. Final combined browser/real-stack regression is recorded below.
+
 ## LF remediation and acceptance (October 28, 2026)
 
 The local-first contract in runtime-foundation.md supersedes historical online-first acceptance. Each LF task is implemented and committed separately. Native success, transport success and shared-association success are independent facts; source confirmation still observes the website's read/authorization limits.

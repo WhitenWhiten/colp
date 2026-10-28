@@ -6,9 +6,9 @@ import { createSourceWorkQueue, enqueueSourcePlan } from '../src/site-adapters/w
 import { createSourceAlarmScheduler } from '../src/site-adapters/wake-scheduler.js';
 async function fixture() {
   const db = createSourceDatabase(new IDBFactory());
-  const add = (id: string, queued = true) => db.transaction(['savePlans', 'work'], 'readwrite', async tx => {
+  const add = (id: string, queued = true, readyAt = 0) => db.transaction(['savePlans', 'work'], 'readwrite', async tx => {
     tx.objectStore('savePlans').put({ state: 'approved', plan: { id, effects: [{ effectId: 'bookmark', dependsOn: [] }] } }, id);
-    if (queued) await enqueueSourcePlan(tx, id);
+    if (queued) await enqueueSourcePlan(tx, id, undefined, readyAt);
   });
   return { db, add };
 }
@@ -82,4 +82,33 @@ test('later alarm producers cannot postpone an earlier pending wake', async () =
   const schedule = createSourceAlarmScheduler({ get: async () => at === undefined ? undefined : { scheduledTime: at }, create });
   await Promise.all([schedule(100), schedule(30000), schedule(50), schedule(60000)]);
   expect(at).toBe(50); expect(create).toHaveBeenCalledTimes(2);
+});
+
+test('a stream of lower-key newcomers cannot displace older ready work', async () => {
+  const f = await fixture(), execute = vi.fn(async (_id: string, _effect: string) => ({ status: 'confirmed' }));
+  try {
+    for (let i = 0; i < 20; i++) await f.add(`zzz-old-${i}`, true, 10);
+    for (let i = 0; i < 25; i++) await f.add(`aaa-new-${i}`, true, 20);
+    const run = createSourceWorkQueue(f.db, { execute, schedule: vi.fn(), now: () => 100 });
+    await run(); expect(execute.mock.calls).toHaveLength(20);
+    expect(execute.mock.calls.every(([id]) => String(id).startsWith('zzz-old-'))).toBe(true);
+    await run(); expect(execute.mock.calls).toHaveLength(40);
+  } finally { await f.db.close(); }
+});
+test('large plans yield within a batch without consuming the retry count of unattempted work', async () => {
+  const f = await fixture();
+  try {
+    await f.db.transaction(['savePlans', 'work'], 'readwrite', async tx => {
+      tx.objectStore('savePlans').put({ state: 'approved', plan: { id: 'large', effects: Array.from({ length: 40 }, (_, i) => ({ effectId: String(i), dependsOn: [] })) } }, 'large');
+      await enqueueSourcePlan(tx, 'large', undefined, 1);
+    });
+    await f.add('small', true, 2);
+    const calls: string[] = [];
+    const run = createSourceWorkQueue(f.db, { execute: async (id, effect) => {
+      calls.push(id); await f.db.transaction(['effects'], 'readwrite', async tx => { tx.objectStore('effects').put({ state: 'confirmed' }, JSON.stringify([id, effect])); });
+      return { status: 'confirmed' };
+    }, schedule: vi.fn(), now: () => 100 });
+    await run(); expect(calls.filter(id => id === 'large')).toHaveLength(4); expect(calls).toContain('small');
+    expect(await f.db.read('work', 'small')).toBeUndefined();
+  } finally { await f.db.close(); }
 });

@@ -232,10 +232,9 @@ function createSiteHost(definition: SiteDefinition) {
     return working = (async () => {
       void flushManagedChanges().catch(() => undefined);
       void flushLocalTransfers().catch(() => undefined);
-      void refreshSharedCatalog().catch(() => undefined);
       migrating ??= captureDeviceId().then(deviceId => migrateLocalFirstBatch(siteLedger.db, { deviceId, lookup: async id => (await chrome.bookmarks.get(id).catch(() => []))[0] ?? null }))
         .then(more => { if (more) scheduleSourceWork(Date.now() + 100); }).catch(() => undefined).finally(() => { migrating = undefined; });
-      if ((await read()).enabled) { await confirmations.wake(); await archives.live.wake(); }
+      if ((await read()).enabled) { void refreshSharedCatalog().catch(() => undefined); await confirmations.wake(); await archives.live.wake(); }
       await wakePlannedSaves();
       importing ??= archives.importer.wake().catch(() => undefined).finally(() => { importing = undefined; });
       reconciling ??= reconciliationRuns.wake().catch(() => undefined).finally(() => { reconciling = undefined; });

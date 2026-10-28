@@ -3,8 +3,8 @@ import { get, put, sourceKey, type SourceDatabase } from './source-db.js';
 import type { StoredSavePlan } from './planned-types.js';
 export interface SourceWork { id: string; dueAt: number; attempts: number; connectionId?: string; reason?: string }
 /** Derived active index. Deleting a completed entry never deletes its plan, command or receipt. */
-export async function enqueueSourcePlan(tx: IDBTransaction, id: string, connectionId?: string) {
-  if (!await get(tx, 'work', id)) put(tx, 'work', id, { id, dueAt: 0, attempts: 0, ...(connectionId ? { connectionId } : {}) } satisfies SourceWork);
+export async function enqueueSourcePlan(tx: IDBTransaction, id: string, connectionId?: string, readyAt = Date.now()) {
+  if (!await get(tx, 'work', id)) put(tx, 'work', id, { id, dueAt: readyAt, attempts: 0, ...(connectionId ? { connectionId } : {}) } satisfies SourceWork);
 }
 export function createSourceWorkQueue(db: SourceDatabase, ports: {
   execute(planId: string, effectId: string): Promise<{ status: string; reason?: string }>;
@@ -21,7 +21,7 @@ export function createSourceWorkQueue(db: SourceDatabase, ports: {
     if (batch.length) ports.schedule(now() + 30000);
     let budget = 20;
     for (const work of batch) {
-      let complete = true, recoveringStarted = false, reason: string | undefined;
+      let complete = true, recoveringStarted = false, attempted = 0, reason: string | undefined;
       try {
         const row = await db.read<StoredSavePlan>('savePlans', work.id);
         if (row && row.state !== 'draft' && !await db.read('meta', `evidence-plan:${work.id}`)) {
@@ -45,8 +45,8 @@ export function createSourceWorkQueue(db: SourceDatabase, ports: {
             const outbox = commandId ? await db.read<{ executorAcknowledged?: boolean; state?: string }>('outbox', commandId) : undefined;
             if (state?.state === 'confirmed' && (!outbox || outbox.executorAcknowledged)) continue;
             recoveringStarted ||= !!outbox && outbox.state !== 'reserved';
-            if (!budget) { complete = false; break; }
-            budget--;
+            if (!budget || attempted >= 4) { complete = false; break; }
+            budget--; attempted++;
             const result = await ports.execute(work.id, effect.effectId);
             if (result.status !== 'confirmed') { complete = false; reason = result.reason ?? 'executionUnavailable'; break; }
           }
@@ -54,8 +54,8 @@ export function createSourceWorkQueue(db: SourceDatabase, ports: {
       } catch (error) { complete = false; reason = error instanceof Error ? error.message : 'executionUnavailable'; }
       await db.transaction(['work'], 'readwrite', async tx => {
         if (complete) tx.objectStore('work').delete(work.id);
-        else put(tx, 'work', work.id, { ...work, attempts: work.attempts + 1, dueAt: reason && !recoveringStarted && ['sourceAuthorizationChanged', 'rulesChanged', 'sourcePolicyChanged', 'mountChanged', 'sourceFactsChanged', 'consumerCancelled',
-          'invalidPlan', 'sourceCopySuppressed', 'sourceCopyDetached', 'nativeIdentityChanged'].includes(reason) ? Number.MAX_SAFE_INTEGER : reason ? now() + 30000 : 0, ...(reason ? { reason } : {}) });
+        else put(tx, 'work', work.id, { ...work, attempts: work.attempts + (attempted || reason ? 1 : 0), dueAt: reason && !recoveringStarted && ['sourceAuthorizationChanged', 'rulesChanged', 'sourcePolicyChanged', 'mountChanged', 'sourceFactsChanged', 'consumerCancelled',
+          'invalidPlan', 'sourceCopySuppressed', 'sourceCopyDetached', 'nativeIdentityChanged'].includes(reason) ? Number.MAX_SAFE_INTEGER : reason ? now() + 30000 : attempted ? now() : work.dueAt, ...(reason ? { reason } : {}) });
       });
     }
     const next = await db.transaction(['work'], 'readonly', async tx => (await cursorPage<SourceWork>(tx.objectStore('work').index('dueAt'), null, 1))[0]);

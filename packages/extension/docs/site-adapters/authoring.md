@@ -49,6 +49,8 @@ From `packages/extension`:
 
 ```sh
 npm run test:site-adapters
+# For native-path or scheduling changes, measure the fixed 90-save/50,000-history fixture:
+npm run test:site-adapters:performance
 npm run typecheck
 npm run build
 node scripts/verify-release-artifact.mjs dist/production

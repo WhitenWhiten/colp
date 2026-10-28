@@ -15,6 +15,20 @@ import { bookmark, fixture, scope } from './bookmark-event-queue-harness.js';
 const stores: ReturnType<typeof createSyncStateStore>[] = [];
 afterEach(() => { vi.restoreAllMocks(); for (const store of stores.splice(0)) store.close(); });
 
+test('many proven active ranges do not trigger per-range rejoin reads on the native save path', async () => {
+  const { store } = await fixture(new IDBFactory()); stores.push(store);
+  const active = Array.from({ length: 200 }, (_, i) => ({ mountId: `active-${i}`, nativeRootId: `root-${i}`, remoteMountNodeId: `canonical-${i}`, status: 'active' }));
+  const plans = vi.fn(async (_scope: unknown, id: string) => ({ kind: 'rejoin', phase: id.endsWith('rejoining') ? 'preparing' : 'failed' }));
+  const boundary = await resolveIngressBoundary({ ...store, getScopeCommandPlan: plans,
+    listMountBindings: async () => [...active, { mountId: 'rejoining', nativeRootId: 'joining-root', remoteMountNodeId: null, status: 'detached' },
+      { mountId: 'detached', nativeRootId: 'detached-root', remoteMountNodeId: 'old', status: 'detached' }],
+    listBootstrapRuns: async () => [],
+  } as unknown as ReturnType<typeof createSyncStateStore>, scope);
+  assert.equal(plans.mock.calls.length, 2);
+  assert.equal(boundary.selectedNative.size, 201);
+  assert.ok(boundary.selectedNative.has('joining-root')); assert.ok(!boundary.selectedNative.has('detached-root'));
+});
+
 test('capture resolves only selected/private roots and relevant siblings, without materializing the library', async () => {
   const { store, api } = await fixture(new IDBFactory()); stores.push(store);
   const boundedStore = { ...store, listMappings: async () => { throw new Error('whole_library_read'); } };

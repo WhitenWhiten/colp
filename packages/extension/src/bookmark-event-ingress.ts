@@ -33,6 +33,9 @@ export async function resolveIngressBoundary(store: Store, scope: SyncScope): Pr
   const bootstrapLive = (await store.listBootstrapRuns(scope)).some((run) => bootstrapRunInFlight(run.phase));
   const rejoinLive = new Set<string>();
   for (const mount of mounts) {
+    // A proven active mount is already included below regardless of rejoin history.
+    // Avoid one sequential database round trip per active range on every native save guard.
+    if (isWritableActiveScope({ status: mount.status, identityKnown: mount.remoteMountNodeId !== null })) continue;
     const plan = await store.getScopeCommandPlan(scope, `rejoin:${mount.mountId}`);
     if (plan?.kind === 'rejoin' && rejoinCommandInFlight(plan.phase)) rejoinLive.add(mount.mountId);
   }
