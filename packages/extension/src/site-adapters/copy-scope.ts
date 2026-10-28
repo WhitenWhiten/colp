@@ -12,14 +12,14 @@ export async function copiesInScope<T>(tx: IDBTransaction, values: readonly T[],
   const mounts = new Map<string, SourceMount[]>(), result: T[] = [];
   for (const value of values) {
     const r = copy(value);
-    let scope = r.scopeId ?? (r.shared ? managedLibraryKey(r.shared.library) : undefined);
-    if (!scope && r.purpose === 'sourceArchive') {
+    let scope = r.shared ? managedLibraryKey(r.shared.library) : r.scopeId;
+    if (!r.shared && r.purpose === 'sourceArchive') {
       let source = mounts.get(r.connectionId);
       if (!source) { source = await rows<SourceMount>(tx, 'mounts', r.connectionId); mounts.set(r.connectionId, source); }
       const mount = source.find(m => m.id === r.mountId);
-      if (mount) scope = destinationScopeId(mount.destination, mount.root.deviceId);
-      else if (r.native) scope = destinationScopeId(null, r.native.deviceId);
-      else throw new Error('sourceDestinationNeedsReview');
+      if (mount?.destination !== undefined) scope = destinationScopeId(mount.destination, mount.root.deviceId);
+      else if (!scope && r.native) scope = destinationScopeId(null, r.native.deviceId);
+      else if (!scope) throw new Error('sourceDestinationNeedsReview');
     }
     if (scope === scopeId) result.push(value);
   }

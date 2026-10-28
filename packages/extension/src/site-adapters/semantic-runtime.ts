@@ -52,7 +52,7 @@ async function authorize(job: SemanticJob) {
   for (const source of current.sources) {
     const a = await readConnectionAuthority(siteLedger.db, source.connectionId), p = await siteLedger.db.read<SourcePolicyRecord>('meta', `policy:${source.connectionId}`);
     if (a?.enabled && p?.enabled && p.semantic === 'automatic' && p.policy.copies === 'sourceAndSemantic' && p.policy.revision === source.policyRevision
-      && (p.localDeviceId ? p.localDeviceId === deviceId : sameDestinationOwner(p.semanticOwner, job.scope))
+      && (!p.localDeviceId || p.localDeviceId === deviceId) && (!p.semanticOwner || sameDestinationOwner(p.semanticOwner, job.scope))
       && a.installationGeneration === source.installationGeneration && a.sourceSessionGeneration === source.sourceSessionGeneration) {
       await assertSourceRebound(siteLedger.db, source.connectionId); await assertRestoredItemAvailable(siteLedger.db, source.connectionId, job.content.itemId); return;
     }
@@ -86,7 +86,7 @@ export const semanticJobs = createSemanticJobs(siteLedger.db, {
     await siteLedger.db.transaction(['contentBindings'], 'readwrite', async tx => {
       const key = contentBindingKey(identity, job.id), current = await get<ContentBindingRow>(tx, 'contentBindings', key);
       if (current?.native) throw new Error('sourceSyncPending');
-      put(tx, 'contentBindings', key, current ?? { id: job.id, content: identity, scopeId: job.scopeId, purpose: 'semantic', native: null,
+      put(tx, 'contentBindings', key, current ?? { id: job.id, content: identity, scopeId: job.scopeId, scopeVersion: 2, purpose: 'semantic', native: null,
         captureIntentId: job.id, commandId: job.id, connectionId: job.connections[0] ?? null, sourceConnections: job.connections,
         requestDigest: sourceDigest({ content: job.content, scopeId: job.scopeId }), state: 'pending', mode: 'create', policyRevision: null,
         title: job.title, url: job.url, parentId: '', forceAnother: true } satisfies ContentBindingRow);
@@ -115,6 +115,7 @@ export const semanticJobs = createSemanticJobs(siteLedger.db, {
   },
   async prepare(job, selection) {
     await assertSemanticDestination(selection.folder, selection.destinationDigest);
+    if ((await semanticContext(selection.folder.nativeId)).scopeId !== job.scopeId) throw new Error('semanticDestinationOutsideLibrary');
     const representation = { connectionId: job.connections[0]!, itemId: job.content.itemId, purpose: 'semantic' as const, sourceCollectionId: null, mountId: null, scopeId: job.scopeId };
     const command: PlannedNativeCommand = { commandId: `semantic:${job.id}`, ownerId: job.id, logicalDigest: sourceDigest({ jobId: job.id, content: job.content, selection }),
       connectionId: representation.connectionId, kind: 'bookmark', parent: selection.folder, title: job.title, deviceId: await captureDeviceId(),
@@ -153,6 +154,7 @@ export async function enqueueSourceSemantics(connectionId: string) {
   if (!authority?.enabled || !policy?.enabled || policy.semantic !== 'automatic' || policy.policy.copies !== 'sourceAndSemantic') return;
   const context = await semanticContext();
   if (policy.localDeviceId && policy.localDeviceId !== await captureDeviceId()) return false;
+  if (policy.semanticOwner && !sameDestinationOwner(policy.semanticOwner, context.scope)) return false;
   const connection = await readSourceConnection(siteLedger.db, connectionId), definition = identityDefinition(connection.siteKey, connection.identityVersion);
   const revision = await siteLedger.db.read<number>('meta', `semanticSourceRevision:${connectionId}`) ?? 0;
   const scanKey = `semanticScan:${connectionId}`, signature = sourceDigest({ scopeId: context.scopeId, policy: policy.policy.revision, authority });

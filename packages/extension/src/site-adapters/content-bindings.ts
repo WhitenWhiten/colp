@@ -11,6 +11,7 @@ import type { SourcePolicyRecord } from './layout.js';
 import type { SourceAuthority } from './ledger-types.js';
 import { assertSourceRebound, assertRestoredItemAvailable } from './portable.js';
 export interface ContentBindingRow extends CaptureContentBinding {
+  scopeVersion?: 2;
   shared?: import('./managed-client.js').ManagedReference;
   managed?: import('./managed-client.js').ManagedDestination; managedParent?: NativeBinding<'folder'>;
   intentPending?: boolean; requestDigest: string; sourceGeneration?: readonly [number, number]; supersededBy?: string; commandId: string; state: 'pending' | 'active' | 'detached' | 'suppressed';
@@ -78,7 +79,7 @@ export function createContentBindings(db: SourceDatabase, assertNative: (native:
         const sourceCopy = copies.length > 0 || pending.some(r => r.representation.purpose === 'sourceArchive' && r.state !== 'blocked');
         const mode = !native ? 'create' : semantic || old?.native ? 'reuse' : policy?.copies === 'singlePreferSemantic' ? 'reclassify' : 'suggest';
         const id = crypto.randomUUID();
-        const binding: ContentBindingRow = { id, ...(input.scopeId ? { scopeId: input.scopeId } : {}),
+        const binding: ContentBindingRow = { id, ...(input.scopeId ? { scopeId: input.scopeId, scopeVersion: 2 } : {}),
           ...(old?.shared ?? reuse?.shared ? { shared: old?.shared ?? reuse?.shared } : {}),
           ...(!native && input.managed ? { managed: input.managed, managedParent: input.managedParent } : {}),
           sourceConnections: [...new Set([...old?.sourceConnections ?? [], ...old?.connectionId ? [old.connectionId] : [], ...connectionId ? [connectionId] : []])],

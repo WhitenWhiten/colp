@@ -33,10 +33,10 @@ export const sourceLayout = createSourceLayout(siteLedger.db, {
     const definition = identityDefinition(connection.siteKey, connection.identityVersion);
     const content = { siteKey: connection.siteKey, identityVersion: connection.identityVersion, itemId: input.itemId,
       ...(definition.contentIdScope !== 'site' ? { accountId: connection.accountId } : {}) };
-    try { await scopedSemanticBindings(content, context.scope, context.scopeId); } catch (error) {
+    try { await scopedSemanticBindings(content, context.scope, input.scopeId); } catch (error) {
       if (input.policy.copies !== 'sourceAndSemantic' || !(error instanceof Error) || error.message !== 'semanticBindingNeedsReview') throw error;
     }
-    return contentBindings.sourceDecision({ ...input, scopeId: context.scopeId });
+    return contentBindings.sourceDecision(input);
   },
   beforeExclusion: assertNoCloudDestinationWork,
 });

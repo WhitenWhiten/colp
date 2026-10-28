@@ -17,6 +17,7 @@ import type { ManagedBinding, ManagedDestination, ManagedReference } from './man
 import { managedReference } from './managed-changes.js';
 import type { ManagedLibrary } from './copy-identity.js';
 import { assertSourceRoot } from '../sw/planned-capture.js';
+import { provenBindingScope } from './binding-scope.js';
 export async function semanticContext(folderId?: string) {
   const scope = await currentCaptureScope(), deviceId = await captureDeviceId();
   let inRange = true;
@@ -34,27 +35,24 @@ export async function scopedSemanticBindings(identity: ContentIdentity, scope: C
     (await rows<ContentBindingRow>(tx, 'contentBindings', identity.siteKey, identity.identityVersion, identity.itemId))
       .filter(b => !b.supersededBy && sameContentIdentity(b.content, identity)));
   const deviceId = await captureDeviceId();
-  for (const b of candidates.filter(b => !b.scopeId || b.scopeId !== scopeId && scopeId === JSON.stringify(['local', deviceId]) && b.native?.deviceId === deviceId)) {
-    const task = await captureStore.getForOwner(scope, b.captureIntentId);
-    let proven = task ? semanticScopeId(task.scope, await captureDeviceId()) : null;
-    if (b.native?.deviceId === deviceId && scopeId === JSON.stringify(['local', deviceId])) {
-      await assertContentNative(b.native, { title: b.title, parentId: b.parentId, url: b.url }); proven = scopeId;
-    }
-    if (b.native && scope.accountId && scope.collectionId) {
-      await assertContentNative(b.native, { title: b.title, parentId: b.parentId, url: b.url });
-      const sync = await currentSyncScope().catch(() => null), mapping = sync && await syncState.getMappingByNativeId(sync, b.native.nativeId);
-      if (mapping && !mapping.quarantine && sync?.accountId === scope.accountId && sync.collectionId === scope.collectionId) proven = scopeId;
+  for (const b of candidates.filter(b => b.scopeVersion !== 2)) {
+    let proven = await siteLedger.db.transaction(['meta'], 'readonly', tx => provenBindingScope(tx, b, deviceId));
+    if (!proven) {
+      const task = await captureStore.getForOwner(scope, b.captureIntentId);
+      if (task) proven = semanticScopeId(task.scope, deviceId);
     }
     if (!proven) throw new Error('semanticBindingNeedsReview');
+    if (b.native) await assertContentNative(b.native, { title: b.title, parentId: b.parentId, url: b.url });
     await siteLedger.db.transaction(['contentBindings', 'representations'], 'readwrite', async tx => {
       const key = contentBindingKey(b.content, b.id), current = await get<ContentBindingRow>(tx, 'contentBindings', key);
       if (!current || sourceDigest(current) !== sourceDigest(b)) throw new Error('content_binding_changed');
-      put(tx, 'contentBindings', key, { ...current, scopeId: proven });
+      put(tx, 'contentBindings', key, { ...current, scopeId: proven, scopeVersion: 2 });
       if (current.connectionId && current.native) for (const r of await rows<Representation>(tx, 'representations', current.connectionId, current.content.itemId)) {
         if (r.purpose !== 'semantic' || r.scopeId === proven || r.native.nativeId !== current.native.nativeId || r.native.dateAdded !== current.native.dateAdded) continue;
-        const scoped = { ...r, scopeId: proven! }; put(tx, 'representations', representationKey(scoped), scoped);
+        const scoped = { ...r, scopeId: proven! };
+        tx.objectStore('representations').delete(representationKey(r)); put(tx, 'representations', representationKey(scoped), scoped);
       }
-    }); b.scopeId = proven;
+    }); b.scopeId = proven; b.scopeVersion = 2;
   }
   return candidates.filter(b => b.scopeId === scopeId);
 }
@@ -100,7 +98,7 @@ export async function attachSemanticAssociation(input: { identity: ContentIdenti
       || b.native && (b.native.nativeId !== input.native.nativeId || b.native.dateAdded !== input.native.dateAdded)
       || b.state === 'suppressed' || b.state === 'detached')) throw new Error('semanticBindingNeedsReview');
     const old = candidates[0], id = old?.id ?? input.id;
-    const binding: ContentBindingRow = { ...old, id, content: input.identity, scopeId: input.scopeId, captureIntentId: old?.captureIntentId ?? input.id,
+    const binding: ContentBindingRow = { ...old, id, content: input.identity, scopeId: input.scopeId, scopeVersion: 2, captureIntentId: old?.captureIntentId ?? input.id,
       purpose: 'semantic', native: input.native, connectionId: old?.connectionId ?? input.connections[0] ?? null,
       sourceConnections: [...new Set([...old?.sourceConnections ?? [], ...input.connections])],
       commandId: old?.commandId ?? input.id, requestDigest: old?.requestDigest ?? sourceDigest({ identity: input.identity, scopeId: input.scopeId }),

@@ -1,5 +1,15 @@
 # Site adapter implementation and acceptance plan
 
+## Post-review hardening (October 28, 2026)
+
+The scope stays limited to the existing Bilibili adapter. Work is committed separately: destination isolation; offline-device association convergence and real-stack acceptance; observation/recovery coverage; reusable adapter qualification; and measured latency/backlog acceptance.
+
+### H-01 — destination isolation
+
+Semantic and source roles use the persisted destination library, with a separate device-local scope for unsynced destinations. Credential refresh does not change a library; changing account, server or library does. Runtime regression tests pass actual scope generation into the content-binding kernel instead of inventing isolated test keys. Migration v3 repairs the preceding device-wide migration only from original ownership evidence, preserves issued commands, and retains ambiguous bindings for review. Automatic semantic jobs check the selected destination library before creating a bookmark.
+
+Validation: focused binding/layout/migration/semantic unit tests, extension typecheck and focused lint; xvfb local-first and semantic browser regressions. Individual acceptance outcomes are recorded with the corresponding commit.
+
 ## LF remediation and acceptance (October 28, 2026)
 
 The local-first contract in runtime-foundation.md supersedes historical online-first acceptance. Each LF task is implemented and committed separately. Native success, transport success and shared-association success are independent facts; source confirmation still observes the website's read/authorization limits.

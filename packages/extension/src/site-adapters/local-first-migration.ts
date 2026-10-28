@@ -3,7 +3,9 @@ import { get, put, sourceKey, sourceDigest, type SourceDatabase } from './source
 import { enqueueSourcePlan } from './work-queue.js';
 import { authorityForConnection } from './ledger.js';
 import { retryableSourceDependency } from './retry-policy.js';
-import { localSourceScopeId } from './local-identity.js';
+import { destinationScopeId } from './destination-scope.js';
+import { provenBindingScope } from './binding-scope.js';
+import { semanticIndexKey, type SemanticJob } from './semantic-jobs.js';
 import type { SourcePolicyRecord } from './layout.js';
 import type { ObservationRow } from './ledger-types.js';
 import type { StoredSavePlan, SourceOutbox } from './planned-types.js';
@@ -11,8 +13,8 @@ import { representationKey, type ItemReservation } from './reservations.js';
 import type { Representation } from './contracts.js';
 import type { SourceMount } from './layout.js';
 import type { ContentBindingRow } from './content-bindings.js';
-interface Progress { stage: 'plans' | 'observations' | 'copies' | 'reservations' | 'bindings' | 'done'; after?: IDBValidKey }
-const progressKey = 'localFirstMigration:v2';
+interface Progress { stage: 'plans' | 'observations' | 'copies' | 'reservations' | 'bindings' | 'jobs' | 'done'; after?: IDBValidKey }
+const progressKey = 'localFirstMigration:v3';
 async function page(tx: IDBTransaction, store: string, after?: IDBValidKey) {
   return new Promise<{ key: IDBValidKey; value: unknown }[]>((resolve, reject) => {
     const rows: { key: IDBValidKey; value: unknown }[] = [], r = tx.objectStore(store).openCursor(after === undefined ? null : IDBKeyRange.lowerBound(after, true));
@@ -27,14 +29,22 @@ export async function migrateLocalFirstBatch(db: SourceDatabase, ports: {
 }) {
   const progress = await db.read<Progress>('meta', progressKey) ?? { stage: 'plans' as const };
   if (progress.stage === 'done') return false;
-  const store = progress.stage === 'plans' ? 'savePlans' : progress.stage === 'observations' ? 'observations' : progress.stage === 'copies' ? 'representations' : progress.stage === 'reservations' ? 'itemReservations' : 'contentBindings';
+  const store = progress.stage === 'plans' ? 'savePlans' : progress.stage === 'observations' ? 'observations' : progress.stage === 'copies' ? 'representations' : progress.stage === 'reservations' ? 'itemReservations' : progress.stage === 'jobs' ? 'semanticJobs' : 'contentBindings';
   const batch = await db.transaction([store], 'readonly', tx => page(tx, store, progress.after));
   const natives = new Map<string, Awaited<ReturnType<typeof ports.lookup>>>();
   if (progress.stage === 'bindings') for (const entry of batch) {
     const b = entry.value as ContentBindingRow;
     if (b.native?.deviceId === ports.deviceId) natives.set(b.native.nativeId, await ports.lookup(b.native.nativeId));
   }
-  await db.transaction(['meta', 'work', 'savePlans', 'observations', 'authorities', 'effects', 'outbox', 'contentBindings', 'representations', 'itemReservations', 'mounts', 'folderReservations'], 'readwrite', async tx => {
+  await db.transaction(['meta', 'work', 'savePlans', 'observations', 'authorities', 'effects', 'outbox', 'contentBindings', 'representations', 'itemReservations', 'mounts', 'folderReservations', 'semanticJobs', 'semanticIndexes'], 'readwrite', async tx => {
+    const copyScope = async (r: import('./contracts.js').RepresentationKey & { shared?: Representation['shared'] }) => {
+      if (r.shared) return destinationScopeId(r.shared.library, ports.deviceId);
+      if (r.mountId) {
+        const mount = await requestValue(tx.objectStore('mounts').index('id').get(r.mountId)) as SourceMount | undefined;
+        if (mount && mount.destination !== undefined) return destinationScopeId(mount.destination, ports.deviceId);
+      }
+      return r.scopeId;
+    };
     for (const entry of batch) {
       if (progress.stage === 'plans') {
         const row = await get<StoredSavePlan>(tx, 'savePlans', entry.key);
@@ -69,9 +79,14 @@ export async function migrateLocalFirstBatch(db: SourceDatabase, ports: {
         put(tx, 'observations', entry.key, { ...row, state: 'pending', readyAt: 0, retryReason: row.planning.reason });
       } else if (progress.stage === 'copies') {
         const r = await get<Representation>(tx, 'representations', entry.key);
-        if (r?.native.deviceId === ports.deviceId && r.scopeId !== localSourceScopeId(ports.deviceId)) {
-          const scoped = { ...r, scopeId: localSourceScopeId(ports.deviceId) };
-          put(tx, 'representations', representationKey(scoped), scoped);
+        if (r?.native.deviceId === ports.deviceId) {
+          const scopeId = await copyScope(r);
+          if (scopeId && scopeId !== r.scopeId) {
+            const scoped = { ...r, scopeId }, key = representationKey(scoped), existing = await get<Representation>(tx, 'representations', key);
+            if (!existing || sourceDigest(existing.native) === sourceDigest(r.native)) {
+              tx.objectStore('representations').delete(entry.key); put(tx, 'representations', key, existing ?? scoped);
+            }
+          }
         }
       } else if (progress.stage === 'reservations') {
         const r = await get<ItemReservation>(tx, 'itemReservations', entry.key); if (!r) continue;
@@ -82,19 +97,37 @@ export async function migrateLocalFirstBatch(db: SourceDatabase, ports: {
           const mount = await new Promise<SourceMount | undefined>((resolve, reject) => { request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
           device = mount?.root.deviceId;
         }
-        if (device === ports.deviceId) put(tx, 'itemReservations', entry.key, { ...r,
-          representation: { ...r.representation, scopeId: localSourceScopeId(ports.deviceId) } });
-      } else {
+        if (device === ports.deviceId) {
+          const scopeId = command?.command.local ? destinationScopeId(command.command.local.owner, ports.deviceId) : await copyScope(r.representation);
+          if (scopeId && scopeId !== r.representation.scopeId) {
+            const representation = { ...r.representation, scopeId }, key = representationKey(representation);
+            const existing = await get<ItemReservation>(tx, 'itemReservations', key);
+            if (!existing || existing.commandId === r.commandId) {
+              tx.objectStore('itemReservations').delete(entry.key); put(tx, 'itemReservations', key, existing ?? { ...r, representation });
+            }
+          }
+        }
+      } else if (progress.stage === 'bindings') {
         const b = entry.value as ContentBindingRow, current = await get<ContentBindingRow>(tx, 'contentBindings', entry.key);
         if (!current || sourceDigest(current) !== sourceDigest(b) || b.native?.deviceId !== ports.deviceId) continue;
         const native = natives.get(b.native.nativeId);
         if (!native || native.dateAdded !== b.native.dateAdded || native.parentId !== b.parentId || native.title !== b.title || native.url !== b.url) continue;
-        put(tx, 'contentBindings', entry.key, { ...b, scopeId: localSourceScopeId(ports.deviceId) });
+        const scopeId = await provenBindingScope(tx, b, ports.deviceId);
+        if (scopeId) put(tx, 'contentBindings', entry.key, { ...b, scopeId, scopeVersion: 2 });
+      } else {
+        const job = await get<SemanticJob>(tx, 'semanticJobs', entry.key); if (!job) continue;
+        const scopeId = destinationScopeId(job.command?.local ? job.command.local.owner : job.scope, ports.deviceId);
+        if (scopeId === job.scopeId) continue;
+        const key = semanticIndexKey(scopeId, job.content), other = await get<string>(tx, 'semanticIndexes', key);
+        if (other && other !== job.id) continue;
+        const oldKey = semanticIndexKey(job.scopeId, job.content);
+        if (await get(tx, 'semanticIndexes', oldKey) === job.id) tx.objectStore('semanticIndexes').delete(oldKey);
+        put(tx, 'semanticIndexes', key, job.id); put(tx, 'semanticJobs', job.id, { ...job, scopeId });
       }
     }
     if (progress.stage === 'observations') put(tx, 'meta', 'pendingObservations', await requestValue(tx.objectStore('observations').index('state').count('pending')));
     const next: Progress = batch.length === 50 ? { ...progress, after: batch.at(-1)!.key }
-      : { stage: progress.stage === 'plans' ? 'observations' : progress.stage === 'observations' ? 'copies' : progress.stage === 'copies' ? 'reservations' : progress.stage === 'reservations' ? 'bindings' : 'done' };
+      : { stage: progress.stage === 'plans' ? 'observations' : progress.stage === 'observations' ? 'copies' : progress.stage === 'copies' ? 'reservations' : progress.stage === 'reservations' ? 'bindings' : progress.stage === 'bindings' ? 'jobs' : 'done' };
     put(tx, 'meta', progressKey, next);
   });
   return true;

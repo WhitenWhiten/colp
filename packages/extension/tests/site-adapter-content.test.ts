@@ -8,6 +8,7 @@ import { createSourceReservations, representationKey } from '../src/site-adapter
 import { createCaptureCoordinator } from '../src/capture/coordinator.js';
 import { createCaptureStore } from '../src/capture/store.js';
 import { task, location } from './fixtures/capture.js';
+import { semanticScopeId } from '../src/site-adapters/semantic-scope.js';
 import type { NativeBinding, SavePolicy, RepresentationKey } from '../src/site-adapters/contracts.js';
 const policies = ['sourceAndSemantic', 'singlePreferSemantic', 'singleKeepExisting'] as const;
 const native: NativeBinding<'bookmark'> = { nativeId: 'native', dateAdded: 10, deviceId: 'device', bindingId: 'proof', kind: 'bookmark', proof: { kind: 'writeReceipt', id: 'receipt' } };
@@ -16,12 +17,17 @@ const request = { itemId: 'video:av:1', commandId: 'command', captureIntentId: '
 test('semantic roles are scoped to their destination library and private source identity', async () => {
   const f = await fixture('sourceAndSemantic');
   try {
-    const saved = await f.bindings.prepare({ ...request, scopeId: 'library-a' }); await f.bindings.acknowledge(saved, native, node);
-    const reused = await f.bindings.prepare({ ...request, commandId: 'reuse', captureIntentId: 'reuse', scopeId: 'library-a' });
+    const owner = { serverOrigin: 'https://sync.test', accountId: 'owner-a', collectionId: 'library-a', authorityGeneration: 1 };
+    const scopeId = semanticScopeId(owner, 'device');
+    const saved = await f.bindings.prepare({ ...request, scopeId }); await f.bindings.acknowledge(saved, native, node);
+    const reused = await f.bindings.prepare({ ...request, commandId: 'reuse', captureIntentId: 'reuse', scopeId: semanticScopeId({ ...owner, authorityGeneration: 2 }, 'device') });
     expect(reused.mode).toBe('reuse');
-    const separate = await f.bindings.prepare({ ...request, commandId: 'other-library', captureIntentId: 'other-library', scopeId: 'library-b' });
-    expect(separate.mode).toBe('create');
-    await expect(f.bindings.prepare({ ...request, commandId: 'private', captureIntentId: 'private', scopeId: 'library-a',
+    for (const [i, other] of [{ ...owner, collectionId: 'library-b' }, { ...owner, accountId: 'owner-b' },
+      { ...owner, serverOrigin: 'https://other.test' }, { ...owner, accountId: null, collectionId: null }].entries()) {
+      const separate = await f.bindings.prepare({ ...request, commandId: `other-${i}`, captureIntentId: `other-${i}`, parentId: `folder-${i}`, scopeId: semanticScopeId(other, 'device') });
+      expect(separate).toMatchObject({ mode: 'create', native: null, parentId: `folder-${i}` });
+    }
+    await expect(f.bindings.prepare({ ...request, commandId: 'private', captureIntentId: 'private', scopeId,
       content: { siteKey: 'bilibili', identityVersion: 1, itemId: request.itemId, accountId: 'private-owner' } })).rejects.toThrow('content_identity_unresolved');
   } finally { await f.db.close(); }
 });
