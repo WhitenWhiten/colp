@@ -54,6 +54,9 @@ test('COLP Server: real first sync, two profiles, web edit, conflict and disconn
       return { context, page };
     };
     const a = await open();
+    // Cover a bookmark created after onboarding has already scanned the tree.
+    await showOptionsPane(a.page, 'folders');
+    await expect(a.page.locator('#first-run-start')).toBeEnabled({ timeout: 20_000 });
     const first = await addBookmark(a.page, 'I2 first sync', 'https://example.test/i2/first');
     await firstSync(a.page, collection);
     process.stdout.write('I2: first sync completed\n');
@@ -219,6 +222,11 @@ async function connect(page: Page): Promise<void> {
 async function firstSync(page: Page, collection: string): Promise<void> {
   await waitForLibraryBinding(page, collection);
   await showOptionsPane(page, 'folders');
+  // Direct native mutations do not refresh the options page's reviewed digest.
+  // Read the current tree through the UI before confirming first sync.
+  const refresh = page.locator('#refresh-roots');
+  await refresh.click();
+  await expect(refresh).toBeEnabled();
   const start = page.locator('#first-run-start');
   await expect(start).toBeVisible({ timeout: 20_000 });
   const root = page.locator('.root-row .root-select').first();
