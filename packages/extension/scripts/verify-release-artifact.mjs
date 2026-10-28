@@ -34,7 +34,12 @@ if (Array.isArray(optionalHosts) && optionalHosts[0] === 'https://api.cloudflare
 } else {
   assert.deepEqual(optionalHosts, serverHostPatterns, 'release optional host permissions changed');
 }
-for (const bundle of ['site-adapter.js', 'site-probe.js']) {
+const adapters = JSON.parse(await readFile(resolve(root, 'site-adapter-bundles.json'), 'utf8'));
+assert.ok(Array.isArray(adapters) && adapters.length > 0, 'release is missing its adapter bundle inventory');
+const bundles = adapters.flatMap(site => [site.adapter, ...site.probe ? [site.probe] : []]);
+assert.equal(new Set(bundles).size, bundles.length, 'duplicate adapter bundles');
+for (const bundle of bundles) {
+  assert.match(bundle, /^(?:[a-z0-9-]+\/)*[a-z0-9-]+\.js$/u);
   const code = await readFile(resolve(root, bundle), 'utf8');
   new Script(code, { filename: bundle }); // classic-script grammar, no unresolved ESM
   assert.doesNotMatch(code, /import\s*\(|https?:\/\/[^'" ]+\.js/);

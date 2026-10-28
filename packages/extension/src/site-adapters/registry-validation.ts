@@ -8,6 +8,9 @@ export function validateSiteDefinitions(sites: readonly SiteDefinition[]): reado
   const ids = new Set<string>(), namespaces = new Set<string>();
   for (const site of sites) {
     const namespace = JSON.stringify([site.siteKey, site.identityVersion]);
+    try { const origin = new URL(site.origin); if (origin.protocol !== 'https:' || origin.origin !== site.origin || !site.matches.some(pattern => new URL(pattern).origin === origin.origin)) throw Error(); }
+    catch { throw new Error('invalidSiteOrigin'); }
+    if (Object.values(site.scripts).some(path => typeof path !== 'string' || !/^(?:[a-z0-9-]+\/)*[a-z0-9-]+\.js$/u.test(path))) throw new Error('invalidSiteScripts');
     if (ids.has(site.adapterId) || namespaces.has(namespace) || !site.adapterId || !site.siteKey || !Number.isSafeInteger(site.identityVersion) || site.identityVersion < 1) throw new Error('invalidSiteRegistry');
     if (site.icon !== undefined && !validSiteIcon(site.icon)) throw new Error('invalidSiteIcon');
     if (site.readScope !== undefined && !['document', 'account'].includes(site.readScope)) throw new Error('invalidReadScope');

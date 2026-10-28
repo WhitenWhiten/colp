@@ -6,6 +6,7 @@ export const bilibiliDefinition: SiteDefinition = Object.freeze<SiteDefinition>(
   capabilities: ['observeFavorites', 'resolveItem', 'readMemberships', 'enumerateCollections', 'enumerateItems'],
   community: { connectOrigins: ['https://api.bilibili.com'] },
   scripts: { adapter: 'site-adapter.js', probe: 'site-probe.js' },
+  build: { adapter: 'site-adapters/content.ts', probe: 'site-adapters/bilibili/probe.ts' },
   validateAccount: (id: unknown) => typeof id === 'string' && !!decimal(id),
   validateCollection: (id: unknown) => typeof id === 'string' && !!decimal(id),
   validateItem: validBilibiliItem, validateMessage: validBilibiliMessage,

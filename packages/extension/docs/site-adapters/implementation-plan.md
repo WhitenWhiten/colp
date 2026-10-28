@@ -32,6 +32,12 @@ Classification policy digests ignore new folders and redundant derived receipts 
 
 Validation: 28 focused ingress/readback/page-runtime/classification tests; typecheck/lint/source-size checks; xvfb lifecycle + repeated multi-tab renewal (2 passed, about 3.1 minutes, 1,330 imported-preview entries and 70 explicit omissions); real PostgreSQL/two-browser offline concurrency with **two** source collections plus one semantic copy and lost replies (1 passed, about 3.6 minutes). The user selected isolated-environment acceptance; no live account or new site was used.
 
+### H-05 — adapter authoring and qualification
+
+The audited site registry now drives all classic adapter/probe bundle entries and the generated release bundle inventory. Missing source entries, output collisions and paths outside `src/` fail builds. Registry validation checks canonical HTTPS origins and safe packaged script paths. The reusable fixture qualification suite exercises actual adapter factories, opaque IDs, source identity, closed result schemas, bounded pages, continuation replay and declared negative-readback behavior. The [authoring guide](authoring.md) documents ownership boundaries, registration, host capability limits, migration and exact focused commands. Only Bilibili is shipped; the post/DOM adapter remains a test fixture.
+
+Validation: `npm run test:site-adapters` — 61 files / 420 tests passed; extension typecheck and focused lint passed; production build and artifact verification passed (42 files, every registered page/probe bundle verified, no source maps or test RPC).
+
 ## LF remediation and acceptance (October 28, 2026)
 
 The local-first contract in runtime-foundation.md supersedes historical online-first acceptance. Each LF task is implemented and committed separately. Native success, transport success and shared-association success are independent facts; source confirmation still observes the website's read/authorization limits.

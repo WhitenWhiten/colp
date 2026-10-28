@@ -8,6 +8,7 @@ import { resolve } from 'node:path';
 import { build } from 'esbuild';
 import { syncTokens } from './sync-tokens.mjs';
 import { automationAjvPlugin } from './automation-ajv-plugin.mjs';
+import { loadBundledSites, siteAdapterEntries } from './site-adapter-entries.mjs';
 
 // On by default; KNOWN_EXTENSION_CLASSIFICATION_LOCAL=false builds without the local panel.
 const classificationLocal=process.env.KNOWN_EXTENSION_CLASSIFICATION_LOCAL!=='false';
@@ -37,20 +38,23 @@ await rm(output, { recursive: true, force: true }); await mkdir(resolve(output, 
 await syncCaptureRecipe(resolve(output, 'capture.generated.css'));
 await syncFormRecipe(resolve(output, 'forms.generated.css'));
 await syncTokens({ output: resolve(output, 'tokens.generated.css') });
-await build({ entryPoints: { 'service-worker': resolve(root, 'src/service-worker.ts'), options: resolve(root, 'src/entry/options.ts'),
+const applicationEntries = { 'service-worker': resolve(root, 'src/service-worker.ts'), options: resolve(root, 'src/entry/options.ts'),
   popup: resolve(root, 'src/entry/popup.ts'), 'capture-tabs': resolve(root, 'src/entry/capture-tabs.ts'),
   'sync-state-store': resolve(root, 'src/sync-state-store.ts'),
   'chrome-bookmark-tree': resolve(root, 'src/chrome-bookmark-tree.ts'),
   'bookmark-privacy': resolve(root, 'src/bookmark-privacy.ts'),
   'bookmark-event-queue': resolve(root, 'src/bookmark-event-queue.ts'),
   'bookmark-import-plan': resolve(root, 'src/bookmark-import-plan.ts'),
-  'import-preview': resolve(root, 'src/import-preview.ts'), 'site-settings': resolve(root, 'src/entry/site-adapters.ts') },
+  'import-preview': resolve(root, 'src/import-preview.ts'), 'site-settings': resolve(root, 'src/entry/site-adapters.ts') };
+await build({ entryPoints: applicationEntries,
   bundle: true, format: 'esm', platform: 'browser', target: 'chrome121', outdir: output, plugins: [automationAjvPlugin(root), siteEvidenceBoundary], sourcemap: environment === 'production' ? false : 'external',
   // Evidence RPC (fault injection, state export) may only exist in non-production
   // builds and the e2e fixture; every real production deployment must be 'false'.
   define: { __KNOWN_EXTENSION_CLASSIFICATION_LOCAL__:String(classificationLocal), __KNOWN_EXTENSION_EVIDENCE__: environment === 'production' && config.deploymentId !== 'e2e-fixture' ? 'false' : 'true' },
   legalComments: 'none', treeShaking: true, minify: environment === 'production', charset: 'ascii' });
-await build({ entryPoints: { 'site-adapter': resolve(root, 'src/site-adapters/content.ts'), 'site-probe': resolve(root, 'src/site-adapters/bilibili/probe.ts') }, bundle: true, format: 'iife', platform: 'browser', target: 'chrome121', outdir: output, sourcemap: environment === 'production' ? false : 'external', minify: environment === 'production', legalComments: 'none' });
+const adapters = await siteAdapterEntries(root, await loadBundledSites(root), Object.keys(applicationEntries));
+await build({ entryPoints: adapters.entries, bundle: true, format: 'iife', platform: 'browser', target: 'chrome121', outdir: output, sourcemap: environment === 'production' ? false : 'external', minify: environment === 'production', legalComments: 'none' });
+await writeFile(resolve(output, 'site-adapter-bundles.json'), JSON.stringify(adapters.bundles, null, 2) + '\n');
 await Promise.all(['site-adapters.html', 'capture-tabs.html', 'options.html', 'options.css', 'welcome.css', 'popup.html', 'popup.css', 'auth.css', 'chrome.css', 'fonts.css', 'managed-storage-schema.json'].map((file) => cp(resolve(root, file), resolve(output, file))));
 await cp(resolve(root, '_locales'), resolve(output, '_locales'), { recursive: true });
 // One brand with the site: the popup/options/capture-tabs headers show the

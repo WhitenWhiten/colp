@@ -27,6 +27,8 @@ export interface SiteDefinition {
   community?: { connectOrigins: readonly string[] };
   importResume: 'stableCursor' | 'restartAndDeduplicate';
   scripts: { adapter: string; probe?: string };
+  /** Host-authored source entries, relative to src/. Required when this definition ships in the bundled registry. */
+  build?: { adapter: string; probe?: string };
   validateAccount(id: unknown): boolean;
   validateCollection(id: unknown): boolean;
   validateItem(item: SiteItem): boolean;
