@@ -15,7 +15,7 @@ import { representationKey } from './reservations.js';
 import { managedSaves, managedClientForLibrary, projectManagedBinding } from './managed-runtime.js';
 import type { ManagedBinding, ManagedDestination, ManagedReference } from './managed-client.js';
 import { managedReference } from './managed-changes.js';
-import type { ManagedLibrary } from './copy-identity.js';
+import { managedLibraryKey, type ManagedLibrary } from './copy-identity.js';
 import { assertSourceRoot } from '../sw/planned-capture.js';
 import { provenBindingScope } from './binding-scope.js';
 import { cachedSharedCopy } from './shared-catalog-runtime.js';
@@ -93,13 +93,14 @@ export async function attachSemanticAssociation(input: { identity: ContentIdenti
   await assertContentNative(input.native, input.written);
   await siteLedger.db.transaction(['contentBindings', 'representations', 'itemReservations', 'meta'], 'readwrite', async tx => {
     const shared = input.shared ?? await managedReference(tx, input.managed);
+    const scopeId = shared ? managedLibraryKey(shared.library) : input.scopeId;
     const candidates = (await rows<ContentBindingRow>(tx, 'contentBindings', input.identity.siteKey, input.identity.identityVersion, input.identity.itemId))
-      .filter(b => !b.supersededBy && sameContentIdentity(b.content, input.identity) && b.scopeId === input.scopeId);
+      .filter(b => !b.supersededBy && sameContentIdentity(b.content, input.identity) && b.scopeId === scopeId);
     if (candidates.length > 1 || candidates.some(b => !b.native && b.captureIntentId !== input.id && !b.managed
       || b.native && (b.native.nativeId !== input.native.nativeId || b.native.dateAdded !== input.native.dateAdded)
       || b.state === 'suppressed' || b.state === 'detached')) throw new Error('semanticBindingNeedsReview');
     const old = candidates[0], id = old?.id ?? input.id;
-    const binding: ContentBindingRow = { ...old, id, content: input.identity, scopeId: input.scopeId, scopeVersion: 2, captureIntentId: old?.captureIntentId ?? input.id,
+    const binding: ContentBindingRow = { ...old, id, content: input.identity, scopeId, scopeVersion: 2, captureIntentId: old?.captureIntentId ?? input.id,
       purpose: 'semantic', native: input.native, connectionId: old?.connectionId ?? input.connections[0] ?? null,
       sourceConnections: [...new Set([...old?.sourceConnections ?? [], ...input.connections])],
       commandId: old?.commandId ?? input.id, requestDigest: old?.requestDigest ?? sourceDigest({ identity: input.identity, scopeId: input.scopeId }),
@@ -107,7 +108,7 @@ export async function attachSemanticAssociation(input: { identity: ContentIdenti
       ...input.written, ...(input.managed ? { managed: input.managed } : {}), ...(shared ? { shared } : {}) };
     put(tx, 'contentBindings', contentBindingKey(input.identity, id), binding);
     for (const connectionId of input.connections) {
-      const key = { connectionId, itemId: input.identity.itemId, purpose: 'semantic' as const, sourceCollectionId: null, mountId: null, scopeId: input.scopeId };
+      const key = { connectionId, itemId: input.identity.itemId, purpose: 'semantic' as const, sourceCollectionId: null, mountId: null, scopeId };
       const existing = await get<Representation>(tx, 'representations', representationKey(key));
       if (existing && existing.state !== 'active') throw new Error('semanticBindingNeedsReview');
       put(tx, 'representations', representationKey(key), { ...key, native: input.native, state: 'active', manualRevision: existing?.manualRevision ?? 0,

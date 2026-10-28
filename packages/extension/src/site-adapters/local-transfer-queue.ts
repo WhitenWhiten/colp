@@ -23,7 +23,7 @@ export function createLocalTransferQueue(db: SourceDatabase, ports: {
     for (const transfer of ready) {
       try {
         const reference = await ports.register(transfer);
-        await db.transaction(['meta', 'transfers', 'representations', 'folderReservations', 'contentBindings'], 'readwrite', async tx => {
+        await db.transaction(['meta', 'transfers', 'representations', 'folderReservations', 'contentBindings', 'mounts', 'itemReservations'], 'readwrite', async tx => {
           const current = await get<LocalCopyTransfer>(tx, 'meta', localTransferKey(transfer.commandId));
           if (!current || current.native.nativeId !== transfer.native.nativeId || current.native.dateAdded !== transfer.native.dateAdded) throw Error('localReceiptChanged');
           await ports.attach?.(tx, current, reference);
@@ -34,7 +34,7 @@ export function createLocalTransferQueue(db: SourceDatabase, ports: {
         });
       } catch (error) {
         const reason = error instanceof Error ? error.message : 'sourceSyncPending';
-        const attention = ['sourceCopyDetached', 'sourceCopySuppressed', 'source_copy_adoption_conflict', 'source_copy_convergence_review', 'source_copy_protected', 'source_mapping_migration_required', 'sourceSyncInvalid', 'sourceSyncUpgradeRequired'].includes(reason);
+        const attention = ['sourceCopyDetached', 'sourceCopySuppressed', 'semanticBindingNeedsReview', 'sourceDestinationMigrationRequired', 'source_copy_adoption_conflict', 'source_copy_convergence_review', 'source_copy_protected', 'source_mapping_migration_required', 'sourceSyncInvalid', 'sourceSyncUpgradeRequired'].includes(reason);
         await db.transaction(['meta', 'transfers'], 'readwrite', async tx => {
           const current = await get<LocalCopyTransfer>(tx, 'meta', localTransferKey(transfer.commandId));
           const closed = current?.state === 'suppressed' || current?.state === 'detached' ? current.state : undefined;

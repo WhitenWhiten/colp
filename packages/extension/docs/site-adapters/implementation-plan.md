@@ -38,6 +38,12 @@ The audited site registry now drives all classic adapter/probe bundle entries an
 
 Validation: `npm run test:site-adapters` — 61 files / 420 tests passed; extension typecheck and focused lint passed; production build and artifact verification passed (42 files, every registered page/probe bundle verified, no source maps or test RPC).
 
+### H-06 — local-to-Sync association handoff
+
+When a previously local-only copy acquires a proven Sync owner, association finalization updates its derived semantic scope and confirmed reservation together. A proven unbound source mount adopts that owner without changing its native root/placement revision; an already owned mount cannot be retagged. Original save commands and transfer receipts stay unchanged. Late semantic finalization uses the proven shared library, and an already associated semantic copy does not enqueue another adoption for each popup reuse.
+
+Validation: 11 focused association/transfer/unbound tests, including actual content-binding reuse after handoff, original-command retention and rejection of a different existing mount owner; extension typecheck, lint and source-size checks passed. Final real-stack regression also exercises the extracted association finalizer.
+
 ## LF remediation and acceptance (October 28, 2026)
 
 The local-first contract in runtime-foundation.md supersedes historical online-first acceptance. Each LF task is implemented and committed separately. Native success, transport success and shared-association success are independent facts; source confirmation still observes the website's read/authorization limits.

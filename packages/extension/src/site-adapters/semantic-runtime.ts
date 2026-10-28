@@ -20,7 +20,7 @@ import { representationKey } from './reservations.js';
 import { assertCaptureScope } from '../sw/capture-native.js';
 import { currentSyncScope } from '../sw/scope.js';
 import { workCoordinator } from '../sw/runtime.js';
-import { sameDestinationOwner } from './copy-identity.js';
+import { managedLibraryKey, sameDestinationOwner } from './copy-identity.js';
 import { assertContentNative } from './content-runtime.js';
 import { assertSourceRoot, executePlannedNative, recoverPlannedNative } from '../sw/planned-capture.js';
 import { captureDeviceId } from '../sw/capture-history.js';
@@ -171,7 +171,7 @@ export async function enqueueSourceSemantics(connectionId: string) {
     if (r.purpose !== 'sourceArchive' || r.state !== 'active') continue;
     const item = (await siteLedger.db.read<{ entity: import('./contracts.js').SiteItem }>('items', JSON.stringify([connectionId, r.itemId])))?.entity;
     if (!item || item.identity !== 'siteId') continue;
-    await semanticJobs.enqueue({ scopeId: r.scopeId ?? context.scopeId, scope: context.scope, content: { site: connection.siteKey, identityVersion: connection.identityVersion,
+    await semanticJobs.enqueue({ scopeId: r.shared ? managedLibraryKey(r.shared.library) : r.scopeId ?? context.scopeId, scope: context.scope, content: { site: connection.siteKey, identityVersion: connection.identityVersion,
       itemId: item.id, accountId: definition.contentIdScope === 'site' ? null : connection.accountId }, title: item.title, url: item.url,
       source: { connectionId, policyRevision: policy.policy.revision, installationGeneration: authority.installationGeneration, sourceSessionGeneration: authority.sourceSessionGeneration } });
   }
