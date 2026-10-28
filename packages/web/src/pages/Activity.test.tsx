@@ -151,4 +151,23 @@ describe('Activity inbox', () => {
     await act(async () => finishRead?.({ readCount: 1, unreadCount: 0 }))
     expect(document.querySelector('output')?.textContent).toBe('Ready')
   })
+
+  it('does not mark another account read after a pending Mark all summary resolves', async () => {
+    const api = fakeActivityApi()
+    api.listActivity.mockResolvedValueOnce({ items: [activityItem('owner-item')], nextCursor: null, unreadCount: 1 })
+    api.markActivityRead.mockRejectedValueOnce(new Error('retry'))
+    let finishSummary!: (value: Awaited<ReturnType<typeof api.getActivitySummary>>) => void
+    api.getActivitySummary.mockImplementation(() => new Promise(resolve => { finishSummary = resolve }))
+    function Probe({ account }: { account: string }) {
+      const { markAll, canMarkAll } = useActivityInbox(api, account)
+      return <button disabled={!canMarkAll} onClick={markAll}>Mark all read</button>
+    }
+    const view = renderWithRouter(<Probe account="owner" />, { route: '/activity', strict: false })
+    await waitForDom(() => document.querySelector('button')?.disabled === false)
+    click('Mark all read')
+    await waitForDom(() => api.getActivitySummary.mock.calls.length === 1)
+    view.rerender(<Probe account="other-owner" />)
+    await act(async () => finishSummary({ unreadCount: 1, latest: activityItem('other-private-item'), revision: '2' }))
+    expect(api.markActivityRead).toHaveBeenCalledTimes(1)
+  })
 })

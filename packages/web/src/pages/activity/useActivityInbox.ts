@@ -59,6 +59,9 @@ export function useActivityInbox(api: ActivityApi, accountId: string | null) {
       // On demand, also what arrived after this page loaded: the summary
       // names the newest item; the page's newest stands in if it can't.
       const latest = everything ? (await api.getActivitySummary().catch(() => null))?.latest : undefined
+      // Cookie authority may have changed while the summary was in flight.
+      // Fence the mutation itself, not only the subsequent UI update.
+      if (!mounted.current || key !== activeKey.current) return
       const boundary = latest ?? shown
       const result = await api.markActivityRead({ through: boundary.id, throughRevision: boundary.revision })
       if (!mounted.current || key !== activeKey.current) return
