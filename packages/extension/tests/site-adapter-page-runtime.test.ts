@@ -8,6 +8,27 @@ import type { AdapterMessage, SourcePage, SiteCollection } from '../src/site-ada
 import { createPostsAdapter, postsDefinition, saved, post } from './fixtures/site-adapters/posts.js';
 import { SiteReadError } from '../src/site-adapters/read-errors.js';
 afterEach(() => { window.dispatchEvent(new Event('known-site-adapter-stop:bundled.bilibili')); window.dispatchEvent(new Event(`known-site-adapter-stop:${postsDefinition.adapterId}`)); document.body.replaceChildren(); vi.useRealTimers(); vi.unstubAllGlobals(); });
+test('a worker disconnect during asynchronous adapter startup promptly reconnects and disposes late listeners', async () => {
+  vi.useFakeTimers(); vi.setSystemTime(1000); vi.stubGlobal('location', { href: post.url });
+  let disconnected: (() => void) | undefined, finishStart!: (cleanup: () => void) => void;
+  const cleanup = vi.fn();
+  const start = vi.fn().mockImplementationOnce(() => new Promise<() => void>(resolve => { finishStart = resolve; }))
+    .mockResolvedValue(() => {});
+  const connect = vi.fn(() => ({ onMessage: { addListener: () => {} },
+    onDisconnect: { addListener: (fn: () => void) => { disconnected = fn; } }, disconnect: () => {}, postMessage: () => {} }));
+  vi.stubGlobal('chrome', { runtime: { connect, sendMessage: async (m: { kind: string }) => m.kind.endsWith('.activation')
+    ? { status: 'ready', activationId: 'activation', deadlineAt: Date.now() + 10000 }
+    : { status: 'ready', leaseId: 'lease', capability: 'secret', routeEpoch: 0, expiresAt: Date.now() + 60000, readerEpoch: 'epoch' } } });
+  startAdapterRuntime(postsDefinition, () => ({ ...createPostsAdapter(), start }));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(start).toHaveBeenCalledOnce();
+  disconnected?.();
+  await vi.advanceTimersByTimeAsync(1500);
+  expect(connect).toHaveBeenCalledTimes(2);
+  finishStart(cleanup);
+  await vi.advanceTimersByTimeAsync(0);
+  expect(cleanup).toHaveBeenCalledOnce();
+});
 test('a cancelled read from a retired route cannot restart the replacement runtime', async () => {
   vi.useFakeTimers(); vi.setSystemTime(1000); vi.stubGlobal('location', { href: post.url });
   const listeners: ((raw: unknown) => void)[] = [];

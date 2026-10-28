@@ -15,7 +15,7 @@ export function startAdapterRuntime(definition: SiteDefinition, createAdapter: S
   const stopEvent = `known-site-adapter-stop:${definition.adapterId}`, routeEvent = `known-site-route:${definition.adapterId}`;
   const scope = globalThis as typeof globalThis & Record<string, { restart(): void; version?: number } | undefined>;
   if (matchesSiteUrl(definition, location.href) && window.top === window) {
-    if (scope[slot] && scope[slot].version !== 8) window.dispatchEvent(new Event(stopEvent));
+    if (scope[slot] && scope[slot].version !== 9) window.dispatchEvent(new Event(stopEvent));
     if (scope[slot]) scope[slot].restart();
     else {
       let controller: AbortController | null = null, port: chrome.runtime.Port | null = null, timer: ReturnType<typeof setTimeout> | undefined;
@@ -59,6 +59,7 @@ export function startAdapterRuntime(definition: SiteDefinition, createAdapter: S
           port = chrome.runtime.connect({ name: installationKey(SITE_PORT, definition) }); const ownPort = port;
           const envelope = { protocolVersion: 1 as const, leaseId: reply.leaseId, capability: reply.capability };
           let busy = false;
+          ownPort.onDisconnect.addListener(() => { if (port === ownPort) { reset(!busy); timer = setTimeout(() => begin(true), LIMITS.spacingMs); } });
           const pending = new Map<string, { resolve(value: AdmissionReply): void; reject(error: Error): void }>();
           const request = (body: { operation: 'emit'; data: SiteObservation } | { operation: 'membership.hint'; hint: MembershipHint } | { operation: 'capture'; data: CaptureControlRequest }): Promise<AdmissionReply> => {
             if (signal.aborted || pending.size >= LIMITS.queue) return Promise.resolve({ status: 'rejected', reason: 'capacity' });
@@ -101,7 +102,6 @@ export function startAdapterRuntime(definition: SiteDefinition, createAdapter: S
           if (epoch !== current) { await cleanup?.(); return; }
           removeHints = () => { void Promise.resolve().then(() => cleanup?.()).catch(() => undefined); };
           const replays = new Map<string, { command: string; message: AdapterMessage }>();
-          ownPort.onDisconnect.addListener(() => { if (port === ownPort) { reset(!busy); timer = setTimeout(() => begin(true), LIMITS.spacingMs); } });
           ownPort.onMessage.addListener(raw => {
             if (epoch !== current || !validHostCommand(raw)) return;
             if (raw.operation === 'shutdown') { if (raw.leaseId === reply.leaseId) deactivate(); return; }
@@ -161,7 +161,7 @@ export function startAdapterRuntime(definition: SiteDefinition, createAdapter: S
         window.removeEventListener(stopEvent, deactivate);
         delete scope[slot];
       };
-      scope[slot] = { restart, version: 8 };
+      scope[slot] = { restart, version: 9 };
       window.addEventListener(stopEvent, deactivate);
       window.addEventListener('pagehide', stop); window.addEventListener('pageshow', restart);
       window.addEventListener('popstate', restart); window.addEventListener('hashchange', restart);
