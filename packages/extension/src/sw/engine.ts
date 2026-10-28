@@ -313,7 +313,7 @@ async function runSyncEnginePass(reason: 'startup' | 'alarm' | 'online' | 'manua
       if (run) await syncState.putBootstrapRun(scope, { ...run, retryReason: code, updatedAt: Date.now() });
     }
     if (!failed) await failures.clear('bootstrap_run');
-    chrome.alarms.create('known-sync-engine', { when: Date.now() + delay });
+    await scheduleSyncEngineWake('alarm', delay);
     return;
   }
   if (!applyAllowed && !needsRecoveryProgress) {
@@ -331,7 +331,7 @@ async function runSyncEnginePass(reason: 'startup' | 'alarm' | 'online' | 'manua
       if (error instanceof AuthorityFencedError) return;
       await failures.record('push_drain', error, scope.replicaId);
       await markImportEngineRecovery(scope, safeError(error));
-      chrome.alarms.create('known-sync-engine', { when: Date.now() + 30_000 });
+      await scheduleSyncEngineWake('alarm', 30_000);
     }
     return;
   }
@@ -403,7 +403,7 @@ async function runSyncEnginePass(reason: 'startup' | 'alarm' | 'online' | 'manua
     if (error instanceof AuthorityFencedError) return;
     wakeFailed = true; await failures.record('engine_wake', error, scope.replicaId);
     await markImportEngineRecovery(scope, safeError(error));
-    chrome.alarms.create('known-sync-engine', { when: Date.now() + 30_000 }); }
+    await scheduleSyncEngineWake('alarm', 30_000); }
   finally {
     if (!wakeFailed) await failures.clear('engine_wake');
     if (__KNOWN_EXTENSION_EVIDENCE__) sw.outboundPushFaultEvidence = undefined;

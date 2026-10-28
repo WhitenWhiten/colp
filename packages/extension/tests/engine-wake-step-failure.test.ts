@@ -99,7 +99,7 @@ describe('Status names a failing wake step', () => {
 
 describe('runSyncEngine records a failing step and goes on', () => {
   afterEach(() => { vi.unstubAllGlobals(); vi.resetModules(); for (const path of ['../src/sw/runtime.js', '../src/sw/scope.js',
-    '../src/sw/scope-rebuild.js', '../src/sw/bookmarks.js', '../src/local-save-freeze-recovery.js']) vi.doUnmock(path); });
+    '../src/sw/scope-rebuild.js', '../src/sw/bookmarks.js', '../src/local-save-freeze-recovery.js', '../src/durable-sync-engine.js']) vi.doUnmock(path); });
 
   async function load(options: { resume: () => Promise<unknown>; permission?: boolean; frozen?: boolean;
     captureMissingRemovals?: () => Promise<void> }) {
@@ -152,6 +152,22 @@ describe('runSyncEngine records a failing step and goes on', () => {
     assert.ok(diagnostics.some((row) => row.kind === 'wake_failure' && row.code === 'rebuild_resume'
       && (row.details as Record<string, unknown>).code === 'quota_exceeded'), 'mirrored into the diagnostics export');
     loaded.syncState.close();
+  });
+
+  test('an unexpected engine failure retains an already scheduled earlier retry', async () => {
+    vi.doMock('../src/durable-sync-engine.js', () => ({ createDurableSyncEngine: () => ({
+      wake: async () => { throw new Error('storage_unavailable'); },
+    }) }));
+    const loaded = await load({ resume: async () => false, permission: true, frozen: true });
+    const create = vi.fn(), get = vi.fn(async () => ({ scheduledTime: Date.now() + 1000 }));
+    Object.assign(chrome.alarms, { get, create });
+    try {
+      await loaded.engine.runSyncEngine('alarm', false, loaded.context);
+      const failures = loaded.storage.data.get(WAKE_FAILURE_KEY) as Record<string, { code: string }>;
+      assert.equal(failures.engine_wake?.code, 'storage_unavailable');
+      assert.equal(get.mock.calls.length, 1);
+      assert.equal(create.mock.calls.length, 0);
+    } finally { loaded.syncState.close(); }
   });
 
   test('a reset that resumes again clears its record', async () => {
