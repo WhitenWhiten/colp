@@ -3,10 +3,13 @@ import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, expect, it, vi } from 'vitest';
 import { MemoryStorageArea } from '../src/credential-store.js';
 import { item } from './automation-activity-fixture.js';
+import { automationDatabase } from '../src/automation/indexeddb-store.js';
+
+const state = vi.hoisted(() => ({ accountId: 'account-a' as string | null }));
 
 vi.mock('../src/sw/runtime.js', () => ({
   hasBookmarkPermission: async () => false, extensionOrigin: () => 'chrome-extension://extension',
-  store: { loadCredential: async () => ({ subject: 'account-a', serverOrigin: 'https://colp.example' }), loadBinding: async () => null },
+  store: { loadCredential: async () => state.accountId ? ({ subject: state.accountId, serverOrigin: 'https://colp.example' }) : null, loadBinding: async () => null },
   syncState: {},
 }));
 vi.mock('../src/sw/scope.js', () => ({ currentSyncScope: async () => null, loadConfig: async () => ({ serverOrigin: 'https://colp.example' }),
@@ -14,10 +17,10 @@ vi.mock('../src/sw/scope.js', () => ({ currentSyncScope: async () => null, loadC
 vi.mock('../src/sw/capture-native.js', () => ({ currentCaptureScope: async () => null }));
 vi.mock('../src/sw/reconcile-alarm.js', () => ({ ensurePeriodicAlarm: async () => undefined }));
 
-import { automationArea, automationStateView, refreshAutomation } from '../src/sw/automation.js';
+import { automationArea, automationStateView, clearAccountAutomation, refreshAutomation } from '../src/sw/automation.js';
 import { ACTIVITY_STATUS_KEY } from '../src/automation/activity-status.js';
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { automationDatabase().close(); state.accountId = 'account-a'; vi.unstubAllGlobals(); });
 it('must not retain cookie account B private activity under extension account A after B signs out', async () => {
   vi.stubGlobal('indexedDB', new IDBFactory());
   vi.stubGlobal('chrome', { storage: { local: new MemoryStorageArea() }, i18n: { getMessage: () => '' },
@@ -39,4 +42,24 @@ it('must not retain cookie account B private activity under extension account A 
   await refreshAutomation({ manual: true });
   const view = await automationStateView();
   expect(view.server?.activity?.latest?.items.map(member => member.title) ?? []).not.toContain('Private bookmark belonging to account B');
+});
+
+it('never repaints signed-out activity when a request begun before logout completes', async () => {
+  vi.stubGlobal('indexedDB', new IDBFactory());
+  const setBadgeText = vi.fn(async () => {});
+  vi.stubGlobal('chrome', { storage: { local: new MemoryStorageArea() }, i18n: { getMessage: () => '' },
+    action: { setBadgeText, setBadgeBackgroundColor: async () => {}, setTitle: async () => {} } });
+  let finish!: (response: Response) => void;
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => String(input).endsWith('/activity/summary')
+    ? new Promise<Response>(resolve => { finish = resolve; }) : new Response('{}', { status: 404 })));
+  const refresh = refreshAutomation({ manual: true });
+  await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
+  state.accountId = null;
+  await clearAccountAutomation({ serverOrigin: 'https://colp.example', accountId: 'account-a' });
+  finish(new Response(JSON.stringify({ unreadCount: 7, latest: item, revision: '2' }), {
+    headers: { 'Known-Activity-Account-Id': 'account-a' },
+  }));
+  await refresh;
+  await vi.waitFor(async () => expect(await automationArea().get(ACTIVITY_STATUS_KEY)).toBeUndefined());
+  expect(setBadgeText).not.toHaveBeenCalledWith({ text: '7' });
 });

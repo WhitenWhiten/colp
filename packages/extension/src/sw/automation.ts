@@ -52,6 +52,7 @@ const DEVICE_KEY = 'known.automation.device.v1';
 const PAUSE_KEY = 'known.automation.pause.v1';
 
 let inFlight: { readonly promise: Promise<void>; readonly manual: boolean } | undefined;
+let accountEpoch = 0;
 
 async function currentOwner(): Promise<AutomationOwner | null> {
   const credential = await store.loadCredential().catch(() => null);
@@ -77,10 +78,15 @@ export function refreshAutomation(options: { readonly manual?: boolean } = {}): 
 
 /** One worker pass: the server's status and the bundle when due, then any receipt whose retry is due. */
 async function run(manual: boolean): Promise<void> {
+  const epoch = accountEpoch;
   const owner = await currentOwner();
   if (!owner) { await paintDigestBadge(null); return; }
   const bundles = createBundleStore(automationArea(), owner), receipts = createReceiptStore(automationArea()), now = Date.now();
   const record = await bundles.read(), ownerKey = automationOwnerKey(owner);
+  const isCurrent = async () => {
+    const active = await currentOwner();
+    return epoch === accountEpoch && active !== null && automationOwnerKey(active) === ownerKey;
+  };
   const status = createServerStatusStore(automationArea(), ownerKey);
   const activity = createActivityStatusStore(automationArea(), ownerKey);
   const activityDue = activityStatusDue(await activity.read(), now, manual);
@@ -89,15 +95,20 @@ async function run(manual: boolean): Promise<void> {
   const receiptsDue = (await receipts.list()).some((receipt) => receipt.ownerKey === ownerKey && !settled(receipt.state) && receipt.nextAttemptAt <= now);
   if (!bundleDue && !receiptsDue && !statusDue && !activityDue) return;
   // Read with the browser's web sign-in, apart from Sync's authority below.
-  await Promise.all([
-    statusDue ? readServerStatus(owner.serverOrigin).then((result) => status.apply(result, now)) : null,
-    activityDue ? readActivitySummary(owner.serverOrigin, owner.accountId).then((result) => activity.apply(result, now)) : null,
+  const reads = await Promise.allSettled([
+    statusDue ? readServerStatus(owner.serverOrigin).then(async (result) => { if (await isCurrent()) await status.apply(result, now); }) : null,
+    activityDue ? readActivitySummary(owner.serverOrigin, owner.accountId).then(async (result) => { if (await isCurrent()) await activity.apply(result, now); }) : null,
   ]);
+  // All reads settle before cleanup can run, including when one dependency rejects.
+  if (!await isCurrent()) return;
+  const failed = reads.find(result => result.status === 'rejected');
+  if (failed?.status === 'rejected') throw failed.reason;
   if (statusDue || activityDue) await paintDigestBadge(owner);
   if (!bundleDue && !receiptsDue) return;
   let authority: Awaited<ReturnType<typeof pushSessionAuthority>>;
   try { authority = await pushSessionAuthority(); }
-  catch { if (bundleDue) await bundles.recordProblem(navigator.onLine === false ? 'offline' : 'signedOut', now); return; }
+  catch { if (bundleDue && await isCurrent()) await bundles.recordProblem(navigator.onLine === false ? 'offline' : 'signedOut', now); return; }
+  if (!await isCurrent()) return;
   const device: DeviceAuthority = { serverOrigin: owner.serverOrigin, accessToken: authority.credential.accessToken,
     sessionId: authority.session.sessionId, origin: extensionOrigin() };
   if (bundleDue) await refreshBundle(owner, bundles, device);
@@ -151,6 +162,7 @@ export async function retryActivityAfterSignIn(owner: AutomationOwner): Promise<
  * the account, and stay (design 01 §7.5).
  */
 export async function clearAccountAutomation(owner: AutomationOwner): Promise<void> {
+  accountEpoch++;
   const ownerKey = automationOwnerKey(owner);
   const clear = async () => {
     await automationDatabase().clearAccount(ownerKey);
@@ -158,7 +170,7 @@ export async function clearAccountAutomation(owner: AutomationOwner): Promise<vo
     const pause = local[PAUSE_KEY] as { ownerKey?: unknown } | undefined, device = local[DEVICE_KEY] as { key?: unknown } | undefined;
     const owned = [...pause?.ownerKey === ownerKey ? [PAUSE_KEY] : [], ...deviceOwner(device?.key) === ownerKey ? [DEVICE_KEY] : []];
     if (owned.length) await chrome.storage.local.remove(owned);
-    await paintDigestBadge(null);
+    await paintDigestBadge(await currentOwner());
   };
   await clear();
   // A pass that began before sign-out may still write; clear again once it ends, without waiting on it here.
@@ -377,6 +389,8 @@ async function currentDigest(owner: AutomationOwner): Promise<DigestIndicator | 
  */
 async function paintDigestBadge(owner: AutomationOwner | null, restore = false): Promise<void> {
   const indicator = owner ? await currentDigest(owner) : null;
+  const active = await currentOwner();
+  if ((active ? automationOwnerKey(active) : null) !== (owner ? automationOwnerKey(owner) : null)) return;
   const changed = await writeAutomationBadge(indicator ? toolbarBadge(indicator) : null);
   const feedback = await readSaveFeedback();
   if (feedback && saveFeedbackIsError(feedback.code)) return;
