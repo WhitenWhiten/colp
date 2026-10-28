@@ -11,7 +11,7 @@ function memoryArea(): AutomationStateArea & { readonly values: Map<string, unkn
 const OWNER = '["https://colp.example","owner-1"]';
 const usage = { periodStart: new Date(NOW - 7 * DAY).toISOString(), periodEnd: new Date(NOW).toISOString(), admittedRuns: 12, readyJobs: 7,
   succeededJobs: 4, heldJobs: 1, externalCosts: 'unknownDisclosed' as const, costDisplay: 'Billed by your agent', awaitingApprovalJobs: 2 };
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Known-Automation-Account-Id': 'owner-1' } });
 
 function server(answers: Record<string, Response | Error>) {
   return vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
@@ -23,10 +23,19 @@ function server(answers: Record<string, Response | Error>) {
 }
 
 describe('reading the server’s automation status', () => {
+  it('verifies the owner of each response, including a cookie switch between rules and runs', async () => {
+    for (const header of [null, 'other-owner']) {
+      const headers = new Headers();
+      if (header) headers.set('Known-Automation-Account-Id', header);
+      const fetcher = server({ '/api/v1/me/automations/rules': json({ items: [], nextCursor: null }),
+        '/api/v1/me/automations/runs': new Response(JSON.stringify({ items: [serverRun()], nextCursor: null }), { headers }) });
+      expect(await readServerStatus('https://colp.example', 'owner-1', fetcher)).toEqual({ ok: false, problem: 'signedOut' });
+    }
+  });
   it('reads rules and the newest runs with the web sign-in, never the Sync bearer', async () => {
     const fetcher = server({ '/api/v1/me/automations/rules': json({ items: [serverRule({ usage })], nextCursor: null }),
       '/api/v1/me/automations/runs': json({ items: [serverRun({ status: 'waiting' })], nextCursor: null }) });
-    const read = await readServerStatus('https://colp.example/', fetcher);
+    const read = await readServerStatus('https://colp.example/', 'owner-1', fetcher);
     expect(read).toMatchObject({ ok: true, rules: [{ id: 'rule-arxiv' }], runs: [{ id: 'run-1', status: 'waiting' }] });
     expect(fetcher.mock.calls.map(([url]) => String(url))).toEqual(['https://colp.example/api/v1/me/automations/rules?limit=100',
       'https://colp.example/api/v1/me/automations/runs?limit=20']);
@@ -45,18 +54,26 @@ describe('reading the server’s automation status', () => {
       [{ '/api/v1/me/automations/rules': json({}, 429) }, 'rateLimited'],
       [{ '/api/v1/me/automations/rules': json({}, 500) }, 'server'],
       [{ '/api/v1/me/automations/rules': page, '/api/v1/me/automations/runs': json({ items: [{ ...serverRun(), status: 'done' }], nextCursor: null }) }, 'invalid'],
-      [{ '/api/v1/me/automations/rules': page, '/api/v1/me/automations/runs': new Response('not json', { status: 200 }) }, 'invalid'],
+      [{ '/api/v1/me/automations/rules': page, '/api/v1/me/automations/runs': new Response('not json', { status: 200, headers: { 'Known-Automation-Account-Id': 'owner-1' } }) }, 'invalid'],
     ];
-    for (const [answers, problem] of cases) expect(await readServerStatus('https://colp.example', server(answers))).toEqual({ ok: false, problem });
+    for (const [answers, problem] of cases) expect(await readServerStatus('https://colp.example', 'owner-1', server(answers))).toEqual({ ok: false, problem });
   });
 });
 
 describe('the kept copy', () => {
+  it('discards unverified legacy status and clears private results after a denial', async () => {
+    const area = memoryArea(), store = createServerStatusStore(area, OWNER);
+    const record = await store.apply({ ok: true, rules: [], runs: [serverRun()] }, NOW);
+    await area.set(SERVER_STATUS_KEY, { ...record, version: 1 });
+    expect(await store.read()).toMatchObject({ fetchedAt: null, runs: [] });
+    await store.apply({ ok: true, rules: [], runs: [serverRun()] }, NOW);
+    expect(await store.apply({ ok: false, problem: 'signedOut' }, NOW + 1)).toMatchObject({ fetchedAt: null, runs: [], rules: [] });
+  });
   it('keeps only what the pages show, with the time it was read', async () => {
     const area = memoryArea(), store = createServerStatusStore(area, OWNER);
     const record = await store.apply({ ok: true, rules: [serverRule({ usage })],
       runs: [serverRun({ status: 'waiting', held: true, explanation: 'Explicit hold: awaiting an Owner decision to continue the original pinned work.' })] }, NOW);
-    expect(record).toEqual({ version: 1, ownerKey: OWNER, fetchedAt: NOW, lastAttemptAt: NOW, failures: 0, problem: null,
+    expect(record).toEqual({ version: 2, ownerKey: OWNER, fetchedAt: NOW, lastAttemptAt: NOW, failures: 0, problem: null,
       rules: [{ id: 'rule-arxiv', name: 'Place research papers in Academic', state: 'active', intake: true,
         usage: { since: NOW - 7 * DAY, runs: 12, waiting: 7, held: 1, approvals: 2, cost: 'Billed by your agent' } }],
       runs: [{ id: 'run-1', ruleId: 'rule-arxiv', kind: 'intake', status: 'waiting', held: true, unread: false, outputCount: 0,

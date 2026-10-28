@@ -23,7 +23,7 @@ import { BADGE_ACCENT, BADGE_MUTED } from '../src/badge-colors.js';
 import { presentSaveFeedback } from '../src/save-feedback.js';
 
 const owner = { serverOrigin: 'https://colp.example', accountId: 'owner' };
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Known-Automation-Account-Id': 'owner' } });
 let answers: Record<string, () => Response>;
 
 beforeEach(async () => {
@@ -77,7 +77,7 @@ describe('the server’s status in the worker', () => {
     vi.setSystemTime(NOW + 120_000);
     answers['/api/v1/me/automations/runs'] = () => json({ error: { code: 'unauthorized' } }, 401);
     await refreshAutomation({ manual: true });
-    expect((await automationStateView()).server).toMatchObject({ fetchedAt: NOW, problem: 'signedOut', runs: [{ id: 'run-1' }, { id: 'run-2' }, { id: 'run-3' }] });
+    expect((await automationStateView()).server).toMatchObject({ fetchedAt: null, problem: 'signedOut', runs: [] });
     // The alarm's pass right after a failure does not read again.
     f.fetch.mockClear();
     vi.setSystemTime(NOW + 150_000);

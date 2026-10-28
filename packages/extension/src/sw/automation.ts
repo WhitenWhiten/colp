@@ -96,7 +96,7 @@ async function run(manual: boolean): Promise<void> {
   if (!bundleDue && !receiptsDue && !statusDue && !activityDue) return;
   // Read with the browser's web sign-in, apart from Sync's authority below.
   const reads = await Promise.allSettled([
-    statusDue ? readServerStatus(owner.serverOrigin).then(async (result) => { if (await isCurrent()) await status.apply(result, now); }) : null,
+    statusDue ? readServerStatus(owner.serverOrigin, owner.accountId).then(async (result) => { if (await isCurrent()) await status.apply(result, now); }) : null,
     activityDue ? readActivitySummary(owner.serverOrigin, owner.accountId).then(async (result) => { if (await isCurrent()) await activity.apply(result, now); }) : null,
   ]);
   // All reads settle before cleanup can run, including when one dependency rejects.

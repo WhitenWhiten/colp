@@ -76,7 +76,7 @@ beforeEach(async () => {
   await browserPlacementLog().logPlacement({ id: 'capture-1', ruleId: rule!.id, ruleName: 'Papers from arXiv', folder: 'Papers', title: 'Earlier', url: 'https://arxiv.org/abs/1', at: NOW });
   // The account's: its bundle, the server's status, receipts and an intent, and what chrome.storage.local caches for it.
   await createBundleStore(automationArea(), owner).install(ruleBundle([compiledRule()], { revision: 'b-3', settingsRevision: 3 }), NOW);
-  await automationArea().set(SERVER_STATUS_KEY, { version: 1, ownerKey, fetchedAt: NOW, rules: [], runs: [], lastAttemptAt: NOW, failures: 0, problem: null });
+  await automationArea().set(SERVER_STATUS_KEY, { version: 2, ownerKey, fetchedAt: NOW, rules: [], runs: [], lastAttemptAt: NOW, failures: 0, problem: null });
   await automationArea().set(AUTOMATION_RECEIPTS_KEY, [{ version: 1, localReceiptId: 'r-mine', ownerKey }, { version: 1, localReceiptId: 'r-other', ownerKey: otherKey }]);
   await automationDatabase().intents.put(intent('i-mine', ownerKey));
   await automationDatabase().intents.put(intent('i-other', otherKey));

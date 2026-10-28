@@ -48,7 +48,7 @@ export interface ServerRunStatus {
   readonly updatedAt: number;
 }
 export interface ServerStatusRecord {
-  readonly version: 1;
+  readonly version: 2;
   readonly ownerKey: string;
   /** When the copy below was read; null before the first good read. */
   readonly fetchedAt: number | null;
@@ -70,7 +70,7 @@ function problemFor(status: number): ServerProblem {
   return 'server';
 }
 
-async function read(serverOrigin: string, path: string, schema: 'RulePage' | 'RunPage', fetcher: typeof fetch)
+async function read(serverOrigin: string, path: string, schema: 'RulePage' | 'RunPage', expectedAccountId: string, fetcher: typeof fetch)
   : Promise<{ readonly ok: true; readonly body: unknown } | { readonly ok: false; readonly problem: ServerProblem }> {
   let response: Response;
   const url = `${serverOrigin.replace(/\/$/u, '')}${path}`;
@@ -84,16 +84,17 @@ async function read(serverOrigin: string, path: string, schema: 'RulePage' | 'Ru
     return { ok: false, problem: 'offline' };
   }
   if (!response.ok) return { ok: false, problem: problemFor(response.status) };
+  if (response.headers.get('Known-Automation-Account-Id') !== expectedAccountId) return { ok: false, problem: 'signedOut' };
   let body: unknown;
   try { body = await readBoundedJson(response, MAX_BYTES, 'automation_status_invalid'); } catch { return { ok: false, problem: 'invalid' }; }
   return validateAutomation(schema, body).valid ? { ok: true, body } : { ok: false, problem: 'invalid' };
 }
 
 /** The account's rules and its 20 newest runs. */
-export async function readServerStatus(serverOrigin: string, fetcher: typeof fetch = fetch): Promise<ServerRead> {
-  const rules = await read(serverOrigin, RULES_PATH, 'RulePage', fetcher);
+export async function readServerStatus(serverOrigin: string, expectedAccountId: string, fetcher: typeof fetch = fetch): Promise<ServerRead> {
+  const rules = await read(serverOrigin, RULES_PATH, 'RulePage', expectedAccountId, fetcher);
   if (!rules.ok) return rules;
-  const runs = await read(serverOrigin, RUNS_PATH, 'RunPage', fetcher);
+  const runs = await read(serverOrigin, RUNS_PATH, 'RunPage', expectedAccountId, fetcher);
   if (!runs.ok) return runs;
   return { ok: true, rules: (rules.body as RulePage).items, runs: (runs.body as RunPage).items };
 }
@@ -117,13 +118,13 @@ export function serverStatusDue(record: ServerStatusRecord, now: number): boolea
 }
 
 export function createServerStatusStore(area: AutomationStateArea, ownerKey: string) {
-  const empty: ServerStatusRecord = { version: 1, ownerKey, fetchedAt: null, rules: [], runs: [], lastAttemptAt: null, failures: 0, problem: null };
+  const empty: ServerStatusRecord = { version: 2, ownerKey, fetchedAt: null, rules: [], runs: [], lastAttemptAt: null, failures: 0, problem: null };
   async function current(): Promise<ServerStatusRecord> {
     const value = await area.get(SERVER_STATUS_KEY);
     if (!value || typeof value !== 'object' || Array.isArray(value)) return empty;
     const record = value as Partial<ServerStatusRecord>;
     // Another account's status is never shown for this one.
-    return record.version === 1 && record.ownerKey === ownerKey ? { ...empty, ...record } as ServerStatusRecord : empty;
+    return record.version === 2 && record.ownerKey === ownerKey ? { ...empty, ...record } as ServerStatusRecord : empty;
   }
   async function write(record: ServerStatusRecord): Promise<ServerStatusRecord> { await area.set(SERVER_STATUS_KEY, record); return record; }
   return {
@@ -131,7 +132,7 @@ export function createServerStatusStore(area: AutomationStateArea, ownerKey: str
     /** Applies one read: a good one replaces the copy, a failed one keeps it and records why. */
     async apply(result: ServerRead, now: number): Promise<ServerStatusRecord> {
       const before = await current();
-      if (!result.ok) return write({ ...before, lastAttemptAt: now, failures: before.failures + 1, problem: { kind: result.problem, at: now } });
+      if (!result.ok) return write({ ...(result.problem === 'signedOut' ? empty : before), lastAttemptAt: now, failures: before.failures + 1, problem: { kind: result.problem, at: now } });
       return write({ ...before, fetchedAt: now, rules: result.rules.map(ruleStatus), runs: result.runs.map(runStatus),
         lastAttemptAt: now, failures: 0, problem: null });
     },
