@@ -121,6 +121,14 @@ export function createConfirmationQueue(ledger: Ledger, scheduler: ReturnType<ty
       catch { await fail(row, 'communityArchiveRevoked'); await scheduler.finish(requestId); return true; }
       const result = message.result;
       if (result.status === 'failed') {
+        if (['network', 'timeout'].includes(result.error.code) && row.attempts < LIMITS.commandAttempts) {
+          await db.transaction(['readRequests'], 'readwrite', async tx => {
+            if (!same(await get<ConfirmationRow>(tx, 'readRequests', rowKey(id)), row)) throw new Error('staleContext');
+            put(tx, 'readRequests', rowKey(id), { ...row, active: undefined, reason: result.error.code });
+          });
+          const wait = Math.max(LIMITS.spacingMs, result.error.retryAfterMs ?? LIMITS.backoffMs);
+          await scheduler.finish(requestId, wait); ports.alarm(now() + wait); return true;
+        }
         await fail(row, result.error.code, ['challenge', 'rateLimited', 'signedOut'].includes(result.error.code));
         await scheduler.finish(requestId, result.error.retryAfterMs); ports.alarm(now() + LIMITS.spacingMs); return true;
       }

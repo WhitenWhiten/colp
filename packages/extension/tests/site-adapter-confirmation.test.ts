@@ -114,3 +114,17 @@ test('the hint boundary is closed, bounded and registry-specific', () => {
   expect(validAdapterMessage(message)).toBe(true); expect(validBilibiliMessage(message)).toBe(true);
   expect(validBilibiliMessage({ ...message, hint: { ...hint, itemId: 'foreign:1' } })).toBe(false);
 });
+
+test('transient read failures retry durably within the original hint budget', async () => {
+  const f = await fixture();
+  try {
+    await f.queue.enqueue(f.context, 'network', hint); await f.queue.wake();
+    await f.queue.accept(f.context, f.reply(f.sent[0]!, { status: 'failed', error: { code: 'network', retryAfterMs: 4000 } }));
+    expect(await f.queue.status()).toMatchObject({ pending: 1, paused: null });
+    f.advance(2000); await f.create().wake(); expect(f.sent).toHaveLength(1);
+    f.advance(2500); await f.create().wake(); expect(f.sent).toHaveLength(2);
+    await f.queue.accept(f.context, f.reply(f.sent[1]!, f.membership)); f.advance(); await f.queue.wake();
+    await f.queue.accept(f.context, f.reply(f.sent[2]!, { status: 'resolved', item: video }));
+    expect(await f.queue.status()).toMatchObject({ pending: 0, last: { state: 'observed' } });
+  } finally { await f.db.close(); }
+});

@@ -171,7 +171,7 @@ export async function enqueueSourceSemantics(connectionId: string) {
     if (r.purpose !== 'sourceArchive' || r.state !== 'active') continue;
     const item = (await siteLedger.db.read<{ entity: import('./contracts.js').SiteItem }>('items', JSON.stringify([connectionId, r.itemId])))?.entity;
     if (!item || item.identity !== 'siteId') continue;
-    await semanticJobs.enqueue({ scopeId: context.scopeId, scope: context.scope, content: { site: connection.siteKey, identityVersion: connection.identityVersion,
+    await semanticJobs.enqueue({ scopeId: r.scopeId ?? context.scopeId, scope: context.scope, content: { site: connection.siteKey, identityVersion: connection.identityVersion,
       itemId: item.id, accountId: definition.contentIdScope === 'site' ? null : connection.accountId }, title: item.title, url: item.url,
       source: { connectionId, policyRevision: policy.policy.revision, installationGeneration: authority.installationGeneration, sourceSessionGeneration: authority.sourceSessionGeneration } });
   }

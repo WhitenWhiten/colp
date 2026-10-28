@@ -30,7 +30,19 @@ export function createClassificationDestinationPolicy(ports: DestinationPolicyPo
       if (m.root.deviceId !== device || !m.root.dateAdded || n?.dateAdded !== m.root.dateAdded) throw new Error('destination_policy_needs_rebind');
       excluded.add(m.root.nativeId);
     }
-    const digest = sourceDigest({ mounts: [...mounts].sort((a, b) => a.id.localeCompare(b.id)), ancestry: ancestry.sort((a, b) => a.id.localeCompare(b.id)) });
+    // New source folders inside an already excluded subtree cannot change any AI destination.
+    // Their derived mount receipts must not invalidate a concurrent independent semantic save.
+    const belowExclusion = (id: string) => {
+      const seen = new Set<string>(); let parent = nodes.get(id)?.parentId;
+      while (parent) {
+        if (seen.has(parent) || seen.size >= 256) throw new Error('destination_policy_unresolved'); seen.add(parent);
+        if (excluded.has(parent)) return true;
+        parent = nodes.get(parent)?.parentId;
+      }
+      return false;
+    };
+    const digest = sourceDigest({ mounts: mounts.filter(m => !belowExclusion(m.root.nativeId)).sort((a, b) => a.id.localeCompare(b.id)),
+      ancestry: ancestry.filter(n => !belowExclusion(n.id)).sort((a, b) => a.id.localeCompare(b.id)) });
     return { digest, excluded, constrained: excluded.size > 0, nodes, unrestricted: false };
   }
   return {

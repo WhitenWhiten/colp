@@ -67,8 +67,8 @@ test('bundled inspector scopes worlds, reconnects routes and fences revocation w
     const second = await context.newPage(); await second.goto('https://www.bilibili.com/video/av1');
     await expect.poll(async () => (await readState()).leases.length, { timeout: 15000 }).toBe(2);
     const beforeSecondHint = membershipReaders.length;
-    await second.evaluate(() => fetch('https://api.bilibili.com/x/v3/fav/resource/deal', { method: 'POST', credentials: 'include',
-      body: new URLSearchParams({ rid: '1', type: '2', add_media_ids: '101' }) }).then(() => undefined));
+    await second.evaluate(() => fetch(new Request('https://api.bilibili.com/x/v3/fav/resource/deal', { method: 'POST', credentials: 'include',
+      body: new URLSearchParams({ rid: '1', type: '2', add_media_ids: '101' }) })).then(() => undefined));
     await expect.poll(() => membershipReaders.length, { timeout: 15000 }).toBeGreaterThan(beforeSecondHint);
     expect(membershipReaders.at(-1)).toBe(second);
     await expect.poll(() => page.evaluate(async () => {

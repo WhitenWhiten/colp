@@ -72,7 +72,6 @@ for (const concurrent of [false, true]) test(`${concurrent ? 'offline concurrent
       await page.locator('#refresh').click(); await page.locator('#confirm').click();
       await expect(page.locator('#archive-collections input')).toHaveCount(2, { timeout: 30000 });
       await page.locator('#select-all').click();
-      if (concurrent) await page.locator('#archive-collections input').nth(1).uncheck();
       await page.locator('#archive-root').click(); await page.locator('#archive-root-picker [data-folder-id="1"]').click();
       await page.locator('#archive-options').evaluate(e => { (e as HTMLDetailsElement).open = true; });
       await page.locator('#archive-semantic').click();
@@ -98,7 +97,7 @@ for (const concurrent of [false, true]) test(`${concurrent ? 'offline concurrent
         await page.locator('#approve-import').click();
         await expect.poll(async () => (await status(page)).archive.import?.phase, { timeout: 30000 }).toBe('completed');
         await expect.poll(async () => (await status(page)).archive.semantic?.completed, { timeout: 30000 }).toBe(1);
-        expect(await page.evaluate(() => chrome.bookmarks.search({ title: 'Shared source video' }))).toHaveLength(2);
+        expect(await page.evaluate(() => chrome.bookmarks.search({ title: 'Shared source video' }))).toHaveLength(3);
       }
       expect(modelCalls.every(count => count > 0)).toBe(true);
       stack.setSourceArchiveFault!('lost-response');
@@ -109,10 +108,10 @@ for (const concurrent of [false, true]) test(`${concurrent ? 'offline concurrent
       await expect.poll(async () => {
         const nodes = ((await stack!.observations()).canonicalNodes as { title: string; deleted_at: unknown }[]).filter(n => !n.deleted_at);
         return ['Shared A', 'Shared B', 'Shared source video'].map(title => nodes.filter(n => n.title === title).length);
-      }, { timeout: 150000 }).toEqual([1, 0, 2]);
+      }, { timeout: 150000 }).toEqual([1, 1, 3]);
       stack.setSourceArchiveFault!('none');
       for (const page of [a, b]) {
-        await expect.poll(() => page.evaluate(() => chrome.bookmarks.search({ title: 'Shared source video' }).then(rows => rows.length)), { timeout: 60000 }).toBe(2);
+        await expect.poll(() => page.evaluate(() => chrome.bookmarks.search({ title: 'Shared source video' }).then(rows => rows.length)), { timeout: 60000 }).toBe(3);
         await expect.poll(async () => { const s = await status(page); return { pending: s.pipeline.pendingSync, attention: s.pipeline.attention }; }, { timeout: 60000 }).toEqual({ pending: 0, attention: 0 });
       }
       return;

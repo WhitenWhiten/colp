@@ -1,5 +1,6 @@
 import { boundedJson, record } from './http.js';
 import { favoriteRequest } from './probe-wire.js';
+import { favoriteFetchRequest } from './probe-body.js';
 /** Audited MAIN entry: hints only, forgeable by the page, no host credentials. */
 (() => {
   const key = '__knownBilibiliProbeV1';
@@ -14,14 +15,13 @@ import { favoriteRequest } from './probe-wire.js';
     }));
   };
   const wrappedFetch: typeof fetch = function(this: Window, input, init) {
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-    const request = favoriteRequest(url, init?.method ?? (input instanceof Request ? input.method : 'GET'), init?.body);
+    const request = pending < 16 ? favoriteFetchRequest(input, init) : null;
     const interactionId = crypto.randomUUID();
     const promise = Reflect.apply(originalFetch, this, [input, init]) as ReturnType<typeof fetch>;
     if (request && pending < 16) {
       pending++;
-      void promise.then(async response => {
-        if (response.ok && active) publish(request, interactionId, await boundedJson(response.clone(), 65536));
+      void Promise.all([promise, request]).then(async ([response, hint]) => {
+        if (hint && response.ok && active) publish(hint, interactionId, await boundedJson(response.clone(), 65536));
       }).catch(() => undefined).finally(() => { pending--; });
     }
     return promise; // no extra await, writes, retries or changed site exception semantics

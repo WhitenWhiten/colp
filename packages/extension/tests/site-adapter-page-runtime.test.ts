@@ -76,3 +76,35 @@ test('upgrading an old page runtime applies factory request policy to bootstrap 
   await vi.advanceTimersByTimeAsync(16000); expect(sent.some(m => m.operation === 'page.result')).toBe(true);
   expect(calls.slice(1).map((at, i) => at - calls[i]!)).toEqual([5000, 5000, 5000]);
 });
+
+test.each(['same', 'account', 'generation'] as const)('unacknowledged hints survive a worker cut only under the same source proof: %s', async change => {
+  vi.useFakeTimers(); vi.setSystemTime(1000); vi.stubGlobal('location', { href: post.url });
+  let account = 'acct:reader', proof = 'source-proof', adapterContext: import('../src/site-adapters/contracts.js').AdapterContext;
+  const ports: { sent: AdapterMessage[]; listeners: ((raw: unknown) => void)[]; disconnected?: () => void }[] = [];
+  vi.stubGlobal('chrome', { runtime: {
+    sendMessage: async (message: { kind: string }) => message.kind.endsWith('.activation') ? { status: 'ready', activationId: 'activation', deadlineAt: Date.now() + 10000 }
+      : { status: 'ready', leaseId: `lease-${ports.length}`, capability: 'secret', routeEpoch: 0, expiresAt: Date.now() + 60000, readerEpoch: proof },
+    connect: () => {
+      const entry = { sent: [] as AdapterMessage[], listeners: [] as ((raw: unknown) => void)[], disconnected: undefined as (() => void) | undefined }; ports.push(entry);
+      return { disconnect: () => {}, postMessage: (m: AdapterMessage) => entry.sent.push(structuredClone(m)),
+        onMessage: { addListener: (f: (raw: unknown) => void) => entry.listeners.push(f) }, onDisconnect: { addListener: (f: () => void) => { entry.disconnected = f; } } };
+    },
+  } });
+  startAdapterRuntime(postsDefinition, () => ({ ...createPostsAdapter(), detectSource: async () => ({ state: 'signedIn', accountId: account }),
+    start: async context => { adapterContext = context; return () => {}; } }));
+  await vi.advanceTimersByTimeAsync(0);
+  const hint = { interactionId: 'same-interaction', itemId: post.id, added: [saved.id], removed: [], code: 0 };
+  void adapterContext!.hint(hint).catch(() => undefined);
+  await vi.advanceTimersByTimeAsync(1500);
+  const hints = ports[0]!.sent.filter(m => m.operation === 'membership.hint'); expect(hints).toHaveLength(2); expect(hints[0]).toEqual(hints[1]);
+  if (change === 'account') account = 'acct:another'; if (change === 'generation') proof = 'changed-proof';
+  ports[0]!.disconnected!(); await vi.advanceTimersByTimeAsync(2000);
+  const replay = ports[1]!.sent.filter(m => m.operation === 'membership.hint');
+  expect(replay).toHaveLength(change === 'same' ? 1 : 0);
+  if (change === 'same') {
+    expect(replay[0]).toMatchObject({ requestId: 'same-interaction', hint });
+    for (const listener of ports[1]!.listeners) listener({ operation: 'reply', requestId: 'same-interaction', reply: { status: 'duplicate', receiptId: 'original' } });
+    ports[1]!.disconnected!(); await vi.advanceTimersByTimeAsync(2000);
+    expect(ports[2]!.sent.some(m => m.operation === 'membership.hint')).toBe(false);
+  }
+});

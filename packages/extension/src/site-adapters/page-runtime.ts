@@ -15,15 +15,16 @@ export function startAdapterRuntime(definition: SiteDefinition, createAdapter: S
   const stopEvent = `known-site-adapter-stop:${definition.adapterId}`, routeEvent = `known-site-route:${definition.adapterId}`;
   const scope = globalThis as typeof globalThis & Record<string, { restart(): void; version?: number } | undefined>;
   if (matchesSiteUrl(definition, location.href) && window.top === window) {
-    if (scope[slot] && scope[slot].version !== 6) window.dispatchEvent(new Event(stopEvent));
+    if (scope[slot] && scope[slot].version !== 7) window.dispatchEvent(new Event(stopEvent));
     if (scope[slot]) scope[slot].restart();
     else {
       let controller: AbortController | null = null, port: chrome.runtime.Port | null = null, timer: ReturnType<typeof setTimeout> | undefined;
       let failures = 0;
       let epoch = 0, reader: SiteAdapter | null = null, readerEpoch: string | undefined;
+      const retainedHints = new Map<string, { hint: MembershipHint; readerEpoch: string; accountId: string; expiresAt: number }>();
       let removeHints = () => {};
       const reset = (preserve: boolean) => { removeHints(); removeHints = () => {}; epoch++; controller?.abort(); controller = null; const oldPort = port; port = null; oldPort?.disconnect(); clearTimeout(timer); if (!preserve) { reader?.clear?.(); reader = null; readerEpoch = undefined; } };
-      const stop = () => reset(false);
+      const stop = () => { retainedHints.clear(); reset(false); };
       const begin = (preserve: boolean) => { reset(preserve); const current = epoch; controller = new AbortController(); const signal = controller.signal;
         reader ??= createAdapter(Object.freeze({ readPolicy: LIMITS }));
         validateAdapterImplementation(definition, reader);
@@ -54,6 +55,7 @@ export function startAdapterRuntime(definition: SiteDefinition, createAdapter: S
           if (!reply.readerEpoch || readerEpoch !== reply.readerEpoch) localReader.clear?.();
           readerEpoch = reply.readerEpoch; failures = 0;
           const accountId = source.accountId;
+          for (const [id, value] of retainedHints) if (value.readerEpoch !== reply.readerEpoch || value.accountId !== accountId || value.expiresAt <= Date.now()) retainedHints.delete(id);
           port = chrome.runtime.connect({ name: installationKey(SITE_PORT, definition) }); const ownPort = port;
           const envelope = { protocolVersion: 1 as const, leaseId: reply.leaseId, capability: reply.capability };
           let busy = false;
@@ -62,14 +64,33 @@ export function startAdapterRuntime(definition: SiteDefinition, createAdapter: S
             if (signal.aborted || pending.size >= LIMITS.queue) return Promise.resolve({ status: 'rejected', reason: 'capacity' });
             const requestId = body.operation === 'membership.hint' ? body.hint.interactionId : crypto.randomUUID();
             if (pending.has(requestId)) return Promise.resolve({ status: 'rejected', reason: 'rateLimited' });
-            return new Promise((resolve, reject) => { pending.set(requestId, { resolve, reject }); ownPort.postMessage({ ...envelope, requestId, ...body }); });
+            const frozen = structuredClone(body);
+            if (frozen.operation === 'membership.hint' && reply.readerEpoch) {
+              const prior = retainedHints.get(requestId);
+              if (prior && JSON.stringify(prior.hint) !== JSON.stringify(frozen.hint)) return Promise.resolve({ status: 'rejected', reason: 'conflict' });
+              if (!prior && retainedHints.size >= LIMITS.queue) return Promise.resolve({ status: 'rejected', reason: 'capacity' });
+              if (!prior) retainedHints.set(requestId, { hint: frozen.hint, readerEpoch: reply.readerEpoch, accountId, expiresAt: reply.expiresAt });
+            }
+            return new Promise((resolve, reject) => {
+              let retryTimer: ReturnType<typeof setTimeout> | undefined, attempts = 0;
+              const finish = () => { clearTimeout(retryTimer); pending.delete(requestId); };
+              const entry = { resolve(value: AdmissionReply) { finish(); resolve(value); }, reject(error: Error) { finish(); reject(error); } };
+              pending.set(requestId, entry);
+              const send = () => {
+                if (signal.aborted || Date.now() >= reply.expiresAt || ++attempts > 3) { entry.reject(new SiteReadError({ code: 'timeout' })); return; }
+                retryTimer = setTimeout(send, Math.min(1500, reply.expiresAt - Date.now()));
+                try { ownPort.postMessage({ ...envelope, requestId, ...frozen }); } catch { entry.reject(new SiteReadError({ code: 'cancelled' })); }
+              };
+              send();
+            });
           };
           signal.addEventListener('abort', () => { for (const p of pending.values()) p.reject(new SiteReadError({ code: 'cancelled' })); pending.clear(); }, { once: true });
           ownPort.onMessage.addListener(value => {
             const raw = value as { operation?: string; requestId?: string; reply?: AdmissionReply } | null;
             if (raw?.operation !== 'reply' || typeof raw.requestId !== 'string') return;
             const p = pending.get(raw.requestId); if (!p) return;
-            pending.delete(raw.requestId);
+            if (raw.reply?.status === 'accepted' || raw.reply?.status === 'duplicate'
+              || raw.reply?.status === 'rejected' && !['capacity', 'rateLimited'].includes(raw.reply.reason)) retainedHints.delete(raw.requestId);
             if (['accepted', 'duplicate', 'rejected'].includes(raw.reply?.status ?? '')) p.resolve(raw.reply as AdmissionReply);
             else p.reject(new SiteReadError({ code: 'invalidData' }));
           });
@@ -121,6 +142,7 @@ export function startAdapterRuntime(definition: SiteDefinition, createAdapter: S
             })().catch(() => { if (epoch === current) recover(); }).finally(() => { busy = false; });
           });
           ownPort.postMessage({ ...envelope, requestId: crypto.randomUUID(), operation: 'connect' });
+          for (const retained of retainedHints.values()) void request({ operation: 'membership.hint', hint: retained.hint }).catch(() => undefined);
           timer = setTimeout(() => begin(true), Math.max(1000, reply.expiresAt - Date.now() - 1000));
         })().catch(() => { if (epoch === current) recover(); });
       };
@@ -136,7 +158,7 @@ export function startAdapterRuntime(definition: SiteDefinition, createAdapter: S
         window.removeEventListener(stopEvent, deactivate);
         delete scope[slot];
       };
-      scope[slot] = { restart, version: 6 };
+      scope[slot] = { restart, version: 7 };
       window.addEventListener(stopEvent, deactivate);
       window.addEventListener('pagehide', stop); window.addEventListener('pageshow', restart);
       window.addEventListener('popstate', restart); window.addEventListener('hashchange', restart);

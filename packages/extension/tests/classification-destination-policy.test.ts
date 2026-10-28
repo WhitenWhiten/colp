@@ -36,3 +36,21 @@ test('mount exclusion prunes examples and future descendants while preserving th
   mounts = [{ ...mounts[0]!, root: { ...mounts[0]!.root, dateAdded: 999 }, aiDestination: 'excluded' }];
   await expect(policy.snapshot()).rejects.toThrow('destination_policy_needs_rebind');
 });
+
+test('new folders and derived receipts below an excluded root do not cancel independent classification', async () => {
+  const source = { id: 'source', title: 'Source', dateAdded: 2, parentId: 'root', children: [] as FolderTreeNode[] };
+  const semantic = { id: 'semantic', title: 'Semantic', dateAdded: 3, parentId: 'root' };
+  const tree: FolderTreeNode[] = [{ id: 'root', title: 'Root', children: [source, semantic] }];
+  const mount: MountBinding = { id: 'source-mount', connectionId: 'c', rootRuleId: 'r', revision: 1, aiDestination: 'excluded',
+    root: { nativeId: 'source', dateAdded: 2, deviceId: 'device', bindingId: 'root', kind: 'folder', proof: { kind: 'explicitAdoption', id: 'root' } } };
+  const mounts: MountBinding[] = [mount];
+  const policy = createClassificationDestinationPolicy({ tree: async () => tree, mounts: async () => mounts, deviceId: async () => 'device' });
+  const original = await policy.snapshot();
+  source.children.push({ id: 'collection', title: 'New collection', dateAdded: 4, parentId: 'source' });
+  mounts.push({ ...mount, id: 'derived-folder', root: { ...mount.root, nativeId: 'collection', dateAdded: 4 } });
+  await expect(policy.assertAllowed('semantic', original.digest)).resolves.toBe(original.digest);
+  await expect(policy.assertAllowed('collection')).rejects.toThrow('destination_policy_excluded');
+  source.children[0] = { ...source.children[0]!, parentId: 'root' };
+  await expect(policy.assertCurrent(original.digest)).rejects.toThrow('destination_policy_changed');
+  await expect(policy.assertAllowed('collection')).rejects.toThrow('destination_policy_excluded');
+});

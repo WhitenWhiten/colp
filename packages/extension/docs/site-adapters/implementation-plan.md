@@ -24,6 +24,14 @@ Recovery fetches the original adoption receipt before checking a provisional nat
 
 Validation: source-archive unit tests; real PostgreSQL mutation/rollback and seven user-data guards (8 passing tests); xvfb two-browser COLP-outage test (1 passed, approximately 3.3 minutes) with independent local source/semantic saves, concurrent reconnection, intentionally lost server replies, canonical convergence, native convergence and no pending association errors. Source/model data are controlled fixtures.
 
+### H-04 — ingress and independent classification recovery
+
+The Bilibili MAIN probe accepts bounded URL-encoded Request clones and scalar FormData as well as ordinary fetch/XHR bodies; duplicate scalar IDs, files and oversized bodies are rejected. Reading a clone never consumes the site's original request. Page admission retransmits the exact frozen request identity, and an unacknowledged hint survives a worker disconnect only while its account/document/generation proof and original deadline remain current. Host readback retries transient network/timeout failures within the original bounded command budget; challenge/login/rate gates remain explicit.
+
+Classification policy digests ignore new folders and redundant derived receipts entirely inside an already excluded source subtree. A moved subtree or changed eligible destination still invalidates the old result. This fixes automatic semantic classification racing multi-collection source saves. Automatic jobs retain each source representation's destination scope.
+
+Validation: 28 focused ingress/readback/page-runtime/classification tests; typecheck/lint/source-size checks; xvfb lifecycle + repeated multi-tab renewal (2 passed, about 3.1 minutes, 1,330 imported-preview entries and 70 explicit omissions); real PostgreSQL/two-browser offline concurrency with **two** source collections plus one semantic copy and lost replies (1 passed, about 3.6 minutes). The user selected isolated-environment acceptance; no live account or new site was used.
+
 ## LF remediation and acceptance (October 28, 2026)
 
 The local-first contract in runtime-foundation.md supersedes historical online-first acceptance. Each LF task is implemented and committed separately. Native success, transport success and shared-association success are independent facts; source confirmation still observes the website's read/authorization limits.
