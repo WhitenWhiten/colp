@@ -77,7 +77,7 @@ export function createSourceLedger(db: SourceDatabase = createSourceDatabase(), 
         observation = { ...observation, memberships: { mode: 'delta', ...applied } };
       }
       const row: ObservationRow = { installationId: definition.adapterId, id: receipt.id, ordinal: receipt.ordinal, context, observation, state: 'pending', acceptedAt: now(), adapterVersion: definition.version,
-        cause: observation.type === 'favorite.confirmed' || observation.type === 'favorite.uncertain' ? 'siteFavorite' : 'reconcile' };
+        readyAt: 0, cause: observation.type === 'favorite.confirmed' || observation.type === 'favorite.uncertain' ? 'siteFavorite' : 'reconcile' };
       put(tx, 'observations', receipt.id, row); put(tx, 'receipts', key, receipt);
       if (readBaseline === undefined) await mergeObservation(tx, context, observation, receipt.ordinal, receipt.id);
       else if (observation.type === 'membership.observed') await mergeEntity(tx, 'items', context.connectionId, observation.item, receipt.ordinal, readBaseline);

@@ -130,6 +130,14 @@ export function createConfirmationQueue(ledger: Ledger, scheduler: ReturnType<ty
           || !ledger.definition.negativeReadback && r.edges.some(e => e.state === 'absent')) return false;
         // Older in-flight rows lack a baseline; retry instead of granting authoritative merge semantics.
         if (row.baselineOrdinal === undefined) { await fail(row, 'readBaselineMissing'); await scheduler.finish(requestId); return true; }
+        if (r.edges.some(e => e.state === 'unknown') && row.attempts < LIMITS.commandAttempts) {
+          await db.transaction(['readRequests'], 'readwrite', async tx => {
+            const current = await get<ConfirmationRow>(tx, 'readRequests', rowKey(id));
+            if (!same(current, row)) throw new Error('staleContext');
+            put(tx, 'readRequests', rowKey(id), { ...row, active: undefined, reason: 'membershipUncertain' });
+          });
+          await scheduler.finish(requestId); ports.alarm(now() + LIMITS.spacingMs); return true;
+        }
         const known = r.edges.filter(e => e.state === 'present').map(e => e.collectionId), absent = r.edges.filter(e => e.state === 'absent').map(e => e.collectionId);
         if (!known.length && !absent.length) await fail(row, 'membershipUncertain');
         else if (!known.length) {

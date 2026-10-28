@@ -7,7 +7,7 @@ export const SOURCE_STORES = ['meta', 'authorities', 'documentLeases', 'connecti
   'readRequests', 'importRuns', 'importPages', 'representations', 'itemReservations', 'folderReservations', 'folderConsumers',
   'savePlans', 'effects', 'outbox', 'contentBindings', 'mounts', 'importPreviews', 'importApprovals', 'semanticJobs', 'semanticIndexes', 'work'] as const;
 export type SourceStore = typeof SOURCE_STORES[number];
-export const SOURCE_DATABASE_VERSION = 6;
+export const SOURCE_DATABASE_VERSION = 7;
 export function sourceDigest(value: unknown): string {
   return `sha256:${bytesToHex(sha256(new TextEncoder().encode(canonicalJson(value, () => { throw new Error('invalidData'); }))))}`;
 }
@@ -55,6 +55,12 @@ export function createSourceDatabase(factory?: IDBFactory, name = 'known-site-ad
         const b = c.value, key = sourceKey(b.content.siteKey, b.content.identityVersion, b.content.itemId, b.id);
         if (c.key !== key) { bindings.put(b, key); c.delete(); } c.continue(); };
       const observations = r.transaction!.objectStore('observations');
+      if (!observations.indexNames.contains('installationReady')) {
+        observations.createIndex('installationReady', ['installationId', 'state', 'readyAt', 'ordinal']);
+        const ready = observations.openCursor();
+        ready.onsuccess = () => { const c = ready.result; if (!c) return;
+          c.update({ ...c.value, installationId: c.value.installationId ?? legacySite.adapterId, readyAt: c.value.readyAt ?? 0 }); c.continue(); };
+      }
       if (!observations.indexNames.contains('state')) observations.createIndex('state', 'state');
       if (!observations.indexNames.contains('stateOrdinal')) observations.createIndex('stateOrdinal', ['state', 'ordinal']);
       if (!observations.indexNames.contains('installationStateOrdinal')) {

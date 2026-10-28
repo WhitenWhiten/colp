@@ -440,6 +440,8 @@ function createSiteHost(definition: SiteDefinition) {
           }
           if (raw.operation === 'membership.hint') {
             const receipt = await confirmations.enqueue(await sourceContext(lease, siteLedger), raw.requestId, raw.hint);
+            if (receipt.status === 'rejected') await activity.record({ kind: 'problem', operation: 'inspect',
+              taskId: raw.hint.interactionId, requestId: raw.requestId, code: receipt.reason, connectionId: (await sourceContext(lease, siteLedger)).connectionId });
             port.postMessage({ operation: 'reply', requestId: raw.requestId, reply: receipt });
             scheduleSourceWork(Date.now() + 50); return;
           }

@@ -1,3 +1,4 @@
+import { deliverMembershipHint } from '../hint-delivery.js';
 import { readLimits } from '../read-policy.js';
 import { bilibiliDefinition } from './definition.js';
 import type { SiteAdapter, AdapterServices } from '../contracts.js';
@@ -12,7 +13,7 @@ export function createBilibiliAdapter(services?: AdapterServices): SiteAdapter {
     async start(context) {
       const hint = (event: Event) => {
         const value: unknown = (event as CustomEvent).detail;
-        if (validMembershipHint(value)) void context.hint(value).catch(() => undefined);
+        if (validMembershipHint(value)) void deliverMembershipHint(context, value).catch(() => undefined);
       };
       context.document.defaultView?.addEventListener('known-bilibili-favorite-hint', hint);
       return () => context.document.defaultView?.removeEventListener('known-bilibili-favorite-hint', hint);

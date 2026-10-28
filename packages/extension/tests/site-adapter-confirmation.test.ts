@@ -66,6 +66,9 @@ test('failed writes, removal-only hints and unknown readback create no positive 
   await f.queue.wake(); expect(f.sent).toHaveLength(0);
   await f.queue.enqueue(f.context, 'unknown', hint); await f.queue.wake();
   await f.queue.accept(f.context, f.reply(f.sent[0]!, { ...f.membership, edges: [{ collectionId: '101', state: 'unknown', reason: 'ambiguousState' }] }));
+  expect(await f.queue.status()).toMatchObject({ pending: 1 });
+  for (let attempt = 0; attempt < 2; attempt++) { f.advance(); await f.queue.wake();
+    await f.queue.accept(f.context, f.reply(f.sent.at(-1)!, { ...f.membership, edges: [{ collectionId: '101', state: 'unknown', reason: 'ambiguousState' }] })); }
   expect(await f.queue.status()).toMatchObject({ pending: 0, last: { state: 'uncertain', reason: 'membershipUncertain' } });
   expect(await f.db.read('memberships', sourceKey(f.context.connectionId, video.id, '101'))).toBeUndefined(); await f.db.close();
 });

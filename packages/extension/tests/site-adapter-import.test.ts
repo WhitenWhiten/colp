@@ -576,7 +576,9 @@ test('an individually paused source rule holds accepted live work for resumption
   if (receipt.status === 'rejected') throw new Error('receipt');
   const planner = createLiveSourcePlanner(f.db, f.layout, () => {}); await planner.wake();
   expect(await f.db.read('observations', receipt.receiptId)).toMatchObject({ state: 'pending' }); expect(f.counts.bookmark).toBe(0);
-  f.setRuleEnabled(true); await planner.wake();
+  f.setRuleEnabled(true);
+  await f.db.transaction(['observations'], 'readwrite', async tx => { const request = tx.objectStore('observations').get(receipt.receiptId); request.onsuccess = () => tx.objectStore('observations').put({ ...request.result, readyAt: 0 }, receipt.receiptId); });
+  await planner.wake();
   expect(await f.db.read('observations', receipt.receiptId)).toMatchObject({ state: 'settled', planning: { reason: 'planned' } }); await f.db.close();
 });
 test('a missing collection on one live edge does not discard an independently admitted edge', async () => {
