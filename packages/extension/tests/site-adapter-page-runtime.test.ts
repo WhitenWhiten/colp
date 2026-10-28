@@ -8,6 +8,20 @@ import type { AdapterMessage, SourcePage, SiteCollection } from '../src/site-ada
 import { createPostsAdapter, postsDefinition, saved, post } from './fixtures/site-adapters/posts.js';
 import { SiteReadError } from '../src/site-adapters/read-errors.js';
 afterEach(() => { window.dispatchEvent(new Event('known-site-adapter-stop:bundled.bilibili')); window.dispatchEvent(new Event(`known-site-adapter-stop:${postsDefinition.adapterId}`)); document.body.replaceChildren(); vi.useRealTimers(); vi.unstubAllGlobals(); });
+test('a transient adapter construction failure uses the bounded recovery path', async () => {
+  vi.useFakeTimers(); vi.setSystemTime(1000); vi.stubGlobal('location', { href: post.url });
+  const factory = vi.fn().mockImplementationOnce(() => { throw new Error('document not ready'); })
+    .mockImplementation(() => createPostsAdapter());
+  const connect = vi.fn(() => ({ onMessage: { addListener: () => {} }, onDisconnect: { addListener: () => {} },
+    disconnect: () => {}, postMessage: () => {} }));
+  vi.stubGlobal('chrome', { runtime: { connect, sendMessage: async (m: { kind: string }) => m.kind.endsWith('.activation')
+    ? { status: 'ready', activationId: 'activation', deadlineAt: Date.now() + 10000 }
+    : { status: 'ready', leaseId: 'lease', capability: 'secret', routeEpoch: 0, expiresAt: Date.now() + 60000, readerEpoch: 'epoch' } } });
+  expect(() => startAdapterRuntime(postsDefinition, factory)).not.toThrow();
+  await vi.advanceTimersByTimeAsync(1500);
+  expect(factory).toHaveBeenCalledTimes(2);
+  expect(connect).toHaveBeenCalledOnce();
+});
 test('a worker disconnect during asynchronous adapter startup promptly reconnects and disposes late listeners', async () => {
   vi.useFakeTimers(); vi.setSystemTime(1000); vi.stubGlobal('location', { href: post.url });
   let disconnected: (() => void) | undefined, finishStart!: (cleanup: () => void) => void;

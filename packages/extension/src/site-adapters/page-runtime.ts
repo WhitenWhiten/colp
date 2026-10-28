@@ -15,7 +15,7 @@ export function startAdapterRuntime(definition: SiteDefinition, createAdapter: S
   const stopEvent = `known-site-adapter-stop:${definition.adapterId}`, routeEvent = `known-site-route:${definition.adapterId}`;
   const scope = globalThis as typeof globalThis & Record<string, { restart(): void; version?: number } | undefined>;
   if (matchesSiteUrl(definition, location.href) && window.top === window) {
-    if (scope[slot] && scope[slot].version !== 9) window.dispatchEvent(new Event(stopEvent));
+    if (scope[slot] && scope[slot].version !== 10) window.dispatchEvent(new Event(stopEvent));
     if (scope[slot]) scope[slot].restart();
     else {
       let controller: AbortController | null = null, port: chrome.runtime.Port | null = null, timer: ReturnType<typeof setTimeout> | undefined;
@@ -26,10 +26,10 @@ export function startAdapterRuntime(definition: SiteDefinition, createAdapter: S
       const reset = (preserve: boolean) => { removeHints(); removeHints = () => {}; epoch++; controller?.abort(); controller = null; const oldPort = port; port = null; oldPort?.disconnect(); clearTimeout(timer); if (!preserve) { reader?.clear?.(); reader = null; readerEpoch = undefined; } };
       const stop = () => { retainedHints.clear(); reset(false); };
       const begin = (preserve: boolean) => { reset(preserve); const current = epoch; controller = new AbortController(); const signal = controller.signal;
-        reader ??= createAdapter(Object.freeze({ readPolicy: LIMITS }));
-        validateAdapterImplementation(definition, reader);
-        const localReader = reader;
         void (async () => {
+          reader ??= createAdapter(Object.freeze({ readPolicy: LIMITS }));
+          validateAdapterImplementation(definition, reader);
+          const localReader = reader;
           const activationDeadline = Date.now() + LIMITS.activationMs;
           let activation = await chrome.runtime.sendMessage({ kind: 'known.siteAdapters.activation', adapterId: definition.adapterId }) as { status: string; activationId?: string; deadlineAt?: number; retryAfterMs?: number };
           for (let attempt = 0; attempt < 2 && ['paused', 'unavailable'].includes(activation.status) && activation.retryAfterMs && Date.now() + activation.retryAfterMs < activationDeadline; attempt++) {
@@ -161,7 +161,7 @@ export function startAdapterRuntime(definition: SiteDefinition, createAdapter: S
         window.removeEventListener(stopEvent, deactivate);
         delete scope[slot];
       };
-      scope[slot] = { restart, version: 9 };
+      scope[slot] = { restart, version: 10 };
       window.addEventListener(stopEvent, deactivate);
       window.addEventListener('pagehide', stop); window.addEventListener('pageshow', restart);
       window.addEventListener('popstate', restart); window.addEventListener('hashchange', restart);
