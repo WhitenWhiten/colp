@@ -15,23 +15,10 @@ import { assertCaptureScope } from '../sw/capture-native.js';
 export async function prepareSemanticCapture(input: { commandId: string; captureIntentId: string; parentId: string; title: string; url: string }, content: ContentIdentity, scope: CaptureScope) {
   const node = (await chrome.bookmarks.get(input.parentId))[0];
   if (!node || node.url || !node.dateAdded) throw new Error('bindingUnavailable');
-  const parent: NativeBinding<'folder'> = { nativeId: node.id, dateAdded: node.dateAdded, kind: 'folder', deviceId: await captureDeviceId(),
-    bindingId: input.captureIntentId, proof: { kind: 'explicitAdoption', id: input.commandId } };
-  const command: PlannedNativeCommand = { commandId: input.commandId, ownerId: input.captureIntentId, connectionId: '', kind: 'bookmark', parent,
-    title: input.title, logicalDigest: sourceDigest(input), deviceId: parent.deviceId,
-    bookmark: { planId: input.captureIntentId, effectId: 'semantic', representation: { connectionId: '', itemId: content.itemId, purpose: 'semantic', sourceCollectionId: null, mountId: null }, url: input.url, scope, source: 'site-import' } };
-  const authority = await siteLedger.db.read<import('./ledger-types.js').SourceAuthority>('authorities', identityDefinition(content.siteKey, content.identityVersion).adapterId);
-  const policy = authority?.enabled && authority.connectionId ? await siteLedger.db.read<import('./layout.js').SourcePolicyRecord>('meta', `policy:${authority.connectionId}`) : undefined;
-  const prepared = await managedSaves.prepareForSlot(command, { kind: 'bookmark', copy: { purpose: 'semantic', content: managedContent(content) } }, policy?.enabled ? policy.policy.copies : undefined);
-  const managed = prepared.managed;
-  if (!managed) return {};
-  const client = await managedClientForLibrary(managed.library); await client.semanticProfile();
-  const claim = await client.call<SemanticClaimResult>('managed.semantic.claim', { collectionId: managed.library.collectionId,
-    copy: { purpose: 'semantic', content: managedContent(content) }, ownerId: input.commandId, replicaId: managed.command.replicaId });
-  if (claim.status === 'waiting') throw new Error('semantic_save_pending');
-  if (claim.status === 'claimed') managed.command.semanticClaim = claim.claim;
-  return { managed, managedParent: parent };
+  void content; void scope;
+  return {} as { managed?: ManagedDestination; managedParent?: NativeBinding<'folder'> };
 }
+
 export async function releaseSemanticCaptureClaim(managed?: ManagedDestination) {
   if (!managed?.command.semanticClaim || managed.command.slot.kind !== 'bookmark') return;
   await (await managedClientForLibrary(managed.library)).call('managed.semantic.release', { collectionId: managed.library.collectionId,

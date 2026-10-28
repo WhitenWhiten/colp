@@ -1,3 +1,4 @@
+import { assertPlannedCaptureAuthority } from '../capture/planned.js';
 import { prepareCaptureContent, acknowledgeCaptureContent, moveCaptureContent } from '../capture/content-binding.js';
 import { personalBookmarks } from '../bookmark-subscriptions/guards.js';
 import { classificationDestinationPolicy } from './classification-destination.js';
@@ -37,7 +38,7 @@ export const captureStore = createCaptureStore(indexedDB, () => {
   void chrome.runtime.sendMessage({ kind: 'known.capture.invalidated' }).catch(() => undefined);
 });
 export const captureCoordinator = createCaptureCoordinator({ store: captureStore, now: Date.now,
-  assertCurrent: assertCaptureScope, existence: captureExistence, create: createNativeCapture, receipt: recoverNativeCapture,
+  assertCurrent: (scope, task) => task?.planned ? assertPlannedCaptureAuthority(task) : assertCaptureScope(scope), existence: captureExistence, create: createNativeCapture, receipt: recoverNativeCapture,
   acknowledge: async task => {
     await acknowledgeCaptureContent(task);
     if (task.nativeIntentId && !task.planned) await createBookmarkCreatePlacementStore().acknowledge(task.nativeIntentId);

@@ -1,3 +1,4 @@
+import { prepareLocalSlot, rememberLocalSourceSave } from './local-save-runtime.js';
 import { scheduleSourceAlarm } from './wake-scheduler.js';
 import { createSemanticJobs, type SemanticJob } from './semantic-jobs.js';
 import { semanticContext, scopedSemanticBindings, attachSemanticAssociation, sharedSemanticBinding, adoptSemanticAssociation } from './semantic-associations.js';
@@ -71,38 +72,15 @@ export const semanticJobs = createSemanticJobs(siteLedger.db, {
     if (b?.state === 'detached') return { status: 'detached' };
     if (b?.native) {
       await assertContentNative(b.native, { title: b.title, parentId: b.parentId, url: b.url });
-      if (job.scope.accountId && job.scope.collectionId) await adoptSemanticAssociation(b, job.scope);
       await assertSemanticDestination({ bindingId: 'semantic-parent', deviceId: b.native.deviceId, nativeId: b.parentId, kind: 'folder',
         dateAdded: (await chrome.bookmarks.get(b.parentId))[0]?.dateAdded ?? null, proof: { kind: 'explicitAdoption', id: b.id } });
       return { status: 'saved', native: b.native, written: { title: b.title, parentId: b.parentId, url: b.url }, shared: b.shared };
     }
     if (b && b.captureIntentId !== job.id) throw new Error('semantic_save_pending');
-    const context = await semanticContext();
-    if (context.library) {
-      const shared = await sharedSemanticBinding(identity, context.library);
-      if (shared?.state === 'suppressed') return { status: 'suppressed' };
-      if (shared?.state === 'detached') return { status: 'detached' };
-      if (shared) {
-        const projection = await projectManagedBinding(context.library, shared, job.id);
-        if (!projection) return { status: 'waiting' };
-        if (projection.native.kind !== 'bookmark' || shared.node.url === null) throw new Error('sourceSyncInvalid');
-        return { status: 'saved', native: projection.native as NativeBinding<'bookmark'>,
-          shared: { library: context.library, slot: shared.slot, nodeId: shared.node.nodeId, controlRevision: shared.controlRevision ?? 0 },
-          written: { title: shared.node.title, parentId: projection.parentId, url: shared.node.url } };
-      }
-    }
     return { status: 'missing' };
   },
   async claim(job) {
-    const context = await semanticContext(); let claim;
-    if (context.library) {
-      const client = await managedClientForLibrary(context.library); await client.semanticProfile();
-      const result = await client.call<SemanticClaimResult>('managed.semantic.claim', { collectionId: context.library.collectionId,
-        copy: { purpose: 'semantic', content: job.content }, ownerId: job.id, replicaId: (await currentSyncScope()).replicaId });
-      if (result.status === 'saved') throw new Error('sourceSyncPending');
-      if (result.status === 'waiting') return result;
-      claim = result.claim;
-    }
+    const claim = undefined;
     const identity = captureContent(job.content);
     await siteLedger.db.transaction(['contentBindings'], 'readwrite', async tx => {
       const key = contentBindingKey(identity, job.id), current = await get<ContentBindingRow>(tx, 'contentBindings', key);
@@ -140,18 +118,13 @@ export const semanticJobs = createSemanticJobs(siteLedger.db, {
     const command: PlannedNativeCommand = { commandId: `semantic:${job.id}`, ownerId: job.id, logicalDigest: sourceDigest({ jobId: job.id, content: job.content, selection }),
       connectionId: representation.connectionId, kind: 'bookmark', parent: selection.folder, title: job.title, deviceId: await captureDeviceId(),
       bookmark: { planId: job.id, effectId: 'semantic', representation, url: job.url, scope: job.scope, source: 'site-import' } };
-    const prepared = await managedSaves.prepareForSlot(command, { kind: 'bookmark', copy: { purpose: 'semantic', content: job.content } });
-    if (prepared.managed) {
-      if (!job.claim || job.claim.ownerId !== job.id) throw new Error('sourceSyncPending');
-      prepared.managed.command.semanticClaim = job.claim;
-    } else if (job.scope.accountId && job.scope.collectionId) throw new Error('semanticDestinationOutsideLibrary');
-    return prepared;
+    return prepareLocalSlot(command, { kind: 'bookmark', copy: { purpose: 'semantic', content: job.content } });
   },
   async execute(job, recover) {
     const command = job.command!;
-    if (recover) return command.managed ? managedSaves.recover(command) : recoverPlannedNative(command, sourceDigest(command));
+    if (recover) return command.managed ? managedSaves.recover(command) : recoverPlannedNative(command, sourceDigest(command)).then(result => result ? rememberLocalSourceSave(command, result) : null);
     await assertSemanticDestination(command.parent, job.selection?.destinationDigest);
-    return command.managed ? managedSaves.execute(command, () => authorize(job)) : executePlannedNative(command, sourceDigest(command), () => authorize(job));
+    return command.managed ? managedSaves.execute(command, () => authorize(job)) : executePlannedNative(command, sourceDigest(command), () => authorize(job)).then(result => rememberLocalSourceSave(command, result));
   },
   async finish(job, native, written, shared) {
     const current = await siteLedger.db.read<SemanticJob>('semanticJobs', job.id);

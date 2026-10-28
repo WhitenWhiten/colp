@@ -21,7 +21,7 @@ export async function assertSourceRoot(binding: NativeBinding<'folder'>) {
   return target;
 }
 export async function assertPlannedNative(binding: NativeBinding<'folder'>) {
-  if ((await assertSourceRoot(binding)).inRange) throw new Error('sourceCloudUnsupported');
+  await assertSourceRoot(binding);
 }
 async function bookmarkResult(task: CaptureTask, command: PlannedNativeCommand): Promise<PlannedNativeResult> {
   if (task.save !== 'local-saved' || !task.nativeId || !task.nativeDateAdded) return { status: 'unknown', reason: 'nativeOutcomeUnknown' };

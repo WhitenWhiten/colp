@@ -55,14 +55,15 @@ export async function nativeCaptureLocation(nativeId: string, scope: CaptureScop
     collectionTitle: null, path, writable: !node.unmodifiable, url: node.url };
 }
 
-export async function captureExistence(task: Pick<CaptureTask, 'url' | 'scope'>) {
+export async function captureExistence(task: Pick<CaptureTask, 'url' | 'scope'> & Partial<Pick<CaptureTask, 'planned'>>) {
+  const scope = task.planned ? await currentCaptureScope() : task.scope;
   return queryCaptureExistence(task.url, {
     now: Date.now,
     async local(url) {
       if (!await hasBookmarkPermission()) throw new Error('permission_required');
       const matches = await chrome.bookmarks.search({ url });
       const eligible=[];for(const node of matches)if(!await isSubscriptionExcluded(node.id)&&!await isUnsupportedBookmarkFolder(node.id))eligible.push(node);
-      return Promise.all(eligible.map(node => nativeCaptureLocation(node.id, task.scope)));
+      return Promise.all(eligible.map(node => nativeCaptureLocation(node.id, scope)));
     },
   });
 }
@@ -96,18 +97,18 @@ export async function createNativeCapture(task: CaptureTask, reserved: (intentId
       ...(task.scope.collectionId && task.sync !== 'local-only' ? { collectionId: task.scope.collectionId } : {}),
       placementStore, sidecar, bookmarks: {
         getChildren: id => chrome.bookmarks.getChildren(id),
-        async create(input) { if (task.aiDestinationPolicyDigest) { if (!input.parentId) throw new Error('destination_policy_unresolved'); await classificationDestinationPolicy.assertAllowed(input.parentId, task.aiDestinationPolicyDigest); } await assertCaptureContent(task); await assertPlannedCaptureAuthority(task); await assertCaptureScope(task.scope); await assertBookmarkFolderAllowed(input.parentId); const node = await chrome.bookmarks.create(input); if (task.planned) await plannedNativeFault('afterBookmarkCreate', task.commandId); return node; /* savePagesThroughNativeIngress holds the shared boundary. */ },
+        async create(input) { if (task.aiDestinationPolicyDigest) { if (!input.parentId) throw new Error('destination_policy_unresolved'); await classificationDestinationPolicy.assertAllowed(input.parentId, task.aiDestinationPolicyDigest); } await assertCaptureContent(task); await assertPlannedCaptureAuthority(task); if (!task.planned) await assertCaptureScope(task.scope); await assertBookmarkFolderAllowed(input.parentId); const node = await chrome.bookmarks.create(input); if (task.planned) await plannedNativeFault('afterBookmarkCreate', task.commandId); return node; /* savePagesThroughNativeIngress holds the shared boundary. */ },
       }, onPlacementReserved: intent => reserved(intent.intentId),
       onNativeCreated: async node => {
         // The native write already succeeded. Its device fact does not depend on
         // a still-current cloud account and never carries that account's commands.
         const savedAt = Date.now();
         await browserHistoryStore.remember({ ...task, savedAt }, node.id).catch(() => undefined);
-        await saved({ ...await receiptFor(node.id, task.scope, savedAt), ...(node.dateAdded === undefined ? {} : { nativeDateAdded: node.dateAdded }) });
+        await saved({ ...await receiptFor(node.id, task.planned ? await currentCaptureScope() : task.scope, savedAt), ...(node.dateAdded === undefined ? {} : { nativeDateAdded: node.dateAdded }) });
       },
     });
     if (!result[0]) throw new Error('capture_missing_receipt');
-    return await receiptFor(result[0].nativeId, task.scope);
+    return await receiptFor(result[0].nativeId, task.planned ? await currentCaptureScope() : task.scope);
   } finally { sidecar.close(); }
 }
 
@@ -129,5 +130,5 @@ export async function recoverNativeCapture(task: CaptureTask): Promise<CaptureRe
   if (task.planned && (!proof.nativeDateAdded || native?.dateAdded !== proof.nativeDateAdded || native.url !== task.url)) return null;
   const savedAt = task.savedAt ?? native?.dateAdded ?? proof.createdAt;
   await browserHistoryStore.remember({ ...task, savedAt }, proof.nativeId).catch(() => undefined);
-  return receiptFor(proof.nativeId, task.scope, savedAt).then(r => ({ ...r, ...(proof.nativeDateAdded === undefined ? {} : { nativeDateAdded: proof.nativeDateAdded }) })).catch(() => null);
+  return receiptFor(proof.nativeId, task.planned ? await currentCaptureScope() : task.scope, savedAt).then(r => ({ ...r, ...(proof.nativeDateAdded === undefined ? {} : { nativeDateAdded: proof.nativeDateAdded }) })).catch(() => null);
 }

@@ -16,6 +16,7 @@ import { installBookmarkOwnershipObserver } from '../bookmark-ownership.js';
 import { isReconcileNativeMutation } from './reconcile-executor.js';
 
 export const sourceLayout = createSourceLayout(siteLedger.db, {
+  localFirst: true,
   authorizeCommunity: assertCommunityArchive,
   rules: currentFlat, paused: sourceAutomationsPaused, deviceId: captureDeviceId,
   lookup: nativeFolderLookup, assertRoot: async binding => { await assertSourceRoot(binding); },
@@ -24,7 +25,7 @@ export const sourceLayout = createSourceLayout(siteLedger.db, {
     return target.inRange ? { serverOrigin: scope.serverOrigin, accountId: scope.accountId, collectionId: scope.collectionId } : null;
   },
   sourceCopies: async input => {
-    const { semanticContext, scopedSemanticBindings, importSharedSemantic } = await import('./semantic-associations.js');
+    const { semanticContext, scopedSemanticBindings } = await import('./semantic-associations.js');
     const { readSourceConnection } = await import('./content-identity.js');
     const { identityDefinition } = await import('./registry.js');
     const context = await semanticContext(input.root.nativeId), connection = await readSourceConnection(siteLedger.db, input.connectionId);
@@ -34,8 +35,6 @@ export const sourceLayout = createSourceLayout(siteLedger.db, {
     try { await scopedSemanticBindings(content, context.scope, context.scopeId); } catch (error) {
       if (input.policy.copies !== 'sourceAndSemantic' || !(error instanceof Error) || error.message !== 'semanticBindingNeedsReview') throw error;
     }
-    if (input.policy.copies !== 'sourceAndSemantic' && context.library)
-      await importSharedSemantic(content, context.scope, context.scopeId, [input.connectionId], `source:${input.connectionId}:${input.itemId}`);
     return contentBindings.sourceDecision({ ...input, scopeId: context.scopeId });
   },
   beforeExclusion: assertNoCloudDestinationWork,

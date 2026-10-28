@@ -1,3 +1,4 @@
+import { localSourceScopeId } from './local-identity.js';
 import { destinationScopeId } from './destination-scope.js';
 import { beginSourcePlan } from './plan-intents.js';
 import { contentBindingKey } from './content-identity.js';
@@ -23,6 +24,7 @@ export interface SourcePolicyRecord { connectionId: string; enabled: boolean; li
 export interface SourceMount extends MountBinding { state: 'active' | 'detached' | 'suppressed'; destination?: DestinationOwner | null }
 export interface LayoutNativeNode { id: string; title: string; parentId?: string; url?: string; dateAdded?: number }
 export interface LayoutPorts {
+  localFirst?: boolean;
   authorizeCommunity?(origin: import('./community-state.js').CommunityOrigin, input: { connectionId: string; collectionIds: readonly string[]; rootNativeId: string }): Promise<void>;
   rules(): Promise<FlatList>;
   paused(): Promise<boolean>;
@@ -59,7 +61,7 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
     if (mount.state !== 'active' || mount.root.nativeId !== actionRoot) throw new Error('mountMigrationRequired');
     if (mount.root.deviceId !== await ports.deviceId()) throw new Error('bindingNeedsRebind');
     await ports.assertRoot(mount.root);
-    if (ports.destination) {
+    if (ports.destination && !ports.localFirst) {
       const destination = await ports.destination(mount.root);
       if (mount.destination === undefined && destination) throw new Error('sourceDestinationNeedsReview');
       if (mount.destination !== undefined && !sameDestinationOwner(mount.destination, destination)) throw new Error('sourceDestinationChanged');
@@ -171,8 +173,12 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
       const m = await mount(c.connectionId, decision.item.id, decision.folder.nativeId);
       if (c.communityOrigin) { if (!ports.authorizeCommunity) throw new Error('communityArchiveRevoked');
         await ports.authorizeCommunity(c.communityOrigin, { connectionId: c.connectionId, collectionIds: [input.collectionId], rootNativeId: m.root.nativeId }); }
-      const representation = { connectionId: c.connectionId, itemId: input.itemId, purpose: 'sourceArchive' as const, sourceCollectionId: input.collectionId, mountId: m.id, scopeId: destinationScopeId(m.destination, m.root.deviceId) };
-      const existing = await db.read<Representation>('representations', representationKey(representation));
+      const representation = { connectionId: c.connectionId, itemId: input.itemId, purpose: 'sourceArchive' as const, sourceCollectionId: input.collectionId, mountId: m.id, scopeId: ports.localFirst ? localSourceScopeId(m.root.deviceId) : destinationScopeId(m.destination, m.root.deviceId) };
+      let existing = await db.read<Representation>('representations', representationKey(representation));
+      if (!existing && ports.localFirst) {
+        const legacy = await db.transaction(['representations'], 'readonly', tx => rows<Representation>(tx, 'representations', c.connectionId, input.itemId));
+        existing = legacy.find(r => r.mountId === m.id && r.sourceCollectionId === input.collectionId && r.purpose === 'sourceArchive' && r.native.deviceId === m.root.deviceId);
+      }
       if (existing) {
         const node = await ports.lookup(existing.native.nativeId);
         if (settings.policy.copies === 'sourceAndSemantic' && existing.state === 'active') {
@@ -219,7 +225,7 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
       // Reuse the immutable creation payload after a source rename; names never create identity.
       const folder = await reservations.reserveFolder(oldFolder ? {
         mountId: oldFolder.mountId, collectionId: oldFolder.collectionId, mountRevision: oldFolder.mountRevision, parent: oldFolder.parent, title: oldFolder.title,
-      } : { mountId: m.id, collectionId: input.collectionId, mountRevision: m.revision, parent: { kind: 'native', binding: m.root }, title: facts.collection.title }, { planId: id, effectId: 'folder' }, { connectionId: c.connectionId, scopeId: destinationScopeId(m.destination, m.root.deviceId) });
+      } : { mountId: m.id, collectionId: input.collectionId, mountRevision: m.revision, parent: { kind: 'native', binding: m.root }, title: facts.collection.title }, { planId: id, effectId: 'folder' }, { connectionId: c.connectionId, scopeId: ports.localFirst ? localSourceScopeId(m.root.deviceId) : destinationScopeId(m.destination, m.root.deviceId) });
       const ensure: SaveEffect = { kind: 'ensureSourceFolder', effectId: 'folder', commandId: identity({ id, effect: 'folder' }), payloadDigest: '',
         dependsOn: [], reservationId: folder.id, folderReservationDigest: folder.payloadDigest };
       const bookmark: SaveEffect = { kind: 'createBookmark', effectId: 'bookmark', commandId: bookmarkCommandId, payloadDigest: '',

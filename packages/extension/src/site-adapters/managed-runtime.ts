@@ -62,7 +62,18 @@ export const managedSaves = createManagedSaves(siteLedger.db, {
     return { library: { serverOrigin: scope.serverOrigin, accountId: scope.accountId, collectionId: scope.collectionId }, replicaId: scope.replicaId,
       parentId: mapping.colpId, parentRevision: mapping.projection.resourceRevision ?? mapping.projection.revision };
   },
-  async slot(plan, effect) {
+  slot: sourceSlotForPlan,
+  client: managedClientForLibrary,
+  async projection(destination, receipt) {
+    return projectManagedNode(destination.library, receipt.node, destination.command.slot.kind, destination.command.commandId);
+  },
+  wake() {
+    scheduleSourceAlarm(Date.now() + 30000, SITE_RECOVERY_ALARM);
+    void scheduleSyncEngineWake('manual').catch(() => undefined);
+  },
+});
+
+export async function sourceSlotForPlan(plan: import('./contracts.js').SavePlan, effect: import('./contracts.js').SaveEffect): Promise<import('./managed-client.js').ManagedSlot> {
     const connection = await readSourceConnection(siteLedger.db, plan.connectionId);
     const source = { site: connection.siteKey, identityVersion: connection.identityVersion, sourceAccount: connection.accountId };
     if (effect.kind === 'ensureSourceFolder') {
@@ -74,13 +85,4 @@ export const managedSaves = createManagedSaves(siteLedger.db, {
     const definition = identityDefinition(source.site, source.identityVersion);
     return { kind: 'bookmark', copy: { purpose: 'sourceArchive', content: { site: source.site, identityVersion: source.identityVersion, itemId: effect.item.id,
       accountId: definition.contentIdScope === 'site' ? null : connection.accountId }, sourceAccount: connection.accountId, sourceCollectionId: effect.representation.sourceCollectionId } };
-  },
-  client: managedClientForLibrary,
-  async projection(destination, receipt) {
-    return projectManagedNode(destination.library, receipt.node, destination.command.slot.kind, destination.command.commandId);
-  },
-  wake() {
-    scheduleSourceAlarm(Date.now() + 30000, SITE_RECOVERY_ALARM);
-    void scheduleSyncEngineWake('manual').catch(() => undefined);
-  },
-});
+}

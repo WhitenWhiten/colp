@@ -1,3 +1,4 @@
+import { queueLocalSemanticAssociation } from './local-semantic-transfer.js';
 import { scheduleSourceAlarm } from './wake-scheduler.js';
 import { contentBindingKey, listContentBindings } from './content-identity.js';
 import { legacySite, identityDefinition, type SiteDefinition } from './registry.js';
@@ -104,14 +105,12 @@ export function installContentBindings() {
       }
       const context = await semanticContext(input.parentId);
       await scopedSemanticBindings(identity, context.scope, context.scopeId);
-      if (context.library) await importSharedSemantic(identity, context.scope, context.scopeId, authority?.connectionId ? [authority.connectionId] : [], input.captureIntentId);
       const prepared = await prepareSemanticCapture(input, identity, context.scope);
       const itemId = identity.itemId;
       let b;
       try { b = await contentBindings.prepare({ ...input, itemId, content: identity, scopeId: context.scopeId, ...prepared }); }
       catch (e) { await releaseSemanticCaptureClaim(prepared.managed).catch(() => undefined); throw e; }
       if (b.mode !== 'create') await releaseSemanticCaptureClaim(prepared.managed);
-      if (b.native && context.library && b.mode !== 'reclassify') await adoptSemanticAssociation(b, context.scope);
       return { bindingId: b.id, itemId, connectionId: b.connectionId, mode: b.mode, captureIntentId: b.captureIntentId, forceAnother: b.forceAnother,
         ...(b.managed ? { managed: b.managed, managedParent: b.managedParent } : {}),
         ...(b.native ? { nativeId: b.native.nativeId, dateAdded: b.native.dateAdded! } : {}), title: b.title, url: b.url, parentId: b.parentId };
@@ -141,17 +140,9 @@ export function installContentBindings() {
       const node = (await chrome.bookmarks.get(task.nativeId))[0]; if (!node?.parentId) throw new Error('content_binding_needs_review');
       await contentBindings.acknowledge(b, b.native ?? { nativeId: node.id, dateAdded: task.nativeDateAdded, deviceId: await captureDeviceId(), kind: 'bookmark',
         bindingId: crypto.randomUUID(), proof: { kind: 'writeReceipt', id: task.nativeIntentId ?? task.commandId } }, { title: node.title, parentId: node.parentId }, task.contentIntent.mode);
-      if (!b.managed && b.scopeId && !b.scopeId.startsWith('["local",')) {
+      if (!b.managed) {
         const saved = await contentBindings.forIntent(task.captureId);
-        if (saved && !(saved.shared?.slot.kind === 'bookmark' && saved.shared.slot.copy.purpose === 'semantic')) {
-          const key = `semanticAdoptPending:${saved.scopeId}:${saved.id}`, pending = { bindingKey: contentBindingKey(saved.content, saved.id), scope: task.scope };
-          await siteLedger.db.transaction(['meta'], 'readwrite', async tx => put(tx, 'meta', key, pending));
-          scheduleSourceAlarm(Date.now() + 1000, SITE_RECOVERY_ALARM);
-          try {
-            await adoptSemanticAssociation(saved, task.scope);
-            await siteLedger.db.transaction(['meta'], 'readwrite', async tx => { tx.objectStore('meta').delete(key); });
-          } catch { /* The bookmark is saved; the durable association request recovers independently. */ }
-        }
+        if (saved?.native) await queueLocalSemanticAssociation(saved, task.scope);
       }
     },
     async move(task, target, move) {
