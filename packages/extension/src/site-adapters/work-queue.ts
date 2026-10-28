@@ -22,7 +22,7 @@ export function createSourceWorkQueue(db: SourceDatabase, ports: {
       let complete = true, reason: string | undefined;
       try {
         const row = await db.read<StoredSavePlan>('savePlans', work.id);
-        if (row?.state === 'approved' && !await db.read('meta', `evidence-plan:${work.id}`)) {
+        if (row && row.state !== 'draft' && !await db.read('meta', `evidence-plan:${work.id}`)) {
           const ordered = new Map<string, typeof row.plan.effects[number]>(), visiting = new Set<string>();
           const visit = (id: string) => {
             if (ordered.has(id)) return;

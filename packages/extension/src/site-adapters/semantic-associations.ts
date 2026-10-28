@@ -33,9 +33,13 @@ export async function scopedSemanticBindings(identity: ContentIdentity, scope: C
   const candidates = await siteLedger.db.transaction(['contentBindings'], 'readonly', async tx =>
     (await rows<ContentBindingRow>(tx, 'contentBindings', identity.siteKey, identity.identityVersion, identity.itemId))
       .filter(b => !b.supersededBy && sameContentIdentity(b.content, identity)));
-  for (const b of candidates.filter(b => !b.scopeId)) {
+  const deviceId = await captureDeviceId();
+  for (const b of candidates.filter(b => !b.scopeId || b.scopeId !== scopeId && scopeId === JSON.stringify(['local', deviceId]) && b.native?.deviceId === deviceId)) {
     const task = await captureStore.getForOwner(scope, b.captureIntentId);
     let proven = task ? semanticScopeId(task.scope, await captureDeviceId()) : null;
+    if (b.native?.deviceId === deviceId && scopeId === JSON.stringify(['local', deviceId])) {
+      await assertContentNative(b.native, { title: b.title, parentId: b.parentId, url: b.url }); proven = scopeId;
+    }
     if (b.native && scope.accountId && scope.collectionId) {
       await assertContentNative(b.native, { title: b.title, parentId: b.parentId, url: b.url });
       const sync = await currentSyncScope().catch(() => null), mapping = sync && await syncState.getMappingByNativeId(sync, b.native.nativeId);
@@ -47,8 +51,7 @@ export async function scopedSemanticBindings(identity: ContentIdentity, scope: C
       if (!current || sourceDigest(current) !== sourceDigest(b)) throw new Error('content_binding_changed');
       put(tx, 'contentBindings', key, { ...current, scopeId: proven });
       if (current.connectionId && current.native) for (const r of await rows<Representation>(tx, 'representations', current.connectionId, current.content.itemId)) {
-        if (r.purpose !== 'semantic' || r.scopeId || r.native.nativeId !== current.native.nativeId || r.native.dateAdded !== current.native.dateAdded) continue;
-        tx.objectStore('representations').delete(representationKey(r));
+        if (r.purpose !== 'semantic' || r.scopeId === proven || r.native.nativeId !== current.native.nativeId || r.native.dateAdded !== current.native.dateAdded) continue;
         const scoped = { ...r, scopeId: proven! }; put(tx, 'representations', representationKey(scoped), scoped);
       }
     }); b.scopeId = proven;

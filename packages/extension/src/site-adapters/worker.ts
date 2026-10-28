@@ -1,3 +1,5 @@
+import { migrateLocalFirstBatch } from './local-first-migration.js';
+import { captureDeviceId } from '../sw/capture-history.js';
 import { flushLocalTransfers } from './local-transfer-runtime.js';
 import { scheduleSourceAlarm } from './wake-scheduler.js';
 import { selectReadLease } from './read-source.js';
@@ -220,12 +222,14 @@ function createSiteHost(definition: SiteDefinition) {
       return cache.items;
     },
   }, siteLedger, definition);
-  let working: Promise<void> | undefined, importing: Promise<unknown> | undefined, reconciling: Promise<unknown> | undefined, workWanted = false;
+  let working: Promise<void> | undefined, importing: Promise<unknown> | undefined, reconciling: Promise<unknown> | undefined, migrating: Promise<unknown> | undefined, workWanted = false;
   function wakeSourceWork(): Promise<void> {
     if (working) { workWanted = true; return working; }
     return working = (async () => {
       void flushManagedChanges().catch(() => undefined);
       void flushLocalTransfers().catch(() => undefined);
+      migrating ??= captureDeviceId().then(deviceId => migrateLocalFirstBatch(siteLedger.db, { deviceId, lookup: async id => (await chrome.bookmarks.get(id).catch(() => []))[0] ?? null }))
+        .then(more => { if (more) scheduleSourceWork(Date.now() + 100); }).catch(() => undefined).finally(() => { migrating = undefined; });
       if ((await read()).enabled) { await confirmations.wake(); await archives.live.wake(); }
       await wakePlannedSaves();
       importing ??= archives.importer.wake().catch(() => undefined).finally(() => { importing = undefined; });

@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { expect, test } from 'vitest';
-import { createSourceDatabase, sourceKey, SOURCE_STORES } from '../src/site-adapters/source-db.js';
+import { createSourceDatabase, sourceKey, SOURCE_STORES, SOURCE_DATABASE_VERSION } from '../src/site-adapters/source-db.js';
 import { cursorPage } from '../src/sync-state/idb.js';
 import { exportSourceDiagnostic, diagnosticSummary } from '../src/site-adapters/repair.js';
 import { adapterBrowserSupport } from '../src/site-adapters/browser-support.js';
@@ -12,12 +12,12 @@ import { parseLocalBackup } from '../src/local-backup/codec.js';
 
 test('unknown future source schema exports read only, including unknown commands; no reset or partial encoding', async () => {
   const factory = new IDBFactory();
-  const db = await new Promise<IDBDatabase>(resolve => { const r = factory.open('future', 8);
+  const db = await new Promise<IDBDatabase>(resolve => { const r = factory.open('future', SOURCE_DATABASE_VERSION + 1);
     r.onupgradeneeded = () => { r.result.createObjectStore('futureStore').put({ commandId: 'keep', state: 'unknown' }, 'original'); };
     r.onsuccess = () => resolve(r.result); }); db.close();
   const normal = createSourceDatabase(factory, 'future'); await expect(normal.open()).rejects.toThrow('schemaIncompatible');
   const exported = await exportSourceDiagnostic(factory, 'future');
-  expect(exported.schemaVersion).toBe(8); expect(exported.stores[0]?.records).toEqual([{ key: 'original', value: { commandId: 'keep', state: 'unknown' } }]);
+  expect(exported.schemaVersion).toBe(SOURCE_DATABASE_VERSION + 1); expect(exported.stores[0]?.records).toEqual([{ key: 'original', value: { commandId: 'keep', state: 'unknown' } }]);
   expect(diagnosticSummary(exported)).toMatchObject({ supportedSchema: false, attention: [{ key: 'original', state: 'unknown' }] });
   expect(await exportSourceDiagnostic(factory, 'future')).toEqual(exported);
   const opened = await new Promise<IDBDatabase>(resolve => { const r = factory.open('future'); r.onsuccess = () => resolve(r.result); });
