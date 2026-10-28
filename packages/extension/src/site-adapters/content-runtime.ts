@@ -105,6 +105,7 @@ export function installContentBindings() {
       }
       const context = await semanticContext(input.parentId);
       await scopedSemanticBindings(identity, context.scope, context.scopeId);
+      if (context.library) await importSharedSemantic(identity, context.scope, context.scopeId, [], input.captureIntentId);
       const prepared = await prepareSemanticCapture(input, identity, context.scope);
       const itemId = identity.itemId;
       let b;

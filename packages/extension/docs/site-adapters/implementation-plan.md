@@ -10,6 +10,12 @@ Semantic and source roles use the persisted destination library, with a separate
 
 Validation: focused binding/layout/migration/semantic unit tests, extension typecheck and focused lint; xvfb local-first and semantic browser regressions. Individual acceptance outcomes are recorded with the corresponding commit.
 
+### H-02 — shared projections and native semantic receipts
+
+A bounded background catalog stores shared associations separately for each destination library. New local plans can reuse an exact already-projected canonical folder/bookmark using this cache without a server request. Reuse has its own durable receipt, current native proof and authorization checks; missing cache data does not hold a local save. Semantic popup/automatic tasks adopt cached semantic projections, avoiding another provider call on a second device. Native bookmark receipts now include the actual saved location, fixing `semanticReceiptInvalid` after an otherwise successful local semantic create.
+
+Validation: shared-catalog outage/paging/isolation tests and durable native-reuse tests; real PostgreSQL/COLP plus two Chromium profiles under xvfb (`mv3-site-adapter-shared-sync.spec.ts`, 1 passed, approximately 2.9 minutes) covers source/semantic reuse, failed provider retry, ordinary Sync, manual suppression and reconciliation/undo. Website/model replies are fixtures. Offline simultaneous creation is covered by the next work item.
+
 ## LF remediation and acceptance (October 28, 2026)
 
 The local-first contract in runtime-foundation.md supersedes historical online-first acceptance. Each LF task is implemented and committed separately. Native success, transport success and shared-association success are independent facts; source confirmation still observes the website's read/authorization limits.

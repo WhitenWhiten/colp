@@ -1,4 +1,5 @@
-import { prepareLocalSourceSave, rememberLocalSourceSave } from './local-save-runtime.js';
+import { prepareLocalSourceSave } from './local-save-runtime.js';
+import { executeLocalSave, recoverLocalSave } from './local-reuse-runtime.js';
 import { createSourceWorkQueue } from './work-queue.js';
 import { scheduleSourceAlarm } from './wake-scheduler.js';
 import { createPlannedSaveExecutor } from './planned-executor.js';
@@ -25,9 +26,9 @@ export const plannedSaveExecutor = createPlannedSaveExecutor(siteLedger.db, {
   beforeSubmit: c => plannedNativeFault('beforeNativeSubmit', c.commandId),
   beforeSourceCommit: c => plannedNativeFault('afterNativeReceipt', c.commandId),
   assertNative: async binding => { await assertSourceRoot(binding); }, prepare: prepareLocalSourceSave,
-  execute: (command, digest, authorize) => command.managed ? managedSaves.execute(command, authorize) : executePlannedNative(command, digest, authorize).then(result => rememberLocalSourceSave(command, result)),
-  recover: (command, digest) => command.managed ? managedSaves.recover(command) : recoverPlannedNative(command, digest).then(result => result ? rememberLocalSourceSave(command, result) : null),
-  acknowledge: (command, digest) => command.managed ? Promise.resolve() : acknowledgePlannedNative(command, digest),
+  execute: (command, digest, authorize) => command.managed ? managedSaves.execute(command, authorize) : executeLocalSave(command, digest, authorize),
+  recover: (command, digest) => command.managed ? managedSaves.recover(command) : recoverLocalSave(command, digest),
+  acknowledge: (command, digest) => command.managed || command.local?.reuse ? Promise.resolve() : acknowledgePlannedNative(command, digest),
 });
 export function installPlannedSaveRuntime() {
   installPlannedCaptureGuard(async task => {

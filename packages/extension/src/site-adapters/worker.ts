@@ -2,6 +2,7 @@ import { retrySourceObservations } from './local-source-problems.js';
 import { retryLocalTransfers } from './local-transfer-queue.js';
 import { localSourceProgress } from './local-progress.js';
 import { migrateLocalFirstBatch } from './local-first-migration.js';
+import { refreshSharedCatalog } from './shared-catalog-runtime.js';
 import { captureDeviceId } from '../sw/capture-history.js';
 import { flushLocalTransfers } from './local-transfer-runtime.js';
 import { scheduleSourceAlarm } from './wake-scheduler.js';
@@ -231,6 +232,7 @@ function createSiteHost(definition: SiteDefinition) {
     return working = (async () => {
       void flushManagedChanges().catch(() => undefined);
       void flushLocalTransfers().catch(() => undefined);
+      void refreshSharedCatalog().catch(() => undefined);
       migrating ??= captureDeviceId().then(deviceId => migrateLocalFirstBatch(siteLedger.db, { deviceId, lookup: async id => (await chrome.bookmarks.get(id).catch(() => []))[0] ?? null }))
         .then(more => { if (more) scheduleSourceWork(Date.now() + 100); }).catch(() => undefined).finally(() => { migrating = undefined; });
       if ((await read()).enabled) { await confirmations.wake(); await archives.live.wake(); }

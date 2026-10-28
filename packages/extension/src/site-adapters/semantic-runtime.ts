@@ -1,7 +1,7 @@
 import { prepareLocalSlot, rememberLocalSourceSave } from './local-save-runtime.js';
 import { scheduleSourceAlarm } from './wake-scheduler.js';
 import { createSemanticJobs, type SemanticJob } from './semantic-jobs.js';
-import { semanticContext, scopedSemanticBindings, attachSemanticAssociation, sharedSemanticBinding, adoptSemanticAssociation } from './semantic-associations.js';
+import { semanticContext, scopedSemanticBindings, attachSemanticAssociation, importSharedSemantic } from './semantic-associations.js';
 import { captureContent } from './semantic-scope.js';
 import { managedSaves, managedClientForLibrary, projectManagedBinding } from './managed-runtime.js';
 import { installSemanticSaveAuthorization } from './semantic-authorization.js';
@@ -31,6 +31,7 @@ import { classificationDestinationPolicy } from '../sw/classification-destinatio
 import { assertSourceRebound, assertRestoredItemAvailable } from './portable.js';
 import { cursorPage } from '../sync-state/idb.js';
 import { managedDestinations } from './managed-destinations.js';
+import { executeLocalSave, recoverLocalSave } from './local-reuse-runtime.js';
 const schedule = () => { scheduleSourceAlarm(Date.now() + 30000, SITE_RECOVERY_ALARM); };
 async function mounts() { return managedDestinations(siteLedger.db); }
 export async function assertSemanticDestination(binding: NativeBinding<'folder'>, digest?: string) {
@@ -66,7 +67,10 @@ async function beforeClassify() {
 export const semanticJobs = createSemanticJobs(siteLedger.db, {
   authorize,
   async existing(job) {
-    const identity = captureContent(job.content), bindings = await scopedSemanticBindings(identity, job.scope, job.scopeId);
+    const identity = captureContent(job.content);
+    let bindings = await scopedSemanticBindings(identity, job.scope, job.scopeId);
+    if (!bindings.length && await importSharedSemantic(identity, job.scope, job.scopeId, job.connections, job.id))
+      bindings = await scopedSemanticBindings(identity, job.scope, job.scopeId);
     if (bindings.length > 1) throw new Error('semanticBindingNeedsReview');
     const b = bindings[0];
     if (b?.state === 'suppressed') return { status: 'suppressed' };
@@ -124,9 +128,9 @@ export const semanticJobs = createSemanticJobs(siteLedger.db, {
   },
   async execute(job, recover) {
     const command = job.command!;
-    if (recover) return command.managed ? managedSaves.recover(command) : recoverPlannedNative(command, sourceDigest(command)).then(result => result ? rememberLocalSourceSave(command, result) : null);
+    if (recover) return command.managed ? managedSaves.recover(command) : recoverLocalSave(command, sourceDigest(command));
     await assertSemanticDestination(command.parent, job.selection?.destinationDigest);
-    return command.managed ? managedSaves.execute(command, () => authorize(job)) : executePlannedNative(command, sourceDigest(command), () => authorize(job)).then(result => rememberLocalSourceSave(command, result));
+    return command.managed ? managedSaves.execute(command, () => authorize(job)) : executeLocalSave(command, sourceDigest(command), () => authorize(job));
   },
   async finish(job, native, written, shared) {
     const current = await siteLedger.db.read<SemanticJob>('semanticJobs', job.id);

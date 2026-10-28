@@ -24,12 +24,12 @@ export async function managedClientForLibrary(library: ManagedLibrary) {
     headers: async () => colpCredentialHeaders(credential.accessToken),
     assertCurrent: async () => { await store.assertWritable(authority.generation); await assertOwner(library); } });
 }
-export async function projectManagedBinding(library: ManagedLibrary, binding: ManagedBinding, commandId: string) {
+export async function projectManagedBinding(library: ManagedLibrary, binding: ManagedBinding, commandId: string, localOnly = false) {
   if (binding.state !== 'active') throw new Error(binding.state === 'suppressed' ? 'sourceCopySuppressed' : 'sourceCopyDetached');
-  return projectManagedNode(library, binding.node, binding.slot.kind, commandId);
+  return projectManagedNode(library, binding.node, binding.slot.kind, commandId, localOnly);
 }
-async function projectManagedNode(library: ManagedLibrary, written: ManagedNode, kind: 'bookmark' | 'folder', commandId: string) {
-  const scope = await assertOwner(library), mapping = await syncState.getMappingByColpId(scope, written.nodeId);
+async function projectManagedNode(library: ManagedLibrary, written: ManagedNode, kind: 'bookmark' | 'folder', commandId: string, localOnly = false) {
+  const scope = await assertOwner(library, localOnly), mapping = await syncState.getMappingByColpId(scope, written.nodeId);
   if (!mapping) return null;
   if (mapping.quarantine || mapping.nodeKind && mapping.nodeKind !== kind) throw new Error('sourceCopyDetached');
   const node = (await chrome.bookmarks.get(mapping.nativeId).catch(() => []))[0];
@@ -40,8 +40,8 @@ async function projectManagedNode(library: ManagedLibrary, written: ManagedNode,
   return { native: { bindingId: commandId, deviceId: await captureDeviceId(), nativeId: node.id, kind, dateAdded: node.dateAdded,
     proof: { kind: 'writeReceipt' as const, id: `managed:${written.nodeId}` } }, parentId: node.parentId! };
 }
-async function assertOwner(library: ManagedLibrary) {
-  const scope = await currentSyncScope();
+async function assertOwner(library: ManagedLibrary, allowStopped = false) {
+  const scope = await currentSyncScope({ allowStopped });
   if (managedLibraryKey(scope) !== managedLibraryKey(library)) throw new Error('sourceSyncOwnerChanged');
   return scope;
 }

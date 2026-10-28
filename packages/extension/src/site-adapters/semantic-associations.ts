@@ -18,6 +18,7 @@ import { managedReference } from './managed-changes.js';
 import type { ManagedLibrary } from './copy-identity.js';
 import { assertSourceRoot } from '../sw/planned-capture.js';
 import { provenBindingScope } from './binding-scope.js';
+import { cachedSharedCopy } from './shared-catalog-runtime.js';
 export async function semanticContext(folderId?: string) {
   const scope = await currentCaptureScope(), deviceId = await captureDeviceId();
   let inRange = true;
@@ -117,12 +118,11 @@ export async function attachSemanticAssociation(input: { identity: ContentIdenti
 export async function importSharedSemantic(identity: ContentIdentity, scope: CaptureScope, scopeId: string, connectionIds: readonly string[], id: string) {
   if (!scope.accountId || !scope.collectionId) return null;
   const library = { serverOrigin: scope.serverOrigin, accountId: scope.accountId, collectionId: scope.collectionId };
-  const binding = await sharedSemanticBinding(identity, library); if (!binding) return null;
-  const projected = await projectManagedBinding(library, binding, id); if (!projected) throw new Error('sourceSyncPending');
-  if (projected.native.kind !== 'bookmark' || binding.node.url === null) throw new Error('sourceSyncInvalid');
+  const projected = await cachedSharedCopy(library, { kind: 'bookmark', copy: { purpose: 'semantic', content: managedContent(identity) } }, id);
+  if (!projected) return null;
+  if (projected.native.kind !== 'bookmark' || !projected.written.url) throw new Error('sourceSyncInvalid');
   await assertCaptureScope(scope);
   await attachSemanticAssociation({ identity, scopeId, id, connections: connectionIds, native: projected.native as NativeBinding<'bookmark'>,
-    shared: { library, slot: binding.slot, nodeId: binding.node.nodeId, controlRevision: binding.controlRevision ?? 0 },
-    written: { title: binding.node.title, parentId: projected.parentId, url: binding.node.url } });
-  return binding;
+    shared: projected.shared, written: { ...projected.written, url: projected.written.url } });
+  return projected;
 }

@@ -10,9 +10,13 @@ import type { ManagedSlot } from './managed-client.js';
 import { currentCaptureScope } from '../sw/capture-native.js';
 import { assertSourceRoot } from '../sw/planned-capture.js';
 import { scheduleSourceAlarm } from './wake-scheduler.js';
-export async function prepareLocalSlot(command: PlannedNativeCommand, slot: ManagedSlot, root = command.parent) {
+import { cachedSharedCopy } from './shared-catalog-runtime.js';
+export async function prepareLocalSlot(command: PlannedNativeCommand, slot: ManagedSlot, root = command.parent, pinnedOwner?: import('./copy-identity.js').ManagedLibrary | null) {
   const scope = await currentCaptureScope(), target = await assertSourceRoot(root);
-  return { ...command, local: { slot, root, owner: target.inRange ? transferOwner(scope) : null } };
+  const owner = pinnedOwner === undefined ? target.inRange ? transferOwner(scope) : null : pinnedOwner;
+  const reuse = await cachedSharedCopy(owner, slot, command.commandId);
+  if (reuse && reuse.written.parentId !== command.parent.nativeId && (slot.kind === 'folder' || slot.copy.purpose === 'sourceArchive')) throw Error('sourceMappingMigrationRequired');
+  return { ...command, local: { slot, root, owner, ...(reuse ? { reuse } : {}) } };
 }
 export async function prepareLocalSourceSave(command: PlannedNativeCommand, plan: SavePlan, effect: SaveEffect) {
   const mounts = await siteLedger.db.transaction(['mounts'], 'readonly', async tx => {
@@ -21,7 +25,7 @@ export async function prepareLocalSourceSave(command: PlannedNativeCommand, plan
     return new Promise<SourceMount | undefined>((resolve, reject) => { request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
   });
   const slot = await sourceSlotForPlan(plan, effect), root = mounts?.root ?? command.parent;
-  const prepared = await prepareLocalSlot(command, slot, root);
+  const prepared = await prepareLocalSlot(command, slot, root, mounts?.destination === undefined ? undefined : transferOwner(mounts.destination));
   const policy = await siteLedger.db.read<import('./layout.js').SourcePolicyRecord>('meta', `policy:${plan.connectionId}`);
   // A disconnected mapping retains its original target; a later login cannot retag this work.
   return { ...prepared, local: { ...prepared.local, owner: transferOwner(mounts?.destination) ?? prepared.local.owner, ...(policy ? { copyPolicy: policy.policy.copies } : {}) } };

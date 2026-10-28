@@ -28,7 +28,8 @@ async function bookmarkResult(task: CaptureTask, command: PlannedNativeCommand):
   const node = (await chrome.bookmarks.get(task.nativeId).catch(() => []))[0];
   if (!node || node.dateAdded !== task.nativeDateAdded || node.url !== command.bookmark?.url) return { status: 'blocked', reason: 'nativeIdentityChanged' };
   return { status: 'confirmed', native: { bindingId: command.commandId, nativeId: task.nativeId, deviceId: command.deviceId,
-    kind: 'bookmark', dateAdded: task.nativeDateAdded, proof: { kind: 'writeReceipt', id: task.nativeIntentId ?? task.commandId } } };
+    kind: 'bookmark', dateAdded: task.nativeDateAdded, proof: { kind: 'writeReceipt', id: task.nativeIntentId ?? task.commandId } },
+    written: { title: node.title, parentId: node.parentId!, url: node.url! } };
 }
 export async function recoverPlannedNative(command: PlannedNativeCommand, digest: string): Promise<PlannedNativeResult | null> {
   const record = await captureStore.plannedCommand(command.commandId);

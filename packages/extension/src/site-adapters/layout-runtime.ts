@@ -26,7 +26,7 @@ export const sourceLayout = createSourceLayout(siteLedger.db, {
     return target.inRange ? { serverOrigin: scope.serverOrigin, accountId: scope.accountId, collectionId: scope.collectionId } : null;
   },
   sourceCopies: async input => {
-    const { semanticContext, scopedSemanticBindings } = await import('./semantic-associations.js');
+    const { semanticContext, scopedSemanticBindings, importSharedSemantic } = await import('./semantic-associations.js');
     const { readSourceConnection } = await import('./content-identity.js');
     const { identityDefinition } = await import('./registry.js');
     const context = await semanticContext(input.root.nativeId), connection = await readSourceConnection(siteLedger.db, input.connectionId);
@@ -36,6 +36,8 @@ export const sourceLayout = createSourceLayout(siteLedger.db, {
     try { await scopedSemanticBindings(content, context.scope, input.scopeId); } catch (error) {
       if (input.policy.copies !== 'sourceAndSemantic' || !(error instanceof Error) || error.message !== 'semanticBindingNeedsReview') throw error;
     }
+    if (context.library && context.scopeId === input.scopeId && input.policy.copies !== 'sourceAndSemantic')
+      await importSharedSemantic(content, context.scope, input.scopeId, [input.connectionId], `cached:${input.connectionId}:${input.itemId}`);
     return contentBindings.sourceDecision(input);
   },
   beforeExclusion: assertNoCloudDestinationWork,

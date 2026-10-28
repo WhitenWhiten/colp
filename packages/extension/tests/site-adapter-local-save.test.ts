@@ -9,6 +9,7 @@ const fixture = vi.hoisted(() => ({ db: undefined as unknown as ReturnType<typeo
   slot: { kind: 'folder' as const, source: { site: 'fixture', identityVersion: 1, sourceAccount: 'reader', sourceCollectionId: 'saved' } } }));
 vi.mock('../src/site-adapters/source-runtime.js', () => ({ siteLedger: { get db() { return fixture.db; } } }));
 vi.mock('../src/site-adapters/managed-runtime.js', () => ({ sourceSlotForPlan: async () => fixture.slot }));
+vi.mock('../src/site-adapters/shared-catalog-runtime.js', () => ({ cachedSharedCopy: async () => null }));
 vi.mock('../src/sw/capture-native.js', () => ({ currentCaptureScope: async () => fixture.scope }));
 vi.mock('../src/sw/planned-capture.js', () => ({ assertSourceRoot: async () => ({ inRange: true }) }));
 vi.mock('../src/site-adapters/wake-scheduler.js', () => ({ scheduleSourceAlarm: vi.fn() }));
