@@ -465,7 +465,10 @@ function createSiteHost(definition: SiteDefinition) {
           if (raw.operation === 'emit') {
             scheduleSourceAlarm(Date.now() + 30000, recoveryAlarm);
             const receipt = await siteLedger.acceptObservation(await sourceContext(lease, siteLedger), raw.requestId, raw.data);
-            port.postMessage({ operation: 'reply', requestId: raw.requestId, reply: receipt }); return;
+            port.postMessage({ operation: 'reply', requestId: raw.requestId, reply: receipt });
+            // The alarm above only recovers a worker that stops; an accepted live save is planned now, like a hint.
+            if (receipt.status !== 'rejected') scheduleSourceWork(Date.now() + 50);
+            return;
           }
           // Optional capture/recipe operations require a separately implemented host capability.
           port.postMessage({ operation: 'reply', requestId: raw.requestId, reply: { status: 'rejected', reason: 'paused' } });
