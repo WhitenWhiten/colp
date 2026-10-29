@@ -30,7 +30,7 @@ COPY packages/web/package.json packages/web/package-lock.json packages/web/.npmr
 COPY packages/web/vendor ./vendor
 RUN npm ci --ignore-scripts \
     && npm rebuild esbuild --ignore-scripts=false
-COPY packages/web/tsconfig.json packages/web/vite.config.ts packages/web/vitest.config.ts packages/web/index.html ./
+COPY packages/web/tsconfig.json packages/web/tsconfig.e2e.json packages/web/vite.config.ts packages/web/vitest.config.ts packages/web/index.html ./
 COPY packages/web/src ./src
 COPY packages/web/public ./public
 COPY packages/server/generated /src/packages/server/generated
