@@ -481,6 +481,8 @@ describe('MCP-W08 Write approvals page', () => {
       'Tokio tutorial from / to /Rust',
     ])
     expect(document.body.textContent).toContain('Move')
+    // Nothing else to say about a described move: no empty meta line under it.
+    for (const row of document.querySelectorAll('[aria-label="Planned operations"] li')) expect(row.querySelectorAll('p')).toHaveLength(1)
     expect(document.body.textContent).not.toContain('Not available')
     expect(document.body.textContent).not.toContain('No visibility change')
   })

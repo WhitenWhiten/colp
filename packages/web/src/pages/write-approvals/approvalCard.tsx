@@ -420,15 +420,17 @@ function OperationPreview({
             </StatusBadge>
           )}
         </p>
-        <p className="write-approval-operation-meta">
-          {summary?.url && <span className="write-approval-operation-url">{summary.url}</span>}
-          {/* The planner's sentence already names the folder path. */}
-          {!description && (
-            <span>
-              in <RefValue id={operation.collectionId} title={collectionTitle} />
-            </span>
-          )}
-        </p>
+        {/* The planner's sentence already names the folder path; a described move has no meta line. */}
+        {(summary?.url || !description) && (
+          <p className="write-approval-operation-meta">
+            {summary?.url && <span className="write-approval-operation-url">{summary.url}</span>}
+            {!description && (
+              <span>
+                in <RefValue id={operation.collectionId} title={collectionTitle} />
+              </span>
+            )}
+          </p>
+        )}
       </div>
     </li>
   )
