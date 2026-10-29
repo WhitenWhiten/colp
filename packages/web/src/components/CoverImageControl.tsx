@@ -107,7 +107,7 @@ export function CoverImageControl({ collectionId, nodeId, kind, mode, revision, 
     <section className="cover-field" aria-labelledby={`${inputId}-label`} aria-busy={busy}>
       <label id={`${inputId}-label`} className="cover-field-label">Gallery cover</label>
       <div className="cover-field-body">
-        <label className="cover-field-preview" htmlFor={inputId} data-empty={showImage || tiles.length > 0 ? undefined : ''}>
+        <label className="cover-field-preview" data-testid="cover-preview" htmlFor={inputId} data-empty={showImage || tiles.length > 0 ? undefined : ''}>
           <input ref={fileInput} id={inputId} type="file" accept={ACCEPT} disabled={disabled || busy}
             aria-labelledby={`${inputId}-label`}
             aria-describedby={`${inputId}-hint`} onChange={event => {

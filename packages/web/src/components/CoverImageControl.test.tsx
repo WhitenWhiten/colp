@@ -77,8 +77,8 @@ describe('CoverImageControl', () => {
   it('previews a folder\'s automatic cover as the mosaic of the covers inside', () => {
     const second = { ...image, url: image.url.replace('abc', 'abd') }
     renderWithRouter(<CoverImageControl {...base} kind="folder" mosaic={[image, second]} />)
-    expect(Array.from(document.querySelectorAll('.cover-field-preview img')).map(node => node.getAttribute('src'))).toEqual([image.url, second.url])
-    expect(document.querySelector('.cover-field-preview')?.hasAttribute('data-empty')).toBe(false)
+    expect(Array.from(document.querySelectorAll('[data-testid="cover-preview"] img')).map(node => node.getAttribute('src'))).toEqual([image.url, second.url])
+    expect(document.querySelector('[data-testid="cover-preview"]')?.hasAttribute('data-empty')).toBe(false)
   })
 
   it('rejects unsuitable files locally and disables editing for viewers', async () => {
