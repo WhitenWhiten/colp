@@ -10,12 +10,17 @@ import {
 
 const editorPath = `/library/${MOCK_COLLECTION_ID}?collection=edit`
 
+/** Every queued expectation is consumed: the mount (and StrictMode's replay) settled. */
+async function expectMockSettled(mock: ProductApiMock) {
+  await expect.poll(() => mock.pendingExpectationCount()).toBe(0)
+}
+
 async function openEditor(page: Page, mock: ProductApiMock) {
   mock.expectBootstrap().expectDeskMount().expectEditorMount()
   await page.goto(editorPath, { waitUntil: 'domcontentloaded' })
   await expect(page.getByTestId('collection-settings')).toBeVisible()
   // Do not race mutations against React StrictMode's replacement load effect.
-  await expect.poll(() => mock.pendingExpectationCount()).toBe(0)
+  await expectMockSettled(mock)
 }
 
 test.describe('Product editor with strict mocked API', () => {
@@ -284,7 +289,7 @@ test.describe('Product editor with strict mocked API', () => {
     await expect(page.getByTestId('library-workspace')).toBeVisible()
     await expect(page.getByRole('heading', { name: 'All bookmarks', exact: true })).toBeVisible()
     await expect(page.getByTestId('collection-settings')).toHaveCount(0)
-    await expect.poll(() => mock.pendingExpectationCount()).toBe(0)
+    await expectMockSettled(mock)
   })
 
   test('loads collection settings over the desk', async ({ page }) => {
@@ -519,7 +524,7 @@ test.describe('Product editor with strict mocked API', () => {
     mock.expectBootstrap().expectDeskMount()
     await page.goto(`/library/${MOCK_COLLECTION_ID}`, { waitUntil: 'domcontentloaded' })
     await expect(page.getByTestId('library-workspace')).toBeVisible()
-    await expect.poll(() => mock.pendingExpectationCount()).toBe(0)
+    await expectMockSettled(mock)
     mock
       .expect({
         method: 'POST',
@@ -600,7 +605,7 @@ test.describe('Product editor with strict mocked API', () => {
     mock.expectBootstrap().expectDeskMount()
     await page.goto(`/library/${MOCK_COLLECTION_ID}`, { waitUntil: 'domcontentloaded' })
     await expect(page.getByTestId('library-workspace')).toBeVisible()
-    await expect.poll(() => mock.pendingExpectationCount()).toBe(0)
+    await expectMockSettled(mock)
     mock
       .expect({
         method: 'DELETE',

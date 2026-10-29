@@ -15,9 +15,30 @@ const classQueryBan = [
   },
 ];
 
+// Playwright specs, their helpers and the Node-side configs: no React, so the
+// hooks and jsx-a11y rules do not apply.
+const nodeSideFiles = ['e2e/**/*.ts', '*.config.ts'];
+
 export default [
   {
     ignores: ['dist/**', 'coverage/**', 'playwright-report/**', 'test-results/**'],
+  },
+  ...tseslint.configs['flat/recommended'].map((config) => ({ ...config, files: nodeSideFiles })),
+  {
+    files: nodeSideFiles,
+    rules: {
+      'no-debugger': 'error',
+      // forbidOnly only fails CI runs; catch a focused spec before it lands.
+      'no-restricted-syntax': ['error',
+        {
+          selector: "MemberExpression[object.name='test'][property.name='only'], MemberExpression[object.object.name='test'][property.name='only']",
+          message: 'Do not commit focused Playwright tests (test.only / test.describe.only).',
+        },
+      ],
+      // The class-query ban (src tests) is not applied: specs measure
+      // layout and computed style of class-styled chrome inside
+      // page.evaluate, and Playwright locators are not querySelector.
+    },
   },
   {
     files: ['src/**/*.{ts,tsx}'],

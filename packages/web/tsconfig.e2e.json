@@ -1,0 +1,10 @@
+{
+  // Playwright specs, their helpers and the Vite/Vitest/Playwright configs run
+  // in Node, not the browser bundle, so tsconfig.json (src only) never saw
+  // them. Same strict options, plus Node's globals (process, node:path).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["e2e", "playwright*.config.ts", "vite.config.ts", "vitest.config.ts"]
+}

@@ -18,6 +18,10 @@ const nodes = [
   { id: 'n-bookmark-3', kind: 'bookmark' as const, title: 'Another loose', url: 'https://loose.example.com', etag: '"n-3"', parentId: MOCK_ROOT_ID },
 ]
 
+/** Left edges of the fixed/sticky chrome, sampled per frame in the drawer test. */
+type ChromeX = { main: number; topnav: number; desk: number }
+type ChromeFrame = ChromeX & { t: number; scrollX: number }
+
 test.use({ contextOptions: { reducedMotion: 'no-preference' } })
 
 async function openDesk(page: Page, mock: ProductApiMock) {
@@ -75,8 +79,8 @@ test('opening the node drawer never shifts the page chrome', async ({ page }) =>
   // offscreen at translateX(100%), so the whole page jumped -416px.
   await page.evaluate(() => {
     const w = window as unknown as {
-      __geom: Array<Record<string, number>>
-      __base: Record<string, number>
+      __geom: ChromeFrame[]
+      __base: ChromeX
     }
     w.__geom = []
     const q = (sel: string) => document.querySelector(sel)?.getBoundingClientRect().x ?? 0
@@ -101,7 +105,7 @@ test('opening the node drawer never shifts the page chrome', async ({ page }) =>
   await expect(page.getByTestId('node-drawer')).toBeVisible()
   await page.waitForTimeout(1000)
 
-  const geom = await page.evaluate(() => (window as unknown as { __geom: Array<Record<string, number>> }).__geom)
+  const geom = await page.evaluate(() => (window as unknown as { __geom: ChromeFrame[] }).__geom)
   expect(geom.length).toBeGreaterThan(5)
   for (const frame of geom) {
     expect(frame.scrollX, `scrollX at ${frame.t}ms`).toBe(0)
