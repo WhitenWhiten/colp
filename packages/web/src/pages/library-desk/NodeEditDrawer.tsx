@@ -3,7 +3,8 @@ import { CoverImageControl } from '../../components/CoverImageControl'
 import { FaviconSourceControl } from '../../components/FaviconSourceControl'
 import { bookmarkIconSrc } from '../../lib/bookmarkIcon'
 import { nodeGalleryCover } from '../../lib/linkPreview'
-import { useCallback, useRef } from 'react'
+import { flattenBookmarks } from '../../lib/libraryTree'
+import { useCallback, useMemo, useRef } from 'react'
 import type { NavigateFunction } from 'react-router-dom'
 import type { EditorSnapshot } from '../../api'
 import { useConfirm } from '../../components/ConfirmModal'
@@ -87,6 +88,12 @@ export function NodeEditDrawer({
     }
     void confirmDiscard().then((ok) => { if (ok) onClose() })
   }, [confirmDiscard, dirty, onClose])
+
+  // A folder's automatic cover is the mosaic its gallery card shows.
+  const folderId = node?.kind === 'folder' ? node.id : null
+  const mosaic = useMemo(() => !snap || !folderId ? []
+    : flattenBookmarks(snap.root, snap.nodes, folderId).flatMap(row => nodeGalleryCover(row.node) ?? []).slice(0, 4),
+  [folderId, snap])
 
   if (!node) return null
 
@@ -203,6 +210,7 @@ export function NodeEditDrawer({
         <CoverImageControl key={`${snap.collection.id}:${node.id}`}
           collectionId={snap.collection.id} nodeId={node.id} kind={node.kind}
           mode={node.coverMode ?? 'auto'} revision={node.coverRevision} image={nodeGalleryCover(node)}
+          mosaic={mosaic}
           disabled={!canEdit} onSaved={() => loadTree(snap.collection.id, { silent: true })}
           onSuccess={() => success('Cover updated')} />
       )}

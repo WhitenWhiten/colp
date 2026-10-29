@@ -294,6 +294,19 @@
   grid-row: 1 / 3;
 }
 
+/* The node editor's cover preview (global.css .cover-field) draws an
+   automatic folder cover with this same mosaic, filling its frame. */
+.cover-field-preview .folder-gallery-cover {
+  position: absolute;
+  inset: 0;
+  aspect-ratio: auto;
+  border-bottom: 0;
+}
+
+.cover-field-preview .folder-gallery-cover img {
+  position: static;
+}
+
 /* One row anatomy for hits/inbox items: kind rail, copy column, meta. */
 .result-row {
   display: grid;

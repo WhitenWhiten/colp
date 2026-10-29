@@ -4,7 +4,7 @@ import { installProductApiMocks, MOCK_COLLECTION_ID, MOCK_ROOT_ID } from './help
 const ID = '123e4567-e89b-42d3-a456-426614174000'
 const PNG = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478da63f8cfc0f01f0005000182e403790000000049454e44ae426082', 'hex')
 
-test('bookmark and folder covers use the existing upload and source controls without overflowing the drawer', async ({ page }) => {
+test('bookmark and folder covers preview at the gallery ratio beside their source without overflowing the drawer', async ({ page }) => {
   const mock = await installProductApiMocks(page, { nodes: [
     { id: 'cover-bookmark', parentId: MOCK_ROOT_ID, kind: 'bookmark', title: 'Cover bookmark', url: 'https://example.org', etag: '"b-1"', coverMode: 'auto', coverRevision: '0', coverImage: null },
     { id: 'cover-folder', parentId: MOCK_ROOT_ID, kind: 'folder', title: 'Cover folder', etag: '"f-1"', coverMode: 'auto', coverRevision: '0', coverImage: null },
@@ -34,24 +34,27 @@ test('bookmark and folder covers use the existing upload and source controls wit
     const cover = drawer.getByRole('region', { name: 'Gallery cover' })
     await cover.scrollIntoViewIfNeeded()
     await expect(cover.getByRole('radio', { name: kind === 'folder' ? 'Automatic mosaic' : 'Website image' })).toBeChecked()
+    await expect(cover.getByText(kind === 'folder' ? 'Made from the bookmarks inside' : 'No website image yet')).toBeVisible()
     const geometry = await cover.evaluate(element => {
-      const card = element.querySelector('.file-drop-card')!
+      const preview = element.querySelector('.cover-field-preview')!.getBoundingClientRect()
       const radio = element.querySelector('input[type="radio"]')!
       const file = element.querySelector('input[type="file"]')!
       return { width: element.clientWidth, scrollWidth: element.scrollWidth,
-        height: element.getBoundingClientRect().height, cardBorder: getComputedStyle(card).borderTopStyle,
+        height: element.getBoundingClientRect().height, ratio: preview.width / preview.height,
+        previewBorder: getComputedStyle(element.querySelector('.cover-field-preview')!).borderTopStyle,
         radioHeight: radio.getBoundingClientRect().height, fileOpacity: getComputedStyle(file).opacity }
     })
     expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.width + 1)
     expect(geometry.height).toBeLessThan(300)
-    expect(geometry.cardBorder).toBe('dashed')
+    expect(geometry.ratio).toBeCloseTo(1.91, 1)
+    expect(geometry.previewBorder).toBe('dashed')
     expect(geometry.fileOpacity).toBe('0')
     expect(geometry.radioHeight).toBeLessThan(24)
     await expect(cover.getByRole('combobox')).toHaveCount(0)
     mock.expectEditor({ optional: true })
     await cover.locator('input[type="file"]').setInputFiles({ name: 'cover.png', mimeType: 'image/png', buffer: PNG })
     await expect(cover.getByRole('radio', { name: 'Uploaded image' })).toBeChecked()
-    await expect(cover.getByText('Replace cover', { exact: true })).toBeVisible()
+    await expect(cover.getByText('Replace image', { exact: true })).toBeVisible()
     await expect(cover.locator('img')).toHaveAttribute('src', /\/api\/v1\/images\//)
     await expect(cover.getByRole('status')).toHaveCount(0)
     await cover.scrollIntoViewIfNeeded()

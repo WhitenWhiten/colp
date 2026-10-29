@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { isProductApiError, productClient, type CoverMode, type CoverPreferenceView } from '../api'
-import { previewCover } from '../lib/linkPreview'
+import { previewCover, type PreviewCover } from '../lib/linkPreview'
 import { Icon } from './Icon'
 
 const MAX_BYTES = 2 * 1024 * 1024
@@ -15,13 +15,15 @@ type Operation = {
 }
 
 /** Immediate cover mutations keep both command identities when the user retries. */
-export function CoverImageControl({ collectionId, nodeId, kind, mode, revision, image, disabled, onSaved, onSuccess }: {
+export function CoverImageControl({ collectionId, nodeId, kind, mode, revision, image, mosaic = [], disabled, onSaved, onSuccess }: {
   collectionId: string
   nodeId: string
   kind: 'bookmark' | 'folder'
   mode: CoverMode
   revision: string
   image: unknown
+  /** A folder's automatic covers: the first ones filed inside, as its gallery card shows them. */
+  mosaic?: readonly PreviewCover[]
   disabled: boolean
   onSaved: () => Promise<void>
   onSuccess?: () => void
@@ -94,11 +96,18 @@ export function CoverImageControl({ collectionId, nodeId, kind, mode, revision, 
       updateIntent: productClient.mutationIntentKey(`${scope}:update`, productClient.newCommandId()) })
   }
 
+  const showImage = cover !== null && currentMode !== 'none' && cover.url !== failedUrl
+  const tiles = kind === 'folder' && currentMode === 'auto' && !showImage ? mosaic.slice(0, 4) : []
+  const empty = currentMode === 'none' ? 'No cover'
+    : kind === 'folder' ? 'Made from the bookmarks inside' : 'No website image yet'
+
+  /* The preview is the gallery card's cover at the card's width, so the
+     owner sees what the gallery will show; it is also the upload target. */
   return (
-    <section className="stack" aria-labelledby={`${inputId}-label`} aria-busy={busy}>
-      <div className="field">
-        <label id={`${inputId}-label`} htmlFor={inputId}>Gallery cover</label>
-        <label className="file-drop-card" htmlFor={inputId} aria-labelledby={`${inputId}-label`}>
+    <section className="cover-field" aria-labelledby={`${inputId}-label`} aria-busy={busy}>
+      <label id={`${inputId}-label`} className="cover-field-label">Gallery cover</label>
+      <div className="cover-field-body">
+        <label className="cover-field-preview" htmlFor={inputId} data-empty={showImage || tiles.length > 0 ? undefined : ''}>
           <input ref={fileInput} id={inputId} type="file" accept={ACCEPT} disabled={disabled || busy}
             aria-labelledby={`${inputId}-label`}
             aria-describedby={`${inputId}-hint`} onChange={event => {
@@ -106,38 +115,43 @@ export function CoverImageControl({ collectionId, nodeId, kind, mode, revision, 
               event.currentTarget.value = ''
               if (file) choose('custom', file)
             }} />
-          <span className="file-drop-card-preview" aria-hidden>
-            {cover && currentMode !== 'none' && cover.url !== failedUrl
-              ? <img src={cover.url} width={20} height={20} alt="" referrerPolicy="no-referrer" onError={() => setFailedUrl(cover.url)} />
-              : <Icon name="file" />}
-          </span>
-          <span className="file-drop-card-copy">
-            <strong>{currentMode === 'custom' ? 'Replace cover' : 'Upload cover'}</strong>
-            <small id={`${inputId}-hint`}>PNG, JPEG or WebP · Up to 2 MB</small>
-          </span>
+          {showImage
+            ? <img src={cover.url} width={cover.width} height={cover.height} alt="" referrerPolicy="no-referrer" onError={() => setFailedUrl(cover.url)} />
+            : tiles.length > 0
+              ? <span className="folder-gallery-cover" data-count={tiles.length}>
+                {tiles.map(tile => <img key={tile.url} src={tile.url} width={tile.width} height={tile.height} alt="" referrerPolicy="no-referrer" />)}
+              </span>
+              : <span className="cover-field-empty"><Icon name={kind === 'folder' ? 'masonry' : 'file'} />{empty}</span>}
         </label>
-      </div>
-      <fieldset className="option-group" disabled={disabled || busy}>
-        <legend className="visually-hidden">Cover source</legend>
-        <label className="option-row">
-          <input type="radio" name={`${inputId}-mode`} value="auto" checked={currentMode === 'auto'} onChange={() => choose('auto')} />
-          <span>{kind === 'folder' ? 'Automatic mosaic' : 'Website image'}</span>
-        </label>
-        {currentMode === 'custom' && (
-          <label className="option-row">
-            <input type="radio" name={`${inputId}-mode`} value="custom" checked onChange={() => fileInput.current?.click()} />
-            <span>Uploaded image</span>
+        <div className="cover-field-side">
+          <fieldset className="option-group" disabled={disabled || busy}>
+            <legend className="visually-hidden">Cover source</legend>
+            <label className="option-row">
+              <input type="radio" name={`${inputId}-mode`} value="auto" checked={currentMode === 'auto'} onChange={() => choose('auto')} />
+              <span>{kind === 'folder' ? 'Automatic mosaic' : 'Website image'}</span>
+            </label>
+            {currentMode === 'custom' && (
+              <label className="option-row">
+                <input type="radio" name={`${inputId}-mode`} value="custom" checked onChange={() => fileInput.current?.click()} />
+                <span>Uploaded image</span>
+              </label>
+            )}
+            <label className="option-row">
+              <input type="radio" name={`${inputId}-mode`} value="none" checked={currentMode === 'none'} onChange={() => choose('none')} />
+              <span>No cover</span>
+            </label>
+          </fieldset>
+          <label className="btn btn-secondary btn-sm cover-field-upload" htmlFor={inputId} aria-hidden
+            data-disabled={disabled || busy ? '' : undefined}>
+            <Icon name="arrow-up" />{currentMode === 'custom' ? 'Replace image' : 'Upload image'}
           </label>
-        )}
-        <label className="option-row">
-          <input type="radio" name={`${inputId}-mode`} value="none" checked={currentMode === 'none'} onChange={() => choose('none')} />
-          <span>No cover</span>
-        </label>
-        {notice && <p className="meta" role="status">{notice}</p>}
-        {error && <p className="field-error" role="alert">{error}</p>}
-        {error && operation.current && <button type="button" className="btn btn-secondary btn-sm"
-          onClick={() => { if (operation.current) void run(operation.current) }}>Retry</button>}
-      </fieldset>
+          <p className="cover-field-hint" id={`${inputId}-hint`}>PNG, JPEG, WebP · 2 MB max</p>
+        </div>
+      </div>
+      {notice && <p className="meta" role="status">{notice}</p>}
+      {error && <p className="field-error" role="alert">{error}</p>}
+      {error && operation.current && <button type="button" className="btn btn-secondary btn-sm cover-field-retry"
+        onClick={() => { if (operation.current) void run(operation.current) }}>Retry</button>}
     </section>
   )
 }
