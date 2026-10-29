@@ -177,13 +177,17 @@ archive and Recovery. Each opens its own view (`#cloud`, `#recovery`) in place o
 breadcrumb under the head leading back; Recent activity and Advanced tools stay with Sync. `#packages` is the sidebar's
 Add-on packages view.
 
-- **Sync** shows setup until a mapping is configured. Afterwards one card keeps source, actual saved destination,
-  confirmed bookmark count and current operation together. A source → local folder → saved result table shows every
+- **Sync** shows setup until a mapping is configured. Afterwards the current operation is its own status card first,
+  and one mapping card below keeps source, actual saved destination and confirmed bookmark count together. Its
+  collections table (a titled bar, then one compact row per collection: name, quiet folder link, result; the column
+  headings are for assistive technology only) shows every
   selected collection, including zero saved or a missing destination. It counts committed associations in this mapping,
   not scanned items, pending plans or unrelated bookmarks. The main destination and each collection open the same
   Settings dialog at the relevant field; local folder links open that folder in the bookmark manager. Existing single
   copies kept elsewhere show their real location. The task uses the same title, count, shared `.sync-bar` and ranked
-  actions as Sync › Import; no separate metrics grid or competing state badges.
+  actions as Sync › Import; no separate metrics grid or competing state badges. Its actions close its card in a foot;
+  a lone action sits at the end of the title row instead (wide windows only). A problem notice sits under the task's
+  title with its time on the line of its actions, and Last activity is not repeated beside it.
   Setup has two numbered steps. A step that can't start yet shows only its title and what it waits for.
   1. *Connect your account*: Turn on (asks for site access), Open the site, Connect this account, then one Connected row
      with Turn off.
