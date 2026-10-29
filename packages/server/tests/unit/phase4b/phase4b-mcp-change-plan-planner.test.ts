@@ -11,6 +11,7 @@ import {
   Phase4bMcpChangePlanPlannerError,
   computePhase4bMcpCanonicalDigest,
   createPhase4bMcpChangePlanPlanner,
+  phase4bMcpCreateImpactText,
   phase4bMcpDeleteSubtreeImpactText,
   phase4bMcpPlanSummary,
   type Phase4bMcpChangePlanPlannerOptions,
@@ -648,6 +649,36 @@ test('MCP-W03 conceals missing and unauthorized authoritative state without revi
 test('delete-subtree impact text counts items in plain English', () => {
   assert.equal(phase4bMcpDeleteSubtreeImpactText({ title: 'Hacker News', subtreeCount: 1 }), 'delete Hacker News (1 item)');
   assert.equal(phase4bMcpDeleteSubtreeImpactText({ title: 'Reading', subtreeCount: 4 }), 'delete Reading (4 items)');
+  assert.equal(
+    phase4bMcpDeleteSubtreeImpactText({ title: 'Reading', subtreeCount: 4, parentPath: '/Bookmarks bar' }),
+    'delete Reading from /Bookmarks bar (4 items)',
+  );
+});
+
+test('create impact text names what is added and where', () => {
+  assert.equal(phase4bMcpCreateImpactText({ kind: 'bookmark', title: 'Toolformer' }, '/Bookmarks bar/Research'), 'add Toolformer to /Bookmarks bar/Research');
+  assert.equal(phase4bMcpCreateImpactText({ kind: 'folder', title: 'Agents' }, '/Bookmarks bar/Research'), 'create folder Agents in /Bookmarks bar/Research');
+  assert.equal(phase4bMcpCreateImpactText({ kind: 'bookmark', title: '', url: 'https://example.com/' }), 'add https://example.com/');
+});
+
+test('a plan that creates reads as a sentence, never as operation type names', async () => {
+  const withPath = (parentPath: unknown) => options({
+    authoritativeState: Object.freeze({
+      resolveCreateBaseRevisions: async () => Object.freeze({ ...createRevisions(), parentPath }),
+      resolveVisibilityFacts: async () => visibilityFacts(),
+    }),
+  });
+  const result = await createPhase4bMcpChangePlanPlanner(withPath('/Bookmarks bar/Research')).plan(CREATE_INPUT, BINDING);
+  assert.equal(result.operations[0]!.impact, 'add Example bookmark to /Bookmarks bar/Research');
+  assert.equal(result.summary, 'Add Example bookmark to /Bookmarks bar/Research');
+  assert.doesNotMatch(result.summary, /canonical operation|create_node/u);
+
+  for (const invalid of ['Bookmarks bar', '/Research\nApproved', 42]) {
+    await assert.rejects(
+      createPhase4bMcpChangePlanPlanner(withPath(invalid)).plan(CREATE_INPUT, BINDING),
+      (error: unknown) => error instanceof Phase4bMcpChangePlanPlannerError && error.code === 'authoritative_state_invalid',
+    );
+  }
 });
 
 test('MCP-W03 default ids are unique CSPRNG tokens, not a Date.now-seeded LCG', async () => {

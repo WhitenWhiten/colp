@@ -153,6 +153,9 @@ function createPlanningDb(seed: {
   readonly nodes?: readonly {
     readonly id: string;
     readonly collection_id: string;
+    readonly parent_id?: string;
+    readonly is_root?: boolean;
+    readonly title?: string;
     readonly children_revision: string;
     readonly resource_revision: string;
     readonly deleted_at: Date | null;
@@ -173,6 +176,22 @@ function createPlanningDb(seed: {
     return false;
   });
   const executor = {
+    /** Answers folderPath's recursive ancestor query (`sql`…`.execute`) from the seed: titles below the root. */
+    getExecutor() {
+      return {
+        transformQuery: (node: unknown) => node,
+        compileQuery: (node: { readonly parameters: readonly { readonly value: unknown }[] }) => ({
+          sql: '', query: node, parameters: node.parameters.map((parameter) => parameter.value),
+        }),
+        async executeQuery(compiled: { readonly parameters: readonly unknown[] }) {
+          const [nodeId, collectionId] = compiled.parameters;
+          const find = (id: unknown) => seed.nodes?.find((node) => node.id === id && node.collection_id === collectionId);
+          const titles: string[] = [];
+          for (let node = find(nodeId); node && !node.is_root; node = find(node.parent_id)) titles.unshift(node.title ?? node.id);
+          return { rows: titles.map((title) => ({ title })) };
+        },
+      };
+    },
     selectFrom(table: string) {
       const filters: Array<{ col: string; op: string; val: unknown }> = [];
       const builder = {
@@ -242,6 +261,7 @@ function ownedSeed() {
       {
         id: PARENT_ID,
         collection_id: COLLECTION_ID,
+        is_root: true,
         children_revision: CHILDREN_REVISION,
         resource_revision: 'resource-root-r1',
         deleted_at: null,
@@ -286,6 +306,7 @@ test('MCP-W10 createAuthoritativeState plans for members using account subject, 
     parentChildrenRevision: CHILDREN_REVISION,
     collectionContentRevision: CONTENT_REVISION,
     collectionVisibility: 'private',
+    parentPath: '/',
   });
 });
 

@@ -6,6 +6,7 @@ import {
   createAgentPolicyCommitGuard,
   createMcpNodePlanState,
   createPostgresAutoApproveTrustedPlan,
+  folderPath,
   readPlanApprovedByPolicy,
   captureMcpPlanPreCommitVersions,
   recordMcpPlanCommitRevisions,
@@ -473,6 +474,7 @@ export function createAuthoritativeState(db: Kysely<DatabaseSchema>) {
           parentChildrenRevision: parent.children_revision,
           collectionContentRevision: collection.content_revision,
           collectionVisibility: collection.visibility,
+          parentPath: await folderPath(trx, input.parentId, input.collectionId),
         });
       });
     },

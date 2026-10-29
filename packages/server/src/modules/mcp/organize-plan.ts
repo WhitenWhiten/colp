@@ -52,7 +52,8 @@ export function createOrganizePlanPlanner(options: Phase4bMcpChangePlanPlannerOp
       for (const operation of planned.operations) {
         if (operation.type === 'create_node') {
           const made: PlannedNodeCreate = { ...operation, plannedNodeId: `node-${randomUUID()}`,
-            payload: { ...operation.payload, ...(parent ? { parentId: parent.id } : {}) } };
+            payload: { ...operation.payload, ...(parent ? { parentId: parent.id } : {}) },
+            ...(parent && operation.impact ? { impact: `${operation.impact}; destination is the new folder “${parent.title}”` } : {}) };
           operations.push(made);
           if (ref !== undefined) {
             if (operation.payload.node.kind !== 'folder') return invalid('Only folders may be referenced as destinations.');

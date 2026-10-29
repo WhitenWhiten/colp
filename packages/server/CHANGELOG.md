@@ -6,6 +6,7 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ### Fixed
 
+- An agent plan that adds bookmarks or creates folders reads as sentences on the Approvals page and in the agent's tool result: "Add Toolformer to /Bookmarks bar/Research", "Create folder Agents in /Bookmarks bar/Research". It used to read "Plan 4 canonical operation(s) [create_node, …]. Authoritative impact: …". Delete sentences now also name the folder they delete from.
 - Expired bootstrap Snapshots no longer retain their page evidence, capabilities and node rows forever. The evidence maintenance worker reclaims them after the Snapshot expiry fence and keeps only the small header and receipt needed for Replica-lifetime replay.
 - Terminal Sync Session and retired Replica Ack receipts no longer pin their Pull cursor and page evidence forever. The evidence maintenance worker reclaims the receipt and then the expired evidence in the same run, while live receipts remain immutable.
 - Terminated Sync Sessions older than one day no longer accumulate bindings, scopes and idempotency receipts forever. The maintenance worker deletes those authority rows and the Session only when no protocol child still references it.

@@ -420,6 +420,25 @@ describeWithPostgres('self-hosted production MCP composition', () => {
     assert.equal((await isolated.runtime.pool.query('select count(*)::int as n from sync_node_tombstones where target_id=$1', [tree.folderId])).rows[0].n, 1);
     assert.equal((await planHistory(tree.collectionId, plan.planId)).versionIds.length, 1);
   });
+  test('a mixed plan reads as sentences with stored paths, a create under a new folder included', async () => {
+    const tree = await fixture();
+    const planned = await composition.adapter.callTool(nodeCreateContext(BINDING, SCOPES), { name: 'changes.plan', arguments: {
+      collectionId: tree.collectionId, dryRun: true, reason: 'File a new paper', operations: [
+        { type: 'create_node', ref: 'papers', parentId: tree.folderId, node: { kind: 'folder', title: 'Papers', visibility: 'private' } },
+        { type: 'create_node', parentRef: 'papers', node: { kind: 'bookmark', title: 'Toolformer', url: 'https://arxiv.org/abs/2302.04761', visibility: 'private' } },
+        { type: 'delete_subtree', nodeId: tree.nodeId },
+      ],
+    } });
+    const { planId } = planned.structuredContent as { planId: string };
+    const stored = (await isolated.runtime.pool.query('select summary, operations_json from mcp_change_plans where plan_id = $1', [planId])).rows[0];
+    const impacts = (stored.operations_json as { impact?: string }[]).map((operation) => operation.impact);
+    assert.deepEqual(impacts.slice(0, 2), [
+      'create folder Papers in /Destination',
+      'add Toolformer to /Destination; destination is the new folder “Papers”',
+    ]);
+    assert.match(impacts[2]!, /^delete .+ from \/ \(1 item\)$/u);
+    assert.equal(stored.summary, `Create folder Papers in /Destination; ${impacts.slice(1).join('; ')}`);
+  });
   test('a stale mixed plan makes none of its changes', async () => {
     const tree = await fixture(), planned = await organize(tree);
     const plan = planned.structuredContent as { planId: string };

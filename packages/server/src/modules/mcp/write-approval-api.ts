@@ -54,8 +54,9 @@ export interface WriteApprovalOperationPreview {
   readonly visibility: string | null;
   readonly nodeSummary: WriteApprovalNodeSummary | null;
   /**
-   * Move and delete: the planner's own sentence, built from stored titles and
-   * paths (never agent text), e.g. `move Docs from /A to /B`.
+   * The planner's own sentence, built from stored titles and paths, e.g.
+   * `move Docs from /A to /B`. A create names the title it will write
+   * (`add Docs to /A`), never the agent's reason.
    */
   readonly description?: string;
 }
@@ -560,6 +561,9 @@ function safeOperationPreviews(plan: McpStoredPlan): readonly WriteApprovalOpera
     if (type === 'create_node') {
       const payload = asRecord(operation.payload);
       const node = asRecord(payload.node);
+      const description = typeof operation.impact === 'string' && operation.impact.length > 0
+        ? operation.impact.slice(0, OPERATION_DESCRIPTION_MAX)
+        : undefined;
       return Object.freeze({
         type,
         collectionId,
@@ -571,6 +575,7 @@ function safeOperationPreviews(plan: McpStoredPlan): readonly WriteApprovalOpera
           url: typeof node.url === 'string' ? node.url : null,
           visibility: typeof node.visibility === 'string' ? node.visibility : null,
         }),
+        ...(description === undefined ? {} : { description }),
       });
     }
     return Object.freeze({

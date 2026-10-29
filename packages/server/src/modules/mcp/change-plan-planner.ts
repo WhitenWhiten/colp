@@ -37,7 +37,10 @@ import {
 export type Phase4bMcpRiskLevel = 'low' | 'medium' | 'high';
 export type Phase4bMcpPlanMode = 'ready' | 'awaiting_approval';
 
-export type Phase4bMcpNodeCreateOperation = Extract<Operation, { type: 'create_node' }>;
+export type Phase4bMcpNodeCreateOperation = Extract<Operation, { type: 'create_node' }> & Readonly<{
+  /** Authoritative `add <title> to <path>` or `create folder <title> in <path>`. Commit ignores it. */
+  impact?: string;
+}>;
 /** Medium-risk move. Commit calls `moveCollectionNode`; this object does not write. */
 export type Phase4bMcpNodeMoveOperation = Readonly<{
   type: 'move_node';
@@ -124,6 +127,8 @@ export interface Phase4bMcpCreateBaseRevisions {
   readonly parentChildrenRevision: string;
   readonly collectionContentRevision: string;
   readonly collectionVisibility: Phase4bMcpCollectionVisibility;
+  /** The parent folder's stored path, e.g. `/Bookmarks bar/Research`, for the plan's sentence. */
+  readonly parentPath?: string;
 }
 
 export interface Phase4bMcpVisibilityBaseFacts {
@@ -154,6 +159,8 @@ export interface Phase4bMcpDeleteSubtreeFacts {
   readonly parentId: string;
   readonly parentChildrenRevision: string;
   readonly subtreeCount: number;
+  /** The parent folder's stored path, for the plan's sentence. */
+  readonly parentPath?: string;
 }
 
 export interface Phase4bMcpAuthoritativeStatePort {
@@ -340,6 +347,15 @@ export function phase4bMcpMoveImpactText(
   return `move ${placement.title} from ${placement.fromPath} to ${placement.toPath}`;
 }
 
+export function phase4bMcpCreateImpactText(
+  node: Readonly<{ kind: string; title?: string | null; url?: string | null }>,
+  parentPath?: string,
+): string {
+  const name = node.title || node.url || 'an untitled item';
+  if (node.kind === 'folder') return `create folder ${name}${parentPath ? ` in ${parentPath}` : ''}`;
+  return `add ${name}${parentPath ? ` to ${parentPath}` : ''}`;
+}
+
 export interface Phase4bMcpOperationRiskFacts {
   readonly collectionVisibility?: Phase4bMcpCollectionVisibility;
 }
@@ -391,8 +407,8 @@ export function phase4bMcpPlanSummary(
       'Plan summary requires at least one typed canonical operation.',
     );
   }
-  // Moves and deletes carry the planner's own sentence (stored titles and
-  // paths); the owner reads those instead of operation type names.
+  // Creates, moves and deletes carry the planner's own sentence (titles and
+  // stored paths); the owner reads those instead of operation type names.
   const described = operations.map((operation) => (operation as { readonly impact?: unknown }).impact);
   if (described.every((text): text is string => typeof text === 'string' && text.length > 0)) {
     const sentence = described.join('; ');
@@ -664,6 +680,7 @@ async function planNodeCreate(
       beforeId: beforeId ?? null,
       node,
     }),
+    impact: phase4bMcpCreateImpactText(node, revisions.parentPath),
   });
   const operations = Object.freeze([operation]);
   const baseRevisions = Object.freeze({
@@ -698,9 +715,10 @@ async function planNodeCreate(
 }
 
 export function phase4bMcpDeleteSubtreeImpactText(
-  facts: Readonly<Pick<Phase4bMcpDeleteSubtreeFacts, 'title' | 'subtreeCount'>>,
+  facts: Readonly<Pick<Phase4bMcpDeleteSubtreeFacts, 'title' | 'subtreeCount' | 'parentPath'>>,
 ): string {
-  return `delete ${facts.title} (${facts.subtreeCount} ${facts.subtreeCount === 1 ? 'item' : 'items'})`;
+  const from = facts.parentPath ? ` from ${facts.parentPath}` : '';
+  return `delete ${facts.title}${from} (${facts.subtreeCount} ${facts.subtreeCount === 1 ? 'item' : 'items'})`;
 }
 
 function deleteSubtreeThreshold(): number {
@@ -1202,7 +1220,25 @@ async function resolveDeleteSubtree(
     parentId: readOwnRequiredString(record, 'parentId', 'delete subtree'),
     parentChildrenRevision: readOwnRequiredString(record, 'parentChildrenRevision', 'delete subtree'),
     subtreeCount,
+    ...readOptionalParentPath(record, 'delete subtree'),
   };
+}
+
+/** A resolver may name the parent folder's path; anything but a short single-line string is rejected. */
+function readOptionalParentPath(
+  record: Readonly<Record<string, unknown>>,
+  label: string,
+): { readonly parentPath?: string } {
+  const descriptor = Object.getOwnPropertyDescriptor(record, 'parentPath');
+  if (descriptor === undefined || !('value' in descriptor) || descriptor.value === undefined) return {};
+  const value = descriptor.value as unknown;
+  if (typeof value !== 'string' || !value.startsWith('/') || value.length > 1_024 || CONTROL_CHARACTER_RE.test(value)) {
+    throw new Phase4bMcpChangePlanPlannerError(
+      'authoritative_state_invalid',
+      `${label} parentPath must be a single-line path.`,
+    );
+  }
+  return { parentPath: value };
 }
 
 async function resolveMovePlacement(
@@ -1307,6 +1343,7 @@ async function resolveCreateRevisions(
     parentChildrenRevision,
     collectionContentRevision,
     collectionVisibility,
+    ...readOptionalParentPath(record, 'create revision resolver'),
   });
 }
 

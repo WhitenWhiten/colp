@@ -64,6 +64,7 @@ export function createMcpNodePlanState(
         return { collectionId: node.collection_id, title: node.title ?? node.id,
           nodeRevision: node.resource_revision, contentRevision: collection.content_revision,
           parentId: parent.id, parentChildrenRevision: parent.children_revision,
+          parentPath: await folderPath(trx, parent.id, parent.collection_id),
           subtreeCount: count.rows[0]!.count };
       }),
   };
@@ -77,7 +78,8 @@ function liveNode(db: Kysely<DatabaseSchema>, nodeId: string, collectionId?: str
   return query.executeTakeFirst();
 }
 
-async function folderPath(db: Kysely<DatabaseSchema>, nodeId: string, collectionId: string) {
+/** `/Bookmarks bar/Research`: stored titles from the root down, the root itself left out. */
+export async function folderPath(db: Kysely<DatabaseSchema>, nodeId: string, collectionId: string) {
   const rows = await sql<{ title: string }>`WITH RECURSIVE ancestors AS (
     SELECT id, parent_id, title, is_root, 0 AS depth, ARRAY[id] AS seen FROM nodes
       WHERE id = ${nodeId} AND collection_id = ${collectionId} AND deleted_at IS NULL
