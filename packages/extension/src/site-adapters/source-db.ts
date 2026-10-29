@@ -24,9 +24,15 @@ export const put = (tx: IDBTransaction, store: SourceStore, key: IDBValidKey, va
 /** Private extension-origin database. Unknown future schemas never trigger reset/downgrade. */
 export function createSourceDatabase(factory?: IDBFactory, name = 'known-site-adapters') {
   let connection: Promise<IDBDatabase> | undefined;
+  let live: IDBDatabase | undefined;
+  const invalidate = (db: IDBDatabase) => {
+    if (live === db) { live = undefined; connection = undefined; }
+    db.close();
+  };
   const open = () => {
     if (!factory && !globalThis.indexedDB) return Promise.reject(new Error('sourceStoreUnavailable'));
-    return connection ??= new Promise<IDBDatabase>((resolve, reject) => {
+    if (connection) return connection;
+    const opening = new Promise<IDBDatabase>((resolve, reject) => {
     const available = factory ?? globalThis.indexedDB;
     if (!available) { reject(new Error('sourceStoreUnavailable')); return; }
     let abandoned = false;
@@ -89,18 +95,32 @@ export function createSourceDatabase(factory?: IDBFactory, name = 'known-site-ad
     r.onblocked = () => { abandoned = true; connection = undefined; reject(new Error('schemaIncompatible')); };
     r.onsuccess = () => { if (abandoned) { r.result.close(); return; }
       if (SOURCE_STORES.some(store => !r.result.objectStoreNames.contains(store))) { r.result.close(); connection = undefined; reject(new Error('schemaIncompatible')); return; }
-      r.result.onversionchange = () => { r.result.close(); connection = undefined; }; resolve(r.result); };
+      const db = r.result; live = db;
+      db.onversionchange = () => invalidate(db);
+      db.onclose = () => invalidate(db);
+      resolve(db); };
     });
+    connection = opening;
+    // A synchronous factory.open failure must not leave a rejected promise cached forever either.
+    void opening.catch(() => { if (connection === opening) connection = undefined; });
+    return opening;
   };
   return {
     open,
     async transaction<T>(stores: readonly SourceStore[], mode: IDBTransactionMode, work: (tx: IDBTransaction) => Promise<T>): Promise<T> {
-      let result: T;
-      await runTransaction(await open(), [...stores], mode, async tx => { result = await work(tx); });
+      let result: T, started = false;
+      const db = await open();
+      const run = (database: IDBDatabase) => runTransaction(database, [...stores], mode, async tx => { started = true; result = await work(tx); });
+      try { await run(db); }
+      catch (error) {
+        // The close event can lag transaction creation. Retry only when no application work ran.
+        if (started || !(error instanceof Error) || error.name !== 'InvalidStateError') throw error;
+        invalidate(db); await run(await open());
+      }
       return result!;
     },
     async read<T>(store: SourceStore, key: IDBValidKey) { return this.transaction([store], 'readonly', tx => get<T>(tx, store, key)); },
-    async close() { if (connection) (await connection).close(); connection = undefined; },
+    async close() { if (connection) invalidate(await connection); },
   };
 }
 export type SourceDatabase = ReturnType<typeof createSourceDatabase>;
