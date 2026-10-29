@@ -48,6 +48,7 @@ document.querySelector('#read-bindings')!.addEventListener('click', () => { void
 
 async function repair(kind: 'status' | 'recover' | 'export') {
   const result = await sendSiteMessage({ kind: `known.siteAdapters.repair.${kind}` }) as { ok?: boolean; error?: string; diagnostic?: unknown; attention?: unknown[];
+    folderRecovery?: { commandId: string; title: string; parentId: string }[];
     restored?: { id: string; connections: { ref: string; accountId: string; retainedBlocked: boolean; mounts: { ref: string; rootCandidate: string | null; reviewed: boolean }[] }[] }[] };
   const summary = document.querySelector('#repair-summary')!, container = document.querySelector('#repair-records')!, feedback = document.querySelector<HTMLElement>('#repair-feedback')!;
   feedback.hidden = true;
@@ -60,6 +61,33 @@ async function repair(kind: 'status' | 'recover' | 'export') {
   const attention = result.attention?.length ?? 0;
   text('repair-hint', !result.ok ? t('sites_repairUnreadable', 'Couldn’t read recovery records. The last response is below.')
     : attention ? tn('sites_recordsNeedRecovery', attention, '$1 record needs recovery or review.', '$1 records need recovery or review.') : t('sites_noRecords', 'No records need recovery.'));
+  for (const folder of result.folderRecovery ?? []) {
+    const parent = await folderName(folder.parentId);
+    const { row, control } = siteRow(folder.title, t('sites_folderRecoveryHint', 'The folder creation result is unknown. Check $1 carefully; the earlier request could still finish. Selecting a folder or retrying is your confirmation.', parent ?? folder.parentId), true);
+    const candidates = await chrome.bookmarks.getChildren(folder.parentId).catch(() => null);
+    if (!candidates) { container.append(row); continue; }
+    let matching = 0;
+    for (const candidate of candidates) {
+      if (candidate.url || candidate.title !== folder.title || !candidate.dateAdded) continue;
+      matching++;
+      const adopt = siteButton(t('sites_folderRecoveryAdopt', 'Confirm this existing folder ($1)', String(candidate.dateAdded)));
+      adopt.onclick = () => { adopt.disabled = true; void sendSiteMessage({ kind: 'known.siteAdapters.repair.adoptFolder', commandId: folder.commandId,
+        nativeId: candidate.id, dateAdded: candidate.dateAdded }).then((response: unknown) => {
+        if ((response as { ok?: boolean }).ok) { row.remove(); feedback.textContent = t('sites_folderRecoveryDone', 'Folder confirmed. Its waiting saves can continue.'); feedback.hidden = false; }
+        else adopt.disabled = false;
+      }); };
+      control.append(adopt);
+    }
+    if (!matching) {
+      const retry = siteButton(t('sites_folderRecoveryRetry', 'I checked no folder was created and accept the risk of a duplicate; try again'));
+      retry.onclick = () => { retry.disabled = true; void sendSiteMessage({ kind: 'known.siteAdapters.repair.retryFolder', commandId: folder.commandId }).then((response: unknown) => {
+        if ((response as { ok?: boolean }).ok) { row.remove(); feedback.textContent = t('sites_folderRecoveryDone', 'Folder recovery started. Its waiting saves can continue.'); feedback.hidden = false; }
+        else retry.disabled = false;
+      }); };
+      control.append(retry);
+    }
+    container.append(row);
+  }
   for (const restored of result.restored ?? []) for (const connection of restored.connections) {
     if (connection.retainedBlocked || connection.mounts.length && connection.mounts.every(m => m.reviewed)) continue;
     const { row, control } = siteRow(t('sites_restoredAccount', 'Restored account $1', connection.accountId),

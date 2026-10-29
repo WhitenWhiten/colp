@@ -122,3 +122,20 @@ test('cancellation during preparation fences the first outbox write', async () =
     expect(h.counts.bookmark).toBe(0);
   } finally { await h.db.close(); }
 });
+
+test('an adopted shared folder receipt survives interrupted acknowledgement and unblocks every consumer', async () => {
+  const h = await harness(), one = await h.plan('recover-one'), two = await h.plan('recover-two', '2');
+  try {
+    h.ports.execute = async command => { h.counts.folder++; const result = { status: 'unknown', reason: 'nativeOutcomeUnknown' } as const; h.native.set(command.commandId, result); return result; };
+    expect((await h.executor().execute(one.value.id, 'folder')).status).toBe('unknown');
+    expect((await h.executor().execute(two.value.id, 'folder')).status).toBe('unknown');
+    const native: NativeBinding<'folder'> = { ...root, bindingId: one.folder.commandId, nativeId: 'chosen', dateAdded: 25, proof: { kind: 'explicitAdoption', id: one.folder.commandId } };
+    h.native.set(one.folder.commandId, { status: 'confirmed', native });
+    let interrupted = true;
+    h.ports.acknowledge = async () => { if (interrupted) { interrupted = false; throw new Error('interrupted'); } };
+    expect(await h.executor().execute(one.value.id, 'folder')).toMatchObject({ status: 'blocked', reason: 'interrupted' });
+    expect(await h.executor().execute(one.value.id, 'folder')).toMatchObject({ status: 'confirmed', native });
+    expect(await h.executor().execute(two.value.id, 'folder')).toMatchObject({ status: 'confirmed', native });
+    expect(h.counts.folder).toBe(1);
+  } finally { await h.db.close(); }
+});

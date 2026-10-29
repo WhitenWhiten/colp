@@ -6,7 +6,9 @@ import { captureNeedsAttention } from './statistics.js';
 import { canonicalJson } from '../canonical-json.js';
 
 export interface PlannedCommandRecord { commandId: string; kind: 'bookmark' | 'folder'; digest: string; state: 'reserved' | 'submitted' | 'unknown' | 'confirmed';
-  payload?: unknown; task?: CaptureTask; native?: import('../site-adapters/contracts.js').NativeBinding<'folder'>; acknowledged?: boolean }
+  payload?: unknown; task?: CaptureTask; native?: import('../site-adapters/contracts.js').NativeBinding<'folder'>; acknowledged?: boolean;
+  recovery?: { previousState: 'submitted' | 'unknown'; adoptedAt: number; native: import('../site-adapters/contracts.js').NativeBinding<'folder'> };
+  retryDecisions?: { previousState: 'submitted' | 'unknown'; approvedAt: number }[] }
 interface StoredTask extends CaptureTask { readonly scopeKey: string; readonly ownerKey: string; readonly activeKey?: string }
 const active = (task: CaptureTask) => task.disposition === 'new'
   && (task.save === 'unsubmitted' || task.save === 'unknown' || task.classification === 'waiting' || task.classification === 'running');
@@ -265,6 +267,27 @@ export function createCaptureStore(factory: IDBFactory = indexedDB, onCommitted?
         const store = tx.objectStore('plannedCommands'), old = await requestValue(store.get(commandId)) as PlannedCommandRecord | undefined;
         if (!old || old.kind !== 'folder' || old.state !== expected || next === 'reserved' || next === 'confirmed' && (!native || native.dateAdded === null)) throw new Error('capture_command_reused');
         store.put({ ...old, state: next, ...(native ? { native } : {}) });
+      });
+    },
+    async retryPlannedFolder(commandId: string, digest: string) {
+      return transaction('readwrite', async tx => {
+        const store = tx.objectStore('plannedCommands'), old = await requestValue(store.get(commandId)) as PlannedCommandRecord | undefined;
+        if (!old || old.kind !== 'folder' || old.digest !== digest || old.native) throw new Error('capture_command_reused');
+        if (old.state === 'reserved' && old.retryDecisions?.length) return;
+        if (old.state !== 'submitted' && old.state !== 'unknown') throw new Error('nativeOutcomeNotUnknown');
+        store.put({ ...old, state: 'reserved', retryDecisions: [...old.retryDecisions ?? [], { previousState: old.state, approvedAt: Date.now() }] });
+      });
+    },
+    async adoptPlannedFolder(commandId: string, digest: string, native: import('../site-adapters/contracts.js').NativeBinding<'folder'>) {
+      return transaction('readwrite', async tx => {
+        const store = tx.objectStore('plannedCommands'), old = await requestValue(store.get(commandId)) as PlannedCommandRecord | undefined;
+        if (!old || old.kind !== 'folder' || old.digest !== digest || !native.dateAdded) throw new Error('capture_command_reused');
+        if (old.state === 'confirmed') {
+          if (!old.native || canonicalJson(old.native, () => { throw new Error('nativeIdentityChanged'); }) !== canonicalJson(native, () => { throw new Error('nativeIdentityChanged'); })) throw new Error('nativeIdentityChanged');
+          return;
+        }
+        if (old.state !== 'submitted' && old.state !== 'unknown') throw new Error('nativeOutcomeNotUnknown');
+        store.put({ ...old, state: 'confirmed', native, recovery: { previousState: old.state, adoptedAt: Date.now(), native } });
       });
     },
     async acknowledgePlanned(commandId: string, digest: string) {
