@@ -17,9 +17,23 @@ export async function registerLocalTransfer(transfer: LocalCopyTransfer): Promis
   const owner = transfer.owner, client = await managedClientForLibrary(owner);
   const attemptKey = sourceKey('localAdoptAttempt', managedLibraryKey(owner), transfer.commandId);
   let command = await siteLedger.db.read<ManagedSaveCommand>('meta', attemptKey), receipt: ManagedSaveReceipt | null = null;
+  const rejectedKey = `${attemptKey}:rejected`, replacedKey = `${attemptKey}:replaced`;
+  let fenced: ManagedSaveCommand | undefined;
   if (command) {
     // A committed merge may already have removed/moved the provisional native. Recover its immutable receipt first.
     receipt = (await client.call<{ receipt: ManagedSaveReceipt | null }>('managed.recover', { commandId: command.commandId, digest: sourceDigest(command) })).receipt;
+  }
+  if (!receipt && command) {
+    const rejected = await siteLedger.db.read<{ commandId: string }>('meta', rejectedKey);
+    const current = await currentSyncScope();
+    if (rejected?.commandId === command.commandId || (!await siteLedger.db.read('meta', replacedKey) && ['source_root_changed', 'source_copy_adoption_conflict'].includes(transfer.reason ?? '')) || current.replicaId !== command.replicaId) {
+      await assertTransferCurrent(transfer);
+      const profile = await client.profile(transfer.copyPolicy);
+      if (profile?.managedCancel !== 1) throw Error('sourceSyncUpgradeRequired');
+      const result = await client.call<{ receipt: ManagedSaveReceipt | null }>('managed.cancel', { commandId: command.commandId, digest: sourceDigest(command), collectionId: command.collectionId });
+      if (result.receipt) receipt = result.receipt;
+      else { fenced = command; command = undefined; }
+    }
   }
   if (!receipt) {
     const { scope, native } = await assertTransferCurrent(transfer);
@@ -33,7 +47,7 @@ export async function registerLocalTransfer(transfer: LocalCopyTransfer): Promis
     });
     const profile = await client.profile(transfer.copyPolicy);
     if (!command) {
-      const id = `local-adopt:${sourceDigest({ owner, command: transfer.commandId, node: mapping.colpId }).slice(7)}`;
+      const id = `local-adopt:${sourceDigest({ owner, command: transfer.commandId, node: mapping.colpId, ...(fenced ? { previous: fenced.commandId, replica: scope.replicaId, parentRevision: parent.projection.resourceRevision ?? parent.projection.revision, nodeRevision: mapping.projection.resourceRevision ?? mapping.projection.revision } : {}) }).slice(7)}`;
       command = await siteLedger.db.read<ManagedSaveCommand>('meta', `localAdoptCommand:${id}`);
       if (!command) {
         let parentId = parent.colpId, parentRevision = parent.projection.resourceRevision ?? parent.projection.revision;
@@ -51,11 +65,21 @@ export async function registerLocalTransfer(transfer: LocalCopyTransfer): Promis
           ...(profile?.managedLocalConvergence === 1 ? { converge: { fromParentId: parent.colpId } } : {}) };
       }
       const frozen = command;
-      await siteLedger.db.transaction(['meta'], 'readwrite', async tx => { put(tx, 'meta', attemptKey, frozen); put(tx, 'meta', `localAdoptCommand:${frozen.commandId}`, frozen); });
+      await siteLedger.db.transaction(['meta'], 'readwrite', async tx => {
+        const current = await get<ManagedSaveCommand>(tx, 'meta', attemptKey);
+        if (fenced && (!current || sourceDigest(current) !== sourceDigest(fenced))) throw Error('sourceSyncPending');
+        if (!fenced && current && sourceDigest(current) !== sourceDigest(frozen)) throw Error('sourceSyncPending');
+        put(tx, 'meta', attemptKey, frozen); put(tx, 'meta', `localAdoptCommand:${frozen.commandId}`, frozen);
+        if (fenced) { put(tx, 'meta', replacedKey, true); tx.objectStore('meta').delete(rejectedKey); }
+      });
     }
     await assertTransferCurrent(transfer);
     try { receipt = await client.call<ManagedSaveReceipt>('managed.save', command); }
     catch (error) {
+      if (error instanceof Error && ['source_root_changed', 'source_copy_adoption_conflict'].includes(error.message)) {
+        const rejected = command!;
+        await siteLedger.db.transaction(['meta'], 'readwrite', async tx => put(tx, 'meta', rejectedKey, { commandId: rejected.commandId, reason: error.message }));
+      }
       if (error instanceof Error && error.message === 'source_convergence_pending') await assertConvergenceChildren(transfer);
       throw error;
     }

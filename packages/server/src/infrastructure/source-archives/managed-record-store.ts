@@ -4,7 +4,7 @@ import { managedSlotKey, parseManagedSave, parseManagedSlot, parseManagedCopy, p
   type ManagedSaveState, type ManagedSaveCommand, type ManagedNode, type ManagedSlot } from '../../modules/source-archives/index.js';
 import { recordHash, managedRecord, bindingContent, slotIdentity, type ManagedRecord, type RecordKind } from './managed-record-codec.js';
 type Legacy = { folders: Record<string, ManagedNode>; copies: Record<string, ManagedNode> };
-const kinds = ['bindings', 'receipts', 'semanticClaims', 'edits'] as const;
+const kinds = ['bindings', 'receipts', 'cancelled', 'semanticClaims', 'edits'] as const;
 async function writeRows(tx: DatabaseTransaction, accountId: string, rows: ManagedRecord[]) {
   for (let offset = 0; offset < rows.length; offset += 500) {
     const page = JSON.stringify(rows.slice(offset, offset + 500));
@@ -32,7 +32,7 @@ export async function migrateManagedRecords(tx: DatabaseTransaction, accountId: 
 }
 /** Load indexed dependencies only; updating a receipt never rewrites another site's history. */
 export function createManagedRecordStore(tx: DatabaseTransaction, accountId: string) {
-  const state: ManagedSaveState = { bindings: {}, receipts: {}, semanticClaims: {}, edits: {} }, baseline = new Map<string, string>();
+  const state: ManagedSaveState = { bindings: {}, receipts: {}, cancelled: {}, semanticClaims: {}, edits: {} }, baseline = new Map<string, string>();
   const maps = state as unknown as Record<RecordKind, Record<string, unknown>>;
   const legacy: Legacy = { folders: {}, copies: {} };
   const remember = (rows: readonly ManagedRecord[]) => {
@@ -69,7 +69,7 @@ export function createManagedRecordStore(tx: DatabaseTransaction, accountId: str
       if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new SourceArchiveError('invalid_source_document', 422);
       const input = raw as Record<string, unknown>;
       if (action === 'managed.save') {
-        const c = parseManagedSave(raw); await exact('receipts', c.commandId); if (Object.hasOwn(state.receipts, c.commandId)) return state;
+        const c = parseManagedSave(raw); await exact('receipts', c.commandId); await exact('cancelled', c.commandId); if (Object.hasOwn(state.receipts, c.commandId)) return state;
         await exact('bindings', managedSlotKey(c.collectionId, c.slot));
         if (c.converge && c.adopt) await aliases(c.collectionId, c.adopt.nodeId);
         if (c.slot.kind === 'bookmark' && c.copyPolicy && c.copyPolicy !== 'sourceAndSemantic')
@@ -81,7 +81,7 @@ export function createManagedRecordStore(tx: DatabaseTransaction, accountId: str
         if (c.slot.kind === 'bookmark' && c.slot.copy.purpose === 'semantic') await exact('semanticClaims', managedSlotKey(c.collectionId, c.slot));
         await legacyFor(c); return state;
       }
-      if (action === 'managed.recover') { await exact('receipts', text(input.commandId)); return state; }
+      if (action === 'managed.recover' || action === 'managed.cancel') { await exact('receipts', text(input.commandId)); if (action === 'managed.cancel') await exact('cancelled', text(input.commandId)); return state; }
       if (action === 'managed.reconcile.recover') { await exact('edits', text(input.commandId)); return state; }
       if (action === 'managed.reconcile') {
         const c = parseManagedReconcile(raw); await exact('edits', c.commandId);

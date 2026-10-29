@@ -54,9 +54,9 @@ export async function retryLocalTransfers(db: SourceDatabase, connectionId: stri
   await db.transaction(['transfers', 'meta'], 'readwrite', async tx => {
     const rows = await cursorPage<PendingLocalTransfer>(tx.objectStore('transfers').index('connectionState'), IDBKeyRange.only([connectionId, 'attention']), 50);
     for (const row of rows) {
-      put(tx, 'transfers', row.commandId, { ...row, state: 'pending', dueAt: 0, reason: undefined });
+      put(tx, 'transfers', row.commandId, { ...row, state: 'pending', dueAt: 0 });
       const record = await get<LocalCopyTransfer>(tx, 'meta', localTransferKey(row.commandId));
-      if (record) put(tx, 'meta', localTransferKey(row.commandId), { ...record, state: 'pending', reason: undefined });
+      if (record) put(tx, 'meta', localTransferKey(row.commandId), { ...record, state: 'pending' });
     }
   });
 }

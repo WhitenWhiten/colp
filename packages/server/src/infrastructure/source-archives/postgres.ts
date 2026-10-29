@@ -10,7 +10,7 @@ import { createPostgresNodeWritePort, createPostgresCollectionWritePort } from '
 import { managedSavePorts, lockManagedLibrary } from './managed-copies.js';
 import { managedReconcilePorts } from './reconcile.js';
 import { parseManagedReconcile, reconcileManagedCopy, undoManagedReconcile } from '../../modules/source-archives/index.js';
-import { parseManagedSave, parseManagedCopy, parseManagedSlot, markManagedChange, relocateManagedCopy, adoptLegacyManagedCopy, saveManagedCopy, recoverManagedCopy, observeManagedCopy, claimManagedSemantic, releaseManagedSemantic, type ManagedSaveState } from '../../modules/source-archives/index.js';
+import { parseManagedSave, parseManagedCopy, parseManagedSlot, markManagedChange, relocateManagedCopy, adoptLegacyManagedCopy, saveManagedCopy, recoverManagedCopy, cancelManagedCopy, observeManagedCopy, claimManagedSemantic, releaseManagedSemantic, type ManagedSaveState } from '../../modules/source-archives/index.js';
 import { SOURCE_ARCHIVE_PROFILE, SourceArchiveError, object, text, integer, digest, sourceHash, parseSourceScope, parseSourceEdges, sourceInput, sourceConnectionKey,
   type SourceArchiveActor, type SourceArchiveApplication, type SourceScope, type SourceEdge, type SourceLease, type SourceFinalEffect, type SourceFinalReceipt, type SourceCanonicalMutation } from '../../modules/source-archives/index.js';
 interface Connection { epoch: number; scope: SourceScope; lease: SourceLease | null }
@@ -33,7 +33,7 @@ export function createPostgresSourceArchives(db: Kysely<DatabaseSchema>, testHoo
     return uow.execute(async ({ transaction: tx }) => {
       // Session → account → private receipt row → replica gate → replicas → collection.
       // Holding the authority rows through commit fences concurrent credential/replica revocation.
-      if (['configure', 'renew', 'preview', 'commit', 'managed.save', 'managed.semantic.claim', 'managed.reconcile', 'managed.reconcile.undo'].includes(action)) {
+      if (['configure', 'renew', 'preview', 'commit', 'managed.save', 'managed.cancel', 'managed.semantic.claim', 'managed.reconcile', 'managed.reconcile.undo'].includes(action)) {
         const sessions = await tx.selectFrom('sync_sessions').select('session_id').where('account_id', '=', actor.accountId)
           .where('credential_id', '=', actor.credentialId).where('credential_issuer', '=', actor.credentialIssuer)
           .where('status', '=', 'active').where('expires_at', '>', new Date()).orderBy('session_id').forShare().execute();
@@ -115,6 +115,11 @@ export function createPostgresSourceArchives(db: Kysely<DatabaseSchema>, testHoo
           const managed = state.managed ??= { bindings: {}, receipts: {} };
           adoptLegacyManagedCopy(managed, records.legacy, command);
           return saveManagedCopy(managed, command, managedSavePorts(tx, actor.subjectId, actor.accountId));
+        }
+        if (action === 'managed.cancel') {
+          const i = object(body.input, ['commandId', 'digest', 'collectionId']);
+          await lockManagedLibrary(tx, actor.subjectId, text(i.collectionId));
+          return { receipt: cancelManagedCopy(state.managed ??= { bindings: {}, receipts: {} }, text(i.commandId), digest(i.digest)) };
         }
         if (action === 'managed.recover') {
           const i = object(body.input, ['commandId', 'digest']);

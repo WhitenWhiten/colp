@@ -3,7 +3,7 @@ import { sql } from 'kysely';
 import { createIsolatedPostgresRuntime, describeWithPostgres, type IsolatedPostgresRuntime } from '../../support/postgres-test-runtime.js';
 import { runMigrations } from '../../../src/infrastructure/database/index.js';
 import { createManagedRecordStore, migrateManagedRecords } from '../../../src/infrastructure/source-archives/managed-record-store.js';
-import { saveManagedCopy, observeManagedCopy, claimManagedSemantic, managedSlotKey, sourceHash,
+import { saveManagedCopy, cancelManagedCopy, observeManagedCopy, claimManagedSemantic, managedSlotKey, sourceHash,
   type ManagedSaveCommand, type ManagedNode, type ManagedSaveState } from '../../../src/modules/source-archives/index.js';
 
 const command = (id: string, itemId = 'one'): ManagedSaveCommand => ({ commandId: id, replicaId: 'replica', collectionId: 'library', parentId: 'folder', parentRevision: 'r1', title: 'Title', url: `https://posts.test/${itemId}`,
@@ -72,6 +72,33 @@ describeWithPostgres('indexed source archive records', () => {
     for (const result of results) await transaction(async store => {
       const state = await store.load('managed.recover', { commandId: result.commandId }); expect(state.receipts[result.commandId]).toEqual(result);
     });
+  });
+  test('a durable cancellation fences a late save while a committed receipt wins the race', async () => {
+    const cancelled = command('fenced-registration', 'fenced');
+    await transaction(async store => {
+      const state = await store.load('managed.cancel', { commandId: cancelled.commandId });
+      expect(cancelManagedCopy(state, cancelled.commandId, sourceHash(cancelled))).toBeNull();
+      await store.flush();
+    });
+    let creates = 0;
+    const ports = { assertTarget: async () => {}, read: async () => null,
+      create: async (c: ManagedSaveCommand) => { creates++; return { nodeId: 'created', parentId: c.parentId, title: c.title, url: c.url, revision: 'r1' }; } };
+    await expect(transaction(async store => {
+      const state = await store.load('managed.save', cancelled);
+      return saveManagedCopy(state, cancelled, ports);
+    })).rejects.toThrow('source_command_cancelled');
+    expect(creates).toBe(0);
+    const committed = command('committed-registration', 'committed');
+    const receipt = await transaction(async store => {
+      const state = await store.load('managed.save', committed), result = await saveManagedCopy(state, committed, ports);
+      await store.flush(); return result;
+    });
+    const recovered = await transaction(async store => {
+      const state = await store.load('managed.cancel', { commandId: committed.commandId });
+      const result = cancelManagedCopy(state, committed.commandId, sourceHash(committed)); await store.flush(); return result;
+    });
+    expect(recovered).toEqual(receipt);
+    expect(creates).toBe(1);
   });
   test('binding listing is keyset paged independently of retained receipts', async () => {
     const first = await transaction(store => store.list('library', null));

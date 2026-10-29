@@ -24,7 +24,7 @@ export interface ManagedSaveReceipt {
 }
 export interface ManagedBinding { slot: ManagedSlot; collectionId: string; node: ManagedNode; state: 'active' | 'detached' | 'suppressed'; lifecycle?: 'current' | 'retired'; titleOverride?: boolean; controlRevision?: number }
 export interface SemanticClaim { ownerId: string | null; revision: number }
-export interface ManagedSaveState { bindings: Record<string, ManagedBinding>; receipts: Record<string, ManagedSaveReceipt>; semanticClaims?: Record<string, SemanticClaim>; edits?: Record<string, import('./reconcile.js').ManagedReconcileReceipt> }
+export interface ManagedSaveState { bindings: Record<string, ManagedBinding>; receipts: Record<string, ManagedSaveReceipt>; semanticClaims?: Record<string, SemanticClaim>; edits?: Record<string, import('./reconcile.js').ManagedReconcileReceipt>; cancelled?: Record<string, string> }
 export interface ManagedSavePorts {
   /** Caller holds the authenticated session, account, replica and collection locks through commit. */
   assertTarget(command: ManagedSaveCommand): Promise<void>;
@@ -121,6 +121,8 @@ export function parseManagedSave(raw: unknown): ManagedSaveCommand {
 /** Run in the same transaction as canonical creation. The durable key is shared by all replicas. */
 export async function saveManagedCopy(state: ManagedSaveState, command: ManagedSaveCommand, ports: ManagedSavePorts): Promise<ManagedSaveReceipt> {
   const digest = sourceHash(command), previous = own(state.receipts, command.commandId);
+  const cancelled = own(state.cancelled ?? {}, command.commandId);
+  if (cancelled) { if (cancelled !== digest) fail('source_command_reused'); fail('source_command_cancelled'); }
   if (previous) {
     if (previous.digest !== digest) fail('source_command_reused');
     return previous;
@@ -220,4 +222,14 @@ export function recoverManagedCopy(state: ManagedSaveState, commandId: string, d
   const receipt = own(state.receipts, commandId);
   if (receipt && receipt.digest !== digest) fail('source_command_reused');
   return receipt ?? null;
+}
+
+/** Serialize cancellation with saves under the account lock; an existing receipt always wins. */
+export function cancelManagedCopy(state: ManagedSaveState, commandId: string, digest: string): ManagedSaveReceipt | null {
+  const receipt = recoverManagedCopy(state, commandId, digest);
+  if (receipt) return receipt;
+  const cancelled = state.cancelled ??= {}, previous = own(cancelled, commandId);
+  if (previous && previous !== digest) fail('source_command_reused');
+  cancelled[commandId] = digest;
+  return null;
 }

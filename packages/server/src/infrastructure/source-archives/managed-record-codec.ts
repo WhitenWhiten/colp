@@ -1,6 +1,6 @@
 import { sourceHash, SourceArchiveError, type ManagedBinding, type ManagedNode, type ManagedSlot } from '../../modules/source-archives/index.js';
 export const recordHash = (value: unknown) => sourceHash(value).slice(7);
-export type RecordKind = 'bindings' | 'receipts' | 'semanticClaims' | 'edits' | 'legacyFolders' | 'legacyCopies';
+export type RecordKind = 'bindings' | 'receipts' | 'cancelled' | 'semanticClaims' | 'edits' | 'legacyFolders' | 'legacyCopies';
 export interface ManagedRecord {
   kind: RecordKind; record_key: string; record_hash: string; payload_json: unknown;
   collection_id: string | null; node_id: string | null; content_hash: string | null; identity_hash: string | null; identity_version: number | null;
