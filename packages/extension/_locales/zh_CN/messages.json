@@ -12623,6 +12623,14 @@
     "message": "开始下一次核对后，仍可在这里查看、重试或撤销之前的处理。",
     "description": "Previous actions remain available for review and undo after you start another check."
   },
+  "sites_reconcileHistoryNone": {
+    "message": "还没有收藏夹检查。",
+    "description": "No collection checks yet."
+  },
+  "sites_reconcileHistoryTitle": {
+    "message": "收藏夹检查",
+    "description": "Collection checks"
+  },
   "sites_reconcileHistoryCounts": {
     "message": "已处理 $1 项 · $2 项需要检查 · 已撤销 $3 项",
     "description": "$1 applied · $2 need attention · $3 undone"

@@ -7655,6 +7655,12 @@
   "sites_reconcileHistoryHint": {
     "message": "Previous actions remain available for review and undo after you start another check."
   },
+  "sites_reconcileHistoryNone": {
+    "message": "No collection checks yet."
+  },
+  "sites_reconcileHistoryTitle": {
+    "message": "Collection checks"
+  },
   "sites_reconcileKeep": {
     "message": "Keep as is"
   },

@@ -272,7 +272,7 @@ const LIBRARY = [
   ['sites-all-skipped', 'site-adapters.html?shot=site-all-skipped', open('#import-omissions')],
   ['sites-unsupported', 'site-adapters.html?shot=site-unsupported'], ['sites-error', 'site-adapters.html?shot=site-error'],
   ['sites-hold', 'site-adapters.html?shot=site-hold'], ['sites-noperm', 'site-adapters.html?shot=noperm'],
-  ['sites-review', 'site-adapters.html?shot=site-on,site-repair#recovery', async (p) => { await p.click('#read-bindings'); await p.click('#repair-status'); await p.waitForTimeout(400); }],
+  ['sites-review', 'site-adapters.html?shot=site-on,site-repair#recovery', async (p) => { await p.click('#read-bindings'); await p.click('#repair-status'); await p.click('#reconcile-history-load'); await p.waitForTimeout(300); await p.click('#reconcile-history-list [data-run-id="run-2"]'); await p.waitForTimeout(400); }],
   ['sites-tools', 'site-adapters.html?shot=site-on', open('#site-tools')], ['sites-cloud', 'site-adapters.html?shot=site-on#cloud'],
   ['sites-packages', 'site-adapters.html?shot=site-on,site-packages#packages', async (p) => { await p.setInputFiles('#community-file', packageFile); await p.waitForTimeout(400); }],
   // Help: the ingress list ("Bookmarks not included in sync") with real rows

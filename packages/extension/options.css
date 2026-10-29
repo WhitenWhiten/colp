@@ -1171,6 +1171,10 @@ body[data-first-run="syncing"] .folder-foot { display: none; }
 .sites-rows--lead > .set-row:first-child { border-top: 0; }
 .sites-rows .set-row-control { flex-wrap: wrap; }
 .sites-rows:not(:empty) + .sites-packages-empty { display: none; }
+/* An opened collection check: its changes sit indented under its row, on a faint fill, with the check's actions last. */
+#reconcile-history-list > #reconcile-history-detail { background: color-mix(in srgb, var(--paper) 40%, var(--surface-raised)); }
+#reconcile-history-detail > .set-row { padding-left: var(--space-6); }
+.sites-history-actions { justify-content: flex-end; min-height: 0; }
 /* A card foot of steps: the leading ghost step at the start, the rest at the end; nothing to do, no foot. */
 .sites-actions { flex-wrap: wrap; }
 .sites-actions:not(:has(> .btn:not([hidden]))) { display: none; }

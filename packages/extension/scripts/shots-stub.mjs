@@ -362,6 +362,12 @@ export function installStub(messages) {
       lastAcceptedOrdinal: 412, pendingObservations: 0, truncated: false,
       restored: has('site-repair') ? [{ id: 'r-1', state: 'disabled', connections: [{ ref: 'c-1', accountId: '42', retainedBlocked: false, mounts: [{ ref: 'm-1', rootCandidate: 'f-research', reviewed: false }], associations: 3 }] }] : [] };
     if (kind === 'known.siteAdapters.repair.preview') return { ok: true, preview: { digest: 'sha256:r', review: [] } };
+    if (kind === 'known.siteAdapters.reconcile.history') return { archiveResult: { next: null, runs: [
+      { id: 'run-2', createdAt: Date.now() - 3600_000, completed: 4, attention: 1, undone: 0 },
+      { id: 'run-1', createdAt: Date.now() - 86400_000 * 3, completed: 12, attention: 0, undone: 2 }] } };
+    if (kind === 'known.siteAdapters.reconcile.get') return { archiveResult: { run: { id: 'run-2', state: 'completed', operations: [
+      { id: 'op-1', state: 'completed', difference: { title: 'Attention in transformers, visually explained' } },
+      { id: 'op-2', state: 'attention', reason: 'nativeChanged', difference: { title: 'Weeknight dumplings in 20 minutes' } }] } } };
     if (kind.startsWith('known.siteAdapters.cloud.')) return { configured: true, approved: false, state: 'idle' };
     return siteStatus();
   };

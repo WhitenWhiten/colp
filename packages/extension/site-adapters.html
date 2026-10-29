@@ -280,8 +280,13 @@
         <section class="set-group" aria-labelledby="reconcile-history-heading">
           <div class="set-group-head"><h2 id="reconcile-history-heading" data-i18n="sites_reconcileHistory">Previous collection checks</h2>
             <p data-i18n="sites_reconcileHistoryHint">Previous actions remain available for review and undo after you start another check.</p></div>
-          <button id="reconcile-history-load" class="btn btn-secondary btn-sm" type="button" data-i18n="common_refresh">Refresh</button>
-          <div id="reconcile-history-list" class="sites-rows"></div><div id="reconcile-history-detail" class="sites-rows"></div>
+          <div class="set-card">
+            <div class="set-row">
+              <div class="set-row-text"><p class="set-row-title" data-i18n="sites_reconcileHistoryTitle">Collection checks</p></div>
+              <div class="set-row-control"><button id="reconcile-history-load" class="btn btn-secondary btn-sm" type="button" data-i18n="sites_review">Review</button></div>
+            </div>
+            <div id="reconcile-history-list" class="sites-rows"></div><div id="reconcile-history-detail" class="sites-rows"></div>
+          </div>
         </section>
         <section class="set-group" aria-labelledby="sites-repair-heading">
           <div class="set-group-head"><h2 id="sites-repair-heading" data-i18n="sites_repairHeadingShort">Recovery</h2>
