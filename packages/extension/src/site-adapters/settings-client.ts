@@ -60,28 +60,24 @@ export function currentRoute(): SiteRoute {
 }
 const routeListeners: ((route: SiteRoute) => void)[] = [];
 export const onRoute = (listener: (route: SiteRoute) => void) => { routeListeners.push(listener); };
-/** One page, several views: the hash picks the site tab (#sync, #cloud, #recovery) or the Add-on packages view (#packages). */
+const PANELS: Record<SiteTab, string> = { sync: 'panel-sync', cloud: 'panel-cloud', recovery: 'panel-recovery' };
+/** One page, several views: the hash picks the site view (#sync, or the advanced #cloud and #recovery, which lead back
+    through the breadcrumb) or the Add-on packages view (#packages). */
 export function mountRoutes() {
-  const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>('.sites-tabs [role="tab"]'));
   const paint = () => {
     const route = currentRoute();
     document.body.dataset.view = route.view; document.body.dataset.tab = route.tab;
     document.querySelector<HTMLElement>('#view-site')!.hidden = route.view !== 'site';
     document.querySelector<HTMLElement>('#view-packages')!.hidden = route.view !== 'packages';
-    for (const tab of tabs) { const on = tab.dataset.tab === route.tab; tab.setAttribute('aria-selected', String(on)); tab.tabIndex = on ? 0 : -1;
-      document.querySelector<HTMLElement>(`#${tab.getAttribute('aria-controls')}`)!.hidden = !on; }
+    for (const tab of TABS) document.querySelector<HTMLElement>(`#${PANELS[tab]}`)!.hidden = tab !== route.tab;
+    document.querySelector<HTMLElement>('#site-crumbs')!.hidden = route.tab === 'sync';
+    document.querySelector<HTMLElement>('#site-crumb-current')!.textContent = route.tab === 'cloud' ? t('sites_tabCloud', 'COLP Server')
+      : route.tab === 'recovery' ? t('sites_tabRecovery', 'Recovery') : '';
     for (const [id, item] of navItems) { if (route.view === 'site' && id === selectedSite.adapterId) item.setAttribute('aria-current', 'page'); else item.removeAttribute('aria-current'); }
     const packages = document.querySelector<HTMLElement>('#nav-packages')!;
     if (route.view === 'packages') packages.setAttribute('aria-current', 'page'); else packages.removeAttribute('aria-current');
     for (const listener of routeListeners) listener(route);
   };
-  for (const tab of tabs) tab.addEventListener('click', () => { showTab(tab.dataset.tab as SiteTab); });
-  // Arrow keys move along the tabs, as in any tablist.
-  document.querySelector('.sites-tabs')!.addEventListener('keydown', event => {
-    const key = (event as KeyboardEvent).key; if (key !== 'ArrowLeft' && key !== 'ArrowRight') return;
-    const at = TABS.indexOf(currentRoute().tab), next = TABS[(at + (key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length]!;
-    showTab(next); tabs.find(tab => tab.dataset.tab === next)?.focus();
-  });
   addEventListener('hashchange', paint); paint();
 }
 export function showTab(tab: SiteTab) { if (location.hash !== `#${tab}`) location.hash = tab; }

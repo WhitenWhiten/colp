@@ -172,8 +172,10 @@ bar whose items wrap onto a second line, so every destination stays visible.
 The sidebar holds a Settings back link, **Sites** (one item per bundled site: a letter mark, the name and a stable state,
 Off, Connected, Paused or Needs attention; `?adapterId=` picks the site) and **More › Add-on packages**. Bilibili uses the
 same host components as other sources. The main column is the `46rem` settings column: the site's name as the h1, a
-refresh icon, and Settings once configured. Advanced tools are folded below the main view; their `#cloud`, `#recovery`
-and `#packages` links remain addressable.
+refresh icon, and Settings once configured. Advanced tools are folded below the main view as two link rows, COLP Server
+archive and Recovery. Each opens its own view (`#cloud`, `#recovery`) in place of Sync, with a "Sync › Recovery"
+breadcrumb under the head leading back; Recent activity and Advanced tools stay with Sync. `#packages` is the sidebar's
+Add-on packages view.
 
 - **Sync** shows setup until a mapping is configured. Afterwards one card keeps source, actual saved destination,
   confirmed bookmark count and current operation together. A source → local folder → saved result table shows every

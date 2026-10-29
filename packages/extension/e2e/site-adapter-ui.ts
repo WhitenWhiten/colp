@@ -1,7 +1,10 @@
 import type { Page } from '@playwright/test';
 
-/** Advanced navigation follows the disclosure used by the settings page. */
+/** Sync is the page's main view; COLP Server and Recovery open from the Advanced tools rows, and the breadcrumb leads back. */
 export async function openSiteAdapterTab(page: Page, tab: 'sync' | 'cloud' | 'recovery'): Promise<void> {
+  const back = page.locator('#tab-sync');
+  if (await back.isVisible()) await back.click();
+  if (tab === 'sync') return;
   const tools = page.locator('#site-tools');
   if (await tools.getAttribute('open') === null) await tools.locator(':scope > summary').click();
   await page.locator(`#tab-${tab}`).click();

@@ -6728,6 +6728,9 @@
   "sites_batchesHintShort": {
     "message": "Up to 20 confirmed favorites per batch, each with its own preview and approval. If a result is uncertain, recover it before the next batch."
   },
+  "sites_breadcrumb": {
+    "message": "Breadcrumb"
+  },
   "sites_cancelledBeforeSaving": {
     "message": "Reading stopped after $1 favorites were found. This import added no bookmarks. Read again when ready."
   },
@@ -8089,6 +8092,12 @@
   },
   "sites_theChosenRoot": {
     "message": "the chosen root"
+  },
+  "sites_toolCloudHint": {
+    "message": "Save the chosen collections to your COLP account in reviewed batches."
+  },
+  "sites_toolRecoveryHint": {
+    "message": "Recovery records, restored backups, saved copies and the inspector."
   },
   "sites_tryAgain": {
     "message": "Try again"

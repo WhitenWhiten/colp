@@ -11627,6 +11627,10 @@
     "message": "每批最多 20 个已确认的收藏，每批都有自己的预览和批准。如果结果不确定，请先恢复它，再准备下一批。",
     "description": "Up to 20 confirmed favorites per batch, each with its own preview and approval. If a result is uncertain, recover it before the next batch."
   },
+  "sites_breadcrumb": {
+    "message": "位置",
+    "description": "Breadcrumb"
+  },
   "sites_checkExisting": {
     "message": "检查已有收藏",
     "description": "Check for existing favorites"
@@ -12218,6 +12222,14 @@
   "sites_theChosenRoot": {
     "message": "所选根目录",
     "description": "the chosen root"
+  },
+  "sites_toolCloudHint": {
+    "message": "分批审阅后，把所选收藏夹保存到你的 COLP 账户。",
+    "description": "Save the chosen collections to your COLP account in reviewed batches."
+  },
+  "sites_toolRecoveryHint": {
+    "message": "恢复记录、已恢复的备份、已保存的副本和检查器。",
+    "description": "Recovery records, restored backups, saved copies and the inspector."
   },
   "sites_tryAgain": {
     "message": "重试",

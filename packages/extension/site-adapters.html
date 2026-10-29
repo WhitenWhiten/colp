@@ -29,6 +29,9 @@
           <button id="refresh" class="btn btn-ghost btn-sm btn-icon" type="button" aria-label="Refresh status" title="Refresh status" data-i18n-aria-label="sites_refreshStatus" data-i18n-title="sites_refreshStatus"><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="refresh"></svg></button>
         </div>
       </header>
+      <nav id="site-crumbs" class="sites-crumbs" aria-label="Breadcrumb" data-i18n-aria-label="sites_breadcrumb" hidden>
+        <a id="tab-sync" href="#sync" data-tab="sync" data-i18n="sites_tabSync">Sync</a><svg width="12" height="12" aria-hidden="true" focusable="false" data-icon="chevron-right"></svg><span id="site-crumb-current" aria-current="page"></span>
+      </nav>
       <div id="site-alert" class="inline-alert" data-tone="warning" hidden>
         <svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="alert"></svg>
         <p id="site-alert-text" role="status"></p>
@@ -44,7 +47,7 @@
         </div>
       </div>
       <!-- A configured mapping: the current task in its own card first, then the source, saved destination and results. -->
-      <div id="panel-sync" class="sites-panel" role="tabpanel" aria-labelledby="tab-sync">
+      <div id="panel-sync" class="sites-panel">
         <section id="source-overview" class="set-group sites-overview" aria-labelledby="overview-source" hidden>
           <section id="step-import" class="set-card sites-task" data-step="current" aria-labelledby="import-state">
             <p id="import-destination" hidden></p>
@@ -225,16 +228,16 @@
       </details>
       <p id="activity-feedback" class="feedback" role="status"></p>
       <textarea id="site-copy-fallback" class="code-panel" readonly hidden aria-label="Diagnostic report" data-i18n-aria-label="sites_diagnosticReport"></textarea>
+      <!-- Advanced tools open as their own views (#cloud, #recovery); the breadcrumb under the head leads back to Sync. -->
       <details id="site-tools" class="disclosure sites-settings"><summary data-i18n="sites_advancedTools">Advanced tools</summary>
-      <div class="view-switch sites-tabs" role="tablist" aria-label="Site sections" data-i18n-aria-label="sites_siteSections">
-        <button id="tab-sync" type="button" role="tab" aria-selected="true" aria-controls="panel-sync" data-tab="sync" data-i18n="sites_tabSync">Sync</button>
-        <button id="tab-cloud" type="button" role="tab" aria-selected="false" aria-controls="panel-cloud" data-tab="cloud" data-i18n="sites_tabCloud">COLP Server</button>
-        <button id="tab-recovery" type="button" role="tab" aria-selected="false" aria-controls="panel-recovery" data-tab="recovery" data-i18n="sites_tabRecovery">Recovery</button>
-      </div>
+        <nav class="set-card sites-tools" aria-label="Site sections" data-i18n-aria-label="sites_siteSections">
+          <a id="tab-cloud" class="set-row sites-tool" href="#cloud" data-tab="cloud"><span class="set-row-text"><span class="set-row-title" data-i18n="sites_cloudHeading">COLP Server archive</span><span class="set-row-hint" data-i18n="sites_toolCloudHint">Save the chosen collections to your COLP account in reviewed batches.</span></span><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="chevron-right"></svg></a>
+          <a id="tab-recovery" class="set-row sites-tool" href="#recovery" data-tab="recovery"><span class="set-row-text"><span class="set-row-title" data-i18n="sites_tabRecovery">Recovery</span><span class="set-row-hint" data-i18n="sites_toolRecoveryHint">Recovery records, restored backups, saved copies and the inspector.</span></span><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="chevron-right"></svg></a>
+        </nav>
       </details>
 
       <!-- COLP Server -->
-      <div id="panel-cloud" class="sites-panel" role="tabpanel" aria-labelledby="tab-cloud" hidden>
+      <div id="panel-cloud" class="sites-panel" hidden>
         <section class="set-group" aria-labelledby="sites-cloud-heading">
           <div class="set-group-head"><h2 id="sites-cloud-heading" data-i18n="sites_cloudHeading">COLP Server archive</h2>
             <p data-i18n="sites_cloudLedeShort">Save the collections chosen on Sync to your COLP account, in reviewed batches. Local archives stay where they are.</p></div>
@@ -273,7 +276,7 @@
       </div>
 
       <!-- Recovery -->
-      <div id="panel-recovery" class="sites-panel" role="tabpanel" aria-labelledby="tab-recovery" hidden>
+      <div id="panel-recovery" class="sites-panel" hidden>
         <section class="set-group" aria-labelledby="reconcile-history-heading">
           <div class="set-group-head"><h2 id="reconcile-history-heading" data-i18n="sites_reconcileHistory">Previous collection checks</h2>
             <p data-i18n="sites_reconcileHistoryHint">Previous actions remain available for review and undo after you start another check.</p></div>
