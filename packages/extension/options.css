@@ -1055,7 +1055,7 @@ body[data-first-run="syncing"] .folder-foot { display: none; }
 .sites-crumbs > svg { flex: none; width: 0.75rem; height: 0.75rem; color: var(--faint); }
 .sites-crumbs > [aria-current] { color: var(--ink); font-weight: var(--weight-medium); }
 .sites-body:not([data-tab="sync"]) :is(#site-history, #site-tools) { display: none; }
-.sites-view > .inline-alert { margin-bottom: var(--space-5); }
+.sites-view > .inline-alert, #site-problem-slot > .inline-alert { margin-bottom: var(--space-5); }
 .sites-view .set-row-hint { overflow-wrap: anywhere; }
 /* Rows here can hold several steps: they wrap onto a second line rather than run out of the card on a narrow window. */
 .sites-view :is(.set-row-control, .card-foot) { flex-wrap: wrap; }
@@ -1108,6 +1108,9 @@ body[data-first-run="syncing"] .folder-foot { display: none; }
   .sites-folder-row :is(.folder-pill, #grant-archive) { grid-column: 1; grid-row: 2; justify-self: start; max-width: 100%; }
   .sites-folder-row .folder-panel { grid-row: 3; }
   .sites-folder-row #create-root { grid-column: 1; grid-row: 4; justify-self: start; }
+  /* A ghost action that drops under its row's text lines its label up with that text, not with its own padding. */
+  .sites-view .set-row > .btn-ghost, .sites-view .set-row-control > .btn-ghost:nth-child(1 of :not([hidden])),
+  .sites-folder-row #create-root { margin-left: calc(-1 * var(--space-2)); }
 }
 .sites-options { border-top: 1px solid var(--line); }
 .sites-options > summary { padding: var(--hair-85) var(--space-4); color: var(--muted); font-size: var(--text-sm); }
