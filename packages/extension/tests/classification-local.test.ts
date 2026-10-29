@@ -288,3 +288,14 @@ test('a failed connection test explains itself in a sentence and never shows the
     expect(sentence(error,status)).not.toMatch(/HTTP|502|Failed to fetch|schema_mismatch|\$1/);
   }
 });
+
+test('pause after reserving but before dispatch releases only the unspent command', async () => {
+  let checks=0,calls=0;
+  const input={credential,taxonomy,commandId:'paused-before-send',document:{source:'extension' as const,bookmark:{title:'AI',url:'https://example.org/',description:null},requested:{folder:false,tags:true as const}},
+    signal:new AbortController().signal,assertCurrent:async()=>{if(++checks===2)throw new Error('sourceAutomationPaused');},transport:async()=>{calls++;throw new Error('lost reply');}};
+  await expect(previewLocalClassification(input)).rejects.toThrow('sourceAutomationPausedBeforeDispatch');
+  expect(calls).toBe(0);
+  await expect(previewLocalClassification({...input,assertCurrent:async()=>{}})).rejects.toThrow('outcome_unknown');
+  expect(calls).toBe(1);
+  await expect(previewLocalClassification({...input,assertCurrent:async()=>{}})).rejects.toThrow('local_result_unavailable');
+});

@@ -19,6 +19,8 @@ export async function previewLocalClassification(input:{credential:LocalClassifi
   document:ClassificationPreviewRequest;commandId:string;signal:AbortSignal;assertCurrent:()=>Promise<void>;transport?:typeof fetch}):Promise<ClassificationPreviewResponse>{
   if(!('bookmark' in input.document))throw new Error('local_incoming_only');
   const {credential,taxonomy:projection,document}=input;
+  let marked=false, dispatched=false;
+  try {
   await input.assertCurrent();
   const prior=(await chrome.storage.session.get(LOCAL_CLASSIFICATION_COMMANDS))[LOCAL_CLASSIFICATION_COMMANDS] as {generation:string;commands:string[]}|undefined;
   const commands=prior?.generation===credential.generation?prior.commands:[];
@@ -26,6 +28,7 @@ export async function previewLocalClassification(input:{credential:LocalClassifi
   if(commands.length>=100)throw new Error('local_session_budget_exhausted');
   // Persist before any network side effect. A worker restart cannot repeat this command.
   await chrome.storage.session.set({[LOCAL_CLASSIFICATION_COMMANDS]:{generation:credential.generation,commands:[...commands,input.commandId]}});
+  marked=true;
   const requested={folder:'folder' in document.requested&&document.requested.folder===true,tags:'tags' in document.requested&&document.requested.tags===true},bookmark=normalizeClassificationBookmark(document.bookmark);
   const candidates=buildClassificationCandidates({bookmark,folders:projection.folders,tagUsage:projection.tagUsage,existingTags:[],requested,
     rejectedFolderIds:document.rejectedFolderIds});
@@ -47,7 +50,7 @@ export async function previewLocalClassification(input:{credential:LocalClassifi
   const signal=AbortSignal.any([input.signal,AbortSignal.timeout(20000)]),called=new Set<string>();
   const result=await provider.classify(context,{signal,calls:{async run(stage,chunk,_body,send){
     await input.assertCurrent();signal.throwIfAborted();const key=`${stage}:${chunk}`;
-    if(called.has(key))throw new Error('local_duplicate_dispatch');called.add(key);return send();
+    if(called.has(key))throw new Error('local_duplicate_dispatch');called.add(key);dispatched=true;return send();
   }}});
   await input.assertCurrent();signal.throwIfAborted();
   const folder=decideClassificationFolder({candidates,bookmark,requested:requested.folder,l1:result.l1,l2:result.l2,folderSelectionMode:document.folderSelectionMode});
@@ -55,4 +58,15 @@ export async function previewLocalClassification(input:{credential:LocalClassifi
   return {contractVersion:'1.0.0',collectionId:projection.collectionId,source:{kind:'incoming',nodeId:null},taxonomyRevision:projection.revision,
     candidateCoverage:result.candidateCoverage,folder:folder?{...folder,probabilities:[...folder.probabilities]}:null,tags:{mode:requested.tags?'suggest':'off',candidates:tags.slice(0,15),maxAutoTags:3},
     provider:{providerId:provider.id,model:provider.model,policyVersion:provider.policyVersion,promptVersion:provider.promptVersion}};
+  } catch (error) {
+    if (error instanceof Error && error.message === 'sourceAutomationPaused' && !dispatched) {
+      if (marked) {
+        const current=(await chrome.storage.session.get(LOCAL_CLASSIFICATION_COMMANDS))[LOCAL_CLASSIFICATION_COMMANDS] as {generation:string;commands:string[]}|undefined;
+        if (!current || current.generation!==credential.generation || !current.commands.includes(input.commandId)) throw new Error('local_result_unavailable');
+        await chrome.storage.session.set({[LOCAL_CLASSIFICATION_COMMANDS]:{generation:current.generation,commands:current.commands.filter(id=>id!==input.commandId)}});
+      }
+      throw new Error('sourceAutomationPausedBeforeDispatch');
+    }
+    throw error;
+  }
 }
