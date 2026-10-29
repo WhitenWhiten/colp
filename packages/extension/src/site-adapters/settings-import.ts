@@ -176,9 +176,9 @@ export function paintSiteImport(input: Input) {
     element('import-summary').textContent = t('sites_reconnectingCheck', 'Reconnecting to the website before continuing. Items already read are kept.');
     for (const id of ['freeze-import', 'cancel-import']) button(id).disabled = true;
   }
-  // A lone action that isn't Stop sits at the end of the task's title row instead of opening a foot of its own.
+  // A lone action sits at the end of the task's title row instead of opening a foot of its own.
   const actions = Array.from(document.querySelectorAll<HTMLElement>('#step-import .sites-actions > .btn')).filter(action => !action.hidden);
-  element('step-import').toggleAttribute('data-inline-action', actions.length === 1 && actions[0]!.id !== 'cancel-import');
+  element('step-import').toggleAttribute('data-inline-action', actions.length === 1);
   if (input.pendingAction) {
     for (const id of ['start-import', 'resume-import', 'import-open-source', 'freeze-import', 'approve-import', 'retry-import', 'cancel-import', 'import-edit-settings']) button(id).disabled = true;
     if (input.pendingAction === 'known.siteAdapters.import.freeze') button('freeze-import').textContent = t('sites_preparingImport', 'Preparing import…');
