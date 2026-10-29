@@ -4,6 +4,8 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+## [0.1.0-rc.16] - 2026-10-29
+
 ### Added
 
 - An agent's change plan that waits for your approval appears in Activity, in the web inbox and the bell count and in the extension: "Claude wants your approval", with the plan's own summary, opening its page under Approvals. It leaves the inbox once the plan is approved, denied or expires. Who asked is the agent's verified client and what it does is the server-built summary; the agent's own note is never shown there. Plans that need no approval and automation proposals (which already ask through their run) add no item; a plan a Trusted agent policy approves on arrival leaves again at once. The new migration also lists plans already waiting when it runs.
@@ -21,7 +23,16 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ### Upgrade notes
 
-Install the extension release that ships with this server. Extension builds up to `extension-v0.1.0-rc.5` do not know the new `approval_requested` activity: while an approval request is your newest activity, they reject the activity summary, so their toolbar count stops updating until you approve or deny that plan. Later builds keep the count and skip activity types they do not know.
+From 0.1.0-rc.15, update the checkout and deployment files from this tag, set
+`COLP_IMAGE_TAG=0.1.0-rc.16`, and recreate the server. Startup applies the new
+retention and approval migrations `202611030100_sync_bootstrap_snapshot_retention`
+through `202611030500_activity_approval_requests`; the last lists the plans
+already waiting when it runs. Install the matching `extension-v0.1.0-rc.6` ZIP:
+extension builds up to `extension-v0.1.0-rc.5` do not know the new
+`approval_requested` activity, so while an approval request is the newest
+activity they reject the activity summary and their toolbar count stops
+updating until it is approved or denied. Later builds keep the count and skip
+activity types they do not know.
 
 ## [0.1.0-rc.15] - 2026-10-27
 

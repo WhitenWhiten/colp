@@ -4,6 +4,8 @@ All notable changes to the Know-N browser extension are documented here. The for
 
 ## [Unreleased]
 
+## [0.1.0-rc.6] - 2026-10-29
+
 ### Added
 
 - Options › Automations › Activity shows an agent's change plan waiting for your approval as "Claude wants your approval", with the plan's summary beneath; the row opens the web inbox like the other activity rows. Requires a server that sends `approval_requested` activity; older servers are read as before.
@@ -16,6 +18,13 @@ All notable changes to the Know-N browser extension are documented here. The for
 ### Fixed
 
 - The toolbar count keeps working when the server's newest activity is of a kind this version cannot show yet. Such a summary used to be rejected as invalid, which left the count stale and slowed the next checks; now only that newest row is left out.
+
+### Upgrade notes
+
+Update COLP Server to `0.1.0-rc.16` alongside this extension: the Activity row
+for an agent plan waiting for approval needs the server's `approval_requested`
+activity. Chrome uses numeric version `0.1.0.6` and displays `0.1.0-rc.6`.
+Install the GitHub ZIP as an unpacked extension.
 
 ## [0.1.0-rc.5] - 2026-10-27
 
