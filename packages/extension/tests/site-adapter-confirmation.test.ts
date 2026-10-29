@@ -128,3 +128,21 @@ test('transient read failures retry durably within the original hint budget', as
     expect(await f.queue.status()).toMatchObject({ pending: 0, last: { state: 'observed' } });
   } finally { await f.db.close(); }
 });
+
+test('retained confirmation and observation receipts do not consume new-work capacity', async () => {
+  const f = await fixture();
+  try {
+    await f.db.transaction(['readRequests', 'receipts'], 'readwrite', async tx => {
+      for (let i = 0; i < 100000; i++) {
+        tx.objectStore('readRequests').put({ state: 'observed', id: `completed-${i}` }, sourceKey('hint', `completed-${i}`));
+        tx.objectStore('receipts').put({ id: `receipt-${i}`, digest: 'retained', ordinal: i }, `history-${i}`);
+      }
+    });
+    expect(await f.queue.enqueue(f.context, 'new-favorite', hint)).toMatchObject({ status: 'accepted' });
+    const observation = { type: 'membership.observed' as const, item: video, memberships: { mode: 'delta' as const, added: ['101'], removed: [] } };
+    const receipt = await f.ledger.acceptObservation(f.context, 'new-observation', observation);
+    expect(receipt.status).toBe('accepted');
+    expect(await f.ledger.acceptObservation(f.context, 'new-observation', observation)).toEqual({ ...receipt, status: 'duplicate' });
+    expect(await f.db.read('receipts', 'history-0')).toMatchObject({ id: 'receipt-0' });
+  } finally { await f.db.close(); }
+}, 30000);

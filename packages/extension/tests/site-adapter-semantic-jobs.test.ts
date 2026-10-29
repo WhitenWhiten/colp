@@ -96,3 +96,18 @@ test('private accounts and destination libraries keep separate tasks', async () 
     await f.jobs.wake(); expect(f.ports.classify).toHaveBeenCalledTimes(3); expect(f.ports.execute).toHaveBeenCalledTimes(3);
   } finally { await f.db.close(); }
 });
+
+test('completed semantic history neither blocks admission nor hides the active status', async () => {
+  const f = await fixture();
+  try {
+    await f.jobs.enqueue(input()); await f.jobs.wake();
+    await f.db.transaction(['semanticJobs'], 'readwrite', async tx => {
+      for (let i = 0; i < 50000; i++) tx.objectStore('semanticJobs').put({ id: `history-${i}`, state: 'completed', connections: ['source-one'], updatedAt: 0 }, `history-${i}`);
+    });
+    await f.jobs.enqueue(input('post:new'));
+    expect(await f.jobs.status('source-one')).toMatchObject({ completed: 50001, pending: 1, jobs: [{ title: 'post:new' }] });
+    await f.jobs.enqueue(input()); // Retaining the old index still prevents another paid call.
+    await f.jobs.wake();
+    expect(f.ports.classify).toHaveBeenCalledTimes(2);
+  } finally { await f.db.close(); }
+}, 30000);

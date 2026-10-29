@@ -1,5 +1,5 @@
 import { createLane } from '../automation/lane.js';
-import { cursorPage, requestValue } from '../sync-state/idb.js';
+import { cursorPage, requestValue, iterateCursor } from '../sync-state/idb.js';
 import type { CaptureScope } from '../capture/contracts.js';
 import type { ManagedContent } from './copy-identity.js';
 import type { SemanticClaim, ManagedReference } from './managed-client.js';
@@ -98,7 +98,9 @@ export function createSemanticJobs(db: SourceDatabase, ports: SemanticPorts) {
           const sources = previous ? old.sources.map(s => s.connectionId === input.source.connectionId ? input.source : s) : [...old.sources, input.source];
           put(tx, 'semanticJobs', old.id, { ...old, sources, connections: sources.map(s => s.connectionId) }); return old.state === 'pending';
         }
-        if (await requestValue(tx.objectStore('semanticJobs').count()) >= 50000) throw new Error('capacity');
+        const active = tx.objectStore('semanticJobs').index('stateUpdatedAt');
+        const count = async (state: string) => requestValue(active.count(IDBKeyRange.bound([state, 0], [state, Number.MAX_SAFE_INTEGER])));
+        if (await count('pending') + await count('attention') >= 50000) throw new Error('capacity');
         const job: SemanticJob = { scopeId: input.scopeId, scope: input.scope, content: input.content, title: input.title, url: input.url,
           id: crypto.randomUUID(), connections: [input.source.connectionId], sources: [input.source], state: 'pending', step: 'queued',
           providerCommandId: crypto.randomUUID(), reason: null, updatedAt: Date.now(), controlRevision: 0 };
@@ -135,11 +137,21 @@ export function createSemanticJobs(db: SourceDatabase, ports: SemanticPorts) {
       ports.schedule();
     }),
     async status(connectionId: string) {
-      const jobs = await db.transaction(['semanticJobs'], 'readonly', tx => cursorPage<SemanticJob>(tx.objectStore('semanticJobs').index('connections'), IDBKeyRange.only(connectionId), 50001));
-      if (jobs.length > 50000) throw new Error('capacity');
-      return { pending: jobs.filter(j => j.state === 'pending').length, attention: jobs.filter(j => j.state === 'attention').length,
-        completed: jobs.filter(j => j.state === 'completed').length, suppressed: jobs.filter(j => j.state === 'suppressed').length,
-        jobs: jobs.filter(j => j.state !== 'completed').sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 20)
+      const counts = { pending: 0, attention: 0, completed: 0, suppressed: 0 }, jobs: SemanticJob[] = [];
+      // Completed history is counted by index; only unfinished/suppressed jobs need their bodies read.
+      await db.transaction(['semanticJobs'], 'readonly', async tx => {
+        const store = tx.objectStore('semanticJobs');
+        const total = await requestValue(store.index('connections').count(IDBKeyRange.only(connectionId)));
+        for (const state of ['pending', 'attention', 'suppressed'] as const) {
+          await iterateCursor(store.index('stateUpdatedAt'), IDBKeyRange.bound([state, 0], [state, Number.MAX_SAFE_INTEGER]), value => {
+            const job = value as SemanticJob; if (!job.connections.includes(connectionId)) return;
+            counts[state]++; jobs.push(job); jobs.sort((a, b) => b.updatedAt - a.updatedAt); if (jobs.length > 20) jobs.pop();
+          });
+        }
+        counts.completed = total - counts.pending - counts.attention - counts.suppressed;
+      });
+      return { ...counts,
+        jobs: jobs
           .map(j => ({ id: j.id, title: j.title, state: j.state, reason: j.reason, takeover: j.reason === 'semanticOtherDevice' })) };
     },
   };

@@ -1,7 +1,6 @@
 import { validMembershipResult } from './schemas.js';
 import { readLimits } from './read-policy.js';
 import { createLane } from '../automation/lane.js';
-import { requestValue } from '../sync-state/idb.js';
 import type { AdapterMessage, HostCommand, MembershipHint } from './contracts.js';
 import type { SourceContext } from './ledger-types.js';
 import { requireSourceAuthority, type createSourceLedger } from './ledger.js';
@@ -55,7 +54,8 @@ export function createConfirmationQueue(ledger: Ledger, scheduler: ReturnType<ty
         if (old) return old.digest === digest ? { status: 'duplicate' as const, receiptId: id } : { status: 'rejected' as const, reason: 'conflict' as const };
         if (await get(tx, 'meta', PAUSE)) return { status: 'rejected' as const, reason: 'paused' as const };
         const pending = await get<string[]>(tx, 'meta', PENDING) ?? [];
-        if (pending.length >= LIMITS.queue || await requestValue(tx.objectStore('readRequests').count()) >= 100000) return { status: 'rejected' as const, reason: 'capacity' as const };
+        // Completed read receipts remain available for exact replay; only active confirmations occupy the queue.
+        if (pending.length >= LIMITS.queue) return { status: 'rejected' as const, reason: 'capacity' as const };
         const uncertain = hint.code !== 0 || !scope(hint).length;
         const row: ConfirmationRow = { id, digest, origin: context, hint, state: uncertain ? 'uncertain' : 'membership', attempts: 0,
           ...(uncertain ? { reason: hint.code !== 0 ? 'siteWriteFailed' : 'negativeReadbackUnavailable' } : {}) };

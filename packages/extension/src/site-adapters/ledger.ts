@@ -31,10 +31,10 @@ export async function requireSourceAuthority(tx: IDBTransaction, context: Source
 async function ordinal(tx: IDBTransaction): Promise<number> {
   const current = await get<number>(tx, 'meta', 'ordinal') ?? 0; put(tx, 'meta', 'ordinal', current + 1); return current + 1;
 }
-async function capacity(tx: IDBTransaction, store: 'observations' | 'receipts', max: number) {
-  const count = store === 'observations' ? await pendingObservations(tx) : await requestValue(tx.objectStore(store).count());
-  if (count >= max) throw new Error('capacity');
-  if (store === 'observations') put(tx, 'meta', 'pendingObservations', count + 1);
+async function admitObservation(tx: IDBTransaction) {
+  const count = await pendingObservations(tx);
+  if (count >= LIMITS.pendingObservations) throw new Error('capacity');
+  put(tx, 'meta', 'pendingObservations', count + 1);
 }
 async function pendingObservations(tx: IDBTransaction): Promise<number> {
   const store = tx.objectStore('observations');
@@ -69,7 +69,8 @@ export function createSourceLedger(db: SourceDatabase = createSourceDatabase(), 
         if (previous.digest !== digest) return { status: 'rejected', reason: 'conflict' };
         await commit?.(tx, previous.id); return { status: 'duplicate', receiptId: previous.id };
       }
-      await capacity(tx, 'observations', LIMITS.pendingObservations); await capacity(tx, 'receipts', 100000);
+      // Receipts are retained replay evidence, not outstanding work. They never consume admission slots.
+      await admitObservation(tx);
       const receipt = { id: random(), digest, ordinal: await ordinal(tx) };
       if (readBaseline !== undefined) {
         const authority = await requireAuthority(tx, context);
@@ -178,7 +179,6 @@ export function createSourceLedger(db: SourceDatabase = createSourceDatabase(), 
         if (run.phase !== 'scanning' || run.outstanding !== requestId || request.deadlineAt <= now()) throw new Error('staleContext');
         if (result.status === 'ok' && (request.query.kind !== result.kind || result.kind === 'items'
           && (request.query.kind !== 'items' || request.query.collectionId !== result.collectionId))) throw new Error('invalid');
-        await capacity(tx, 'receipts', 100000);
         const receipt: SourceReceipt = { id: random(), digest, ordinal: await ordinal(tx) };
         if (result.status === 'ok') {
           if (!definition.validateMessage({ protocolVersion: 1, requestId, leaseId: context.leaseId, capability: 'host-validated', operation: 'page.result', readSessionId: run.id, pageRequestId: requestId, result })) throw new Error('invalid');
