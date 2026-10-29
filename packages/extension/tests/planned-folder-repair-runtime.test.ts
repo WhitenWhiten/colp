@@ -39,3 +39,17 @@ test('management adoption wakes all active shared consumers and keeps the origin
     expect(f.adopt).toHaveBeenCalledOnce();
   } finally { await f.db.close(); }
 });
+
+test('status on a future schema answers from the raw diagnostic without reading through the ledger', async () => {
+  const name = 'known-site-adapters';
+  await new Promise<void>((resolve, reject) => { const r = indexedDB.open(name, 99);
+    r.onupgradeneeded = () => { r.result.createObjectStore('future').put({ state: 'unknown', commandId: 'original-unknown-command' }, 'retained'); };
+    r.onsuccess = () => { r.result.close(); resolve(); }; r.onerror = () => reject(r.error); });
+  const refuse = async () => { throw new Error('schemaIncompatible'); };
+  f.db = { read: refuse, transaction: refuse } as unknown as ReturnType<typeof createSourceDatabase>; vi.resetModules();
+  const { handleRepairRequest } = await import('../src/site-adapters/repair-runtime.js');
+  try {
+    await expect(handleRepairRequest({ kind: 'known.siteAdapters.repair.status' })).resolves.toMatchObject({
+      ok: true, schemaVersion: 99, supportedSchema: false, folderRecovery: [], restored: [], attention: [{ key: 'retained', state: 'unknown' }] });
+  } finally { await new Promise<void>(resolve => { const r = indexedDB.deleteDatabase(name); r.onsuccess = r.onerror = () => resolve(); }); }
+});

@@ -105,7 +105,9 @@ export async function handleRepairRequest(raw: unknown, definition: SiteDefiniti
     await wakePlannedSaves();
   }
   const diagnostic = await exportSourceDiagnostic(), summary = diagnosticSummary(diagnostic);
-  const authority = await db.read<SourceAuthority>('authorities', definition.adapterId);
+  // A future or unknown schema stays inspectable from the raw diagnostic; only a supported ledger is read through.
+  const readable = summary.supportedSchema && !!summary.schemaVersion;
+  const authority = readable ? await db.read<SourceAuthority>('authorities', definition.adapterId) : undefined;
   const folderRecovery: { commandId: string; title: string; parentId: string }[] = [];
   if (authority?.enabled && authority.connectionId) for (const row of diagnostic.stores.find(store => store.name === 'outbox')?.records ?? []) {
     const outbox = row.value as SourceOutbox;
@@ -116,7 +118,7 @@ export async function handleRepairRequest(raw: unknown, definition: SiteDefiniti
       folderRecovery.push({ commandId: outbox.command.commandId, title: outbox.command.title, parentId: outbox.command.parent.nativeId });
   }
   let restored: RestoredSources[] = [];
-  if (summary.supportedSchema && summary.schemaVersion) restored = await db.transaction(['meta'], 'readonly', async tx => {
+  if (readable) restored = await db.transaction(['meta'], 'readonly', async tx => {
     const records = await cursorPage<unknown>(tx.objectStore('meta'), IDBKeyRange.bound('restoredSources:', 'restoredSources:\uffff'), 101);
     if (records.length > 100) throw new Error('sourceRestoreListLimit');
     return records as RestoredSources[];
