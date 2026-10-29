@@ -216,3 +216,51 @@ it('source archive classification and automatic semantic authorization are indep
     expect((await f.plan()).classification).toBe('disabled');
   } finally { await f.db.close(); }
 });
+
+it('replans changed live content only before its bookmark command is submitted', async () => {
+  const f = await fixture();
+  try {
+    const original = await f.plan();
+    await f.db.transaction(['items'], 'readwrite', async tx => {
+      tx.objectStore('items').put({ entity: { id: 'video:av:1', identity: 'siteId', kind: 'video', title: 'Updated title', url: page.url }, ordinal: 2 }, sourceKey('connection', 'video:av:1'));
+    });
+    const next = await f.plan();
+    expect(next.id).not.toBe(original.id);
+    expect(await f.db.read('savePlans', original.id)).toMatchObject({ state: 'cancelled' });
+    expect(await f.db.read('work', original.id)).toBeUndefined();
+    expect(next.effects[1]).toMatchObject({ item: { title: 'Updated title' } });
+    const commandId = next.effects[1]!.commandId;
+    await f.db.transaction(['outbox'], 'readwrite', async tx => { tx.objectStore('outbox').put({ state: 'submitted' }, commandId); });
+    await f.db.transaction(['items'], 'readwrite', async tx => {
+      tx.objectStore('items').put({ entity: { id: 'video:av:1', identity: 'siteId', kind: 'video', title: 'Another title', url: page.url }, ordinal: 3 }, sourceKey('connection', 'video:av:1'));
+    });
+    await expect(f.plan()).rejects.toThrow('conflict');
+    expect(await f.db.read('savePlans', next.id)).toMatchObject({ state: 'approved' });
+  } finally { await f.db.close(); }
+});
+it('a new live observation cannot replace an immutable import reservation', async () => {
+  const f = await fixture();
+  try {
+    const imported = await f.plan('video:av:1', '101', 'siteImport');
+    await f.db.transaction(['items'], 'readwrite', async tx => {
+      tx.objectStore('items').put({ entity: { id: 'video:av:1', identity: 'siteId', kind: 'video', title: 'Updated title', url: page.url }, ordinal: 2 }, sourceKey('connection', 'video:av:1'));
+    });
+    await expect(f.plan()).rejects.toThrow('conflict');
+    expect(await f.db.read('savePlans', imported.id)).toMatchObject({ state: 'draft' });
+  } finally { await f.db.close(); }
+});
+
+it('a prepared but unsubmitted bookmark command is safely rebound to its replacement plan', async () => {
+  const f = await fixture();
+  try {
+    const original = await f.plan(), commandId = original.effects[1]!.commandId;
+    await f.db.transaction(['outbox'], 'readwrite', async tx => {
+      tx.objectStore('outbox').put({ state: 'reserved', command: { bookmark: { planId: original.id } } }, commandId);
+    });
+    const replacement = await f.layout.plan({ context: f.context, itemId: 'video:av:1', collectionId: '101', entry: 'siteFavorite',
+      trigger: { kind: 'observation', observationId: 'new-observation' } });
+    expect(replacement.status).toBe('planned');
+    expect(await f.db.read('outbox', commandId)).toBeUndefined();
+    expect(await f.db.read('savePlans', original.id)).toMatchObject({ state: 'cancelled' });
+  } finally { await f.db.close(); }
+});

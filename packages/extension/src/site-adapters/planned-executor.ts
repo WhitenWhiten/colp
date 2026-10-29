@@ -177,7 +177,9 @@ export function createPlannedSaveExecutor(db: SourceDatabase, ports: PlannedExec
           source: plan.trigger.kind === 'import' ? 'site-import' as const : observation?.cause === 'siteFavorite' ? 'site-favorite' as const : 'site-reconcile' as const } } : {}) };
       if (ports.prepare) command = await ports.prepare(command, plan, effect);
       outbox = { command, digest: sourceDigest(command), state: 'reserved' };
-      await db.transaction(['outbox'], 'readwrite', async tx => {
+      await db.transaction(['outbox', 'meta', 'savePlans'], 'readwrite', async tx => {
+        await assertPlanIntentActive(tx, planId);
+        if ((await get<StoredSavePlan>(tx, 'savePlans', planId))?.state !== 'approved') throw new Error('sourceAuthorizationChanged');
         const old = await get<SourceOutbox>(tx, 'outbox', who.commandId);
         if (old && old.digest !== outbox!.digest) throw new Error('conflict'); if (!old) put(tx, 'outbox', who.commandId, outbox);
       });

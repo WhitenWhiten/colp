@@ -1,7 +1,9 @@
 import { copiesInScope } from './copy-scope.js';
+import { supersedeUnsubmittedSourcePlans } from './reservation-recovery.js';
 import { destinationScopeId } from './destination-scope.js';
 import type { SourceMount } from './layout.js';
-import { assertPlanIntentActive, type SourcePlanIntent } from './plan-intents.js';
+import { assertPlanIntentActive, planIntentKey, type SourcePlanIntent } from './plan-intents.js';
+import type { SourceOutbox } from './planned-types.js';
 import type { NativeBinding, Representation, RepresentationKey, SourceFolderReservation } from './contracts.js';
 import { get, put, rows, sourceDigest, sourceKey, type SourceDatabase } from './source-db.js';
 export const representationKey = (r: RepresentationKey) => sourceKey(r.connectionId, r.itemId, r.purpose, r.sourceCollectionId, r.mountId,
@@ -15,14 +17,24 @@ const compatibleProof = (b: NativeBinding) => !!b.bindingId && !!b.nativeId && !
 export function createSourceReservations(db: SourceDatabase, random = () => crypto.randomUUID()) {
   return {
     async reserveItem(representation: RepresentationKey, payload: unknown, policy: 'sourceAndSemantic' | 'singlePreferSemantic' | 'singleKeepExisting', commandId?: string, planId?: string) {
-      return db.transaction(['itemReservations', 'representations', 'meta', 'mounts'], 'readwrite', async tx => {
+      return db.transaction(['itemReservations', 'representations', 'meta', 'mounts', 'outbox', 'savePlans', 'work', 'folderConsumers'], 'readwrite', async tx => {
         if (planId) await assertPlanIntentActive(tx, planId);
         const key = representationKey(representation), digest = sourceDigest(payload);
         const bound = await get<Representation>(tx, 'representations', key);
         if (bound) return { status: bound.state === 'active' ? 'bound' : 'blocked', representation: bound } as const;
         const old = await get<ItemReservation>(tx, 'itemReservations', key);
         if (old) {
-          if (old.payloadDigest !== digest) throw new Error('conflict');
+          const prepared = await get<SourceOutbox>(tx, 'outbox', old.commandId);
+          const next = planId ? await get<SourcePlanIntent>(tx, 'meta', planIntentKey(planId)) : undefined;
+          const rebindUnsent = next?.trigger.kind === 'observation' && prepared?.state === 'reserved'
+            && prepared.command?.bookmark?.planId !== planId;
+          if (old.payloadDigest !== digest || rebindUnsent) {
+            if (!planId || !commandId || old.commandId !== commandId) throw new Error('conflict');
+            await supersedeUnsubmittedSourcePlans(tx, old, planId);
+            const next = { ...old, payloadDigest: digest };
+            put(tx, 'itemReservations', key, next);
+            return { status: 'reserved', reservation: next } as const;
+          }
           return { status: 'reserved', reservation: old } as const;
         }
         if (policy !== 'sourceAndSemantic') {

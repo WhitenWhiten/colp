@@ -221,7 +221,9 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
         if (!primary || !eligible.includes(primary)) throw new Error('primarySourceCollectionRequired');
         if (primary !== input.collectionId) return { status: 'policySkipped' } as const;
       }
-      const id = identity({ trigger: input.trigger, representation, snapshot: snapshot(flat), policy: settings.policy.revision, ...(c.communityOrigin ? { communityOrigin: c.communityOrigin } : {}) });
+      const id = identity({ trigger: input.trigger, representation, snapshot: snapshot(flat), policy: settings.policy.revision,
+        ...(input.trigger.kind === 'observation' ? { facts: { ...facts, edge: sourceMembershipValue(facts.edge) } } : {}),
+        ...(c.communityOrigin ? { communityOrigin: c.communityOrigin } : {}) });
       const bookmarkCommandId = identity({ representation, effect: 'bookmark' });
       await beginSourcePlan(db, { id, trigger: input.trigger, representation, commandId: bookmarkCommandId, folder: { mountId: m.id, collectionId: input.collectionId }, state: 'active' });
       const oldFolder = await db.read<SourceFolderReservation>('folderReservations', sourceKey(m.id, input.collectionId));

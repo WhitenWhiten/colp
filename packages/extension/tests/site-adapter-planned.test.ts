@@ -105,3 +105,20 @@ test('lost executor acknowledgment keeps the proven source receipt and retries o
   fail = false; expect((await h.executor().execute('one', 'folder')).status).toBe('confirmed'); expect(h.counts.folder).toBe(1);
   expect(await h.db.read('outbox', p.folder.commandId)).toMatchObject({ executorAcknowledged: true });
 });
+
+test('cancellation during preparation fences the first outbox write', async () => {
+  const h = await harness(), p = await h.plan('preparing'), runner = h.executor();
+  try {
+    await runner.execute(p.value.id, 'folder');
+    h.ports.prepare = async command => {
+      const row = await h.db.read('savePlans', p.value.id);
+      await h.db.transaction(['savePlans'], 'readwrite', async tx => {
+        tx.objectStore('savePlans').put({ ...row as object, state: 'cancelled' }, p.value.id);
+      });
+      return command;
+    };
+    expect(await runner.execute(p.value.id, p.bookmark.effectId)).toMatchObject({ status: 'blocked', reason: 'sourceAuthorizationChanged' });
+    expect(await h.db.read('outbox', p.bookmark.commandId)).toBeUndefined();
+    expect(h.counts.bookmark).toBe(0);
+  } finally { await h.db.close(); }
+});
