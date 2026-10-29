@@ -2,12 +2,13 @@ import { adapterBrowserSupport } from './browser-support.js';
 import { communityStore, communityScopeDigest, fenceCommunity, type CommunityOrigin } from './community-state.js';
 import { siteLedger } from './source-runtime.js';
 import { readConnectionAuthority } from './ledger.js';
-import { identityDefinition, type SiteDefinition } from './registry.js';
+import type { SiteDefinition } from './registry.js';
+import { communityHostDefinition } from './community-package.js';
 import type { SourcePolicyRecord } from './layout.js';
 import { communityRegistrationMatches } from './community-registration.js';
 export const COMMUNITY_GRANTS = { permissions: ['userScripts', 'webNavigation'] };
-export const communityGrants = (definition: SiteDefinition) => ({ ...COMMUNITY_GRANTS, origins: [...definition.matches] });
-export async function communityApiAvailable(definition?: SiteDefinition) {
+export const communityGrants = (definition: Pick<SiteDefinition, 'matches'>) => ({ ...COMMUNITY_GRANTS, origins: [...definition.matches] });
+export async function communityApiAvailable(definition?: Pick<SiteDefinition, 'matches'>) {
   if (!adapterBrowserSupport(navigator.userAgent).supported) throw new Error('communityBrowserUnsupported');
   if (!await chrome.permissions.contains(definition ? communityGrants(definition) : COMMUNITY_GRANTS)) throw new Error('communityPermissionRequired');
   try { return await chrome.userScripts.getScripts(); } catch {
@@ -22,7 +23,8 @@ export async function assertCommunityArchive(origin: CommunityOrigin, input: { c
   if (!row?.enabled || row.hostVersion !== chrome.runtime.getManifest().version || !communityRegistrationMatches(row, scripts) || row.generation !== origin.generation || row.approved.digest !== origin.packageDigest || !scope || scope.digest !== origin.scopeDigest
     || communityScopeDigest(scopePayload(scope)) !== scope.digest || scope.connectionId !== input.connectionId
     || input.collectionIds.some(id => !scope.collectionIds.includes(id)) || input.rootNativeId && scope.rootNativeId !== input.rootNativeId) throw new Error('communityArchiveRevoked');
-  const definition = identityDefinition(row.approved.package.manifest.siteKey, row.approved.package.manifest.identityVersion);
+  const definition = communityHostDefinition(row.approved.package.manifest);
+  if (!definition) throw new Error('communityArchiveRevoked');
   await communityApiAvailable(definition);
   const a = await readConnectionAuthority(siteLedger.db, scope.connectionId);
   const policy = await siteLedger.db.read<SourcePolicyRecord>('meta', `policy:${scope.connectionId}`);

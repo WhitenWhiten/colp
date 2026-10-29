@@ -138,3 +138,36 @@ test('named user-script packages stay inert until consent, isolate powers, confi
       userScriptToggleTestDeveloperMode: false, unpackedUpdateDeveloperMode: true, archiveGrantAfterUpdate: null, modelCalls })), contentType: 'application/json' });
   } finally { await context.close(); await rm(directory, { recursive: true, force: true }); }
 });
+
+test('an unregistered HTTPS site can install and run a community package', async () => {
+  test.setTimeout(90000);
+  const directory = await mkdtemp(resolve(tmpdir(), 'colp-community-independent-')), extension = resolve(directory, 'extension');
+  await cp(resolve(import.meta.dirname, '../dist/development'), extension, { recursive: true });
+  const context = await chromium.launchPersistentContext(resolve(directory, 'profile'), { headless: false, channel: 'chromium',
+    args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`] });
+  try {
+    await context.route('https://independent.example/**', r => r.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Independent site</title>' }));
+    const { page } = await openExtensionOptions(context);
+    const grants = { permissions: ['userScripts', 'webNavigation'], origins: ['https://independent.example/*'] };
+    await page.evaluate(g => { const b = document.createElement('button'); b.id = 'grant-independent'; b.textContent = 'Grant independent site'; b.onclick = () => { void chrome.permissions.request(g); }; document.body.prepend(b); }, grants);
+    await grantOptionalBookmarks(page, page.locator('#grant-independent'), 'Independent site grant', grants);
+    const details = await context.newPage(); await details.goto(`chrome://extensions/?id=${id}`);
+    const toggle = details.locator('extensions-toggle-row').filter({ hasText: 'Allow User Scripts' }).locator('cr-toggle');
+    if (!await toggle.evaluate(n => (n as any).checked)) await toggle.click();
+    await stopWorker(context, page);
+    await page.goto(`${origin}/site-adapters.html`); await expect.poll(async () => (await community(page)).available).toBe(true);
+    const site = await context.newPage(); await site.goto('https://independent.example/article/1');
+    await page.locator('#nav-packages').click();
+    const value = JSON.parse(bundle('1.0.0'));
+    Object.assign(value.manifest, { siteKey: 'independent', identityVersion: 3, matches: ['https://independent.example/*'] });
+    value.script = `document.documentElement.dataset.communityRan='yes'; return () => delete document.documentElement.dataset.communityRan;`;
+    await page.locator('#community-file').setInputFiles({ name: 'independent.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(value)) });
+    await expect(page.locator('#community-preview')).toContainText('independent.example');
+    await page.locator('#community-ack').check(); await page.locator('#community-install').click();
+    await expect.poll(async () => (await community(page)).installations.length).toBe(1);
+    await page.getByRole('button', { name: 'Enable inspector', exact: true }).click();
+    await expect(site.locator('html')).toHaveAttribute('data-community-ran', 'yes');
+    await expect.poll(async () => (await community(page)).installations[0].documents).toBe(1);
+    await expect(page.getByRole('button', { name: 'Preview archive scope' })).toHaveCount(0);
+  } finally { await context.close(); await rm(directory, { recursive: true, force: true }); }
+});

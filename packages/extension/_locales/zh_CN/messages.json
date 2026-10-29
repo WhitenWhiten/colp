@@ -11704,8 +11704,8 @@
     "description": "I trust this code/author and accept the page-access risk described above."
   },
   "sites_communityLedeShort": {
-    "message": "你自行安装、以用户脚本运行的站点代码。仅支持独立的 Bilibili v1 收藏提示包。",
-    "description": "Site code you install yourself, run as user scripts. Only self-contained Bilibili v1 favorite-hint packages are supported."
+    "message": "可为任何 HTTPS 站点安装独立的用户脚本。收藏归档提示需要兼容的内置读取器。",
+    "description": "Install self-contained site scripts for any HTTPS site. Archive hints require a compatible built-in reader."
   },
   "sites_communityRisk": {
     "message": "此代码可以读取和修改已授权的网站页面，使用网站会话发出请求，并暴露可见的私密内容。请只安装你信任的代码和作者。你需要对此选择负责。检查模式会阻止宿主写入，但不能让未知的页面代码变得安全。",

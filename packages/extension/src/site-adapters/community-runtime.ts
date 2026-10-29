@@ -1,11 +1,10 @@
 import { matchesSiteUrl } from './registry-validation.js';
-import { inspectCommunityPackage, COMMUNITY_RISK, type PackagePreview } from './community-package.js';
+import { inspectCommunityPackage, communityHostDefinition, COMMUNITY_RISK, type PackagePreview } from './community-package.js';
 import { communityWrapper } from './community-wrapper.js';
 import { communityStore, communityScriptId, communityWorldId, communityScopeDigest, fenceCommunity, type CommunityInstallation, type CommunityArchiveScope } from './community-state.js';
 import { communityApiAvailable, assertCommunityArchive } from './community-authority.js';
 import { object, literal, str, integer, jsonBytes } from './schema.js';
 import { validMembershipHint } from './schemas.js';
-import { identityDefinition } from './registry.js';
 import { readConnectionAuthority } from './ledger.js';
 import { validSiteSender, type SiteSender } from './transport.js';
 import type { MembershipHint } from './contracts.js';
@@ -34,7 +33,8 @@ interface Ports {
   enqueue(context: SourceContext, requestId: string, hint: MembershipHint): Promise<unknown>;
   wake(): void;
 }
-const definitionFor = (r: CommunityInstallation) => identityDefinition(r.approved.package.manifest.siteKey, r.approved.package.manifest.identityVersion);
+const scopeFor = (r: CommunityInstallation) => r.approved.package.manifest;
+const definitionFor = (r: CommunityInstallation) => communityHostDefinition(scopeFor(r));
 export function createCommunityRuntime(ports: Ports) {
   const lane = createLane();
   async function bounded<T>(work: Promise<T>, ms = 8000): Promise<T> {
@@ -46,7 +46,7 @@ export function createCommunityRuntime(ports: Ports) {
     for (const tab of await chrome.tabs.query({ url: [...r.approved.package.manifest.matches] }).catch(() => [])) {
       if (tab.id === undefined || tab.incognito) continue;
       const frame = await chrome.webNavigation.getFrame({ tabId: tab.id, frameId: 0 }).catch(() => null);
-      if (frame?.documentLifecycle === 'active' && matchesSiteUrl(definitionFor(r), frame.url) && chrome.userScripts?.execute) await bounded(chrome.userScripts.execute({
+      if (frame?.documentLifecycle === 'active' && matchesSiteUrl(scopeFor(r), frame.url) && chrome.userScripts?.execute) await bounded(chrome.userScripts.execute({
         target: { tabId: tab.id, documentIds: [frame.documentId] }, world: 'USER_SCRIPT', worldId: communityWorldId(r), js: [{ code: 'globalThis.__colpCommunity?.stop();' }], injectImmediately: true,
       }), 2000).catch(() => undefined);
     }
@@ -58,7 +58,7 @@ export function createCommunityRuntime(ports: Ports) {
     for (const tab of await chrome.tabs.query({ url: [...r.approved.package.manifest.matches] })) {
       if (tab.id === undefined || tab.incognito || tabId !== undefined && tab.id !== tabId) continue;
       const frame = await chrome.webNavigation.getFrame({ tabId: tab.id, frameId: 0 }).catch(() => null);
-      if (!frame || frame.documentLifecycle !== 'active' || !matchesSiteUrl(definitionFor(r), frame.url)) continue;
+      if (!frame || frame.documentLifecycle !== 'active' || !matchesSiteUrl(scopeFor(r), frame.url)) continue;
       if (typeof chrome.userScripts.execute !== 'function') { await communityStore.mutate(rows => { const row = rows.find(x => x.id === r.id); if (row) row.error = 'reloadRequired'; }); continue; }
       await bounded(chrome.userScripts.execute({ target: { tabId: tab.id, documentIds: [frame.documentId] }, world: 'USER_SCRIPT', worldId: communityWorldId(r),
         js: [{ code: scriptCode(r) }], injectImmediately: true })).catch(() => communityStore.mutate(rows => {
@@ -68,9 +68,9 @@ export function createCommunityRuntime(ports: Ports) {
   }
   async function register(r: CommunityInstallation, immediate = true) {
     if (inspectCommunityPackage(r.approved.text).digest !== r.approved.digest) throw new Error('communityPackageChanged');
-    await communityApiAvailable(definitionFor(r));
+    await communityApiAvailable(scopeFor(r));
     await chrome.userScripts.configureWorld({ worldId: communityWorldId(r), messaging: true,
-      csp: `script-src 'self'; object-src 'none'; connect-src 'self' ${definitionFor(r).community!.connectOrigins.join(' ')}` });
+      csp: `script-src 'self'; object-src 'none'; connect-src 'self' ${(definitionFor(r)?.community?.connectOrigins ?? []).join(' ')}` });
     await chrome.userScripts.register([communityRegistration(r)]);
     if (immediate) await inject(r);
   }
@@ -108,7 +108,8 @@ export function createCommunityRuntime(ports: Ports) {
   async function scopePreview(id: string) {
     await communityApiAvailable();
     const r = (await communityStore.read()).find(r => r.id === id);
-    const source = r ? await ports.source(undefined, definitionFor(r).adapterId) : null;
+    const definition = r && definitionFor(r);
+    const source = definition ? await ports.source(undefined, definition.adapterId) : null;
     if (!r?.enabled || r.hostVersion !== chrome.runtime.getManifest().version || !source) throw new Error('communityConnectedSourceRequired');
     const c = source.context, config = await siteLedger.db.read<{ root: { nativeId: string }; collectionIds: string[]; live: boolean; state: string }>('meta', `archiveConfig:${c.connectionId}`);
     const policy = await siteLedger.db.read<SourcePolicyRecord>('meta', `policy:${c.connectionId}`);
@@ -200,10 +201,10 @@ export function createCommunityRuntime(ports: Ports) {
     await ports.ready(); const scripts = await communityApiAvailable();
     const installation = (await communityStore.read()).find(r => r.id === (raw as { installationId: string }).installationId);
     if (!installation) return { status: 'rejected', reason: 'communityRevoked' };
-    const definition = definitionFor(installation); await communityApiAvailable(definition);
-    if (!validSiteSender(sender, chrome.runtime.id, definition)) return { status: 'rejected', reason: 'sender' };
+    const definition = definitionFor(installation), scope = scopeFor(installation); await communityApiAvailable(scope);
+    if (!validSiteSender(sender, chrome.runtime.id, scope)) return { status: 'rejected', reason: 'sender' };
     const frame = await chrome.webNavigation.getFrame({ tabId: sender.tab.id, frameId: 0 });
-    if (!frame || frame.documentId !== sender.documentId || frame.documentLifecycle !== 'active' || !matchesSiteUrl(definition, frame.url)) return { status: 'rejected', reason: 'sender' };
+    if (!frame || frame.documentId !== sender.documentId || frame.documentLifecycle !== 'active' || !matchesSiteUrl(scope, frame.url)) return { status: 'rejected', reason: 'sender' };
     const input = raw as { installationId: string; generation: number; credential: string; leaseId: string; capability: string; requestId: string; hint: MembershipHint };
     const accepted = await communityStore.mutate(rows => {
       const r = rows.find(r => r.id === input.installationId);
@@ -221,12 +222,13 @@ export function createCommunityRuntime(ports: Ports) {
       }
       const lease = r.leases.find(l => l.id === input.leaseId && l.capability === input.capability && l.documentId === sender.documentId && l.tabId === sender.tab.id
         && l.url === frame.url && l.routeEpoch === (r.routes[String(sender.tab.id)] ?? 0));
-      if (!lease || !definition.itemUrl(input.hint.itemId) || [...input.hint.added, ...input.hint.removed].some(id => !definition.validateCollection(id))) throw new Error('communityLeaseRejected');
+      if (!lease || definition && (!definition.itemUrl(input.hint.itemId) || [...input.hint.added, ...input.hint.removed].some(id => !definition.validateCollection(id)))) throw new Error('communityLeaseRejected');
       r.lastReport = { at: Date.now(), mode: r.archive ? 'archiveHints' : 'inspector', itemId: input.hint.itemId };
       return { status: 'accepted' as const, origin: r.archive ? { installationId: r.id, generation: r.generation, scopeDigest: r.archive.digest, packageDigest: r.approved.digest } : null };
     });
     if (accepted.status === 'ready') return accepted;
     if (!accepted.origin) return { status: 'inspected', writes: false, models: false };
+    if (!definition) throw new Error('communityArchiveRevoked');
     const source = await ports.source(sender.tab.id, definition.adapterId); if (!source || source.context.documentId !== sender.documentId) throw new Error('communityConnectedSourceRequired');
     await assertCommunityArchive(accepted.origin, { connectionId: source.context.connectionId, collectionIds: [...input.hint.added, ...input.hint.removed] });
     const reply = await ports.enqueue({ ...source.context, communityOrigin: accepted.origin }, `community:${input.installationId}:${input.requestId}`, input.hint); ports.wake(); return reply;
@@ -234,7 +236,7 @@ export function createCommunityRuntime(ports: Ports) {
   async function navigated(tabId: number) {
     if (!(await communityStore.read()).some(r => r.enabled || r.leases.length)) return;
     const frame = await chrome.webNavigation.getFrame({ tabId, frameId: 0 }).catch(() => null);
-    const here = (r: CommunityInstallation) => frame?.documentLifecycle === 'active' && matchesSiteUrl(definitionFor(r), frame.url);
+    const here = (r: CommunityInstallation) => frame?.documentLifecycle === 'active' && matchesSiteUrl(scopeFor(r), frame.url);
     await communityStore.mutate(rows => { for (const r of rows) {
       r.leases = r.leases.filter(l => l.tabId !== tabId && l.expiresAt > Date.now());
       if (here(r) && r.enabled) r.routes[String(tabId)] = (r.routes[String(tabId)] ?? 0) + 1;
@@ -254,7 +256,7 @@ export function createCommunityRuntime(ports: Ports) {
     chrome.runtime.onStartup.addListener(() => { void lane(() => reconcile()).catch(() => undefined); });
     chrome.runtime.onInstalled.addListener(details => { if (details.reason === 'update') void lane(() => reconcile(true)).catch(() => undefined); });
     chrome.permissions.onAdded.addListener(() => { void lane(() => reconcile()).catch(() => undefined); });
-    chrome.permissions.onRemoved.addListener(removed => { void communityStore.mutate(rows => { for (const r of rows) if (removed.permissions?.some(p => ['userScripts', 'webNavigation'].includes(p)) || removed.origins?.some(o => definitionFor(r).matches.includes(o) || o === '<all_urls>')) fenceCommunity(r); }).then(() => lane(() => reconcile())).catch(() => undefined); });
+    chrome.permissions.onRemoved.addListener(removed => { void communityStore.mutate(rows => { for (const r of rows) if (removed.permissions?.some(p => ['userScripts', 'webNavigation'].includes(p)) || removed.origins?.some(o => scopeFor(r).matches.includes(o) || o === '<all_urls>')) fenceCommunity(r); }).then(() => lane(() => reconcile())).catch(() => undefined); });
     chrome.tabs.onRemoved.addListener(tabId => { void lane(() => navigated(tabId)).catch(() => undefined); });
     void lane(() => reconcile()).catch(() => undefined);
   }

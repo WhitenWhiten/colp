@@ -417,7 +417,7 @@ test('Shelf saves a live favorite natively and previews an import without duplic
 
 1. **未打包构建中的时序不可靠。** `scheduleSourceWork`（`src/site-adapters/worker.ts`）同时会把恢复闹钟设在同一时刻。Chrome 只对打包后的扩展强制 30 秒的闹钟下限，所以在开发和 e2e 构建中，这个闹钟可能让来源任务大约每 60 毫秒重新运行一次，从而掩盖缺失的唤醒。要证明某个延迟结论，先等 worker 安静下来再操作。
 2. 弹窗中的 “Save as semantic” 按钮只对 Bilibili 视频 URL 显示（`src/capture/manual-existence.ts:45`）。
-3. 单独安装的社区包只接受 Bilibili 身份 v1，所以新网站只能作为内置适配器提供。
+3. 社区包可以在其他 HTTPS 网站的检查模式下运行；收藏归档提示需要兼容的内置读取器。
 4. 旧版云端归档协议需要服务器端的身份编解码（`packages/server/src/modules/source-archives/site-registry.ts`），本地优先保存和同步则不需要。
 
 ## 进一步扩展

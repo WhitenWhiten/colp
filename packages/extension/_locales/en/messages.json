@@ -6846,7 +6846,7 @@
     "message": "I trust this code/author and accept the page-access risk described above."
   },
   "sites_communityLedeShort": {
-    "message": "Site code you install yourself, run as user scripts. Only self-contained Bilibili v1 favorite-hint packages are supported."
+    "message": "Install self-contained site scripts for any HTTPS site. Archive hints require a compatible built-in reader."
   },
   "sites_communityRisk": {
     "message": "This code can read and alter authorized site pages, make requests using the site session, and expose visible private content. Install only code and authors you trust. You are responsible for this choice. Inspector mode blocks host writes, but does not make unknown page code safe."

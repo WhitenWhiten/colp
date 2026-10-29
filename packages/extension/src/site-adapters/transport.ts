@@ -12,7 +12,7 @@ export interface TransportState { version: 1; enabled: boolean; generation: numb
   accountId: string | null; candidateAccount: string | null; accountLabel?: string; candidateLabel?: string; sourceUnresolved: boolean; leases: Lease[]; routes: Record<string, number> }
 export const initialTransportState = (): TransportState => ({ version: 1, enabled: false, generation: 1, sourceGeneration: 1,
   accountId: null, candidateAccount: null, sourceUnresolved: true, leases: [], routes: {} });
-export function validSiteSender(sender: SiteSender, extensionId: string, definition: SiteDefinition = legacySite): sender is SiteSender & { documentId: string; tab: { id: number }; url: string } {
+export function validSiteSender(sender: SiteSender, extensionId: string, definition: Pick<SiteDefinition, 'matches'> = legacySite): sender is SiteSender & { documentId: string; tab: { id: number }; url: string } {
   if (sender.id !== extensionId || sender.frameId !== 0 || !sender.documentId || !Number.isInteger(sender.tab?.id)
       || sender.tab?.incognito || sender.documentLifecycle !== 'active') return false;
   try { const u = new URL(sender.url!); return sender.origin === u.origin && matchesSiteUrl(definition, sender.url!); } catch { return false; }

@@ -417,7 +417,7 @@ test('Shelf saves a live favorite natively and previews an import without duplic
 
 1. **パッケージ化していないビルドではタイミングが当てになりません。** `scheduleSourceWork`（`src/site-adapters/worker.ts`）は、復旧アラームも同じ時刻に設定します。Chrome が 30 秒のアラーム下限を強制するのはパッケージ化された拡張機能だけなので、開発ビルドや e2e ビルドでは、このアラームによってソース処理が約 60 ミリ秒ごとに再実行され続けることがあり、起こし忘れが隠れてしまいます。遅延についての主張を確かめるときは、worker が静かになるのを待ってから操作してください。
 2. ポップアップの「Save as semantic」ボタンは、Bilibili の動画 URL でだけ表示されます（`src/capture/manual-existence.ts:45`）。
-3. 別途インストールするコミュニティパッケージは Bilibili の ID v1 しか受け付けないため、新しいサイトは同梱アダプターとしてしか提供できません。
+3. コミュニティパッケージは他の HTTPS サイトでもインスペクターモードで実行できます。アーカイブのヒントには互換性のある同梱リーダーが必要です。
 4. 旧来のクラウドアーカイブプロトコルには、サーバー側の ID コーデック（`packages/server/src/modules/source-archives/site-registry.ts`）が必要です。ローカルファーストの保存と同期には不要です。
 
 ## さらに進む

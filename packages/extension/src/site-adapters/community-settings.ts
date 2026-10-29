@@ -1,16 +1,16 @@
 import { selectedSite, siteButton, siteRow } from './settings-client.js';
-import { COMMUNITY_PACKAGE_BYTES } from './community-package.js';
+import { COMMUNITY_PACKAGE_BYTES, communityHostDefinition } from './community-package.js';
 import { bundledSites } from './registry.js';
 import { createSiteMark } from './site-icon.js';
 import { t } from '../i18n.js';
-import type { AdapterIcon } from './contracts.js';
+import type { AdapterManifest } from './contracts.js';
 const element = <T extends Element>(id: string) => document.querySelector<T>(`#${id}`)!;
 const ack = element<HTMLInputElement>('community-ack'), install = element<HTMLButtonElement>('community-install'), status = element<HTMLPreElement>('community-status');
 let approval: { kind: 'known.community.install' | 'known.community.rollback'; digest: string; installationId?: string } | null = null;
 interface CommunityResponse {
   available?: boolean;
   preview?: { digest: string; rollback?: boolean; readonly [key: string]: unknown };
-  installations?: { id: string; manifest: { adapterId: string; version: string; siteKey: string; identityVersion: number; icon?: AdapterIcon }; enabled: boolean; digest: string; archive: unknown;
+  installations?: { id: string; manifest: AdapterManifest; enabled: boolean; digest: string; archive: unknown;
     error: string | null; previous: { digest: string; version: string }[] }[];
 }
 // COMMUNITY_RISK in this page's language (tests/site-adapter-settings-copy.test.ts keeps the English identical).
@@ -49,8 +49,11 @@ async function refresh(reveal = false) {
     text.append(meta);
     if (row.error) { const alert = document.createElement('p'); alert.className = 'set-row-hint'; alert.dataset.tone = 'danger'; alert.textContent = row.error; text.append(alert); }
     const toggle = siteButton(row.enabled ? t('sites_disablePackage', 'Disable package') : t('sites_enablePackage', 'Enable inspector'));
-    toggle.onclick = () => { void request({ kind: 'known.community.enable', installationId: row.id, enabled: !row.enabled }).then(() => refresh(true)); }; control.append(toggle);
-    if (row.enabled) {
+    toggle.onclick = () => { void (async () => {
+      if (!row.enabled && !await chrome.permissions.request({ permissions: ['userScripts', 'webNavigation'], origins: [...row.manifest.matches] })) return;
+      await request({ kind: 'known.community.enable', installationId: row.id, enabled: !row.enabled }); await refresh(true);
+    })().catch(e => { status.textContent = String(e); status.closest('details')!.open = true; }); }; control.append(toggle);
+    if (row.enabled && communityHostDefinition(row.manifest)) {
       const button = siteButton(t('sites_previewScope', 'Preview archive scope'));
       button.onclick = () => { void request({ kind: 'known.community.scopePreview', installationId: row.id }).then(r => {
         if (!r.preview) return;

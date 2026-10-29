@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { afterEach, expect, test, vi } from 'vitest';
 import { Script } from 'node:vm';
 import { MemoryStorageArea } from '../src/credential-store.js';
-import { inspectCommunityPackage } from '../src/site-adapters/community-package.js';
+import { communityHostDefinition, inspectCommunityPackage } from '../src/site-adapters/community-package.js';
 import { communityWrapper } from '../src/site-adapters/community-wrapper.js';
 import { communityStore, communityWorldId, type CommunityInstallation } from '../src/site-adapters/community-state.js';
 import { communityRegistration, communityRegistrationMatches } from '../src/site-adapters/community-registration.js';
@@ -55,7 +55,7 @@ test('package inspection is inert and hashes exact bytes; unsupported authority 
   expect(() => inspectCommunityPackage(text.replace('Fixture author', '\ud800'))).toThrow('packageInvalidEncoding');
   const value = JSON.parse(text);
   for (const manifest of [{ ...value.manifest, official: true }, { ...value.manifest, bundledProbeIds: ['probe'] },
-    { ...value.manifest, capabilities: ['mountCaptureControl'] }, { ...value.manifest, identityVersion: 2 },
+    { ...value.manifest, capabilities: ['mountCaptureControl'] }, { ...value.manifest, identityVersion: 0 },
     { ...value.manifest, matches: ['https://*/*'] }, { ...value.manifest, execution: { ...value.manifest.execution, mode: 'bundled' } },
     { ...value.manifest, icon: { kind: 'asset', path: 'icons/icon-32.png' } }, { ...value.manifest, icon: { kind: 'url', url: 'https://icons.example/b.svg' } },
     { ...value.manifest, icon: { kind: 'data', dataUrl: 'data:image/svg+xml;base64,AAAA' } }, { ...value.manifest, icon: { kind: 'favicon', extra: true } }])
@@ -63,11 +63,29 @@ test('package inspection is inert and hashes exact bytes; unsupported authority 
   const withIcon = { ...value, manifest: { ...value.manifest, icon: { kind: 'data', dataUrl: 'data:image/png;base64,iVBORw0KGgo=' } } };
   expect(inspectCommunityPackage(JSON.stringify(withIcon)).package.manifest.icon).toEqual(withIcon.manifest.icon);
   expect(inspectCommunityPackage(JSON.stringify(withIcon)).digest).not.toBe(p.digest);
+  expect(communityHostDefinition(p.package.manifest)?.adapterId).toBe('bundled.bilibili');
+  expect(communityHostDefinition({ ...p.package.manifest, matches: ['https://other.example/*'] })).toBeUndefined();
+  expect(communityHostDefinition({ ...p.package.manifest, identityVersion: 2 })).toBeUndefined();
   expect(() => inspectCommunityPackage(JSON.stringify({ ...value, provenance: { ...value.provenance, revision: 'main' } }))).toThrow('packageUnsupported');
   expect(() => inspectCommunityPackage(JSON.stringify({ ...value, provenance: { ...value.provenance, sourceUrl: 'https://x.test/?secret=bad' } }))).toThrow('packageUnsupported');
   expect(() => inspectCommunityPackage(' '.repeat(512 * 1024 + 1))).toThrow('packageTooLarge');
   const wrapper = communityWrapper({ id: 'i', generation: 1, credential: 'private-world-credential', script: p.package.script }); new Script(wrapper);
   expect(wrapper).not.toMatch(/window\.postMessage|chrome\.(storage|bookmarks)|new Function|eval\(/);
+});
+test('a separately installed HTTPS site runs in inspector mode without a bundled registry entry', async () => {
+  const f = await fixture(), pkg = JSON.parse(packageText());
+  Object.assign(pkg.manifest, { siteKey: 'example', identityVersion: 7, matches: ['https://example.test/*'] });
+  await f.install(JSON.stringify(pkg));
+  f.frame.url = 'https://example.test/item/1';
+  const row = await f.enable(), sender = { ...f.sender, url: f.frame.url, origin: 'https://example.test' };
+  const lease = await f.runtime.message(f.hello(row), sender);
+  expect(lease).toMatchObject({ status: 'ready', mode: 'inspector' });
+  expect([...f.scripts.values()][0]?.matches).toEqual(['https://example.test/*']);
+  const hint = { ...f.hint(row, lease), hint: { interactionId: 'event', itemId: 'opaque-item', added: ['saved'], removed: [], code: 0 } };
+  expect(await f.runtime.message(hint, sender)).toEqual({ status: 'inspected', writes: false, models: false });
+  expect(f.enqueue).not.toHaveBeenCalled();
+  await expect(f.call({ kind: 'known.community.scopePreview', installationId: row.id })).rejects.toThrow('communityConnectedSourceRequired');
+  expect(await f.runtime.message(f.hello(row), { ...sender, url: 'https://attacker.test/', origin: 'https://attacker.test' })).toMatchObject({ status: 'rejected', reason: 'sender' });
 });
 test('reviewed bytes persist disabled before registration; named worlds and authored bytes cannot be widened or mutated', async () => {
   const f = await fixture(); const installed = await f.install(); expect(installed.installations[0].enabled).toBe(false); expect(f.scripts.size).toBe(0);

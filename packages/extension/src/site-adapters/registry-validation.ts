@@ -31,7 +31,7 @@ export function validateSiteDefinitions(sites: readonly SiteDefinition[]): reado
   }
   return Object.freeze([...sites]);
 }
-export function matchesSiteUrl(site: SiteDefinition, value: string): boolean {
+export function matchesSiteUrl(site: Pick<SiteDefinition, 'matches'>, value: string): boolean {
   try {
     const url = new URL(value); if (url.username || url.password) return false;
     return site.matches.some(pattern => {
