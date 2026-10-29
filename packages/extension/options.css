@@ -1030,8 +1030,11 @@ body[data-first-run="syncing"] .folder-foot { display: none; }
 .sites-mark--page { width: 2.75rem; height: 2.75rem; border-radius: var(--radius-lg); }
 .sites-mark--page img { width: 1.75rem; height: 1.75rem; }
 .sites-mark--page .sites-mark-letter { font-size: var(--text-lg); }
-.sites-page-head { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: var(--space-3); }
-.sites-page-head > #sites-lede { grid-column: 2; }
+/* The site's mark sits beside its name and lede as one media object, centred on both lines. */
+.sites-page-head { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-3); }
+.sites-page-head > .sites-mark { grid-row: 1 / span 2; align-self: center; }
+.sites-page-head > h1 { align-self: end; }
+.sites-page-head > #sites-lede { grid-column: 2; align-self: start; }
 .sites-package-title { display: flex; align-items: center; gap: var(--hair-65); min-width: 0; }
 .sites-package-title .set-row-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sites-package-mark { width: 1.75rem; height: 1.75rem; }
