@@ -85,6 +85,7 @@ If you find that the prose and the schema disagree, treat it as a specification 
 - Markdown that ships in the npm package (`packages/node/README.md`, the docs listed under `files` in `packages/node/package.json`, and `packages/node/docs/README.md`, which npm always includes) may link only to other shipped files. Link to anything else with an absolute GitHub URL; `npm run pack:check` fails on a broken link.
 - When you change `README.md` or `protocol/README.md`, update the Chinese and Japanese translations next to it (`README.zh-CN.md` and `README.ja.md`) as well.
 - The README banner and diagrams in `docs/assets` are generated, in English, Chinese, and Japanese and for light and dark themes. Change the copy or layout in [`docs/assets/generate.mjs`](docs/assets/generate.mjs), run `node docs/assets/generate.mjs`, and commit the regenerated SVG files with it.
+- The product screenshots in `docs/assets/screens` are generated too: [`scripts/capture-readme.mjs`](scripts/capture-readme.mjs) renders the real web app and extension against synthetic data, in English and in Simplified Chinese where the UI has it. Rerun it after a UI change the READMEs show, look at every image, and commit them together. It needs ffmpeg, xvfb, and `npm ci` in `packages/web` and `packages/extension`.
 
 ## Pull requests
 

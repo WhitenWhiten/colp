@@ -7,6 +7,7 @@
 // Env: DIST (build to serve, default dist/development), PORT (default 8931), SHOT_OUT (default /tmp/options-shots),
 // SHOT_LOCALE (en | zh_CN), SHOT_ONLY (comma separated; keeps files whose name contains any entry, e.g. "popup",
 // "-in-sync", "820-out"), SHOT_WIDTHS (options widths, default 1280,820,320).
+// SHOT_TIME (an ISO time) pins the pages' clock, so relative and absolute times render the same on every run.
 // Files: <locale>-<width>-<in|out>-<page>.png for the settings pages (signed in / out), <locale>-<width>-<state>.png
 // for other options states, <locale>-380-popup-<state>.png for the popup.
 import { createServer } from 'node:http';
@@ -21,6 +22,8 @@ const locale = process.env.SHOT_LOCALE ?? 'en';
 const out = resolve(process.env.SHOT_OUT ?? '/tmp/options-shots');
 const widths = (process.env.SHOT_WIDTHS ?? '1280,820,320').split(',').map(Number);
 const only = process.env.SHOT_ONLY ? process.env.SHOT_ONLY.split(',') : null;
+const fixedTime = process.env.SHOT_TIME ? new Date(process.env.SHOT_TIME) : null;
+if (fixedTime && Number.isNaN(fixedTime.getTime())) throw new Error('SHOT_TIME must be an ISO time');
 const wanted = (file) => !only || only.some((o) => file.includes(o));
 const messages = JSON.parse(await readFile(join(dist, '_locales', locale, 'messages.json'), 'utf8'));
 await mkdir(out, { recursive: true });
@@ -317,6 +320,7 @@ const track = (page) => {
 // ---- options pages -------------------------------------------------------------------------------------------
 for (const width of widths) {
   const page = await browser.newPage({ viewport: { width, height: 900 } });
+  if (fixedTime) await page.clock.setFixedTime(fixedTime);
   await page.addInitScript(installStub, messages);
   track(page);
   const shoot = async (name, url, prepare, full = true) => {
@@ -339,6 +343,7 @@ for (const width of widths) {
 // ---- popup (380 wide, as tall as its content up to 600) -------------------------------------------------------
 {
   const page = await browser.newPage({ viewport: { width: 380, height: 600 } });
+  if (fixedTime) await page.clock.setFixedTime(fixedTime);
   await page.addInitScript(installStub, messages);
   track(page);
   /** Seed the annotation store (same origin) so tag autocomplete has something to offer. */
