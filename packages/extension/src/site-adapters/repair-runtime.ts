@@ -7,6 +7,10 @@ import { cursorPage } from '../sync-state/idb.js';
 import { captureDeviceId } from '../sw/capture-history.js';
 import { assertPersonalNativeAllowed } from '../bookmark-subscriptions/guards.js';
 import { wakePlannedSaves } from './planned-runtime.js';
+import { retrySourceObservations } from './local-source-problems.js';
+import { scheduleSourceAlarm } from './wake-scheduler.js';
+import { installationKey } from './installation.js';
+import { SITE_RECOVERY_ALARM } from './source-runtime.js';
 import type { SourceAuthority } from './ledger-types.js';
 import type { SourceMount } from './layout.js';
 const status = object({ kind: literal('known.siteAdapters.repair.status', 'known.siteAdapters.repair.export', 'known.siteAdapters.repair.recover') });
@@ -40,7 +44,12 @@ export async function handleRepairRequest(raw: unknown, definition: SiteDefiniti
     if (!r.digest) throw new Error('sourceRestorePreviewRequired');
     return { ok: true, result: await rebinder.approve(r.restoreId, r.connectionRef, r.mountRef, r.digest) };
   }
-  if (r.kind.endsWith('.recover')) await wakePlannedSaves(); // Existing commands only; normal source/policy/approval fences still apply.
+  if (r.kind.endsWith('.recover')) {
+    const authority = await db.read<SourceAuthority>('authorities', definition.adapterId);
+    if (authority?.enabled && authority.connectionId) await retrySourceObservations(db, authority.connectionId);
+    scheduleSourceAlarm(Date.now() + 50, installationKey(SITE_RECOVERY_ALARM, definition));
+    await wakePlannedSaves();
+  }
   const summary = diagnosticSummary(await exportSourceDiagnostic());
   let restored: RestoredSources[] = [];
   if (summary.supportedSchema && summary.schemaVersion) restored = await db.transaction(['meta'], 'readonly', async tx => {

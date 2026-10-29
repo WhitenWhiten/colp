@@ -112,3 +112,35 @@ test('large plans yield within a batch without consuming the retry count of unat
     expect(await f.db.read('work', 'small')).toBeUndefined();
   } finally { await f.db.close(); }
 });
+
+test('a freshly authorized plan reopens its parked work without changing command identity', async () => {
+  const f = await fixture();
+  try {
+    await f.add('retry');
+    const execute = vi.fn().mockResolvedValueOnce({ status: 'blocked', reason: 'sourceFactsChanged' }).mockResolvedValue({ status: 'confirmed' });
+    const run = createSourceWorkQueue(f.db, { execute, schedule: vi.fn() });
+    await run();
+    expect(await f.db.read('work', 'retry')).toMatchObject({ dueAt: Number.MAX_SAFE_INTEGER });
+    await f.db.transaction(['work'], 'readwrite', tx => enqueueSourcePlan(tx, 'retry', undefined, 0));
+    await run();
+    expect(execute).toHaveBeenCalledTimes(2);
+    expect(execute).toHaveBeenLastCalledWith('retry', 'bookmark');
+    expect(await f.db.read('work', 'retry')).toBeUndefined();
+  } finally { await f.db.close(); }
+});
+
+test('a command first submitted during this wake retains recovery after authorization changes', async () => {
+  const f = await fixture();
+  try {
+    await f.add('newly-issued');
+    await f.db.transaction(['savePlans'], 'readwrite', async tx => {
+      tx.objectStore('savePlans').put({ state: 'approved', plan: { id: 'newly-issued', effects: [{ effectId: 'bookmark', commandId: 'command', dependsOn: [] }] } }, 'newly-issued');
+    });
+    const wake = createSourceWorkQueue(f.db, { now: () => 100, schedule: vi.fn(), execute: async () => {
+      await f.db.transaction(['outbox'], 'readwrite', async tx => { tx.objectStore('outbox').put({ state: 'submitted' }, 'command'); });
+      return { status: 'blocked', reason: 'sourceAuthorizationChanged' };
+    } });
+    await wake();
+    expect(await f.db.read('work', 'newly-issued')).toMatchObject({ dueAt: 30100, reason: 'sourceAuthorizationChanged' });
+  } finally { await f.db.close(); }
+});

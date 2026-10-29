@@ -264,3 +264,33 @@ it('a prepared but unsubmitted bookmark command is safely rebound to its replace
     expect(await f.db.read('savePlans', original.id)).toMatchObject({ state: 'cancelled' });
   } finally { await f.db.close(); }
 });
+
+it('manual retry replans changed rules without leaving obsolete work or reusing a cancelled plan id', async () => {
+  const { createLiveSourcePlanner } = await import('../src/site-adapters/live-planner.js');
+  const { createSourceWorkQueue } = await import('../src/site-adapters/work-queue.js');
+  const { retrySourceObservations } = await import('../src/site-adapters/local-source-problems.js');
+  const { legacySite } = await import('../src/site-adapters/registry.js');
+  const f = await fixture();
+  try {
+    const original = await f.plan(), observationId = original.trigger.kind === 'observation' ? original.trigger.observationId : '';
+    await f.db.transaction(['authorities', 'observations', 'outbox'], 'readwrite', async tx => {
+      tx.objectStore('authorities').put({ ...f.context, enabled: true }, legacySite.adapterId);
+      tx.objectStore('observations').put({ id: observationId, ordinal: 1, installationId: legacySite.adapterId, readyAt: 0, context: f.context,
+        state: 'settled', cause: 'siteFavorite', observation: { type: 'membership.observed', item: { id: 'video:av:1' }, memberships: { mode: 'delta', added: ['101'], removed: [] } } }, observationId);
+      tx.objectStore('outbox').put({ state: 'reserved', command: { bookmark: { planId: original.id } } }, original.effects[1]!.commandId);
+    });
+    f.setRecord({ ...list(rule('B', ['101']), rule('C', ['102'], '31')), revision: 6 });
+    const saved: string[] = [];
+    const wake = createSourceWorkQueue(f.db, { schedule: () => {}, execute: async (id, effectId) => {
+      const row = await f.db.read<{ plan: SavePlan }>('savePlans', id);
+      try { await f.layout.authorize(row!.plan, row!.plan.effects.find(e => e.effectId === effectId)!); saved.push(id); return { status: 'confirmed' }; }
+      catch (error) { return { status: 'blocked', reason: (error as Error).message }; }
+    } });
+    await wake(); expect(await f.db.read('work', original.id)).toMatchObject({ reason: 'rulesChanged', dueAt: Number.MAX_SAFE_INTEGER });
+    await retrySourceObservations(f.db, 'connection');
+    await createLiveSourcePlanner(f.db, f.layout, () => {}).wake(); await wake();
+    expect(saved).toHaveLength(2); expect(saved[0]).not.toBe(original.id);
+    expect(await f.db.read('work', original.id)).toBeUndefined(); expect(await f.db.read('work', saved[0]!)).toBeUndefined();
+    expect(await f.db.read('observations', observationId)).toMatchObject({ state: 'settled', retryRevision: 1 });
+  } finally { await f.db.close(); }
+});

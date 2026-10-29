@@ -42,3 +42,27 @@ test('hint admission retries the original interaction and respects pause and dea
   send.mockReset().mockResolvedValue({ status: 'rejected', reason: 'paused' });
   expect(await deliverMembershipHint(context, hint, sleep, () => 0)).toMatchObject({ reason: 'paused' }); expect(send).toHaveBeenCalledOnce();
 });
+
+test('explicit retry reaches parked plans behind ineligible history and retains source authority fences', async () => {
+  const db = createSourceDatabase(new IDBFactory());
+  const context = { connectionId: 'source', installationGeneration: 1, sourceSessionGeneration: 1 };
+  try {
+    await db.transaction(['authorities', 'meta', 'work', 'observations', 'savePlans'], 'readwrite', async tx => {
+      tx.objectStore('authorities').put({ enabled: true, ...context }, legacySite.adapterId);
+      tx.objectStore('meta').put({ enabled: true, liveArchive: true }, 'policy:source');
+      for (let n = 0; n < 60; n++) tx.objectStore('work').put({ id: `aaa-${n}`, connectionId: 'source', dueAt: Number.MAX_SAFE_INTEGER }, `aaa-${n}`);
+      for (const id of ['live', 'import', 'stale']) {
+        tx.objectStore('observations').put({ id, context: { ...context, sourceSessionGeneration: id === 'stale' ? 0 : 1 }, state: 'settled', ordinal: 1 }, id);
+        tx.objectStore('savePlans').put({ state: 'approved', plan: { id, trigger: id === 'import' ? { kind: 'import', importRunId: 'run' } : { kind: 'observation', observationId: id } } }, id);
+        tx.objectStore('work').put({ id, connectionId: 'source', dueAt: Number.MAX_SAFE_INTEGER, attempts: 1, reason: 'rulesChanged' }, id);
+      }
+    });
+    await retrySourceObservations(db, 'source');
+    expect(await db.read('work', 'live')).toBeUndefined();
+    expect(await db.read('observations', 'live')).toMatchObject({ state: 'pending', readyAt: 0, retryRevision: 1 });
+    for (const id of ['import', 'stale']) {
+      expect(await db.read('work', id)).toMatchObject({ dueAt: Number.MAX_SAFE_INTEGER });
+      expect(await db.read('observations', id)).toMatchObject({ state: 'settled' });
+    }
+  } finally { await db.close(); }
+});

@@ -6,7 +6,7 @@ import { decideList } from '../automation/rule-list-decide.js';
 import type { FlatList } from '../automation/rule-list-flatten.js';
 import type { SiteRuleEdge } from '../automation/site-rule.js';
 import type { BrowserRuleSnapshot, MountBinding, NativeBinding, SaveEffect, SavePlan, SavePolicy, SiteCollection, SiteItem, SourceFolderReservation, Representation } from './contracts.js';
-import type { SourceContext, LedgerEdge } from './ledger-types.js';
+import type { SourceContext, LedgerEdge, ObservationRow } from './ledger-types.js';
 import { get, put, rows, sourceDigest, sourceKey, sourcePrefixRange, type SourceDatabase } from './source-db.js';
 import { createSourceReservations, representationKey } from './reservations.js';
 import { effectDigest, persistSavePlan } from './planned-executor.js';
@@ -221,7 +221,10 @@ export function createSourceLayout(db: SourceDatabase, ports: LayoutPorts) {
         if (!primary || !eligible.includes(primary)) throw new Error('primarySourceCollectionRequired');
         if (primary !== input.collectionId) return { status: 'policySkipped' } as const;
       }
+      const retryRevision = input.trigger.kind === 'observation'
+        ? (await db.read<ObservationRow>('observations', input.trigger.observationId))?.retryRevision : undefined;
       const id = identity({ trigger: input.trigger, representation, snapshot: snapshot(flat), policy: settings.policy.revision,
+        ...(retryRevision ? { retryRevision } : {}),
         ...(input.trigger.kind === 'observation' ? { facts: { ...facts, edge: sourceMembershipValue(facts.edge) } } : {}),
         ...(c.communityOrigin ? { communityOrigin: c.communityOrigin } : {}) });
       const bookmarkCommandId = identity({ representation, effect: 'bookmark' });

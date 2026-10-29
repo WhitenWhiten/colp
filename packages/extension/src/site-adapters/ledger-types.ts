@@ -8,7 +8,7 @@ export interface SourceContext { installationId?: string; connectionId: string; 
   documentId: string; tabId: number; routeEpoch: number; leaseId: string }
 export interface LedgerEdge { connectionId: string; itemId: string; collectionId: string; state: 'present' | 'absent' | 'unresolved';
   ordinal: number; liveOrdinal: number; evidence: 'live' | 'import' | 'read'; observationId: string; conflicts: readonly string[] }
-export interface ObservationRow { installationId?: string; id: string; ordinal: number; context: SourceContext; observation: SiteObservation; acceptedAt: number; adapterVersion: string; cause: 'siteFavorite' | 'reconcile'; state: 'pending' | 'settled'; readyAt?: number; retryReason?: string }
+export interface ObservationRow { installationId?: string; id: string; ordinal: number; context: SourceContext; observation: SiteObservation; acceptedAt: number; adapterVersion: string; cause: 'siteFavorite' | 'reconcile'; state: 'pending' | 'settled'; readyAt?: number; retryReason?: string; retryRevision?: number }
 export interface SourceReceipt { id: string; digest: string; ordinal: number }
 export interface SourceImportRun { id: string; context: SourceContext; baselineOrdinal: number; phase: 'scanning' | 'stopped';
   outstanding: string | null; cursor: string | null; coverage: 'complete' | 'partial'; seenItems: readonly string[]; seenCursors: readonly string[] }

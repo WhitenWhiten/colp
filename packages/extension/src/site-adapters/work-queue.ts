@@ -4,7 +4,8 @@ import type { StoredSavePlan } from './planned-types.js';
 export interface SourceWork { id: string; dueAt: number; attempts: number; connectionId?: string; reason?: string }
 /** Derived active index. Deleting a completed entry never deletes its plan, command or receipt. */
 export async function enqueueSourcePlan(tx: IDBTransaction, id: string, connectionId?: string, readyAt = Date.now()) {
-  if (!await get(tx, 'work', id)) put(tx, 'work', id, { id, dueAt: readyAt, attempts: 0, ...(connectionId ? { connectionId } : {}) } satisfies SourceWork);
+  const old = await get<SourceWork>(tx, 'work', id);
+  if (!old || old.dueAt === Number.MAX_SAFE_INTEGER) put(tx, 'work', id, { id, dueAt: readyAt, attempts: old?.attempts ?? 0, ...(connectionId ? { connectionId } : {}) } satisfies SourceWork);
 }
 export function createSourceWorkQueue(db: SourceDatabase, ports: {
   execute(planId: string, effectId: string): Promise<{ status: string; reason?: string }>;
@@ -48,7 +49,11 @@ export function createSourceWorkQueue(db: SourceDatabase, ports: {
             if (!budget || attempted >= 4) { complete = false; break; }
             budget--; attempted++;
             const result = await ports.execute(work.id, effect.effectId);
-            if (result.status !== 'confirmed') { complete = false; reason = result.reason ?? 'executionUnavailable'; break; }
+            if (result.status !== 'confirmed') {
+              const submitted = commandId ? await db.read<{ state: string }>('outbox', commandId) : undefined;
+              recoveringStarted ||= !!submitted && submitted.state !== 'reserved';
+              complete = false; reason = result.reason ?? 'executionUnavailable'; break;
+            }
           }
         }
       } catch (error) { complete = false; reason = error instanceof Error ? error.message : 'executionUnavailable'; }
