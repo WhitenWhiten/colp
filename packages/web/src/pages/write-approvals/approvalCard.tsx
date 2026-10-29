@@ -422,19 +422,25 @@ function OperationPreview({
         </p>
         <p className="write-approval-operation-meta">
           {summary?.url && <span className="write-approval-operation-url">{summary.url}</span>}
-          <span>
-            in <RefValue id={operation.collectionId} title={collectionTitle} />
-          </span>
+          {/* The planner's sentence already names the folder path. */}
+          {!description && (
+            <span>
+              in <RefValue id={operation.collectionId} title={collectionTitle} />
+            </span>
+          )}
         </p>
       </div>
     </li>
   )
 }
 
-/** "move Docs from /A to /B" under the label "Move" reads "Docs from /A to /B". */
+/** "move Docs from /A to /B" under the label "Move" reads "Docs from /A to /B";
+    "create folder Docs in /A" under "Create folder" reads "Docs in /A". */
 function withoutLeadingVerb(description: string, label: string): string {
-  const verb = label.split(' ')[0]?.toLowerCase() ?? ''
   const lower = description.toLowerCase()
+  const whole = label.toLowerCase()
+  if (lower.startsWith(`${whole} `)) return description.slice(whole.length + 1)
+  const verb = whole.split(' ')[0] ?? ''
   return verb && lower.startsWith(`${verb} `) ? description.slice(verb.length + 1) : description
 }
 

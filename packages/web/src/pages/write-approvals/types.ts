@@ -142,7 +142,7 @@ export function formatInstant(value: string): string {
 }
 
 function createNodeOperationLabel(kind: string | null | undefined): string {
-  if (kind === 'bookmark') return 'Create bookmark'
+  if (kind === 'bookmark') return 'Add bookmark'
   if (kind === 'folder') return 'Create folder'
   return 'Create bookmark or folder'
 }

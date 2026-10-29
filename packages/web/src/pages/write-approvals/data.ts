@@ -179,7 +179,8 @@ export function useWriteApprovals() {
     productClient.loadOwnedCollections({ limit: 100 }, { signal: controller.signal, maxRetries: 0 })
       .then((items) => {
         if (!controller.signal.aborted && mounted.current && privateSessionIdentity() === requestIdentity) {
-          setCollectionTitles(new Map(items.map((item) => [item.collection.id, item.collection.title])))
+          // The library's stored title never shows; rows read “in your library”.
+          setCollectionTitles(new Map(items.map((item) => [item.collection.id, item.collection.library ? 'your library' : item.collection.title])))
         }
       })
       .catch(() => { /* unresolved ids degrade to muted code */ })

@@ -254,7 +254,7 @@ describe('MCP-W08 Write approvals page', () => {
     expect(document.body.textContent).toContain('High risk')
     expect(document.body.textContent).toContain('Touches 1 bookmark, 2 notes and 3 relations in 1 collection.')
     expect([...document.querySelectorAll('[aria-label="Planned operations"] strong')].map((el) => el.textContent)).toEqual([
-      'Create bookmark',
+      'Add bookmark',
       'Create folder',
       'Create bookmark or folder',
     ])
@@ -483,6 +483,40 @@ describe('MCP-W08 Write approvals page', () => {
     expect(document.body.textContent).toContain('Move')
     expect(document.body.textContent).not.toContain('Not available')
     expect(document.body.textContent).not.toContain('No visibility change')
+  })
+
+  it('says where a create lands and leaves the stored library title off described rows', async () => {
+    mocks.loadOwnedCollections.mockResolvedValue([{ ...owned('col-1', 'Bookmarks'), collection: { ...owned('col-1', 'Bookmarks').collection, library: true } }])
+    mocks.getWriteApprovalPage.mockResolvedValue({
+      items: [approvalView({
+        summary: 'Create folder Agents in /Bookmarks bar/Research; add Toolformer to /Bookmarks bar/Research',
+        target: { kind: 'collection', collectionId: 'col-1', nodeId: null },
+        operations: [
+          { type: 'create_node', collectionId: 'col-1', nodeId: null, visibility: null,
+            nodeSummary: { kind: 'folder', title: 'Agents', url: null, visibility: 'private' },
+            description: 'create folder Agents in /Bookmarks bar/Research' },
+          { type: 'create_node', collectionId: 'col-1', nodeId: null, visibility: null,
+            nodeSummary: { kind: 'bookmark', title: 'Toolformer', url: 'https://arxiv.org/abs/2302.04761', visibility: 'private' },
+            description: 'add Toolformer to /Bookmarks bar/Research' },
+          { type: 'set_visibility', collectionId: 'col-1', nodeId: null, visibility: 'private', nodeSummary: null },
+        ],
+      })],
+      nextCursor: null,
+    })
+    render()
+    await waitForDom(domFinishedLoading)
+    const rows = [...document.querySelectorAll('[aria-label="Planned operations"] li')]
+    expect(rows.map((row) => row.querySelector('strong')?.textContent)).toEqual(['Create folder', 'Add bookmark', 'Unpublish collection'])
+    expect(rows.map((row) => row.querySelector('[data-testid="approval-operation-description"]')?.textContent ?? null)).toEqual([
+      'Agents in /Bookmarks bar/Research',
+      'Toolformer to /Bookmarks bar/Research',
+      null,
+    ])
+    expect(rows[1]!.textContent).toContain('https://arxiv.org/abs/2302.04761')
+    // The path says where; only the undescribed row names its collection, as the library.
+    for (const row of rows.slice(0, 2)) expect(row.textContent).not.toContain('your library')
+    expect(rows[2]!.textContent).toContain('in your library')
+    expect(document.body.textContent).not.toContain('in Bookmarks')
   })
 
   it('redirects a list 401 to sign-in with an exact return path', async () => {
