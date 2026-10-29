@@ -437,7 +437,7 @@ describeWithPostgres('self-hosted production MCP composition', () => {
       'add Toolformer to /Destination; destination is the new folder “Papers”',
     ]);
     assert.match(impacts[2]!, /^delete .+ from \/ \(1 item\)$/u);
-    assert.equal(stored.summary, `Create folder Papers in /Destination; ${impacts.slice(1).join('; ')}`);
+    assert.equal(stored.summary, 'Create a folder, add a bookmark and delete an item');
   });
   test('a stale mixed plan makes none of its changes', async () => {
     const tree = await fixture(), planned = await organize(tree);

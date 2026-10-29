@@ -409,9 +409,11 @@ export function phase4bMcpPlanSummary(
   }
   // Creates, moves and deletes carry the planner's own sentence (titles and
   // stored paths); the owner reads those instead of operation type names.
+  // One change is its sentence; several are counted, and each keeps its
+  // sentence in the plan's operations, which the approval rows show.
   const described = operations.map((operation) => (operation as { readonly impact?: unknown }).impact);
   if (described.every((text): text is string => typeof text === 'string' && text.length > 0)) {
-    const sentence = described.join('; ');
+    const sentence = operations.length === 1 ? described[0]! : countedPlanSummary(operations);
     const capitalized = sentence.charAt(0).toUpperCase() + sentence.slice(1);
     return capitalized.length <= PLAN_SUMMARY_MAX ? capitalized : `${capitalized.slice(0, PLAN_SUMMARY_MAX - 1)}…`;
   }
@@ -420,6 +422,24 @@ export function phase4bMcpPlanSummary(
     + `${impact.collections} collection(s), ${impact.nodes} node(s), `
     + `${impact.annotations} annotation(s), ${impact.attachments} attachment(s), `
     + `${impact.relations} relation(s).`;
+}
+
+/** "create a folder, add 3 bookmarks and move 2 items", in the plan's order. A delete counts what it removes. */
+function countedPlanSummary(operations: readonly Phase4bMcpPlanOperation[]): string {
+  const counts = new Map<string, { readonly verb: string; readonly noun: string; count: number }>();
+  for (const operation of operations) {
+    const kind = operation.type === 'create_node' ? operation.payload.node.kind : null;
+    const [verb, noun] = operation.type === 'move_node' ? ['move', 'item']
+      : operation.type === 'delete_subtree' ? ['delete', 'item']
+        : kind === 'folder' ? ['create', 'folder'] : kind === 'bookmark' ? ['add', 'bookmark'] : ['add', 'item'];
+    const added = operation.type === 'delete_subtree' && 'subtreeCount' in operation ? operation.subtreeCount : 1;
+    const entry = counts.get(`${verb} ${noun}`);
+    if (entry) entry.count += added;
+    else counts.set(`${verb} ${noun}`, { verb, noun, count: added });
+  }
+  const phrases = [...counts.values()].map(({ verb, noun, count }) =>
+    `${verb} ${count === 1 ? `${noun === 'item' ? 'an' : 'a'} ${noun}` : `${count} ${noun}s`}`);
+  return phrases.length === 1 ? phrases[0]! : `${phrases.slice(0, -1).join(', ')} and ${phrases.at(-1)}`;
 }
 
 export function computePhase4bMcpCanonicalDigest(

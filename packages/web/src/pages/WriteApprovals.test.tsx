@@ -460,7 +460,7 @@ describe('MCP-W08 Write approvals page', () => {
   it('describes each move in the server\'s words instead of empty bookmark fields', async () => {
     mocks.getWriteApprovalPage.mockResolvedValue({
       items: [approvalView({
-        summary: 'Move Rust by Example from / to /Rust; move Tokio tutorial from / to /Rust',
+        summary: 'Move 2 items',
         target: { kind: 'collection', collectionId: 'col-1', nodeId: null },
         operations: [
           { type: 'move_node', collectionId: 'col-1', nodeId: 'node-a', visibility: null, nodeSummary: null,

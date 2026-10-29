@@ -661,6 +661,28 @@ test('create impact text names what is added and where', () => {
   assert.equal(phase4bMcpCreateImpactText({ kind: 'bookmark', title: '', url: 'https://example.com/' }), 'add https://example.com/');
 });
 
+test('a plan with several changes is headlined by counts, in plan order', () => {
+  const create = (kind: 'folder' | 'bookmark', title: string) => ({
+    opId: `op-${title}`, replicaId: 'replica', sequence: 1, type: 'create_node', occurredAt: NOW, collectionId: 'collection-1',
+    baseRevision: null, payload: { parentId: 'root-1', afterId: null, beforeId: null, node: { kind, title, visibility: 'private' } },
+    impact: `add ${title} to /Research`,
+  }) as unknown as Parameters<typeof phase4bMcpPlanSummary>[0][number];
+  const move = (nodeId: string) => ({
+    type: 'move_node', risk: 'medium', collectionId: 'collection-1', nodeId, parentId: 'folder-1',
+    impact: `move ${nodeId} from /Read later to /Research`,
+  }) as const;
+  const remove = (subtreeCount: number) => ({
+    type: 'delete_subtree', risk: 'medium', collectionId: 'collection-1', nodeId: 'old', subtreeCount, impact: 'delete Old from / (4 items)',
+  }) as const;
+  assert.equal(phase4bMcpPlanSummary([move('a')], IMPACT), 'Move a from /Read later to /Research');
+  assert.equal(phase4bMcpPlanSummary([move('a'), move('b'), move('c')], IMPACT), 'Move 3 items');
+  assert.equal(
+    phase4bMcpPlanSummary([create('folder', 'Agents'), create('bookmark', 'ReAct'), create('bookmark', 'Toolformer'), move('a'), remove(4)], IMPACT),
+    'Create a folder, add 2 bookmarks, move an item and delete 4 items',
+  );
+  assert.equal(phase4bMcpPlanSummary([create('bookmark', 'ReAct'), create('bookmark', 'Toolformer')], IMPACT), 'Add 2 bookmarks');
+});
+
 test('a plan that creates reads as a sentence, never as operation type names', async () => {
   const withPath = (parentPath: unknown) => options({
     authoritativeState: Object.freeze({
