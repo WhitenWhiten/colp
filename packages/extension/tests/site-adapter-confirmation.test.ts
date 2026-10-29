@@ -146,3 +146,46 @@ test('retained confirmation and observation receipts do not consume new-work cap
     expect(await f.db.read('receipts', 'history-0')).toMatchObject({ id: 'receipt-0' });
   } finally { await f.db.close(); }
 }, 30000);
+
+test('explicit retry recovers earlier failures even after a later unrelated result', async () => {
+  const f = await fixture();
+  try {
+    await f.queue.enqueue(f.context, 'lost-favorite', hint); await f.queue.wake();
+    await f.queue.accept(f.context, f.reply(f.sent[0]!, { status: 'failed', error: { code: 'invalidData' } }));
+    await f.queue.enqueue(f.context, 'later-site-failure', { ...hint, code: -101 });
+    await f.queue.retry();
+    expect(await f.queue.status()).toMatchObject({ pending: 1 });
+    f.advance(); await f.queue.wake();
+    const first = f.sent[0]!; if (first.operation !== 'readMemberships') throw new Error('membership read expected');
+    expect(f.sent[1]).toMatchObject({ operation: 'readMemberships', readSessionId: first.readSessionId });
+  } finally { await f.db.close(); }
+});
+test('manual retries beyond the active capacity survive restart and each receive only one retry cycle', async () => {
+  const f = await fixture();
+  try {
+    for (let i = 0; i < 20; i++) {
+      await f.queue.enqueue(f.context, `failed-${i}`, hint); f.advance(); await f.queue.wake();
+      await f.queue.accept(f.context, f.reply(f.sent.at(-1)!, { status: 'failed', error: { code: 'invalidData' } }));
+    }
+    await f.queue.retry();
+    expect(await f.queue.status()).toMatchObject({ pending: 20 });
+    const restarted = f.create();
+    for (let i = 0; i < 20; i++) {
+      f.advance(); await restarted.wake();
+      await restarted.accept(f.context, f.reply(f.sent.at(-1)!, { status: 'failed', error: { code: 'invalidData' } }));
+    }
+    expect(f.sent).toHaveLength(40);
+    expect(await restarted.status()).toMatchObject({ pending: 0 });
+    f.advance(); await restarted.wake(); expect(f.sent).toHaveLength(40);
+  } finally { await f.db.close(); }
+});
+test('retry cannot grant a retired source generation new read authority', async () => {
+  const f = await fixture();
+  try {
+    await f.queue.enqueue(f.context, 'old-generation', hint); await f.queue.wake();
+    await f.queue.accept(f.context, f.reply(f.sent[0]!, { status: 'failed', error: { code: 'invalidData' } }));
+    await f.ledger.setAuthority({ enabled: true, installationGeneration: 1, sourceSessionGeneration: 2, accountId: '42', negativeReadback: false });
+    await f.queue.retry();
+    expect(await f.queue.status()).toMatchObject({ pending: 0 });
+  } finally { await f.db.close(); }
+});

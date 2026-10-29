@@ -7,7 +7,7 @@ export const SOURCE_STORES = ['meta', 'authorities', 'documentLeases', 'connecti
   'readRequests', 'importRuns', 'importPages', 'representations', 'itemReservations', 'folderReservations', 'folderConsumers',
   'savePlans', 'effects', 'outbox', 'contentBindings', 'mounts', 'importPreviews', 'importApprovals', 'semanticJobs', 'semanticIndexes', 'work', 'transfers', 'unboundTransfers'] as const;
 export type SourceStore = typeof SOURCE_STORES[number];
-export const SOURCE_DATABASE_VERSION = 12;
+export const SOURCE_DATABASE_VERSION = 13;
 export function sourceDigest(value: unknown): string {
   return `sha256:${bytesToHex(sha256(new TextEncoder().encode(canonicalJson(value, () => { throw new Error('invalidData'); }))))}`;
 }
@@ -43,6 +43,9 @@ export function createSourceDatabase(factory?: IDBFactory, name = 'known-site-ad
         for (const [index, path] of Object.entries(definitions)) if (!store.indexNames.contains(index)) store.createIndex(index, path);
       }
       const unbound = r.transaction!.objectStore('unboundTransfers');
+      const reads = r.transaction!.objectStore('readRequests');
+      if (!reads.indexNames.contains('confirmationState')) reads.createIndex('confirmationState', ['origin.connectionId', 'state']);
+      if (!reads.indexNames.contains('confirmationRetry')) reads.createIndex('confirmationRetry', ['origin.connectionId', 'retryRequested']);
       if (!unbound.indexNames.contains('dueAt')) unbound.createIndex('dueAt', 'dueAt');
       if (!unbound.indexNames.contains('nativeId')) unbound.createIndex('nativeId', 'native.nativeId');
       const transfers = r.transaction!.objectStore('transfers');

@@ -1,4 +1,5 @@
 import { validMembershipResult } from './schemas.js';
+import { createConfirmationRetry } from './confirmation-retry.js';
 import { readLimits } from './read-policy.js';
 import { createLane } from '../automation/lane.js';
 import type { AdapterMessage, HostCommand, MembershipHint } from './contracts.js';
@@ -14,6 +15,7 @@ export interface ConfirmationRow {
   id: string; digest: string; origin: SourceContext; hint: MembershipHint; state: 'membership' | 'item' | 'observed' | 'uncertain';
   attempts: number; sourceWaitUntil?: number; cycle?: number; known?: readonly string[]; absent?: readonly string[]; baselineOrdinal?: number; reason?: string; observationId?: string;
   active?: { command: Command; context: SourceContext };
+  retryRequested?: 1;
 }
 interface Ports {
   activity?: ActivitySink;
@@ -28,6 +30,7 @@ export function createConfirmationQueue(ledger: Ledger, scheduler: ReturnType<ty
   const db = ledger.db, lane = createLane(), LIMITS = readLimits(ledger.definition);
   const PENDING = installationKey('confirmationQueue:v1', ledger.definition), PAUSE = installationKey('confirmationPause:v1', ledger.definition), LAST = installationKey('confirmationLast:v1', ledger.definition);
   const scope = (hint: MembershipHint) => [...hint.added, ...(ledger.definition.negativeReadback ? hint.removed : [])];
+  const retries = createConfirmationRetry(db, ledger.definition.adapterId, PENDING, LIMITS.queue, hint => scope(hint).length > 0);
   const commandId = (r: ConfirmationRow) => r.active?.command.operation === 'resolveItem' ? r.active.command.resolutionId : r.active?.command.readRequestId;
   const same = (a: ConfirmationRow | undefined, b: ConfirmationRow) => a?.state === b.state && a.attempts === b.attempts && commandId(a) === commandId(b);
   async function settle(tx: IDBTransaction, row: ConfirmationRow) {
@@ -66,7 +69,9 @@ export function createConfirmationQueue(ledger: Ledger, scheduler: ReturnType<ty
     },
     wake: () => lane(async () => {
       if (await db.read('meta', PAUSE)) return;
-      const ids = await db.read<string[]>('meta', PENDING) ?? [], id = ids[0]; if (!id) return;
+      const moreRetries = await retries.fill();
+      const ids = await db.read<string[]>('meta', PENDING) ?? [], id = ids[0];
+      if (!id) { if (moreRetries) ports.alarm(now() + LIMITS.spacingMs); return; }
       let row = await db.read<ConfirmationRow>('readRequests', rowKey(id)); if (!row) return;
       if (row.origin.communityOrigin) try { if (!ports.authorizeOrigin) throw new Error('communityArchiveRevoked'); await ports.authorizeOrigin(row.origin, scope(row.hint)); }
       catch { await fail(row, 'communityArchiveRevoked'); ports.alarm(now() + LIMITS.spacingMs); return; }
@@ -177,19 +182,10 @@ export function createConfirmationQueue(ledger: Ledger, scheduler: ReturnType<ty
       if (after?.state === 'observed') await ports.activity?.resolve(row.id, 'inspect').catch(() => undefined);
       await scheduler.finish(requestId); ports.alarm(now() + LIMITS.spacingMs); return true;
     },
-    async status() { return { pending: (await db.read<string[]>('meta', PENDING) ?? []).length,
+    async status() { return { pending: (await db.read<string[]>('meta', PENDING) ?? []).length + await retries.waiting(),
       paused: await db.read('meta', PAUSE) ?? null, last: await db.read('meta', LAST) ?? null }; },
     async retry() {
-      await db.transaction(['meta', 'readRequests'], 'readwrite', async tx => {
-        const last = await get<{ id: string }>(tx, 'meta', LAST), row = last && await get<ConfirmationRow>(tx, 'readRequests', rowKey(last.id));
-        const pending = await get<string[]>(tx, 'meta', PENDING) ?? [];
-        if (row?.state === 'uncertain' && row.hint.code === 0 && scope(row.hint).length && !['siteWriteFailed', 'negativeReadbackUnavailable', 'sourceChanged', 'conflict'].includes(row.reason ?? '')) {
-          if (pending.length >= LIMITS.queue) throw new Error('capacity');
-          put(tx, 'readRequests', rowKey(row.id), { ...row, state: 'membership', attempts: 0, cycle: (row.cycle ?? 0) + 1, active: undefined, known: undefined, absent: undefined, baselineOrdinal: undefined, sourceWaitUntil: undefined, reason: undefined });
-          put(tx, 'meta', PENDING, [...pending, row.id]);
-        }
-        tx.objectStore('meta').delete(PAUSE);
-      });
+      await retries.request(PAUSE); await retries.fill();
       ports.alarm(now() + LIMITS.spacingMs);
     },
   };
