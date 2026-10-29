@@ -2,6 +2,8 @@
 
 The shipped registry contains **Bilibili only**. The post/DOM implementations under `tests/fixtures/site-adapters` are contract fixtures, not supported sites. This guide prepares future adapter work without adding a site or granting new origins.
 
+To add a site step by step, follow [Adding a website to the site adapter](adding-a-site.md) ([简体中文](adding-a-site.zh-CN.md), [日本語](adding-a-site.ja.md)). It has a worked example that was built and run in Chromium, plus the files, commands and final report an agent needs.
+
 ## Ownership of responsibilities
 
 An adapter identifies its source and reads bounded source facts. The shared host owns permissions, document/account leases, read pacing, durable admission, copy policy, native receipts, classification, Sync and shared associations. Site code must not import the service worker, bookmark writer, provider client or cloud command executor.
