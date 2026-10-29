@@ -53,7 +53,7 @@ Rules that summarize or tag need an AI. Connect one in the rule editor, or let a
 **Agents** lists connected agents, their approval policy and API keys, with setup commands for Claude Code, Codex and other MCP clients ([install guide](../../deploy/INSTALL.md#6-connect-an-agent)). Each agent starts on **Manual**: adding bookmarks and editing titles apply at once, while moves and deletions become a plan on **Approvals**. A **Trusted** agent's moves apply directly and can be undone there. Deleting, emptying the trash and purging always wait for you.
 
 <p align="center">
-  <img src="../../docs/assets/screens/web-activity.en.png" alt="The Activity inbox: bookmarks an agent added and rule runs that finished, grouped by day" width="100%">
+  <img src="../../docs/assets/screens/web-activity.en.png" alt="The Activity inbox: an agent's plan waiting for approval, bookmarks an agent added and rule runs that finished, grouped by day" width="100%">
   <br><sub>The Activity inbox.</sub>
 </p>
 

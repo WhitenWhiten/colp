@@ -197,15 +197,17 @@ const approval: WriteApprovalView = {
   status: 'pending',
   risk: 'medium',
   requiresApproval: true,
-  summary: 'Move 3 arXiv papers from Read later to Research',
+  // What the server writes for several changes; each row carries its own sentence.
+  summary: 'Move 3 items',
   impact: { collections: 1, nodes: 3, annotations: 0, attachments: 0, relations: 0, privateFieldsExcluded: [] },
   requiredScopes: ['nodes:write'],
   target: { kind: 'collection', collectionId: LIBRARY_ID, nodeId: null },
-  // The server's planner writes `move <title> from <path> to <path>` from stored paths, never agent text.
+  // The server's planner writes `move <title> from <path> to <path>` from stored paths, never agent text,
+  // and sends no node summary for a move.
   operations: plannedPapers.map((paper) => ({
     type: 'move_node', collectionId: LIBRARY_ID, nodeId: paper.id, visibility: null,
     description: `move ${paper.title} from /Bookmarks bar/Read later to /Bookmarks bar/Research`,
-    nodeSummary: { kind: 'bookmark', title: paper.title, url: paper.url, visibility: 'inherit' },
+    nodeSummary: null,
   })),
   createdAt: '2026-10-28T10:04:00.000Z',
   expiresAt: '2026-10-29T10:04:00.000Z',
@@ -302,7 +304,7 @@ const activityAgent = { ...agent, kind: 'oauth_client' as const }
 function activity(id: string, kind: ActivityItem['kind'], at: string, unread: boolean, patch: Partial<ActivityItem>): ActivityItem {
   return {
     id, kind, state: unread ? 'unread' : 'read', revision: '1', occurredAt: at, updatedAt: at,
-    readAt: unread ? null : at, count: 0, agent: null, collection: library, folders: [], items: [], run: null, ...patch,
+    readAt: unread ? null : at, count: 0, agent: null, collection: library, folders: [], items: [], run: null, plan: null, ...patch,
   }
 }
 
@@ -311,6 +313,8 @@ function ruleRun(runId: string, ruleId: string, status: string) {
 }
 
 const activityItems: ActivityItem[] = [
+  // The approval above, waiting: the server lists a pending plan until it is decided.
+  activity('act-7', 'approval_requested', approval.createdAt, true, { agent: activityAgent, plan: { id: PLAN_ID, summary: approval.summary } }),
   activity('act-6', 'agent_bookmarks_added', '2026-10-28T09:52:00.000Z', true, {
     count: 3, agent: activityAgent,
     folders: [{ nodeId: RESEARCH_ID, title: 'Research', count: 3 }],

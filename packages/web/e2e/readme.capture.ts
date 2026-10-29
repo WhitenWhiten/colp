@@ -82,8 +82,9 @@ test('web-automations: account rules and their recent runs', async ({ page }) =>
 test('web-activity: the agent activity inbox', async ({ page }) => {
   const read = page.waitForRequest((request) => request.method() === 'POST' && request.url().endsWith('/api/v1/me/activity/read'))
   await page.goto('/activity')
-  await expect(page.locator('[data-activity-id]')).toHaveCount(5)
+  await expect(page.locator('[data-activity-id]')).toHaveCount(6)
   await read
+  await expect(page.getByRole('link', { name: 'Claude (research assistant) wants your approval' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Claude (research assistant) added 3 bookmarks to Research' })).toBeVisible()
   await capture(page, 'web-activity.en.png')
 })
