@@ -13208,8 +13208,8 @@
     "description": "$1 items found. You can review the result before saving."
   },
   "sites_checkSavedUpdates": {
-    "message": "下方列出了已保存的内容。可以检查更新，查找还需要保存的内容。",
-    "description": "Your saved items are listed below. Check for updates to find anything else that needs saving."
+    "message": "检查更新，查找新的收藏。",
+    "description": "Check for updates to find new favorites."
   },
   "sites_noCheckRunning": {
     "message": "当前没有进行中的检查",

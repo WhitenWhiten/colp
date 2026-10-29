@@ -6756,7 +6756,7 @@
     "message": "The source check has not finished"
   },
   "sites_checkSavedUpdates": {
-    "message": "Your saved items are listed below. Check for updates to find anything else that needs saving."
+    "message": "Check for updates to find new favorites."
   },
   "sites_checkStopped": {
     "message": "The last check was stopped"

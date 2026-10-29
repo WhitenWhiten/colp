@@ -37,14 +37,43 @@
 
       <div id="site-problem-slot">
         <div id="site-problem" class="inline-alert" data-tone="warning" role="status" hidden>
-          <div class="set-row-text"><p id="site-problem-what" class="set-row-title"></p><p id="site-problem-next" class="set-row-hint"></p><p id="site-problem-time" class="set-row-hint"></p>
-            <div class="sites-problem-actions"><button id="problem-recover" class="btn btn-ghost btn-sm" type="button" hidden data-i18n="sites_verifySavedResults">Check saved results</button><button id="problem-copy" class="btn btn-ghost btn-sm" type="button" data-i18n="sites_copyProblem">Copy problem report</button></div>
+          <svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="alert"></svg>
+          <div class="set-row-text"><p id="site-problem-what" class="set-row-title"></p><p id="site-problem-next" class="set-row-hint"></p>
+            <div class="sites-problem-actions"><span id="site-problem-time" class="set-row-hint"></span><button id="problem-recover" class="btn btn-ghost btn-sm" type="button" hidden data-i18n="sites_verifySavedResults">Check saved results</button><button id="problem-copy" class="btn btn-ghost btn-sm" type="button" data-i18n="sites_copyProblem">Copy problem report</button></div>
           </div>
         </div>
       </div>
-      <!-- A configured mapping keeps its actual results and current task together. -->
+      <!-- A configured mapping: the current task in its own card first, then the source, saved destination and results. -->
       <div id="panel-sync" class="sites-panel" role="tabpanel" aria-labelledby="tab-sync">
-        <section id="source-overview" class="set-group" aria-labelledby="overview-source" hidden>
+        <section id="source-overview" class="set-group sites-overview" aria-labelledby="overview-source" hidden>
+          <section id="step-import" class="set-card sites-task" data-step="current" aria-labelledby="import-state">
+            <p id="import-destination" hidden></p>
+            <div class="sites-task-content">
+              <div class="set-row">
+                <div class="set-row-text"><p id="import-state" class="set-row-title" data-i18n="sites_noImport">No import started</p>
+                  <p id="import-summary" class="set-row-hint" role="status"></p></div>
+                <div class="set-row-control"><span id="import-count" class="set-row-value" hidden></span><span id="import-badge" class="badge" hidden></span></div>
+              </div>
+              <div id="import-progress" class="sites-progress" hidden><div id="import-progress-bar" class="sync-bar" role="progressbar" aria-labelledby="import-state" aria-valuemin="0" aria-valuemax="100"><span></span></div></div>
+              <p id="import-note" class="sites-task-note" hidden></p>
+              <details id="import-omissions" class="disclosure sites-omissions" hidden><summary id="import-omissions-title"></summary><ul id="import-omission-list"></ul></details>
+              <div class="card-foot confirm-actions sites-actions">
+                <button id="cancel-import" class="btn btn-ghost btn-sm" type="button" disabled hidden data-i18n="sites_stopImport" title="Bookmarks already added are kept." data-i18n-title="sites_stopImportHint">Stop import</button>
+                <span class="grow"></span>
+                <button id="import-edit-settings" class="btn btn-secondary btn-sm" type="button" hidden data-i18n="sites_reviewSyncSettings">Review sync settings</button>
+                <button id="import-open-recovery" class="btn btn-primary btn-sm" type="button" hidden data-i18n="sites_checkMapping">Check mapping</button>
+                <a id="import-open-bookmark-sync" class="btn btn-secondary btn-sm" href="options.html#sync" target="_blank" hidden data-i18n="sites_openBookmarkSync">Open bookmark sync</a>
+                <button id="import-review-items" class="btn btn-secondary btn-sm" type="button" hidden data-i18n="sites_reviewItems">Review items</button>
+                <button id="retry-import" class="btn btn-primary btn-sm" type="button" hidden data-i18n="sites_checkAndContinueSave">Check and continue saving</button>
+                <button id="import-open-source" class="btn btn-primary btn-sm" type="button" hidden></button>
+                <button id="resume-import" class="btn btn-ghost btn-sm" type="button" disabled hidden data-i18n="sites_tryAgain">Try again</button>
+                <button id="freeze-import" class="btn btn-secondary btn-sm" type="button" disabled hidden data-i18n="sites_reviewFound">Review what was found</button>
+                <button id="start-import" class="btn btn-secondary btn-sm" type="button" disabled hidden data-i18n="sites_checkExisting">Check for existing favorites</button>
+                <button id="approve-import" class="btn btn-primary btn-sm" type="button" disabled hidden data-i18n="sites_approvePreview">Approve this preview</button>
+              </div>
+              <p id="site-live-status" hidden></p>
+            </div>
+          </section>
           <div class="set-card">
             <div class="set-row">
               <div class="set-row-text"><p id="overview-source" class="set-row-title"></p><p id="overview-policy" class="set-row-hint"></p></div>
@@ -54,35 +83,6 @@
               <div class="set-row-text"><p id="overview-destination" class="set-row-title"></p><p id="overview-result" class="set-row-hint"></p><p id="source-pipeline-status" class="set-row-hint" aria-live="polite"></p></div>
               <div class="set-row-control"><button id="source-pipeline-retry" class="btn btn-ghost btn-sm" type="button" data-i18n="sites_retryLocalAssociation" hidden>Retry saving and association</button><a id="overview-open-folder" class="btn btn-ghost btn-sm" data-i18n="sites_openFolder">Open folder</a><button id="overview-edit-destination" class="btn btn-ghost btn-sm" type="button" data-i18n="common_change">Change</button></div>
             </div>
-        <section id="step-import" class="sites-task" data-step="current" aria-labelledby="import-state">
-          <p id="import-destination" hidden></p>
-          <div class="sites-task-content">
-            <div class="set-row">
-              <div class="set-row-text"><p id="import-state" class="set-row-title" data-i18n="sites_noImport">No import started</p>
-                <p id="import-summary" class="set-row-hint" role="status"></p></div>
-              <div class="set-row-control"><span id="import-count" class="set-row-value" hidden></span><span id="import-badge" class="badge" hidden></span></div>
-            </div>
-            <div id="import-progress" class="sites-progress" hidden><div id="import-progress-bar" class="sync-bar" role="progressbar" aria-labelledby="import-state" aria-valuemin="0" aria-valuemax="100"><span></span></div></div>
-            <p id="import-note" class="sites-task-note" hidden></p>
-            <details id="import-omissions" class="disclosure sites-omissions" hidden><summary id="import-omissions-title"></summary><ul id="import-omission-list"></ul></details>
-            <div class="card-foot confirm-actions sites-actions">
-              <button id="cancel-import" class="btn btn-ghost btn-sm" type="button" disabled hidden data-i18n="sites_stopImport" title="Bookmarks already added are kept." data-i18n-title="sites_stopImportHint">Stop import</button>
-              <span class="grow"></span>
-              <button id="import-edit-settings" class="btn btn-secondary btn-sm" type="button" hidden data-i18n="sites_reviewSyncSettings">Review sync settings</button>
-              <button id="import-open-recovery" class="btn btn-primary btn-sm" type="button" hidden data-i18n="sites_checkMapping">Check mapping</button>
-              <a id="import-open-bookmark-sync" class="btn btn-secondary btn-sm" href="options.html#sync" target="_blank" hidden data-i18n="sites_openBookmarkSync">Open bookmark sync</a>
-              <button id="import-review-items" class="btn btn-secondary btn-sm" type="button" hidden data-i18n="sites_reviewItems">Review items</button>
-              <button id="retry-import" class="btn btn-primary btn-sm" type="button" hidden data-i18n="sites_checkAndContinueSave">Check and continue saving</button>
-              <button id="import-open-source" class="btn btn-primary btn-sm" type="button" hidden></button>
-              <button id="resume-import" class="btn btn-ghost btn-sm" type="button" disabled hidden data-i18n="sites_tryAgain">Try again</button>
-              <button id="freeze-import" class="btn btn-secondary btn-sm" type="button" disabled hidden data-i18n="sites_reviewFound">Review what was found</button>
-              <button id="start-import" class="btn btn-secondary btn-sm" type="button" disabled hidden data-i18n="sites_checkExisting">Check for existing favorites</button>
-              <button id="approve-import" class="btn btn-primary btn-sm" type="button" disabled hidden data-i18n="sites_approvePreview">Approve this preview</button>
-            </div>
-            <p id="site-live-status" hidden></p>
-          </div>
-        </section>
-
             <div class="card-bar"><strong id="overview-scope-heading" class="grow"></strong><button id="overview-manage-collections" class="btn btn-ghost btn-sm" type="button" data-i18n="sites_manageScope">Manage collections</button></div>
             <div class="sites-mappings" role="table" aria-label="Source and saved results" data-i18n-aria-label="sites_mappingTable">
               <div class="card-bar sites-mapping-legend" role="row"><span role="columnheader" data-i18n="sites_source">Source</span><span role="columnheader" data-i18n="sites_saveLocation">Save location</span><span role="columnheader" data-i18n="sites_result">Result</span></div>

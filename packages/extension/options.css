@@ -1104,7 +1104,14 @@ body[data-first-run="syncing"] .folder-foot { display: none; }
 .sites-options > .set-row, .sites-options > .set-sub { border-top: 1px solid var(--line); }
 .sites-progress { padding: 0 var(--space-4) var(--space-3); }
 .sites-task-note { margin: 0; padding: 0 var(--space-4) var(--space-3); color: var(--muted); font-size: var(--text-xs); line-height: var(--leading-body); }
-.sites-task-content { border-top: 1px solid var(--line); }
+/* The current task is its own card above the mapping; its actions close that card. */
+.sites-overview { gap: var(--space-4); }
+@media (min-width: 541px) {
+  .sites-task[data-inline-action] .sites-task-content { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+  .sites-task[data-inline-action] .sites-task-content > * { grid-column: 1 / -1; }
+  .sites-task[data-inline-action] .sites-task-content > .set-row:first-child { grid-column: 1; grid-row: 1; }
+  .sites-task[data-inline-action] .sites-actions { grid-column: 2; grid-row: 1; align-self: center; padding: 0 var(--space-4) 0 0; border: 0; background: none; }
+}
 .sites-mappings { border-top: 1px solid var(--line); }
 .sites-mappings [role="rowgroup"] { max-height: 24rem; overflow-y: auto; }
 .sites-mapping-legend, .sites-mapping-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) auto; gap: var(--space-4); align-items: start; }
@@ -1118,14 +1125,16 @@ body[data-first-run="syncing"] .folder-foot { display: none; }
 .sites-config-dialog #sync-settings > summary { display: none; }
 .sites-config-dialog .sites-step-n { display: none; }
 .sites-config-dialog .sites-step-head { grid-template-columns: minmax(0, 1fr); }
-.sites-task-content .card-foot { border-radius: 0; }
 .sites-config-dialog .capture-dialog-body { max-height: 70vh; overflow-y: auto; }
 .sites-activity-list:empty { display: none; }
 .sites-activity-record { padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--line); }
 .sites-activity-record > summary { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: baseline; font-size: var(--text-sm); }
 .sites-activity-record > summary > .set-row-hint { margin-left: auto; }
 .sites-record-detail { display: grid; gap: var(--space-2); padding-top: var(--space-3); }
-.sites-problem-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+/* The problem's time is the meta line its actions sit on. */
+.sites-problem-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--hair-30) var(--space-2); margin-top: var(--hair-30); }
+.sites-problem-actions > .set-row-hint:empty { display: none; }
+#site-problem > .set-row-text { flex: 1 1 12rem; }
 #site-problem { margin-bottom: var(--space-4); }
 .sites-task-content > #site-problem { margin: 0 var(--space-4) var(--space-4); }
 #site-copy-fallback { width: 100%; min-height: 12rem; }

@@ -57,7 +57,7 @@ function detail(input: Input): string {
   if (!input.enabled || !input.connected) return t('sites_reconnectSource', 'Connect this source in sync settings to continue.');
   if (job?.authorization === 'renewed' && ['preview', 'attention'].includes(job.phase)) return t('sites_prepareAfterRenewal', 'The website connection was renewed. Prepare the import again and confirm the new save plan; items already read are kept.');
   if (!input.available && !job) return t('sites_newItemsOnly', 'This source provides new items as you browse. They are saved into the configured folders; reading all existing items is unavailable.');
-  if (!job) return input.saved ? t('sites_checkSavedUpdates', 'Your saved items are listed below. Check for updates to find anything else that needs saving.')
+  if (!job) return input.saved ? t('sites_checkSavedUpdates', 'Check for updates to find new favorites.')
     : t('sites_checkBeforeSaving', 'Check the selected source lists, then review what will be added. No bookmarks have been added by this check yet.');
   if (job.phase === 'scanning') return job.progress?.currentCollection
     ? t('sites_readingCollection', 'Reading “$1” · $2 favorites found', job.progress.currentCollection, count(job.edgeCount))
@@ -126,7 +126,7 @@ export function paintSiteImport(input: Input) {
   note.textContent = input.available && needsSource && !input.documents && !completed && !idleWithSaved ? t('sites_openForCheck', '$1 will open so this check can continue. Keep its tab open while items are read.', site)
     : scanning ? t('sites_readInBackground', 'Keep the website tab open. You can leave this page; the list will be ready when you return.')
     : p?.omissions?.unscannedRemainder ? t('sites_readNotFinished', 'Some collections have not been read to the end. You can add the favorites in this list first.')
-    : !active && input.lastEvent ? t('sites_lastActivityAt', 'Last activity: $1', formatMoment(input.lastEvent.lastAt)) : '';
+    : !active && input.lastEvent && !relatedProblem ? t('sites_lastActivityAt', 'Last activity: $1', formatMoment(input.lastEvent.lastAt)) : '';
   note.hidden = !note.textContent;
   const badge = element('import-badge'); badge.hidden = !c?.review || !['preview', 'attention'].includes(job?.phase ?? '');
   if (c?.review) { badge.textContent = tn('sites_notReadyCount', c.review, '$1 item not ready to save', '$1 items not ready to save'); badge.dataset.tone = 'warning'; }
@@ -176,6 +176,9 @@ export function paintSiteImport(input: Input) {
     element('import-summary').textContent = t('sites_reconnectingCheck', 'Reconnecting to the website before continuing. Items already read are kept.');
     for (const id of ['freeze-import', 'cancel-import']) button(id).disabled = true;
   }
+  // A lone action that isn't Stop sits at the end of the task's title row instead of opening a foot of its own.
+  const actions = Array.from(document.querySelectorAll<HTMLElement>('#step-import .sites-actions > .btn')).filter(action => !action.hidden);
+  element('step-import').toggleAttribute('data-inline-action', actions.length === 1 && actions[0]!.id !== 'cancel-import');
   if (input.pendingAction) {
     for (const id of ['start-import', 'resume-import', 'import-open-source', 'freeze-import', 'approve-import', 'retry-import', 'cancel-import', 'import-edit-settings']) button(id).disabled = true;
     if (input.pendingAction === 'known.siteAdapters.import.freeze') button('freeze-import').textContent = t('sites_preparingImport', 'Preparing import…');
