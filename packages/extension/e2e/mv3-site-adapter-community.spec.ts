@@ -87,7 +87,7 @@ test('named user-script packages stay inert until consent, isolate powers, confi
     expect(await site.evaluate(() => typeof (globalThis as any).__colpCommunity)).toBe('undefined');
     expect(await run('globalThis.fixtureReport(1,"101")')).toEqual({ status: 'inspected', writes: false, models: false });
     expect(await page.evaluate(root => chrome.bookmarks.getChildren(root), root)).toHaveLength(0);
-    await page.getByRole('button', { name: 'Preview current archive scope for this package' }).click();
+    await page.getByRole('button', { name: 'Preview archive scope' }).click();
     await expect(page.locator('#community-status')).toContainText('Community archive root');
     await page.getByRole('button', { name: 'Allow verified hints for exactly this archive scope' }).click();
     await expect.poll(async () => !!(await community(page)).installations[0].archive).toBe(true);

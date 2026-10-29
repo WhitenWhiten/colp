@@ -7431,7 +7431,7 @@
     "message": "Preview account and root rebinding"
   },
   "sites_previewScope": {
-    "message": "Preview current archive scope for this package"
+    "message": "Preview archive scope"
   },
   "sites_primaryCollection": {
     "message": "Primary collection"

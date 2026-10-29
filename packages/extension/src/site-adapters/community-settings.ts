@@ -51,7 +51,7 @@ async function refresh(reveal = false) {
     const toggle = siteButton(row.enabled ? t('sites_disablePackage', 'Disable package') : t('sites_enablePackage', 'Enable inspector'));
     toggle.onclick = () => { void request({ kind: 'known.community.enable', installationId: row.id, enabled: !row.enabled }).then(() => refresh(true)); }; control.append(toggle);
     if (row.enabled) {
-      const button = siteButton(t('sites_previewScope', 'Preview current archive scope for this package'));
+      const button = siteButton(t('sites_previewScope', 'Preview archive scope'));
       button.onclick = () => { void request({ kind: 'known.community.scopePreview', installationId: row.id }).then(r => {
         if (!r.preview) return;
         const preview = r.preview;
@@ -63,8 +63,8 @@ async function refresh(reveal = false) {
       const button = siteButton(t('sites_reviewRollback', 'Review rollback to $1', old.version), 'ghost');
       button.onclick = () => { void request({ kind: 'known.community.reviewVersion', installationId: row.id, digest: old.digest }, false).then(r => preview(r, row.id)); }; control.append(button);
     }
-    // Removing is the one step that can't be undone: it goes last.
-    const remove = siteButton(t('sites_removePackage', 'Remove package'), 'ghost');
+    // Removing is the one step that can't be undone: it goes last, apart from the others.
+    const remove = siteButton(t('sites_removePackage', 'Remove package'), 'ghost'); remove.classList.add('sites-package-remove');
     remove.onclick = () => { void request({ kind: 'known.community.remove', installationId: row.id }).then(() => refresh(true)); }; control.append(remove);
     container.append(block);
   }

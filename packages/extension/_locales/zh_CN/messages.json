@@ -11968,8 +11968,8 @@
     "description": "Preview account and root rebinding"
   },
   "sites_previewScope": {
-    "message": "预览此包当前的归档范围",
-    "description": "Preview current archive scope for this package"
+    "message": "预览归档范围",
+    "description": "Preview archive scope"
   },
   "sites_primaryCollection": {
     "message": "主收藏夹",
