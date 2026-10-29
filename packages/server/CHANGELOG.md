@@ -19,6 +19,10 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 - Retired Replicas no longer retain Sequence lanes, claims and receipts for the lifetime of the deployment. The maintenance worker deletes that authority after retirement, and Node revision history is reclaimed only below a materialized, archived history floor.
 - Documented the append-only retention boundary: operations and audit authority remain archive-gated, and completed Outbox queue rows are deletable only through a fenced payload purge job. Dispatch claims remain permanent duplicate-delivery identity.
 
+### Upgrade notes
+
+Install the extension release that ships with this server. Extension builds up to `extension-v0.1.0-rc.5` do not know the new `approval_requested` activity: while an approval request is your newest activity, they reject the activity summary, so their toolbar count stops updating until you approve or deny that plan. Later builds keep the count and skip activity types they do not know.
+
 ## [0.1.0-rc.15] - 2026-10-27
 
 ### Changed
