@@ -1,25 +1,27 @@
 # Know-N for Chrome
 
-Version 0.1.1 restarts expired snapshot recovery (including
-`snapshot_409_snapshot_expired`) without discarding queued local edits. Pull
-preflight accounts for earlier moves on the same page before validating later
-placement anchors, then checks actual mappings again before a native move.
-For an unpacked installation, replace the files in the existing extension
-directory and reload it at `chrome://extensions`; keep the same directory and
-extension identity so its durable state remains available. Open the extension
-and resume sync after updating; do not clear its storage to recover an expired
-snapshot. `npm run package` creates `dist/known-extension-0.1.1.zip` using the
-production configuration.
-
 A bookmark manager for Chromium browsers. Save the page you are on, tag it, add a note, and organize the
-browser's own bookmarks from one place. Everything works on this browser without an account. When you want,
-sign in to Know-N to sync bookmarks you own across browsers, follow collections, and get AI folder suggestions.
+browser's own bookmarks from one place. Rules file new saves into the right folder, and favorites on supported
+websites become bookmarks too. Everything works on this browser without an account. When you want, sign in to
+your [COLP Server](../server/README.md) to keep the same library in every browser.
+
+<p align="center">
+  <img src="../../docs/assets/screens/extension-bookmarks.en.png" alt="The Know-N bookmark manager: library folders, this browser's folders and tags on the left, and the Programming folder's bookmarks with tags and a note on the right" width="100%">
+  <br><sub>The bookmark manager over the browser's own bookmarks. Screenshots come from <code>npm run shots</code>, which renders the real pages against a stubbed browser API.</sub>
+</p>
 
 ## What works without an account
+
+<img src="../../docs/assets/screens/extension-popup.en.png" alt="The Know-N popup after saving: Saved, syncing to your library; the paper 'Attention Is All You Need' was filed to Academic by the rule 'arXiv papers'" width="320" align="right">
 
 - **Saving.** The toolbar button (Alt+S), the page and link menus, and Save tabs for a whole window. Saves go
   into a folder you choose in the browser's bookmarks, so they stay usable even if you remove the extension.
   An explicitly configured default folder can also be used; Other bookmarks is never an implicit destination.
+- **Rules.** Automations file the pages you save: the first rule that matches decides, offline and without an
+  account, and a folder you pick yourself always wins. Try a page against your rules, run a rule once over
+  bookmarks you already have and undo the run, group rules in sets, and share a rules file or subscribe to one.
+- **Risk alerts.** Optionally warn when a page you save, or a page you open, is on a list you subscribe to.
+  Alerts never block a page or move a bookmark.
 - **Organizing.** A bookmark manager over the browser's tree, with tags, notes and folder descriptions,
   search, batch moves and deletes, and pins.
 - **History.** A record of what you saved on this browser and how each save went.
@@ -27,6 +29,21 @@ sign in to Know-N to sync bookmarks you own across browsers, follow collections,
   browser, or a Know-N backup that also keeps tags, notes, history and settings.
 - **AI suggestions with your own provider.** Folder and tag suggestions through an AI service you configure.
   Requests go straight from the browser to that provider; the key stays on this browser.
+
+<br clear="right">
+
+## Website favorites
+
+<p align="center">
+  <img src="../../docs/assets/screens/extension-sites.en.png" alt="The Bilibili page under Site adapters: the latest check added 198 bookmarks, two collections are saved into Bookmarks bar / Research, one folder each, and new favorites save automatically" width="100%">
+  <br><sub>Site adapters keeping two Bilibili collections in a Research folder.</sub>
+</p>
+
+**Settings → Site adapters** turns favorites on supported websites into bookmarks. Today that is Bilibili:
+connect the account you are signed in with, choose collections and a folder, and the first check imports what is
+already there after you approve its preview. New favorites then save automatically, one folder per collection.
+Removing a favorite on the website keeps the bookmark. Bookmarks are written locally first and sync like any
+other once you sign in. The page shows each check's progress, items that need review, and its history.
 
 ## What an account adds
 
@@ -40,6 +57,7 @@ You can pause or disconnect sync at any time; local bookmarks are kept.
 - **Sync.** Bookmarks bar, Other bookmarks, and Mobile bookmarks when available merge with the same folders
   in your library. New folders inside synced roots sync automatically. Tags, notes and folder descriptions
   sync only if you explicitly connect browser metadata under **Sync → Status**.
+- **Your account's rules.** Rules kept on the server apply here too, ahead of this browser's rules.
 - **Subscriptions.** Collections and digests you follow appear as read-only folders.
 - **Know-N suggestions.** Folder and tag suggestions billed in Know-N credits.
 
@@ -78,7 +96,10 @@ docker compose exec server colp-server reset-password --username alice
 | Permission | Why |
 |---|---|
 | `bookmarks` (optional) | Read and change the browser's bookmarks. Asked for on first use; removable under General. |
-| `tabs` (optional) | List a window's tabs for Save tabs. Saving the current page uses `activeTab` instead. |
+| `tabs` (optional) | List a window's tabs for Save tabs, and check the page you open when risk alerts cover browsing. Saving the current page uses `activeTab` instead. |
+| `webNavigation` (optional) | Notice page loads for risk alerts while browsing, and on the websites you turn on under Site adapters. |
+| `scripting` (optional) | Run a site adapter on the websites you turn on, and nowhere else. |
+| `userScripts` (optional) | Run add-on site packages you install yourself. Chrome also asks you to allow user scripts. |
 | `activeTab` | Read the title and address of the page you save, only when you ask to save it. |
 | `contextMenus` | The Save this page and Save this link menu items. |
 | `storage`, `unlimitedStorage` | Tags, notes, history and settings kept on this browser. |
@@ -86,7 +107,7 @@ docker compose exec server colp-server reset-password --username alice
 | `favicon` | Show site icons in the bookmark manager. |
 | `cookies` | Share the know-n.com sign-in session. Only Know-N's own cookie is read or written. |
 | Know-N host access | Talk to the Know-N server for sign-in and sync. |
-| Other host access (optional) | Requested only for the AI provider address you configure. |
+| Other host access (optional) | Requested only for an address you choose: your COLP Server, your AI provider, a rules or risk list you subscribe to, or a website you turn on under Site adapters. |
 
 Tags, notes, folder descriptions, history and settings live in the extension's storage. Removing the extension
 deletes them, except what you have chosen to sync with your library; export a Know-N backup to keep a copy. Privacy policy:
@@ -122,6 +143,10 @@ server configuration from `config/`; Account's Server field can override it at r
 the extension ID, which `manifest.base.json` fixes through its `key`. For a custom build ID, set the server's
 `COLP_ALLOWED_EXTENSION_IDS` accordingly.
 
+To update an unpacked installation, replace the files in the same directory and reload it at
+`chrome://extensions`. Keeping the directory keeps the extension's identity and its stored sync state; do not
+clear its storage to recover from a sync problem.
+
 ## Releases
 
 The extension has its own SemVer in `package.json` and its own [CHANGELOG](CHANGELOG.md).
@@ -144,6 +169,7 @@ npm run check:i18n
 npm test                    # unit tests (Vitest)
 npm run test:e2e:local-first   # browser tests, run under xvfb on Linux
 npm run test:e2e            # everything, against COLP Server in a temporary Postgres
+npm run shots               # render the options pages and popup with a stubbed browser API, for review
 ```
 
 The unit and browser tests import `packages/server`, so run `npm ci` there too; cross-application browser fixtures also require `npm ci` in `packages/web`. Browser tests run a real Chromium
@@ -157,8 +183,8 @@ are independent of the size of an existing synced library.
 
 Four inherited cloud-only specs (capture apply, credits ledger, Product classification, and the billed cloud/local classification comparison) are retired with the server modules they imported. The shipped local-provider path remains covered by `mv3-manual-classification.spec.ts` and disclosure/security tests. The old mixed cloud-classification/placement spec is replaced by its signed-out offline placement case; real placement and recovery specs remain. The inherited Digest-edition browser journey depended on Know-N’s report reader, which this server does not ship; its replacement verifies explicit capability denial and zero native or remote writes. Digest projection semantics remain in the subscription unit suites. Favicon capture, replay, policy and clear tests run against the restored self-hosted helper. The multi-device recovery test now owns two real Chromium profiles and a PostgreSQL fixture instead of requiring a private external runner.
 
-`npm run shots` renders the
-options pages and popup with a stubbed browser API for visual review.
+The README screenshots come from `node scripts/capture-readme.mjs` at the repository root, which runs `npm run shots`
+for a fixed set of states in English and Simplified Chinese with a pinned clock (`SHOT_TIME`).
 
 ## Languages
 

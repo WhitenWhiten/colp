@@ -1,8 +1,8 @@
 # COLP Server web UI
 
 The browser UI that ships inside COLP Server: sign-in, the owner's library,
-shared folder links, public collection pages, agents and write approvals, sync,
-and link health.
+shared folder links, public collection pages, automations, agents and write
+approvals, the activity inbox, sync, and link health.
 It is a single-page app served by `packages/server` from `dist/`. It was
 copied from Know-N's frontend (see [`UPSTREAM.md`](./UPSTREAM.md)) and keeps
 Know-N's palette; the self-hosted layout and type live in
@@ -53,6 +53,10 @@ both test directories and requires both browser jobs in the CI gate.
 | `/r/:id` | Bookmark detail with annotations and relations |
 | `/graph/:slug` | Relation graph |
 | `/search` | Search collections, bookmarks, and annotations |
+| `/automations` · `/automations/new` | Account rules and their recent runs; a new rule |
+| `/automations/rules/:ruleId` · `…/edit` · `…/run-once` | A rule, its editor with a live preview, and a one-off run over existing bookmarks |
+| `/automations/runs/:runId` · `/automations/digests` | A run's moves with Undo; digests, reviews and summaries rules wrote |
+| `/activity` | New bookmarks from agents, finished rule work, and decisions waiting for the owner |
 | `/agents` | Connected agents, keys, and approval policy |
 | `/approvals` · `/approvals/:planId` | MCP write approvals |
 | `/sync` | Sync center: browsers, conflicts, and trash |
@@ -91,6 +95,13 @@ stack (`COLP_ACCEPTANCE_ORIGIN`). Full-stack smoke is `deploy/smoke.sh`.
 
 `npm run generate:api-types` regenerates `src/generated/colp-server-v1.ts`
 from `packages/server/openapi/colp-server-v1.yaml`.
+
+## Screenshots
+
+`e2e/readme.capture.ts` renders the pages the repository READMEs show against
+synthetic API responses. It is not part of `npm run test:e2e`; run it through
+`node scripts/capture-readme.mjs` at the repository root, or directly with
+`README_CAPTURE_OUT=<dir> node ../extension/scripts/with-xvfb.mjs npx playwright test -c playwright.captures.config.ts`.
 
 ## Documentation
 

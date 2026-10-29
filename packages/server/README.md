@@ -1,4 +1,22 @@
-COLP Server (`@know-n/colp-server`) is the self-hosted bookmark server in this package. Install and run it by following [deploy/INSTALL.md](../../deploy/INSTALL.md).
+# COLP Server
+
+COLP Server (`@know-n/colp-server`) is the self-hosted bookmark server in this package. It keeps one private bookmark library per account in PostgreSQL, serves the [web app](../web/README.md), syncs with the [Know-N extension](../extension/README.md) in every browser, runs your rules, and lets AI agents work on the library over MCP while you approve what they change. Install and run it by following [deploy/INSTALL.md](../../deploy/INSTALL.md).
+
+<p align="center">
+  <img src="../../docs/assets/screens/web-library.en.png" alt="The web Library: the Bookmarks bar and Other bookmarks folder tree on the left, and the Research folder's bookmarks with their domains, tags and a note on the right" width="100%">
+  <br><sub>The web Library. Screenshots render the real web app against synthetic data; regenerate them with <code>node scripts/capture-readme.mjs</code> from the repository root.</sub>
+</p>
+
+## What it does
+
+- **One private library per account**, with the browser's **Bookmarks bar** and **Other bookmarks** ready on first use. [More](#the-library-and-sharing)
+- **Sync with every browser** through the Know-N extension. The Sync center (`/sync`) lists connected browsers, conflicts and the trash.
+- **Folder links**: an unlisted, read-only link to one folder's live contents, revocable at any time.
+- **Automations**: rules that file bookmarks, and, with an AI you connect, tag and summarize them. [More](#automations)
+- **Agents and approvals**: MCP clients read and organize the library; risky changes wait for you, and committed plans can be undone. [More](#agents-and-approvals)
+- **Upkeep**: whole-library version history and restore, link health (broken links, redirects, duplicates), import from any browser, site icons and gallery covers.
+
+## The library and sharing
 
 Each account has one private bookmark library, with **Bookmarks bar** and
 **Other bookmarks** ready on first use. `/library` opens that folder tree.
@@ -13,6 +31,35 @@ to its live subtree. **Stop sharing** revokes the link immediately; deleting
 the folder also ends its share. The library root cannot be shared. Folder
 links do not appear in directories, feeds or search indexes, and never expose
 private or protected nodes or references outside the shared folder.
+
+## Automations
+
+<p align="center">
+  <img src="../../docs/assets/screens/web-automations.en.png" alt="The Automations page listing account rules such as papers from arXiv going to Research, with recent runs" width="100%">
+  <br><sub>Account rules on the Automations page.</sub>
+</p>
+
+A rule says something like "pages from arxiv.org go to Research". Create one on **Automations**, or choose **Automate…** on a folder. Account rules apply in every signed-in browser, ahead of each browser's own rules. To use a rule on bookmarks you already have, preview exactly which ones it takes; nothing changes until you start that preview, and a run can be undone while its moves are still in place.
+
+Rules that summarize or tag need an AI. Connect one in the rule editor, or let an agent that you allowed to **Do rule work** pick up the jobs. Digests, reviews and summaries collect under **Automations → Digests**. A script can also do rule work with an API key; see the [local polling worker](../../docs/automation/agents.md).
+
+## Agents and approvals
+
+<p align="center">
+  <img src="../../docs/assets/screens/web-approval.en.png" alt="A pending plan from an AI agent on the Approvals page: move three arXiv papers from Read later to Research, with Approve and Deny buttons" width="100%">
+  <br><sub>An agent's plan waiting on the Approvals page.</sub>
+</p>
+
+**Agents** lists connected agents, their approval policy and API keys, with setup commands for Claude Code, Codex and other MCP clients ([install guide](../../deploy/INSTALL.md#6-connect-an-agent)). Each agent starts on **Manual**: adding bookmarks and editing titles apply at once, while moves and deletions become a plan on **Approvals**. A **Trusted** agent's moves apply directly and can be undone there. Deleting, emptying the trash and purging always wait for you.
+
+<p align="center">
+  <img src="../../docs/assets/screens/web-activity.en.png" alt="The Activity inbox: bookmarks an agent added and rule runs that finished, grouped by day" width="100%">
+  <br><sub>The Activity inbox.</sub>
+</p>
+
+**Activity** collects new bookmarks from your agents, finished rule work, and decisions waiting for you; the bell in the header counts what is new. See [agent activity](docs/agent-activity.md) for what produces an entry.
+
+### MCP endpoints
 
 MCP clients can use the strict `2026-07-28` endpoint at `/collections/-/mcp`,
 or the compatibility endpoint at `/collections/-/mcp-compat`. Ordinary calls
@@ -32,33 +79,9 @@ The strict endpoint and explicit `resources/read` retain their resource behavior
 These changes remove an unnecessary file delivery path; they do not guarantee
 that ChatGPT will never request file materialization.
 
-The `colp-server-v0.1.0-rc.7` source lacked the current read-only tool annotations.
-Its snapshot tool also returned a top-level `resource_link`, even for private
-libraries. `collections.list` and `collections.get` returned inline JSON without
-that link, so the snapshot link cannot explain every reported prompt.
-OpenAI documents [read-only detection](https://developers.openai.com/api/docs/guides/custom-mcp-server)
-and [structured JSON results](https://developers.openai.com/plugins/reference),
-but neither establishes the cause of small JSON results being materialized.
-After deploying an update, refresh the plugin's tool definitions in ChatGPT.
+[ChatGPT and the compatibility endpoint](docs/chatgpt-mcp.md) records the rc.7 investigation and a probe for isolating ChatGPT's behavior from COLP data.
 
-To isolate ChatGPT behavior from COLP data, run this from `packages/server`:
-
-```sh
-node scripts/mcp-json-probe.mjs
-```
-
-It listens on `127.0.0.1:3133/mcp` and exposes only `diagnostics.ping`, a read-only
-tool returning `{"ok":true}` in text and `structuredContent`, with `outputSchema`.
-It uses the installed MCP SDK and accesses no database, credentials or files.
-Use an isolated test connection through a tunnel to that address with no auth.
-Record the exact approval wording and whether it appeared before `tool_called`
-or after `response_finished` in stderr; match those times to the individual call.
-Stop with Ctrl-C. For a comparison, restart with `--text-only` (no structured
-result or output schema); `MCP_JSON_PROBE_PORT` overrides the port. A prompt for
-the default probe is evidence for investigating the host or delivery layer, not
-proof of a particular ChatGPT bug. The raw HTTP contract is covered by
-`tests/unit/phase4b/phase4b-mcp-compat-json-wire.test.ts` for the supported
-compatibility protocol version (`2025-11-25`).
+### Tools and plans
 
 Use `collections.list` to find the account's library, marked `library: true`,
 and `collections.get_snapshot` to read its bounded pages. Add a folder with
@@ -120,30 +143,7 @@ Read tools advertise `readOnlyHint: true`; write tools retain their actual write
 annotations. Host applications control their own confirmation dialogs separately
 from COLP's trusted-agent policy. A host may therefore still request confirmation.
 
-Socket inactivity defaults to 60 seconds (`HTTP_CONNECTION_TIMEOUT_MS`); the
-MCP request deadline and database statement/lock budgets remain bounded separately.
-Snapshot paging may survive content changes only when all intervening revisions
-have retained authoritative Pull effects. The final Ack stays at the snapshot's
-original cut, leaving those later changes for Pull. Policy changes, retention gaps,
-lease expiry and unsupported mutations still invalidate recovery. Update the
-extension as well: wrapped `snapshot_409_snapshot_expired` errors must discard the
-old recovery chain and start a new snapshot while preserving pending local edits.
-
-For libraries with legacy dense order keys, back up first and run:
-
-```sh
-docker compose exec -T server colp-server maintain-positions --collection COLLECTION_ID
-```
-
-This operator command compacts affected folders through canonical mutations, one
-atomic folder at a time. IDs, contents, parents and sibling order are preserved;
-resource revisions change and browser replicas enter Snapshot recovery. Re-running
-it skips already compact folders. Deploy the extension recovery fix before resuming
-an affected browser. A local allocation window that remains exhausted returns
-`position_context_stale` instead of an internal server error.
-
-The self-hosted web app does not send error or Web Vitals telemetry, and the server
-does not mount a browser telemetry endpoint.
+### Tool catalog and bulk reads
 
 The tool catalog is scoped to the caller and cacheable for 30 seconds with
 `cacheScope: private`; static resource templates are public for 60 seconds.
@@ -165,11 +165,18 @@ the client's OAuth provider and secure token storage instead of copying
 credentials into scripts. Measure actual model request tokens separately
 from serialized schema bytes and HTTP payload sizes.
 
+## Operations
 
-Public collection and bookmark pages use stored site icons or a local
-fallback. Shared folders use local icon fallbacks. Public pages do not contact
-a third-party favicon service, even if a cached response carries an older CDN opt-in flag. The legacy `faviconCdnAllowed`
-response fields remain available and are always false on public pages.
+### Sync limits and recovery
+
+Socket inactivity defaults to 60 seconds (`HTTP_CONNECTION_TIMEOUT_MS`); the
+MCP request deadline and database statement/lock budgets remain bounded separately.
+Snapshot paging may survive content changes only when all intervening revisions
+have retained authoritative Pull effects. The final Ack stays at the snapshot's
+original cut, leaving those later changes for Pull. Policy changes, retention gaps,
+lease expiry and unsupported mutations still invalidate recovery. Update the
+extension as well: wrapped `snapshot_409_snapshot_expired` errors must discard the
+old recovery chain and start a new snapshot while preserving pending local edits.
 
 Initial browser synchronization supports non-atomic Push batches of up to 50 operations.
 `SYNC_MAX_BATCH_OPERATIONS` defaults to `50` (range `1..50`); set it to `1` to disable batching.
@@ -232,6 +239,31 @@ Session without advancing their position. Clients adopt the returned
 still echo their input cursor; missing retained history still requires recovery.
 Recovery uses fresh request credential evidence, while durable credential rows
 continue to enforce identity, revocation, token expiry and account security epochs.
+
+### Maintenance
+
+For libraries with legacy dense order keys, back up first and run:
+
+```sh
+docker compose exec -T server colp-server maintain-positions --collection COLLECTION_ID
+```
+
+This operator command compacts affected folders through canonical mutations, one
+atomic folder at a time. IDs, contents, parents and sibling order are preserved;
+resource revisions change and browser replicas enter Snapshot recovery. Re-running
+it skips already compact folders. Deploy the extension recovery fix before resuming
+an affected browser. A local allocation window that remains exhausted returns
+`position_context_stale` instead of an internal server error.
+
+### Privacy and public pages
+
+The self-hosted web app does not send error or Web Vitals telemetry, and the server
+does not mount a browser telemetry endpoint.
+
+Public collection and bookmark pages use stored site icons or a local
+fallback. Shared folders use local icon fallbacks. Public pages do not contact
+a third-party favicon service, even if a cached response carries an older CDN opt-in flag. The legacy `faviconCdnAllowed`
+response fields remain available and are always false on public pages.
 
 ### Bookmark favicons
 
@@ -332,3 +364,17 @@ returning `304`. Custom covers work with `KNOWN_FEATURE_LINK_PREVIEW=false`.
 Editor read revisions include cover settings; anonymous public collection JSON
 uses `max-age=0, must-revalidate` with a current-projection ETag so image references
 can change independently of the immutable image cache.
+
+## Development
+
+```sh
+cd packages/server
+npm ci
+npm run build              # compile to dist/ (the production CLI is dist/src/bootstrap/self-hosted.js)
+npm run dev                # the API with tsx, against DATABASE_URL
+npm run typecheck && npm run lint
+npm test                   # unit tests
+npm run test:integration   # PostgreSQL integration tests (a Testcontainers database, or KNOWN_TEST_DATABASE_URL)
+```
+
+The [changelog](CHANGELOG.md) lists every release, and the [install guide](../../deploy/INSTALL.md) covers upgrades, backups and configuration.

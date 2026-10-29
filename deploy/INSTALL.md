@@ -83,7 +83,12 @@ Authorities → Import).
 
 ## 5. Connect a browser
 
-1. Install the Know-N extension from the Chrome Web Store.
+1. Install the Know-N extension. Until its stable release reaches the Chrome
+   Web Store, download `known-extension-<version>.zip` from the latest
+   `extension-v…` [GitHub release](https://github.com/WhitenWhiten/colp/releases),
+   unzip it, turn on Developer mode at `chrome://extensions`, and choose
+   **Load unpacked** on the unzipped folder. To update, replace the files in
+   the same folder and reload the extension.
 2. Extension → Options → Account → **Server**: enter your origin. Grant the
    permission for that origin when asked. The server's name appears.
 3. Sign in with your username and password.
