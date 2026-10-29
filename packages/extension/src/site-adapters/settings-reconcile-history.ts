@@ -2,7 +2,7 @@ import { sendSiteMessage, siteRow } from './settings-client.js';
 import { reconcileReason } from './settings-reconcile.js';
 import type { ReconcileRun } from './reconcile-run.js';
 import type { ReconcileRunSummary } from './reconcile-records.js';
-import { t } from '../i18n.js';
+import { formatMoment, t } from '../i18n.js';
 import { showToast } from '../toast.js';
 const list = document.getElementById('reconcile-history-list')!, detail = document.getElementById('reconcile-history-detail')!;
 const button = (label: string, action: () => Promise<void>) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-ghost btn-sm'; b.textContent = label;
@@ -38,7 +38,7 @@ async function load(before?: string) {
   document.getElementById('reconcile-history-more')?.remove();
   // A run is a row: when it ran, what it did, and Open for its changes.
   for (const run of page.runs) {
-    const { row, control } = siteRow(new Date(run.createdAt).toLocaleString(), t('sites_reconcileHistoryCounts', '$1 applied · $2 need attention · $3 undone', run.completed, run.attention, run.undone));
+    const { row, control } = siteRow(formatMoment(run.createdAt), t('sites_reconcileHistoryCounts', '$1 applied · $2 need attention · $3 undone', run.completed, run.attention, run.undone));
     const item = button(t('sites_review', 'Review'), () => open(run.id)); item.dataset.runId = run.id; control.append(item); list.append(row);
   }
   if (!page.runs.length && !before) list.append(siteRow(t('sites_reconcileHistoryNone', 'No collection checks yet.'), '').row);
