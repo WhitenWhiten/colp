@@ -86,6 +86,13 @@ export function createMcpNodePlanState(
   };
 }
 
+/** A collection as a plan sentence names it: the library reads “your library”, others their stored title. */
+export async function readPlanCollectionName(db: Kysely<DatabaseSchema>, collectionId: string): Promise<string | null> {
+  const row = await db.selectFrom('collections').select(['title', 'is_library'])
+    .where('id', '=', collectionId).where('deleted_at', 'is', null).executeTakeFirst();
+  return row ? (row.is_library ? 'your library' : row.title) : null;
+}
+
 function liveNode(db: Kysely<DatabaseSchema>, nodeId: string, collectionId?: string) {
   let query = db.selectFrom('nodes').select(['id', 'collection_id', 'parent_id', 'is_root',
     'title', 'kind', 'folder_role', 'resource_revision', 'children_revision'])

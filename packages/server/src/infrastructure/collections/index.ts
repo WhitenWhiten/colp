@@ -158,7 +158,7 @@ export {
   readMcpPlanCommitRevision,
   recordMcpPlanCommitRevisions,
 } from './mcp-plan-commit-revisions-postgres.js';
-export { createMcpNodePlanState } from './mcp-node-plan-state.js';
+export { createMcpNodePlanState, readPlanCollectionName } from './mcp-node-plan-state.js';
 
 export { createR2FaviconStore, type R2FaviconStoreOptions } from './favicon-r2-adapter.js';
 export {

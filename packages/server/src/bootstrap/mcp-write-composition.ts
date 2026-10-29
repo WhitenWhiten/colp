@@ -6,6 +6,7 @@ import {
   createAgentPolicyCommitGuard,
   createMcpNodePlanState,
   createPostgresAutoApproveTrustedPlan,
+  readPlanCollectionName,
   readPlanApprovedByPolicy,
   captureMcpPlanPreCommitVersions,
   recordMcpPlanCommitRevisions,
@@ -300,7 +301,9 @@ export function createPhase4bMcpWriteComposition(
       : { planTtlMilliseconds: options.planTtlMilliseconds }),
   };
   const changePlanService = createPhase4bMcpChangePlanService(serviceOptions);
-  const gatewayPlanner = createPhase4bMcpGatewayPlanner(gatewayChangePlanOptions);
+  const gatewayPlanner = createPhase4bMcpGatewayPlanner(gatewayChangePlanOptions, {
+    collectionName: (collectionId) => readPlanCollectionName(options.db, collectionId),
+  });
   const changePlanOptions = {
     ...gatewayChangePlanOptions,
     planner: {

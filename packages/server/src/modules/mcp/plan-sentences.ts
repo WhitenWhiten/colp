@@ -30,6 +30,11 @@ export function phase4bMcpDeleteSubtreeImpactText(
   return `delete ${facts.title}${from} (${facts.subtreeCount} ${facts.subtreeCount === 1 ? 'item' : 'items'})`;
 }
 
+/** A collection's visibility change, worded as the Approvals page labels it. */
+export function phase4bMcpVisibilityImpactText(collectionName: string, visibility: string): string {
+  return visibility === 'public' ? `publish ${collectionName}` : `make ${collectionName} ${visibility}`;
+}
+
 /** A stored folder path as the state resolvers write it: absolute, single-line, bounded. */
 export function isPlanFolderPath(value: unknown): value is string {
   return typeof value === 'string' && value.startsWith('/') && value.length <= 1_024 && !/[\u0000-\u001F\u007F]/u.test(value);
@@ -45,7 +50,11 @@ const PLAN_SUMMARY_MAX = 512;
 export function describedPlanSummary(operations: readonly Phase4bMcpPlanOperation[]): string | undefined {
   const described = operations.map((operation) => (operation as { readonly impact?: unknown }).impact);
   if (!described.every((text): text is string => typeof text === 'string' && text.length > 0)) return undefined;
-  const sentence = operations.length === 1 ? described[0]! : countedPlanSummary(operations);
+  return planHeadline(operations.length === 1 ? described[0]! : countedPlanSummary(operations));
+}
+
+/** A sentence as a plan summary: capitalized and cut to the summary limit. */
+export function planHeadline(sentence: string): string {
   const capitalized = sentence.charAt(0).toUpperCase() + sentence.slice(1);
   return capitalized.length <= PLAN_SUMMARY_MAX ? capitalized : `${capitalized.slice(0, PLAN_SUMMARY_MAX - 1)}…`;
 }

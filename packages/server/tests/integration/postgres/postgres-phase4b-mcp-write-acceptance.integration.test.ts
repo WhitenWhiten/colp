@@ -230,6 +230,12 @@ describeWithPostgres('MCP-W10 real Fastify Write lifecycle with Read regression'
       assert.equal(plan.resultType, 'input_required');
       planId = plan.plan?.planId;
       assert.ok(planId);
+      // The owner reads a sentence about the stored collection, never operation type names.
+      const named = (await runtime.pool.query<{ summary: string; title: string }>(
+        'select p.summary, c.title from mcp_change_plans p join collections c on c.id = $2 where p.plan_id = $1',
+        [planId, fixture.collectionId],
+      )).rows[0]!;
+      assert.equal(named.summary, `Make ${named.title} protected`);
 
       const waitCommit = await official.request('tools/call', {
         name: 'changes.commit',

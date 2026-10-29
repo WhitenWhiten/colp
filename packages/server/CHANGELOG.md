@@ -11,6 +11,7 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 ### Fixed
 
 - An agent plan that adds bookmarks or creates folders reads as sentences on the Approvals page and in the agent's tool result: "Add Toolformer to /Bookmarks bar/Research", "Create folder Agents in /Bookmarks bar/Research". It used to read "Plan 4 canonical operation(s) [create_node, …]. Authoritative impact: …". Delete sentences now also name the folder they delete from.
+- A plan that changes a collection's visibility reads "Publish Reading list" or "Make Reading list private" on the Approvals page, in the Activity inbox and in the agent's tool result, instead of "Plan 1 canonical operation(s) [set_visibility]. Authoritative impact: …". The library is named "your library".
 - A plan with several changes is headlined by counts, "Create a folder, add 3 bookmarks and move 2 items", instead of every change's sentence joined into one long title. Each change keeps its sentence in the plan, and the Approvals page lists them under the headline.
 - Expired bootstrap Snapshots no longer retain their page evidence, capabilities and node rows forever. The evidence maintenance worker reclaims them after the Snapshot expiry fence and keeps only the small header and receipt needed for Replica-lifetime replay.
 - Terminal Sync Session and retired Replica Ack receipts no longer pin their Pull cursor and page evidence forever. The evidence maintenance worker reclaims the receipt and then the expired evidence in the same run, while live receipts remain immutable.

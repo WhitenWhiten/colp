@@ -18,6 +18,7 @@ import {
 import type { ChangePlan } from '@know-n/colp/types';
 
 import { computePhase4bMcpStoredPlanDigest } from './change-plan-service.js';
+import { phase4bMcpVisibilityImpactText, planHeadline } from './plan-sentences.js';
 
 export interface Phase4bMcpGatewayPlanner {
   readonly plan: (
@@ -27,13 +28,33 @@ export interface Phase4bMcpGatewayPlanner {
   ) => Promise<ChangePlan>;
 }
 
+/** Names a collection for a plan sentence; null leaves the SDK's summary. */
+export interface Phase4bMcpPlanNaming {
+  readonly collectionName: (collectionId: string) => Promise<string | null>;
+}
+
 export function createPhase4bMcpGatewayPlanner(
   options: McpChangePlanServiceOptions,
+  naming?: Phase4bMcpPlanNaming,
 ): Phase4bMcpGatewayPlanner {
   const { planStore } = options;
+  /* The SDK summarizes a visibility plan as operation type names. The owner
+     reads it on the Approvals page and in the inbox, so the host words it as
+     a sentence from the collection's stored name. The digest leaves it out. */
+  async function visibilitySummary(plan: McpStoredPlan): Promise<string | undefined> {
+    const sentences: string[] = [];
+    for (const operation of plan.operations) {
+      if (operation.type !== 'set_visibility') return undefined;
+      const name = await naming?.collectionName(operation.collectionId);
+      if (!name) return undefined;
+      sentences.push(phase4bMcpVisibilityImpactText(name, operation.input.visibility));
+    }
+    return sentences.length > 0 ? planHeadline(sentences.join('; ')) : undefined;
+  }
   const digestStampingStore: McpChangePlanStorePort = Object.freeze({
-    save: (plan: McpStoredPlan) => planStore.save(Object.freeze({
+    save: async (plan: McpStoredPlan) => planStore.save(Object.freeze({
       ...plan,
+      summary: (await visibilitySummary(plan)) ?? plan.summary,
       operationsDigest: computePhase4bMcpStoredPlanDigest(plan),
     })),
     get: (planId: string) => planStore.get(planId),
@@ -54,11 +75,14 @@ export function createPhase4bMcpGatewayPlanner(
           await options.revisions.resolveBaseRevisions(operation as Parameters<typeof options.revisions.resolveBaseRevisions>[0], binding);
         }
       }
-      return Reflect.apply(
+      const planned = await (Reflect.apply(
         service.plan,
         service,
         [input, binding, authorizedScopes],
-      ) as Promise<ChangePlan>;
+      ) as Promise<ChangePlan>);
+      // The agent reads the same summary the owner does.
+      const stored = await planStore.get(planned.planId);
+      return stored && stored.summary !== planned.summary ? { ...planned, summary: stored.summary } : planned;
     },
   });
 }
