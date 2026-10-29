@@ -7242,10 +7242,10 @@
     "message": "New folder “$1”"
   },
   "sites_newItemsOff": {
-    "message": "Automatically save new items: off"
+    "message": "New favorites are not saved automatically"
   },
   "sites_newItemsOn": {
-    "message": "Automatically save new items: on"
+    "message": "New favorites save automatically"
   },
   "sites_newItemsOnly": {
     "message": "This source provides new items as you browse. They are saved into the configured folders; reading all existing items is unavailable."

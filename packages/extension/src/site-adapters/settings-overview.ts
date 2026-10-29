@@ -49,7 +49,7 @@ export function paintSourceOverview(status: OverviewStatus, definition: SiteDefi
   const total = config.collectionIds.length;
   set('overview-policy', [definition.defaultCollection ? t('sites_oneSourceList', 'One source list') : tn('sites_scopeCount', total, '$1 collection selected', '$1 collections selected'),
     !features.liveArchive ? t('sites_manualChecks', 'Saved through reviewed checks') : config.live && config.state === 'active' && status.enabled
-      ? t('sites_newItemsOn', 'Automatically save new items: on') : t('sites_newItemsOff', 'Automatically save new items: off')].join(' · '));
+      ? t('sites_newItemsOn', 'New favorites save automatically') : t('sites_newItemsOff', 'New favorites are not saved automatically')].join(' · '));
   set('overview-result', overview?.pendingWrites ? t('sites_updatingSavedResults', 'Updating confirmed save results…') : overview ? tn('sites_confirmedSaved', overview.saved, '$2 bookmark saved in this mapping', '$2 bookmarks saved in this mapping', count(overview.saved))
     : t('sites_savedCountUnknown', 'Saved results could not be verified yet.'));
   set('overview-scope-heading', definition.defaultCollection ? t('sites_sourceList', 'Source list') : t('sites_yourCollections', 'Your collections'));

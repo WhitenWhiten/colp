@@ -12916,12 +12916,12 @@
     "description": "Not verified"
   },
   "sites_newItemsOff": {
-    "message": "自动保存新增内容：关闭",
-    "description": "Automatically save new items: off"
+    "message": "新收藏不会自动保存",
+    "description": "New favorites are not saved automatically"
   },
   "sites_newItemsOn": {
-    "message": "自动保存新增内容：开启",
-    "description": "Automatically save new items: on"
+    "message": "新收藏会自动保存",
+    "description": "New favorites save automatically"
   },
   "sites_newItemsOnly": {
     "message": "浏览此网站时，新增内容会保存到所选文件夹。此来源不支持读取全部已有内容。",
