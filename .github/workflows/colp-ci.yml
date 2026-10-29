@@ -38,7 +38,9 @@ jobs:
         with:
           node-version: 22
       - name: Validate CI selection and shared SDK pins without installing dependencies
-        run: node --test scripts/select-ci-jobs.test.mjs scripts/check-sdk-pins.test.mjs
+        run: node --test scripts/select-ci-jobs.test.mjs scripts/check-sdk-pins.test.mjs scripts/check-readmes.test.mjs
+      - name: READMEs agree across languages and with the packages
+        run: node scripts/check-readmes.mjs
       - id: scope
         name: Select affected CI jobs
         run: node scripts/select-ci-jobs.mjs
