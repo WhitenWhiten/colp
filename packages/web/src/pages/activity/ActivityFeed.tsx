@@ -3,6 +3,7 @@ import type { ActivityItem, ActivityKind } from '../../api/activityTypes'
 import { Icon, type IconName } from '../../components/Icon'
 import { StatusBadge } from '../../components/StatusBadge'
 import { formatDate, formatDateTime, formatRelative } from '../../lib/formatDate'
+import { displayHost } from '../../lib/libraryTree'
 import { plural } from '../../lib/plural'
 import { runPath } from '../automations/paths'
 
@@ -64,8 +65,8 @@ function Entry({ item }: { item: ActivityItem }) {
           <ul className="activity-samples" aria-label="Recent bookmarks">
             {item.items.slice(0, 5).map((member) => (
               <li key={member.nodeId} title={member.title ?? undefined}>
-                {member.title || member.host || 'Untitled bookmark'}
-                {member.title && member.host && <>{' '}<span className="activity-host">{member.host}</span></>}
+                {member.title || (member.host && displayHost(member.host)) || 'Untitled bookmark'}
+                {member.title && member.host && <>{' '}<span className="activity-host">{displayHost(member.host)}</span></>}
               </li>
             ))}
           </ul>

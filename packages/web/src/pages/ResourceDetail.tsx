@@ -21,6 +21,7 @@ import {
   useResourceNode,
 } from '../lib/useResourceNode'
 import { safeExternalUrl } from '../lib/publicCollectionTree'
+import { displayHost } from '../lib/libraryTree'
 import type { AnnotationView, RelationType, RelationView, RelationVisibility } from '../api'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { usePageMeta, type PageMeta } from '../lib/usePageMeta'
@@ -347,7 +348,7 @@ function ResourceDetailContent() {
             }
             eyebrow={
               <span className="resource-kicker">
-                {hostLabel ? <span className="resource-kicker-host">{hostLabel.replace(/^www\./u, '')}</span> : null}
+                {hostLabel ? <span className="resource-kicker-host">{displayHost(hostLabel)}</span> : null}
                 <span className="chip chip--kind">{kindLabel}</span>
               </span>
             }
@@ -369,7 +370,7 @@ function ResourceDetailContent() {
             ) : undefined}
           >
             {/* A bare-domain URL would only repeat the host line. */}
-            {originalHref && displayUrl(originalHref).replace(/^www\./u, '') !== hostLabel.replace(/^www\./u, '') ? (
+            {originalHref && displayHost(displayUrl(originalHref)) !== displayHost(hostLabel) ? (
               <a
                 className="resource-url"
                 href={originalHref}

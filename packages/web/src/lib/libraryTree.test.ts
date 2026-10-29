@@ -7,6 +7,7 @@ import {
   findFolder,
   flattenBookmarks,
   folderTrail,
+  displayHost,
   hostInitial,
   hostOf,
   immediateEntries,
@@ -110,6 +111,17 @@ describe('libraryTree', () => {
     expect(hostOf('https://www.example.com/path')).toBe('www.example.com')
     expect(hostInitial('www.example.com')).toBe('E')
     expect(hostInitial('')).toBe('#')
+  })
+
+  it('reads a host without its leading www. and leaves the rest alone', () => {
+    expect(displayHost('www.anthropic.com')).toBe('anthropic.com')
+    expect(displayHost('WWW.Example.com')).toBe('Example.com')
+    expect(displayHost('anthropic.com')).toBe('anthropic.com')
+    expect(displayHost('docs.www.example.com')).toBe('docs.www.example.com')
+    expect(displayHost('www2.example.com')).toBe('www2.example.com')
+    expect(displayHost('wwwexample.com')).toBe('wwwexample.com')
+    expect(displayHost('www.')).toBe('www.')
+    expect(displayHost('')).toBe('')
   })
 
   const deepNodes = [

@@ -3,6 +3,7 @@ import type { LinkHealthItem } from '../../api'
 import { DataTableCell, DataTableRow } from '../../components/DataTable'
 import { StatusBadge } from '../../components/StatusBadge'
 import { formatMediumInstant, formatRelative } from '../../lib/formatDate'
+import { displayHost } from '../../lib/libraryTree'
 import {
   HEALTH_STATUS_TONE,
   canReviewDuplicates,
@@ -24,10 +25,11 @@ export function resourceMeta(
   item: LinkHealthItem,
   scope: 'owned' | 'shared' | 'all',
 ): string {
+  const host = displayHost(hostOf(item))
   // What the owner owns is their one library, whose stored title never shows.
-  if (scope === 'owned' || item.membership == null) return hostOf(item)
-  if (item.membership === 'owner') return `${hostOf(item)} · Your library`
-  return `${hostOf(item)} · ${item.collectionTitle} · ${item.membership === 'editor' ? 'Editor' : 'Viewer'}`
+  if (scope === 'owned' || item.membership == null) return host
+  if (item.membership === 'owner') return `${host} · Your library`
+  return `${host} · ${item.collectionTitle} · ${item.membership === 'editor' ? 'Editor' : 'Viewer'}`
 }
 
 export function HealthRow({

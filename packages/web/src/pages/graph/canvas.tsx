@@ -6,6 +6,7 @@ import { Icon } from '../../components/Icon'
 import { graphResourceKind } from './resources'
 import { clamp, HEIGHT, MAX_ZOOM, MIN_ZOOM, nodeInitial, WIDTH, wrapGraphLabel } from './layout'
 import type { GraphState } from './useGraphState'
+import { displayHost } from '../../lib/libraryTree'
 
 export function GraphCanvas({ state }: { state: GraphState }) {
   const arrowId = useId()
@@ -188,7 +189,7 @@ export function GraphCanvas({ state }: { state: GraphState }) {
             >
               <span className="ctx-menu-label">{graphResourceKind(hoverResource)}</span>
               <strong>{hoverResource.node.title}</strong>
-              {hoverResource.host && <span className="meta">{hoverResource.host}</span>}
+              {hoverResource.host && <span className="meta">{displayHost(hoverResource.host)}</span>}
             </div>
           )}
         </>

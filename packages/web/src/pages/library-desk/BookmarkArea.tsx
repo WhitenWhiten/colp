@@ -12,7 +12,7 @@ import {
   type FolderNode,
 } from '../../lib/libraryTree'
 import { BOOKMARK_FILTER_PLACEHOLDER } from '../../lib/searchCopy'
-import { hostOf, rootTitle } from '../../lib/libraryTree'
+import { displayHost, hostOf, rootTitle } from '../../lib/libraryTree'
 import { pluralNoun } from '../../lib/plural'
 import { useBookmarkAnnotations } from '../../lib/useBookmarkAnnotations'
 import { folderGalleryCovers, nodeGalleryCover } from '../../lib/linkPreview'
@@ -173,7 +173,7 @@ export function BookmarkArea({
     return layerReorder.ids.map((id) => {
       const node = byId.get(id)
       const label = node
-        ? node.kind === 'folder' ? node.title : (node.title || hostOf(node.url))
+        ? node.kind === 'folder' ? node.title : (node.title || displayHost(hostOf(node.url)))
         : id
       return {
         id,

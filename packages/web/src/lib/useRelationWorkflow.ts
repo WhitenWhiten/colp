@@ -2,14 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { isProductApiError, productClient, type EditableNodeView, type RelationType, type RelationView, type RelationVisibility } from '../api'
 import { useConfirm, useConfirmLeaveGuard } from '../components/ConfirmModal'
 import { plural } from './plural'
-import { hostOf } from './libraryTree'
+import { displayHost, hostOf } from './libraryTree'
 import { privateSessionIdentity, subscribeSession } from '../api/sessionStore'
 
 export type RelationLocator = { collectionId: string; nodeId: string }
 /** Pickers disambiguate same-titled endpoints by host (bookmarks) or kind label — never by internal id. */
 export type RelationNodeOption = Pick<EditableNodeView, 'id' | 'title' | 'kind'> & { host: string | null }
 export function relationEndpointDisambiguator(option: Pick<RelationNodeOption, 'kind' | 'host'>): string {
-  return option.kind === 'bookmark' ? (option.host ?? 'bookmark') : 'folder'
+  return option.kind === 'bookmark' ? (option.host ? displayHost(option.host) : 'bookmark') : 'folder'
 }
 type SaveState = 'loading' | 'ready' | 'saving' | 'unknown' | 'stale' | 'conflict' | 'error'
 type PendingUpdate = { relationId: string; patch: { type: RelationType; label: string | null; visibility: RelationVisibility }; ifMatch: string; intentId: string }

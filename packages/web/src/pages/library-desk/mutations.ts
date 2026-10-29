@@ -10,7 +10,7 @@ import type { ToastAction } from '../../components/AppToast'
 import type { DestinationPick } from '../../components/CollectionDestinationPicker'
 import { useConfirm } from '../../components/ConfirmModal'
 import { pushFolderRecent } from '../../lib/folderRecents'
-import { childFolders, rootTitle, type BookmarkNode, type FolderNode } from '../../lib/libraryTree'
+import { childFolders, displayHost, rootTitle, type BookmarkNode, type FolderNode } from '../../lib/libraryTree'
 import { addTags } from '../../components/TagInput'
 import { countTags, retag } from '../../lib/libraryTags'
 import { plural } from '../../lib/plural'
@@ -205,7 +205,7 @@ export function useLibraryDeskMutations(options: {
       }
       setCreateUrlError(null)
       // Title is optional for bookmarks: an empty one falls back to the host.
-      if (!title) title = parsed.hostname.replace(/^www\./, '') || rawUrl
+      if (!title) title = displayHost(parsed.hostname) || rawUrl
     }
     const parentId = createParentId || (snap.collection.library ? '' : snap.root.id)
     if (!parentId) {

@@ -128,6 +128,16 @@ describe('ResourceList', () => {
     expect(marks[0]!.textContent).toBe('Pinned. ')
   })
 
+  it.each(['compact', 'list', 'board'] as const)('shows the host without its www. in %s view', (mode) => {
+    renderWithRouter(
+      <ResourceList items={[{ id: 'a', title: 'Building effective agents', host: 'www.anthropic.com', mark: <span>A</span> }]} mode={mode} />,
+      { route: '/' },
+    )
+    const row = document.querySelector('[data-node-id="a"]')
+    expect(row?.textContent).toContain('anthropic.com')
+    expect(row?.textContent).not.toContain('www.')
+  })
+
   it('renders markdown snippets without heading elements', () => {
     renderWithRouter(
       <ResourceList items={[{ id: 'md', title: 'Markdown', host: 'example.test', mark: <span>M</span>, tldr: { text: '## Heading\n\n**body**', format: 'markdown' } }]} mode="list" />,

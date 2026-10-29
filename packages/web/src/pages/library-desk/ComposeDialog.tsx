@@ -9,7 +9,7 @@ import { importFolderOptions } from '../../lib/bookmarkImport'
 import { providerFaviconSrc } from '../../lib/bookmarkIcon'
 import { readFolderRecents } from '../../lib/folderRecents'
 import { countTags } from '../../lib/libraryTags'
-import { hostInitial, rootTitle } from '../../lib/libraryTree'
+import { displayHost, hostInitial, rootTitle } from '../../lib/libraryTree'
 import { NODE_DESCRIPTION_MAX } from './nodeEditDrawer'
 import type { ComposeKind, LibraryDeskMutations } from './mutations'
 
@@ -17,7 +17,7 @@ import type { ComposeKind, LibraryDeskMutations } from './mutations'
 function siteName(raw: string): string {
   try {
     const url = new URL(raw.trim())
-    return url.protocol === 'http:' || url.protocol === 'https:' ? url.hostname.replace(/^www\./, '') : ''
+    return url.protocol === 'http:' || url.protocol === 'https:' ? displayHost(url.hostname) : ''
   } catch {
     return ''
   }

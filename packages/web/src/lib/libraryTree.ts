@@ -129,8 +129,18 @@ export function hostOf(url: string): string {
   }
 }
 
+/**
+ * The host as a person reads it: a leading `www.` is dropped, so the same
+ * bookmark reads `anthropic.com` in the library, a shared page, the graph and
+ * the inbox alike. Display text only: search matching, favicon keys and URLs,
+ * resource kind detection and the DomainMark tone keep the raw host.
+ */
+export function displayHost(host: string): string {
+  return host.replace(/^www\.(?=.)/iu, '')
+}
+
 export function hostInitial(host: string): string {
-  const leaf = host.replace(/^www\./, '').trim()
+  const leaf = displayHost(host).trim()
   const letter = leaf.charAt(0)
   return letter ? letter.toUpperCase() : '#'
 }

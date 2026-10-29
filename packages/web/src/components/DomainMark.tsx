@@ -1,4 +1,5 @@
 import { bookmarkIconSrc } from '../lib/bookmarkIcon'
+import { displayHost } from '../lib/libraryTree'
 import { BookmarkIcon } from './BookmarkIcon'
 
 const TONES = ['domain-mark--a', 'domain-mark--b', 'domain-mark--c'] as const
@@ -10,7 +11,7 @@ function toneIndex(host: string): number {
 }
 
 export function hostLetter(host: string): string {
-  return host.replace(/^www\./, '').charAt(0).toUpperCase() || '·'
+  return displayHost(host).charAt(0).toUpperCase() || '·'
 }
 
 /* Editorial origin anchor: favicon when we have a page/object URL, else a

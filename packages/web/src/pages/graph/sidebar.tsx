@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom'
 import { relationLabel } from './relations'
 import type { GraphState } from './useGraphState'
 import { UGC_REL } from '../../lib/ugcRel'
+import { displayHost } from '../../lib/libraryTree'
 
 export function GraphSidebar({ state, slug }: { state: GraphState; slug: string }) {
   const { active, activeKind, selectedEdges, resourceMap, setActiveId } = state
@@ -23,7 +24,7 @@ export function GraphSidebar({ state, slug }: { state: GraphState; slug: string 
             <p className="graph-side-summary">{active.node.description}</p>
           )}
           <div className="graph-side-meta">
-            <span>{active.host}</span>
+            <span>{displayHost(active.host)}</span>
           </div>
 
           <div className="graph-side-actions">

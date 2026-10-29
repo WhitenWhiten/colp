@@ -17,6 +17,7 @@ import { useGalleryMasonry } from '../lib/useGalleryMasonry'
 import { imageLoadHints, markImageShown } from '../lib/shownImages'
 import { UGC_REL } from '../lib/ugcRel'
 import { useIsClamped } from '../lib/useIsClamped'
+import { displayHost } from '../lib/libraryTree'
 import { Icon } from './Icon'
 
 export type ResourceListMode = 'list' | 'compact' | 'board' | 'gallery'
@@ -338,7 +339,7 @@ function ResourceRow({
         {item.mid ? <span className="library-bookmark-folder">{item.mid}</span> : null}
         {item.dateTime && item.date ? <time dateTime={item.dateTime}>{item.date}</time> : item.date ? <span>{item.date}</span> : null}
       </span>
-      <span className="library-bookmark-host">{item.pinned ? <PinMark /> : null}{item.host}</span>
+      <span className="library-bookmark-host">{item.pinned ? <PinMark /> : null}{displayHost(item.host)}</span>
       {item.trailing}
     </>
   ) : (
@@ -349,7 +350,7 @@ function ResourceRow({
           {item.title}
         </h3>
         <p className="meta-row">
-          <span>{item.pinned ? <PinMark /> : null}{item.host}</span>
+          <span>{item.pinned ? <PinMark /> : null}{displayHost(item.host)}</span>
           {item.mid ? <span className="library-bookmark-folder">{item.mid}</span> : null}
           {item.dateTime && item.date ? <time dateTime={item.dateTime}>{item.date}</time> : item.date ? <span>{item.date}</span> : null}
         </p>
@@ -526,7 +527,7 @@ function ResultCard({
         {item.mark}
         {/* The host names the source beside its favicon — the link-card
             identity line — so the card floor carries no second host strip. */}
-        <span className="result-card-host" dir="auto">{item.pinned ? <PinMark /> : null}{item.host.replace(/^www\./u, '')}</span>
+        <span className="result-card-host" dir="auto">{item.pinned ? <PinMark /> : null}{displayHost(item.host)}</span>
         {item.kind ? <span className="chip chip--kind">{item.kind}</span> : null}
         {item.actions != null && (
           <span className="result-card-top-actions">{item.actions}</span>

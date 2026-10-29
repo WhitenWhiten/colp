@@ -15,6 +15,7 @@ import { searchFolderHref, searchResultHref, useProductSearch } from '../lib/use
 import { productName } from '../lib/edition'
 import { useLibrary } from '../lib/useLibrary'
 import { pluralNoun } from '../lib/plural'
+import { displayHost } from '../lib/libraryTree'
 import { compactTrail, useSearchPlaces, type SearchPlace } from './search/places'
 
 /* One library per account: folders are nodes, so there is no collection
@@ -35,7 +36,7 @@ function placeHref(result: SearchResult, place: SearchPlace | null): string {
 /* linkding's quiet line: host, then where the hit lives. */
 function placeMeta(result: SearchResult, place: SearchPlace | null) {
   const parts: { key: string; text: string; className?: string }[] = []
-  if (result.resourceType === 'node' && result.urlHost) parts.push({ key: 'host', text: result.urlHost, className: 'search-host' })
+  if (result.resourceType === 'node' && result.urlHost) parts.push({ key: 'host', text: displayHost(result.urlHost), className: 'search-host' })
   if (result.resourceType === 'annotation') {
     parts.push({ key: 'subject', text: place?.subjectTitle ? `On ${place.subjectTitle}` : `On a ${searchKindLabel(result.subject.type)}` })
   }

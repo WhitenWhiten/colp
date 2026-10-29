@@ -1,14 +1,14 @@
 import type { ReactNode } from 'react'
 import type { SearchResult } from '../api/types'
 import { cleanSnippet, highlightQuery } from '../lib/searchHighlight'
-import { rootTitle } from '../lib/libraryTree'
+import { displayHost, rootTitle } from '../lib/libraryTree'
 import { searchKindLabel, searchResultKindTitle } from '../lib/searchCopy'
 import { searchResultTitle } from '../lib/useProductSearch'
 import { useIsClamped } from '../lib/useIsClamped'
 
 /** Optional trailing meta for the full-page search column (palette keeps its own chrome). */
 export function searchResultMeta(result: SearchResult): string {
-  if (result.resourceType === 'node') return result.urlHost ?? ''
+  if (result.resourceType === 'node') return result.urlHost ? displayHost(result.urlHost) : ''
   if (result.resourceType === 'annotation') return `On a ${searchKindLabel(result.subject.type)}`
   return ''
 }

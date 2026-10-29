@@ -14,6 +14,7 @@ import { nodeGalleryCover } from '../../lib/linkPreview'
 import { type PublicCollectionResource as CollectionResource } from '../../lib/publicCollectionTree'
 import { type ViewMode } from './format'
 import { UGC_REL } from '../../lib/ugcRel'
+import { displayHost } from '../../lib/libraryTree'
 
 /* Secondary affordance: the external original, marked with the safety
    attributes the e2e contract asserts (target=_blank + noopener noreferrer).
@@ -32,8 +33,8 @@ function ResourceExternalLink({ resource, className }: {
       target="_blank"
       rel={UGC_REL}
       data-collection-resource-link
-      aria-label={`Open ${resource.node.title} on ${resource.host}`}
-      title={`Open on ${resource.host}`}
+      aria-label={`Open ${resource.node.title} on ${displayHost(resource.host)}`}
+      title={`Open on ${displayHost(resource.host)}`}
     >
       <Icon name="arrow-up-right" />
     </a>

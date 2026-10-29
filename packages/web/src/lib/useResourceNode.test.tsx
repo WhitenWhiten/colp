@@ -215,6 +215,8 @@ describe('useResourceNode', () => {
       )
       expect(mocks.loadPublicCollectionSnapshot).not.toHaveBeenCalled()
       expect(document.querySelector('h1')?.textContent).toBe('3Blue1Brown · 神经网络可视化')
+      /* The hook keeps the raw host (DomainMark tone, kind detection);
+         displayHost drops the www. only where the page renders it. */
       expect(document.querySelector('[data-testid="host"]')?.textContent).toBe('www.youtube.com')
       expect(document.querySelector('[data-testid="slug"]')?.textContent).toBe('llm-learning-path')
       expect(document.querySelector('[data-testid="next"]')?.textContent).toBe(NEXT_ID)
