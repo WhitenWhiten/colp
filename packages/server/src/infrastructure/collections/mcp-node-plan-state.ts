@@ -5,14 +5,30 @@ import type { McpAuthenticatedAuthorizationBinding } from '@know-n/colp/mcp';
 import type { DatabaseSchema } from '../database/index.js';
 import type { Phase4bMcpAuthoritativeStatePort } from '../../modules/mcp/index.js';
 
-/** Read placement and subtree facts in one snapshot, after checking write authority. */
+/** Read create, placement and subtree facts in one snapshot, after checking write authority. */
 export function createMcpNodePlanState(
   db: Kysely<DatabaseSchema>,
   authorize: (trx: Kysely<DatabaseSchema>, collectionId: string,
-    binding: McpAuthenticatedAuthorizationBinding, capability: 'move_node' | 'delete_node') => Promise<void>,
+    binding: McpAuthenticatedAuthorizationBinding, capability: 'create_node' | 'move_node' | 'delete_node') => Promise<void>,
   unavailable: () => never,
-): Pick<Phase4bMcpAuthoritativeStatePort, 'resolveMovePlacement' | 'resolveDeleteSubtree'> {
+): Pick<Phase4bMcpAuthoritativeStatePort, 'resolveCreateBaseRevisions' | 'resolveMovePlacement' | 'resolveDeleteSubtree'> {
   return {
+    resolveCreateBaseRevisions: (input, binding) => db.transaction()
+      .setIsolationLevel('read committed').execute(async (trx) => {
+        const collection = await trx.selectFrom('collections').select(['content_revision', 'visibility'])
+          .where('id', '=', input.collectionId).where('deleted_at', 'is', null).executeTakeFirst();
+        const parent = await trx.selectFrom('nodes').select(['children_revision'])
+          .where('id', '=', input.parentId).where('collection_id', '=', input.collectionId)
+          .where('deleted_at', 'is', null).executeTakeFirst();
+        await authorize(trx, input.collectionId, binding, 'create_node');
+        if (!collection || !parent) return unavailable();
+        return Object.freeze({
+          parentChildrenRevision: parent.children_revision,
+          collectionContentRevision: collection.content_revision,
+          collectionVisibility: collection.visibility,
+          parentPath: await folderPath(trx, input.parentId, input.collectionId),
+        });
+      }),
     resolveMovePlacement: (input, binding) => db.transaction()
       .setIsolationLevel('repeatable read').execute(async (trx) => {
         const node = await liveNode(trx, input.nodeId, input.collectionId);
@@ -79,7 +95,7 @@ function liveNode(db: Kysely<DatabaseSchema>, nodeId: string, collectionId?: str
 }
 
 /** `/Bookmarks bar/Research`: stored titles from the root down, the root itself left out. */
-export async function folderPath(db: Kysely<DatabaseSchema>, nodeId: string, collectionId: string) {
+async function folderPath(db: Kysely<DatabaseSchema>, nodeId: string, collectionId: string) {
   const rows = await sql<{ title: string }>`WITH RECURSIVE ancestors AS (
     SELECT id, parent_id, title, is_root, 0 AS depth, ARRAY[id] AS seen FROM nodes
       WHERE id = ${nodeId} AND collection_id = ${collectionId} AND deleted_at IS NULL

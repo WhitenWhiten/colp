@@ -33,14 +33,16 @@ import {
   isPhase4bMcpCollectionVisibility,
   type Phase4bMcpCollectionVisibility,
 } from './write-dependency-gate.js';
+import {
+  describedPlanSummary, isPlanFolderPath, phase4bMcpCreateImpactText, phase4bMcpDeleteSubtreeImpactText,
+  phase4bMcpMoveImpactText,
+} from './plan-sentences.js';
 
 export type Phase4bMcpRiskLevel = 'low' | 'medium' | 'high';
 export type Phase4bMcpPlanMode = 'ready' | 'awaiting_approval';
 
-export type Phase4bMcpNodeCreateOperation = Extract<Operation, { type: 'create_node' }> & Readonly<{
-  /** Authoritative `add <title> to <path>` or `create folder <title> in <path>`. Commit ignores it. */
-  impact?: string;
-}>;
+/** `impact` is the planner's `add <title> to <path>` or `create folder <title> in <path>`; commit ignores it. */
+export type Phase4bMcpNodeCreateOperation = Extract<Operation, { type: 'create_node' }> & Readonly<{ impact?: string }>;
 /** Medium-risk move. Commit calls `moveCollectionNode`; this object does not write. */
 export type Phase4bMcpNodeMoveOperation = Readonly<{
   type: 'move_node';
@@ -341,21 +343,6 @@ const RISK_RANK: Readonly<Record<Phase4bMcpRiskLevel, number>> = Object.freeze({
   high: 2,
 });
 
-export function phase4bMcpMoveImpactText(
-  placement: Readonly<Pick<Phase4bMcpMovePlacement, 'title' | 'fromPath' | 'toPath'>>,
-): string {
-  return `move ${placement.title} from ${placement.fromPath} to ${placement.toPath}`;
-}
-
-export function phase4bMcpCreateImpactText(
-  node: Readonly<{ kind: string; title?: string | null; url?: string | null }>,
-  parentPath?: string,
-): string {
-  const name = node.title || node.url || 'an untitled item';
-  if (node.kind === 'folder') return `create folder ${name}${parentPath ? ` in ${parentPath}` : ''}`;
-  return `add ${name}${parentPath ? ` to ${parentPath}` : ''}`;
-}
-
 export interface Phase4bMcpOperationRiskFacts {
   readonly collectionVisibility?: Phase4bMcpCollectionVisibility;
 }
@@ -395,8 +382,6 @@ function phase4bMcpCreateNodeRisk(
   return 'low';
 }
 
-const PLAN_SUMMARY_MAX = 512;
-
 export function phase4bMcpPlanSummary(
   operations: readonly Phase4bMcpPlanOperation[],
   impact: ChangePlanImpact,
@@ -407,39 +392,13 @@ export function phase4bMcpPlanSummary(
       'Plan summary requires at least one typed canonical operation.',
     );
   }
-  // Creates, moves and deletes carry the planner's own sentence (titles and
-  // stored paths); the owner reads those instead of operation type names.
-  // One change is its sentence; several are counted, and each keeps its
-  // sentence in the plan's operations, which the approval rows show.
-  const described = operations.map((operation) => (operation as { readonly impact?: unknown }).impact);
-  if (described.every((text): text is string => typeof text === 'string' && text.length > 0)) {
-    const sentence = operations.length === 1 ? described[0]! : countedPlanSummary(operations);
-    const capitalized = sentence.charAt(0).toUpperCase() + sentence.slice(1);
-    return capitalized.length <= PLAN_SUMMARY_MAX ? capitalized : `${capitalized.slice(0, PLAN_SUMMARY_MAX - 1)}…`;
-  }
+  const described = describedPlanSummary(operations);
+  if (described !== undefined) return described;
   const types = operations.map((operation) => operation.type).join(', ');
   return `Plan ${operations.length} canonical operation(s) [${types}]. Authoritative impact: `
     + `${impact.collections} collection(s), ${impact.nodes} node(s), `
     + `${impact.annotations} annotation(s), ${impact.attachments} attachment(s), `
     + `${impact.relations} relation(s).`;
-}
-
-/** "create a folder, add 3 bookmarks and move 2 items", in the plan's order. A delete counts what it removes. */
-function countedPlanSummary(operations: readonly Phase4bMcpPlanOperation[]): string {
-  const counts = new Map<string, { readonly verb: string; readonly noun: string; count: number }>();
-  for (const operation of operations) {
-    const kind = operation.type === 'create_node' ? operation.payload.node.kind : null;
-    const [verb, noun] = operation.type === 'move_node' ? ['move', 'item']
-      : operation.type === 'delete_subtree' ? ['delete', 'item']
-        : kind === 'folder' ? ['create', 'folder'] : kind === 'bookmark' ? ['add', 'bookmark'] : ['add', 'item'];
-    const added = operation.type === 'delete_subtree' && 'subtreeCount' in operation ? operation.subtreeCount : 1;
-    const entry = counts.get(`${verb} ${noun}`);
-    if (entry) entry.count += added;
-    else counts.set(`${verb} ${noun}`, { verb, noun, count: added });
-  }
-  const phrases = [...counts.values()].map(({ verb, noun, count }) =>
-    `${verb} ${count === 1 ? `${noun === 'item' ? 'an' : 'a'} ${noun}` : `${count} ${noun}s`}`);
-  return phrases.length === 1 ? phrases[0]! : `${phrases.slice(0, -1).join(', ')} and ${phrases.at(-1)}`;
 }
 
 export function computePhase4bMcpCanonicalDigest(
@@ -732,13 +691,6 @@ async function planNodeCreate(
     serverUuid: deps.serverUuid,
     collectionId,
   }));
-}
-
-export function phase4bMcpDeleteSubtreeImpactText(
-  facts: Readonly<Pick<Phase4bMcpDeleteSubtreeFacts, 'title' | 'subtreeCount' | 'parentPath'>>,
-): string {
-  const from = facts.parentPath ? ` from ${facts.parentPath}` : '';
-  return `delete ${facts.title}${from} (${facts.subtreeCount} ${facts.subtreeCount === 1 ? 'item' : 'items'})`;
 }
 
 function deleteSubtreeThreshold(): number {
@@ -1244,20 +1196,11 @@ async function resolveDeleteSubtree(
   };
 }
 
-/** A resolver may name the parent folder's path; anything but a short single-line string is rejected. */
-function readOptionalParentPath(
-  record: Readonly<Record<string, unknown>>,
-  label: string,
-): { readonly parentPath?: string } {
-  const descriptor = Object.getOwnPropertyDescriptor(record, 'parentPath');
-  if (descriptor === undefined || !('value' in descriptor) || descriptor.value === undefined) return {};
-  const value = descriptor.value as unknown;
-  if (typeof value !== 'string' || !value.startsWith('/') || value.length > 1_024 || CONTROL_CHARACTER_RE.test(value)) {
-    throw new Phase4bMcpChangePlanPlannerError(
-      'authoritative_state_invalid',
-      `${label} parentPath must be a single-line path.`,
-    );
-  }
+/** A resolver may name the parent folder's path for the plan's sentence; anything else there is rejected. */
+function readOptionalParentPath(record: Readonly<Record<string, unknown>>, label: string): { readonly parentPath?: string } {
+  const value = Object.getOwnPropertyDescriptor(record, 'parentPath')?.value as unknown;
+  if (value === undefined) return {};
+  if (!isPlanFolderPath(value)) throw new Phase4bMcpChangePlanPlannerError('authoritative_state_invalid', `${label} parentPath must be a single-line path.`);
   return { parentPath: value };
 }
 

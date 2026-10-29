@@ -33,6 +33,7 @@ export * from './snapshot-resources.js';
 export * from './read-tools.js';
 export * from './write-dependency-gate.js';
 export * from './change-plan-planner.js';
+export { phase4bMcpCreateImpactText, phase4bMcpDeleteSubtreeImpactText, phase4bMcpMoveImpactText } from './plan-sentences.js';
 export * from './change-plan-service.js';
 export * from './low-risk-node-create.js';
 export * from './low-risk-node-update.js';

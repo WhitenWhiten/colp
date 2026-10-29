@@ -53,11 +53,7 @@ export interface WriteApprovalOperationPreview {
   readonly nodeId: string | null;
   readonly visibility: string | null;
   readonly nodeSummary: WriteApprovalNodeSummary | null;
-  /**
-   * The planner's own sentence, built from stored titles and paths, e.g.
-   * `move Docs from /A to /B`. A create names the title it will write
-   * (`add Docs to /A`), never the agent's reason.
-   */
+  /** The planner's sentence from titles and stored paths, never agent reasons: `move Docs from /A to /B`, `add Docs to /A`. */
   readonly description?: string;
 }
 
@@ -535,6 +531,8 @@ function safeOperationPreviews(plan: McpStoredPlan): readonly WriteApprovalOpera
   return Object.freeze(operations.map((operation) => {
     const type = typeof operation.type === 'string' ? operation.type : 'unknown';
     const collectionId = typeof operation.collectionId === 'string' ? operation.collectionId : null;
+    const description = typeof operation.impact === 'string' && operation.impact.length > 0
+      ? operation.impact.slice(0, OPERATION_DESCRIPTION_MAX) : undefined;
     if (type === 'set_visibility') {
       const input = asRecord(operation.input);
       return Object.freeze({
@@ -546,9 +544,6 @@ function safeOperationPreviews(plan: McpStoredPlan): readonly WriteApprovalOpera
       });
     }
     if (type === 'move_node' || type === 'delete_subtree') {
-      const description = typeof operation.impact === 'string' && operation.impact.length > 0
-        ? operation.impact.slice(0, OPERATION_DESCRIPTION_MAX)
-        : undefined;
       return Object.freeze({
         type,
         collectionId,
@@ -561,9 +556,6 @@ function safeOperationPreviews(plan: McpStoredPlan): readonly WriteApprovalOpera
     if (type === 'create_node') {
       const payload = asRecord(operation.payload);
       const node = asRecord(payload.node);
-      const description = typeof operation.impact === 'string' && operation.impact.length > 0
-        ? operation.impact.slice(0, OPERATION_DESCRIPTION_MAX)
-        : undefined;
       return Object.freeze({
         type,
         collectionId,

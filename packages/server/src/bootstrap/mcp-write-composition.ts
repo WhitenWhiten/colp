@@ -6,7 +6,6 @@ import {
   createAgentPolicyCommitGuard,
   createMcpNodePlanState,
   createPostgresAutoApproveTrustedPlan,
-  folderPath,
   readPlanApprovedByPolicy,
   captureMcpPlanPreCommitVersions,
   recordMcpPlanCommitRevisions,
@@ -447,37 +446,6 @@ async function authorizeAuthoritativeCapability(
 export function createAuthoritativeState(db: Kysely<DatabaseSchema>) {
   return Object.freeze({
     ...createMcpNodePlanState(db, authorizeAuthoritativeCapability, throwAuthoritativeStateUnavailable),
-    async resolveCreateBaseRevisions(
-      input: { collectionId: string; parentId: string },
-      binding: McpAuthenticatedAuthorizationBinding,
-    ) {
-      return db.transaction().setIsolationLevel('read committed').execute(async (trx) => {
-        const collection = await trx.selectFrom('collections')
-          .select(['content_revision', 'visibility'])
-          .where('id', '=', input.collectionId)
-          .where('deleted_at', 'is', null)
-          .executeTakeFirst();
-        const parent = await trx.selectFrom('nodes')
-          .select(['children_revision'])
-          .where('id', '=', input.parentId)
-          .where('collection_id', '=', input.collectionId)
-          .where('deleted_at', 'is', null)
-          .executeTakeFirst();
-        await authorizeAuthoritativeCapability(
-          trx,
-          input.collectionId,
-          binding,
-          'create_node',
-        );
-        if (!collection || !parent) throwAuthoritativeStateUnavailable();
-        return Object.freeze({
-          parentChildrenRevision: parent.children_revision,
-          collectionContentRevision: collection.content_revision,
-          collectionVisibility: collection.visibility,
-          parentPath: await folderPath(trx, input.parentId, input.collectionId),
-        });
-      });
-    },
     async resolveVisibilityFacts(
       input: { collectionId: string; nodeId: string },
       binding: McpAuthenticatedAuthorizationBinding,

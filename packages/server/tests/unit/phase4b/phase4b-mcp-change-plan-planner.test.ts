@@ -11,13 +11,12 @@ import {
   Phase4bMcpChangePlanPlannerError,
   computePhase4bMcpCanonicalDigest,
   createPhase4bMcpChangePlanPlanner,
-  phase4bMcpCreateImpactText,
-  phase4bMcpDeleteSubtreeImpactText,
   phase4bMcpPlanSummary,
   type Phase4bMcpChangePlanPlannerOptions,
   type Phase4bMcpPlannedChange,
   type Phase4bMcpStoredPlan,
 } from '../../../src/modules/mcp/change-plan-planner.js';
+import { phase4bMcpCreateImpactText, phase4bMcpDeleteSubtreeImpactText } from '../../../src/modules/mcp/plan-sentences.js';
 import type { Phase4bMcpCollectionVisibility } from '../../../src/modules/mcp/write-dependency-gate.js';
 
 const csprng = vi.hoisted(() => ({
