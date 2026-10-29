@@ -34,10 +34,11 @@ export async function convergeOwnerWork(db: Kysely<DatabaseSchema>, ownerId: str
       WHERE r.owner_id=${ownerId} AND NOT EXISTS (SELECT 1 FROM automation_effect_receipts e WHERE e.job_id=j.id)
       ORDER BY j.run_id LIMIT 20`.execute(tx)).rows;
     await reconcileRunsPlanEffects(tx, actor, runs.map(run => run.run_id), serverUuid);
-    // Mirrors taskBlocksSuccessors, so every selected run either readies, holds or settles a task.
+    // Also settle historical runs interrupted after their final result, with no pending job or proposal left.
     const pending = (await sql<{ run_id: string }>`SELECT DISTINCT j.run_id FROM automation_jobs j JOIN automation_runs r ON r.id=j.run_id
       JOIN collections c ON c.id=r.explanation_json->>'collectionId' AND c.owner_subject_id=${account.subject_id} AND c.deleted_at IS NULL
-      WHERE r.owner_id=${ownerId} AND j.state='pending' AND NOT r.held AND r.state NOT IN ('cancelled','waiting')
+      WHERE r.owner_id=${ownerId} AND (j.state='pending' OR (r.state='running' AND j.state IN ('succeeded','failed','stale','review','blocked','cancelled')))
+        AND NOT r.held AND r.state NOT IN ('cancelled','waiting')
         AND NOT EXISTS (SELECT 1 FROM automation_settings s WHERE s.owner_id=r.owner_id AND s.paused)
         AND NOT EXISTS (SELECT 1 FROM automation_jobs busy WHERE busy.run_id=r.id
           AND (busy.state IN ('ready','leased','committing','awaitingApproval','uncertain') OR (busy.state='blocked' AND busy.budget_block_reason='daily')))

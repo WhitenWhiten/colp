@@ -97,11 +97,14 @@ export function createResultSubmissionPort(db: Kysely<DatabaseSchema>, serverUui
     WHERE r.id=${job.run_id}`.execute(tx)).rows[0];
       if (!policy)
         throw new AutomationError('automation_unsupported_capability', 'Pinned execution policy is unavailable.');
-      const retainForReview = async (reason: string) => {
-        await storeTypedResult(tx, job, input, digest, pin.authority_digest, 'review', reason);
+      const retainResult = async (state: 'succeeded' | 'review', reason?: string) => {
+        await storeTypedResult(tx, job, input, digest, pin.authority_digest, state, reason);
+        // A terminal result has no proposal for the plan reconciler to discover after a crash.
+        await advanceRunTasks(tx, actor, serverUuid, job.run_id);
       };
+      const retainForReview = (reason: string) => retainResult('review', reason);
       if (kind === 'none' || kind === 'review') {
-        await storeTypedResult(tx, job, input, digest, pin.authority_digest, kind === 'none' ? 'succeeded' : 'review');
+        await retainResult(kind === 'none' ? 'succeeded' : 'review');
         return;
       }
       if (!actor.resourceAudience || !actor.securityEpoch)
@@ -123,7 +126,7 @@ export function createResultSubmissionPort(db: Kysely<DatabaseSchema>, serverUui
         const previousTags = planned.previousTags;
         operation.previousTags = previousTags;
         if (operation.tags.length === previousTags.length && operation.tags.every((tag, i) => tag === previousTags[i])) {
-          await storeTypedResult(tx, job, input, digest, pin.authority_digest, 'succeeded', 'All proposed tags are already present or explicitly suppressed; no canonical effect.');
+          await retainResult('succeeded', 'All proposed tags are already present or explicitly suppressed; no canonical effect.');
           return;
         }
         try {
