@@ -8,6 +8,10 @@ All notable changes to the Know-N browser extension are documented here. The for
 
 - Options › Automations › Activity shows an agent's change plan waiting for your approval as "Claude wants your approval", with the plan's summary beneath; the row opens the web inbox like the other activity rows. Requires a server that sends `approval_requested` activity; older servers are read as before.
 
+### Fixed
+
+- The toolbar count keeps working when the server's newest activity is of a kind this version cannot show yet. Such a summary used to be rejected as invalid, which left the count stale and slowed the next checks; now only that newest row is left out.
+
 ## [0.1.0-rc.5] - 2026-10-27
 
 ### Added

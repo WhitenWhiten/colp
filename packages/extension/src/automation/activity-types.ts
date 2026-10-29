@@ -53,3 +53,11 @@ function validItem(value: unknown): value is ActivityItem {
 export function validActivitySummary(value: unknown): value is ActivitySummary {
   return object(value) && integer(value.unreadCount) && revision(value.revision) && (value.latest === null || validItem(value.latest));
 }
+
+/** A newer server may add kinds: the unread count still holds, and a latest item of a kind this build cannot show is dropped. */
+export function knownActivitySummary(value: unknown): ActivitySummary | null {
+  if (validActivitySummary(value)) return value;
+  if (!object(value) || !object(value.latest) || !text(value.latest.kind) || KINDS.includes(value.latest.kind)) return null;
+  const known = { ...value, latest: null };
+  return validActivitySummary(known) ? known : null;
+}

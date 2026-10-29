@@ -1,7 +1,7 @@
 import { readBoundedJson } from '../json-response.js';
 import { assertCredentialHostPermission, SERVER_HOST_PERMISSION_ERROR } from '../server-origin-permission.js';
 import type { AutomationStateArea } from './bundle-store.js';
-import { validActivitySummary, type ActivitySummary } from './activity-types.js';
+import { knownActivitySummary, validActivitySummary, type ActivitySummary } from './activity-types.js';
 import type { ServerProblem } from './server-status.js';
 
 export const ACTIVITY_STATUS_KEY = 'known.automation.activity.v1';
@@ -32,8 +32,8 @@ export async function readActivitySummary(serverOrigin: string, expectedAccountI
   // Bind the data and its owner in the same response; a separate /me check races cookie changes.
   if (response.headers.get('Known-Activity-Account-Id') !== expectedAccountId) return { ok: false, problem: 'signedOut' };
   try {
-    const body = await readBoundedJson(response, 64 * 1024, 'activity_summary_invalid');
-    return validActivitySummary(body) ? { ok: true, summary: body } : { ok: false, problem: 'invalid' };
+    const summary = knownActivitySummary(await readBoundedJson(response, 64 * 1024, 'activity_summary_invalid'));
+    return summary ? { ok: true, summary } : { ok: false, problem: 'invalid' };
   } catch { return { ok: false, problem: 'invalid' }; }
 }
 

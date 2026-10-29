@@ -39,9 +39,18 @@ describe('activity summary transport', () => {
     for (const latest of [approval, { ...item, plan: null }, item]) {
       expect(await readActivitySummary('https://colp.example', 'owner-1', async () => json({ ...summary, latest }))).toMatchObject({ ok: true });
     }
-    for (const latest of [{ ...approval, plan: { id: 'plan-1' } }, { ...approval, plan: 'plan-1' }, { ...approval, kind: 'approval_granted' }]) {
+    for (const latest of [{ ...approval, plan: { id: 'plan-1' } }, { ...approval, plan: 'plan-1' }]) {
       expect(await readActivitySummary('https://colp.example', 'owner-1', async () => json({ ...summary, latest }))).toEqual({ ok: false, problem: 'invalid' });
     }
+  });
+
+  it('keeps the unread count when a newer server reports a kind this build does not know', async () => {
+    const newer = { ...summary, unreadCount: 4, latest: { ...item, kind: 'approval_granted' } };
+    expect(await readActivitySummary('https://colp.example', 'owner-1', async () => json(newer)))
+      .toEqual({ ok: true, summary: { ...newer, latest: null } });
+    // Only the kind is forgiven: a malformed count or revision still fails.
+    expect(await readActivitySummary('https://colp.example', 'owner-1', async () => json({ ...newer, unreadCount: -1 })))
+      .toEqual({ ok: false, problem: 'invalid' });
   });
 
   it('maps unavailable, authentication, rate and connection failures', async () => {
