@@ -373,8 +373,7 @@ export async function installReadmeApi(context: BrowserContext, { signedIn }: { 
     return route.abort('blockedbyclient')
   })
   /* The server's manifest: its identity (folder bindings carry it) and an
-     HTTPS transport, so no plain-HTTP warning toast. The app leaves a 404's
-     body unread, which would hold networkidle open for the whole capture. */
+     HTTPS transport, so no plain-HTTP warning toast. */
   await context.route('**/.well-known/**', (route) => {
     const url = new URL(route.request().url())
     if (url.pathname === '/.well-known/collection-protocol') {
