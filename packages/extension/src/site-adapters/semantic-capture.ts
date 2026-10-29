@@ -1,5 +1,5 @@
 import { siteLedger } from './source-runtime.js';
-import { identityDefinition } from './registry.js';
+import { identityDefinition, sitesLoaded } from './registry.js';
 import type { CaptureScope, CaptureTask } from '../capture/contracts.js';
 import type { ContentIdentity, NativeBinding } from './contracts.js';
 import type { ManagedDestination, SemanticClaimResult } from './managed-client.js';
@@ -16,7 +16,7 @@ import { cachedSingleCopy } from './shared-catalog-runtime.js';
 export async function prepareSemanticCapture(input: { commandId: string; captureIntentId: string; parentId: string; title: string; url: string }, content: ContentIdentity, scope: CaptureScope, library: import('./copy-identity.js').ManagedLibrary | null = null) {
   const node = (await chrome.bookmarks.get(input.parentId))[0];
   if (!node || node.url || !node.dateAdded) throw new Error('bindingUnavailable');
-  void scope;
+  void scope; await sitesLoaded();
   const authority = await siteLedger.db.read<import('./ledger-types.js').SourceAuthority>('authorities', identityDefinition(content.siteKey, content.identityVersion).adapterId);
   const policy = authority?.enabled && authority.connectionId ? await siteLedger.db.read<import('./layout.js').SourcePolicyRecord>('meta', `policy:${authority.connectionId}`) : undefined;
   const cached = library && policy?.enabled && policy.policy.copies !== 'sourceAndSemantic'

@@ -163,7 +163,7 @@ const STATES = [
 // ---- library pages: Bookmarks, History, Subscriptions, Sync, their dialogs and wizard steps -----------------------------
 const R = 'options.html';
 const importFile = { name: 'bookmarks_9_30_26.html', mimeType: 'text/html', buffer: Buffer.from('<DL><DT><A HREF="https://a.example">A</A></DL>') };
-const packageFile = { name: 'bili-hints.json', mimeType: 'application/json', buffer: Buffer.from('{"manifest":{}}') };
+const packageFile = { name: 'shelf.json', mimeType: 'application/json', buffer: Buffer.from('{"manifest":{}}') };
 const wait = (ms) => (page) => page.waitForTimeout(ms);
 const program = async (page) => { await page.click('.mgr-folder:has-text("Programming")'); await page.waitForTimeout(350); };
 const hoverRow = async (page) => { await page.hover('.mgr-row >> nth=0'); };

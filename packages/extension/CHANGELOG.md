@@ -7,6 +7,11 @@ All notable changes to the Know-N browser extension are documented here. The for
 ### Added
 
 - Options › Automations › Activity shows an agent's change plan waiting for your approval as "Claude wants your approval", with the plan's summary beneath; the row opens the web inbox like the other activity rows. Requires a server that sends `approval_requested` activity; older servers are read as before.
+- Add-on packages are full site adapters for any HTTPS site. An installed package's site joins the Sites list in Settings › Site adapters and is turned on, connected, mapped to a folder, saved live and imported like a built-in site. Its code runs in its own user-script world, and an update runs in a new one. `scripts/pack-site-adapter.mjs` builds a package from a folder; see `docs/site-adapters/community-packages.md`.
+
+### Removed
+
+- The hint-only package format, which could only pass hints to the built-in Bilibili reader and otherwise ran in inspector mode. Such packages stay listed but no longer run; install an updated package to use the site.
 
 ### Fixed
 

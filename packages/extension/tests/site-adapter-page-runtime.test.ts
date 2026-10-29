@@ -164,3 +164,17 @@ test.each(['same', 'account', 'generation'] as const)('unacknowledged hints surv
     expect(ports[2]!.sent.some(m => m.operation === 'membership.hint')).toBe(false);
   }
 });
+test('an installed package presents its installation credential at activation and bootstrap, and leaves bundled runtimes alone', async () => {
+  vi.useFakeTimers(); vi.setSystemTime(1000); vi.stubGlobal('location', { href: post.url });
+  const stops: string[] = []; const stop = (e: Event) => stops.push(e.type); window.addEventListener('known-site-adapter-stop', stop);
+  const sendMessage = vi.fn(async (m: { kind: string }) => m.kind.endsWith('.activation')
+    ? { status: 'ready', activationId: 'activation', deadlineAt: Date.now() + 10000 }
+    : { status: 'ready', leaseId: 'lease', capability: 'secret', routeEpoch: 0, expiresAt: Date.now() + 60000, readerEpoch: 'epoch' });
+  vi.stubGlobal('chrome', { runtime: { sendMessage, connect: () => ({ onMessage: { addListener: () => {} }, onDisconnect: { addListener: () => {} }, disconnect: () => {}, postMessage: () => {} }) } });
+  startAdapterRuntime({ ...postsDefinition, runtime: 'userScript' }, () => createPostsAdapter(), { credential: 'installation-credential' });
+  await vi.advanceTimersByTimeAsync(0); window.removeEventListener('known-site-adapter-stop', stop);
+  expect(stops).toEqual([]);
+  expect(sendMessage.mock.calls[0]![0]).toEqual({ kind: 'known.siteAdapters.activation', adapterId: postsDefinition.adapterId, installationCredential: 'installation-credential' });
+  expect(sendMessage.mock.calls[1]![0]).toMatchObject({ kind: 'known.siteAdapters.bootstrap',
+    request: { runtime: 'userScript', installationCredential: 'installation-credential', activationId: 'activation', adapterId: postsDefinition.adapterId } });
+});

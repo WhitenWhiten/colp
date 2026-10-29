@@ -344,13 +344,15 @@ export function installStub(messages) {
     activity: { problem: siteEvents().find(e => e.kind === 'problem') ?? null, lastEvent: siteEvents()[0] ?? null },
     adapterId: 'bundled.bilibili', confirmations: { pending: 0 },
     inspection: siteOn ? { command: { deadlineAt: now - 1, pageRequestId: 'p1', query: { cursor: null } }, result: { status: 'ok', kind: 'collections', page: { items: siteCollections, nextCursor: null } } } : null };
+  const packageManifest = (adapterId, label, host, version) => ({ apiVersion: 'known.site-adapter/v1', adapterId, version, label, siteKey: adapterId.slice(10), identityVersion: 1,
+    matches: [`https://${host}/*`], execution: { mode: 'userScript', entry: 'adapter.js', runAt: 'document_start' }, capabilities: ['observeFavorites', 'enumerateItems'] });
   const sitePackages = () => has('site-packages') ? [
-    { id: 'i-1', generation: 2, enabled: true, digest: 'sha256:9f2c41d07a6be3e8', manifest: { apiVersion: 'known.site-adapter/v1', adapterId: 'community.bili-hints', version: '1.2.0', siteKey: 'bilibili', identityVersion: 1 }, previous: [{ digest: 'sha256:51aa', version: '1.1.0' }], archive: { rootNativeId: 'f-research' }, documents: 1, lastReport: null, error: null },
-    { id: 'i-2', generation: 1, enabled: false, digest: 'sha256:0d7e88b2c1f4a9e6', manifest: { apiVersion: 'known.site-adapter/v1', adapterId: 'community.watch-later', version: '0.3.1', siteKey: 'bilibili', identityVersion: 1 }, previous: [], archive: null, documents: 0, lastReport: null, error: null }] : [];
+    { id: 'i-1', generation: 2, digest: 'sha256:9f2c41d07a6be3e8', manifest: packageManifest('community.shelf', 'Shelf', 'shelf.example', '1.2.0'), previous: [{ digest: 'sha256:51aa', version: '1.1.0' }], error: null },
+    { id: 'i-2', generation: 1, digest: 'sha256:0d7e88b2c1f4a9e6', manifest: packageManifest('community.reading-room', 'Reading Room', 'reading.example', '0.3.1'), previous: [], error: null }] : [];
   const sites = (msg) => {
     const kind = msg.kind;
     if (kind === 'known.community.status') return { ok: true, available: has('site-packages'), unavailable: has('site-packages') ? null : 'userScriptsUnavailable', supportedMinimum: 149, installations: sitePackages() };
-    if (kind === 'known.community.preview') return { ok: true, preview: { digest: 'sha256:9f2c41d07a6be3e8', bytes: 2311, manifest: { apiVersion: 'known.site-adapter/v1', adapterId: 'community.bili-hints', version: '1.2.0' }, previous: null, publisherTrust: 'unverified' } };
+    if (kind === 'known.community.preview') return { ok: true, preview: { digest: 'sha256:9f2c41d07a6be3e8', bytes: 2311, manifest: packageManifest('community.shelf', 'Shelf', 'shelf.example', '1.2.0'), previous: null, publisherTrust: 'unverified' } };
     if (kind.startsWith('known.community.')) return { ok: true };
     if (kind === 'known.siteAdapters.activity.list') return { events: siteEvents() };
     if (kind === 'known.siteAdapters.activity.report') return { report: { format: 'known.site-adapter-report/v1', adapter: { adapterId: 'bundled.bilibili', version: '1.0.0', siteKey: 'bilibili' }, incident: siteEvents()[0] ?? null, history: siteEvents() } };

@@ -2,10 +2,12 @@ import { cursorPage } from '../sync-state/idb.js';
 import type { ContentIdentity } from './contracts.js';
 import type { SourceConnection } from './ledger-types.js';
 import { sourceKey, sourcePrefixRange, type SourceDatabase } from './source-db.js';
+import { sitesLoaded } from './registry.js';
 export const contentBindingKey = (content: ContentIdentity, id: string) => sourceKey(content.siteKey, content.identityVersion, content.itemId, id);
 export const sameContentIdentity = (a: ContentIdentity, b: ContentIdentity) => a.siteKey === b.siteKey && a.identityVersion === b.identityVersion
   && a.itemId === b.itemId && (a.accountId ?? null) === (b.accountId ?? null);
 export async function readSourceConnection(db: SourceDatabase, connectionId: string): Promise<SourceConnection> {
+  await sitesLoaded(); // Callers look the connection's site up next; an installed package's site exists once the worker has read it.
   const value = await db.transaction(['connections'], 'readonly', tx => new Promise<SourceConnection | undefined>((resolve, reject) => {
     const r = tx.objectStore('connections').index('id').get(connectionId); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error);
   }));

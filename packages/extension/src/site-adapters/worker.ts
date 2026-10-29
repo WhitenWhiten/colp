@@ -29,7 +29,7 @@ import type { AdapterMessage, HostCommand } from './contracts.js';
 import { validMembershipResult, validBootstrap } from './schemas.js';
 import { createReadScheduler } from './read-scheduler.js';
 import { readLimits } from './read-policy.js';
-import { bundledSites, legacySite, type SiteDefinition } from './registry.js';
+import { bundledSites, legacySite, loadingSites, setCommunitySites, type SiteDefinition } from './registry.js';
 import { installationKey } from './installation.js';
 import { createSourceLedger } from './ledger.js';
 import { initialTransportState, createSiteTransport, SITE_PORT as BASE_PORT, SITE_STATE_KEY as BASE_STATE_KEY, type SiteSender, type TransportState, validSiteSender } from './transport.js';
@@ -38,11 +38,99 @@ import { validAdapterMessage } from './schemas.js';
 import { adapterBrowserSupport } from './browser-support.js';
 import { handleRepairRequest, validRepairRequest } from './repair-runtime.js';
 import { assertSourceRebound } from './portable.js';
-import { createCommunityRuntime, validCommunityManagement } from './community-runtime.js';
-import { assertCommunityArchive } from './community-authority.js';
+import { createCommunityRuntime, validCommunityManagement, communityWorld } from './community-runtime.js';
+import { installedSites } from './community-package.js';
+import { communityApiAvailable } from './community-authority.js';
+import { communityStore, type CommunityInstallation } from './community-state.js';
+import { siteGrants } from './community-definition.js';
 import { createSiteActivity, currentSiteProblem, activityCode, siteOperation, sourceActivityCounts } from './activity.js';
 import { installSiteActivity } from './activity-runtime.js';
-function createSiteHost(definition: SiteDefinition) {
+import { createLane } from '../automation/lane.js';
+type Channel = 'runtime' | 'userScript';
+type NavigationDetails = chrome.webNavigation.CommitDetails;
+/** Where a host hears the browser. Bundled hosts listen directly; installed packages' hosts come and go, so a hub feeds them. */
+interface HostEvents {
+  message(listener: (raw: unknown, sender: chrome.runtime.MessageSender, respond: (value: unknown) => void, channel: Channel) => boolean): void;
+  connect(listener: (port: chrome.runtime.Port) => void): void;
+  navigation(listener: (details: NavigationDetails) => void): void;
+  storage(listener: (changes: Record<string, { oldValue?: unknown; newValue?: unknown }>, area: string) => void): void;
+  permissionsAdded(listener: () => void): void;
+  permissionsRemoved(listener: (removed: { permissions?: string[]; origins?: string[] }) => void): void;
+  tabRemoved(listener: (tabId: number) => void): void;
+  alarm(listener: (alarm: chrome.alarms.Alarm) => void): void;
+  startup(listener: () => void): void;
+  installed(listener: () => void): void;
+}
+/** How a site's page code is registered, attached and retired. Everything after bootstrap is the same host. */
+interface SiteDriver {
+  events: HostEvents;
+  /** The channel this site's page code uses for activation, bootstrap and its port. */
+  page: Channel;
+  /** Browser state outside permissions that the runtime needs, such as Allow User Scripts. */
+  available(): Promise<boolean>;
+  /** Whether a user-script page holds this installation's current credential. */
+  credential(value: unknown): Promise<boolean>;
+  register(enabled: boolean): Promise<void>;
+  /** `documentId`, when known, is the document whose URL the host checked. */
+  inject(tabId: number, withProbe: boolean, documentId?: string): Promise<void>;
+  stop(tabId: number): Promise<void>;
+  unregister(): Promise<void>;
+}
+const chromeEvents: HostEvents = {
+  message: listener => chrome.runtime.onMessage.addListener((raw, sender, respond) => listener(raw, sender, respond, 'runtime')),
+  connect: listener => chrome.runtime.onConnect.addListener(listener),
+  navigation: listener => {
+    // webNavigation is optional: listen once it is granted.
+    let installed = false;
+    const install = () => {
+      if (installed || !chrome.webNavigation?.onCommitted) return;
+      chrome.webNavigation.onCommitted.addListener(listener); chrome.webNavigation.onHistoryStateUpdated.addListener(listener); chrome.webNavigation.onReferenceFragmentUpdated.addListener(listener);
+      installed = true;
+    };
+    install(); chrome.permissions.onAdded.addListener(install);
+  },
+  storage: listener => chrome.storage.onChanged.addListener(listener),
+  permissionsAdded: listener => chrome.permissions.onAdded.addListener(listener),
+  permissionsRemoved: listener => chrome.permissions.onRemoved.addListener(listener),
+  tabRemoved: listener => chrome.tabs.onRemoved.addListener(listener),
+  alarm: listener => chrome.alarms.onAlarm.addListener(listener),
+  startup: listener => chrome.runtime.onStartup.addListener(listener),
+  installed: listener => chrome.runtime.onInstalled.addListener(listener),
+};
+function bundledDriver(definition: SiteDefinition): SiteDriver {
+  return { events: chromeEvents, page: 'runtime', available: async () => true, credential: async () => false,
+    register: enabled => reconcileBundledScripts(definition, enabled),
+    async inject(tabId, withProbe) {
+      if (withProbe && definition.scripts.probe) await chrome.scripting.executeScript({ target: { tabId }, world: 'MAIN', files: [definition.scripts.probe] }).catch(() => undefined);
+      await chrome.scripting.executeScript({ target: { tabId }, world: 'ISOLATED', files: [definition.scripts.adapter] }).catch(() => undefined);
+    },
+    async stop(tabId) {
+      await chrome.scripting.executeScript({ target: { tabId }, world: 'MAIN', func: () => { window.dispatchEvent(new Event('known-site-probe-stop')); } }).catch(() => undefined);
+      await chrome.scripting.executeScript({ target: { tabId }, world: 'ISOLATED',
+        func: (id: string) => { window.dispatchEvent(new Event(`known-site-adapter-stop:${id}`)); }, args: [definition.adapterId] }).catch(() => undefined);
+    },
+    unregister: () => reconcileBundledScripts(definition, false) };
+}
+function communityDriver(row: CommunityInstallation, definition: SiteDefinition, events: HostEvents): SiteDriver {
+  return { events, page: 'userScript',
+    available: () => communityApiAvailable().then(() => true, () => false),
+    credential: async value => { const current = (await communityStore.read()).find(r => r.id === row.id); return !!current && current.generation === row.generation && current.credential === value; },
+    register: async enabled => { if (enabled) await communityWorld.register(row); else await communityWorld.unregister(row); },
+    async inject(tabId, _probe, documentId) {
+      const frame = await chrome.webNavigation.getFrame({ tabId, frameId: 0 }).catch(() => null);
+      if (!frame || frame.documentLifecycle !== 'active' || documentId && frame.documentId !== documentId || !matchesSiteUrl(definition, frame.url)) return;
+      await communityWorld.inject(row, tabId, frame.documentId).catch(() => undefined);
+    },
+    stop: async tabId => { await communityWorld.stop(row, tabId).catch(() => undefined); },
+    unregister: () => communityWorld.unregister(row) };
+}
+/** Settings and the popup; page code never reaches management. */
+function managementPage(sender: chrome.runtime.MessageSender) {
+  if (sender.id !== chrome.runtime.id || !sender.url) return false;
+  try { const u = new URL(sender.url); return u.protocol === 'chrome-extension:' && u.hostname === chrome.runtime.id
+    && ['/site-adapters.html', '/options.html'].includes(u.pathname); } catch { return false; }
+}
+function createSiteHost(definition: SiteDefinition, driver: SiteDriver = bundledDriver(definition)) {
   const semanticRetry = object({ kind: literal('known.siteAdapters.semantic.retry'), jobId: str(128), reclassify: v => v === undefined || literal(true, false)(v) });
   const LIMITS = readLimits(definition);
   const siteLedger = createSourceLedger(sharedLedger.db, {}, definition);
@@ -67,7 +155,7 @@ function createSiteHost(definition: SiteDefinition) {
     const operation = siteOperation((raw as { kind: string }).kind);
     await activity.resolve(`management:${operation}`, operation).catch(() => undefined); return result;
   }
-  const grants = { permissions: ['scripting', 'webNavigation'], origins: [...definition.matches] };
+  const grants = siteGrants(definition);
   let storageReady: Promise<void> | undefined;
   function trustedStorage(): Promise<void> {
     return storageReady ??= (async () => {
@@ -81,7 +169,7 @@ function createSiteHost(definition: SiteDefinition) {
     if (raw && (raw as { version?: number }).version !== 1) throw new Error('schemaIncompatible');
     return (raw as TransportState | undefined) ?? initialTransportState(); };
   const siteTransport = createSiteTransport({ extensionId: chrome.runtime.id, now: Date.now, random: () => crypto.randomUUID(), read,
-    write: s => chrome.storage.local.set({ [SITE_STATE_KEY]: s }), permitted: async () => browserSupport().supported && await chrome.permissions.contains(grants),
+    write: s => chrome.storage.local.set({ [SITE_STATE_KEY]: s }), permitted: async () => browserSupport().supported && await chrome.permissions.contains(grants) && await driver.available(),
     current: async s => {
       if (s.tab?.id === undefined) return null;
       const frame = await chrome.webNavigation.getFrame({ tabId: s.tab.id, frameId: 0 }).catch(() => null);
@@ -110,7 +198,7 @@ function createSiteHost(definition: SiteDefinition) {
   }
   interface Inspection { command: Exclude<HostCommand, { operation: 'cancelRead' | 'invalidateLease' | 'shutdown' | 'renewLease' }>; documentId: string; result?: unknown }
   async function senderCurrent(sender: SiteSender): Promise<boolean> {
-    if (!browserSupport().supported || !validSiteSender(sender, chrome.runtime.id, definition) || !await chrome.permissions.contains(grants) || !(await read()).enabled) return false;
+    if (!browserSupport().supported || !validSiteSender(sender, chrome.runtime.id, definition) || !await chrome.permissions.contains(grants) || !await driver.available() || !(await read()).enabled) return false;
     const frame = await chrome.webNavigation.getFrame({ tabId: sender.tab.id, frameId: 0 });
     return !!frame && frame.documentId === sender.documentId && matchesSiteUrl(definition, frame.url) && frame.documentLifecycle === 'active';
   }
@@ -169,9 +257,11 @@ function createSiteHost(definition: SiteDefinition) {
     return true;
   }
   const ports = new Map<string, chrome.runtime.Port>();
-  let workTimer: ReturnType<typeof setTimeout> | undefined, workAt = Infinity;
+  let workTimer: ReturnType<typeof setTimeout> | undefined, workAt = Infinity, disposed = false;
+  // Registration and disposal take turns, so a reconcile already running cannot re-register a retired package's world.
+  const registration = createLane();
   function scheduleSourceWork(at: number) {
-    if (workTimer && at >= workAt) return;
+    if (disposed || workTimer && at >= workAt) return;
     workAt = at; clearTimeout(workTimer);
     scheduleSourceAlarm(at, recoveryAlarm);
     workTimer = setTimeout(() => { workAt = Infinity; workTimer = undefined; void wakeSourceWork().catch(() => undefined); }, Math.max(50, at - Date.now()));
@@ -213,8 +303,7 @@ function createSiteHost(definition: SiteDefinition) {
     }
     return null;
   }
-  const confirmations = createConfirmationQueue(siteLedger, reads, { activity, source: origin => readableSiteSource(undefined, origin), send: sendSiteCommand, alarm: scheduleSourceWork,
-    authorizeOrigin: async (context, collectionIds) => { if (context.communityOrigin) await assertCommunityArchive(context.communityOrigin, { connectionId: context.connectionId, collectionIds }); } });
+  const confirmations = createConfirmationQueue(siteLedger, reads, { activity, source: origin => readableSiteSource(undefined, origin), send: sendSiteCommand, alarm: scheduleSourceWork });
   // Import cursors belong to one document, even when individual account reads allow another tab.
   const archives = createSourceArchiveRuntime(reads, { activity, source: managementSource, readSource: origin => readableSiteSource(undefined, origin, 'document'), send: sendSiteCommand, alarm: scheduleSourceWork,
     reconciliation: { valid: validReconcileRequest, handle: handleReconcileRequest, status: reconciliationRuns.status, view: reconciliationRuns.view, cancel: reconciliationRuns.cancel },
@@ -263,26 +352,24 @@ function createSiteHost(definition: SiteDefinition) {
     })().finally(() => { working = undefined; if (workWanted) { workWanted = false; scheduleSourceWork(Date.now() + 50); } });
   }
   function disconnectAll() { for (const [id, p] of ports) { try { p.postMessage({ operation: 'shutdown', leaseId: id }); p.disconnect(); } catch { /* gone */ } } ports.clear(); }
-  function management(sender: SiteSender) {
-    if (sender.id !== chrome.runtime.id || !sender.url) return false;
-    try { const u = new URL(sender.url); return u.protocol === 'chrome-extension:' && u.hostname === chrome.runtime.id
-      && ['/site-adapters.html', '/options.html'].includes(u.pathname); } catch { return false; }
-  }
+  const management = managementPage;
   async function injectOpen() {
     for (const tab of await chrome.tabs.query({ url: [...definition.matches] })) {
-      if (tab.id === undefined || tab.incognito) continue;
-      if (definition.scripts.probe) await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'MAIN', files: [definition.scripts.probe!] }).catch(() => undefined);
-      await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'ISOLATED', files: [definition.scripts.adapter] }).catch(() => undefined);
+      if (tab.id !== undefined && !tab.incognito) await driver.inject(tab.id, true);
     }
   }
-  async function reconcile() {
+  async function stopOpen() {
+    for (const tab of await chrome.tabs.query({ url: [...definition.matches] })) if (tab.id !== undefined && !tab.incognito) await driver.stop(tab.id);
+  }
+  function reconcile() { return registration(async () => {
+    if (disposed) return;
     const openTabs = (await chrome.tabs.query({})).flatMap(tab => tab.id === undefined ? [] : [tab.id]);
     for (const id of await siteTransport.pruneTabs(openTabs)) await siteLedger.revokeDocuments(id);
-    let s = await read(); const granted = browserSupport().supported && await chrome.permissions.contains(grants);
+    let s = await read(); const granted = browserSupport().supported && await chrome.permissions.contains(grants) && await driver.available();
     if (s.enabled && !granted) { await siteTransport.invalidate(); s = await read(); }
     await synchronizeSourceAuthority(s, siteLedger);
-    await reconcileBundledScripts(definition, s.enabled && granted);
-  }
+    await driver.register(s.enabled && granted);
+  }); }
   const statusSchema = object({ kind: literal('known.siteAdapters.status'), reconcileOffset: v => v === undefined || Number.isSafeInteger(v) && Number(v) >= 0 && Number(v) <= 200000 && Number(v) % 100 === 0 });
   const enableSchema = object({ kind: literal('known.siteAdapters.enable'), enabled: literal(true, false) });
   const inspectSchema = object({ kind: literal('known.siteAdapters.inspect'), operation: literal('collections', 'items', 'resolve'), collectionId: v => v === undefined || definition.validateCollection(v), cursor: v => v === undefined || v === null || str(512)(v) });
@@ -315,30 +402,37 @@ function createSiteHost(definition: SiteDefinition) {
   }
   function installHandlers() {
     // Registered synchronously; initialization is awaited inside each handler.
-    chrome.runtime.onMessage.addListener((raw, sender, respond) => {
+    driver.events.message((raw, sender, respond, channel) => {
       const addressed = raw as { adapterId?: string; request?: { adapterId?: string } } | null;
       const target = addressed?.request?.adapterId ?? addressed?.adapterId ?? legacySite.adapterId;
       if (target !== definition.adapterId) return false;
       if (addressed?.adapterId) { const { adapterId: _adapter, ...body } = raw as Record<string, unknown>; raw = body; }
       const d = raw as { kind?: string; request?: unknown; enabled?: boolean; accountId?: string } | null;
       if (d?.kind === 'known.siteAdapters.activation') {
-        if (!object({ kind: literal('known.siteAdapters.activation'), adapterId: v => v === undefined || v === definition.adapterId })(raw)) return false;
+        if (channel !== driver.page || !object({ kind: literal('known.siteAdapters.activation'), adapterId: v => v === undefined || v === definition.adapterId,
+          installationCredential: v => v === undefined || str(256)(v) })(raw)) return false;
         void (async () => {
           await trustedStorage(); if (!await senderCurrent(sender)) return { status: 'unavailable', retryAfterMs: 500 };
+          if (driver.page === 'userScript' && !await driver.credential((raw as { installationCredential?: string }).installationCredential)) return { status: 'unavailable' };
           const id = crypto.randomUUID();
           const slot = await activation.acquire({ id, documentId: sender.documentId!, deadlineAt: Date.now() + LIMITS.activationMs }, true);
           return slot.status === 'ready' ? { status: 'ready', activationId: slot.id, deadlineAt: slot.deadlineAt } : slot;
         })().then(respond, () => respond({ status: 'unavailable' })); return true;
       }
       if (d?.kind === 'known.siteAdapters.bootstrap') {
-        if (!object({ kind: literal('known.siteAdapters.bootstrap'), request: () => true })(raw)) return false;
+        if (channel !== driver.page || !object({ kind: literal('known.siteAdapters.bootstrap'), request: () => true })(raw)) return false;
         void (async () => {
-          if (!validBootstrap(d.request) || d.request.runtime !== 'bundled') return { status: 'unavailable', reason: 'version' };
+          if (!validBootstrap(d.request) || d.request.runtime !== (definition.runtime ?? 'bundled')) return { status: 'unavailable', reason: 'version' };
+          if (d.request.runtime === 'userScript' && !await driver.credential(d.request.installationCredential)) return { status: 'unavailable', reason: 'disabled' };
           const slot = (await activation.current()).active;
           if (!slot || slot.id !== d.request.activationId || slot.documentId !== sender.documentId || slot.deadlineAt <= Date.now() || !await senderCurrent(sender))
             return { status: 'unavailable', reason: 'disabled' };
           await activation.finish(slot.id);
           const reply = await siteTransport.bootstrap(d.request, sender);
+          // An update can replace the credential while this request was in flight; its lease must not outlive the check.
+          if (reply.status === 'ready' && d.request.runtime === 'userScript' && (disposed || !await driver.credential(d.request.installationCredential))) {
+            await siteTransport.retire(reply.leaseId); return { status: 'unavailable', reason: 'disabled' };
+          }
           await synchronizeSourceAuthority(await read(), siteLedger);
           if (reply.status === 'ready') {
             const s = await read(), lease = s.leases.find(l => l.id === reply.leaseId);
@@ -348,19 +442,19 @@ function createSiteHost(definition: SiteDefinition) {
           return reply;
         })().then(respond, () => respond({ status: 'unavailable', reason: 'disabled' })); return true;
       }
+      // Page code speaks only activation and bootstrap here; everything else comes from extension pages.
+      if (channel !== 'runtime') return false;
       if (validContentRequest(raw) || validDestinationRequest(raw)) {
         const path = sender.url && new URL(sender.url).pathname;
         if (sender.id !== chrome.runtime.id || !sender.url?.startsWith(`chrome-extension://${chrome.runtime.id}/`) || !['/popup.html', '/site-adapters.html'].includes(path || '')) return false;
         void (validDestinationRequest(raw) ? handleDestinationRequest(raw) : handleContentRequest(raw, definition)).then(respond, e => respond({ ok: false, error: e instanceof Error ? e.message : 'unavailable' })); return true;
       }
-      if (management(sender) && validCloudManagement(raw)) {
+      // The legacy cloud archive needs a server-side identity codec, which installed packages do not have.
+      if (management(sender) && definition.runtime !== 'userScript' && validCloudManagement(raw)) {
         void handleCloudManagement(raw).then(result => settledManagement(raw, result)).then(respond, async e => respond({ ok: false, ...await failed(raw, e) })); return true;
       }
       if (management(sender) && validRepairRequest(raw)) {
         void handleRepairRequest(raw, definition).then(result => settledManagement(raw, result)).then(respond, async e => respond({ ok: false, ...await failed(raw, e) })); return true;
-      }
-      if (management(sender) && validCommunityManagement(raw)) {
-        void community.management(raw).then(result => settledManagement(raw, result)).then(respond, async e => respond({ ok: false, ...await failed(raw, e) })); return true;
       }
       if (management(sender) && activityRequest(raw)) {
         void (async () => { await trustedStorage(); const r = raw as { kind: string; id?: string };
@@ -383,13 +477,9 @@ function createSiteHost(definition: SiteDefinition) {
         if (!browserSupport().supported && !statusSchema(raw) && !(enableSchema(raw) && !d!.enabled)) throw new Error('browserUnsupported');
         if (enableSchema(raw)) {
           if (d!.enabled && !await chrome.permissions.contains(grants)) throw new Error('permissionRequired');
+          if (d!.enabled && !await driver.available()) throw new Error('communityToggleRequired');
           await siteTransport.configure(d!.enabled!); await synchronizeSourceAuthority(await read(), siteLedger); disconnectAll();
-          if (!d!.enabled && await chrome.permissions.contains(grants)) for (const tab of await chrome.tabs.query({ url: [...definition.matches] })) {
-            if (tab.id !== undefined && !tab.incognito) await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'MAIN',
-              func: () => { window.dispatchEvent(new Event('known-site-probe-stop')); } }).catch(() => undefined);
-            if (tab.id !== undefined && !tab.incognito) await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'ISOLATED',
-              func: (id: string) => { window.dispatchEvent(new Event(`known-site-adapter-stop:${id}`)); }, args: [definition.adapterId] }).catch(() => undefined);
-          }
+          if (!d!.enabled && await chrome.permissions.contains(grants)) await stopOpen();
           await reconcile(); if (d!.enabled) await injectOpen();
         }
         if (confirmSchema(raw)) { await siteTransport.confirm(d!.accountId!); await synchronizeSourceAuthority(await read(), siteLedger); disconnectAll(); await injectOpen(); }
@@ -426,13 +516,14 @@ function createSiteHost(definition: SiteDefinition) {
         if (statusSchema(raw)) await activity.resolve('management:status', 'status').catch(() => undefined);
         const events = await activity.list().catch(() => []);
         const problem = currentSiteProblem(events, { connectionId: archiveState.config?.connectionId, taskId: archiveState.import?.id, phase: archiveState.import?.phase });
-        return { ...siteStatus, browser: browserSupport(), grants: { site: await chrome.permissions.contains(grants), bookmarks: await chrome.permissions.contains({ permissions: ['bookmarks'] }) },
+        return { ...siteStatus, browser: browserSupport(), grants: { site: await chrome.permissions.contains(grants), bookmarks: await chrome.permissions.contains({ permissions: ['bookmarks'] }),
+          ...(definition.runtime === 'userScript' ? { userScripts: await driver.available() } : {}) },
           mode: writes ? 'localArchive' : 'inspector', writes, archiveHold, pipeline: await localSourceProgress(siteLedger.db, archiveState.config?.connectionId), activity: { problem, lastEvent: events[0] ?? null }, archive: archiveState, catalog: await catalogStatus(), ...(archiveResult ? { archiveResult } : {}), adapterId: definition.adapterId, features: siteFeatures(definition), capabilities: { itemIdentity: `${definition.siteKey}:${definition.identityVersion}`, observation: siteFeatures(definition).observe ? 'sourceObservations' : 'unavailable', humanActionProof: 'unavailable',
           negativeMembership: definition.negativeReadback ? 'available' : 'unavailable', reconciliation: reconciliationCapability(definition), collectionHierarchy: 'flat', shortLinks: 'unavailable', collectionChanges: siteFeatures(definition).collections ? 'explicitCatalogRead' : siteFeatures(definition).observe ? 'observedCatalog' : 'unavailable', nativeWrites: archiveState.config?.state === 'active' ? 'previewApprovalOrEnabledLivePolicy' : 'unavailable' },
         confirmations: await confirmations.status(), ...(inspectionStatus ? { inspectionStatus } : {}), inspection: (await chrome.storage.local.get(INSPECTION))[INSPECTION] ?? null };
       })().then(respond, async e => respond(await failed(raw, e))); return true;
     });
-    chrome.runtime.onConnect.addListener(port => {
+    driver.events.connect(port => {
       if (port.name !== SITE_PORT || !port.sender) return;
       let leaseId: string | null = null, closed = false, pending = 0, tail = Promise.resolve();
       const close = () => { closed = true; if (leaseId && ports.get(leaseId) === port) { ports.delete(leaseId); void siteTransport.retire(leaseId).catch(() => undefined); void siteLedger.revokeLease(leaseId).catch(() => undefined); } };
@@ -475,63 +566,169 @@ function createSiteHost(definition: SiteDefinition) {
         }).catch(() => { port.disconnect(); close(); }).finally(() => { pending--; });
       });
     });
-    const navigated = (d: chrome.webNavigation.CommitDetails) => {
+    const navigated = (d: NavigationDetails) => {
       if (d.frameId !== 0) return;
-      if (definition.adapterId === legacySite.adapterId) void community.navigated(d.tabId).catch(() => undefined);
       void siteTransport.navigate(d.tabId, d.url, d.documentId).then(async relevant => {
         if (!relevant) return;
         await siteLedger.revokeDocuments(d.tabId);
         for (const [id, p] of ports) if (p.sender?.tab?.id === d.tabId) {
           p.disconnect(); ports.delete(id);
         }
-        if ((await read()).enabled && await chrome.permissions.contains(grants) && matchesSiteUrl(definition, d.url))
-          await chrome.scripting.executeScript({ target: { tabId: d.tabId }, world: 'ISOLATED', files: [definition.scripts.adapter] }).catch(() => undefined);
+        if ((await read()).enabled && await chrome.permissions.contains(grants) && matchesSiteUrl(definition, d.url)) await driver.inject(d.tabId, false, d.documentId);
       }).catch(() => undefined);
     };
-    let navigationInstalled = false;
-    const installNavigation = () => {
-      if (navigationInstalled || !chrome.webNavigation?.onCommitted) return;
-      chrome.webNavigation.onCommitted.addListener(navigated);
-      chrome.webNavigation.onHistoryStateUpdated.addListener(navigated);
-      chrome.webNavigation.onReferenceFragmentUpdated.addListener(navigated);
-      navigationInstalled = true;
-    };
-    installNavigation();
-    chrome.storage.onChanged.addListener((changes, area) => { if (area === 'local' && changes[AUTOMATION_CHANGED_KEY] || Object.keys(changes).some(key => key.startsWith('known.auth.') || key.startsWith('known.personal-sync.') || key === 'known.sync.collection.v1')) scheduleSourceWork(Date.now() + 50); });
-    chrome.permissions.onAdded.addListener(() => { installNavigation(); void reconcile().catch(() => undefined); });
-    chrome.tabs.onRemoved.addListener(id => { void siteTransport.removeTab(id).then(relevant => relevant ? siteLedger.revokeDocuments(id) : undefined).catch(() => undefined); });
-    chrome.permissions.onRemoved.addListener(removed => {
+    driver.events.navigation(navigated);
+    driver.events.storage((changes, area) => { if (area === 'local' && changes[AUTOMATION_CHANGED_KEY] || Object.keys(changes).some(key => key.startsWith('known.auth.') || key.startsWith('known.personal-sync.') || key === 'known.sync.collection.v1')) scheduleSourceWork(Date.now() + 50); });
+    driver.events.permissionsAdded(() => { void reconcile().catch(() => undefined); });
+    driver.events.tabRemoved(id => { void siteTransport.removeTab(id).then(relevant => relevant ? siteLedger.revokeDocuments(id) : undefined).catch(() => undefined); });
+    driver.events.permissionsRemoved(removed => {
       if (!removed.permissions?.some(p => grants.permissions.includes(p)) && !removed.origins?.some(o => grants.origins.includes(o) || o === '<all_urls>')) return;
       void siteTransport.invalidate().then(async () => { await synchronizeSourceAuthority(await read(), siteLedger); disconnectAll(); await reconcile(); }).catch(() => undefined);
     });
-    chrome.alarms.onAlarm.addListener(alarm => { if (alarm.name === recoveryAlarm) void synchronizeSourceAuthorityFromCurrent().then(async () => { await wakeSourceWork(); }).catch(() => undefined); });
-    chrome.runtime.onStartup.addListener(() => { void reconcile().then(async () => { await wakeSourceWork(); }).catch(() => undefined); });
-    chrome.runtime.onInstalled.addListener(() => {
+    driver.events.alarm(alarm => { if (alarm.name === recoveryAlarm) void synchronizeSourceAuthorityFromCurrent().then(async () => { await wakeSourceWork(); }).catch(() => undefined); });
+    driver.events.startup(() => { void reconcile().then(async () => { await wakeSourceWork(); }).catch(() => undefined); });
+    driver.events.installed(() => {
       void siteTransport.invalidate().then(async () => { disconnectAll(); await reconcile(); await injectOpen(); }).catch(() => undefined);
     });
-    void reconcile().then(async () => { await wakeSourceWork(); }).catch(() => undefined);
+    started = reconcile();
+    void started.then(async () => { await wakeSourceWork(); }).catch(() => undefined);
   }
+  let started: Promise<void> = Promise.resolve();
 
   async function synchronizeSourceAuthorityFromCurrent() { await synchronizeSourceAuthority(await read(), siteLedger); }
+  /** Retires an installed package's host: before new bytes take over its site, or for good once the package is removed. */
+  function dispose(removed: boolean) {
+    disposed = true; clearTimeout(workTimer); workTimer = undefined;
+    return registration(async () => {
+      await chrome.alarms.clear(recoveryAlarm).catch(() => undefined);
+      if (removed) await siteTransport.configure(false); else await siteTransport.invalidate();
+      await synchronizeSourceAuthority(await read(), siteLedger);
+      disconnectAll(); await stopOpen().catch(() => undefined);
+      if (removed) await driver.unregister();
+    });
+  }
 
   return { definition, install: installHandlers, ready: trustedStorage, resolve, source: currentSiteSource,
     enqueue: (c: import('./ledger-types.js').SourceContext, id: string, hint: import('./contracts.js').MembershipHint) => confirmations.enqueue(c, id, hint),
-    wakeAt: scheduleSourceWork, wake: () => scheduleSourceWork(Date.now() + 50) };
+    wakeAt: scheduleSourceWork, wake: () => scheduleSourceWork(Date.now() + 50), dispose,
+    /** Open pages pick up a replaced package once its new world is registered. */
+    attach: () => started.then(async () => { if ((await read()).enabled) await injectOpen(); }) };
 }
-const hosts = bundledSites.map(createSiteHost);
-const community = createCommunityRuntime({ ready: () => hosts[0]!.ready(),
-  source: (tabId, adapterId = legacySite.adapterId) => hosts.find(h => h.definition.adapterId === adapterId)?.source(tabId) ?? Promise.resolve(null),
-  enqueue: (c, id, hint) => { const host = hosts.find(h => h.definition.adapterId === (c.installationId ?? legacySite.adapterId));
-    if (!host) throw new Error('adapterUnavailable'); return host.enqueue(c, id, hint); },
-  wake: () => { for (const host of hosts) host.wake(); },
-});
+/** Installed packages' hosts exist only after the worker reads them; these listeners are there from the first turn and wait for that. */
+function createCommunityEvents(ready: () => Promise<void>) {
+  type Listener = (...args: never[]) => unknown;
+  const names = ['message', 'connect', 'navigation', 'storage', 'permissionsAdded', 'permissionsRemoved', 'tabRemoved', 'alarm', 'startup', 'installed'] as const;
+  const sets = Object.fromEntries(names.map(name => [name, new Set<Listener>()])) as Record<keyof HostEvents, Set<Listener>>;
+  const call = (listener: Listener, ...args: unknown[]) => (listener as (...values: unknown[]) => unknown)(...args);
+  const emit = (name: keyof HostEvents, ...args: unknown[]) => { void ready().then(() => { for (const listener of [...sets[name]]) call(listener, ...args); }); };
+  /** A message for one package's site: the host that takes it answers. */
+  const deliver = (raw: unknown, sender: chrome.runtime.MessageSender, channel: Channel) => ready().then(() => new Promise<unknown>(resolve => {
+    for (const listener of [...sets.message]) if (call(listener, raw, sender, resolve, channel) === true) return;
+    resolve(undefined);
+  }));
+  function scope() {
+    const owned: [Set<Listener>, Listener][] = [];
+    const events = Object.fromEntries(names.map(name => [name, (listener: Listener) => { sets[name].add(listener); owned.push([sets[name], listener]); }])) as unknown as HostEvents;
+    return { events, dispose: () => { for (const [set, listener] of owned) set.delete(listener); } };
+  }
+  function install() {
+    chrome.runtime.onMessage.addListener((raw, sender, respond) => {
+      const addressed = raw as { adapterId?: unknown; request?: { adapterId?: unknown } } | null, target = addressed?.request?.adapterId ?? addressed?.adapterId;
+      if (typeof target !== 'string' || !target.startsWith('community.')) return false;
+      void deliver(raw, sender, 'runtime').then(value => respond(value ?? { error: 'adapterUnavailable' }), () => respond({ error: 'adapterUnavailable' })); return true;
+    });
+    let pending = 0, userScripts = false;
+    // Like webNavigation, user-script events may appear only once `userScripts` is granted.
+    const installUserScripts = () => {
+      if (userScripts || !chrome.runtime.onUserScriptMessage || !chrome.runtime.onUserScriptConnect) return;
+      userScripts = true;
+      chrome.runtime.onUserScriptMessage.addListener((raw, sender, respond) => {
+        if (pending >= 16) { respond({ status: 'unavailable', retryAfterMs: 1000 }); return false; }
+        pending++;
+        void deliver(raw, sender, 'userScript').then(value => respond(value ?? { status: 'unavailable', reason: 'disabled' }), () => respond({ status: 'unavailable', reason: 'disabled' }))
+          .finally(() => { pending--; });
+        return true;
+      });
+      chrome.runtime.onUserScriptConnect.addListener(port => {
+        // A page can be talking before its host is attached; hold its messages until then.
+        const listeners = new Set<(message: unknown, port: chrome.runtime.Port) => void>(), queued: unknown[] = [];
+        let attached = false;
+        const proxy = { name: port.name, sender: port.sender, postMessage: (message: unknown) => port.postMessage(message), disconnect: () => port.disconnect(),
+          onMessage: { addListener: (listener: (message: unknown, port: chrome.runtime.Port) => void) => { listeners.add(listener); } },
+          onDisconnect: { addListener: (listener: (port: chrome.runtime.Port) => void) => { port.onDisconnect.addListener(() => listener(proxy)); } } } as unknown as chrome.runtime.Port;
+        port.onMessage.addListener(message => { if (!attached) queued.push(message); else for (const listener of [...listeners]) listener(message, proxy); });
+        void ready().then(() => {
+          for (const listener of [...sets.connect]) call(listener, proxy);
+          attached = true;
+          if (!listeners.size) { port.disconnect(); return; }
+          for (const message of queued.splice(0)) for (const listener of [...listeners]) listener(message, proxy);
+        });
+      });
+    };
+    installUserScripts();
+    let navigation = false;
+    const navigated = (details: NavigationDetails) => emit('navigation', details);
+    const installNavigation = () => {
+      if (navigation || !chrome.webNavigation?.onCommitted) return;
+      chrome.webNavigation.onCommitted.addListener(navigated); chrome.webNavigation.onHistoryStateUpdated.addListener(navigated); chrome.webNavigation.onReferenceFragmentUpdated.addListener(navigated);
+      navigation = true;
+    };
+    installNavigation();
+    chrome.storage.onChanged.addListener((changes, area) => emit('storage', changes, area));
+    chrome.permissions.onAdded.addListener(() => { installNavigation(); installUserScripts(); emit('permissionsAdded'); });
+    chrome.permissions.onRemoved.addListener(removed => emit('permissionsRemoved', removed));
+    chrome.tabs.onRemoved.addListener(tabId => emit('tabRemoved', tabId));
+    chrome.alarms.onAlarm.addListener(alarm => emit('alarm', alarm));
+    chrome.runtime.onStartup.addListener(() => emit('startup'));
+    chrome.runtime.onInstalled.addListener(() => emit('installed'));
+  }
+  return { scope, install };
+}
+const hosts = bundledSites.map(definition => createSiteHost(definition));
+type SiteHost = ReturnType<typeof createSiteHost>;
+const communityHosts = new Map<string, { host: SiteHost; dispose(): void; row: CommunityInstallation }>(), communityLane = createLane();
+let communityLoaded: Promise<void> = Promise.resolve(), communityStarted: Promise<void> = Promise.resolve();
+const communityEvents = createCommunityEvents(() => communityLoaded);
+/** Brings package hosts in line with what is installed: new bytes get a new host and world, a removed package's site is turned off. */
+function refreshCommunity(): Promise<void> {
+  return communityLoaded = communityLane(async () => {
+    await hosts[0]!.ready();
+    const rows = await community.prepare(), sites = installedSites(rows);
+    setCommunitySites(sites.map(s => s.definition));
+    const replaced = new Set<string>();
+    for (const [adapterId, current] of communityHosts) {
+      const next = sites.find(s => s.definition.adapterId === adapterId)?.row;
+      if (next && next.id === current.row.id && next.generation === current.row.generation && next.approved.digest === current.row.approved.digest) continue;
+      current.dispose(); communityHosts.delete(adapterId); if (next) replaced.add(adapterId);
+      await current.host.dispose(!next).catch(() => undefined);
+    }
+    for (const { row, definition } of sites) {
+      if (communityHosts.has(definition.adapterId)) continue;
+      const scope = communityEvents.scope(), host = createSiteHost(definition, communityDriver(row, definition, scope.events));
+      communityHosts.set(definition.adapterId, { host, dispose: scope.dispose, row }); host.install();
+      if (replaced.has(definition.adapterId)) void host.attach().catch(() => undefined);
+    }
+    void community.prune(rows).catch(() => undefined);
+  });
+}
+const community = createCommunityRuntime({ ready: () => hosts[0]!.ready(), changed: refreshCommunity });
+const siteHosts = () => [...hosts, ...[...communityHosts.values()].map(c => c.host)];
 export function installSiteAdapters() {
-  community.install(); installContentBindings(); installPlannedSaveRuntime(); installSourceLayout();
+  chrome.runtime.onMessage.addListener((raw, sender, respond) => {
+    if (!managementPage(sender) || !validCommunityManagement(raw)) return false;
+    void community.management(raw).then(respond, e => respond({ ok: false, error: e instanceof Error ? e.message : 'unavailable' })); return true;
+  });
+  communityEvents.install(); communityStarted = refreshCommunity().catch(() => undefined); loadingSites(communityStarted);
+  installContentBindings(); installPlannedSaveRuntime(); installSourceLayout();
   installSemanticRuntime();
   installReconciliationRuntime();
   installSourceRecoveryScheduler(at => hosts[0]!.wakeAt(at));
   installContentResolver(async (url, tabId) => {
-    for (const host of hosts) { const id = await host.resolve(url, tabId); if (id) return { siteKey: host.definition.siteKey, identityVersion: host.definition.identityVersion, itemId: id }; }
+    await communityStarted;
+    for (const host of siteHosts()) {
+      if (!host.definition.capabilities.includes('resolveItem')) continue; // Not every site, bundled or installed, can name the item a page shows.
+      const id = await host.resolve(url, tabId); if (id) return { siteKey: host.definition.siteKey, identityVersion: host.definition.identityVersion, itemId: id };
+    }
     return null;
   });
   if (__KNOWN_EXTENSION_EVIDENCE__) installSiteAdapterEvidence();

@@ -24,7 +24,8 @@ export interface SiteDefinition {
   /** v1 layout supports proven roots only. Tree collections need a qualified host layout. */
   collectionHierarchy?: 'flat';
   readPolicy?: Partial<import('./read-policy.js').SiteReadPolicy>;
-  community?: { connectOrigins: readonly string[] };
+  /** Missing means bundled page code. 'userScript' is an installed package in its own USER_SCRIPT world. */
+  runtime?: 'bundled' | 'userScript';
   importResume: 'stableCursor' | 'restartAndDeduplicate';
   scripts: { adapter: string; probe?: string };
   /** Host-authored source entries, relative to src/. Required when this definition ships in the bundled registry. */

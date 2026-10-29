@@ -7,10 +7,12 @@ import { readLimits } from './read-policy.js';
 import type { SiteDefinition } from './registry-types.js';
 import { createPageContext } from './page-context.js';
 import type { AdapterMessage, BootstrapReply, HostCommand, ReadFailure, SourceIdentityClaim, SiteAdapter, SiteAdapterFactory, AdmissionReply, SiteObservation, MembershipHint, CaptureControlRequest } from './contracts.js';
-export function startAdapterRuntime(definition: SiteDefinition, createAdapter: SiteAdapterFactory) {
+/** `userScript` is an installed package in its own USER_SCRIPT world; its credential identifies the installation, not the truth of its reports. */
+export function startAdapterRuntime(definition: SiteDefinition, createAdapter: SiteAdapterFactory, userScript?: { credential: string }) {
   const LIMITS = readLimits(definition);
+  const runtime = userScript ? { runtime: 'userScript' as const, installationCredential: userScript.credential } : { runtime: 'bundled' as const };
   // Retire the pre-registry runtime during an in-place extension upgrade.
-  window.dispatchEvent(new Event('known-site-adapter-stop'));
+  if (!userScript) window.dispatchEvent(new Event('known-site-adapter-stop'));
   const slot = `__knownSiteAdapterV1:${definition.adapterId}`;
   const stopEvent = `known-site-adapter-stop:${definition.adapterId}`, routeEvent = `known-site-route:${definition.adapterId}`;
   const scope = globalThis as typeof globalThis & Record<string, { restart(): void; version?: number } | undefined>;
@@ -31,10 +33,12 @@ export function startAdapterRuntime(definition: SiteDefinition, createAdapter: S
           validateAdapterImplementation(definition, reader);
           const localReader = reader;
           const activationDeadline = Date.now() + LIMITS.activationMs;
-          let activation = await chrome.runtime.sendMessage({ kind: 'known.siteAdapters.activation', adapterId: definition.adapterId }) as { status: string; activationId?: string; deadlineAt?: number; retryAfterMs?: number };
+          const activate = () => chrome.runtime.sendMessage({ kind: 'known.siteAdapters.activation', adapterId: definition.adapterId,
+            ...(userScript ? { installationCredential: userScript.credential } : {}) }) as Promise<{ status: string; activationId?: string; deadlineAt?: number; retryAfterMs?: number }>;
+          let activation = await activate();
           for (let attempt = 0; attempt < 2 && ['paused', 'unavailable'].includes(activation.status) && activation.retryAfterMs && Date.now() + activation.retryAfterMs < activationDeadline; attempt++) {
             await abortableSleep(activation.retryAfterMs, signal);
-            activation = await chrome.runtime.sendMessage({ kind: 'known.siteAdapters.activation', adapterId: definition.adapterId }) as typeof activation;
+            activation = await activate();
           }
           if (epoch !== current) return;
           if (activation.status !== 'ready' || !activation.activationId) {
@@ -46,7 +50,7 @@ export function startAdapterRuntime(definition: SiteDefinition, createAdapter: S
           catch (e) { if (e instanceof SiteReadError && e.failure.code === 'signedOut') source = { state: 'signedOut' }; }
           if (epoch !== current) return;
           const reply = await chrome.runtime.sendMessage({ kind: 'known.siteAdapters.bootstrap', request: {
-            protocolVersion: 1, operation: 'hello', adapterId: definition.adapterId, runtime: 'bundled', activationId: activation.activationId, source } }) as BootstrapReply;
+            protocolVersion: 1, operation: 'hello', adapterId: definition.adapterId, ...runtime, activationId: activation.activationId, source } }) as BootstrapReply;
           if (epoch !== current) return;
           if (reply.status !== 'ready' || source.state !== 'signedIn') {
             if (source.state === 'unknown' && reply.status === 'unavailable' && reply.reason === 'sourceUnresolved') recover(true);

@@ -6,6 +6,8 @@ This guide is written for coding agents and for the people who review their work
 
 All paths are relative to `packages/extension/`.
 
+To add a site without rebuilding the extension, write the same adapter as a package and install it from Settings: see [site adapter packages](community-packages.md). The steps below are for a bundled site.
+
 ## Handing this task to an agent
 
 Fill in the angle brackets and paste:
@@ -415,7 +417,7 @@ Throw `fail(code, retryAfterMs?, { httpStatus, sourceCode })` from `src/site-ada
 
 1. **Timing in unpacked builds is unreliable.** `scheduleSourceWork` (`src/site-adapters/worker.ts`) also sets the recovery alarm for the same moment. Chrome enforces the 30-second alarm minimum only for packed extensions, so in development and e2e builds that alarm can keep source work re-running about every 60 ms. That can hide a missing wake. To prove a latency claim, wait for the worker to go quiet before acting.
 2. The popup's "Save as semantic" button appears only for Bilibili video URLs (`src/capture/manual-existence.ts:45`).
-3. Community packages can run on other HTTPS sites in inspector mode. Archive hints require a compatible built-in reader.
+3. A [package](community-packages.md) cannot ship a MAIN-world probe. A site that never shows a settled state needs a bundled adapter with an audited probe.
 4. The legacy cloud archive protocol needs a server-side identity codec (`packages/server/src/modules/source-archives/site-registry.ts`). Local-first saving and Sync do not.
 
 ## Going further

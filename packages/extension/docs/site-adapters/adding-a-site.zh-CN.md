@@ -8,6 +8,8 @@
 
 下文所有路径都相对于 `packages/extension/`。
 
+如果想在不重新构建扩展的情况下添加网站，可以把同样的适配器写成包，在设置中安装：见[站点适配器包](community-packages.md)。下面的步骤针对内置站点。
+
 ## 把任务交给 agent
 
 填好尖括号后粘贴：
@@ -417,7 +419,7 @@ test('Shelf saves a live favorite natively and previews an import without duplic
 
 1. **未打包构建中的时序不可靠。** `scheduleSourceWork`（`src/site-adapters/worker.ts`）同时会把恢复闹钟设在同一时刻。Chrome 只对打包后的扩展强制 30 秒的闹钟下限，所以在开发和 e2e 构建中，这个闹钟可能让来源任务大约每 60 毫秒重新运行一次，从而掩盖缺失的唤醒。要证明某个延迟结论，先等 worker 安静下来再操作。
 2. 弹窗中的 “Save as semantic” 按钮只对 Bilibili 视频 URL 显示（`src/capture/manual-existence.ts:45`）。
-3. 社区包可以在其他 HTTPS 网站的检查模式下运行；收藏归档提示需要兼容的内置读取器。
+3. [包](community-packages.md)无法附带 MAIN world 探针。从不显示已保存状态的网站需要带有经审计探针的内置适配器。
 4. 旧版云端归档协议需要服务器端的身份编解码（`packages/server/src/modules/source-archives/site-registry.ts`），本地优先保存和同步则不需要。
 
 ## 进一步扩展

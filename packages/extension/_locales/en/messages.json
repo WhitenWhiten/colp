@@ -6656,9 +6656,6 @@
   "sites_allowAccess": {
     "message": "Allow access"
   },
-  "sites_allowHints": {
-    "message": "Allow verified hints for exactly this archive scope"
-  },
   "sites_allowToChoose": {
     "message": "Allow bookmark access to choose a folder."
   },
@@ -6672,7 +6669,7 @@
     "message": "Approve this preview"
   },
   "sites_approveRollback": {
-    "message": "Approve rollback (disabled)"
+    "message": "Approve rollback"
   },
   "sites_archiveHoldShort": {
     "message": "This archive needs review before it saves again. Open Recovery to inspect it."
@@ -6682,12 +6679,6 @@
   },
   "sites_archivePending": {
     "message": "Saved. Waiting for the archive root."
-  },
-  "sites_archiveScoped": {
-    "message": "Archive scoped"
-  },
-  "sites_archiveUnavailable": {
-    "message": "Archive unavailable"
   },
   "sites_askPrimary": {
     "message": "Ask when multiple collections apply"
@@ -6846,10 +6837,10 @@
     "message": "I trust this code/author and accept the page-access risk described above."
   },
   "sites_communityLedeShort": {
-    "message": "Install self-contained site scripts for any HTTPS site. Archive hints require a compatible built-in reader."
+    "message": "Add any HTTPS site yourself: install its adapter package, then turn it on like a built-in site."
   },
   "sites_communityRisk": {
-    "message": "This code can read and alter authorized site pages, make requests using the site session, and expose visible private content. Install only code and authors you trust. You are responsible for this choice. Inspector mode blocks host writes, but does not make unknown page code safe."
+    "message": "This code can read and alter authorized site pages, make requests using the site session, and expose visible private content. Install only code and authors you trust. You are responsible for this choice. Once you turn the site on, what it reports becomes bookmarks in the folder you choose."
   },
   "sites_configureCollection": {
     "message": "Configure this collection"
@@ -6992,14 +6983,8 @@
   "sites_diffUnverified": {
     "message": "Source membership could not be verified"
   },
-  "sites_disablePackage": {
-    "message": "Disable package"
-  },
   "sites_disabledUntilReviewed": {
     "message": "Disabled until reviewed."
-  },
-  "sites_enablePackage": {
-    "message": "Enable inspector"
   },
   "sites_existingCopyLocation": {
     "message": "Existing copies keep their locations under your copy policy"
@@ -7101,10 +7086,10 @@
     "message": "Install a package"
   },
   "sites_installReviewed": {
-    "message": "Install reviewed bytes (disabled)"
+    "message": "Install reviewed package"
   },
   "sites_installedLedeShort": {
-    "message": "A package starts in inspector mode. Archive hints need their own approval of the account, collections and folder, and the bundled reader confirms every hint."
+    "message": "Each package adds its site to the Sites list. Open it there to turn it on, connect your account and choose a folder."
   },
   "sites_installedPackages": {
     "message": "Installed packages"
@@ -7361,6 +7346,9 @@
   "sites_openForCheck": {
     "message": "$1 will open so this check can continue. Keep its tab open while items are read."
   },
+  "sites_openPackageSite": {
+    "message": "Set up $1"
+  },
   "sites_openSignedInHint": {
     "message": "Know-N finds your account in an open $1 tab."
   },
@@ -7376,17 +7364,17 @@
   "sites_ownerMigrationReview": {
     "message": "This mapping already contains bookmarks from another sync account or range. Return to that account and range before continuing."
   },
-  "sites_packageDisabled": {
-    "message": "Disabled"
-  },
-  "sites_packageEnabled": {
-    "message": "Enabled"
-  },
   "sites_packageHint": {
-    "message": "Files are inspected as inert data. Publisher identity and signatures are unverified; packages cannot claim official status. Install and every update require review. New and replaced packages start disabled, without archive or model authority."
+    "message": "Files are inspected as inert data. Publisher identity and signatures are unverified; packages cannot claim official status. Install and every update require review. A new package's site starts off; an update keeps its site's settings and runs the new code in a fresh world."
   },
   "sites_packageJson": {
     "message": "Package JSON"
+  },
+  "sites_packageOutdated": {
+    "message": "This package uses the earlier hint-only format. Install an updated version to use it."
+  },
+  "sites_packageSiteTaken": {
+    "message": "Another installed package already uses this site identity."
   },
   "sites_packageVersion": {
     "message": "Version $1"
@@ -7432,9 +7420,6 @@
   },
   "sites_previewRebinding": {
     "message": "Preview account and root rebinding"
-  },
-  "sites_previewScope": {
-    "message": "Preview archive scope"
   },
   "sites_primaryCollection": {
     "message": "Primary collection"
@@ -8151,7 +8136,16 @@
     "message": "User scripts"
   },
   "sites_userScriptsHint": {
-    "message": "Chromium 149+ only. In Extensions → Know-N → Details, enable Allow User Scripts, reload the extension, and reopen Site adapters. Chrome 121–148 is unsupported for this runtime."
+    "message": "Chromium 149+ only. In Extensions → Know-N → Details, enable Allow User Scripts, reload the extension, and reopen Site adapters. A package's site asks for access to its pages when you turn it on."
+  },
+  "sites_userScriptsOff": {
+    "message": "Allow user scripts for Know-N"
+  },
+  "sites_userScriptsOffHint": {
+    "message": "$1 runs as an installed package. In Extensions → Know-N → Details, turn on Allow User Scripts, reload the extension, then reopen this page."
+  },
+  "sites_userScriptsToggle": {
+    "message": "Turn on Allow User Scripts for Know-N in Extensions → Details, reload the extension, then try again."
   },
   "sites_verifySavedResults": {
     "message": "Check saved results"

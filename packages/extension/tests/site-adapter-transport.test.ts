@@ -91,3 +91,16 @@ test('history updates retaining the document and URL keep the lease; changed rou
   expect(await h.transport.navigate(1, `${h.sender.url}?route=changed`, h.sender.documentId)).toBe(true);
   expect(h.state().leases).toHaveLength(0); expect(h.state().routes['1']).toBe(2);
 });
+test('each site accepts only its own runtime: bundled code cannot bootstrap an installed package and the reverse', async () => {
+  const { communitySiteDefinition } = await import('../src/site-adapters/community-definition.js');
+  const h = harness(), shelf = communitySiteDefinition({ apiVersion: 'known.site-adapter/v1', adapterId: 'community.shelf', version: '1.0.0', label: 'Shelf', siteKey: 'shelf', identityVersion: 1,
+    matches: ['https://shelf.example/*'], execution: { mode: 'userScript', entry: 'adapter.js', runAt: 'document_start' }, capabilities: ['observeFavorites'] });
+  const sender = { ...h.sender, url: 'https://shelf.example/a/alpha', origin: 'https://shelf.example' }, transport = createSiteTransport({ ...h.deps, current: async () => sender.url }, shelf);
+  const hello = { ...h.hello, adapterId: 'community.shelf', runtime: 'userScript', installationCredential: 'credential' };
+  await transport.configure(true);
+  expect(await transport.bootstrap({ ...hello, runtime: 'bundled', installationCredential: undefined }, sender)).toEqual({ status: 'unavailable', reason: 'version' });
+  expect(await transport.bootstrap(hello, sender)).toEqual({ status: 'unavailable', reason: 'sourceUnresolved' });
+  await transport.confirm('42'); expect(await transport.bootstrap(hello, sender)).toMatchObject({ status: 'ready' });
+  await h.transport.configure(true);
+  expect(await h.transport.bootstrap({ ...h.hello, runtime: 'userScript', installationCredential: 'credential' }, h.sender)).toEqual({ status: 'unavailable', reason: 'version' });
+});

@@ -74,7 +74,8 @@ export function createSiteTransport(deps: TransportDeps, definition: SiteDefinit
     }),
     retire: (leaseId: string) => serial(async () => { const s = await deps.read(); s.leases = s.leases.filter(l => l.id !== leaseId); await deps.write(s); }),
     bootstrap: (raw: unknown, sender: SiteSender): Promise<BootstrapReply> => serial(async () => {
-      if (!validBootstrap(raw) || raw.runtime !== 'bundled' || raw.adapterId !== definition.adapterId)
+      // An installed package's page code cannot bootstrap a bundled site, nor bundled code a package's site.
+      if (!validBootstrap(raw) || raw.runtime !== (definition.runtime ?? 'bundled') || raw.adapterId !== definition.adapterId)
         return { status: 'unavailable', reason: 'version' };
       const currentUrl = await deps.current(sender);
       if (!validSiteSender(sender, deps.extensionId, definition) || !currentUrl) return { status: 'unavailable', reason: 'disabled' };

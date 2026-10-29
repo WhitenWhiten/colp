@@ -1,7 +1,12 @@
-import { bundledSites, legacySite, siteDefinition, type SiteDefinition } from './registry.js';
+import { allSites, legacySite, setCommunitySites, type SiteDefinition } from './registry.js';
+import { installedSites } from './community-package.js';
+import { communityStore } from './community-state.js';
 import { createSiteMark } from './site-icon.js';
 import { t } from '../i18n.js';
-export const selectedSite = siteDefinition(new URL(location.href).searchParams.get('adapterId') ?? legacySite.adapterId);
+// Installed packages are sites too; read them before choosing the page's site.
+setCommunitySites(installedSites(await communityStore.read().catch(() => [])).map(s => s.definition));
+const requestedSite = new URL(location.href).searchParams.get('adapterId');
+export const selectedSite = allSites().find(s => s.adapterId === requestedSite) ?? legacySite;
 export const SITE_PROBLEM_EVENT = 'known:site-adapter-problem';
 export const sendSiteMessage = async (message: unknown, options?: { reportErrors?: boolean }) => {
   const input = message as Record<string, unknown>;
@@ -38,7 +43,7 @@ export function paintSiteNav(adapterId: string, status: SiteNavStatus | undefine
 /** The sidebar's Sites list: every site this browser can read. Other sites ask for their own state once. */
 export function mountSiteNav() {
   const list = document.querySelector<HTMLElement>('#site-list')!;
-  for (const site of bundledSites) {
+  for (const site of allSites()) {
     const item = document.createElement('a'), mark = createSiteMark({ label: site.label, origin: site.origin, icon: site.icon, size: 20 }),
       text = document.createElement('span'), name = document.createElement('span'), state = document.createElement('span');
     item.className = 'side-item sites-nav-item'; item.href = siteHref(site); item.dataset.adapterId = site.adapterId;

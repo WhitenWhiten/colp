@@ -12,13 +12,11 @@ import { captureStore } from '../sw/capture.js';
 import { currentCaptureScope } from '../sw/capture-native.js';
 import { workCoordinator } from '../sw/runtime.js';
 import { unsettledCloudDestination } from '../classification-destination-boundary.js';
-import { assertCommunityArchive } from './community-authority.js';
 import { installBookmarkOwnershipObserver } from '../bookmark-ownership.js';
 import { isReconcileNativeMutation } from './reconcile-executor.js';
 
 export const sourceLayout = createSourceLayout(siteLedger.db, {
   localFirst: true,
-  authorizeCommunity: assertCommunityArchive,
   rules: currentFlat, paused: sourceAutomationsPaused, deviceId: captureDeviceId,
   lookup: nativeFolderLookup, assertRoot: async binding => { await assertSourceRoot(binding); },
   destination: async binding => {

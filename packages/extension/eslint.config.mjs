@@ -17,4 +17,9 @@ export default [
     files: ['src/**/*.ts'],
     rules: { '@typescript-eslint/no-explicit-any': 'error' },
   },
+  {
+    // A site adapter package's adapter.js is a function body that returns the adapter (docs/site-adapters/community-packages.md).
+    files: ['tests/fixtures/site-adapters/*-package/adapter.js'],
+    languageOptions: { sourceType: 'commonjs' },
+  },
 ];

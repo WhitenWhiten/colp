@@ -1,0 +1,14 @@
+{
+  "apiVersion": "known.site-adapter/v1",
+  "adapterId": "community.shelf",
+  "version": "1.0.0",
+  "label": "Shelf",
+  "siteKey": "shelf",
+  "identityVersion": 1,
+  "matches": ["https://shelf.example/*"],
+  "execution": { "mode": "userScript", "entry": "adapter.js", "runAt": "document_start" },
+  "capabilities": ["observeFavorites", "enumerateItems"],
+  "defaultCollection": { "id": "saved", "title": "Saved" },
+  "itemUrl": "https://shelf.example/a/{id}",
+  "contentIdScope": "site"
+}

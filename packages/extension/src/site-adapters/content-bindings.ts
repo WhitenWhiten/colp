@@ -3,7 +3,7 @@ import { managedLibraryKey } from './copy-identity.js';
 import type { CaptureContentBinding, NativeBinding, Representation, RepresentationKey, SavePolicy } from './contracts.js';
 import { get, put, rows, sourceDigest, type SourceDatabase } from './source-db.js';
 import { representationKey, type ItemReservation } from './reservations.js';
-import { identityDefinition, resolveContentIdentity } from './registry.js';
+import { identityDefinition, resolveContentIdentity, sitesLoaded } from './registry.js';
 import { contentBindingKey as contentKey, readSourceConnection, sameContentIdentity } from './content-identity.js';
 import { semanticIndexKey, type SemanticJob } from './semantic-jobs.js';
 import { managedContent } from './semantic-scope.js';
@@ -34,7 +34,7 @@ export function createContentBindings(db: SourceDatabase, assertNative: (native:
   }
   return {
     async prepare(input: { cached?: CachedContentCopy; content?: import('./contracts.js').ContentIdentity; scopeId?: string; managed?: ContentBindingRow['managed']; managedParent?: NativeBinding<'folder'>; itemId: string; commandId: string; captureIntentId: string; title: string; url: string; parentId: string; automatic: boolean }) {
-      const identity = input.content ?? resolveContentIdentity(input.url);
+      await sitesLoaded(); const identity = input.content ?? resolveContentIdentity(input.url);
       if (!identity || identity.itemId !== input.itemId) throw new Error('content_identity_unresolved');
       const definition = identityDefinition(identity.siteKey, identity.identityVersion);
       const candidates = await db.transaction(['contentBindings'], 'readonly', async tx => (await rows<ContentBindingRow>(tx, 'contentBindings', identity.siteKey, identity.identityVersion, input.itemId))

@@ -32,7 +32,7 @@ export const validMembershipHint = (v: unknown): v is MembershipHint => jsonByte
 const source = union(object({ state: literal('signedIn'), accountId: id, displayName: optional(validSiteTitle) }), object({ state: literal('signedOut', 'unknown') }));
 const bootstrapFields = { protocolVersion: literal(1), operation: literal('hello'), adapterId: id, source };
 const bootstrapSchema = union(object({ ...bootstrapFields, runtime: literal('bundled'), activationId: id }),
-  object({ ...bootstrapFields, runtime: literal('userScript'), installationCredential: str(256) }));
+  object({ ...bootstrapFields, runtime: literal('userScript'), activationId: id, installationCredential: str(256) }));
 export const failureSchema = object({ code: literal('signedOut', 'pageUnavailable', 'navigationChanged', 'rateLimited', 'unsupported', 'invalidData',
   'timeout', 'cancelled', 'challenge', 'network', 'capacity', 'staleCursor'), retryAfterMs: optional(integer),
   httpStatus: optional(v => Number.isInteger(v) && Number(v) >= 100 && Number(v) <= 599),

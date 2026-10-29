@@ -1,167 +1,208 @@
-import 'fake-indexeddb/auto';
+// @vitest-environment happy-dom
 import { afterEach, expect, test, vi } from 'vitest';
-import { Script } from 'node:vm';
+import { resolve } from 'node:path';
+import { Script, runInThisContext } from 'node:vm';
+import { packSiteAdapter } from '../scripts/pack-site-adapter.mjs';
 import { MemoryStorageArea } from '../src/credential-store.js';
-import { communityHostDefinition, inspectCommunityPackage } from '../src/site-adapters/community-package.js';
+import { inspectCommunityPackage, installedSites } from '../src/site-adapters/community-package.js';
+import { communitySiteDefinition, itemUrlCodec, siteGrants, type CommunityManifest } from '../src/site-adapters/community-definition.js';
+import type { CommunitySdk } from '../src/site-adapters/community-page.js';
 import { communityWrapper } from '../src/site-adapters/community-wrapper.js';
-import { communityStore, communityWorldId, type CommunityInstallation } from '../src/site-adapters/community-state.js';
+import { communityStore, communityWorldId, COMMUNITY_STATE } from '../src/site-adapters/community-state.js';
 import { communityRegistration, communityRegistrationMatches } from '../src/site-adapters/community-registration.js';
-import { createCommunityRuntime } from '../src/site-adapters/community-runtime.js';
-import { assertCommunityArchive } from '../src/site-adapters/community-authority.js';
-import { siteLedger } from '../src/site-adapters/source-runtime.js';
-import { SOURCE_STORES } from '../src/site-adapters/source-db.js';
-import type { SourceContext } from '../src/site-adapters/ledger-types.js';
+import { createCommunityRuntime, communityWorld } from '../src/site-adapters/community-runtime.js';
+import { createPageContext } from '../src/site-adapters/page-context.js';
+import { abortableSleep, fail } from '../src/site-adapters/read-errors.js';
+import { siteDisplayTitle } from '../src/site-adapters/title.js';
+import { readLimits } from '../src/site-adapters/read-policy.js';
+import { validAdapterMessage } from '../src/site-adapters/schemas.js';
+import { bilibiliDefinition } from '../src/site-adapters/bilibili/definition.js';
+import { identityDefinition, resolveContentIdentity, setCommunitySites } from '../src/site-adapters/registry.js';
+import type { AdapterMessage, SiteAdapter, SiteItem } from '../src/site-adapters/contracts.js';
+import { qualifySiteAdapter } from './fixtures/site-adapters/qualification.js';
+import { video } from './fixtures/site-adapters/bilibili.js';
 
-function packageText(version = '1.0.0', script = 'globalThis.mustNotExecute = true;') {
-  return JSON.stringify({ manifest: { apiVersion: 'known.site-adapter/v1', adapterId: 'community.test', version, siteKey: 'bilibili', identityVersion: 1,
-    matches: ['https://www.bilibili.com/*'], execution: { mode: 'userScript', entry: 'adapter.js', runAt: 'document_start' }, capabilities: ['observeFavorites'] },
-  provenance: { maintainer: 'Fixture author (unverified)', sourceUrl: 'https://example.test/source', revision: 'local' }, script });
-}
-afterEach(async () => { await siteLedger.db.close(); vi.unstubAllGlobals(); });
-async function fixture() {
-  const local = new MemoryStorageArea(), session = new MemoryStorageArea(), scripts = new Map<string, chrome.userScripts.Script>(), worlds = new Map<string, any>();
-  let available = true;
-  vi.stubGlobal('navigator', { userAgent: 'Chrome/149.0.7827.0' });
-  const frame = { url: 'https://www.bilibili.com/video/av1', documentId: 'doc', documentLifecycle: 'active' };
-  const source: SourceContext = { connectionId: 'connection', documentId: 'doc', tabId: 1, leaseId: 'bundled-lease', routeEpoch: 0, installationGeneration: 7, sourceSessionGeneration: 3 };
-  const enqueue = vi.fn(async () => ({ status: 'accepted' }));
-  vi.stubGlobal('chrome', { storage: { local, session }, runtime: { id: 'extension', getManifest: () => ({ version: '0.1.2' }) }, permissions: { contains: async () => true },
-    tabs: { query: async () => [] }, bookmarks: { get: async (id: string) => [{ id, title: id === 'root' ? 'Root' : 'Bar', parentId: id === 'root' ? '1' : '0', dateAdded: 1 }] }, webNavigation: { getFrame: async () => frame }, userScripts: {
-      getScripts: vi.fn(async () => { if (!available) throw new Error('toggle off'); return [...scripts.values()].map(v => structuredClone(v)); }),
-      register: vi.fn(async (values: chrome.userScripts.Script[]) => { for (const value of values) scripts.set(value.id, structuredClone(value)); }),
-      unregister: vi.fn(async (filter: { ids: string[] }) => { for (const id of filter.ids) scripts.delete(id); }),
-      configureWorld: vi.fn(async (value: { worldId: string }) => { worlds.set(value.worldId, value); }),
-      resetWorldConfiguration: vi.fn(async (id: string) => { worlds.delete(id); }), getWorldConfigurations: async () => [...worlds.values()],
-      execute: vi.fn(async () => []),
-    } });
-  const runtime = createCommunityRuntime({ ready: async () => {}, source: async () => ({ context: source, expiresAt: Date.now() + 60000 }), enqueue, wake() {} });
-  await siteLedger.db.transaction(SOURCE_STORES, 'readwrite', async tx => { for (const name of SOURCE_STORES) tx.objectStore(name).clear(); });
-  const call = (r: unknown): Promise<any> => runtime.management(r);
-  const install = async (text = packageText()) => { const preview = await call({ kind: 'known.community.preview', text });
-    return call({ kind: 'known.community.install', digest: preview.preview.digest, acknowledgeRisk: true }); };
-  const sender = { id: 'extension', url: frame.url, origin: 'https://www.bilibili.com', documentId: 'doc', frameId: 0, documentLifecycle: 'active', tab: { id: 1, incognito: false } };
-  const row = async () => (await communityStore.read())[0]!;
-  const enable = async () => { await call({ kind: 'known.community.enable', installationId: (await row()).id, enabled: true }); return row(); };
-  const hello = (r: CommunityInstallation) => ({ kind: 'known.community.bootstrap', installationId: r.id, generation: r.generation, credential: r.credential });
-  const boot = async (r = undefined as CommunityInstallation | undefined): Promise<any> => runtime.message(hello(r ?? await row()), sender);
-  const hint = (r: CommunityInstallation, lease: any, added = ['101']) => ({ kind: 'known.community.hint', installationId: r.id, generation: r.generation,
-    leaseId: lease.leaseId, capability: lease.capability, requestId: crypto.randomUUID(), hint: { interactionId: 'event', itemId: 'video:av:1', added, removed: [], code: 0 } });
-  return { local, scripts, worlds, frame, source, enqueue, runtime, call, install, row, enable, sender, boot, hello, hint, toggle: (v: boolean) => { available = v; } };
-}
-test('package inspection is inert and hashes exact bytes; unsupported authority and provenance fields fail closed', () => {
-  const text = packageText(), p = inspectCommunityPackage(text);
-  expect((globalThis as any).mustNotExecute).toBeUndefined(); expect(p.digest).not.toBe(inspectCommunityPackage(text + '\n').digest);
-  expect(() => inspectCommunityPackage('\ufeff' + text)).toThrow('packageInvalid');
-  expect(() => inspectCommunityPackage(text.replace('Fixture author', '\ud800'))).toThrow('packageInvalidEncoding');
-  const value = JSON.parse(text);
-  for (const manifest of [{ ...value.manifest, official: true }, { ...value.manifest, bundledProbeIds: ['probe'] },
-    { ...value.manifest, capabilities: ['mountCaptureControl'] }, { ...value.manifest, identityVersion: 0 },
-    { ...value.manifest, matches: ['https://*/*'] }, { ...value.manifest, execution: { ...value.manifest.execution, mode: 'bundled' } },
-    { ...value.manifest, icon: { kind: 'asset', path: 'icons/icon-32.png' } }, { ...value.manifest, icon: { kind: 'url', url: 'https://icons.example/b.svg' } },
-    { ...value.manifest, icon: { kind: 'data', dataUrl: 'data:image/svg+xml;base64,AAAA' } }, { ...value.manifest, icon: { kind: 'favicon', extra: true } }])
-    expect(() => inspectCommunityPackage(JSON.stringify({ ...value, manifest }))).toThrow('packageUnsupported');
-  const withIcon = { ...value, manifest: { ...value.manifest, icon: { kind: 'data', dataUrl: 'data:image/png;base64,iVBORw0KGgo=' } } };
-  expect(inspectCommunityPackage(JSON.stringify(withIcon)).package.manifest.icon).toEqual(withIcon.manifest.icon);
-  expect(inspectCommunityPackage(JSON.stringify(withIcon)).digest).not.toBe(p.digest);
-  expect(communityHostDefinition(p.package.manifest)?.adapterId).toBe('bundled.bilibili');
-  expect(communityHostDefinition({ ...p.package.manifest, matches: ['https://other.example/*'] })).toBeUndefined();
-  expect(communityHostDefinition({ ...p.package.manifest, identityVersion: 2 })).toBeUndefined();
+const shelfText = await packSiteAdapter(resolve(import.meta.dirname, 'fixtures/site-adapters/shelf-package'));
+const shelf = inspectCommunityPackage(shelfText).package, definition = communitySiteDefinition(shelf.manifest);
+const author = runInThisContext(`(function (sdk) {\n${shelf.script}\n})`) as (sdk: CommunitySdk) => SiteAdapter;
+const sdk: CommunitySdk = { readPolicy: readLimits({ readPolicy: { spacingMs: 1, requestSpacingMs: 1 } }), fail, abortableSleep, siteDisplayTitle };
+const alpha: SiteItem = { id: 'alpha', identity: 'siteId', kind: 'article', url: 'https://shelf.example/a/alpha', title: 'Alpha' };
+const signIn = () => { document.head.innerHTML = '<meta name="shelf:user" content="42">'; };
+const withManifest = (changes: Record<string, unknown>, text = shelfText) => { const value = JSON.parse(text); return JSON.stringify({ ...value, manifest: { ...value.manifest, ...changes } }); };
+afterEach(() => { vi.unstubAllGlobals(); setCommunitySites([]); document.head.replaceChildren(); document.body.replaceChildren(); });
+
+// The same qualification a bundled adapter passes, against the definition the host derives from the manifest.
+qualifySiteAdapter({ definition, accountId: '42', item: alpha, collection: definition.defaultCollection!, setup() {
+  signIn(); vi.stubGlobal('fetch', async () => Response.json({ items: [{ slug: 'alpha', title: 'Alpha' }], next: null }));
+  return author(sdk);
+} });
+
+test('package inspection is inert, hashes exact bytes and fails closed on unknown or unsupported fields', () => {
+  const marked = withManifest({}).replace(/"script": "/u, '"script": "globalThis.mustNotExecute = true;\\n'), p = inspectCommunityPackage(marked);
+  expect((globalThis as Record<string, unknown>).mustNotExecute).toBeUndefined(); expect(p.digest).not.toBe(inspectCommunityPackage(marked + '\n').digest);
+  expect(() => inspectCommunityPackage('﻿' + shelfText)).toThrow('packageInvalid');
+  expect(() => inspectCommunityPackage(shelfText.replace('Shelf fixture', '\ud800'))).toThrow('packageInvalidEncoding');
+  expect(() => inspectCommunityPackage(' '.repeat(512 * 1024 + 1))).toThrow('packageTooLarge');
+  for (const changes of [{ official: true }, { bundledProbeIds: ['probe'] }, { readRecipeIds: ['recipe'] }, { capabilities: ['mountCaptureControl'] }, { identityVersion: 0 },
+    { matches: ['https://*/*'] }, { matches: ['http://shelf.example/*'] }, { execution: { ...shelf.manifest.execution, mode: 'bundled' } }, { label: undefined }, { label: ' ' },
+    { siteKey: 'Shelf Key' }, { adapterId: 'bundled.shelf' }, { itemUrl: 'https://shelf.example/a/{id}/{id}' }, { itemUrl: 'http://shelf.example/a/{id}' },
+    { connectOrigins: ['https://api.example/path'] }, { defaultCollection: { id: 'saved' } }, { readPolicy: { spacingMs: -1 } },
+    { icon: { kind: 'asset', path: 'icons/icon-32.png' } }, { icon: { kind: 'url', url: 'https://icons.example/b.svg' } }, { icon: { kind: 'data', dataUrl: 'data:image/svg+xml;base64,AAAA' } }])
+    expect(() => inspectCommunityPackage(withManifest(changes))).toThrow('packageUnsupported');
+  // The same registry rules as a bundled site, including a site identity no bundled site uses.
+  expect(() => inspectCommunityPackage(withManifest({ siteKey: bilibiliDefinition.siteKey, identityVersion: bilibiliDefinition.identityVersion }))).toThrow('invalidSiteRegistry');
+  expect(() => inspectCommunityPackage(withManifest({ capabilities: ['enumerateCollections', 'enumerateItems'] }))).toThrow('invalidDefaultCollection');
+  expect(() => inspectCommunityPackage(withManifest({ negativeReadback: true }))).toThrow('unsupportedHostCapability');
+  expect(() => inspectCommunityPackage(withManifest({ readPolicy: { requestMs: 60001 } }))).toThrow('invalidReadPolicy');
+  // A package names item pages only on its own sites.
+  expect(() => inspectCommunityPackage(withManifest({ itemUrl: 'https://www.bilibili.com/video/{id}' }))).toThrow('invalidItemUrl');
+  const value = JSON.parse(shelfText);
   expect(() => inspectCommunityPackage(JSON.stringify({ ...value, provenance: { ...value.provenance, revision: 'main' } }))).toThrow('packageUnsupported');
   expect(() => inspectCommunityPackage(JSON.stringify({ ...value, provenance: { ...value.provenance, sourceUrl: 'https://x.test/?secret=bad' } }))).toThrow('packageUnsupported');
-  expect(() => inspectCommunityPackage(' '.repeat(512 * 1024 + 1))).toThrow('packageTooLarge');
-  const wrapper = communityWrapper({ id: 'i', generation: 1, credential: 'private-world-credential', script: p.package.script }); new Script(wrapper);
-  expect(wrapper).not.toMatch(/window\.postMessage|chrome\.(storage|bookmarks)|new Function|eval\(/);
+  // Any HTTPS site, with its own collections, readers and fetch origins.
+  const other = inspectCommunityPackage(withManifest({ adapterId: 'community.notes', siteKey: 'notes', matches: ['https://notes.example/*', 'https://m.notes.example/*'],
+    capabilities: ['observeFavorites', 'enumerateCollections', 'enumerateItems', 'resolveItem', 'readMemberships'], defaultCollection: undefined, itemUrl: undefined,
+    connectOrigins: ['https://api.notes.example'], readScope: 'account', collectionSnapshot: 'pointInTime', negativeReadback: true }));
+  expect(communitySiteDefinition(other.package.manifest)).toMatchObject({ origin: 'https://notes.example', runtime: 'userScript', readScope: 'account', negativeReadback: true });
+  const wrapper = communityWrapper({ manifest: shelf.manifest, credential: 'private-world-credential', script: shelf.script }); new Script(wrapper);
+  expect(wrapper).not.toMatch(/window\.postMessage|chrome\.(storage|bookmarks)|new Function|eval\(/u);
 });
-test('a separately installed HTTPS site runs in inspector mode without a bundled registry entry', async () => {
-  const f = await fixture(), pkg = JSON.parse(packageText());
-  Object.assign(pkg.manifest, { siteKey: 'example', identityVersion: 7, matches: ['https://example.test/*'] });
-  await f.install(JSON.stringify(pkg));
-  f.frame.url = 'https://example.test/item/1';
-  const row = await f.enable(), sender = { ...f.sender, url: f.frame.url, origin: 'https://example.test' };
-  const lease = await f.runtime.message(f.hello(row), sender);
-  expect(lease).toMatchObject({ status: 'ready', mode: 'inspector' });
-  expect([...f.scripts.values()][0]?.matches).toEqual(['https://example.test/*']);
-  const hint = { ...f.hint(row, lease), hint: { interactionId: 'event', itemId: 'opaque-item', added: ['saved'], removed: [], code: 0 } };
-  expect(await f.runtime.message(hint, sender)).toEqual({ status: 'inspected', writes: false, models: false });
-  expect(f.enqueue).not.toHaveBeenCalled();
-  await expect(f.call({ kind: 'known.community.scopePreview', installationId: row.id })).rejects.toThrow('communityConnectedSourceRequired');
-  expect(await f.runtime.message(f.hello(row), { ...sender, url: 'https://attacker.test/', origin: 'https://attacker.test' })).toMatchObject({ status: 'rejected', reason: 'sender' });
+
+test('an itemUrl template gives each item one canonical URL, in the path or as a query value', () => {
+  const path = itemUrlCodec('https://shelf.example/a/{id}')!, query = itemUrlCodec('https://video.example/watch?v={id}')!;
+  expect(path.url('alpha')).toBe('https://shelf.example/a/alpha'); expect(path.url('al pha')).toBeNull();
+  // Dot-only IDs would be path segments the URL parser removes, leaving a bookmark that maps back to nothing.
+  for (const id of ['.', '..']) expect(path.url(id)).toBeNull(); expect(path.id('https://shelf.example/a/..')).toBeNull(); expect(path.url('v1.2')).toBe('https://shelf.example/a/v1.2');
+  for (const url of ['https://shelf.example/a/alpha', 'https://shelf.example/a/alpha/', 'https://shelf.example/a/alpha?ref=x#top']) expect(path.id(url)).toBe('alpha');
+  for (const url of ['https://other.example/a/alpha', 'https://shelf.example/b/alpha', 'https://shelf.example/a/al%20pha', 'https://u:p@shelf.example/a/alpha', 'not a url']) expect(path.id(url)).toBeNull();
+  expect(query.id('https://video.example/watch?t=3&v=Ab_9-x')).toBe('Ab_9-x'); expect(query.id('https://video.example/other?v=abc')).toBeNull();
+  expect(query.url('abc')).toBe('https://video.example/watch?v=abc');
+  for (const template of ['https://shelf.example/a/', 'https://{id}.example/', 'https://shelf.example/a#{id}', 'https://Shelf.example/a/{id}', 'http://shelf.example/a/{id}', 'https://shelf.example/a?v=x{id}'])
+    expect(itemUrlCodec(template)).toBeNull();
+  expect(definition.contentIdentity('https://shelf.example/a/alpha/')).toEqual({ siteKey: 'shelf', identityVersion: 1, itemId: 'alpha' });
+  expect(definition.itemUrl('alpha')).toBe(alpha.url); expect(definition.sameResolutionTarget('https://shelf.example/a/alpha#x', 'https://shelf.example/a/alpha')).toBe(true);
+  expect(definition.validateItem(alpha)).toBe(true);
+  expect(definition.validateItem({ ...alpha, url: 'https://shelf.example/a/beta' })).toBe(false);
+  expect(definition.validateItem({ ...alpha, identity: 'canonicalUrl' })).toBe(false);
+  expect(definition.validateCollection('saved')).toBe(true); expect(definition.validateCollection('other')).toBe(false);
+  // Without a template, IDs are the site's and the item URL is whatever HTTPS link the site gives.
+  const loose = communitySiteDefinition({ ...shelf.manifest, itemUrl: undefined, defaultCollection: undefined, capabilities: ['observeFavorites', 'enumerateCollections', 'enumerateItems'] } as CommunityManifest);
+  expect(loose.validateItem({ ...alpha, id: 'item:7 x', url: 'https://elsewhere.example/post?id=7' })).toBe(true);
+  expect(loose.itemUrl('alpha')).toBeNull(); expect(loose.contentIdentity(alpha.url)).toBeNull();
+  const envelope = { protocolVersion: 1 as const, requestId: 'r', leaseId: 'l', capability: 'c' };
+  expect(loose.validateMessage({ ...envelope, operation: 'membership.hint', hint: { interactionId: 'i', itemId: 'alpha', added: ['a'], removed: [], code: 0 } })).toBe(false);
+  expect(definition.validateMessage({ ...envelope, operation: 'membership.hint', hint: { interactionId: 'i', itemId: 'alpha', added: ['saved'], removed: [], code: 0 } })).toBe(true);
+  expect(loose.validateMessage({ ...envelope, operation: 'emit', data: { type: 'catalog.upsert', collections: [{ id: 'reading', identity: 'siteId', title: 'Reading', parentId: null }] } })).toBe(true);
+  expect(loose.validateMessage({ ...envelope, operation: 'emit', data: { type: 'catalog.upsert', collections: [{ id: 'reading', identity: 'siteId', title: 'Reading', parentId: 'root' }] } })).toBe(false);
+  expect(loose.validateMessage({ ...envelope, operation: 'capture', data: { type: 'capture.requested', item: alpha, requestedPurpose: 'semantic' } })).toBe(false);
+  expect(siteGrants(definition)).toEqual({ permissions: ['userScripts', 'webNavigation'], origins: ['https://shelf.example/*'] });
+  expect(siteGrants(bilibiliDefinition).permissions).toEqual(['scripting', 'webNavigation']);
+  setCommunitySites([definition]);
+  expect(identityDefinition('shelf', 1)).toBe(definition); expect(resolveContentIdentity('https://shelf.example/a/alpha')).toMatchObject({ siteKey: 'shelf', itemId: 'alpha' });
+  // A package that also matches a bundled site's pages cannot make that site's own items ambiguous.
+  const overlap = communitySiteDefinition({ ...shelf.manifest, adapterId: 'community.videos', siteKey: 'videos', matches: ['https://www.bilibili.com/*'], itemUrl: 'https://www.bilibili.com/video/{id}' });
+  setCommunitySites([definition, overlap]);
+  expect(overlap.contentIdentity(video.url)).not.toBeNull(); expect(resolveContentIdentity(video.url)).toEqual(bilibiliDefinition.contentIdentity(video.url));
 });
-test('reviewed bytes persist disabled before registration; named worlds and authored bytes cannot be widened or mutated', async () => {
-  const f = await fixture(); const installed = await f.install(); expect(installed.installations[0].enabled).toBe(false); expect(f.scripts.size).toBe(0);
-  const row = await f.enable(), registered = [...f.scripts.values()][0]!;
-  expect(registered).toMatchObject({ world: 'USER_SCRIPT', worldId: communityWorldId(row), allFrames: false, matches: ['https://www.bilibili.com/*'] });
-  expect(communityRegistrationMatches(row, [registered])).toBe(true);
-  expect(communityRegistrationMatches(row, [{ ...registered, matches: ['https://*/*'] }])).toBe(false);
-  expect(communityRegistrationMatches(row, [{ ...registered, js: [...registered.js!, { code: 'unreviewed()' }] }])).toBe(false);
-  row.approved.package.script = 'tampered()'; expect(() => communityRegistration(row)).toThrow('communityPackageChanged');
-  expect(JSON.stringify(installed)).not.toContain(row.credential); expect(f.enqueue).not.toHaveBeenCalled();
+
+test('a Save click becomes a favorite the derived definition accepts, only after the page shows it saved', async () => {
+  signIn(); document.body.innerHTML = '<article data-shelf-id="alpha"><h1>Alpha</h1><button data-shelf-save aria-pressed="false">Save</button></article>';
+  const emitted: unknown[] = [], controller = new AbortController();
+  const context = createPageContext({ document, signal: controller.signal, accountId: '42', routeEpoch: 0, deadlineAt: Date.now() + 10000, routeEvent: 'shelf-route', controls: false,
+    emit: async data => { emitted.push(data); return { status: 'accepted', receiptId: String(emitted.length) }; },
+    hint: async () => { throw Error('unexpectedHint'); }, requestCapture: async () => { throw Error('unexpectedCapture'); } });
+  const cleanup = await author(sdk).start(context), button = document.querySelector('button')!;
+  button.click(); expect(emitted).toEqual([]);
+  button.setAttribute('aria-pressed', 'true');
+  await vi.waitFor(() => expect(emitted).toHaveLength(1));
+  const message = { protocolVersion: 1, requestId: 'r', leaseId: 'l', capability: 'c', operation: 'emit', data: emitted[0] } as AdapterMessage;
+  expect(validAdapterMessage(message) && definition.validateMessage(message)).toBe(true);
+  expect(emitted[0]).toMatchObject({ type: 'favorite.confirmed', item: alpha, memberships: { mode: 'delta', added: ['saved'], removed: [] } });
+  controller.abort(); await cleanup?.();
 });
-test('bootstrap validates actual sender and private installation credential; inspector reports never enqueue source work', async () => {
-  const f = await fixture(); await f.install(); const row = await f.enable(), lease = await f.boot();
-  expect(lease).toMatchObject({ status: 'ready', mode: 'inspector' });
-  await expect(f.runtime.message({ ...f.hello(row), credential: 'forged' }, f.sender)).rejects.toThrow('communityCredentialRejected');
-  for (const sender of [{ ...f.sender, frameId: 1 }, { ...f.sender, documentLifecycle: 'prerender' }, { ...f.sender, origin: 'https://attacker.test' }, { ...f.sender, tab: { id: 1, incognito: true } }])
-    expect(await f.runtime.message(f.hello(row), sender)).toMatchObject({ status: 'rejected', reason: 'sender' });
-  expect(await f.runtime.message({ ...f.hello(row), worldId: communityWorldId(row) }, f.sender)).toMatchObject({ status: 'rejected', reason: 'invalid' });
-  expect(await f.runtime.message(f.hint(row, lease), f.sender)).toEqual({ status: 'inspected', writes: false, models: false }); expect(f.enqueue).not.toHaveBeenCalled();
-  expect(JSON.stringify(await f.call({ kind: 'known.community.status' }))).not.toContain(lease.capability);
-  f.frame.url = 'https://www.bilibili.com/video/av2'; await expect(f.runtime.message(f.hint(row, lease), f.sender)).rejects.toThrow('communityLeaseRejected');
+
+test('the generated wrapper starts the host runtime with the manifest and credential, and hands it the package body', () => {
+  let captured: { input: { manifest: CommunityManifest; credential: string }; author: (sdk: CommunitySdk) => SiteAdapter } | undefined;
+  const world: Record<string, unknown> = { __knownCommunityAdapter: (input: never, body: never) => { captured = { input, author: body }; } };
+  new Script(communityWrapper({ manifest: shelf.manifest, credential: 'world-credential', script: shelf.script })).runInNewContext(world);
+  expect(world.__knownCommunityAdapter).toBeUndefined(); // The package body cannot restart the runtime with another manifest.
+  expect(captured!.input).toEqual({ manifest: shelf.manifest, credential: 'world-credential' });
+  const adapter = captured!.author(sdk);
+  expect(typeof adapter.detectSource).toBe('function'); expect(typeof adapter.readItemsPage).toBe('function'); expect(adapter.importResume).toBe('restartAndDeduplicate');
 });
-test('disable, byte update, rollback and extension update rotate credentials and never inherit archive authority', async () => {
-  const f = await fixture(); await f.install(); const old = await f.enable(), lease = await f.boot();
-  await f.call({ kind: 'known.community.enable', installationId: old.id, enabled: false });
-  await expect(f.runtime.message(f.hint(old, lease), f.sender)).rejects.toThrow('communityRevoked');
-  const enabled = await f.enable(); expect(enabled.credential).not.toBe(old.credential);
-  await f.install(packageText('2.0.0', 'globalThis.versionTwo=true;')); const updated = await f.row(); expect(updated.enabled).toBe(false); expect(updated.archive).toBeNull();
-  expect(updated.previous[0]?.digest).toBe(old.approved.digest); await expect(f.boot(old)).rejects.toThrow('communityRevoked');
-  await expect(f.call({ kind: 'known.community.rollback', installationId: old.id, digest: old.approved.digest, acknowledgeRisk: true })).rejects.toThrow('communityPreviewExpired');
-  await f.call({ kind: 'known.community.reviewVersion', installationId: old.id, digest: old.approved.digest });
-  await f.call({ kind: 'known.community.rollback', installationId: old.id, digest: old.approved.digest, acknowledgeRisk: true });
-  const rollback = await f.enable();
-  vi.spyOn(chrome.runtime, 'getManifest').mockReturnValue({ version: '0.1.3' });
-  await expect(f.boot(rollback)).rejects.toThrow('communityRevoked'); // Before the update event can re-register anything.
-  await f.runtime.reconcile(true); const after = await f.row();
-  expect(after.enabled).toBe(true); expect(after.archive).toBeNull(); expect(after.generation).toBeGreaterThan(rollback.generation); expect(after.credential).not.toBe(rollback.credential);
-  expect(communityRegistrationMatches(after, [...f.scripts.values()])).toBe(true);
+
+async function fixture() {
+  const local = new MemoryStorageArea(), session = new MemoryStorageArea(), scripts = new Map<string, chrome.userScripts.Script>(), worlds = new Map<string, { worldId: string; csp?: string; messaging: boolean }>();
+  let version = '0.1.2';
+  vi.stubGlobal('navigator', { userAgent: 'Chrome/149.0.7827.0' });
+  const userScripts = {
+    getScripts: vi.fn(async (filter?: { ids: string[] }) => [...scripts.values()].filter(s => !filter || filter.ids.includes(s.id)).map(v => structuredClone(v))),
+    register: vi.fn(async (values: chrome.userScripts.Script[]) => { for (const value of values) { if (scripts.has(value.id)) throw Error('duplicate'); scripts.set(value.id, structuredClone(value)); } }),
+    unregister: vi.fn(async (filter: { ids: string[] }) => { for (const id of filter.ids) scripts.delete(id); }),
+    configureWorld: vi.fn(async (value: { worldId: string; csp?: string; messaging: boolean }) => { worlds.set(value.worldId, value); }),
+    resetWorldConfiguration: vi.fn(async (id: string) => { worlds.delete(id); }), getWorldConfigurations: async () => [...worlds.values()],
+    execute: vi.fn(async () => []),
+  };
+  vi.stubGlobal('chrome', { storage: { local, session }, runtime: { id: 'extension', getManifest: () => ({ version }) }, permissions: { contains: async () => true }, userScripts });
+  const changed = vi.fn(async () => {});
+  const runtime = createCommunityRuntime({ ready: async () => {}, changed });
+  const call = (r: unknown): Promise<any> => runtime.management(r);
+  const install = async (text = shelfText) => { const preview = await call({ kind: 'known.community.preview', text });
+    return call({ kind: 'known.community.install', digest: preview.preview.digest, acknowledgeRisk: true }); };
+  const rows = () => communityStore.read();
+  return { local, scripts, worlds, userScripts, runtime, call, install, rows, changed, upgrade: (next: string) => { version = next; } };
+}
+const version = (v: string, text = shelfText) => withManifest({ version: v }, text);
+
+test('installing, updating, rolling back and removing a package each give the worker a new set of sites', async () => {
+  const f = await fixture();
+  expect((await f.install()).installations).toEqual([expect.objectContaining({ manifest: shelf.manifest, error: null })]);
+  const first = (await f.rows())[0]!; expect(first.generation).toBe(1); expect(f.changed).toHaveBeenCalledTimes(1);
+  expect(installedSites(await f.rows()).map(s => s.definition.adapterId)).toEqual(['community.shelf']);
+  await f.install(version('1.0.1'));
+  const updated = (await f.rows())[0]!;
+  expect(updated).toMatchObject({ id: first.id, generation: 2, previous: [expect.objectContaining({ digest: first.approved.digest })] });
+  expect(updated.credential).not.toBe(first.credential);
+  await expect(f.install(version('1.0.1', shelfText.replace('Shelf fixture', 'Changed')))).rejects.toThrow('communityVersionConflict');
+  // One site identity per installed package: a second package cannot take over Shelf's namespace.
+  await expect(f.call({ kind: 'known.community.preview', text: withManifest({ adapterId: 'community.shelf2' }) })).rejects.toThrow('communitySiteKeyTaken');
+  const review = await f.call({ kind: 'known.community.reviewVersion', installationId: first.id, digest: first.approved.digest });
+  await f.call({ kind: 'known.community.rollback', installationId: first.id, digest: review.preview.digest, acknowledgeRisk: true });
+  expect((await f.rows())[0]).toMatchObject({ generation: 3, approved: { digest: first.approved.digest } });
+  // Rolling back cannot take back a site identity another package has meanwhile installed with.
+  await f.install(withManifest({ version: '1.1.0', siteKey: 'bar' }));
+  await f.install(withManifest({ adapterId: 'community.shelf2', version: '1.0.0' }));
+  await expect(f.call({ kind: 'known.community.reviewVersion', installationId: first.id, digest: first.approved.digest })).rejects.toThrow('communitySiteKeyTaken');
+  await f.call({ kind: 'known.community.remove', installationId: (await f.rows())[1]!.id });
+  await f.call({ kind: 'known.community.remove', installationId: first.id });
+  expect(await f.rows()).toEqual([]); expect(f.changed).toHaveBeenCalledTimes(7);
 });
-test('toggle revocation works even while the API object remains defined; bounded rate survives worker reconstruction', async () => {
-  const f = await fixture(); await f.install(); const old = await f.enable(), lease = await f.boot();
-  f.toggle(false); await expect(f.runtime.message(f.hint(old, lease), f.sender)).rejects.toThrow('communityToggleRequired');
-  expect((await f.row()).enabled).toBe(false); expect((await f.row()).generation).toBeGreaterThan(old.generation);
-  f.toggle(true); await expect(f.runtime.message(f.hint(old, lease), f.sender)).rejects.toThrow('communityRevoked');
-  const row = await f.enable(), fresh = await f.boot();
-  for (let i = 0; i < 14; i++) await f.runtime.message(f.hint(row, fresh), f.sender);
-  // The first bootstrap before revocation is retained in the same persisted minute budget.
-  await expect(f.runtime.message(f.hint(row, fresh), f.sender)).rejects.toThrow('communityRateLimited');
+
+test('a hint-only package from the earlier format stays listed but runs nowhere until it is updated', async () => {
+  const f = await fixture(), legacy = JSON.stringify({ manifest: { apiVersion: 'known.site-adapter/v1', adapterId: 'community.hints', version: '1.0.0', siteKey: 'bilibili', identityVersion: 1,
+    matches: ['https://www.bilibili.com/*'], execution: { mode: 'userScript', entry: 'adapter.js', runAt: 'document_start' }, capabilities: ['observeFavorites'] },
+  provenance: { maintainer: 'Old author', sourceUrl: 'https://example.test/source', revision: 'local' }, script: 'return () => {};' });
+  await f.local.set({ [COMMUNITY_STATE]: { version: 1, installations: [{ id: 'old', generation: 4, credential: 'c', hostVersion: '0.1.2', enabled: true,
+    approved: { digest: 'sha256:legacy', text: legacy, package: JSON.parse(legacy), bytes: legacy.length }, previous: [], archive: null, leases: [], routes: {},
+    rate: { at: 0, count: 0 }, lastReport: null, error: null }] } });
+  expect(await f.rows()).toEqual([expect.not.objectContaining({ enabled: expect.anything() })]);
+  expect(installedSites(await f.rows())).toEqual([]);
+  expect((await f.call({ kind: 'known.community.status' })).installations).toEqual([expect.objectContaining({ id: 'old', error: 'communityPackageOutdated' })]);
 });
-test('archive hints require exact reviewed source/root/collection scope and a still-current policy at native authorization', async () => {
-  const f = await fixture(); await f.install(); const row = await f.enable();
-  await siteLedger.db.transaction(['meta', 'authorities'], 'readwrite', async tx => {
-    tx.objectStore('meta').put({ root: { nativeId: 'root' }, collectionIds: ['101'], live: true, state: 'active' }, 'archiveConfig:connection');
-    tx.objectStore('meta').put({ enabled: true, liveArchive: true, policy: { revision: 4 } }, 'policy:connection');
-    tx.objectStore('authorities').put({ enabled: true, connectionId: 'connection', accountId: '42', installationGeneration: 7, sourceSessionGeneration: 3 }, 'bundled.bilibili');
-  });
-  const p = await f.call({ kind: 'known.community.scopePreview', installationId: row.id });
-  await expect(f.call({ kind: 'known.community.scopeApprove', installationId: row.id, digest: 'different' })).rejects.toThrow('communityScopeStale');
-  await f.call({ kind: 'known.community.scopeApprove', installationId: row.id, digest: p.preview.digest });
-  const lease = await f.boot(), current = await f.row();
-  expect(await f.runtime.message(f.hint(current, lease), f.sender)).toEqual({ status: 'accepted' }); expect(f.enqueue).toHaveBeenCalledTimes(1);
-  const origin = (f.enqueue.mock.calls[0] as unknown as [SourceContext])[0].communityOrigin!;
-  await assertCommunityArchive(origin, { connectionId: 'connection', collectionIds: ['101'], rootNativeId: 'root' });
-  await expect(assertCommunityArchive(origin, { connectionId: 'connection', collectionIds: ['102'], rootNativeId: 'root' })).rejects.toThrow('communityArchiveRevoked');
-  await expect(assertCommunityArchive(origin, { connectionId: 'connection', collectionIds: ['101'], rootNativeId: 'other' })).rejects.toThrow('communityArchiveRevoked');
-  await siteLedger.db.transaction(['meta'], 'readwrite', async tx => { tx.objectStore('meta').put({ enabled: true, liveArchive: true, policy: { revision: 5 } }, 'policy:connection'); });
-  await expect(assertCommunityArchive(origin, { connectionId: 'connection', collectionIds: ['101'] })).rejects.toThrow('communityArchiveScopeChanged');
-});
-test('disable persists its fence while a page operation is hung and late attachment cannot revive it', async () => {
-  const f = await fixture(); await f.install(); const old = await f.row();
-  let release!: () => void, reached!: () => void;
-  const held = new Promise<void>(resolve => { release = resolve; }), started = new Promise<void>(resolve => { reached = resolve; });
-  vi.spyOn(chrome.tabs, 'query').mockResolvedValue([{ id: 1, url: f.frame.url }]);
-  vi.spyOn(chrome.userScripts, 'execute').mockImplementation(async () => { reached(); await held; return []; });
-  const enable = f.call({ kind: 'known.community.enable', installationId: old.id, enabled: true }); await started;
-  expect(await f.call({ kind: 'known.community.enable', installationId: old.id, enabled: false })).toEqual({ ok: true, fenced: true });
-  expect((await f.row()).enabled).toBe(false); release(); await enable;
-  await expect(f.boot(old)).rejects.toThrow('communityRevoked'); expect(f.enqueue).not.toHaveBeenCalled();
+
+test('each generation registers the host runtime and the reviewed body in its own world; extension updates rotate it', async () => {
+  const f = await fixture(); await f.install(withManifest({ connectOrigins: ['https://api.shelf.example'] }));
+  const row = (await f.rows())[0]!, registration = communityRegistration(row);
+  expect(registration).toMatchObject({ id: `colp-user-${row.id}`, world: 'USER_SCRIPT', worldId: communityWorldId(row), matches: ['https://shelf.example/*'], runAt: 'document_start', allFrames: false });
+  expect(registration.js![0]).toEqual({ file: 'site-adapter-community.js' });
+  expect((registration.js![1] as { code: string }).code).toContain(JSON.stringify(row.credential));
+  await communityWorld.register(row); await communityWorld.register(row);
+  expect(f.userScripts.register).toHaveBeenCalledTimes(1); expect(communityRegistrationMatches(row, [...f.scripts.values()])).toBe(true);
+  expect(f.worlds.get(communityWorldId(row))).toMatchObject({ messaging: true, csp: "script-src 'self'; object-src 'none'; connect-src 'self' https://shelf.example https://api.shelf.example" });
+  f.upgrade('0.1.3'); const [rotated] = await f.runtime.prepare();
+  expect(rotated).toMatchObject({ generation: row.generation + 1, hostVersion: '0.1.3' }); expect(rotated!.credential).not.toBe(row.credential);
+  expect(communityRegistrationMatches(rotated!, [...f.scripts.values()])).toBe(false);
+  await communityWorld.register(rotated!); await f.runtime.prune([rotated!]);
+  expect([...f.scripts.values()].map(s => s.worldId)).toEqual([communityWorldId(rotated!)]); expect([...f.worlds.keys()]).toEqual([communityWorldId(rotated!)]);
+  await communityWorld.unregister(rotated!); expect(f.scripts.size).toBe(0); expect(f.worlds.size).toBe(0);
 });

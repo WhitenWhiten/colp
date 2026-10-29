@@ -1,7 +1,7 @@
 import { queueLocalSemanticAssociation } from './local-semantic-transfer.js';
 import { scheduleSourceAlarm } from './wake-scheduler.js';
 import { contentBindingKey, pageContentBindings } from './content-identity.js';
-import { legacySite, identityDefinition, type SiteDefinition } from './registry.js';
+import { legacySite, identityDefinition, sitesLoaded, type SiteDefinition } from './registry.js';
 import { readConnectionAuthority } from './ledger.js';
 import { installCaptureContentBindings, assertCaptureContent } from '../capture/content-binding.js';
 import { createContentBindings, contentIdentityFromUrl } from './content-bindings.js';
@@ -99,6 +99,7 @@ export function installContentBindings() {
   installCaptureContentBindings({
     async prepare(input) {
       if (!['manual-popup', 'action-popup'].includes(input.source)) return null;
+      await sitesLoaded();
       let identity = contentIdentityFromUrl(input.url) ?? await resolveIdentity(input.url, input.tabId);
       if (!identity) return null; // Ordinary unresolved saves retain the existing explicit adoption path.
       const definition = identityDefinition(identity.siteKey, identity.identityVersion), authority = await siteLedger.db.read<import('./ledger-types.js').SourceAuthority>('authorities', definition.adapterId);

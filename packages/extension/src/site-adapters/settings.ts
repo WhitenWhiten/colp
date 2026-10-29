@@ -1,4 +1,5 @@
 import { siteFeatures } from './capabilities.js';
+import { siteGrants } from './community-definition.js';
 import { renderSiteCapabilities } from './settings-capabilities.js';
 import { selectedSite, sendSiteMessage, SITE_PROBLEM_EVENT, mountSiteNav, paintSiteNav, mountRoutes, onRoute, currentRoute, showTab, offer } from './settings-client.js';
 import { createFolderPicker, folderChoices, type FolderPicker } from '../library-folder-picker.js';
@@ -34,7 +35,7 @@ interface SiteStatus { pipeline?: import('./local-progress.js').LocalSourceProgr
   accountLabel?: string; candidateLabel?: string;
   activity?: { problem: SiteActivity | null; lastEvent: SiteActivity | null };
   confirmations?: { pending: number; paused?: unknown }; archiveHold?: string | null;
-  browser?: { minimum: number; major: number | null; supported: boolean }; grants?: { site: boolean; bookmarks: boolean };
+  browser?: { minimum: number; major: number | null; supported: boolean }; grants?: { site: boolean; bookmarks: boolean; userScripts?: boolean };
   catalog?: { items: Collection[]; nextCursor: string | null; reading: boolean; current: boolean; failed: string | null } | null;
   inspection?: { command: { deadlineAt: number; operation?: string }; result?: { status: string; item?: { title?: string } } } | null;
   archive?: { catalog?: Collection[]; config: ArchiveConfig | null; import: ImportStatus | null; overview?: SourceOverview | null; overviewError?: string | null;
@@ -56,6 +57,8 @@ text('archive-live-hint', t('sites_keepSyncingHint', 'Favorites you add on $1 ar
 for (const id of ['open-site-label', 'open-site-list-label']) text(id, t('sites_openSite', 'Open $1', site));
 text('create-root-label', t('sites_newFolderNamed', 'New folder “$1”', site));
 renderSiteCapabilities(document, selectedSite);
+// The legacy COLP Server archive needs a server-side identity codec, which an installed package does not have.
+$('tab-cloud').hidden = selectedSite.runtime === 'userScript';
 // Back to the settings pane the page was opened from.
 if (document.referrer.startsWith(new URL('options.html', location.href).href)) $<HTMLAnchorElement>('sites-back').href = document.referrer;
 
@@ -63,6 +66,7 @@ if (document.referrer.startsWith(new URL('options.html', location.href).href)) $
 function errorCopy(code: string | undefined) {
   switch (code) {
     case 'permissionRequired': return t('sites_accessRequired', 'Know-N needs access first. Allow it, then try again.');
+    case 'communityToggleRequired': return t('sites_userScriptsToggle', 'Turn on Allow User Scripts for Know-N in Extensions → Details, reload the extension, then try again.');
     case 'browserUnsupported': return t('sites_newerChrome', 'Site adapters need a newer version of Chrome.');
     case 'refreshCatalogRequired': case 'staleCursor': return t('sites_collectionsChanged', 'Your collections changed. Check the list, then try again.');
     case 'bindingUnavailable': return t('sites_folderGone', 'That folder is gone. Choose another one.');
@@ -203,12 +207,16 @@ for (const id of ['open-site', 'open-site-list']) button(id).addEventListener('c
 function paintConnection() {
   if (selectedSite.connectionKind !== 'page') text('sites-connection-heading', status.archive?.config ? t('sites_accountAndAccess', 'Account and access') : t('sites_stepConnect', 'Connect your account'));
   const s = status, enabled = !!s.enabled, granted = s.grants?.site ?? false, candidate = s.candidateAccount ?? null, connected = !!s.connected && !candidate, docs = s.documents ?? 0;
+  // An installed package also needs Chrome's Allow User Scripts, which only the person can turn on.
+  const userScriptsOff = enabled && granted && s.grants?.userScripts === false;
   const title = !enabled ? t('sites_turnOnSite', 'Turn on $1', site) : !granted ? t('sites_needsAccess', '$1 needs site access', site)
+    : userScriptsOff ? t('sites_userScriptsOff', 'Allow user scripts for Know-N')
     : candidate ? s.candidateLabel ? t('sites_signedInAs', 'Signed in to $1 as $2', site, s.candidateLabel) : t('sites_confirmDetectedAccount', 'Confirm the account detected on $1', site)
     : connected ? s.accountLabel ? t('sites_accountDisplayName', '$1 · $2', site, s.accountLabel) : t('sites_connected', 'Connected')
     : t('sites_openAndSignIn', 'Open $1 and sign in', site);
   const hint = !enabled ? t('sites_turnOnHint', 'Know-N reads your favorites from the $1 tabs you open. It never changes anything on $1.', site)
     : !granted ? t('sites_needsAccessHint', 'Allow access to $1 so Know-N can read your favorites.', new URL(selectedSite.origin).hostname)
+    : userScriptsOff ? t('sites_userScriptsOffHint', '$1 runs as an installed package. In Extensions → Know-N → Details, turn on Allow User Scripts, reload the extension, then reopen this page.', site)
     : candidate ? t('sites_connectHint', 'Connect this account to sync its collections.')
     : connected ? docs ? tn('sites_availableTabs', docs, '$1 open $2 tab available.', '$1 open $2 tabs available.', site) : t('sites_noReadablePage', 'No $1 page is connected for reading. Open or reload the website when you want to check its content.', site)
     : t('sites_openSignedInHint', 'Know-N finds your account in an open $1 tab.', site);
@@ -217,7 +225,7 @@ function paintConnection() {
   const enable = button('enable'); enable.textContent = enabled && !granted ? t('sites_allowAccess', 'Allow access') : t('sites_turnOn', 'Turn on');
   enable.hidden = enabled && granted; enable.disabled = !!s.browser && !s.browser.supported;
   button('confirm').hidden = !candidate; button('disable').hidden = !enabled;
-  button('open-site').hidden = !enabled || !granted || !!candidate || connected && docs > 0;
+  button('open-site').hidden = !enabled || !granted || userScriptsOff || !!candidate || connected && docs > 0;
   // An extra tab to open is secondary to connecting the account.
   button('open-site').className = !connected ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm';
   if (selectedSite.connectionKind === 'page') {
@@ -228,7 +236,7 @@ function paintConnection() {
   }
 }
 button('enable').addEventListener('click', () => {
-  void chrome.permissions.request({ permissions: ['scripting', 'webNavigation'], origins: [...selectedSite.matches] }).then(granted => {
+  void chrome.permissions.request(siteGrants(selectedSite)).then(granted => {
     if (granted) return act({ kind: 'known.siteAdapters.enable', enabled: true }); showToast(t('sites_siteAccessRequired', 'Site access is required.'), 'error', { announce: true });
   }).catch(() => { showToast(t('sites_siteAccessUnavailable', 'Site access is unavailable.'), 'error', { announce: true }); });
 });

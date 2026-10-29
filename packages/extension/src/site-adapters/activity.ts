@@ -43,7 +43,7 @@ export function currentSiteProblem(events: readonly SiteActivity[], scope: { tas
 }
 export function problemFamily(code: string): ProblemFamily {
   if (['signedOut', 'sourceUnresolved', 'sourceAuthorizationChanged', 'sourceAccountChanged', 'pageUnavailable', 'navigationChanged', 'restartRequired'].includes(code)) return 'connection';
-  if (['permissionRequired', 'storageBoundaryUnavailable'].includes(code)) return 'permission';
+  if (['permissionRequired', 'storageBoundaryUnavailable', 'communityToggleRequired', 'communityPermissionRequired'].includes(code)) return 'permission';
   if (['rateLimited', 'challenge'].includes(code)) return 'rate';
   if (['network', 'timeout', 'sourceSyncPending', 'sourceSyncRecovering', 'semanticOffline'].includes(code)) return 'network';
   if (code === 'invalidData') return 'source';

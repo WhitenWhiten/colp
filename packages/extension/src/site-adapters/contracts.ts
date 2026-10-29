@@ -136,7 +136,7 @@ export type BootstrapRequest = {
   source: SourceIdentityClaim;
 } & (
   | { runtime: 'bundled'; activationId: Id }
-  | { runtime: 'userScript'; installationCredential: string }
+  | { runtime: 'userScript'; activationId: Id; installationCredential: string }
 );
 
 export type BootstrapReply =
@@ -576,7 +576,8 @@ export type PlanTrigger =
 
 /** Source archive execution uses this contract. Independent semantic work uses SemanticJob; ordinary captures keep their own contract. */
 export interface SavePlan {
-  communityOrigin?: import('./community-state.js').CommunityOrigin;
+  /** Only on plans left by the removed hint-only packages; they fail closed. */
+  communityOrigin?: import('./ledger-types.js').LegacyCommunityOrigin;
   id: Id;
   trigger: PlanTrigger;
   purpose: CapturePurpose;

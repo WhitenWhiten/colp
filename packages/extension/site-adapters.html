@@ -349,7 +349,7 @@
       <header class="page-head">
         <div class="page-head-copy">
           <h1 id="packages-title" data-i18n="sites_addOnPackages">Add-on packages</h1>
-          <p data-i18n="sites_communityLedeShort">Install self-contained site scripts for any HTTPS site. Archive hints require a compatible built-in reader.</p>
+          <p data-i18n="sites_communityLedeShort">Add any HTTPS site yourself: install its adapter package, then turn it on like a built-in site.</p>
         </div>
         <div class="page-head-actions">
           <button id="community-refresh" class="btn btn-ghost btn-sm btn-icon" type="button" aria-label="Refresh packages" title="Refresh packages" data-i18n-aria-label="sites_refreshPackages" data-i18n-title="sites_refreshPackages"><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="refresh"></svg></button>
@@ -361,7 +361,7 @@
       </div>
       <section class="set-group" aria-labelledby="sites-packages-heading">
         <div class="set-group-head"><h2 id="sites-packages-heading" data-i18n="sites_installedPackages">Installed packages</h2>
-          <p data-i18n="sites_installedLedeShort">A package starts in inspector mode. Archive hints need their own approval of the account, collections and folder, and the bundled reader confirms every hint.</p></div>
+          <p data-i18n="sites_installedLedeShort">Each package adds its site to the Sites list. Open it there to turn it on, connect your account and choose a folder.</p></div>
         <div class="set-card">
           <div id="community-packages" class="sites-rows sites-rows--lead"></div>
           <div class="empty sites-packages-empty">
@@ -376,15 +376,14 @@
         <div class="set-card">
           <div class="set-row">
             <div class="set-row-text"><p class="set-row-title" data-i18n="sites_userScripts">User scripts</p>
-              <p class="set-row-hint" data-i18n="sites_userScriptsHint">Chromium 149+ only. In Extensions → Know-N → Details, enable Allow User Scripts, reload the extension, and reopen Site adapters. Chrome 121–148 is unsupported for this runtime.</p></div>
+              <p class="set-row-hint" data-i18n="sites_userScriptsHint">Chromium 149+ only. In Extensions → Know-N → Details, enable Allow User Scripts, reload the extension, and reopen Site adapters. A package's site asks for access to its pages when you turn it on.</p></div>
             <div class="set-row-control">
               <span class="set-row-value"><span id="community-dot" class="set-dot" data-tone="off" aria-hidden="true"></span><span id="community-available" data-i18n="sites_off">Off</span></span>
-              <button id="community-grant" class="btn btn-secondary btn-sm" type="button" data-i18n="sites_allowAccess">Allow access</button>
             </div>
           </div>
           <div class="set-row set-row--stack">
             <div class="set-row-text"><label class="set-row-title" for="community-file" data-i18n="sites_packageJson">Package JSON</label>
-              <p class="set-row-hint" data-i18n="sites_packageHint">Files are inspected as inert data. Publisher identity and signatures are unverified; packages cannot claim official status. Install and every update require review. New and replaced packages start disabled, without archive or model authority.</p></div>
+              <p class="set-row-hint" data-i18n="sites_packageHint">Files are inspected as inert data. Publisher identity and signatures are unverified; packages cannot claim official status. Install and every update require review. A new package's site starts off; an update keeps its site's settings and runs the new code in a fresh world.</p></div>
             <div class="set-row-control"><input id="community-file" class="file-quiet" type="file" accept="application/json,.json"></div>
           </div>
           <div id="community-review" class="set-row set-row--stack" hidden>
@@ -393,7 +392,7 @@
             <label class="check-line"><input id="community-ack" type="checkbox"><span data-i18n="sites_communityAck">I trust this code/author and accept the page-access risk described above.</span></label>
           </div>
           <div id="community-install-bar" class="card-foot confirm-actions" hidden>
-            <button id="community-install" class="btn btn-primary btn-sm" type="button" disabled data-i18n="sites_installReviewed">Install reviewed bytes (disabled)</button>
+            <button id="community-install" class="btn btn-primary btn-sm" type="button" disabled data-i18n="sites_installReviewed">Install reviewed package</button>
           </div>
         </div>
         <details class="disclosure sites-response"><summary data-i18n="sites_lastResponse">Last response</summary><pre id="community-status" class="code-panel"></pre></details>

@@ -155,14 +155,15 @@ declare namespace chrome {
     };
   }
   namespace userScripts {
-    interface Script { id: string; matches?: string[]; js?: { code: string }[]; world?: 'USER_SCRIPT'; worldId?: string; allFrames?: boolean; runAt?: 'document_start' | 'document_idle' }
+    type ScriptSource = { code: string } | { file: string };
+    interface Script { id: string; matches?: string[]; js?: ScriptSource[]; world?: 'USER_SCRIPT'; worldId?: string; allFrames?: boolean; runAt?: 'document_start' | 'document_idle' }
     function getScripts(filter?: { ids: string[] }): Promise<Script[]>;
     function register(scripts: Script[]): Promise<void>;
     function unregister(filter: { ids: string[] }): Promise<void>;
     function configureWorld(properties: { worldId: string; messaging: boolean; csp?: string }): Promise<void>;
     function resetWorldConfiguration(worldId: string): Promise<void>;
     function getWorldConfigurations(): Promise<{ worldId?: string; messaging?: boolean; csp?: string }[]>;
-    function execute(options: { target: { tabId: number; documentIds: string[] }; world: 'USER_SCRIPT'; worldId: string; js: { code: string }[]; injectImmediately: boolean }): Promise<{ documentId?: string; error?: string; result?: unknown }[]>;
+    function execute(options: { target: { tabId: number; documentIds?: string[] }; world: 'USER_SCRIPT'; worldId: string; js: ScriptSource[]; injectImmediately: boolean }): Promise<{ documentId?: string; error?: string; result?: unknown }[]>;
   }
   namespace commands {
     interface Command { readonly name?: string; readonly description?: string; readonly shortcut?: string }

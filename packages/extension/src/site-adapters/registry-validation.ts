@@ -27,7 +27,7 @@ export function validateSiteDefinitions(sites: readonly SiteDefinition[]): reado
     if (!site.matches.length || site.matches.some(pattern => { try { const u = new URL(pattern); return u.protocol !== 'https:' || !!u.username || !!u.password || u.hostname.includes('*') || !!u.hash; } catch { return true; } })) throw new Error('invalidSiteMatches');
     if (site.negativeReadback && !site.capabilities.includes('readMemberships')) throw new Error('unsupportedHostCapability');
     if (!site.capabilities.every(c => available.has(c)) || new Set(site.capabilities).size !== site.capabilities.length) throw new Error('unsupportedHostCapability');
-    if (site.community?.connectOrigins.some(origin => { try { const u = new URL(origin); return u.protocol !== 'https:' || u.origin !== origin; } catch { return true; } })) throw new Error('invalidSiteMatches');
+    if (site.runtime !== undefined && !['bundled', 'userScript'].includes(site.runtime)) throw new Error('invalidSiteRuntime');
   }
   return Object.freeze([...sites]);
 }

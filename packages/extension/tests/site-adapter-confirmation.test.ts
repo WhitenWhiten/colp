@@ -13,14 +13,14 @@ import type { SourceContext, LedgerEdge, ObservationRow } from '../src/site-adap
 import { video } from './fixtures/site-adapters/bilibili.js';
 const hint: MembershipHint = { interactionId: 'interaction', itemId: video.id, added: ['101'], removed: [], code: 0 };
 type Command = Extract<HostCommand, { operation: 'readMemberships' | 'resolveItem' }>;
-async function fixture(beforeCommit?: (tx: IDBTransaction) => void, authorizeOrigin?: (context: SourceContext, collectionIds: readonly string[]) => Promise<void>) {
+async function fixture(beforeCommit?: (tx: IDBTransaction) => void) {
   const db = createSourceDatabase(new IDBFactory()), ledger = createSourceLedger(db, { beforeCommit });
   const a = await ledger.setAuthority({ enabled: true, installationGeneration: 1, sourceSessionGeneration: 1, accountId: '42', negativeReadback: false });
   const context: SourceContext = { connectionId: a.connectionId!, installationGeneration: 1, sourceSessionGeneration: 1, documentId: 'doc', tabId: 1, routeEpoch: 0, leaseId: 'lease' };
   await ledger.bindLease(context, Date.now() + 1000000);
   let time = Date.now(); const storage = new MemoryStorageArea(), sent: Command[] = [];
   const scheduler = () => createReadScheduler(storage, 'readQueue', () => time);
-  const ports = { authorizeOrigin, source: async () => ({ context, expiresAt: time + 60000 }), send: (_: SourceContext, c: Command) => { sent.push(c); }, alarm: (_: number) => {} };
+  const ports = { source: async () => ({ context, expiresAt: time + 60000 }), send: (_: SourceContext, c: Command) => { sent.push(c); }, alarm: (_: number) => {} };
   const create = () => createConfirmationQueue(ledger, scheduler(), ports, () => time);
   const queue = create();
   const advance = (ms = 2000) => { time += ms; };
@@ -47,18 +47,12 @@ test('durably accepts and deduplicates hints, then atomically records only obser
   expect(await f.queue.accept(f.context, f.reply(f.sent[1]!, { status: 'resolved', item: video }))).toBe(false);
   await f.db.close();
 });
-test('community confirmation preserves its grant provenance and stops before the next read after revocation', async () => {
-  let permitted = true;
-  const f = await fixture(undefined, async () => { if (!permitted) throw new Error('revoked'); });
-  f.context.communityOrigin = { installationId: 'i', generation: 2, scopeDigest: 'scope', packageDigest: 'bytes' };
-  await f.queue.enqueue(f.context, 'community-request', hint); await f.queue.wake();
-  await f.queue.accept(f.context, f.reply(f.sent[0]!, f.membership)); f.advance(); await f.queue.wake();
-  await f.queue.accept(f.context, f.reply(f.sent[1]!, { status: 'resolved', item: video }));
-  const id = (await f.queue.status()).last as { observationId: string };
-  expect(await f.db.read<ObservationRow>('observations', id.observationId)).toMatchObject({ context: { communityOrigin: f.context.communityOrigin } });
-  await f.queue.enqueue(f.context, 'community-later', hint); f.advance(); await f.queue.wake(); const reads = f.sent.length;
-  permitted = false; f.advance(); await f.queue.wake();
-  expect(f.sent).toHaveLength(reads); expect((await f.queue.status()).last).toMatchObject({ reason: 'communityArchiveRevoked' }); await f.db.close();
+test('a hint left by a removed hint-only package fails closed before any read', async () => {
+  const f = await fixture();
+  // Rows persisted before full community adapters carry the removed archive-scope grant; nothing can recheck it now.
+  await f.queue.enqueue({ ...f.context, communityOrigin: { installationId: 'i', generation: 2, scopeDigest: 'scope', packageDigest: 'bytes' } }, 'community-request', hint);
+  await f.queue.wake();
+  expect(f.sent).toEqual([]); expect((await f.queue.status()).last).toMatchObject({ reason: 'communityArchiveRevoked' }); await f.db.close();
 });
 test('failed writes, removal-only hints and unknown readback create no positive or negative fact', async () => {
   const f = await fixture();

@@ -11559,10 +11559,6 @@
     "message": "允许访问",
     "description": "Allow access"
   },
-  "sites_allowHints": {
-    "message": "仅允许针对此归档范围的已验证提示",
-    "description": "Allow verified hints for exactly this archive scope"
-  },
   "sites_allowToChoose": {
     "message": "允许访问书签后才能选择文件夹。",
     "description": "Allow bookmark access to choose a folder."
@@ -11580,8 +11576,8 @@
     "description": "Approve this preview"
   },
   "sites_approveRollback": {
-    "message": "批准回滚（回滚后停用）",
-    "description": "Approve rollback (disabled)"
+    "message": "批准回滚",
+    "description": "Approve rollback"
   },
   "sites_archiveHoldShort": {
     "message": "此归档需要审查后才能再次保存。请打开“恢复”查看。",
@@ -11590,14 +11586,6 @@
   "sites_archivePending": {
     "message": "已保存。正在等待归档根目录。",
     "description": "Saved. Waiting for the archive root."
-  },
-  "sites_archiveScoped": {
-    "message": "已限定归档范围",
-    "description": "Archive scoped"
-  },
-  "sites_archiveUnavailable": {
-    "message": "无法归档",
-    "description": "Archive unavailable"
   },
   "sites_askPrimary": {
     "message": "适用多个收藏夹时询问",
@@ -11704,12 +11692,12 @@
     "description": "I trust this code/author and accept the page-access risk described above."
   },
   "sites_communityLedeShort": {
-    "message": "可为任何 HTTPS 站点安装独立的用户脚本。收藏归档提示需要兼容的内置读取器。",
-    "description": "Install self-contained site scripts for any HTTPS site. Archive hints require a compatible built-in reader."
+    "message": "你可以自行添加任何 HTTPS 站点：安装它的适配器包，然后像内置站点一样开启它。",
+    "description": "Add any HTTPS site yourself: install its adapter package, then turn it on like a built-in site."
   },
   "sites_communityRisk": {
-    "message": "此代码可以读取和修改已授权的网站页面，使用网站会话发出请求，并暴露可见的私密内容。请只安装你信任的代码和作者。你需要对此选择负责。检查模式会阻止宿主写入，但不能让未知的页面代码变得安全。",
-    "description": "This code can read and alter authorized site pages, make requests using the site session, and expose visible private content. Install only code and authors you trust. You are responsible for this choice. Inspector mode blocks host writes, but does not make unknown page code safe."
+    "message": "此代码可以读取和修改已授权的网站页面，使用网站会话发出请求，并暴露可见的私密内容。请只安装你信任的代码和作者。你需要对此选择负责。开启该站点后，它报告的内容会成为你所选文件夹中的书签。",
+    "description": "This code can read and alter authorized site pages, make requests using the site session, and expose visible private content. Install only code and authors you trust. You are responsible for this choice. Once you turn the site on, what it reports becomes bookmarks in the folder you choose."
   },
   "sites_confirmationReads": {
     "message": "确认读取",
@@ -11771,25 +11759,17 @@
     "message": "已导出私密诊断信息。现有工作和数据库结构均已保留。",
     "description": "Private diagnostic exported. Existing work and database schema were preserved."
   },
-  "sites_disablePackage": {
-    "message": "停用包",
-    "description": "Disable package"
-  },
   "sites_disabledUntilReviewed": {
     "message": "审查前保持停用。",
     "description": "Disabled until reviewed."
   },
-  "sites_enablePackage": {
-    "message": "启用检查器",
-    "description": "Enable inspector"
-  },
   "sites_installReviewed": {
-    "message": "安装已审查的内容（安装后停用）",
-    "description": "Install reviewed bytes (disabled)"
+    "message": "安装已审查的包",
+    "description": "Install reviewed package"
   },
   "sites_installedLedeShort": {
-    "message": "包以检查模式启动。归档提示需要单独批准账号、收藏夹和文件夹，并且每条提示都由内置读取器确认。",
-    "description": "A package starts in inspector mode. Archive hints need their own approval of the account, collections and folder, and the bundled reader confirms every hint."
+    "message": "每个包都会把它的站点加入“站点”列表。在那里打开它，即可开启站点、连接账号并选择文件夹。",
+    "description": "Each package adds its site to the Sites list. Open it there to turn it on, connect your account and choose a folder."
   },
   "sites_installedPackages": {
     "message": "已安装的包",
@@ -11927,17 +11907,33 @@
     "message": "在标签页中打开 $1 即可列出你的收藏夹。",
     "description": "Open $1 in a tab to list your collections."
   },
-  "sites_packageDisabled": {
-    "message": "已停用",
-    "description": "Disabled"
-  },
-  "sites_packageEnabled": {
-    "message": "已启用",
-    "description": "Enabled"
-  },
   "sites_packageHint": {
-    "message": "文件会作为惰性数据检查。发布者身份和签名未经验证；包不能声称官方身份。安装和每次更新都需要审查。新安装和替换的包初始为停用状态，不具备归档或模型权限。",
-    "description": "Files are inspected as inert data. Publisher identity and signatures are unverified; packages cannot claim official status. Install and every update require review. New and replaced packages start disabled, without archive or model authority."
+    "message": "文件会作为惰性数据检查。发布者身份和签名未经验证；包不能声称官方身份。安装和每次更新都需要审查。新包的站点初始为关闭状态；更新会保留站点设置，并在新的环境中运行新代码。",
+    "description": "Files are inspected as inert data. Publisher identity and signatures are unverified; packages cannot claim official status. Install and every update require review. A new package's site starts off; an update keeps its site's settings and runs the new code in a fresh world."
+  },
+  "sites_openPackageSite": {
+    "message": "设置 $1",
+    "description": "Set up $1"
+  },
+  "sites_packageOutdated": {
+    "message": "此包使用旧的仅提示格式。请安装更新后的版本再使用。",
+    "description": "This package uses the earlier hint-only format. Install an updated version to use it."
+  },
+  "sites_packageSiteTaken": {
+    "message": "另一个已安装的包已在使用此站点标识。",
+    "description": "Another installed package already uses this site identity."
+  },
+  "sites_userScriptsOff": {
+    "message": "为 Know-N 允许用户脚本",
+    "description": "Allow user scripts for Know-N"
+  },
+  "sites_userScriptsOffHint": {
+    "message": "$1 以已安装的包运行。在“扩展程序 → Know-N → 详情”中开启“允许用户脚本”，重新加载扩展程序，然后重新打开此页面。",
+    "description": "$1 runs as an installed package. In Extensions → Know-N → Details, turn on Allow User Scripts, reload the extension, then reopen this page."
+  },
+  "sites_userScriptsToggle": {
+    "message": "在“扩展程序 → 详情”中为 Know-N 开启“允许用户脚本”，重新加载扩展程序，然后重试。",
+    "description": "Turn on Allow User Scripts for Know-N in Extensions → Details, reload the extension, then try again."
   },
   "sites_packageJson": {
     "message": "包 JSON",
@@ -11970,10 +11966,6 @@
   "sites_previewRebinding": {
     "message": "预览账号和根目录重新绑定",
     "description": "Preview account and root rebinding"
-  },
-  "sites_previewScope": {
-    "message": "预览归档范围",
-    "description": "Preview archive scope"
   },
   "sites_primaryCollection": {
     "message": "主收藏夹",
@@ -12264,8 +12256,8 @@
     "description": "User scripts"
   },
   "sites_userScriptsHint": {
-    "message": "仅支持 Chromium 149 及以上版本。在“扩展程序 → Know-N → 详情”中开启“允许用户脚本”，重新加载扩展程序，然后重新打开站点适配器。Chrome 121–148 不支持此运行环境。",
-    "description": "Chromium 149+ only. In Extensions → Know-N → Details, enable Allow User Scripts, reload the extension, and reopen Site adapters. Chrome 121–148 is unsupported for this runtime."
+    "message": "仅支持 Chromium 149 及以上版本。在“扩展程序 → Know-N → 详情”中开启“允许用户脚本”，重新加载扩展程序，然后重新打开站点适配器。开启包的站点时，它会请求访问该站点页面的权限。",
+    "description": "Chromium 149+ only. In Extensions → Know-N → Details, enable Allow User Scripts, reload the extension, and reopen Site adapters. A package's site asks for access to its pages when you turn it on."
   },
   "sites_availableFeatures": {
     "message": "可用功能：$1。",
