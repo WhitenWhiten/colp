@@ -122,6 +122,15 @@ describe('the unified owner activity signal', () => {
     const row = panel.querySelector<HTMLAnchorElement>('a.list-row')!;
     expect([row.href, row.target]).toEqual(['https://colp.example/activity', '_blank']);
     expect(panel.querySelectorAll('a')).toHaveLength(1);
+    // A waiting plan names its agent and reads as the plan's own summary; the row still opens the inbox.
+    const approval = { ...item, kind: 'approval_requested' as const, count: 0, folders: [], items: [], plan: { id: 'plan-1', summary: 'Move <b>3</b> items' } };
+    expect(activityTitle(approval)).toBe('Claude wants your approval');
+    expect(activityTitle({ ...approval, agent: null })).toBe('An agent wants your approval');
+    const asking = activityPanel(server([], { activity: { unreadCount: 1, latest: approval, fetchedAt: NOW } }), WEB);
+    expect(Array.from(asking.querySelectorAll('.list-row-meta'), (line) => line.textContent)).toEqual([expect.not.stringContaining('digest'), 'Move <b>3</b> items']);
+    expect(asking.querySelector('b')).toBeNull();
+    expect(asking.querySelector<HTMLElement>('.automation-run-glyph')?.dataset.tone).toBe('warning');
+    expect(asking.querySelector<HTMLAnchorElement>('a.list-row')?.href).toBe('https://colp.example/activity');
     const empty = activityPanel(server([], { activity: { unreadCount: 0, latest: null, fetchedAt: NOW } }), WEB);
     expect(empty.querySelector('.empty-title')?.textContent).toBe('No activity yet');
     expect(empty.querySelector('a')).toBeNull();

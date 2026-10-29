@@ -114,6 +114,27 @@ describe('Activity inbox', () => {
     expect(api.markActivityRead).not.toHaveBeenCalled()
   })
 
+  it('asks for an agent’s waiting plan by its summary and opens its approval', async () => {
+    const api = fakeActivityApi()
+    const approval = (id: string, name: string | null) => activityItem(id, { kind: 'approval_requested', count: 0, collection: null,
+      folders: [], items: [], agent: { clientId: 'claude', name, kind: 'oauth_client' },
+      plan: { id: `plan ${id}`, summary: 'Move <b>Attention</b> from Inbox to Papers' } })
+    api.listActivity.mockResolvedValue({ items: [approval('named', 'Claude'), approval('unnamed', null)], nextCursor: null, unreadCount: 2 })
+    renderWithRouter(<Activity api={api} />, { route: '/activity' })
+    await waitForDom(() => entries().length === 2)
+    const named = document.querySelector('[data-activity-id="named"]')!
+    expect(named.getAttribute('data-kind')).toBe('approval_requested')
+    expect(named.querySelector('h3 a')?.textContent).toBe('Claude wants your approval')
+    expect(named.querySelector('h3 a')?.getAttribute('href')).toBe('/approvals/plan%20named')
+    // The summary is text, with its whole sentence on hover.
+    expect(named.querySelector('p[title]')?.textContent).toBe('Move <b>Attention</b> from Inbox to Papers')
+    expect(named.querySelector('p[title]')?.getAttribute('title')).toBe('Move <b>Attention</b> from Inbox to Papers')
+    expect(named.querySelector('b')).toBeNull()
+    expect(named.querySelector('[data-tone]')?.getAttribute('data-tone')).toBe('warning')
+    expect(named.textContent).not.toContain('digest')
+    expect(document.querySelector('[data-activity-id="unnamed"] h3')?.textContent).toBe('An agent wants your approval')
+  })
+
   it('hides a previously available bell when the list returns feature-off 404', async () => {
     const api = fakeActivityApi()
     let fail: ((reason: unknown) => void) | undefined

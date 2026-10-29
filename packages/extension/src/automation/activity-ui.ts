@@ -13,10 +13,14 @@ const GLYPH: Record<ActivityKind, [IconName, 'warning' | 'danger' | undefined]> 
   run_partial: ['alert', 'warning'],
   run_failed: ['alert', 'danger'],
   run_attention: ['alert', 'warning'],
+  approval_requested: ['alert', 'warning'],
 };
 
 /** The same plain sentences as the web inbox. Names are server-resolved owner metadata. */
 export function activityTitle(item: ActivityItem): string {
+  if (item.kind === 'approval_requested') {
+    return t('automation_activityApproval', '$1 wants your approval', item.agent?.name || t('automation_activityAgent', 'An agent'));
+  }
   if (item.kind === 'agent_bookmarks_added') {
     const agent = item.agent?.name || t('automation_activityAgent', 'An agent');
     const folder = item.folders[0]?.title || item.collection?.title || t('automation_activityLibrary', 'your library');
@@ -57,7 +61,8 @@ export function activityPanel(server: AutomationServerView, webUrl: string | nul
     if (latest.run && latest.count) meta.append(el('span', tn('automation_activityDigests', latest.count, '$1 new digest', '$1 new digests')), el('span', undefined, 'sep'));
     meta.append(when(Date.parse(latest.updatedAt)));
     main.append(title, meta);
-    const samples = latest.items.map((member) => member.title || member.host).filter(Boolean).join(' · ');
+    // A waiting plan reads as its own summary, never the agent's note.
+    const samples = latest.plan?.summary || latest.items.map((member) => member.title || member.host).filter(Boolean).join(' · ');
     if (samples) { const line = el('p', undefined, 'list-row-meta'); line.append(el('span', samples, 'grow')); main.append(line); }
     const tail = el('div', undefined, 'list-row-tail');
     if (latest.state === 'unread') { const badge = el('span', t('automation_runNew', 'New'), 'badge'); badge.dataset.tone = 'accent'; tail.append(badge); }

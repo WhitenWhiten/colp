@@ -9,9 +9,10 @@ import { runPath } from '../automations/paths'
 
 /* The owner's inbox: one bordered list per day, a glyph, the sentence, its
    details and a New state column. The glyph uses the run page's vocabulary
-   and takes tone only for a problem, as the extension's Activity tab does. */
+   and takes tone only for a problem, as the extension's Activity tab does.
+   A decision waiting for the owner takes the attention glyph. */
 
-const OUTCOME: Record<Exclude<ActivityKind, 'agent_bookmarks_added'>, string> = {
+const OUTCOME: Record<Exclude<ActivityKind, 'agent_bookmarks_added' | 'approval_requested'>, string> = {
   run_completed: 'finished', run_partial: 'partly finished', run_failed: 'failed', run_attention: 'needs your decision',
 }
 const GLYPH: Record<ActivityKind, [IconName, 'warning' | 'danger' | undefined]> = {
@@ -20,6 +21,7 @@ const GLYPH: Record<ActivityKind, [IconName, 'warning' | 'danger' | undefined]> 
   run_partial: ['alert', 'warning'],
   run_failed: ['alert', 'danger'],
   run_attention: ['alert', 'warning'],
+  approval_requested: ['alert', 'warning'],
 }
 
 function folderHref(collectionId: string, folderId?: string): string {
@@ -27,11 +29,13 @@ function folderHref(collectionId: string, folderId?: string): string {
 }
 
 function destination(item: ActivityItem): string | null {
+  if (item.plan) return `/approvals/${encodeURIComponent(item.plan.id)}`
   if (item.run) return runPath(item.run.id)
   return item.collection ? folderHref(item.collection.id, item.folders[0]?.nodeId) : null
 }
 
 function sentence(item: ActivityItem): string {
+  if (item.kind === 'approval_requested') return `${item.agent?.name || 'An agent'} wants your approval`
   if (item.kind !== 'agent_bookmarks_added') return `${item.run?.ruleName || 'A rule'} ${OUTCOME[item.kind]}`
   const folder = item.folders[0]
   const extra = item.folders.length - 1
@@ -61,6 +65,7 @@ function Entry({ item }: { item: ActivityItem }) {
           {!added && item.count > 0 && <>{plural(item.count, 'new digest')} · </>}
           <time dateTime={item.updatedAt} title={formatDateTime(item.updatedAt)}>{formatRelative(item.updatedAt)}</time>
         </p>
+        {item.plan && <p className="activity-plan" title={item.plan.summary}>{item.plan.summary}</p>}
         {added && item.items.length > 0 && (
           <ul className="activity-samples" aria-label="Recent bookmarks">
             {item.items.slice(0, 5).map((member) => (

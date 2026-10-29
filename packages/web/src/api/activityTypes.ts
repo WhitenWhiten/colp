@@ -1,4 +1,5 @@
 export type ActivityKind = 'agent_bookmarks_added' | 'run_completed' | 'run_partial' | 'run_failed' | 'run_attention'
+  | 'approval_requested'
 
 export interface ActivityItem {
   id: string
@@ -21,6 +22,8 @@ export interface ActivityItem {
     outputCount: number
     attention: 'review' | 'awaitingApproval' | null
   } | null
+  /** An agent's plan waiting for the owner, by its server-built summary (contract 1.97.0; absent before). */
+  plan?: { id: string; summary: string } | null
 }
 
 export interface ActivityPage { items: ActivityItem[]; nextCursor: string | null; unreadCount: number }

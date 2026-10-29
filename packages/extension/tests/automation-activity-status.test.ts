@@ -34,6 +34,16 @@ describe('activity summary transport', () => {
     for (const body of bad) expect(await readActivitySummary('https://colp.example', 'owner-1', async () => json(body))).toEqual({ ok: false, problem: 'invalid' });
   });
 
+  it('accepts an approval request with its plan, and items from servers without plans', async () => {
+    const approval = { ...item, kind: 'approval_requested', count: 0, folders: [], items: [], plan: { id: 'plan-1', summary: 'Move 3 items' } };
+    for (const latest of [approval, { ...item, plan: null }, item]) {
+      expect(await readActivitySummary('https://colp.example', 'owner-1', async () => json({ ...summary, latest }))).toMatchObject({ ok: true });
+    }
+    for (const latest of [{ ...approval, plan: { id: 'plan-1' } }, { ...approval, plan: 'plan-1' }, { ...approval, kind: 'approval_granted' }]) {
+      expect(await readActivitySummary('https://colp.example', 'owner-1', async () => json({ ...summary, latest }))).toEqual({ ok: false, problem: 'invalid' });
+    }
+  });
+
   it('maps unavailable, authentication, rate and connection failures', async () => {
     for (const [status, problem] of [[404, 'unavailable'], [401, 'signedOut'], [403, 'signedOut'], [429, 'rateLimited'], [503, 'rateLimited'], [500, 'server']] as const) {
       expect(await readActivitySummary('https://colp.example', 'owner-1', async () => json({}, status))).toEqual({ ok: false, problem });

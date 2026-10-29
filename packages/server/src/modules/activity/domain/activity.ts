@@ -1,4 +1,5 @@
-export type ActivityKind = 'agent_bookmarks_added' | 'run_completed' | 'run_partial' | 'run_failed' | 'run_attention';
+export type ActivityKind = 'agent_bookmarks_added' | 'run_completed' | 'run_partial' | 'run_failed' | 'run_attention'
+  | 'approval_requested';
 export interface ActivityItem {
   id: string; kind: ActivityKind; state: 'unread' | 'read'; revision: string;
   occurredAt: string; updatedAt: string; readAt: string | null; count: number;
@@ -8,6 +9,8 @@ export interface ActivityItem {
   items: Array<{ nodeId: string; title: string | null; host: string | null; occurredAt: string }>;
   run: { id: string; ruleId: string; ruleName: string | null; status: string; outputCount: number;
     attention: 'review' | 'awaitingApproval' | null } | null;
+  /** A Change Plan waiting for the owner: its authoritative summary, never the agent's note. */
+  plan: { id: string; summary: string } | null;
 }
 export interface ActivityPage { items: ActivityItem[]; nextCursor: string | null; unreadCount: number }
 export interface ActivitySummary { unreadCount: number; latest: ActivityItem | null; revision: string }

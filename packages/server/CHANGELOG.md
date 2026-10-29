@@ -4,6 +4,10 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Added
+
+- An agent's change plan that waits for your approval appears in Activity, in the web inbox and the bell count and in the extension: "Claude wants your approval", with the plan's own summary, opening its page under Approvals. It leaves the inbox once the plan is approved, denied or expires. Who asked is the agent's verified client and what it does is the server-built summary; the agent's own note is never shown there. Plans that need no approval and automation proposals (which already ask through their run) add no item; a plan a Trusted agent policy approves on arrival leaves again at once. The new migration also lists plans already waiting when it runs.
+
 ### Fixed
 
 - An agent plan that adds bookmarks or creates folders reads as sentences on the Approvals page and in the agent's tool result: "Add Toolformer to /Bookmarks bar/Research", "Create folder Agents in /Bookmarks bar/Research". It used to read "Plan 4 canonical operation(s) [create_node, …]. Authoritative impact: …". Delete sentences now also name the folder they delete from.

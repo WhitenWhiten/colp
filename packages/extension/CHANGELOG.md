@@ -4,6 +4,10 @@ All notable changes to the Know-N browser extension are documented here. The for
 
 ## [Unreleased]
 
+### Added
+
+- Options › Automations › Activity shows an agent's change plan waiting for your approval as "Claude wants your approval", with the plan's summary beneath; the row opens the web inbox like the other activity rows. Requires a server that sends `approval_requested` activity; older servers are read as before.
+
 ## [0.1.0-rc.5] - 2026-10-27
 
 ### Added

@@ -141,6 +141,23 @@
   overflow-wrap: anywhere;
 }
 
+/* What a waiting plan does, in the plan's own words: the samples' quoted
+   line, at most two lines, the whole summary in its title. */
+.activity-plan {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: var(--hair-40) 0 0;
+  padding: 0 0 0 var(--hair-85);
+  border-left: 1px solid var(--line-strong);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-copy);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+
 /* A space before the site is the line's break point, so a long title
    never drags its last word onto the site's line. */
 .activity-host {

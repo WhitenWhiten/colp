@@ -31,6 +31,12 @@ Run completion, partial success, failure, review, and approval attention update 
 Cancelled runs and resolved approval requests are removed from the inbox; restarting a run clears its obsolete outcome
 unless an approval is still pending. New final outcomes create a fresh notification.
 Placement-only runs and manual selection parents do not create activity.
+An agent's Change Plan that waits for the owner's approval is one `approval_requested` item, recorded by a
+trigger on `mcp_change_plans`. It names the plan's verified client (`agent`) and carries `plan: { id, summary }`,
+the server-built summary read live; the agent-provided reason is never included. The item is removed when the plan
+leaves `pending` (approved, denied, expired) or is deleted. Plans that need no approval and automation proposals,
+which ask through their run's `run_attention` item, are not recorded. A Trusted policy approves its plans right
+after they are stored, so their item exists only for that moment.
 
 Activity read state is shared across the web and extension. Reading run outputs also clears that run's
 activity item in the same transaction; reading activity never advances the run's output watermark.

@@ -1,5 +1,7 @@
 /** The owner-facing activity contract, shared by the summary, badge and Options. */
-export type ActivityKind = 'agent_bookmarks_added' | 'run_completed' | 'run_partial' | 'run_failed' | 'run_attention';
+export type ActivityKind = 'agent_bookmarks_added' | 'run_completed' | 'run_partial' | 'run_failed' | 'run_attention'
+  | 'approval_requested';
+const KINDS: readonly string[] = ['agent_bookmarks_added', 'run_completed', 'run_partial', 'run_failed', 'run_attention', 'approval_requested'];
 export interface ActivityItem {
   readonly id: string;
   readonly kind: ActivityKind;
@@ -15,6 +17,8 @@ export interface ActivityItem {
   readonly items: readonly { readonly nodeId: string; readonly title: string | null; readonly host: string | null; readonly occurredAt: string }[];
   readonly run: { readonly id: string; readonly ruleId: string; readonly ruleName: string | null; readonly status: string;
     readonly outputCount: number; readonly attention: 'review' | 'awaitingApproval' | null } | null;
+  /** An agent's plan waiting for the owner, by its server-built summary. Older servers omit it. */
+  readonly plan?: { readonly id: string; readonly summary: string } | null;
 }
 export interface ActivitySummary {
   readonly unreadCount: number;
@@ -34,7 +38,7 @@ const boundedList = (value: unknown, valid: (item: Record<string, unknown>) => b
 
 function validItem(value: unknown): value is ActivityItem {
   if (!object(value)) return false;
-  return text(value.id) && text(value.kind) && ['agent_bookmarks_added', 'run_completed', 'run_partial', 'run_failed', 'run_attention'].includes(String(value.kind))
+  return text(value.id) && text(value.kind) && KINDS.includes(value.kind)
     && text(value.state) && ['unread', 'read'].includes(String(value.state)) && revision(value.revision) && value.revision !== '0'
     && date(value.occurredAt) && date(value.updatedAt) && (value.readAt === null || date(value.readAt)) && integer(value.count)
     && optionalObject(value.agent, (agent) => text(agent.clientId) && nullableText(agent.name) && text(agent.kind) && ['oauth_client', 'api_key', 'unknown'].includes(String(agent.kind)))
@@ -42,7 +46,8 @@ function validItem(value: unknown): value is ActivityItem {
     && boundedList(value.folders, (folder) => text(folder.nodeId) && nullableText(folder.title) && integer(folder.count))
     && boundedList(value.items, (item) => text(item.nodeId) && nullableText(item.title) && nullableText(item.host) && date(item.occurredAt))
     && optionalObject(value.run, (run) => text(run.id) && text(run.ruleId) && nullableText(run.ruleName) && text(run.status)
-      && integer(run.outputCount) && (run.attention === null || run.attention === 'review' || run.attention === 'awaitingApproval'));
+      && integer(run.outputCount) && (run.attention === null || run.attention === 'review' || run.attention === 'awaitingApproval'))
+    && (value.plan === undefined || optionalObject(value.plan, (plan) => text(plan.id) && text(plan.summary)));
 }
 
 export function validActivitySummary(value: unknown): value is ActivitySummary {

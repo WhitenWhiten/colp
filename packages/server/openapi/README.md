@@ -31,6 +31,11 @@ Version **1.103.0** (web **1.95.0**) adds optional `MeView.features.agentActivit
 to GET `/api/v1/me`, so navigation can use the deployment switch independently of
 Activity summary requests. Profile command receipts retain their existing shape.
 
+Version **1.105.0** (web **1.97.0**) adds the `approval_requested` Activity kind and
+the nullable `ActivityItem.plan` (`ActivityPlan`: plan id and its server-built summary)
+for an agent's Change Plan waiting for the owner. The item is removed once the plan
+leaves `pending`. Compatibility still compares against the accepted **1.101.0** baseline.
+
 ## Baseline policy after freeze
 
 | File | Role |

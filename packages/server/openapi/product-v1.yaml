@@ -2,7 +2,7 @@ openapi: 3.1.0
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Known Product API
-  version: 1.104.0
+  version: 1.105.0
   description: >-
     Version 1.70.0 intentionally removes browser credential management: parent
     keys are provisioned only through the database for official bots. Credential
@@ -18317,6 +18317,23 @@ components:
             - review
             - awaitingApproval
             - null
+    ActivityPlan:
+      type: object
+      additionalProperties: false
+      description: An agent's Change Plan waiting for the owner's decision. The
+        summary is the server-built description of what the plan does, never the
+        agent-provided reason. Present only on approval_requested items, which
+        are removed once the plan is approved, denied or expires.
+      required:
+        - id
+        - summary
+      properties:
+        id:
+          type: string
+          minLength: 1
+        summary:
+          type: string
+          maxLength: 512
     ActivityItem:
       type: object
       additionalProperties: false
@@ -18334,6 +18351,7 @@ components:
         - folders
         - items
         - run
+        - plan
       properties:
         id: *a1
         kind:
@@ -18344,6 +18362,7 @@ components:
             - run_partial
             - run_failed
             - run_attention
+            - approval_requested
         state:
           type: string
           enum:
@@ -18388,6 +18407,10 @@ components:
         run:
           oneOf:
             - $ref: "#/components/schemas/ActivityRun"
+            - type: "null"
+        plan:
+          oneOf:
+            - $ref: "#/components/schemas/ActivityPlan"
             - type: "null"
     ActivityPage:
       type: object

@@ -2296,10 +2296,15 @@ export interface components {
             /** @enum {string|null} */
             attention: "review" | "awaitingApproval" | null;
         };
+        /** @description An agent's Change Plan waiting for the owner's decision. The summary is the server-built description of what the plan does, never the agent-provided reason. Present only on approval_requested items, which are removed once the plan is approved, denied or expires. */
+        ActivityPlan: {
+            id: string;
+            summary: string;
+        };
         ActivityItem: {
             id: string;
             /** @enum {string} */
-            kind: "agent_bookmarks_added" | "run_completed" | "run_partial" | "run_failed" | "run_attention";
+            kind: "agent_bookmarks_added" | "run_completed" | "run_partial" | "run_failed" | "run_attention" | "approval_requested";
             /** @enum {string} */
             state: "unread" | "read";
             revision: string;
@@ -2318,6 +2323,7 @@ export interface components {
             folders: components["schemas"]["ActivityFolder"][];
             items: components["schemas"]["ActivityMember"][];
             run: components["schemas"]["ActivityRun"] | null;
+            plan: components["schemas"]["ActivityPlan"] | null;
         };
         ActivityPage: {
             items: components["schemas"]["ActivityItem"][];

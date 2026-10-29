@@ -167,6 +167,9 @@
   "automation_activityAgent": {
     "message": "An agent"
   },
+  "automation_activityApproval": {
+    "message": "$1 wants your approval"
+  },
   "automation_activityAttention": {
     "message": "$1 needs your decision"
   },
