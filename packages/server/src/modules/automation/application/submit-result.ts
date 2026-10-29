@@ -17,7 +17,8 @@ export async function submitResult(port: ResultSubmissionPort,actor: WorkPrincip
   if (input.outputContract !== pin.task.outputContract || output.kind !== kind
     || (output.kind === 'text' && pin.task.type !== `${output.textType}.generate`))
     throw new AutomationError('invalid_request','Output does not match the pinned task contract.');
-  const groups = output.kind === 'tags' ? output.add.map(tag => tag.evidence) : [output.evidence];
+  const groups = output.kind === 'tags' ? output.add.map(tag => tag.evidence)
+    : output.kind === 'metadata' ? [output.evidence, ...output.tags.map(tag => tag.evidence)] : [output.evidence];
   if (groups.some(evidence => !evidence.some(e => e.kind === 'source' && pin.sourceReferences.includes(e.reference))
     || evidence.some(e => e.kind === 'source' && !pin.sourceReferences.includes(e.reference))))
     throw new AutomationError('invalid_request','Every typed output or added tag requires evidence from the pinned source inputs.');
