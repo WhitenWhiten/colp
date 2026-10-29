@@ -1,5 +1,5 @@
 import { sendSiteMessage, siteButton, siteRow } from './settings-client.js';
-import { t, tn } from '../i18n.js';
+import { formatMoment, t, tn } from '../i18n.js';
 // The Recovery tab: which account owns each saved copy, writes that need recovery, restored backups and the private diagnostic.
 const text = (id: string, value: string) => { document.querySelector(`#${id}`)!.textContent = value; };
 const status = document.querySelector<HTMLPreElement>('#status')!;
@@ -70,7 +70,7 @@ async function repair(kind: 'status' | 'recover' | 'export') {
     for (const candidate of candidates) {
       if (candidate.url || candidate.title !== folder.title || !candidate.dateAdded) continue;
       matching++;
-      const adopt = siteButton(t('sites_folderRecoveryAdopt', 'Confirm this existing folder ($1)', String(candidate.dateAdded)));
+      const adopt = siteButton(t('sites_folderRecoveryAdopt', 'Confirm this existing folder ($1)', formatMoment(candidate.dateAdded)));
       adopt.onclick = () => { adopt.disabled = true; void sendSiteMessage({ kind: 'known.siteAdapters.repair.adoptFolder', commandId: folder.commandId,
         nativeId: candidate.id, dateAdded: candidate.dateAdded }).then((response: unknown) => {
         if ((response as { ok?: boolean }).ok) { row.remove(); feedback.textContent = t('sites_folderRecoveryDone', 'Folder confirmed. Its waiting saves can continue.'); feedback.hidden = false; }
@@ -81,7 +81,7 @@ async function repair(kind: 'status' | 'recover' | 'export') {
     if (!matching) {
       const retry = siteButton(t('sites_folderRecoveryRetry', 'I checked no folder was created and accept the risk of a duplicate; try again'));
       retry.onclick = () => { retry.disabled = true; void sendSiteMessage({ kind: 'known.siteAdapters.repair.retryFolder', commandId: folder.commandId }).then((response: unknown) => {
-        if ((response as { ok?: boolean }).ok) { row.remove(); feedback.textContent = t('sites_folderRecoveryDone', 'Folder recovery started. Its waiting saves can continue.'); feedback.hidden = false; }
+        if ((response as { ok?: boolean }).ok) { row.remove(); feedback.textContent = t('sites_folderRecoveryRetried', 'Folder recovery started. Its waiting saves can continue.'); feedback.hidden = false; }
         else retry.disabled = false;
       }); };
       control.append(retry);

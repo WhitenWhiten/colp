@@ -21,6 +21,7 @@ test('recovery page requests and renders subsequent binding pages and retries th
 });
 afterEach(() => { vi.unstubAllGlobals(); document.body.replaceChildren(); });
 
+const ADDED = Date.UTC(2026, 9, 28, 12);
 test('recovery offers an explicit existing-folder selection for an unknown creation', async () => {
   vi.resetModules();
   document.body.innerHTML = '<button id="read-bindings"></button><div id="content-bindings"></div><div id="content-summary"></div><pre id="status"></pre><button id="repair-status"></button><button id="repair-recover"></button><button id="repair-export"></button><div id="repair-summary"></div><div id="repair-records"></div><div id="repair-feedback"></div><div id="repair-hint"></div>';
@@ -28,14 +29,15 @@ test('recovery offers an explicit existing-folder selection for an unknown creat
     ? { ok: true, attention: [], folderRecovery: [{ commandId: 'command', title: 'Favorites', parentId: 'parent' }] } : { ok: true });
   vi.stubGlobal('chrome', { runtime: { sendMessage }, i18n: { getMessage: () => '' }, bookmarks: {
     get: async () => [{ id: 'parent', title: 'Archive' }],
-    getChildren: async () => [{ id: 'chosen', title: 'Favorites', dateAdded: 20 }, { id: 'other', title: 'Unrelated', dateAdded: 21 }],
+    getChildren: async () => [{ id: 'chosen', title: 'Favorites', dateAdded: ADDED }, { id: 'other', title: 'Unrelated', dateAdded: ADDED + 1 }],
   } });
   await import('../src/site-adapters/settings-recovery.js');
   document.querySelector<HTMLButtonElement>('#repair-status')!.click();
   await vi.waitFor(() => expect(document.querySelector('#repair-records')!.textContent).toContain('Favorites'));
   const button = document.querySelector<HTMLButtonElement>('#repair-records button')!;
-  expect(button.textContent).toContain('20'); button.click();
-  await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ kind: 'known.siteAdapters.repair.adoptFolder', commandId: 'command', nativeId: 'chosen', dateAdded: 20 })));
+  // The candidate is named by when it was added, never by the raw timestamp.
+  expect(button.textContent).toContain('2026'); expect(button.textContent).not.toContain(String(ADDED)); button.click();
+  await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ kind: 'known.siteAdapters.repair.adoptFolder', commandId: 'command', nativeId: 'chosen', dateAdded: ADDED })));
 });
 
 test('recovery requires an explicit decision before retrying an absent folder', async () => {

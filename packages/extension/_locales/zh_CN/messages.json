@@ -11603,9 +11603,9 @@
     "message": "$1 个已保存的关联。",
     "description": "$1 saved associations."
   },
-  "sites_associationsTruncated": {
-    "message": "仅显示前面的已保存关联；其余记录会保留。",
-    "description": "Only the first saved associations are shown; remaining records are retained."
+  "sites_associationsMore": {
+    "message": "下方还有更多已保存的关联。",
+    "description": "More saved associations are available below."
   },
   "sites_associationsUnreadable": {
     "message": "无法读取已保存的关联。",
@@ -12691,6 +12691,10 @@
     "message": "打开 $1 时，新增收藏会自动保存。",
     "description": "New favorites save automatically while $1 is open."
   },
+  "sites_loadMoreAssociations": {
+    "message": "加载更多关联",
+    "description": "Load more associations"
+  },
   "sites_readInBackground": {
     "message": "请保持源网站标签页开启。可以离开此页面，返回时查看导入列表。",
     "description": "Keep the website tab open. You can leave this page; the list will be ready when you return."
@@ -12890,6 +12894,26 @@
   "sites_folderMissing": {
     "message": "文件夹已不存在，请检查保存位置",
     "description": "Folder is missing; check the mapping"
+  },
+  "sites_folderRecoveryAdopt": {
+    "message": "确认使用这个已有文件夹（$1）",
+    "description": "Confirm this existing folder ($1)"
+  },
+  "sites_folderRecoveryDone": {
+    "message": "文件夹已确认，等待中的保存可以继续。",
+    "description": "Folder confirmed. Its waiting saves can continue."
+  },
+  "sites_folderRecoveryHint": {
+    "message": "文件夹是否已创建尚不确定。请仔细检查 $1；之前的请求仍可能完成。选择一个文件夹或重试，即表示你已确认。",
+    "description": "The folder creation result is unknown. Check $1 carefully; the earlier request could still finish. Selecting a folder or retrying is your confirmation."
+  },
+  "sites_folderRecoveryRetried": {
+    "message": "已开始恢复文件夹，等待中的保存可以继续。",
+    "description": "Folder recovery started. Its waiting saves can continue."
+  },
+  "sites_folderRecoveryRetry": {
+    "message": "我已确认没有创建文件夹，并接受可能重复的风险；重试",
+    "description": "I checked no folder was created and accept the risk of a duplicate; try again"
   },
   "sites_folderReview": {
     "message": "文件夹关联需要检查",

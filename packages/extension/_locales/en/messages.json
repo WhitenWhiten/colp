@@ -6695,8 +6695,8 @@
   "sites_associationCount_other": {
     "message": "$1 saved associations."
   },
-  "sites_associationsTruncated": {
-    "message": "Only the first saved associations are shown; remaining records are retained."
+  "sites_associationsMore": {
+    "message": "More saved associations are available below."
   },
   "sites_associationsUnreadable": {
     "message": "Couldn’t read saved associations."
@@ -7037,6 +7037,21 @@
   "sites_folderMissing": {
     "message": "Folder is missing; check the mapping"
   },
+  "sites_folderRecoveryAdopt": {
+    "message": "Confirm this existing folder ($1)"
+  },
+  "sites_folderRecoveryDone": {
+    "message": "Folder confirmed. Its waiting saves can continue."
+  },
+  "sites_folderRecoveryHint": {
+    "message": "The folder creation result is unknown. Check $1 carefully; the earlier request could still finish. Selecting a folder or retrying is your confirmation."
+  },
+  "sites_folderRecoveryRetried": {
+    "message": "Folder recovery started. Its waiting saves can continue."
+  },
+  "sites_folderRecoveryRetry": {
+    "message": "I checked no folder was created and accept the risk of a duplicate; try again"
+  },
   "sites_folderReview": {
     "message": "Folder association needs review"
   },
@@ -7153,6 +7168,9 @@
   },
   "sites_liveWaiting": {
     "message": "New favorites save automatically while $1 is open."
+  },
+  "sites_loadMoreAssociations": {
+    "message": "Load more associations"
   },
   "sites_localAssociationReview": {
     "message": "Saved locally · shared association needs review"
