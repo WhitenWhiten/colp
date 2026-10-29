@@ -7,6 +7,7 @@ import { runBadge } from '../src/automation/status-ui.js';
 import { digestLine, paintDigestNote } from '../src/popup-digest.js';
 import { item } from './automation-activity-fixture.js';
 import { activityPanel, activityTitle } from '../src/automation/activity-ui.js';
+import { displayHost } from '../src/bookmark-manager-dom.js';
 import { createPopupNote } from '../src/popup-note.js';
 
 /**
@@ -131,6 +132,12 @@ describe('the unified owner activity signal', () => {
     expect(asking.querySelector('b')).toBeNull();
     expect(asking.querySelector<HTMLElement>('.automation-run-glyph')?.dataset.tone).toBe('warning');
     expect(asking.querySelector<HTMLAnchorElement>('a.list-row')?.href).toBe('https://colp.example/activity');
+    // An untitled bookmark reads as its host without www., as in the web inbox.
+    const untitled = { ...item, items: [{ ...item.items[0]!, title: null, host: 'www.anthropic.com' }] };
+    const sampled = activityPanel(server([], { activity: { unreadCount: 1, latest: untitled, fetchedAt: NOW } }), WEB);
+    expect(Array.from(sampled.querySelectorAll('.list-row-meta'), (line) => line.textContent)).toContain('anthropic.com');
+    expect(['www.example.com', 'WWW.example.com', 'docs.www.example.com', 'www2.example.com', 'www.'].map(displayHost))
+      .toEqual(['example.com', 'example.com', 'docs.www.example.com', 'www2.example.com', 'www.']);
     const empty = activityPanel(server([], { activity: { unreadCount: 0, latest: null, fetchedAt: NOW } }), WEB);
     expect(empty.querySelector('.empty-title')?.textContent).toBe('No activity yet');
     expect(empty.querySelector('a')).toBeNull();

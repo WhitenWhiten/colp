@@ -57,8 +57,13 @@ export function iconTile(name: IconName): HTMLElement {
   return tile;
 }
 
+/** A host as a person reads it, without a leading `www.`, as the web app shows it. */
+export function displayHost(host: string): string {
+  return host.replace(/^www\.(?=.)/iu, '');
+}
+
 export function domainOf(url: string): string {
-  try { return new URL(url).hostname.replace(/^www\./u, '') || url; } catch { return url; }
+  try { return displayHost(new URL(url).hostname) || url; } catch { return url; }
 }
 
 export function normalizedUrl(value: string): string | undefined {

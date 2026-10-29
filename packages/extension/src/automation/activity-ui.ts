@@ -1,3 +1,4 @@
+import { displayHost } from '../bookmark-manager-dom.js';
 import { createIcon, type IconName } from '../icons.js';
 import { el, emptyBlock } from '../library-dom.js';
 import { t, tn } from '../i18n.js';
@@ -62,7 +63,8 @@ export function activityPanel(server: AutomationServerView, webUrl: string | nul
     meta.append(when(Date.parse(latest.updatedAt)));
     main.append(title, meta);
     // A waiting plan reads as its own summary, never the agent's note.
-    const samples = latest.plan?.summary || latest.items.map((member) => member.title || member.host).filter(Boolean).join(' · ');
+    const samples = latest.plan?.summary
+      || latest.items.map((member) => member.title || (member.host && displayHost(member.host))).filter(Boolean).join(' · ');
     if (samples) { const line = el('p', undefined, 'list-row-meta'); line.append(el('span', samples, 'grow')); main.append(line); }
     const tail = el('div', undefined, 'list-row-tail');
     if (latest.state === 'unread') { const badge = el('span', t('automation_runNew', 'New'), 'badge'); badge.dataset.tone = 'accent'; tail.append(badge); }

@@ -1,5 +1,5 @@
 import { activityPanel } from './activity-ui.js';
-import { faviconTile } from '../bookmark-manager-dom.js';
+import { displayHost, faviconTile } from '../bookmark-manager-dom.js';
 import { createIcon } from '../icons.js';
 import { button, el, emptyBlock, iconButton, inlineAlert } from '../library-dom.js';
 import { formatMoment, SLOT, t, tn, withSlot } from '../i18n.js';
@@ -275,7 +275,7 @@ function placementList(view: AutomationStateView): HTMLElement {
     const meta = el('p', undefined, 'list-row-meta');
     meta.append(createIcon('folder', 12), el('span', placement.folder), el('span', undefined, 'sep'),
       el('span', placementSource(placement), 'grow'), el('span', undefined, 'sep'), when(placement.at));
-    const title = el('p', placement.title || placement.host, 'list-row-title'); title.title = placement.host;
+    const title = el('p', placement.title || displayHost(placement.host), 'list-row-title'); title.title = placement.host;
     main.append(title, meta);
     // Why a matching rule left the page where it was saved, after the save panel is gone (U6).
     if (placement.kept) {
