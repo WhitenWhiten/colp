@@ -1,6 +1,6 @@
 import { queueLocalSemanticAssociation } from './local-semantic-transfer.js';
 import { scheduleSourceAlarm } from './wake-scheduler.js';
-import { contentBindingKey, listContentBindings } from './content-identity.js';
+import { contentBindingKey, pageContentBindings } from './content-identity.js';
 import { legacySite, identityDefinition, type SiteDefinition } from './registry.js';
 import { readConnectionAuthority } from './ledger.js';
 import { installCaptureContentBindings, assertCaptureContent } from '../capture/content-binding.js';
@@ -12,7 +12,7 @@ import { get, put, rows, sourceKey } from './source-db.js';
 import type { Representation } from './contracts.js';
 import type { ContentBindingRow } from './content-bindings.js';
 import { representationKey } from './reservations.js';
-import { object, literal, str } from './schema.js';
+import { object, literal, str, optional } from './schema.js';
 import { captureStore } from '../sw/capture.js';
 import { currentCaptureScope, nativeCaptureLocation } from '../sw/capture-native.js';
 import { assertSourceRebound, assertRestoredItemAvailable } from './portable.js';
@@ -37,15 +37,18 @@ export const contentBindings = createContentBindings(siteLedger.db, assertConten
 let resolveIdentity: (url: string, tabId?: number) => Promise<import('./contracts.js').ContentIdentity | null> = async () => null;
 export function installContentResolver(resolve: typeof resolveIdentity) { resolveIdentity = resolve; }
 const adoptSchema = object({ kind: literal('known.siteAdapters.content.adopt'), captureId: str(128), nativeId: str(128) });
-const listSchema = object({ kind: literal('known.siteAdapters.content.list') });
+const listSchema = object({ kind: literal('known.siteAdapters.content.list'), cursor: optional(str(8192)) });
 const retryPendingSchema = object({ kind: literal('known.siteAdapters.content.retryUnsubmitted'), itemId: str(128), bindingId: str(128) });
 const accountAdoptSchema = object({ kind: literal('known.siteAdapters.content.adoptAccount'), itemId: str(128), bindingId: str(128), allowAccountChange: literal(true) });
 export const validContentRequest = (v: unknown) => adoptSchema(v) || listSchema(v) || accountAdoptSchema(v) || retryPendingSchema(v);
 export async function handleContentRequest(raw: unknown, definition: SiteDefinition = legacySite) {
   if (retryPendingSchema(raw)) {
     const input = raw as { itemId: string; bindingId: string };
-    const binding = (await listContentBindings(siteLedger.db, definition)).find(b => b.id === input.bindingId && b.content.itemId === input.itemId);
-    if (!binding) throw new Error('content_retry_unavailable');
+    const binding = await siteLedger.db.read<ContentBindingRow>('contentBindings', contentBindingKey({ siteKey: definition.siteKey, identityVersion: definition.identityVersion, itemId: input.itemId }, input.bindingId));
+    const authority = await siteLedger.db.read<import('./ledger-types.js').SourceAuthority>('authorities', definition.adapterId);
+    if (!binding || binding.id !== input.bindingId || binding.content.itemId !== input.itemId || binding.content.siteKey !== definition.siteKey
+      || binding.content.identityVersion !== definition.identityVersion || binding.connectionId && (!authority?.enabled || authority.connectionId !== binding.connectionId)
+      || binding.content.accountId && binding.content.accountId !== authority?.accountId) throw new Error('content_retry_unavailable');
     const context = await semanticContext(binding.parentId);
     if (binding.scopeId !== context.scopeId) throw new Error('content_retry_unavailable');
     await retryUnsubmittedContent(siteLedger.db, binding, {
@@ -59,10 +62,10 @@ export async function handleContentRequest(raw: unknown, definition: SiteDefinit
     }); return { ok: true };
   }
   if (listSchema(raw)) {
-    const rows = await listContentBindings(siteLedger.db, definition);
+    const { rows, nextCursor } = await pageContentBindings(siteLedger.db, definition, (raw as { cursor?: string }).cursor);
     const authority = await siteLedger.db.read<import('./ledger-types.js').SourceAuthority>('authorities', definition.adapterId);
-    return { ok: true, connectionId: authority?.enabled ? authority.connectionId : null, truncated: rows.length > 1000 || rows.filter(b => !b.supersededBy).length > 50,
-      bindings: await Promise.all(rows.filter(b => !b.supersededBy && b.content.siteKey === definition.siteKey && b.content.identityVersion === definition.identityVersion).slice(0, 50).map(async b => ({ id: b.id, itemId: b.content.itemId, title: b.title, state: b.state, connectionId: b.connectionId, native: !!b.native,
+    return { ok: true, connectionId: authority?.enabled ? authority.connectionId : null, truncated: nextCursor !== null, nextCursor,
+      bindings: await Promise.all(rows.map(async b => ({ id: b.id, itemId: b.content.itemId, title: b.title, state: b.state, connectionId: b.connectionId, native: !!b.native,
         retryable: !b.native && !await siteLedger.db.read('semanticJobs', b.captureIntentId)
           && (b.state === 'pending' || (await siteLedger.db.read<{ state: string }>('meta', `contentRetry:${b.id}`))?.state === 'checking') }))) };
   }

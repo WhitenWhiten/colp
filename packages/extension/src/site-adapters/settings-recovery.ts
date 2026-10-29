@@ -9,13 +9,14 @@ async function folderName(id: string | null) {
   try { const [node] = await chrome.bookmarks.get(id); return node?.title || id; } catch { return id; }
 }
 
-document.querySelector('#read-bindings')!.addEventListener('click', () => { void (async () => {
-  const result = await sendSiteMessage({ kind: 'known.siteAdapters.content.list' }) as { ok?: boolean; connectionId?: string; truncated?: boolean;
+async function readBindings(cursor?: string) {
+  const result = await sendSiteMessage({ kind: 'known.siteAdapters.content.list', ...(cursor ? { cursor } : {}) }) as { ok?: boolean; connectionId?: string; nextCursor?: string | null;
     bindings?: { id: string; itemId: string; title: string; state: string; connectionId: string | null; native: boolean; retryable?: boolean }[] };
-  const container = document.querySelector('#content-bindings')!, bindings = result.bindings ?? []; container.replaceChildren();
+  const container = document.querySelector('#content-bindings')!, bindings = result.bindings ?? [];
+  if (!cursor) container.replaceChildren();
   text('content-summary', !result.ok ? t('sites_associationsUnreadable', 'Couldn’t read saved associations.') : !bindings.length ? t('sites_noAssociations', 'No saved associations yet.')
     : [tn('sites_associationCount', bindings.length, '$1 saved association.', '$1 saved associations.'),
-      ...result.truncated ? [t('sites_associationsTruncated', 'Only the first saved associations are shown; remaining records are retained.')] : []].join(' '));
+      ...result.nextCursor ? [t('sites_associationsMore', 'More saved associations are available below.')] : []].join(' '));
   for (const b of bindings) {
     const other = !!result.connectionId && b.connectionId !== result.connectionId;
     const { row, text: copy, control } = siteRow(b.title, other ? t('sites_savedWithOther', 'Saved with another account.') : b.state === 'active' ? t('sites_savedWithConnected', 'Saved with the connected account.') : '');
@@ -37,7 +38,13 @@ document.querySelector('#read-bindings')!.addEventListener('click', () => { void
     }
     container.append(row);
   }
-})(); });
+  if (result.nextCursor) {
+    const nextCursor = result.nextCursor, more = siteButton(t('sites_loadMoreAssociations', 'Load more associations'));
+    more.onclick = () => { more.disabled = true; void readBindings(nextCursor).then(() => more.remove()).catch(() => { more.disabled = false; }); };
+    container.append(more);
+  }
+}
+document.querySelector('#read-bindings')!.addEventListener('click', () => { void readBindings(); });
 
 async function repair(kind: 'status' | 'recover' | 'export') {
   const result = await sendSiteMessage({ kind: `known.siteAdapters.repair.${kind}` }) as { ok?: boolean; error?: string; diagnostic?: unknown; attention?: unknown[];

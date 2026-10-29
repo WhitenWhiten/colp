@@ -16,3 +16,23 @@ export function listContentBindings(db: SourceDatabase, identity: Pick<ContentId
   return db.transaction(['contentBindings'], 'readonly', tx => cursorPage<import('./content-bindings.js').ContentBindingRow>(
     tx.objectStore('contentBindings'), sourcePrefixRange(identity.siteKey, identity.identityVersion), limit));
 }
+
+/** Page live bindings by primary key; superseded history never consumes a page. */
+export function pageContentBindings(db: SourceDatabase, identity: Pick<ContentIdentity, 'siteKey' | 'identityVersion'>, after?: string) {
+  const range = sourcePrefixRange(identity.siteKey, identity.identityVersion);
+  const lower = range.lower as string, upper = range.upper as string;
+  if (after !== undefined && (after < lower || after >= upper)) throw new Error('invalid');
+  return db.transaction(['contentBindings'], 'readonly', tx => new Promise<{ rows: import('./content-bindings.js').ContentBindingRow[]; nextCursor: string | null }>((resolve, reject) => {
+    const items: { key: string; value: import('./content-bindings.js').ContentBindingRow }[] = [];
+    const cursor = tx.objectStore('contentBindings').openCursor(after === undefined ? range : IDBKeyRange.bound(after, upper, true));
+    cursor.onerror = () => reject(cursor.error);
+    cursor.onsuccess = () => {
+      const row = cursor.result;
+      if (!row || items.length === 51) return resolve({ rows: items.slice(0, 50).map(item => item.value), nextCursor: items.length > 50 ? items[49]!.key : null });
+      const value = row.value as import('./content-bindings.js').ContentBindingRow;
+      if (!value.supersededBy && value.content.siteKey === identity.siteKey && value.content.identityVersion === identity.identityVersion)
+        items.push({ key: row.key as string, value });
+      row.continue();
+    };
+  }));
+}
