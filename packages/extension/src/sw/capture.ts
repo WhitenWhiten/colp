@@ -137,10 +137,11 @@ export async function wakeCaptures(): Promise<void> {
     // Only an account rule's placement has a receipt to recover; a browser rule's is logged when it is acknowledged.
     for (const task of page) if (isAccountAutomation(task.automation) && task.automation.outcome === 'placed' && task.save === 'local-saved'
       && task.disposition === 'new' && now - (task.savedAt ?? task.createdAt) < RECEIPT_MAX_AGE_MS) placed.push(task);
-    for (const task of page) if (!task.planned && (task.disposition === 'new' || task.contentIntent?.mode === 'reclassify') && (['unsubmitted', 'unknown'].includes(task.save)
+    for (const task of page) if (!task.planned && ((task.save === 'local-saved' && !!task.nativeId && !!task.contentIntent?.desiredParentId && task.contentIntent.desiredParentId !== task.targetNativeId)
+      || (task.disposition === 'new' || task.contentIntent?.mode === 'reclassify') && (['unsubmitted', 'unknown'].includes(task.save)
       || task.save === 'local-saved' && task.annotation && !task.annotationPersisted
-      || (task.automaticIntent && ['waiting', 'running'].includes(task.classification)))) {
-      await resumeCapture(task);
+      || (task.automaticIntent && ['waiting', 'running'].includes(task.classification))))) {
+      await resumeCapture(task).catch(() => undefined);
     }
     const last = page.at(-1);
     if (!last || page.length < 50) break;

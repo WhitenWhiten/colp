@@ -17,6 +17,7 @@ const f = vi.hoisted(() => ({
   decide: vi.fn(),
   browser: vi.fn(),
   recover: vi.fn(async (_tasks: readonly unknown[]) => 0),
+  workRun: vi.fn(async () => { throw new Error('not run here'); }),
   unavailable: new Set<string>(),
   noDefault: false,
 }));
@@ -32,7 +33,7 @@ vi.mock('../src/sw/capture-target.js', () => ({ captureTarget: async (_scope: un
   return { nativeId, path: ['Bookmarks bar', nativeId === '10' ? 'Academic' : 'Inbox'], inRange: nativeId === '10', collectionId: 'c_personal', collectionTitle: null };
 } }));
 vi.mock('../src/sw/runtime.js', () => ({ hasBookmarkPermission: async () => true,
-  workCoordinator: { run: async () => { throw new Error('not run here'); } } }));
+  workCoordinator: { run: f.workRun } }));
 vi.mock('../src/sw/reconcile-alarm.js', () => ({ ensurePeriodicAlarm: async () => undefined }));
 vi.mock('../src/sw/bookmark-preferences.js', () => ({ readEffectiveBookmarkPreferences: async () => ({ captureMode: f.mode, bookmarkInsertPosition: 'bottom' }) }));
 vi.mock('../src/capture/control.js', () => ({ readCaptureControl: async () => ({ paused: false, generation: 0, consent: f.consent }) }));
@@ -212,5 +213,23 @@ it('an explicit extra copy preserves its chosen folder instead of reusing or mov
     expect(extra).toMatchObject({ disposition: 'new', save: 'unsubmitted', nativeId: null, title: 'Another copy', targetNativeId: '20', saveAnother: true });
     expect(extra.contentIntent).toBeUndefined();
     expect(prepare).toHaveBeenCalledOnce();
+  } finally { installCaptureContentBindings({ prepare: async () => null, assert: async () => {}, acknowledge: async () => {} }); }
+});
+
+
+it('wakes an existing capture with an unfinished explicit move', async () => {
+  f.scope = { ...f.scope, accountId: 'move-wake' }; f.decide.mockResolvedValue(null);
+  const url = 'https://www.bilibili.com/video/av1';
+  vi.stubGlobal('chrome', { bookmarks: { get: async () => [{ id: 'existing', dateAdded: 10, parentId: '21', title: 'Video', url }] },
+    tabs: { query: async () => [] }, runtime: { sendMessage: async () => undefined } });
+  installCaptureContentBindings({ prepare: async input => ({ bindingId: 'known-content', itemId: 'video:av:1', connectionId: null, mode: 'reuse',
+    captureIntentId: input.captureIntentId, nativeId: 'existing', dateAdded: 10, title: input.title, url: input.url, parentId: '21' }), assert: async () => {}, acknowledge: async () => {} });
+  try {
+    const task = await startCapture({ commandId: crypto.randomUUID(), source: 'manual-popup', title: 'Video', url });
+    const current = (await captureStore.get(f.scope, task.captureId))!;
+    await captureStore.update({ ...current, contentIntent: { ...current.contentIntent!, desiredParentId: '20' }, revision: current.revision + 1 }, current.revision);
+    f.workRun.mockClear();
+    await wakeCaptures();
+    expect(f.workRun).toHaveBeenCalledOnce();
   } finally { installCaptureContentBindings({ prepare: async () => null, assert: async () => {}, acknowledge: async () => {} }); }
 });

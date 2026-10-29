@@ -8,13 +8,13 @@ import { createContentBindings, contentIdentityFromUrl } from './content-binding
 import { siteLedger, SITE_RECOVERY_ALARM } from './source-runtime.js';
 import { captureDeviceId } from '../sw/capture-history.js';
 import type { NativeBinding } from './contracts.js';
-import { get, put, rows, sourceKey } from './source-db.js';
+import { get, put, rows, sourceKey, sourceDigest } from './source-db.js';
 import type { Representation } from './contracts.js';
 import type { ContentBindingRow } from './content-bindings.js';
 import { representationKey } from './reservations.js';
 import { object, literal, str, optional } from './schema.js';
 import { captureStore } from '../sw/capture.js';
-import { currentCaptureScope, nativeCaptureLocation } from '../sw/capture-native.js';
+import { currentCaptureScope, nativeCaptureLocation, assertCaptureScope } from '../sw/capture-native.js';
 import { assertSourceRebound, assertRestoredItemAvailable } from './portable.js';
 import { semanticContext, scopedSemanticBindings, importSharedSemantic, adoptSemanticAssociation } from './semantic-associations.js';
 import { prepareSemanticCapture, releaseSemanticCaptureClaim } from './semantic-capture.js';
@@ -154,29 +154,47 @@ export function installContentBindings() {
     },
     async move(task, target, move) {
       if (!task.contentIntent) { await move(); return; }
-      await assertCaptureContent(task);
+      await assertCaptureScope(task.scope);
       const b = await contentBindings.forIntent(task.captureId);
-      if (!b?.native || b.supersededBy || b.state !== 'active') throw new Error('content_binding_needs_review');
-      await assertContentNative(b.native, { title: b.title, parentId: b.parentId });
+      if (!b?.native || b.id !== task.contentIntent.bindingId || b.commandId !== task.commandId || b.supersededBy || b.state !== 'active'
+        || b.native.nativeId !== task.nativeId || b.native.dateAdded !== task.nativeDateAdded) throw new Error('content_binding_needs_review');
+      const prior = await siteLedger.db.read<ManagedMove>('meta', `contentMove:${b.native.nativeId}`);
+      const matches = prior && prior.nativeId === b.native.nativeId && prior.dateAdded === b.native.dateAdded && prior.title === b.title
+        && prior.from === task.targetNativeId && prior.to === target && task.contentIntent.desiredParentId === target;
+      if (prior?.state === 'submitted' && !matches) throw new Error('content_binding_needs_review');
+      let intent: ManagedMove;
+      if (matches) {
+        if (![prior.from, prior.to].includes(b.parentId)) throw new Error('content_binding_needs_review');
+        // A submitted move at its old location is ambiguous: the user may have moved it back.
+        await assertContentNative(b.native, { title: b.title, parentId: target, url: b.url });
+        intent = prior;
+      } else {
+        await assertCaptureContent(task);
+        await assertContentNative(b.native, { title: b.title, parentId: b.parentId, url: b.url });
+        intent = { nativeId: b.native.nativeId, dateAdded: b.native.dateAdded!, title: b.title, from: b.parentId, to: target, at: Date.now(), state: 'submitted' };
+      }
       let relocate: { from: string; to: string } | undefined;
       if (b.shared) {
         const scope = await currentSyncScope();
         if (managedLibraryKey(scope) !== managedLibraryKey(b.shared.library)) throw new Error('sourceSyncOwnerChanged');
-        const from = await syncState.getMappingByNativeId(scope, b.parentId), to = await syncState.getMappingByNativeId(scope, target);
+        const from = await syncState.getMappingByNativeId(scope, intent.from), to = await syncState.getMappingByNativeId(scope, target);
         if (!from || !to || from.quarantine || to.quarantine) throw new Error('semanticDestinationOutsideLibrary');
         relocate = { from: from.colpId, to: to.colpId };
       }
-      const intent: ManagedMove = { nativeId: b.native.nativeId, dateAdded: b.native.dateAdded!, title: b.title, from: b.parentId, to: target, at: Date.now(), state: 'submitted' };
-      await siteLedger.db.transaction(['meta'], 'readwrite', async tx => { put(tx, 'meta', `contentMove:${intent.nativeId}`, intent); });
-      await assertCaptureContent(task);
-      await move(); // Stable native identity + explicit target; an unknown result never authorizes a create.
-      await assertContentNative(b.native, { title: b.title, parentId: target });
+      if (!matches) {
+        await siteLedger.db.transaction(['meta'], 'readwrite', async tx => { put(tx, 'meta', `contentMove:${intent.nativeId}`, intent); });
+        await assertCaptureContent(task);
+        await move();
+        await assertContentNative(b.native, { title: b.title, parentId: target, url: b.url });
+      }
+      await assertCaptureScope(task.scope);
+      await assertContentNative(b.native, { title: b.title, parentId: target, url: b.url });
       await siteLedger.db.transaction(['meta', 'contentBindings', 'representations'], 'readwrite', async tx => {
         const key = contentBindingKey(b.content, b.id), current = await get<ContentBindingRow>(tx, 'contentBindings', key);
-        if (!current || current.state !== 'active' || current.supersededBy) throw new Error('content_binding_changed');
+        if (!current || sourceDigest(current) !== sourceDigest(b) || current.state !== 'active' || current.supersededBy) throw new Error('content_binding_changed');
         put(tx, 'contentBindings', key, { ...current, parentId: target });
         if (b.connectionId) for (const r of await rows<Representation>(tx, 'representations', b.connectionId, b.content.itemId)) {
-          if (r.native.nativeId === b.native!.nativeId && r.state === 'active') put(tx, 'representations', representationKey(r), { ...r, lastWritten: { title: b.title, parentId: target, url: b.url } });
+          if (r.native.nativeId === b.native!.nativeId && r.native.dateAdded === b.native!.dateAdded && r.state === 'active') put(tx, 'representations', representationKey(r), { ...r, lastWritten: { title: b.title, parentId: target, url: b.url } });
         }
         put(tx, 'meta', `contentMove:${intent.nativeId}`, { ...intent, state: 'confirmed' });
         if (b.shared && relocate) put(tx, 'meta', `managedRelocate:${managedLibraryKey(b.shared.library)}:${b.shared.nodeId}`, {
