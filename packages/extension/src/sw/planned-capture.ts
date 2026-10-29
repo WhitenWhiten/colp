@@ -35,7 +35,8 @@ export async function recoverPlannedNative(command: PlannedNativeCommand, digest
   const record = await captureStore.plannedCommand(command.commandId);
   if (!record) return null;
   if (record.kind !== command.kind || (record.kind === 'folder' ? record.digest !== digest : record.task?.planned?.resolvedDigest !== digest)) throw new Error('capture_command_reused');
-  if (record.kind === 'folder') return record.native ? { status: 'confirmed', native: record.native } : { status: 'unknown', reason: 'nativeOutcomeUnknown' };
+  if (record.kind === 'folder') return record.native ? { status: 'confirmed', native: record.native }
+    : record.state === 'reserved' ? null : { status: 'unknown', reason: 'nativeOutcomeUnknown' };
   if (!record.task) throw new Error('capture_not_found');
   let task = record.task;
   if (task.save === 'unknown') {
