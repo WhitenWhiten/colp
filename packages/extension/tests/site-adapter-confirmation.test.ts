@@ -126,6 +126,7 @@ test('transient read failures retry durably within the original hint budget', as
 test('retained confirmation and observation receipts do not consume new-work capacity', async () => {
   const f = await fixture();
   try {
+    // 100000 rows in each store reach both retired caps. Seeding them is the whole cost: about 11 s alone, up to 30 s on a loaded CI runner.
     await f.db.transaction(['readRequests', 'receipts'], 'readwrite', async tx => {
       for (let i = 0; i < 100000; i++) {
         tx.objectStore('readRequests').put({ state: 'observed', id: `completed-${i}` }, sourceKey('hint', `completed-${i}`));
@@ -139,7 +140,7 @@ test('retained confirmation and observation receipts do not consume new-work cap
     expect(await f.ledger.acceptObservation(f.context, 'new-observation', observation)).toEqual({ ...receipt, status: 'duplicate' });
     expect(await f.db.read('receipts', 'history-0')).toMatchObject({ id: 'receipt-0' });
   } finally { await f.db.close(); }
-}, 30000);
+}, 120000);
 
 test('explicit retry recovers earlier failures even after a later unrelated result', async () => {
   const f = await fixture();
