@@ -20,6 +20,7 @@ export function localClassificationFailure(error: unknown): string {
     if (/^destination_policy_/u.test(error.message)) return error.message;
     if (error.name === 'TimeoutError') return 'local_timeout';
     if (error.message === 'local_taxonomy_too_large') return 'local_taxonomy_too_large';
+    if (error.message === 'sourceAutomationPaused') return error.message;
     if (error.message === 'local_authority_changed') return 'local_settings_changed';
     if (error.message === 'local_result_unavailable') return 'local_result_unknown';
     if (error.message === 'local_session_budget_exhausted') return 'local_session_budget_exhausted';

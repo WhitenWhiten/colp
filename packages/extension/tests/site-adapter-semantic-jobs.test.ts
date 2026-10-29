@@ -111,3 +111,55 @@ test('completed semantic history neither blocks admission nor hides the active s
     expect(f.ports.classify).toHaveBeenCalledTimes(2);
   } finally { await f.db.close(); }
 }, 30000);
+
+test('pause while waiting to classify remains pending and resumes with the same provider command', async () => {
+  const f = await fixture();
+  try {
+    vi.mocked(f.ports.classify).mockRejectedValueOnce(new Error('sourceAutomationPausedBeforeDispatch'));
+    await f.jobs.enqueue(input()); await f.jobs.wake();
+    const pending = await f.first();
+    expect(pending).toMatchObject({ state: 'pending', step: 'queued', reason: 'sourceAutomationPausedBeforeDispatch' });
+    expect(f.ports.execute).not.toHaveBeenCalled();
+    expect(f.ports.schedule).toHaveBeenCalled();
+    await f.jobs.wake();
+    expect(await f.first()).toMatchObject({ state: 'completed', providerCommandId: pending.providerCommandId });
+  } finally { await f.db.close(); }
+});
+
+test('paused authorization still permits recovery of a previously submitted save', async () => {
+  const f = await fixture();
+  try {
+    vi.mocked(f.ports.execute).mockResolvedValueOnce({ status: 'unknown', reason: 'sourceSyncPending' });
+    await f.jobs.enqueue(input()); await f.jobs.wake();
+    vi.mocked(f.ports.authorize).mockRejectedValue(new Error('sourceAutomationPaused'));
+    await f.jobs.wake();
+    expect(await f.first()).toMatchObject({ state: 'completed' });
+    expect(f.ports.execute).toHaveBeenLastCalledWith(expect.anything(), true);
+    expect(f.ports.classify).toHaveBeenCalledOnce();
+  } finally { await f.db.close(); }
+});
+
+test('pause after classification holds the selected destination until authorization resumes', async () => {
+  const f = await fixture();
+  try {
+    vi.mocked(f.ports.authorize).mockResolvedValueOnce().mockRejectedValueOnce(new Error('sourceAutomationPaused'));
+    await f.jobs.enqueue(input()); await f.jobs.wake();
+    expect(await f.first()).toMatchObject({ state: 'pending', step: 'classified', reason: 'sourceAutomationPaused' });
+    expect(f.ports.execute).not.toHaveBeenCalled();
+    await f.jobs.wake();
+    expect(await f.first()).toMatchObject({ state: 'completed' });
+    expect(f.ports.classify).toHaveBeenCalledOnce();
+    expect(f.ports.execute).toHaveBeenCalledOnce();
+  } finally { await f.db.close(); }
+});
+
+test('pause during a possibly dispatched classification does not replay it', async () => {
+  const f = await fixture();
+  try {
+    vi.mocked(f.ports.classify).mockRejectedValueOnce(new Error('sourceAutomationPaused'));
+    await f.jobs.enqueue(input()); await f.jobs.wake(); await f.jobs.wake();
+    expect(await f.first()).toMatchObject({ state: 'attention', reason: 'semanticResultUnknown' });
+    expect(f.ports.classify).toHaveBeenCalledOnce();
+    expect(f.ports.execute).not.toHaveBeenCalled();
+  } finally { await f.db.close(); }
+});

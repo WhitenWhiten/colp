@@ -32,7 +32,7 @@ export interface SemanticPorts {
   schedule(): void;
 }
 export const semanticIndexKey = (scopeId: string, content: ManagedContent) => sourceKey(scopeId, content.site, content.identityVersion, content.accountId, content.itemId);
-const waiting = new Set(['sourceSyncPending', 'sourceSyncRecovering', 'semanticOtherDevice', 'semanticOffline', 'local_call_in_progress']);
+const waiting = new Set(['sourceSyncPending', 'sourceSyncRecovering', 'semanticOtherDevice', 'semanticOffline', 'local_call_in_progress', 'sourceAutomationPaused', 'sourceAutomationPausedBeforeDispatch']);
 /** One durable task per content/library. Collection copies and classification failures are independent. */
 export function createSemanticJobs(db: SourceDatabase, ports: SemanticPorts) {
   const enqueueLane = createLane(); let running: Promise<void> | undefined;
@@ -80,9 +80,10 @@ export function createSemanticJobs(db: SourceDatabase, ports: SemanticPorts) {
       if (result?.status === 'confirmed') { await complete(job, result.native, result.written); return; }
       throw new Error(result?.reason ?? 'semanticReceiptUnknown');
     } catch (error) {
-      const reason = error instanceof Error ? error.message : 'semanticUnavailable';
+      const failure = error instanceof Error ? error.message : 'semanticUnavailable';
+      const reason = failure === 'sourceAutomationPaused' && job.step === 'classifying' ? 'semanticResultUnknown' : failure;
       if (reason === 'semanticJobChanged') return;
-      await save({ ...job, ...(['local_call_in_progress', 'semanticOffline'].includes(reason) && job.step === 'classifying' ? { step: 'queued' as const } : {}),
+      await save({ ...job, ...(['local_call_in_progress', 'semanticOffline', 'sourceAutomationPausedBeforeDispatch'].includes(reason) && job.step === 'classifying' ? { step: 'queued' as const } : {}),
         state: reason === 'sourceCopySuppressed' ? 'suppressed' : waiting.has(reason) ? 'pending' : 'attention', reason }).catch(e => { if (!(e instanceof Error) || e.message !== 'semanticJobChanged') throw e; });
       if (waiting.has(reason)) ports.schedule();
     }

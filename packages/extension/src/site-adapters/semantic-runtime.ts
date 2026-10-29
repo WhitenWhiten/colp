@@ -20,6 +20,7 @@ import { representationKey } from './reservations.js';
 import { assertCaptureScope } from '../sw/capture-native.js';
 import { currentSyncScope } from '../sw/scope.js';
 import { workCoordinator } from '../sw/runtime.js';
+import { sourceAutomationsPaused } from '../sw/automation.js';
 import { managedLibraryKey, sameDestinationOwner } from './copy-identity.js';
 import { assertContentNative } from './content-runtime.js';
 import { assertSourceRoot, executePlannedNative, recoverPlannedNative } from '../sw/planned-capture.js';
@@ -46,6 +47,7 @@ export async function assertSemanticDestination(binding: NativeBinding<'folder'>
   await classificationDestinationPolicy.assertAllowed(binding.nativeId, digest);
 }
 async function authorize(job: SemanticJob) {
+  if (await sourceAutomationsPaused()) throw new Error('sourceAutomationPaused');
   const deviceId = await captureDeviceId();
   if (job.command && job.command.deviceId !== deviceId) throw new Error('semanticPaused');
   const current = await siteLedger.db.read<SemanticJob>('semanticJobs', job.id);
@@ -105,7 +107,11 @@ export const semanticJobs = createSemanticJobs(siteLedger.db, {
   beforeClassify,
   async classify(job) {
     return workCoordinator.run('local-classification', async context => {
-      await beforeClassify(); await authorize(job);
+      await beforeClassify();
+      try { await authorize(job); } catch (error) {
+        if (error instanceof Error && error.message === 'sourceAutomationPaused') throw new Error('sourceAutomationPausedBeforeDispatch');
+        throw error;
+      }
       const reply = await runLocalClassification({ document: classificationDocument(job, { folder: true, tags: false }), commandId: job.providerCommandId,
         generation: context.generation, signal: context.signal, excludedFolderIds: (await mounts()).map(m => m.root.nativeId), assertCurrent: () => authorize(job) });
       if (!reply.ok) throw new Error(reply.error);
