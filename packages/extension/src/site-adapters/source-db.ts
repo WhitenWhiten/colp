@@ -1,4 +1,5 @@
 import { legacySite } from './registry.js';
+import { migrateDocumentLeases } from './document-leases.js';
 import { requestValue, runTransaction, cursorPage } from '../sync-state/idb.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
@@ -7,7 +8,7 @@ export const SOURCE_STORES = ['meta', 'authorities', 'documentLeases', 'connecti
   'readRequests', 'importRuns', 'importPages', 'representations', 'itemReservations', 'folderReservations', 'folderConsumers',
   'savePlans', 'effects', 'outbox', 'contentBindings', 'mounts', 'importPreviews', 'importApprovals', 'semanticJobs', 'semanticIndexes', 'work', 'transfers', 'unboundTransfers'] as const;
 export type SourceStore = typeof SOURCE_STORES[number];
-export const SOURCE_DATABASE_VERSION = 13;
+export const SOURCE_DATABASE_VERSION = 14;
 export function sourceDigest(value: unknown): string {
   return `sha256:${bytesToHex(sha256(new TextEncoder().encode(canonicalJson(value, () => { throw new Error('invalidData'); }))))}`;
 }
@@ -39,6 +40,7 @@ export function createSourceDatabase(factory?: IDBFactory, name = 'known-site-ad
     const r = available.open(name, SOURCE_DATABASE_VERSION);
     r.onupgradeneeded = () => {
       for (const store of SOURCE_STORES) if (!r.result.objectStoreNames.contains(store)) r.result.createObjectStore(store);
+      migrateDocumentLeases(r.transaction!.objectStore('documentLeases'));
       const indexes: Partial<Record<SourceStore, Record<string, string>>> = {
         importPages: { receiptId: 'receipt.id' }, representations: { nativeId: 'native.nativeId' },
         contentBindings: { nativeId: 'native.nativeId', captureIntentId: 'captureIntentId' },

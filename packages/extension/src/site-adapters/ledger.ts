@@ -1,4 +1,5 @@
 import { requestValue } from '../sync-state/idb.js';
+import { documentLeaseKey } from './document-leases.js';
 import type { MembershipReadQuery, MembershipReadResult, PageResult, SiteObservation, SiteCollection } from './contracts.js';
 import { validMembershipResult, validObservation, validPageResult } from './schemas.js';
 import { legacySite, type SiteDefinition } from './registry.js';
@@ -23,7 +24,7 @@ export async function requireSourceAuthority(tx: IDBTransaction, context: Source
   const a = await authorityForConnection(tx, context.connectionId);
   if (!a?.enabled || (a.installationId ?? legacySite.adapterId) !== (context.installationId ?? legacySite.adapterId) || a.connectionId !== context.connectionId || a.installationGeneration !== context.installationGeneration
       || a.sourceSessionGeneration !== context.sourceSessionGeneration) throw new Error('staleContext');
-  const lease = await get<{ context: SourceContext; expiresAt: number; active: boolean }>(tx, 'documentLeases', context.documentId);
+  const lease = await get<{ context: SourceContext; expiresAt: number; active: boolean }>(tx, 'documentLeases', documentLeaseKey(context));
   if (!lease?.active || lease.context.connectionId !== context.connectionId || lease.expiresAt <= Date.now() || lease.context.leaseId !== context.leaseId || lease.context.routeEpoch !== context.routeEpoch
       || lease.context.installationGeneration !== context.installationGeneration || lease.context.sourceSessionGeneration !== context.sourceSessionGeneration) throw new Error('staleContext');
   return a;
@@ -121,7 +122,7 @@ export function createSourceLedger(db: SourceDatabase = createSourceDatabase(), 
         if (!a?.enabled || (a.installationId ?? legacySite.adapterId) !== (context.installationId ?? legacySite.adapterId) || a.connectionId !== context.connectionId || a.installationGeneration !== context.installationGeneration
           || a.sourceSessionGeneration !== context.sourceSessionGeneration || expiresAt <= now()) throw new Error('staleContext');
         if ((context.installationId ?? legacySite.adapterId) !== definition.adapterId) throw new Error('staleContext');
-        put(tx, 'documentLeases', context.documentId, { context, expiresAt, active: true });
+        put(tx, 'documentLeases', documentLeaseKey(context), { context, expiresAt, active: true });
       });
     },
     async revokeDocuments(tabId?: number) {

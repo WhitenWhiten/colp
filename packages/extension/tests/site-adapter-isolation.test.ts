@@ -86,3 +86,48 @@ test('a blocked schema upgrade can retry after the old context closes without le
   await expect(db.open()).rejects.toThrow('schemaIncompatible'); old.close();
   expect((await db.open()).version).toBe(SOURCE_DATABASE_VERSION); await db.close();
 });
+
+test('registry-valid installations on the same document retain independent leases and revocations', async () => {
+  const { validateSiteDefinitions } = await import('../src/site-adapters/registry-validation.js');
+  validateSiteDefinitions([legacySite, revision]);
+  const db = createSourceDatabase(new IDBFactory());
+  try {
+    const first = createSourceLedger(db), second = createSourceLedger(db, {}, revision);
+    const input = { enabled: true, accountId: '42', installationGeneration: 1, sourceSessionGeneration: 1, negativeReadback: false };
+    const a = await first.setAuthority(input), b = await second.setAuthority(input);
+    const ca = { connectionId: a.connectionId!, installationGeneration: 1, sourceSessionGeneration: 1, documentId: 'same-document', tabId: 1, leaseId: 'first-lease', routeEpoch: 0 };
+    const cb = { ...ca, connectionId: b.connectionId!, installationId: revision.adapterId, leaseId: 'second-lease' };
+    await first.bindLease(ca, Date.now() + 60000); await second.bindLease(cb, Date.now() + 60000);
+    const catalog = [{ id: '101', identity: 'siteId' as const, title: 'Favorites', parentId: null }];
+    expect(await first.acceptCatalog(ca, 'first', catalog)).toMatchObject({ status: 'accepted' });
+    expect(await second.acceptCatalog(cb, 'second', catalog)).toMatchObject({ status: 'accepted' });
+    await first.revokeDocuments(1);
+    expect(await first.acceptCatalog(ca, 'revoked', catalog)).toMatchObject({ status: 'rejected', reason: 'staleContext' });
+    expect(await second.acceptCatalog(cb, 'still-live', catalog)).toMatchObject({ status: 'accepted' });
+    await first.revokeLease('second-lease');
+    expect(await second.acceptCatalog(cb, 'still-owned', catalog)).toMatchObject({ status: 'accepted' });
+  } finally { await db.close(); }
+});
+
+test('v13 document leases migrate into their installation namespace without reviving revoked leases', async () => {
+  const { documentLeaseKey } = await import('../src/site-adapters/document-leases.js');
+  const factory = new IDBFactory(), name = 'lease-migration';
+  const context = { connectionId: 'connection', installationGeneration: 1, sourceSessionGeneration: 1, documentId: 'legacy-document', tabId: 1, leaseId: 'lease', routeEpoch: 0 };
+  const records = [{ context, active: true, expiresAt: Date.now() + 60000 },
+    { context: { ...context, documentId: 'other-document', installationId: revision.adapterId }, active: false, expiresAt: 1 }];
+  const old = await new Promise<IDBDatabase>((resolve, reject) => {
+    const request = factory.open(name, 13);
+    request.onupgradeneeded = () => {
+      for (const store of SOURCE_STORES) request.result.createObjectStore(store);
+      for (const row of records) request.transaction!.objectStore('documentLeases').put(row, row.context.documentId);
+    };
+    request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
+  }); old.close();
+  const db = createSourceDatabase(factory, name);
+  try {
+    for (const row of records) {
+      expect(await db.read('documentLeases', documentLeaseKey(row.context))).toEqual(row);
+      expect(await db.read('documentLeases', row.context.documentId)).toBeUndefined();
+    }
+  } finally { await db.close(); }
+});
