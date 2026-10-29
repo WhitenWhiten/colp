@@ -83,6 +83,11 @@ export function createSourceLedger(db: SourceDatabase = createSourceDatabase(), 
       const row: ObservationRow = { installationId: definition.adapterId, id: receipt.id, ordinal: receipt.ordinal, context, observation, state: 'pending', acceptedAt: now(), adapterVersion: definition.version,
         readyAt: 0, cause: observation.type === 'favorite.confirmed' || observation.type === 'favorite.uncertain' ? 'siteFavorite' : 'reconcile' };
       put(tx, 'observations', receipt.id, row); put(tx, 'receipts', key, receipt);
+      // A single-list site's list is host-authored. A live save before the first import still needs it to plan.
+      const single = definition.defaultCollection;
+      if (single && (observation.type === 'favorite.confirmed' || observation.type === 'membership.observed')
+        && (observation.memberships.mode === 'delta' ? observation.memberships.added : observation.memberships.collectionIds).includes(single.id)
+        && !await get(tx, 'collections', sourceKey(context.connectionId, single.id))) await mergeEntity(tx, 'collections', context.connectionId, single, receipt.ordinal, undefined, context);
       if (readBaseline === undefined) await mergeObservation(tx, context, observation, receipt.ordinal, receipt.id);
       else if (observation.type === 'membership.observed') await mergeEntity(tx, 'items', context.connectionId, observation.item, receipt.ordinal, readBaseline);
       await commit?.(tx, receipt.id);

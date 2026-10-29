@@ -71,6 +71,18 @@ test('observation-only setup ignores old generations and other connections', asy
     await f.ledger.acceptObservation(f.context, 'fresh-catalog', { type: 'catalog.upsert', collections: [saved] }); await expect(f.configure()).resolves.toMatchObject({ configured: true });
   } finally { await f.db.close(); }
 });
+test('a single-list site plans a live save before its first import has recorded the list', async () => {
+  const definition: SiteDefinition = { ...observer, capabilities: ['observeFavorites', 'enumerateItems'], defaultCollection: saved };
+  const f = await setup(definition); try {
+    await f.configure(); expect(await f.db.read('collections', sourceKey(f.context.connectionId, saved.id))).toBeUndefined();
+    expect((await f.ledger.acceptObservation(f.context, 'favorite', { type: 'favorite.confirmed', interactionId: 'click', item: post,
+      memberships: { mode: 'delta', added: [saved.id], removed: [] }, confirmation: { kind: 'settledDom', detector: 'fixture-dom' } })).status).toBe('accepted');
+    expect(await f.db.read('collections', sourceKey(f.context.connectionId, saved.id))).toMatchObject({ entity: saved });
+    await f.runtime.live.wake();
+    const plans = await f.db.transaction(['savePlans'], 'readonly', tx => new Promise<StoredSavePlan[]>(resolve => { const r = tx.objectStore('savePlans').getAll(); r.onsuccess = () => resolve(r.result); }));
+    expect(plans).toHaveLength(1); expect(plans[0]!.plan.effects.map(e => e.kind)).toEqual(['ensureSourceFolder', 'createBookmark']);
+  } finally { await f.db.close(); }
+});
 test('enumeration-only setup does not require synthetic emit messages and rejects enabling live archives', async () => {
   const definition: SiteDefinition = { ...observer, capabilities: ['enumerateCollections', 'enumerateItems'], validateMessage: m => m.operation !== 'emit' };
   const f = await setup(definition); try {
