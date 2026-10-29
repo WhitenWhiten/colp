@@ -86,7 +86,8 @@ export async function startCapture(input: {
   const favIconUrl = tab?.url === input.url ? tab.favIconUrl : undefined;
   if (input.aiDestinationPolicyDigest) await classificationDestinationPolicy.assertAllowed(targetNativeId, input.aiDestinationPolicyDigest);
   const captureIntentId = crypto.randomUUID();
-  const content = await prepareCaptureContent({ captureIntentId, commandId: input.commandId, source: input.source, ...(tab?.id !== undefined ? { tabId: tab.id } : {}), url: input.url, title: input.title, parentId: targetNativeId, automatic });
+  // An explicit extra copy is an ordinary bookmark, outside the adapter's managed copy slot.
+  const content = input.saveAnother ? null : await prepareCaptureContent({ captureIntentId, commandId: input.commandId, source: input.source, ...(tab?.id !== undefined ? { tabId: tab.id } : {}), url: input.url, title: input.title, parentId: targetNativeId, automatic });
   const reused = content?.nativeId ? (await chrome.bookmarks.get(content.nativeId))[0] : undefined;
   const explicitSemanticMove = reused && content && (content.mode === 'reclassify' && automation?.outcome === 'placed' || input.folderChoice === 'explicit' || input.aiDestinationPolicyDigest);
   const existingLocation = reused ? await import('./capture-native.js').then(m => m.nativeCaptureLocation(reused.id, scope)) : null;

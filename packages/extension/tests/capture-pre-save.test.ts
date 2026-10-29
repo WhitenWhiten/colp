@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BrowserAutomation, CaptureAutomation, CaptureSource } from '../src/capture/contracts.js';
+import { installCaptureContentBindings } from '../src/capture/content-binding.js';
 
 /**
  * Every extension-owned save asks the rules before the native create (AC-01):
@@ -21,7 +22,9 @@ const f = vi.hoisted(() => ({
 }));
 
 vi.mock('../src/sw/capture-native.js', () => ({ currentCaptureScope: async () => f.scope, assertCaptureScope: async () => undefined,
-  assertCaptureOwner: async () => undefined, captureExistence: vi.fn(), createNativeCapture: vi.fn(), recoverNativeCapture: vi.fn() }));
+  assertCaptureOwner: async () => undefined, captureExistence: vi.fn(), createNativeCapture: vi.fn(), recoverNativeCapture: vi.fn(),
+  nativeCaptureLocation: async (nativeId: string) => ({ nativeId, nodeId: null, collectionId: null, collectionTitle: null,
+    path: ['Inbox'], writable: true, url: 'https://www.bilibili.com/video/av1' }) }));
 vi.mock('../src/sw/capture-target.js', () => ({ captureTarget: async (_scope: unknown, id?: string) => {
   if (!id && f.noDefault) throw new Error('capture_target_required');
   const nativeId = id ?? '21';
@@ -189,4 +192,25 @@ describe('a placed save’s receipt after a worker stop', () => {
     expect(f.recover).toHaveBeenCalledOnce();
     expect(f.recover.mock.calls[0]![0]).toEqual([expect.objectContaining({ captureId: fresh.captureId })]);
   });
+});
+
+it('an explicit extra copy preserves its chosen folder instead of reusing or moving the site-bound bookmark', async () => {
+  f.decide.mockResolvedValue(null);
+  const url = 'https://www.bilibili.com/video/av1';
+  vi.stubGlobal('chrome', { bookmarks: { get: async () => [{ id: 'existing', dateAdded: 10, parentId: '21', title: 'Video', url }] },
+    tabs: { query: async () => [] }, runtime: { sendMessage: async () => undefined } });
+  const prepare = vi.fn(async (input: { captureIntentId: string; title: string; url: string }) => ({
+    bindingId: 'known-content', itemId: 'video:av:1', connectionId: null, mode: 'reuse' as const,
+    captureIntentId: input.captureIntentId, nativeId: 'existing', dateAdded: 10, title: input.title, url: input.url, parentId: '21',
+  }));
+  installCaptureContentBindings({ prepare, assert: async () => {}, acknowledge: async () => {} });
+  try {
+    const normal = await startCapture({ commandId: crypto.randomUUID(), source: 'manual-popup', title: 'Video', url });
+    expect(normal).toMatchObject({ disposition: 'existing', nativeId: 'existing', targetNativeId: '21' });
+    const extra = await startCapture({ commandId: crypto.randomUUID(), source: 'manual-popup', title: 'Another copy', url,
+      saveAnother: true, folderChoice: 'explicit', parentNativeId: '20' });
+    expect(extra).toMatchObject({ disposition: 'new', save: 'unsubmitted', nativeId: null, title: 'Another copy', targetNativeId: '20', saveAnother: true });
+    expect(extra.contentIntent).toBeUndefined();
+    expect(prepare).toHaveBeenCalledOnce();
+  } finally { installCaptureContentBindings({ prepare: async () => null, assert: async () => {}, acknowledge: async () => {} }); }
 });
