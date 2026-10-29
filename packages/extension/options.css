@@ -1026,7 +1026,8 @@ body[data-first-run="syncing"] .folder-foot { display: none; }
 .sites-mark[data-icon="image"] img { display: block; }
 .sites-mark[data-icon="image"] .sites-mark-letter { display: none; }
 .sites-mark-letter { line-height: 1; }
-.side-item[aria-current="page"] .sites-mark { background: var(--ink); color: var(--surface-raised); }
+/* Only the letter fallback inverts on the current site; a favicon keeps its light tile, since many marks vanish on ink. */
+.side-item[aria-current="page"] .sites-mark[data-icon="letter"] { background: var(--ink); color: var(--surface-raised); }
 .sites-mark--page { width: 2.75rem; height: 2.75rem; border-radius: var(--radius-lg); }
 .sites-mark--page img { width: 1.75rem; height: 1.75rem; }
 .sites-mark--page .sites-mark-letter { font-size: var(--text-lg); }
