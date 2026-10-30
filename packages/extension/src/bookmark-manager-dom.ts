@@ -1,3 +1,4 @@
+import { bookmarkFaviconSources } from './bookmark-favicon-sources.js';
 import { createIcon } from './icons.js';
 
 export interface NativeNode {
@@ -41,12 +42,16 @@ export function faviconTile(pageUrl: string): HTMLElement {
   tile.className = 'favicon-tile';
   const img = document.createElement('img');
   img.width = 32; img.height = 32; img.alt = ''; img.loading = 'lazy';
-  const resource = new URL(chrome.runtime.getURL('/_favicon/'));
-  resource.searchParams.set('pageUrl', pageUrl);
-  resource.searchParams.set('size', '32');
-  img.src = resource.toString();
-  img.addEventListener('error', () => { img.replaceWith(icon('globe')); });
+  const sources = bookmarkFaviconSources(pageUrl);
+  let next = 0;
+  const attempt = () => {
+    const source = sources[next++];
+    if (source) img.src = source;
+    else img.replaceWith(icon('globe'));
+  };
+  img.addEventListener('error', attempt);
   tile.append(img);
+  attempt();
   return tile;
 }
 

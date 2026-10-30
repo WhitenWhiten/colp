@@ -39,7 +39,7 @@ describe('options bookmark manager UI contract', () => {
     assert.doesNotMatch(search, /projectVisibleChildren/u);
     // Real page favicons come from the read-only /_favicon/ resource.
     const dom = await read('../src/bookmark-manager-dom.ts');
-    assert.match(dom, /_favicon/);
+    assert.match(await read('../src/bookmark-favicon-sources.ts'), /_favicon/);
     for (const file of [source, rows, menu, tree, dom]) assert.doesNotMatch(file, /innerHTML|insertAdjacentHTML|document\.write/);
   });
 
