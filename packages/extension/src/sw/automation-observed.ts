@@ -10,7 +10,7 @@ import { createLocalImportStore } from '../local-import/store.js';
 import { presentSaveFeedback } from '../save-feedback.js';
 import { observedSaveLine } from '../save-status.js';
 import type { SyncScope } from '../sync-state-store.js';
-import { automationArea, automationProjectionDeps, recordPlacementReceipt } from './automation.js';
+import { automationArea, automationProjectionDeps, recordPlacementReceipt, sourceAutomationsPaused } from './automation.js';
 import { hasBookmarkPermission, sw, syncState } from './runtime.js';
 import { currentSyncScope } from './scope.js';
 
@@ -51,7 +51,7 @@ async function observedScope(): Promise<SyncScope | null> {
 /** Only an account with rules in force pays for observing; everyone else's bookmarks are left alone. */
 async function rulesInForce(): Promise<SyncScope | null> {
   const scope = await observedScope();
-  if (!scope || !await hasBookmarkPermission()) return null;
+  if (!scope || !await hasBookmarkPermission() || await sourceAutomationsPaused()) return null;
   const record = await createBundleStore(automationArea(), { serverOrigin: scope.serverOrigin, accountId: scope.accountId }).read();
   return bundleState(record, Date.now()).state === 'active' && record.bundle?.rules.length ? scope : null;
 }
@@ -127,7 +127,7 @@ function observedPorts(): ObservedPorts {
     evidence: createEvidence,
     async decide(input) {
       const scope = await observedScope();
-      if (!scope) return null;
+      if (!scope || await sourceAutomationsPaused()) return null;
       const record = await createBundleStore(automationArea(), { serverOrigin: scope.serverOrigin, accountId: scope.accountId }).read();
       return decidePreSave({ record, now: Date.now(), scope, deps: automationProjectionDeps(scope) }, input);
     },
@@ -138,7 +138,10 @@ function observedPorts(): ObservedPorts {
       await automationDatabase().intents.put({ ...placement, intentId: placement.id, fromParentId: from.parentId, dateAdded: from.dateAdded,
         ownerKey: automationOwnerKey({ serverOrigin: scope.serverOrigin, accountId: scope.accountId }), createdAt: Date.now() });
     },
-    async move(nativeId, parentNativeId) { await personalBookmarks.move(nativeId, { parentId: parentNativeId }); },
+    async move(nativeId, parentNativeId) {
+      if (await sourceAutomationsPaused()) throw new Error('sourceAutomationPaused');
+      await personalBookmarks.move(nativeId, { parentId: parentNativeId });
+    },
     async record(placement) {
       const scope = await observedScope();
       if (scope) await recordObservedPlacement(placement, automationOwnerKey({ serverOrigin: scope.serverOrigin, accountId: scope.accountId }));

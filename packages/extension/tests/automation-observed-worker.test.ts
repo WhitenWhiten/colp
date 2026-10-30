@@ -3,6 +3,7 @@ import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryStorageArea } from '../src/credential-store.js';
 import { createBundleStore } from '../src/automation/bundle-store.js';
+import { automationsPaused, createPauseStatusStore } from '../src/automation/pause-status.js';
 import { automationDatabase } from '../src/automation/indexeddb-store.js';
 import { COLLECTION_ID, NOW, compiledRule, folderRef, ruleBundle } from './automation-fixture.js';
 
@@ -39,6 +40,10 @@ vi.mock('../src/sw/automation.js', async () => {
   const { automationDatabase: database } = await import('../src/automation/indexeddb-store.js');
   return {
     automationArea: () => database().area(),
+    sourceAutomationsPaused: async () => automationsPaused(
+      await createBundleStore(database().area(), f.scope).read(),
+      await createPauseStatusStore({ get: async key => (await chrome.storage.local.get(key))[key],
+        set: async (key, value) => chrome.storage.local.set({ [key]: value }) }, f.scope).read(), Date.now()),
     recordPlacementReceipt: async (receipt: unknown) => { f.receipts.push(receipt); },
     automationProjectionDeps: (scope: unknown) => ({
       mappingByColpId: (colpId: string) => runtime.syncState.getMappingByColpId(scope as never, colpId),
@@ -83,9 +88,33 @@ beforeEach(async () => {
   await createBundleStore(automationDatabase().area(), { serverOrigin: 'https://colp.example', accountId: 'owner' })
     .install(ruleBundle([compiledRule({ folder: folderRef('academic') })]), NOW);
 });
-afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+const pauseAccount = () => createPauseStatusStore({ get: async key => (await chrome.storage.local.get(key))[key],
+  set: async (key, value) => chrome.storage.local.set({ [key]: value }) }, f.scope).apply({ ok: true,
+  pause: { paused: true, revision: '2', pausedAt: new Date(NOW).toISOString(), pausedBy: 'owner', heldJobs: 0 } }, NOW);
 
 describe('observed creations in the worker', () => {
+  it('honors an independent account pause with an older active bundle, including during settling', async () => {
+    await star('before-pause');
+    await pauseAccount();
+    await star('after-pause');
+    vi.setSystemTime(NOW + 3_001);
+    await settleDue();
+    expect(f.moves).toEqual([]);
+    expect(f.receipts).toEqual([]);
+  });
+
+  it('rechecks a pause learned after the placement intent was persisted', async () => {
+    const intents = automationDatabase().intents, put = intents.put.bind(intents);
+    vi.spyOn(intents, 'put').mockImplementation(async intent => { await put(intent); await pauseAccount(); });
+    await star('n1');
+    vi.setSystemTime(NOW + 3_001);
+    await settleDue();
+    expect(f.moves).toEqual([]);
+    expect(f.receipts).toEqual([]);
+  });
+
   it('moves a starred page once after the settle window, with its receipt and notice', async () => {
     await star('n1');
     await settleDue();
