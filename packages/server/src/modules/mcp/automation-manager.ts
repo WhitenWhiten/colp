@@ -29,10 +29,12 @@ export async function automationManagerReadOrRecover(ports: AutomationPorts, act
     case 'automation.runs.list':
     case 'automation.outputs.list':
     case 'automation.deliveries.list': {
+      const nodeFilter = name === 'automation.runs.list' && typeof args.collectionId === 'string' && typeof args.nodeId === 'string'
+        ? { collectionId: args.collectionId, nodeId: args.nodeId } : undefined;
       const scope = name === 'automation.outputs.list' ? JSON.stringify(['outputs', String(args.runId)])
-        : name === 'automation.runs.list' ? JSON.stringify(['runs', null, null]) : 'deliveries';
+        : name === 'automation.runs.list' ? JSON.stringify(['runs', nodeFilter?.collectionId ?? null, nodeFilter?.nodeId ?? null]) : 'deliveries';
       const now = await ports.now(), { limit, after } = pages.read(pageQuery(args), actor.accountId, scope, now);
-      const rows = name === 'automation.runs.list' ? (await ports.runs.list(after, limit + 1)).map(r => ({ view: r.view, createdAt: r.sortCreatedAt }))
+      const rows = name === 'automation.runs.list' ? (await ports.runs.list(after, limit + 1, nodeFilter)).map(r => ({ view: r.view, createdAt: r.sortCreatedAt }))
         : name === 'automation.outputs.list' ? await (ports.outputs ?? missing()).list(String(args.runId), after, limit + 1)
         : await (ports.deliveries ?? missing()).list(after, limit + 1);
       const last = rows[limit - 1];

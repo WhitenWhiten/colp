@@ -402,7 +402,7 @@
         "automation:read"
       ],
       "inputSchema": {
-        "$ref": "#/$defs/PaginationInput"
+        "$ref": "#/$defs/RunHistoryToolInput"
       },
       "outputSchema": {
         "$ref": "#/$defs/RunPage"
@@ -411,7 +411,7 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "automation.runs.list: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+      "description": "List automation runs, optionally filtered by collectionId and nodeId together to explain changes to one bookmark. Cursors bind the filter and page size."
     },
     {
       "name": "automation.runs.get",
@@ -7935,6 +7935,52 @@
       ],
       "additionalProperties": false,
       "description": "Code is returned once. Exact replay returns code:null and replayed:true. Read the target revision and explicitly issue a new grant if the first response was lost."
+    },
+    "RunHistoryToolInput": {
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "type": "string",
+          "maxLength": 2048
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "collectionId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "nodeId": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      },
+      "required": [],
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "required": [
+            "collectionId",
+            "nodeId"
+          ]
+        },
+        {
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "collectionId"
+                ]
+              },
+              {
+                "required": [
+                  "nodeId"
+                ]
+              }
+            ]
+          }
+        }
+      ]
     }
   }
 }
