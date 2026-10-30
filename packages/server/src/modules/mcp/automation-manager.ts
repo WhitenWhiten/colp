@@ -1,12 +1,14 @@
 import { AutomationError, getAutomationRule, listAutomationRules, requireBinding, saveBinding, assessRuleHealth,
   ruleDependencies, getAutomationRun, cancelAutomationRun, createAutomationPagination,
-  type AutomationPorts, type AutomationActor } from '../automation/index.js';
+  setPause, type AutomationPorts, type AutomationActor } from '../automation/index.js';
 
 /** The same owner-scoped services and stores used by product HTTP routes. */
 export async function automationManagerReadOrRecover(ports: AutomationPorts, actor: AutomationActor, name: string,
   args: Readonly<Record<string, unknown>>, cursorKey: string): Promise<unknown> {
   const etag = `"${String(args.baseRevision)}"`, pages = createAutomationPagination(cursorKey);
   switch (name) {
+    case 'automation.pause.get': return ports.settings.get(actor.accountId);
+    case 'automation.pause.set': return setPause(ports, actor, args.change, etag);
     case 'automation.rules.list': return listAutomationRules(ports, actor, cursorKey, pageQuery(args));
     case 'automation.rules.get': return getAutomationRule(ports, actor, String(args.ruleId));
     case 'automation.rules.health': return assessRuleHealth(ports, actor, String(args.ruleId));
@@ -43,4 +45,4 @@ export function pageQuery(args: Readonly<Record<string, unknown>>) {
   return { ...(typeof args.cursor === 'string' ? { cursor: args.cursor } : {}), ...(typeof args.limit === 'number' ? { limit: String(args.limit) } : {}) };
 }
 export const AUTOMATION_MANAGER_MUTATIONS = new Set(['automation.rules.save', 'automation.rules.set_state',
-  'automation.bindings.save', 'automation.runs.cancel', 'automation.jobs.retry', 'automation.deliveries.retry']);
+  'automation.bindings.save', 'automation.runs.cancel', 'automation.jobs.retry', 'automation.deliveries.retry', 'automation.pause.set']);

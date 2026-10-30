@@ -986,6 +986,43 @@
         "idempotentHint": true
       },
       "description": "Queue an explicitly reviewed replica retry or rebuild against its lifecycle revision. Only actions advertised by the browser are accepted. Rebuild requires confirmation=rebuild_replica; it uses the existing fenced retirement and projection recovery protocol. Inspect sync.status for completion."
+    },
+    {
+      "name": "automation.pause.get",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/PauseGetToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/PauseState"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "Read account-wide automation pause, revision and held job count before changing it."
+    },
+    {
+      "name": "automation.pause.set",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:manage"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/PauseSetToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/PauseState"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "Set the account-wide automation pause with its observed revision and an exact command ID. Uses the same service as the web switch; browsers learn the change on refresh and retain a learned pause while offline."
     }
   ],
   "$defs": {
@@ -7189,6 +7226,31 @@
           ]
         }
       }
+    },
+    "PauseGetToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "PauseSetToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "baseRevision": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/HostCommandId"
+        },
+        "change": {
+          "$ref": "#/$defs/PauseInput"
+        }
+      },
+      "required": [
+        "baseRevision",
+        "commandId",
+        "change"
+      ]
     }
   }
 }
