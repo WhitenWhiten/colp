@@ -15,6 +15,7 @@ export function classificationErrorFeedback(error: string | undefined, local: bo
     local_key_required: t('popup_localKeyRequired', 'Add your API key under AI suggestions in settings to get suggestions.'),
     local_key_rejected: t('popup_localKeyRejected', 'Your AI service rejected the key. Check it under AI suggestions in settings.'),
     local_no_folders: t('popup_localNoFolders', 'Create a bookmark folder first, then ask for a suggestion.'),
+    local_tag_context_unavailable: t('popup_localTagContextUnavailable', 'Your saved tag vocabulary could not be read. Retry after restoring local storage; folder suggestions remain available.'),
     local_request_failed: t('popup_localRequestFailed', 'Your AI service rejected the request or replied in an unexpected format. Try again.'),
     local_call_in_progress: t('popup_localCallInProgress', 'A suggestion is already running. Try again when it finishes.'),
     local_rate_limited: t('popup_localRateLimited', 'Your AI service is busy or rate limited. Try again shortly.'),

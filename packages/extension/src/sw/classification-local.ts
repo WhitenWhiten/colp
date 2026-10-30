@@ -16,6 +16,7 @@ import {currentSyncScope} from './scope.js';
 import {syncState} from './runtime.js';
 import {localClassificationTags} from '../classification-local-tags.js';
 import {isUnsupportedBookmarkFolder} from '../bookmark-folder-policy.js';
+import {recordClassificationContext,type ClassificationContextWarning} from '../classification-local-context.js';
 
 type LocalPreviewRequest=Extract<ClassificationRequest,{kind:'known.classification.local-preview'}>;
 
@@ -59,20 +60,26 @@ export async function runLocalClassification(input:{readonly document:Classifica
   if(!credential)return {ok:false as const,error:'local_key_required'};
   if(busy)return {ok:false as const,error:'local_call_in_progress'};
   busy=true;
+  const contextWarnings:ClassificationContextWarning[]=[];
   try{
     const synced=await syncedContext(input.generation);
     const policy=await classificationDestinationPolicy.snapshot();
     const tree=await chrome.bookmarks.getTree() as FolderTreeNode[];
     const descriptions=new Map<string,string|null>(synced?.descriptions??[]);
-    for(const [id,description] of await readNativeFolderDescriptions(tree))descriptions.set(id,description);
+    try { for(const [id,description] of await readNativeFolderDescriptions(tree))descriptions.set(id,description); }
+    catch { contextWarnings.push('folder_descriptions_unavailable'); }
     const folders=nativeClassificationFolders(tree,{excluded:new Set([...await exclusionIds(),...policy.excluded,...input.excludedFolderIds??[]]),excludeBookmarkId:input.excludeBookmarkId,descriptions});
     const document=input.document;
     // A rule's placement asks for tags only (`folder:false`); nothing is sent when there are no tags to choose from.
     const folder=!('folder' in document.requested)||document.requested.folder!==false;
     if(folder&&!folders.length)return {ok:false as const,error:'local_no_folders'};
-    const tagUsage:readonly ClassificationTagUsage[]=await localClassificationTags(synced?.tagUsage);
+    let tagUsage:readonly ClassificationTagUsage[]=[];
+    if(document.requested.tags===true) {
+      try { tagUsage=await localClassificationTags(synced?.tagUsage); }
+      catch { contextWarnings.push('tag_vocabulary_unavailable'); tagUsage=synced?.tagUsage??[]; }
+    }
     const requested={folder,tags:document.requested.tags===true&&tagUsage.length>0} as typeof document.requested;
-    if(!requested.folder&&!requested.tags)return {ok:false as const,error:'local_no_tags'};
+    if(!requested.folder&&!requested.tags)return {ok:false as const,error:contextWarnings.includes('tag_vocabulary_unavailable')?'local_tag_context_unavailable':'local_no_tags'};
     const result=await previewLocalClassification({credential,
       taxonomy:{folders,tagUsage,title:synced?.title??'Browser bookmarks',summary:synced?.summary??null,
         revision:synced?.revision??'native',collectionId:synced?.collectionId??'local'},
@@ -87,5 +94,5 @@ export async function runLocalClassification(input:{readonly document:Classifica
     return {ok:true as const,result,nativeFolder,tagsNeedSync:false,destinationPolicyDigest:policy.digest};
   }catch(error){
     return {ok:false as const,error:localClassificationFailure(error)};
-  }finally{busy=false;}
+  }finally{await recordClassificationContext(contextWarnings);busy=false;}
 }

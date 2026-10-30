@@ -5858,6 +5858,9 @@
   "popup_localSettingsChanged": {
     "message": "Your AI service settings changed. Try again."
   },
+  "popup_localTagContextUnavailable": {
+    "message": "Your saved tag vocabulary could not be read. Retry after restoring local storage; folder suggestions remain available."
+  },
   "popup_localTaxonomyTooLarge": {
     "message": "There are too many folders for a suggestion. Choose a folder manually."
   },
