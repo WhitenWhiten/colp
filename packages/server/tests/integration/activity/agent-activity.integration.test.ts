@@ -101,7 +101,11 @@ describeWithPostgres('durable owner agent activity', () => {
           aggregate_revision: null, commit_ordinal: String(row.commit_ordinal), occurred_at: row.occurred_at.toISOString(), payload: row.payload_json } };
       await route.handle(delivery); await route.handle(delivery);
     }
-    const kinds = (await store.list(f.owner.accountId, {})).items.map(i => i.kind).sort();
+    const activity = (await store.list(f.owner.accountId, {})).items;
+    expect(activity.find(i => i.kind === 'agent_nodes_deleted')?.items).toMatchObject([
+      { nodeId: 'changed', title: 'Updated title', host: 'example.test' },
+    ]);
+    const kinds = activity.map(i => i.kind).sort();
     expect(kinds).toEqual([
       'agent_bookmarks_added', 'agent_nodes_deleted', 'agent_nodes_moved', 'agent_nodes_updated']);
     for (const name of ['product-v1.yaml', 'colp-server-v1.yaml']) {

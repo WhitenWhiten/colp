@@ -30,7 +30,9 @@ export async function activityViews(tx: DatabaseTransaction, accountId: string, 
   const collections = (await sql<{ id: string; title: string | null }>`SELECT c.id,c.title FROM collections c
     JOIN accounts a ON a.subject_id=c.owner_subject_id WHERE a.id=${accountId} AND c.deleted_at IS NULL
       AND c.id IN (SELECT collection_id FROM activity_items WHERE id IN (${ids}))`.execute(tx)).rows;
-  const liveMembers = sql`FROM activity_members m JOIN nodes n ON n.id=m.node_id AND n.collection_id=m.collection_id AND n.deleted_at IS NULL
+  const liveMembers = sql`FROM activity_members m JOIN activity_items activity ON activity.id=m.activity_id
+    JOIN nodes n ON n.id=m.node_id AND n.collection_id=m.collection_id
+      AND (n.deleted_at IS NULL OR activity.kind='agent_nodes_deleted')
     JOIN collections c ON c.id=n.collection_id AND c.deleted_at IS NULL JOIN accounts a ON a.subject_id=c.owner_subject_id AND a.id=${accountId}
     LEFT JOIN nodes p ON p.id=n.parent_id AND p.collection_id=n.collection_id AND p.deleted_at IS NULL WHERE m.activity_id IN (${ids})`;
   const members = (await sql<Member>`SELECT * FROM (SELECT m.activity_id,n.id AS node_id,n.title,n.url,m.occurred_at,
