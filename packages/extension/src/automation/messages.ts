@@ -496,13 +496,14 @@ export interface AutomationServerView {
 
 export interface AutomationStateView {
   readonly account: 'signedOut' | 'signedIn';
-  /** `none`: no bundle yet. `active`/`paused`: what the installed bundle says. `expired`: placement is off until a refresh. */
+  /** `none`: no usable bundle yet. Pause also reflects independently read account settings. */
   readonly state: 'none' | 'active' | 'paused' | 'expired';
   readonly rules: readonly AutomationRuleView[];
   /** Recent placements in this browser, by this account's rules and this browser's own, newest first. */
   readonly placements: readonly AutomationPlacementView[];
   readonly deviceBridgeEnabled?: boolean;
   readonly deviceBridgeProblem?: string | null;
+  readonly pauseProblem?: AutomationProblem | null;
   readonly receiptIssues?: readonly { id: string; reason: string; at: number }[];
   /** This browser's own rules, signed in or not, in the order saves try them, those in sets included. */
   readonly browserRules: readonly BrowserRuleView[];

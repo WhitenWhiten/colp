@@ -64,6 +64,15 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); document.body.replaceChildren(); });
 
 describe('Rules in this browser on the page', () => {
+  it('shows pause verification and agent recovery problems with a way to check again', async () => {
+    const body = await render(view({ account: 'signedIn', deviceBridgeEnabled: true, deviceBridgeProblem: 'replica_revoked',
+      pauseProblem: 'signedOut', webUrl: 'https://colp.example/automations' }));
+    expect(text(body)).toContain('The last known pause is kept.');
+    expect(text(body)).toContain('Check your server sign-in and connection');
+    expect(text(body)).toContain('Agent access needs attention: replica_revoked');
+    expect(text(body)).toContain('Check now');
+  });
+
   it('lead the page when signed out, in the web’s words, and say what an account adds', async () => {
     const body = await render(view());
     // The order every save follows comes first (U3); then this browser's rules lead.

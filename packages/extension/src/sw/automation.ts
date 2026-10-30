@@ -1,7 +1,7 @@
 import { DEVICE_BRIDGE_KEY, DEVICE_BRIDGE_STATUS_KEY } from '../automation/device-bridge.js';
 import { automationRefreshProblem } from '../automation/refresh-problem.js';
-import { validateAutomation, type BundleAckInput, type PauseState } from '@know-n/colp/automation';
-import { assertCredentialHostPermission } from '../server-origin-permission.js';
+import type { BundleAckInput } from '@know-n/colp/automation';
+import { PAUSE_KEY, automationsPaused, createPauseStatusStore, pauseStatusDue, readPauseStatus } from '../automation/pause-status.js';
 import { acknowledgeRuleBundle, fetchRuleBundle, postIntakeReceipt, type DeviceAuthority, type DeviceProblem } from '../automation/device-client.js';
 import { readReplicaDeviceId } from '../automation/device-identity.js';
 import { projectRule, type ProjectionDeps } from '../automation/binding-projector.js';
@@ -17,8 +17,8 @@ import { activityStatusDue, createActivityStatusStore, readActivitySummary } fro
 import { digestIndicator, toolbarBadge, type DigestIndicator } from '../automation/digest-indicator.js';
 import { showAutomationBadge, writeAutomationBadge } from '../action-badge.js';
 import { readSaveFeedback, saveFeedbackIsError } from '../save-feedback.js';
-import type { AutomationMatchView, AutomationPlacementView, AutomationRequest, AutomationResponse, AutomationRuleView, AutomationServerView,
-  AutomationStateView, SavingFlowView } from '../automation/messages.js';
+import { AUTOMATION_CHANGED_KEY, type AutomationMatchView, type AutomationPlacementView, type AutomationRequest, type AutomationResponse, type AutomationRuleView, type AutomationServerView,
+  type AutomationStateView, type SavingFlowView } from '../automation/messages.js';
 import { isAccountAutomation, type CaptureScope, type CaptureTask } from '../capture/contracts.js';
 import { currentCaptureScope } from './capture-native.js';
 import { readEffectiveBookmarkPreferences } from './bookmark-preferences.js';
@@ -27,7 +27,6 @@ import { localClassificationEnabled } from '../classification-local-session.js';
 import { manualClassificationRequested } from '../manual-classification.js';
 import { automationDatabase } from '../automation/indexeddb-store.js';
 import type { SyncScope } from '../sync-state-store.js';
-import { readBoundedJson } from '../json-response.js';
 import { ensurePeriodicAlarm } from './reconcile-alarm.js';
 import { browserListViews, browserPlacementViews, browserPreSaveDecision, recordBrowserPlacement, retireMovedBrowserRules,
   type AccountLink, type AccountRuleForOverlap, type BrowserPreSaveDecision } from './automation-browser.js';
@@ -51,7 +50,8 @@ export const automationArea = () => automationDatabase().area();
 export const AUTOMATION_ALARM = 'known-automation';
 export const AUTOMATION_REFRESH_MINUTES = 5;
 const DEVICE_KEY = 'known.automation.device.v1';
-const PAUSE_KEY = 'known.automation.pause.v1';
+const pauseArea = () => ({ get: async (key: string) => (await chrome.storage.local.get(key))[key],
+  set: async (key: string, value: unknown) => chrome.storage.local.set({ [key]: value, [AUTOMATION_CHANGED_KEY]: crypto.randomUUID() }) });
 
 let inFlight: { readonly promise: Promise<void>; readonly manual: boolean } | undefined;
 let accountEpoch = 0;
@@ -94,15 +94,17 @@ async function run(manual: boolean): Promise<void> {
   };
   const status = createServerStatusStore(automationArea(), ownerKey);
   const activity = createActivityStatusStore(automationArea(), ownerKey);
+  const pause = createPauseStatusStore(pauseArea(), owner), pauseDue = pauseStatusDue(await pause.read(), now, manual);
   const activityDue = activityStatusDue(await activity.read(), now, manual);
   const bundleDue = manual || refreshDue(record, now);
   const statusDue = record.problem?.kind !== 'unavailable' && (manual || serverStatusDue(await status.read(), now));
   const receiptsDue = (await receipts.list()).some((receipt) => receipt.ownerKey === ownerKey && !settled(receipt.state) && receipt.nextAttemptAt <= now);
-  if (!bundleDue && !receiptsDue && !statusDue && !activityDue) return;
+  if (!bundleDue && !receiptsDue && !statusDue && !activityDue && !pauseDue) return;
   // Read with the browser's web sign-in, apart from Sync's authority below.
   const reads = await Promise.allSettled([
     statusDue ? readServerStatus(owner.serverOrigin, owner.accountId).then(async (result) => { if (await isCurrent()) await status.apply(result, now); }) : null,
     activityDue ? readActivitySummary(owner.serverOrigin, owner.accountId).then(async (result) => { if (await isCurrent()) await activity.apply(result, now); }) : null,
+    pauseDue ? readPauseStatus(owner).then(async (result) => { if (await isCurrent()) await pause.apply(result, now); }) : null,
   ]);
   // All reads settle before cleanup can run, including when one dependency rejects.
   if (!await isCurrent()) return;
@@ -131,7 +133,6 @@ async function refreshBundle(owner: AutomationOwner, bundles: ReturnType<typeof 
       text: t('automation_movedToAccount', '“$1” now runs from your account, on every device.', name) }).catch(() => undefined);
   }
   const revision = response.body && typeof response.body === 'object' ? (response.body as { revision?: unknown }).revision : undefined;
-  if (outcome.record.bundle?.paused) await readPause(owner);
   const binding = await store.loadBinding().catch(() => null);
   const deviceId = binding ? await replicaDeviceId(owner, binding.replicaId) : null;
   if (!deviceId || typeof revision !== 'string') return;
@@ -158,6 +159,7 @@ async function flushReceipts(owner: AutomationOwner, device: DeviceAuthority, re
 /** A new sign-in permits retrying a previously missing activity endpoint. */
 export async function retryActivityAfterSignIn(owner: AutomationOwner): Promise<void> {
   await createActivityStatusStore(automationArea(), automationOwnerKey(owner)).retryAfterSignIn();
+  await createPauseStatusStore(pauseArea(), owner).retryAfterSignIn();
 }
 
 /**
@@ -197,7 +199,9 @@ export async function recordPlacementReceipt(receipt: PlacementReceipt): Promise
 /** The installed rules' decision for a save about to happen; null when automations do not apply here. */
 export async function preSaveDecision(scope: CaptureScope, input: PreSaveInput): Promise<PreSaveDecision | null> {
   if (!scope.accountId || !scope.collectionId || !await hasBookmarkPermission()) return null;
-  const record = await createBundleStore(automationArea(), { serverOrigin: scope.serverOrigin, accountId: scope.accountId }).read();
+  const owner = { serverOrigin: scope.serverOrigin, accountId: scope.accountId };
+  const record = await createBundleStore(automationArea(), owner).read();
+  if (automationsPaused(record, await createPauseStatusStore(pauseArea(), owner).read(), Date.now())) return null;
   if (!record.bundle) return null;
   // Rules place only while this browser syncs the collection they belong to.
   const sync = await currentSyncScope().catch(() => null);
@@ -208,7 +212,8 @@ export async function preSaveDecision(scope: CaptureScope, input: PreSaveInput):
 /** The account's pause is for every automation here: while it holds, this browser's own rules stand still too (design 01 §7.5). */
 export async function sourceAutomationsPaused(): Promise<boolean> {
   const owner = await currentOwner();
-  return owner ? bundleState(await createBundleStore(automationArea(), owner).read(), Date.now()).state === 'paused' : false;
+  return owner ? automationsPaused(await createBundleStore(automationArea(), owner).read(),
+    await createPauseStatusStore(pauseArea(), owner).read(), Date.now()) : false;
 }
 
 /** What rules decide before a save: the account's first; this browser's only where none of them speaks and nothing is paused. */
@@ -274,22 +279,6 @@ async function replicaDeviceId(owner: AutomationOwner, replicaId: string): Promi
   const deviceId = await readReplicaDeviceId(owner.serverOrigin, replicaId);
   if (deviceId) await chrome.storage.local.set({ [DEVICE_KEY]: { key, deviceId } });
   return deviceId;
-}
-
-/** Who paused and when, for "Paused by you on 12 Oct". The bundle only says that it is paused. */
-async function readPause(owner: AutomationOwner): Promise<void> {
-  try {
-    const pauseUrl = `${owner.serverOrigin.replace(/\/$/u, '')}/api/v1/me/automations/pause`;
-    const pauseInit: RequestInit = { credentials: 'include',
-      redirect: 'error', cache: 'no-store', headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(10_000) };
-    await assertCredentialHostPermission(pauseUrl, pauseInit);
-    const response = await fetch(pauseUrl, pauseInit);
-    if (!response.ok) return;
-    const body = await readBoundedJson(response, 16 * 1024, 'automation_pause_invalid');
-    if (!validateAutomation('PauseState', body).valid) return;
-    const pause = body as PauseState;
-    await chrome.storage.local.set({ [PAUSE_KEY]: { ownerKey: automationOwnerKey(owner), pausedAt: pause.pausedAt, pausedBy: pause.pausedBy } });
-  } catch { /* The paused state itself comes from the bundle; the date is a courtesy. */ }
 }
 
 function projectionDeps(scope: SyncScope): ProjectionDeps {
@@ -446,19 +435,21 @@ export async function automationStateView(): Promise<AutomationStateView> {
   }
   const record = await createBundleStore(automationArea(), owner).read();
   const now = Date.now(), current = bundleState(record, now);
+  const pauseStatus = await createPauseStatusStore(pauseArea(), owner).read();
+  const paused = automationsPaused(record, pauseStatus, now);
+  const state = paused ? 'paused' : current.state === 'paused' ? 'none' : current.state;
   // Signed in, each browser rule is compared with the account's rules in force here, and may move to the account.
   const browser = await browserListViews({ account: await accountRulesForOverlap(record, now), ...await linkFor(owner, webUrl) });
-  const pause = (await chrome.storage.local.get(PAUSE_KEY))[PAUSE_KEY] as { ownerKey?: string; pausedAt?: string | null; pausedBy?: AutomationStateView['pausedBy'] } | undefined;
-  const pauseKnown = current.state === 'paused' && pause?.ownerKey === automationOwnerKey(owner);
-  const pausedAt = pauseKnown && pause?.pausedAt ? Date.parse(pause.pausedAt) : current.state === 'paused' ? current.since : null;
+  const pause = pauseStatus.pause;
+  const pausedAt = paused && pause?.pausedAt ? Date.parse(pause.pausedAt) : paused ? record.pausedSince : null;
   const bridgeStatus = (await chrome.storage.local.get(DEVICE_BRIDGE_STATUS_KEY))[DEVICE_BRIDGE_STATUS_KEY] as { ownerKey: string; code: string | null } | undefined;
-  return { account: 'signedIn', state: current.state, webUrl, deviceBridgeEnabled: (await chrome.storage.local.get(DEVICE_BRIDGE_KEY))[DEVICE_BRIDGE_KEY] === automationOwnerKey(owner),
+  return { account: 'signedIn', state, webUrl, deviceBridgeEnabled: (await chrome.storage.local.get(DEVICE_BRIDGE_KEY))[DEVICE_BRIDGE_KEY] === automationOwnerKey(owner),
     deviceBridgeProblem: bridgeStatus?.ownerKey === automationOwnerKey(owner) ? bridgeStatus.code : null,
-    rules: current.state === 'active' ? await ruleViews(record) : [],
+    rules: state === 'active' ? await ruleViews(record) : [], pauseProblem: pauseStatus.problem,
     receiptIssues: (await createReceiptStore(automationArea()).quarantine()).filter(issue => { const raw = issue.raw as { ownerKey?: string } | null; return typeof raw?.ownerKey !== 'string' || raw.ownerKey === automationOwnerKey(owner); }).map(issue => ({ id: issue.id, reason: issue.reason, at: issue.quarantinedAt })),
     placements: [...await placementViews(automationOwnerKey(owner)), ...filed].sort((a, b) => b.at - a.at).slice(0, 10),
     browserRules: browser.rules, browserList: browser.list, browserRuns: await browserRunViews(),
-    pausedAt: Number.isFinite(pausedAt) ? pausedAt : null, pausedBy: pauseKnown ? pause?.pausedBy ?? null : null,
+    pausedAt: Number.isFinite(pausedAt) ? pausedAt : null, pausedBy: paused ? pause?.pausedBy ?? null : null,
     expiresAt: current.state === 'active' || current.state === 'paused' ? current.expiresAt : current.state === 'expired' ? current.expiredAt : null,
     lastRefreshAt: record.lastRefreshAt, problem: record.problem?.kind ?? null, server: await serverView(owner, record, owner.serverOrigin),
     saving: await savingFlow() };

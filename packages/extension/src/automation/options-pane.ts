@@ -472,6 +472,8 @@ export function bindAutomationsPane(pane: HTMLElement): AutomationsPane {
     } else {
       const alert = notice(view);
       if (alert) parts.push(alert);
+      if (view.pauseProblem && view.pauseProblem !== 'unavailable') parts.push(inlineAlert('warning',
+        t('automation_pauseReadProblem', 'Could not check the account’s automation pause ($1). The last known pause is kept. Check your server sign-in and connection, then use Check now.', view.pauseProblem)));
       // The order every save follows comes first, so each section below reads as one of its steps.
       parts.push(flowStrip(view), statusCard(view, refresh, busy));
       if (view.state === 'active' || view.state === 'paused' || (view.state === 'none' && view.problem !== 'unavailable')) parts.push(rulesGroup(view));

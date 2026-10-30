@@ -18,7 +18,7 @@ vi.mock('../src/sw/scope.js', () => ({ currentSyncScope: async () => null, loadC
 vi.mock('../src/sw/capture-native.js', () => ({ currentCaptureScope: async () => null }));
 vi.mock('../src/sw/reconcile-alarm.js', () => ({ ensurePeriodicAlarm: async () => undefined }));
 
-import { automationArea, automationStateView, handleAutomationRequest, refreshAutomation } from '../src/sw/automation.js';
+import { automationArea, automationStateView, handleAutomationRequest, refreshAutomation, sourceAutomationsPaused } from '../src/sw/automation.js';
 import { BADGE_ACCENT, BADGE_MUTED } from '../src/badge-colors.js';
 import { presentSaveFeedback } from '../src/save-feedback.js';
 
@@ -58,6 +58,7 @@ describe('the server’s status in the worker', () => {
     expect(new Set(f.fetch.mock.calls.map(([url, init]) => [String(url), (init as RequestInit).credentials]))).toEqual(new Set([
       ['https://colp.example/api/v1/me/automations/rules?limit=100', 'include'],
       ['https://colp.example/api/v1/me/automations/runs?limit=20', 'include'],
+      ['https://colp.example/api/v1/me/automations/pause', 'include'],
       ['https://colp.example/api/v1/me/activity/summary', 'include']]));
     const { server, problem } = await automationStateView();
     // The bundle refresh failed on its own (no Sync authority); the server's status still came through.
@@ -98,6 +99,20 @@ describe('the server’s status in the worker', () => {
     await refreshAutomation({ manual: true });
     expect((await automationStateView()).server).toBeNull();
   });
+
+  it('learns pause and resume without Sync authority, and preserves pause while offline', async () => {
+    answers['/api/v1/me/automations/pause'] = () => json({ paused: true, revision: '2', pausedAt: new Date(NOW).toISOString(), pausedBy: 'owner', heldJobs: 0 });
+    await refreshAutomation({ manual: true });
+    expect(await sourceAutomationsPaused()).toBe(true);
+    expect(await automationStateView()).toMatchObject({ state: 'paused', pausedBy: 'owner', pausedAt: NOW, pauseProblem: null, rules: [] });
+    delete answers['/api/v1/me/automations/pause'];
+    await refreshAutomation({ manual: true });
+    expect(await sourceAutomationsPaused()).toBe(true);
+    expect((await automationStateView()).pauseProblem).toBe('offline');
+    answers['/api/v1/me/automations/pause'] = () => json({ paused: false, revision: '3', pausedAt: null, pausedBy: null, heldJobs: 0 });
+    await refreshAutomation({ manual: true });
+    expect(await sourceAutomationsPaused()).toBe(false);
+  });
 });
 
 describe('the toolbar badge (AW-60)', () => {
@@ -118,7 +133,7 @@ describe('the toolbar badge (AW-60)', () => {
     expect(f.badge).toEqual({ text: '', color: BADGE_ACCENT, title: 'Know-N — save this page' });
     // Only status reads and the Activity capability probe went out: nothing was marked read here.
     expect(new Set(f.fetch.mock.calls.map(([url]) => new URL(String(url)).pathname)))
-      .toEqual(new Set(['/api/v1/me/automations/rules', '/api/v1/me/automations/runs', '/api/v1/me/activity/summary']));
+      .toEqual(new Set(['/api/v1/me/automations/rules', '/api/v1/me/automations/runs', '/api/v1/me/activity/summary', '/api/v1/me/automations/pause']));
     expect(f.fetch.mock.calls.every(([, init]) => (init as RequestInit).method === undefined || (init as RequestInit).method === 'GET')).toBe(true);
   });
 

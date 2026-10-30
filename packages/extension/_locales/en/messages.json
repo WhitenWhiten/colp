@@ -1016,6 +1016,9 @@
   "automation_pauseOnWeb": {
     "message": "Pause on the web"
   },
+  "automation_pauseReadProblem": {
+    "message": "Could not check the account’s automation pause ($1). The last known pause is kept. Check your server sign-in and connection, then use Check now."
+  },
   "automation_pausedByYouOn": {
     "message": "Paused by you on $1. Bookmarks keep the folder you save them to."
   },
