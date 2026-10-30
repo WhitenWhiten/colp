@@ -339,12 +339,17 @@ const PLACEMENT_STATE: Record<PlacementReceipt['state'], AutomationPlacementView
 
 async function placementViews(ownerKey: string): Promise<AutomationPlacementView[]> {
   const receipts = (await createReceiptStore(automationArea()).list()).filter((receipt) => receipt.ownerKey === ownerKey).slice(0, 10);
-  return receipts.map((receipt) => {
+  const recovery: AutomationPlacementView[] = (await automationDatabase().intents.list())
+    .filter(intent => intent.ownerKey === ownerKey && intent.recoveryProblem)
+    .map(intent => ({ id: `recovery:${intent.intentId}`, title: intent.page.title, host: '', url: intent.page.url,
+      ruleName: intent.automation.rule.name, folder: intent.automation.folderTitle ?? '', at: intent.createdAt,
+      path: 'observed', state: 'attention', recoveryProblem: intent.recoveryProblem }));
+  return [...recovery, ...receipts.map((receipt) => {
     let host = '';
     try { host = new URL(receipt.page.url).hostname; } catch { /* the title stands alone */ }
     return { id: receipt.localReceiptId, title: receipt.page.title, host, url: receipt.page.url, ruleName: receipt.rule.name, folder: receipt.destinationTitle,
       at: receipt.createdAt, path: receipt.path, state: PLACEMENT_STATE[receipt.state] };
-  });
+  })];
 }
 
 /** The server's last-read status, joined to rule names; null where the server has no automations. */
@@ -478,7 +483,10 @@ export async function handleAutomationRequest(request: AutomationRequest): Promi
     void refreshAutomation().catch(() => undefined);
     return { ok: true, digest: owner ? await currentDigest(owner) : null };
   }
-  if (request.kind === 'known.automation.refresh') await refreshAutomation({ manual: true });
+  if (request.kind === 'known.automation.refresh') {
+    await (await import('./automation-observed.js')).resumeObservedCreates();
+    await refreshAutomation({ manual: true });
+  }
   // Opening the page also nudges a due refresh; its result re-renders through storage.onChanged.
   else void refreshAutomation().catch(() => undefined);
   return { ok: true, state: await automationStateView() };

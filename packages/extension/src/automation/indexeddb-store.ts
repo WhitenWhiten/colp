@@ -28,6 +28,7 @@ const owns = (value: unknown, ownerKey: string) =>
 
 /** An observed move about to happen: written before the move, removed once its receipt exists. */
 export interface PlacementIntent extends ObservedPlacement {
+  readonly recoveryProblem?: 'permission_required' | 'bookmark_unavailable' | 'receipt_unavailable';
   readonly intentId: string;
   readonly ownerKey: string;
   readonly fromParentId: string;

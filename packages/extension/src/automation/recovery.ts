@@ -1,6 +1,7 @@
 import type { PlacementIntent } from './indexeddb-store.js';
 import type { NativeBookmark } from './observed-create.js';
 import { RECEIPT_MAX_AGE_MS } from './receipt-sync.js';
+import { classifyBookmarkApiFailure } from '../bookmark-api-error.js';
 
 /**
  * Closes the gap a crash can leave between an observed move and its receipt.
@@ -22,6 +23,7 @@ export interface IntentRecoveryPorts {
   remove(intentId: string): Promise<void>;
   node(nativeId: string): Promise<NativeBookmark | null>;
   record(intent: PlacementIntent): Promise<void>;
+  defer?(intent: PlacementIntent, problem: NonNullable<PlacementIntent['recoveryProblem']>): Promise<void>;
 }
 
 export async function recoverPlacementIntents(ports: IntentRecoveryPorts): Promise<{ readonly recorded: number; readonly dropped: number }> {
@@ -29,9 +31,17 @@ export async function recoverPlacementIntents(ports: IntentRecoveryPorts): Promi
   for (const intent of await ports.list()) {
     const expired = ports.now - intent.createdAt > RECEIPT_MAX_AGE_MS;
     if (intent.ownerKey !== ports.ownerKey && !expired) continue;
-    const node = expired ? null : await ports.node(intent.native.nativeId);
+    let node: NativeBookmark | null;
+    try { node = expired ? null : await ports.node(intent.native.nativeId); }
+    catch (error) {
+      await ports.defer?.(intent, classifyBookmarkApiFailure(error) === 'permission_denied' ? 'permission_required' : 'bookmark_unavailable').catch(() => undefined);
+      continue;
+    }
     const same = node && node.url !== undefined && (intent.dateAdded === null || node.dateAdded === intent.dateAdded);
-    if (same && node.parentId === intent.native.destinationNativeId) { await ports.record(intent); recorded += 1; }
+    if (node && same && node.parentId === intent.native.destinationNativeId) {
+      try { await ports.record(intent); recorded += 1; }
+      catch { await ports.defer?.(intent, 'receipt_unavailable').catch(() => undefined); continue; }
+    }
     else dropped += 1;
     await ports.remove(intent.intentId);
   }

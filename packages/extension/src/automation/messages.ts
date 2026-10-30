@@ -425,6 +425,7 @@ export interface BrowserRuleOverlapView {
 
 /** A receipt as the page shows it: placement happened here; the server's answer is the rest. */
 export interface AutomationPlacementView {
+  readonly recoveryProblem?: 'permission_required' | 'bookmark_unavailable' | 'receipt_unavailable';
   readonly id: string;
   readonly title: string;
   readonly host: string;

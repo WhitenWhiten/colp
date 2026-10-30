@@ -130,6 +130,19 @@ function intent(intentId: string, over: Partial<PlacementIntent> = {}): Placemen
 }
 
 describe('recovering observed moves after a worker stop', () => {
+  it('retains unavailable work and still recovers independent moves', async () => {
+    const left = new Map(['unavailable', 'healthy'].map(id => [id, intent(id)])), recorded: string[] = [];
+    const result = await recoverPlacementIntents({ ownerKey: OWNER, now: NOW + 5_000,
+      list: async () => [...left.values()], remove: async id => { left.delete(id); },
+      node: async id => { if (id === 'n-unavailable') throw new Error('Temporary API failure'); return node(id, '10'); },
+      record: async item => { recorded.push(item.intentId); },
+      defer: async (item, recoveryProblem) => { left.set(item.intentId, { ...item, recoveryProblem }); },
+    });
+    expect(result).toEqual({ recorded: 1, dropped: 0 });
+    expect(recorded).toEqual(['healthy']);
+    expect([...left.values()]).toMatchObject([{ intentId: 'unavailable', recoveryProblem: 'bookmark_unavailable' }]);
+  });
+
   async function recover(intents: PlacementIntent[], tree: Record<string, NativeBookmark>, over: { ownerKey?: string | null; now?: number } = {}) {
     const left = new Map(intents.map((item) => [item.intentId, item])), recorded: string[] = [];
     const result = await recoverPlacementIntents({ ownerKey: OWNER, now: NOW + 5_000, ...over,

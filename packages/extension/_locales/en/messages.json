@@ -191,9 +191,6 @@
   "automation_activityAttention": {
     "message": "$1 needs your decision"
   },
-  "automation_activityUncertain": {
-    "message": "$1 has an unknown result. Review before retrying."
-  },
   "automation_activityDigests_one": {
     "message": "$1 new digest"
   },
@@ -232,6 +229,9 @@
   },
   "automation_activityRule": {
     "message": "A rule"
+  },
+  "automation_activityUncertain": {
+    "message": "$1 has an unknown result. Review before retrying."
   },
   "automation_addCondition": {
     "message": "Add condition"
@@ -1222,6 +1222,15 @@
   },
   "automation_recipeRoleUnbound": {
     "message": "no folder yet for “$1”"
+  },
+  "automation_recoveryBookmark": {
+    "message": "The bookmark could not be read. Its recovery record is kept; choose Check now to retry."
+  },
+  "automation_recoveryPermission": {
+    "message": "Allow bookmark access, then choose Check now to confirm this move."
+  },
+  "automation_recoveryReceipt": {
+    "message": "The move could not be recorded. Its recovery record is kept; choose Check now to retry."
   },
   "automation_removeCondition": {
     "message": "Remove condition"

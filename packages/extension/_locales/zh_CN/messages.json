@@ -13618,5 +13618,17 @@
   "popup_localTagContextUnavailable": {
     "message": "无法读取已保存的标签词库。请恢复本地存储后重试；文件夹建议仍然可用。",
     "description": "Your saved tag vocabulary could not be read. Retry after restoring local storage; folder suggestions remain available."
+  },
+  "automation_recoveryPermission": {
+    "message": "允许访问书签后，点击“立即检查”以确认此次移动。",
+    "description": "Allow bookmark access, then choose Check now to confirm this move."
+  },
+  "automation_recoveryBookmark": {
+    "message": "暂时无法读取书签，恢复记录已保留；请点击“立即检查”重试。",
+    "description": "The bookmark could not be read. Its recovery record is kept; choose Check now to retry."
+  },
+  "automation_recoveryReceipt": {
+    "message": "暂时无法记录此次移动，恢复记录已保留；请点击“立即检查”重试。",
+    "description": "The move could not be recorded. Its recovery record is kept; choose Check now to retry."
   }
 }

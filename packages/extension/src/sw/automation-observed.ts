@@ -13,6 +13,7 @@ import type { SyncScope } from '../sync-state-store.js';
 import { automationArea, automationProjectionDeps, recordPlacementReceipt, sourceAutomationsPaused } from './automation.js';
 import { hasBookmarkPermission, sw, syncState } from './runtime.js';
 import { currentSyncScope } from './scope.js';
+import { classifyBookmarkApiFailure } from '../bookmark-api-error.js';
 
 /**
  * The worker side of observed creates (star button, the browser's bookmark
@@ -70,8 +71,12 @@ export async function resumeObservedCreates(): Promise<void> {
   await exclusive(() => recoverPlacementIntents({
     ownerKey: scope ? automationOwnerKey({ serverOrigin: scope.serverOrigin, accountId: scope.accountId }) : null, now: Date.now(),
     list: () => database.intents.list(), remove: (intentId) => database.intents.remove(intentId),
-    async node(nativeId) { return (await chrome.bookmarks.get(nativeId).catch(() => []))[0] ?? null; },
+    async node(nativeId) {
+      try { return (await chrome.bookmarks.get(nativeId))[0] ?? null; }
+      catch (error) { if (classifyBookmarkApiFailure(error) === 'not_found') return null; throw error; }
+    },
     record: (intent) => recordObservedPlacement(intent, intent.ownerKey),
+    defer: (intent, recoveryProblem) => database.intents.put({ ...intent, recoveryProblem }),
   }));
   await settleDue();
 }

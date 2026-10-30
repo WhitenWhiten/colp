@@ -188,6 +188,14 @@ describe('observed creations in the worker', () => {
     expect(f.receipts).toEqual([expect.objectContaining({ localReceiptId: 'moved', path: 'observed', native: expect.objectContaining({ nativeId: 'n1' }) })]);
     expect(f.moves).toEqual([]);
     expect(await automationDatabase().intents.list()).toEqual([]);
+    tree.set('n3', { id: 'n3', parentId: '10', title: paper.title, url: paper.url, dateAdded: NOW });
+    await automationDatabase().intents.put(intent('unreadable', 'n3'));
+    vi.spyOn(chrome.bookmarks, 'get').mockRejectedValueOnce(new Error('Permission denied'));
+    await resumeObservedCreates();
+    expect(await automationDatabase().intents.list()).toMatchObject([{ intentId: 'unreadable', recoveryProblem: 'permission_required' }]);
+    await resumeObservedCreates();
+    expect(await automationDatabase().intents.list()).toEqual([]);
+    expect(f.receipts).toHaveLength(2);
   });
 
   it('observes nothing for an account without rules in force', async () => {

@@ -296,6 +296,11 @@ function placementList(view: AutomationStateView): HTMLElement {
       el('span', placementSource(placement), 'grow'), el('span', undefined, 'sep'), when(placement.at));
     const title = el('p', placement.title || displayHost(placement.host), 'list-row-title'); title.title = placement.host;
     main.append(title, meta);
+    if (placement.recoveryProblem) main.append(el('p', placement.recoveryProblem === 'permission_required'
+      ? t('automation_recoveryPermission', 'Allow bookmark access, then choose Check now to confirm this move.')
+      : placement.recoveryProblem === 'bookmark_unavailable'
+        ? t('automation_recoveryBookmark', 'The bookmark could not be read. Its recovery record is kept; choose Check now to retry.')
+        : t('automation_recoveryReceipt', 'The move could not be recorded. Its recovery record is kept; choose Check now to retry.'), 'list-row-meta'));
     // Why a matching rule left the page where it was saved, after the save panel is gone (U6).
     if (placement.kept) {
       main.append(el('p', placement.kept === 'conflict'
