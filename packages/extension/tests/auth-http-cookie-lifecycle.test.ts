@@ -2,8 +2,8 @@ import { expect, test, vi } from 'vitest';
 import { createAuthController } from '../src/auth-controller.js';
 import { createCredentialStore, MemoryStorageArea } from '../src/credential-store.js';
 import { resolveRuntimeConfig } from '../src/config.js';
-import { createAuthClient } from '../src/auth-client.js';
-import { config, EXTENSION_ORIGIN, memoryCookies, NOW, sessionJson } from './auth-shell-fixture.js';
+import { createAuthClient, SESSION_COOKIE_NAME } from '../src/auth-client.js';
+import { config, EXTENSION_ORIGIN, fixtureCredential, memoryCookies, NOW, sessionJson } from './auth-shell-fixture.js';
 
 test('loopback HTTP login, rotation, restart restoration and logout use the non-Secure cookie', async () => {
   const build = resolveRuntimeConfig(config(), 'http://127.0.0.1:8080');
@@ -48,4 +48,25 @@ test('HTTPS sign-in ignores an insecure Set-Cookie instead of promoting it to HT
   const auth = createAuthClient({ serverOrigin: 'https://known.example', origin: EXTENSION_ORIGIN,
     fetch: async () => new Response('{}', { headers: { 'Set-Cookie': 'known_session=plaintext-token' } }) });
   await expect(auth.signInWithPassword({ email: 'alice', password: 'test-password' })).rejects.toThrow('session_cookie_missing');
+});
+
+test('credential refresh does not rotate its bearer while reading an optional profile photo', async () => {
+  const build = config(), cookies = memoryCookies(), store = createCredentialStore(new MemoryStorageArea(), () => NOW);
+  const prior = fixtureCredential(build, NOW), cookieKey = `${build.serverOrigin}/:${SESSION_COOKIE_NAME}`;
+  cookies.values.set(cookieKey, prior.accessToken); await store.saveCredential(prior);
+  let rotations = 0;
+  const auth = createAuthController({ config: build, store, cookies, now: () => NOW, origin: EXTENSION_ORIGIN,
+    fetch: async input => {
+      const path = new URL(String(input)).pathname;
+      if (path.endsWith('/get-session')) return Response.json(sessionJson(NOW));
+      if (path === '/api/v1/session') {
+        rotations++; cookies.values.set(cookieKey, 'successor-session.signature');
+        return Response.json({ authenticated: true });
+      }
+      return Response.json({ account: { id: prior.subject }, profile: { avatarUrl: null } });
+    } });
+  const refreshed = await auth.ensureFreshCredential(true);
+  expect(refreshed.accessToken).toBe(cookies.values.get(cookieKey));
+  expect((await store.loadCredential())?.accessToken).toBe(refreshed.accessToken);
+  expect(rotations).toBe(0);
 });

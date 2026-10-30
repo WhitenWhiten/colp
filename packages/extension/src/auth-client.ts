@@ -185,10 +185,8 @@ export function createAuthClient(options: {
           method: 'GET', redirect: 'error', cache: 'no-store', credentials: 'include', headers,
           signal: deadline(undefined, Math.min(timeoutMs, AVATAR_REQUEST_TIMEOUT_MS)),
         });
-        const session = await get('/api/v1/session');
-        if (!session.ok) return undefined;
-        const occupancy = await readBoundedJson(session, AUTH_RESPONSE_MAX_BYTES, 'session_unavailable');
-        if (!record(occupancy) || occupancy.authenticated !== true) return undefined;
+        // /session can rotate and revoke the bearer the credential controller
+        // is currently publishing. /me authenticates this optional read itself.
         const response = await get('/api/v1/me');
         if (!response.ok) return undefined;
         const body = await readBoundedJson(response, AUTH_RESPONSE_MAX_BYTES, 'session_unavailable');
