@@ -65,6 +65,19 @@ describe('installed rule bundle', () => {
     expect(bundleState(record, NOW + 6).state).toBe('active');
   });
 
+  it('retains a learned pause past expiry and restart until a newer settings revision resumes it', async () => {
+    const area = memoryArea(), store = createBundleStore(area, owner);
+    await store.install(ruleBundle([], { settingsRevision: 6, paused: true }), NOW);
+    await store.recordProblem('offline', NOW + 8 * DAY);
+    const restarted = createBundleStore(area, owner);
+    expect(await restarted.state(NOW + 8 * DAY)).toMatchObject({ state: 'paused', since: NOW });
+    expect(await restarted.install(ruleBundle([compiledRule()], { settingsRevision: 6, issuedAt: NOW + 8 * DAY }), NOW + 8 * DAY))
+      .toMatchObject({ kind: 'rejected', reason: 'stale' });
+    expect((await restarted.state(NOW + 8 * DAY)).state).toBe('paused');
+    await restarted.install(ruleBundle([compiledRule()], { settingsRevision: 7, issuedAt: NOW + 8 * DAY }), NOW + 8 * DAY);
+    expect((await restarted.state(NOW + 8 * DAY)).state).toBe('active');
+  });
+
   it('backs off after failed refreshes, up to 15 minutes, and a good refresh resets the wait', async () => {
     const store = createBundleStore(memoryArea(), owner);
     expect(refreshDue(await store.read(), NOW)).toBe(true);

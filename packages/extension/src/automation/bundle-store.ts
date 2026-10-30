@@ -72,13 +72,15 @@ function parseRecord(value: unknown, ownerKey: string): BundleRecord {
   return { ...empty(ownerKey), ...record } as BundleRecord;
 }
 
-/** What the installed bundle allows right now. Expiry disables placement; it does not delete the record. */
+/** Expiry withdraws placement permission, but never withdraws a learned pause.
+ * Only a newer accepted settings revision can resume the account's automations. */
 export function bundleState(record: BundleRecord, now: number): BundleState {
   const bundle = record.bundle;
   if (!bundle) return { state: 'none' };
   const expiresAt = Date.parse(bundle.expiresAt);
+  if (bundle.paused) return { state: 'paused', since: record.pausedSince, expiresAt };
   if (!(expiresAt > now)) return { state: 'expired', expiredAt: expiresAt };
-  return bundle.paused ? { state: 'paused', since: record.pausedSince, expiresAt } : { state: 'active', bundle, expiresAt };
+  return { state: 'active', bundle, expiresAt };
 }
 
 /**
