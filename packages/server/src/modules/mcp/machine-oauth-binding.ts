@@ -1,4 +1,5 @@
 import { decodeProtectedHeader, type JWTPayload } from 'jose';
+import { isCredentialDriverDependencyFailure } from './credential-driver-failure.js';
 
 export interface McpMachineOauthBinding {
   readonly kids: ReadonlySet<string>;
@@ -15,7 +16,7 @@ export type MachineOauthBindResult =
   | { readonly kind: 'default' }
   | { readonly kind: 'bound'; readonly credentialBindingId: string }
   | { readonly kind: 'disallowed_algorithm' }
-  | { readonly kind: 'invalid_token' };
+  | { readonly kind: 'invalid_token' | 'dependency_unavailable' };
 
 export async function resolveMachineOauthBinding(input: {
   readonly token: string;
@@ -40,7 +41,8 @@ export async function resolveMachineOauthBinding(input: {
     });
     if (bound === null) return { kind: 'invalid_token' };
     return { kind: 'bound', credentialBindingId: bound };
-  } catch {
+  } catch (error) {
+    if (isCredentialDriverDependencyFailure(error)) return { kind: 'dependency_unavailable' };
     return { kind: 'invalid_token' };
   }
 }

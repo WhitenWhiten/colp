@@ -283,16 +283,15 @@ export function createMcpOauthVerifier(options: McpOauthVerifierOptions): McpOau
       let securityEpoch: string;
       try {
         securityEpoch = await options.securityEpoch();
-      } catch {
-        // FIX-L-042: an unreadable security epoch fails closed as revoked.
-        throw new McpOauthVerificationError('revoked');
+      } catch (error) {
+        throw new McpOauthVerificationError(isCredentialDriverDependencyFailure(error) ? 'dependency_unavailable' : 'revoked');
       }
       if (typeof securityEpoch !== 'string' || securityEpoch.trim() === '') {
         throw new McpOauthVerificationError('invalid_token');
       }
 
       const account = await resolveActiveAccountBySubject(options.resolveAccountBySubject, subject);
-      if (await mcpAccountSecurityBoundaryVerdict({
+      const accountBoundary = await mcpAccountSecurityBoundaryVerdict({
         requireAccountEpoch: options.requireAccountEpoch === true,
         ...(options.readAccountSecurityBoundary === undefined
           ? {}
@@ -300,14 +299,15 @@ export function createMcpOauthVerifier(options: McpOauthVerifierOptions): McpOau
         account,
         knownAccountEpoch: payload.known_account_epoch,
         issuedAtSeconds: issuedAtValue,
-      }) === 'revoked') throw new McpOauthVerificationError('revoked');
+      });
+      if (accountBoundary !== 'ok') throw new McpOauthVerificationError(accountBoundary);
 
       const resourceAudience = matchedResourceAudience(payload.aud, acceptedAudiences);
       const machineBound = await resolveMachineOauthBinding({
         token, payload, issuer: options.issuer, resourceAudience, securityEpoch,
         ...(options.machine ? { machine: options.machine } : {}),
       });
-      if (machineBound.kind === 'disallowed_algorithm' || machineBound.kind === 'invalid_token') {
+      if (machineBound.kind === 'disallowed_algorithm' || machineBound.kind === 'invalid_token' || machineBound.kind === 'dependency_unavailable') {
         throw new McpOauthVerificationError(machineBound.kind);
       }
       const credentialBindingId = machineBound.kind === 'bound' ? machineBound.credentialBindingId
@@ -351,8 +351,8 @@ async function resolveActiveAccountBySubject(
   let resolved: McpOauthResolvedAccount | readonly McpOauthResolvedAccount[] | null | undefined;
   try {
     resolved = await resolver(subject);
-  } catch {
-    throw new McpOauthVerificationError('invalid_token');
+  } catch (error) {
+    throw new McpOauthVerificationError(isCredentialDriverDependencyFailure(error) ? 'dependency_unavailable' : 'invalid_token');
   }
   const accounts = resolved == null
     ? []

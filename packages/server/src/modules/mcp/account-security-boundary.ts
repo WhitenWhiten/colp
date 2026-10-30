@@ -1,3 +1,5 @@
+import { isCredentialDriverDependencyFailure } from './credential-driver-failure.js';
+
 /**
  * Account MCP security boundary.
  *
@@ -48,7 +50,7 @@ export async function mcpAccountSecurityBoundaryVerdict(input: {
   readonly account: { readonly id: string; readonly securityEpoch?: string };
   readonly knownAccountEpoch: unknown;
   readonly issuedAtSeconds: number;
-}): Promise<'ok' | 'revoked'> {
+}): Promise<'ok' | 'revoked' | 'dependency_unavailable'> {
   if (input.requireAccountEpoch && (
     typeof input.account.securityEpoch !== 'string'
     || typeof input.knownAccountEpoch !== 'string'
@@ -68,7 +70,8 @@ export async function mcpAccountSecurityBoundaryVerdict(input: {
       issuedAtSeconds: input.issuedAtSeconds,
       knownAccountEpoch,
     }) ? 'revoked' : 'ok';
-  } catch {
+  } catch (error) {
+    if (isCredentialDriverDependencyFailure(error)) return 'dependency_unavailable';
     return 'revoked';
   }
 }

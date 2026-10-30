@@ -396,6 +396,25 @@ test('security epoch read failures fail closed as revoked', async () => {
   await expectReason(() => verifier.verify({ authorization: `Bearer ${token}` }), 'revoked');
 });
 
+test('account, epoch, boundary and machine binding driver outages remain retryable', async () => {
+  const pair = await generateKeyPair('ES256', { extractable: true });
+  const jwk = { ...await exportJWK(pair.publicKey), kid: 'machine-key', alg: 'ES256' };
+  const token = await mintCredential({ key: pair.privateKey, kid: jwk.kid, alg: 'ES256' });
+  const failure = () => { throw Object.assign(new Error('Connection terminated unexpectedly'), { code: 'ECONNRESET' }); };
+  const failures: Partial<McpOauthVerifierOptions>[] = [
+    { resolveAccountBySubject: async () => failure() },
+    { securityEpoch: async () => failure() },
+    { readAccountSecurityBoundary: async () => failure() },
+    { machine: { kids: new Set([jwk.kid]), bind: async () => failure() } },
+  ];
+  for (const unavailable of failures) {
+    const verifier = createMcpOauthVerifier(makeOptions({ jwks: staticJwksProvider([jwk]), ...unavailable }));
+    await expectReason(() => verifier.verify({ authorization: `Bearer ${token}` }), 'dependency_unavailable');
+  }
+  const missing = createMcpOauthVerifier(makeOptions({ jwks: staticJwksProvider([jwk]), resolveAccountBySubject: async () => null }));
+  await expectReason(() => missing.verify({ authorization: `Bearer ${token}` }), 'invalid_token');
+});
+
 test('maps JWKS outage, timeout and malformed documents to typed fail-closed reasons', async () => {
   const key = await createKeyFixture('key-1');
   const token = await mintCredential({ key: key.privateKey, kid: key.kid });
