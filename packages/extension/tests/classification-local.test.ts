@@ -29,6 +29,30 @@ beforeEach(()=>{
   });
 });
 
+test.each([429,529])('HTTP %s retries recheck pause, key and destination authority before sending',async status=>{
+  for(const reason of ['sourceAutomationPaused','local_authority_changed','destination_policy_changed']){
+    let authorized=true,calls=0;
+    const result=previewLocalClassification({credential,taxonomy,commandId:`retry-${status}-${reason}`,
+      document:{source:'extension',bookmark:{title:'AI',url:'https://example.org/',description:null},requested:{folder:false,tags:true}},
+      signal:new AbortController().signal,assertCurrent:async()=>{if(!authorized)throw new Error(reason);},
+      transport:async()=>{calls++;authorized=false;return new Response('{}',{status,headers:{'retry-after':'0'}});}});
+    await expect(result).rejects.toThrow(reason);
+    expect(calls).toBe(1);
+  }
+});
+
+test('a still-authorized rate limit retry completes without repeating its durable command',async()=>{
+  let calls=0;
+  const input={credential,taxonomy,commandId:'authorized-retry',
+    document:{source:'extension' as const,bookmark:{title:'AI',url:'https://example.org/',description:null},requested:{folder:false,tags:true as const}},
+    signal:new AbortController().signal,assertCurrent:async()=>{},transport:async()=>++calls===1
+      ?new Response('{}',{status:429,headers:{'retry-after':'0'}})
+      :Response.json({model:'typesafe/jev',answers:{t0:{noul:0.95}}})};
+  await expect(previewLocalClassification(input)).resolves.toMatchObject({tags:{candidates:[{tag:'AI'}]}});
+  await expect(previewLocalClassification(input)).rejects.toThrow('local_result_unavailable');
+  expect(calls).toBe(2);
+});
+
 test('stale/incomplete authority and pending local structure block the local provider',async()=>{
   let pending=false;
   const store={getEngineState:async()=>({phase:'sleeping',recoveryFrozen:false,authorityRefreshRequired:false,lastAckedCursor:'cursor',lastPublishedCursor:'cursor'}),

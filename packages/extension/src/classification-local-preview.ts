@@ -20,6 +20,7 @@ export async function previewLocalClassification(input:{credential:LocalClassifi
   if(!('bookmark' in input.document))throw new Error('local_incoming_only');
   const {credential,taxonomy:projection,document}=input;
   let marked=false, dispatched=false;
+  let dispatchRefusal:{error:unknown}|undefined;
   try {
   await input.assertCurrent();
   const prior=(await chrome.storage.session.get(LOCAL_CLASSIFICATION_COMMANDS))[LOCAL_CLASSIFICATION_COMMANDS] as {generation:string;commands:string[]}|undefined;
@@ -43,13 +44,21 @@ export async function previewLocalClassification(input:{credential:LocalClassifi
     // Hosted presets always need their token; a custom endpoint may be anonymous.
     credentialRequired:preset.credential==='required',
   });
-  const provider=createCloudflareJevClassificationProvider(upstream,input.transport);
+  const signal=AbortSignal.any([input.signal,AbortSignal.timeout(20000)]),called=new Set<string>();
+  // The provider may retry a rejected HTTP request inside one stage. Guard
+  // each actual dispatch so a pause or key/policy change also fences retries.
+  const transport=input.transport??globalThis.fetch;
+  const provider=createCloudflareJevClassificationProvider(upstream,async(url,init)=>{
+    try { await input.assertCurrent();signal.throwIfAborted(); }
+    catch(error){dispatchRefusal={error};throw error;}
+    dispatched=true;
+    return transport(url,init);
+  });
   const context={bookmark,requested,candidates,folderSelectionMode:document.folderSelectionMode,collection:{title:compileClassificationText(projection.title,CLASSIFICATION_POLICY.titleBytes),
     summary:projection.summary===null?null:compileClassificationText(projection.summary,CLASSIFICATION_POLICY.summaryBytes)},snapshot:{node:null,settings:{maxAutoTags:3}}};
-  const signal=AbortSignal.any([input.signal,AbortSignal.timeout(20000)]),called=new Set<string>();
   const result=await provider.classify(context,{signal,deadlineAt:new Date(Date.now()+20000).toISOString(),calls:{async run(stage,chunk,_body,send){
     await input.assertCurrent();signal.throwIfAborted();const key=`${stage}:${chunk}`;
-    if(called.has(key))throw new Error('local_duplicate_dispatch');called.add(key);dispatched=true;return send();
+    if(called.has(key))throw new Error('local_duplicate_dispatch');called.add(key);return send();
   }}});
   await input.assertCurrent();signal.throwIfAborted();
   const folder=decideClassificationFolder({candidates,bookmark,requested:requested.folder,l1:result.l1,l2:result.l2,folderSelectionMode:document.folderSelectionMode});
@@ -58,6 +67,7 @@ export async function previewLocalClassification(input:{credential:LocalClassifi
     candidateCoverage:result.candidateCoverage,folder:folder?{...folder,probabilities:[...folder.probabilities]}:null,tags:{mode:requested.tags?'suggest':'off',candidates:tags.slice(0,15),maxAutoTags:3},
     provider:{providerId:provider.id,model:provider.model,policyVersion:provider.policyVersion,promptVersion:provider.promptVersion}};
   } catch (error) {
+    if(dispatchRefusal)error=dispatchRefusal.error;
     if (error instanceof Error && error.message === 'sourceAutomationPaused' && !dispatched) {
       if (marked) {
         const current=(await chrome.storage.session.get(LOCAL_CLASSIFICATION_COMMANDS))[LOCAL_CLASSIFICATION_COMMANDS] as {generation:string;commands:string[]}|undefined;
