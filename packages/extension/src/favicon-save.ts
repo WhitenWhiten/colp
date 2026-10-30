@@ -1,3 +1,4 @@
+import { rememberDisplayFavicon } from './favicon-display-cache.js';
 import { captureTabFavicon } from './favicon-capture.js';
 import { isBookmarkHostAllowedForAutoUpload } from './favicon-host.js';
 import type { createFaviconSidecarStore } from './favicon-sidecar-store.js';
@@ -45,11 +46,12 @@ export async function saveBookmarkWithFaviconCapture(input: SaveBookmarkCaptureI
   });
   await input.onNativeCreated?.(created);
   let captured = false;
+  const icon = input.privateLocal ? await capturePrivateDisplayIcon(input.url, input.favIconUrl)
+    : isBookmarkHostAllowedForAutoUpload(input.url)
+      ? await captureTabFavicon({ favIconUrl: input.favIconUrl, tabUrl: input.url, fetch: input.fetch }).catch(() => null) : null;
+  if (icon) await rememberDisplayFavicon(input.url, icon.bytes).catch(() => undefined);
   if (!input.privateLocal && useParent && input.collectionId && isBookmarkHostAllowedForAutoUpload(input.url)) {
     try {
-      const icon = await captureTabFavicon({
-        favIconUrl: input.favIconUrl, tabUrl: input.url, fetch: input.fetch,
-      });
       if (icon) {
         const commandId = (input.randomUUID ?? (() => crypto.randomUUID()))().toLowerCase();
         await input.sidecar.put({
@@ -63,4 +65,15 @@ export async function saveBookmarkWithFaviconCapture(input: SaveBookmarkCaptureI
   }
   return { nativeId: created.id, captured,
     ...(useParent && !input.privateLocal ? { parentId: input.parentNativeId } : {}) };
+}
+
+/** Private saves read the browser resource only; no website or cloud request. */
+async function capturePrivateDisplayIcon(pageUrl: string, favIconUrl: string) {
+  if (!favIconUrl) return null;
+  try {
+    const resource = new URL(chrome.runtime.getURL('/_favicon/'));
+    resource.searchParams.set('pageUrl', pageUrl); resource.searchParams.set('size', '32');
+    return await captureTabFavicon({ tabUrl: pageUrl, favIconUrl: pageUrl,
+      fetch: (_url, init) => fetch(resource, init) });
+  } catch { return null; }
 }

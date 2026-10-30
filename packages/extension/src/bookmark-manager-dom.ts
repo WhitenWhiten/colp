@@ -1,3 +1,4 @@
+import { readDisplayFavicon } from './favicon-display-cache.js';
 import { bookmarkFaviconSources } from './bookmark-favicon-sources.js';
 import { createIcon } from './icons.js';
 
@@ -52,6 +53,7 @@ export function faviconTile(pageUrl: string): HTMLElement {
   img.addEventListener('error', attempt);
   tile.append(img);
   attempt();
+  void readDisplayFavicon(pageUrl).then(source => { if (source) img.src = source; }).catch(() => undefined);
   return tile;
 }
 
