@@ -1,14 +1,8 @@
+import { automationCommandResult as commandResult } from './automation-command-result.js';
 import { AutomationError, type WorkPrincipal } from '../automation/index.js';
-import type { ProductSyncCenterPorts, ProductSyncCommandOutcome } from '../sync/index.js';
+import type { ProductSyncCenterPorts } from '../sync/index.js';
 import { canonicalCommandFingerprint } from '../commands/index.js';
 
-async function commandResult(outcome: ProductSyncCommandOutcome<unknown>): Promise<unknown> {
-  if (outcome.kind === 'committed') return outcome.result;
-  if (outcome.kind === 'replay') return JSON.parse(new TextDecoder().decode(outcome.body));
-  if (outcome.kind === 'in_progress') throw new AutomationError('rate_limited', 'This command is still running; retry the same command and arguments.', [], null, outcome.retryAfterSeconds);
-  throw new AutomationError('automation_command_conflict', outcome.kind === 'expired'
-    ? 'The command receipt expired; inspect current Sync state before requesting another command.' : 'This command id was reused with different arguments.');
-}
 function requireScope(actor: WorkPrincipal, scope: string) {
   if (!actor.scopes.includes(scope)) throw new AutomationError('insufficient_permission', `This Sync operation requires ${scope}.`);
 }

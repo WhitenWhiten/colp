@@ -87,6 +87,15 @@ pass its exact job ID, preview ID, revision and digest to `import_approve`.
 Approval requires `nodes:write`. Changed configuration or device authority fences
 the command; each prepared native effect retains its original authorization checks.
 
+After deleting content, use `automation.trash.list` for an owned collection and
+`automation.trash.get` to inspect its original identity, parent, deletion revision
+and retention deadline. `restore` returns one node under its original identity;
+`restore_subtree` restores members of that original folder deletion and reports
+each outcome, including partial restoration. Both require a fresh `baseRevision`,
+a stable command ID, `nodes:write`, `automation:manage` and `mcp:read:own`.
+Changed destinations and purged payloads cannot be silently replaced. Permanent
+deletion is not exposed by these recovery tools.
+
 The Activity API reports direct MCP bookmark creation as `agent_bookmarks_added`
 and node edits, moves and deletions as `agent_nodes_updated`, `agent_nodes_moved`
 and `agent_nodes_deleted`. Both public OpenAPI documents and generated client

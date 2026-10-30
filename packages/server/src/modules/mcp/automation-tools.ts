@@ -37,7 +37,7 @@ export function createAutomationToolPort(options: { access: AutomationCatalogPor
           if (!options.deviceBridge) throw new AutomationError('automation_unsupported_capability','Browser bridge unavailable.');
           value = name === 'automation.device_requests.get' ? await options.deviceBridge.get(actor,String(args.requestId))
             : await options.deviceBridge.request(actor,name.slice('automation.'.length) as import('../automation/index.js').DeviceBridgeOperation,args);
-        } else if (name.startsWith('automation.activity.') || name.startsWith('automation.sync.')) value=await callAutomationAccountTool(options.accountTools ?? {},actor,name,args);
+        } else if (name.startsWith('automation.activity.') || name.startsWith('automation.sync.') || name.startsWith('automation.trash.')) value=await callAutomationAccountTool(options.accountTools ?? {},actor,name,args);
         else value=await managerCall(context,name,args);
         return { kind: 'complete',content: [{ type: 'text',text: JSON.stringify(value) }],structuredContent: value };
       } catch (error) {

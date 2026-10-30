@@ -3,6 +3,7 @@ import { callAutomationSyncRecovery } from './automation-sync-tools.js';
 import { ActivityCommandError, type ActivityPorts, type ActivityReadRequest } from '../activity/index.js';
 import type { ProductSyncCenterUnitOfWork } from '../sync/index.js';
 import { pageQuery } from './automation-manager.js';
+import { callAutomationTrashTool } from './automation-trash-tools.js';
 export interface AutomationAccountTools { activity?: ActivityPorts; sync?: ProductSyncCenterUnitOfWork }
 export async function callAutomationAccountTool(ports: AutomationAccountTools, actor: WorkPrincipal, name: string,
   args: Readonly<Record<string, unknown>>): Promise<unknown> {
@@ -18,9 +19,10 @@ export async function callAutomationAccountTool(ports: AutomationAccountTools, a
       throw new AutomationError('automation_command_conflict', error.message);
     }
   }
-  if (name.startsWith('automation.sync.')) {
+  if (name.startsWith('automation.sync.') || name.startsWith('automation.trash.')) {
     if (!ports.sync) throw unavailable();
     return ports.sync.execute(async reads => {
+      if (name.startsWith('automation.trash.')) return callAutomationTrashTool(reads, actor, name, args);
       if (name === 'automation.sync.status') return reads.getStatus({ accountId });
       if (name === 'automation.sync.devices') return { items: (await reads.getStatus({ accountId })).devices };
       if (name === 'automation.sync.issues') {

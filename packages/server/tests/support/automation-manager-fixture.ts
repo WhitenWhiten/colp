@@ -2,10 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { automationRuntimeFixture } from './automation-runtime-fixture.js';
 import { createAutomationUnitOfWork } from '../../src/infrastructure/automation/index.js';
 import { createAutomationToolPort, createMcpApplicationContext, withAutomationCatalog, type McpApplicationFacade } from '../../src/modules/mcp/index.js';
+import { createPostgresProductSyncCenterUnitOfWork } from '../../src/infrastructure/sync/index.js';
 
 /** The fixture supplies an admitted manager principal; business operations and
  * command receipts use the real owner-scoped PostgreSQL services. */
-export async function automationManagerFixture(prefix: string, additionalScopes: readonly string[] = []) {
+export async function automationManagerFixture(prefix: string, additionalScopes: readonly string[] = [], options: { sync?: boolean } = {}) {
   const f = await automationRuntimeFixture(prefix, true);
   const context = createMcpApplicationContext({ principal: { kind: 'authenticated', principalId: f.owner.accountId,
     clientId: 'manager', credentialBindingId: 'binding', resourceAudience: 'https://manager.test/collections/-/mcp', securityEpoch: '1' },
@@ -19,7 +20,11 @@ export async function automationManagerFixture(prefix: string, additionalScopes:
     ? { id: 'manager-profile', revision: '1', automationEnabled: true, catalogs: ['automationManager'], pairedTargets: [] } : null,
     configurations: createAutomationUnitOfWork(f.db, 'server', { runtimeEnabled: true, workerEnabled: true }),
     pairing: { pair: async () => { throw Error('Worker pairing is not installed in this manager fixture.'); }, mine: async () => ({ items: [], nextCursor: null }) },
-    cursorKey: 'automation-manager-test-cursor-key-at-least-32' }));
+    cursorKey: 'automation-manager-test-cursor-key-at-least-32',
+    ...(options.sync ? { accountTools: { sync: createPostgresProductSyncCenterUnitOfWork(f.db, {
+      cursorSecret: 'automation-manager-test-cursor-key-at-least-32',
+      conflictPayloadKeyring: { active: { key: Buffer.alloc(32, 71), keyVersion: 7 }, retained: [] },
+    }) } } : {}) }));
   const call = (name: string, args: Readonly<Record<string, unknown>> = {}) => api.callTool(context, name, args);
   const value = async <T>(name: string, args: Readonly<Record<string, unknown>> = {}): Promise<T> => {
     const result = await call(name, args);

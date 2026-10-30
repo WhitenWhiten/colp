@@ -1592,6 +1592,88 @@
         "idempotentHint": true
       },
       "description": "Approve exactly the reviewed source import using its jobId, previewId, preview revision and digest. Configuration, source and frozen plans are rechecked before activation; no replacement preview is approved implicitly. Requires Agent access to this browser; poll automation.device_requests.get for the durable request result."
+    },
+    {
+      "name": "automation.trash.list",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read",
+        "mcp:read:own"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/TrashListInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/TrashPage"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "List deleted nodes in an owned collection with their deletion identities, revisions and retention deadlines. Follow page.nextCursor; a cursor retains its original page size."
+    },
+    {
+      "name": "automation.trash.get",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read",
+        "mcp:read:own"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/TrashGetInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/TrashDetail"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "Inspect one owned trash item, its URL, original parent, current deletion revision and purge deadline before restoring."
+    },
+    {
+      "name": "automation.trash.restore",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:manage",
+        "mcp:read:own",
+        "nodes:write"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/TrashRestoreInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/TrashRestoreResult"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "Restore one reviewed deleted node under its original identity and destination, using the deletion revision from a fresh trash read and a stable commandId. Missing parents, changed revisions or purged payloads are rejected."
+    },
+    {
+      "name": "automation.trash.restore_subtree",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:manage",
+        "mcp:read:own",
+        "nodes:write"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/TrashRestoreSubtreeInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/TrashSubtreeResult"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "Restore the bounded subtree belonging to the selected original folder deletion. Use its observed deletion revision and a stable commandId. Inspect per-item outcomes: changed or unavailable members are not substituted, and partial restoration is reported explicitly."
     }
   ],
   "$defs": {
@@ -9036,6 +9118,368 @@
         "adapterId",
         "revision",
         "request"
+      ]
+    },
+    "TrashDeletionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "TrashItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "deletionId": {
+          "$ref": "#/$defs/TrashDeletionId"
+        },
+        "nodeId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "kind": {
+          "enum": [
+            "folder",
+            "bookmark",
+            "separator"
+          ]
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "originalParentId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "originalParentTitle": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "deletedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "purgeAfter": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "revision": {
+          "$ref": "#/$defs/Revision"
+        }
+      },
+      "required": [
+        "deletionId",
+        "nodeId",
+        "kind",
+        "title",
+        "originalParentId",
+        "originalParentTitle",
+        "deletedAt",
+        "purgeAfter",
+        "revision"
+      ]
+    },
+    "TrashPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/TrashItem"
+          }
+        },
+        "page": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "nextCursor": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 2048
+            }
+          },
+          "required": [
+            "nextCursor"
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "page"
+      ]
+    },
+    "TrashDetail": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "deletionId": {
+          "$ref": "#/$defs/TrashDeletionId"
+        },
+        "nodeId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "kind": {
+          "enum": [
+            "folder",
+            "bookmark",
+            "separator"
+          ]
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "originalParentId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "originalParentTitle": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "deletedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "purgeAfter": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "revision": {
+          "$ref": "#/$defs/Revision"
+        },
+        "url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "collectionId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "etag": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "deletionId",
+        "nodeId",
+        "kind",
+        "title",
+        "originalParentId",
+        "originalParentTitle",
+        "deletedAt",
+        "purgeAfter",
+        "revision",
+        "url",
+        "collectionId",
+        "etag"
+      ]
+    },
+    "TrashRestoreResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "deletionId": {
+          "$ref": "#/$defs/TrashDeletionId"
+        },
+        "nodeId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "parentId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "revision": {
+          "$ref": "#/$defs/Revision"
+        },
+        "etag": {
+          "type": "string"
+        },
+        "restoredAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "deletionId",
+        "nodeId",
+        "parentId",
+        "revision",
+        "etag",
+        "restoredAt"
+      ]
+    },
+    "TrashRestoreItemResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "deletionId": {
+          "$ref": "#/$defs/TrashDeletionId"
+        },
+        "outcome": {
+          "enum": [
+            "applied",
+            "precondition_failed",
+            "purged",
+            "not_found"
+          ]
+        },
+        "nodeId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "parentId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "revision": {
+          "$ref": "#/$defs/Revision"
+        },
+        "restoredAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "deletionId",
+        "outcome"
+      ]
+    },
+    "TrashSubtreeResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "collectionId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "results": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/TrashRestoreItemResult"
+          }
+        },
+        "summary": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "applied": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "preconditionFailed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "purged": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "notFound": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "applied",
+            "preconditionFailed",
+            "purged",
+            "notFound"
+          ]
+        }
+      },
+      "required": [
+        "collectionId",
+        "results",
+        "summary"
+      ]
+    },
+    "TrashListInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "collectionId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "cursor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        }
+      },
+      "required": [
+        "collectionId"
+      ]
+    },
+    "TrashGetInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "deletionId": {
+          "$ref": "#/$defs/TrashDeletionId"
+        }
+      },
+      "required": [
+        "deletionId"
+      ]
+    },
+    "TrashRestoreInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "deletionId": {
+          "$ref": "#/$defs/TrashDeletionId"
+        },
+        "baseRevision": {
+          "$ref": "#/$defs/Revision"
+        },
+        "commandId": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      },
+      "required": [
+        "deletionId",
+        "baseRevision",
+        "commandId"
+      ]
+    },
+    "TrashRestoreSubtreeInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "deletionId": {
+          "$ref": "#/$defs/TrashDeletionId"
+        },
+        "baseRevision": {
+          "$ref": "#/$defs/Revision"
+        },
+        "commandId": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      },
+      "required": [
+        "deletionId",
+        "baseRevision",
+        "commandId"
       ]
     }
   }
