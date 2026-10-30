@@ -62,8 +62,11 @@ and private file paths are not printed. Do not commit raw captures.
 1. **P0: measurements.** Offline catalog and observed-host trace analysis are
    available. A user's local Astra session cannot be observed from this checkout;
    an unobserved host must remain explicitly unknown.
-2. **P1: discovery metadata.** Add task descriptions, bounded search metadata,
-   prerequisite hints and reviewed effects without adding them to wire schemas.
+2. **P1: discovery metadata.** All 90 capabilities now have bounded task labels,
+   Chinese/English search terms, prerequisite/next-step hints and reviewed
+   effects. Generation rejects missing or unsafe metadata; it stays off wire
+   schemas. Independent review corrected Worker queue/input state effects.
+   Seventeen targeted tests passed; existing schemas and scopes are unchanged.
 3. **P2: task toolsets.** Apply trusted connection-profile selection to discovery
    and execution, preserving existing grants, Worker pairing and protocol paths.
 4. **P3: native loading.** Provide host integration and reproducible checks for

@@ -1,6 +1,8 @@
 import { readFile,writeFile } from 'node:fs/promises';
+import { AUTOMATION_TASK_TOOLSETS,AUTOMATION_DISCOVERY_EFFECTS,validateAutomationToolDiscovery } from './automation-tool-discovery.mjs';
 const root = new URL('../',import.meta.url);
 const catalog = JSON.parse(await readFile(new URL('../../docs/automation/design/api/mcp-tool-catalog.json',root),'utf8'));
+validateAutomationToolDiscovery(catalog.tools);
 const patches = JSON.parse(await readFile(new URL('../../docs/automation/contract-adjustments.json',root),'utf8'));
 const canonical = JSON.parse(await readFile(new URL('../../docs/automation/design/schemas/rule-input.schema.json',root),'utf8'));
 for (const [name,patch] of Object.entries(patches)) {
@@ -38,9 +40,23 @@ function closed(ref) {
   return { ...schema,type: schema.type ?? 'object',...(Object.keys(defs).length ? { $defs: defs } : {}) };
 }
 const tools = catalog.tools.map(tool => ({ name: tool.name,profile: tool.profile,requiredScopes: tool.requiredScopes,
-  availability: tool.availability ?? 'paired',description: tool.description ?? `${tool.name}: authorized Automation operation; current profile and scopes are required.`,
-  inputSchema: closed(tool.inputSchema),outputSchema: closed(tool.outputSchema),annotations: tool.annotations }));
-const output = '// Generated from the reviewed Automation catalog and contract adjustments.\nexport const AUTOMATION_TOOL_CONTRACTS = '+JSON.stringify(tools)+' as const;\n';
+  availability: tool.availability ?? 'paired',description: tool.description,
+  inputSchema: closed(tool.inputSchema),outputSchema: closed(tool.outputSchema),annotations: tool.annotations,discovery: tool.discovery }));
+const output = '// Generated from the reviewed Automation catalog and contract adjustments.\n'
+  + 'export const AUTOMATION_TASK_TOOLSETS = '+JSON.stringify(AUTOMATION_TASK_TOOLSETS)+' as const;\n'
+  + 'export const AUTOMATION_DISCOVERY_EFFECTS = '+JSON.stringify(AUTOMATION_DISCOVERY_EFFECTS)+' as const;\n'
+  + 'export type AutomationTaskToolset = typeof AUTOMATION_TASK_TOOLSETS[number];\n'
+  + 'export type AutomationDiscoveryEffect = typeof AUTOMATION_DISCOVERY_EFFECTS[number];\n'
+  + '/** Search hints and reviewed dispatch metadata; never an authorization grant or automatic dependency loader. */\n'
+  + 'export interface AutomationToolDiscovery {\n'
+  + '  readonly taskToolsets: readonly AutomationTaskToolset[];\n'
+  + '  readonly keywords: readonly string[];\n'
+  + '  readonly prerequisites: readonly string[];\n'
+  + '  readonly nextSteps: readonly string[];\n'
+  + '  readonly effects: readonly AutomationDiscoveryEffect[];\n'
+  + '  readonly dispatchClass: "read" | "write";\n'
+  + '}\n'
+  + 'export const AUTOMATION_TOOL_CONTRACTS = '+JSON.stringify(tools)+' as const;\n';
 const path = new URL('src/modules/mcp/automation-tool-contracts.generated.ts',root);
 if (process.argv.includes('--check')) { if (await readFile(path,'utf8') !== output) throw new Error('Automation MCP catalog drift'); }
 else await writeFile(path,output);
