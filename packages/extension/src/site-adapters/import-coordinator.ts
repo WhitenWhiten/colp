@@ -219,13 +219,15 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
           prepared: job.nextEdge, saved: job.nextPlan, toSave: p?.planIds.length ?? 0 },
         preview: p ? { id: p.id, revision: p.revision, digest: p.digest, coverage: p.coverage, counts: p.counts, omissions: p.omissions, reviewSamples, reviewCounts } : null };
     },
-    start: (selected: readonly string[]) => lane(async () => {
+    start: (selected: readonly string[], assertCurrent?: () => Promise<void>) => lane(async () => {
+      await assertCurrent?.();
       if (!siteFeatures(ledger.definition).import) throw new Error('unsupported');
       const existing = await load(); if (existing && !['cancelled', 'completed'].includes(existing.phase)) throw new Error('importAlreadyActive');
       if (!selected.length || selected.length > 64 || new Set(selected).size !== selected.length) throw new Error('invalidScope');
       const single = ledger.definition.defaultCollection;
       if (single && (selected.length !== 1 || selected[0] !== single.id)) throw new Error('invalidScope');
       const source = await ports.source(); if (!source) throw new Error('pageUnavailable');
+      await assertCurrent?.();
       const id = crypto.randomUUID(); await ledger.startImport(source.context, id);
       if (single) { const receipt = await ledger.acceptCatalog(source.context, crypto.randomUUID(), [single]); if (receipt.status === 'rejected') throw new Error(receipt.reason); }
       const job: ImportJob = { installationId: ledger.definition.adapterId, id, context: source.context, selected, phase: 'scanning', stage: single ? 'items' : 'collections', found: single ? [single.id] : [], collectionIndex: 0, cursor: null, outstanding: null,
@@ -293,7 +295,8 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
     freeze: (id: string) => lane(async () => {
       const job = await load(id); if (!job) throw new Error('importChanged'); await freeze(job);
     }),
-    approve: (input: { jobId: string; previewId: string; revision: number; digest: string }) => lane(async () => {
+    approve: (input: { jobId: string; previewId: string; revision: number; digest: string }, assertCurrent?: () => Promise<void>) => lane(async () => {
+      await assertCurrent?.();
       const job = await load(input.jobId), preview = await db.read<ImportPreview>('importPreviews', input.previewId);
       if (!job || job.phase !== 'preview' || !preview || preview.id !== job.previewId || preview.revision !== input.revision || preview.digest !== input.digest) throw new Error('previewStale');
       if (!preview.planIds.length && preview.counts.review) {
@@ -302,6 +305,7 @@ export function createSiteImporter(ledger: Ledger, layout: Layout, scheduler: Re
           throw new Error(Object.keys(reviews).find(code => importScopeProblems.has(code)) ?? 'sourceReviewRequired');
       }
       await validate(job, preview);
+      await assertCurrent?.();
       const approval: ImportApproval = { id: crypto.randomUUID(), state: 'active', importRunId: job.id, previewId: preview.id, previewRevision: preview.revision, previewDigest: preview.digest, approvedAt: Date.now() };
       await db.transaction(['meta', 'importApprovals', 'savePlans', 'authorities'], 'readwrite', async tx => {
         await authority(job, tx); // authorization checked again immediately before activation

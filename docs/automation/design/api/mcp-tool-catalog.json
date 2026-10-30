@@ -1477,6 +1477,121 @@
         "idempotentHint": true
       },
       "description": "List recent local rule runs and whether each can be undone, including interrupted work. Requires enabled Agent access to this browser. Returns a durable request; poll automation.device_requests.get."
+    },
+    {
+      "name": "automation.adapters.configuration",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/AdapterManagementConfigurationInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DeviceBridgeView"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "Inspect an installed site adapter and its current source account, candidate account, archive configuration and revision. Site login, host grants and any ambiguous source-account confirmation stay in the browser UI. Requires Agent access to this browser; poll automation.device_requests.get for the durable request result."
+    },
+    {
+      "name": "automation.adapters.collections",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/AdapterManagementCollectionsInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DeviceBridgeView"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "List cached source collections in bounded pages. mode=refresh starts a source read using the configuration revision; mode=list reads its result. Continue remote source pagination with sourceCursor, and cached pages with nextCursor. Use a fresh command to inspect a pending read. Requires Agent access to this browser; poll automation.device_requests.get for the durable request result."
+    },
+    {
+      "name": "automation.adapters.configure",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:manage"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/AdapterManagementConfigureInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DeviceBridgeView"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "Enable an installed adapter with already-granted browser permissions, choose source collections and a writable native archive root, or disable archiving. Requires the observed configuration revision. Defaults keep semantic classification manual; automatic semantic mode uses this browser's configured provider. Requires Agent access to this browser; poll automation.device_requests.get for the durable request result."
+    },
+    {
+      "name": "automation.adapters.import_preview",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/AdapterManagementImportPreviewInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DeviceBridgeView"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "Start checking existing source items selected by the current archive configuration. Scanning prepares a preview without approving native saves. Poll import_get with fresh commands until preview or attention. Requires Agent access to this browser; poll automation.device_requests.get for the durable request result."
+    },
+    {
+      "name": "automation.adapters.import_get",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/AdapterManagementImportGetInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DeviceBridgeView"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "Inspect the current source import, its progress, coverage, omissions, reasons and bounded preview samples. Review counts and preview identity before import_approve. Requires Agent access to this browser; poll automation.device_requests.get for the durable request result."
+    },
+    {
+      "name": "automation.adapters.import_approve",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:manage",
+        "nodes:write"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/AdapterManagementImportApproveInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DeviceBridgeView"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "Approve exactly the reviewed source import using its jobId, previewId, preview revision and digest. Configuration, source and frozen plans are rechecked before activation; no replacement preview is approved implicitly. Requires Agent access to this browser; poll automation.device_requests.get for the durable request result."
     }
   ],
   "$defs": {
@@ -8624,6 +8739,303 @@
       "required": [
         "replicaId",
         "commandId"
+      ]
+    },
+    "AdapterConfigurationChange": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "operation": {
+              "const": "enable"
+            },
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "operation",
+            "enabled"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "operation": {
+              "const": "archive"
+            },
+            "rootNativeId": {
+              "$ref": "#/$defs/OpaqueId"
+            },
+            "collectionIds": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 64,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              }
+            },
+            "live": {
+              "type": "boolean"
+            },
+            "copies": {
+              "enum": [
+                "sourceAndSemantic",
+                "singlePreferSemantic",
+                "singleKeepExisting"
+              ]
+            },
+            "primarySourceCollectionId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 128
+            },
+            "semantic": {
+              "enum": [
+                "manual",
+                "automatic"
+              ]
+            },
+            "aiDestination": {
+              "enum": [
+                "excluded",
+                "allowed"
+              ]
+            }
+          },
+          "required": [
+            "operation",
+            "rootNativeId",
+            "collectionIds",
+            "live"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "operation": {
+              "const": "disable_archive"
+            }
+          },
+          "required": [
+            "operation"
+          ]
+        }
+      ]
+    },
+    "AdapterCollectionRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "enum": [
+            "list",
+            "refresh"
+          ]
+        },
+        "sourceCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        }
+      },
+      "required": [
+        "mode"
+      ]
+    },
+    "AdapterImportApproval": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "jobId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "previewId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "digest": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "jobId",
+        "previewId",
+        "revision",
+        "digest"
+      ]
+    },
+    "AdapterManagementConfigurationInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "adapterId": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      },
+      "required": [
+        "replicaId",
+        "commandId",
+        "adapterId"
+      ]
+    },
+    "AdapterManagementCollectionsInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "adapterId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "revision": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "cursor": {
+          "type": "string",
+          "maxLength": 2048
+        },
+        "request": {
+          "$ref": "#/$defs/AdapterCollectionRead"
+        }
+      },
+      "required": [
+        "replicaId",
+        "commandId",
+        "adapterId",
+        "request"
+      ]
+    },
+    "AdapterManagementConfigureInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "adapterId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "request": {
+          "$ref": "#/$defs/AdapterConfigurationChange"
+        }
+      },
+      "required": [
+        "replicaId",
+        "commandId",
+        "adapterId",
+        "revision",
+        "request"
+      ]
+    },
+    "AdapterManagementImportPreviewInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "adapterId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "replicaId",
+        "commandId",
+        "adapterId",
+        "revision"
+      ]
+    },
+    "AdapterManagementImportGetInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "adapterId": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      },
+      "required": [
+        "replicaId",
+        "commandId",
+        "adapterId"
+      ]
+    },
+    "AdapterManagementImportApproveInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "adapterId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "request": {
+          "$ref": "#/$defs/AdapterImportApproval"
+        }
+      },
+      "required": [
+        "replicaId",
+        "commandId",
+        "adapterId",
+        "revision",
+        "request"
       ]
     }
   }

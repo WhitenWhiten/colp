@@ -76,6 +76,21 @@ async function fixture(copies: import('../src/site-adapters/contracts.js').SaveP
     renew: async (patch: Partial<SourceContext> = { documentId: 'new-doc' }) => { context = { ...context, leaseId: 'new-lease', ...patch }; await ledger.bindLease(context, time + 10000000); },
     advance: (ms = 2000) => { time += ms; } };
 }
+test('agent approval rechecks authorization after preview validation before activating saves', async () => {
+  const f = await fixture();
+  try {
+    const { id } = await f.scan(), preview = await f.freeze(id); let checks = 0;
+    await expect(f.importer.approve({ jobId: id, previewId: preview.id, revision: preview.revision, digest: preview.digest }, async () => {
+      if (++checks === 2) throw Error('device_bridge_disabled');
+    })).rejects.toThrow('device_bridge_disabled');
+    expect((await f.importer.status())?.phase).toBe('preview');
+    expect(f.counts).toEqual({ folder: 0, bookmark: 0 });
+    await f.importer.approve({ jobId: id, previewId: preview.id, revision: preview.revision, digest: preview.digest });
+    await f.importer.wake();
+    expect((await f.importer.status())?.phase).toBe('completed');
+  } finally { await f.db.close(); }
+});
+
 test('an unused legacy rule mapping adopts the configured root owner and imports into the same mapping identity', async () => {
   const f = await fixture(); try {
     const old = await f.layout.bindRoot(f.context().connectionId, 'rule', 'root');

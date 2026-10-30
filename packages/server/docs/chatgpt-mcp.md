@@ -75,6 +75,18 @@ before `run_apply`; `runs` and `run_undo` inspect and compensate the durable loc
 journal. Apply and undo require `nodes:write`. Device authorization is checked
 before each native move, and concurrent UI edits fence configuration writes.
 
+Site setup uses `automation.adapters.configuration` to obtain the current revision.
+`collections` separates cached `nextCursor` pagination from the site's `sourceCursor`;
+a refresh starts one site read, and a later list request inspects its result.
+`configure` enables an installed adapter with existing host grants or sets its
+archive root, selected source collections and copy policy. Browser permissions,
+site sign-in and source account confirmation retain their existing UI.
+`import_preview` starts scanning without approving saves; use fresh `import_get`
+requests until the preview is ready, review coverage, omissions and counts, then
+pass its exact job ID, preview ID, revision and digest to `import_approve`.
+Approval requires `nodes:write`. Changed configuration or device authority fences
+the command; each prepared native effect retains its original authorization checks.
+
 The Activity API reports direct MCP bookmark creation as `agent_bookmarks_added`
 and node edits, moves and deletions as `agent_nodes_updated`, `agent_nodes_moved`
 and `agent_nodes_deleted`. Both public OpenAPI documents and generated client

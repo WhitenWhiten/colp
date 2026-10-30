@@ -84,6 +84,14 @@ export async function pollDeviceBridge(device: DeviceAuthority | DeviceBridgeAut
     authorize,
     async execute(request) {
       await authorize(request);
+      if (['adapters.configuration', 'adapters.collections', 'adapters.configure', 'adapters.import_preview', 'adapters.import_get', 'adapters.import_approve'].includes(request.operation)) {
+        await sitesLoaded();
+        if (!request.input.adapterId || !allSites().some(site => site.adapterId === request.input.adapterId)) throw Error('adapter_unavailable');
+        return (await import('../site-adapters/agent-runtime.js')).manageSiteAgent(request.input.adapterId, {
+          operation: request.operation.slice('adapters.'.length), requestId: request.id, revision: request.input.revision,
+          cursor: request.input.cursor, request: request.input.request, assertCurrent: () => authorize(request),
+        });
+      }
       if (request.operation.startsWith('browser_rules.')) return (await import('./device-bridge-browser-rules.js'))
         .handleBrowserRulesBridge(request, () => authorize(request));
       if (isCaptureBridgeOperation(request)) return (await import('./device-bridge-classification.js'))

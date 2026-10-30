@@ -31,7 +31,9 @@ export function createSiteTransport(deps: TransportDeps, definition: SiteDefinit
     status: () => serial(async () => { const s = await deps.read(); return { enabled: s.enabled, generation: s.generation,
       connected: s.accountId !== null && !s.sourceUnresolved, accountId: s.accountId, candidateAccount: s.candidateAccount, accountLabel: s.accountLabel, candidateLabel: s.candidateLabel, documents: s.leases.filter(l => l.expiresAt > deps.now()).length,
       mode: 'inspector', writes: false, models: false, observation: 'degraded', negativeReadback: definition.negativeReadback ? 'available' : 'unavailable' }; }),
-    configure: (enabled: boolean) => serial(async () => { const s = await deps.read(); fence(s); s.enabled = enabled; await deps.write(s); }),
+    configure: (enabled: boolean, assertCurrent?: () => Promise<void>) => serial(async () => {
+      const s = await deps.read(); await assertCurrent?.(); fence(s); s.enabled = enabled; await deps.write(s);
+    }),
     confirm: (accountId: string) => serial(async () => {
       const s = await deps.read();
       if (!s.enabled || !definition.validateAccount(accountId) || s.candidateAccount !== accountId) throw new Error('sourceUnresolved');

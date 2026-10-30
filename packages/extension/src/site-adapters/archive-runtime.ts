@@ -73,7 +73,7 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
     return a?.connectionId ? db.read<ArchiveConfig>('meta', configKey(a.connectionId)) : undefined;
   }
   return {
-    importer, live,
+    importer, live, configuration: config,
     valid: (v: unknown) => !!ports.reconciliation?.valid(v) || jsonBytes(v, 16384) && [configureSchema, disableSchema, startSchema, changeSchema, approveSchema].some(s => s(v)),
     async status(offset = 0) {
       // Status must not reinject pages or wait for login/confirmation just to display a catalog.
@@ -92,9 +92,11 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
         ...(!features.collections ? { catalog: definition.defaultCollection ? [definition.defaultCollection] : source ? await observedCatalog(ledger, source.context) : [],
           catalogCoverage: definition.defaultCollection ? 'complete' as const : 'observedOnly' as const } : {}) };
     },
-    async handle(raw: unknown) {
+    async handle(raw: unknown, assertCurrent?: () => Promise<void>) {
+      await assertCurrent?.();
       if (ports.reconciliation?.valid(raw)) { const c = await config(); if (!c) throw new Error('chooseArchiveRoot'); return await ports.reconciliation.handle(raw, c.connectionId) ?? {}; }
       if (configureSchema(raw)) return configureLane(async () => {
+        await assertCurrent?.();
         const input = raw as { rootNativeId: string; collectionIds: readonly string[]; live: boolean; copies?: import('./contracts.js').SavePolicy['copies']; primarySourceCollectionId?: string | null; aiDestination?: 'excluded' | 'allowed'; semantic?: 'manual' | 'automatic' };
         if (input.semantic === 'automatic' && input.copies && input.copies !== 'sourceAndSemantic') throw new Error('semanticRequiresTwoCopies');
         if (!features.archive || input.live && !features.liveArchive) throw new Error('unsupported');
@@ -121,11 +123,12 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
         const selected = catalog.filter(row => input.collectionIds.includes(row.id));
         if (selected.length !== input.collectionIds.length) throw new Error('refreshCatalogRequired');
         if (input.primarySourceCollectionId && !input.collectionIds.includes(input.primarySourceCollectionId)) throw new Error('invalidPrimaryCollection');
+        await assertCurrent?.();
         if (old) await sourceLayout.bindRoot(c.connectionId, old.ruleId, node.id, true);
         const saved = await browserRuleStore().saveRule({ ...(old ? { id: old.ruleId } : {}), draft: { name: `${definition.label} source archive`, combinator: 'all',
           conditions: [{ kind: 'siteIs', value: new URL(definition.origin).hostname }], action: { kind: 'file', folderNativeId: node.id },
           site: { version: 1, admission: { entries: ['siteFavorite', 'siteImport', 'reconcile'], purpose: 'sourceArchive', connectionId: c.connectionId, collectionIds: input.collectionIds },
-            layout: { kind: 'sourceCollections', root: 'actionDestination' } } } }, Date.now());
+            layout: { kind: 'sourceCollections', root: 'actionDestination' } } } }, Date.now(), undefined, assertCurrent ? async () => assertCurrent() : undefined);
         if (!saved.ok) throw new Error('ruleRejected');
         let next: ArchiveConfig = { connectionId: c.connectionId, ruleId: saved.rule.id, root: binding, collectionIds: input.collectionIds, live: input.live, state: 'pending',
           copies: input.copies ?? 'sourceAndSemantic', primarySourceCollectionId: input.primarySourceCollectionId ?? null, aiDestination: input.aiDestination ?? 'excluded', semantic: input.semantic ?? 'manual' };
@@ -147,6 +150,7 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
         ports.alarm(Date.now() + 100); return { configured: true };
       });
       if (disableSchema(raw)) return configureLane(async () => {
+        await assertCurrent?.();
         const old = await config(); if (!old) return { configured: false };
         const policy = await db.read<SourcePolicyRecord>('meta', `policy:${old.connectionId}`);
         if (policy) await sourceLayout.configure({ ...policy, enabled: false, liveArchive: false, policy: { ...policy.policy, revision: policy.policy.revision + 1 } });
@@ -158,7 +162,7 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
       if (startSchema(raw)) {
         if (!features.import) throw new Error('unsupported');
         const c = await config(); if (c?.state !== 'active') throw new Error('chooseArchiveRoot');
-        return { importId: await importer.start(c.collectionIds) };
+        return { importId: await importer.start(c.collectionIds, assertCurrent) };
       }
       if (changeSchema(raw)) {
         const r = raw as { kind: string; jobId: string };
@@ -167,7 +171,7 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
         else if (r.kind.endsWith('.retry')) await importer.retry(r.jobId);
         else await importer.cancel(r.jobId); return {};
       }
-      if (approveSchema(raw)) return { approvalId: await importer.approve(raw as { jobId: string; previewId: string; revision: number; digest: string }) };
+      if (approveSchema(raw)) return { approvalId: await importer.approve(raw as { jobId: string; previewId: string; revision: number; digest: string }, assertCurrent) };
       throw new Error('invalid');
     },
   };

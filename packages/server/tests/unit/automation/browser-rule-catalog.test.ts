@@ -33,4 +33,11 @@ test('browser rule tools validate inputs, enforce scopes and use the durable dev
     replicaId: 'replica', commandId: randomUUID(), previewId: 'preview',
   })).toMatchObject({ kind: 'rejected', stableCode: 'unknown_tool' });
   expect(request).toHaveBeenCalledTimes(1);
+  const adapter = { replicaId: 'replica', commandId: randomUUID(), adapterId: 'known.bilibili', revision: 'observed', request: {
+    operation: 'archive', rootNativeId: '30', collectionIds: ['101'], live: true,
+  } };
+  expect(await api.callTool(context, 'automation.adapters.configure', adapter)).toMatchObject({ kind: 'complete', structuredContent: { state: 'pending' } });
+  expect(request).toHaveBeenLastCalledWith(expect.objectContaining({ accountId: 'owner' }), 'adapters.configure', adapter);
+  expect(await api.callTool(context, 'automation.adapters.configure', { ...adapter, request: { ...adapter.request, kind: 'arbitrary' } }))
+    .toMatchObject({ kind: 'rejected', stableCode: 'invalid_arguments' });
 });

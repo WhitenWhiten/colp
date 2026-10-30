@@ -1,3 +1,4 @@
+import { resolvePageItem } from './resolve-page-item.js';
 import { retrySourceObservations } from './local-source-problems.js';
 import { retryLocalTransfers } from './local-transfer-queue.js';
 import { localSourceProgress } from './local-progress.js';
@@ -50,6 +51,8 @@ import { sourceAutomationsPaused } from '../sw/automation.js';
 import { resolvePageContent } from './content-resolver.js';
 import { registerSiteAgent } from './agent-runtime.js';
 import { createSiteAgentController } from './agent-controller.js';
+import { createSiteAgentManager } from './agent-management.js';
+import { createTrustedSiteStorage } from './trusted-storage.js';
 function createSiteHost(definition: SiteDefinition, driver: SiteDriver = bundledDriver(definition)) {
   const semanticList = object({ kind: literal('known.siteAdapters.semantic.list'), cursor: v => v === undefined || str(2048)(v), group: v => v === undefined || literal('recovery', 'history')(v) });
   const semanticGet = object({ kind: literal('known.siteAdapters.semantic.get'), jobId: str(128) });
@@ -78,15 +81,7 @@ function createSiteHost(definition: SiteDefinition, driver: SiteDriver = bundled
     await activity.resolve(`management:${operation}`, operation).catch(() => undefined); return result;
   }
   const grants = siteGrants(definition);
-  let storageReady: Promise<void> | undefined;
-  function trustedStorage(): Promise<void> {
-    return storageReady ??= (async () => {
-      for (const area of [chrome.storage.local, chrome.storage.session, chrome.storage.managed]) {
-        if (!area.setAccessLevel) throw new Error('storageBoundaryUnavailable');
-        await area.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' });
-      }
-    })().catch(e => { storageReady = undefined; throw e; });
-  }
+  const trustedStorage = createTrustedSiteStorage([chrome.storage.local, chrome.storage.session, chrome.storage.managed]);
   const read = async () => { await trustedStorage(); const raw = (await chrome.storage.local.get(SITE_STATE_KEY))[SITE_STATE_KEY];
     if (raw && (raw as { version?: number }).version !== 1) throw new Error('schemaIncompatible');
     return (raw as TransportState | undefined) ?? initialTransportState(); };
@@ -304,35 +299,24 @@ function createSiteHost(definition: SiteDefinition, driver: SiteDriver = bundled
   const retrySchema = object({ kind: literal('known.siteAdapters.retryConfirmation') });
   const confirmSchema = object({ kind: literal('known.siteAdapters.confirm'), accountId: str(128) });
   const reconnectSchema = object({ kind: literal('known.siteAdapters.reconnect') });
-  async function resolve(url: string, tabId?: number) {
-      if (tabId === undefined || !matchesSiteUrl(definition, url)) return null;
-      const source = await currentSiteSource(tabId);
-      if (!source) return null;
-      const state = await read(), lease = state.leases.find(l => l.id === source.context.leaseId);
-      if (!lease || !definition.sameResolutionTarget(url, lease.url)) return null;
-      const deadline = Date.now() + LIMITS.commandMs;
-      let requested = await inspect('resolve', undefined, null, tabId);
-      while (requested.status === 'paused' && Date.now() + (requested.retryAfterMs ?? LIMITS.spacingMs) < deadline) {
-        await new Promise(resolve => setTimeout(resolve, Math.max(LIMITS.spacingMs, requested.retryAfterMs ?? LIMITS.spacingMs)));
-        const current = await currentSiteSource(tabId);
-        if (!current || current.context.documentId !== source.context.documentId || current.context.routeEpoch !== source.context.routeEpoch || current.context.sourceSessionGeneration !== source.context.sourceSessionGeneration) return null;
-        requested = await inspect('resolve', undefined, null, tabId);
-      }
-      if (requested.status !== 'reading') return null;
-      const outstanding = (await chrome.storage.local.get(INSPECTION))[INSPECTION] as Inspection;
-      while (Date.now() < outstanding.command.deadlineAt) {
-        const current = (await chrome.storage.local.get(INSPECTION))[INSPECTION] as Inspection;
-        if (current.command !== undefined && JSON.stringify(current.command) !== JSON.stringify(outstanding.command)) return null;
-        if (current.result) { const result = current.result as { status: string; item?: { id: string } }; return result.status === 'resolved' ? result.item?.id ?? null : null; }
-        await new Promise(resolve => setTimeout(resolve, 250));
-      }
-      return null;
-  }
+  const resolve = (url: string, tabId?: number) => resolvePageItem(definition, url, tabId, {
+    source: currentSiteSource, state: read, inspect: id => inspect('resolve', undefined, null, id),
+    inspection: async () => (await chrome.storage.local.get(INSPECTION))[INSPECTION] as Inspection | undefined,
+  }, LIMITS);
   function installHandlers() {
     unregisterAgent = registerSiteAgent(definition.adapterId, createSiteAgentController({ db: siteLedger.db, adapterId: definition.adapterId,
       ready: trustedStorage, wake: () => scheduleSourceWork(Date.now() + 50), importer: archives.importer,
       confirm: id => confirmations.retry(id), semantic: (id, connectionId) => semanticJobs.retry(id, connectionId),
       reconcile: (id, action, connectionId) => handleReconcileRequest({ kind: `known.siteAdapters.reconcile.${action}`, id }, connectionId),
+    }), createSiteAgentManager({ ready: trustedStorage, state: read, configuration: archives.configuration, archive: archives,
+      importStatus: archives.importer.status, wake: () => scheduleSourceWork(Date.now() + 50),
+      collections: async () => {
+        if (siteFeatures(definition).collections) return catalogStatus();
+        const status = await archives.status();
+        return { items: status.catalog ?? [], nextCursor: null };
+      },
+      readCollections: cursor => siteFeatures(definition).collections ? inspect('collections', undefined, cursor) : Promise.resolve({ status: 'available' }),
+      connection: configureSite,
     }));
     // Registered synchronously; initialization is awaited inside each handler.
     driver.events.message((raw, sender, respond, channel) => {
@@ -411,11 +395,7 @@ function createSiteHost(definition: SiteDefinition, driver: SiteDriver = bundled
       void (async () => {
         if (!browserSupport().supported && !statusSchema(raw) && !(enableSchema(raw) && !d!.enabled)) throw new Error('browserUnsupported');
         if (enableSchema(raw)) {
-          if (d!.enabled && !await chrome.permissions.contains(grants)) throw new Error('permissionRequired');
-          if (d!.enabled && !await driver.available()) throw new Error('communityToggleRequired');
-          await siteTransport.configure(d!.enabled!); await synchronizeSourceAuthority(await read(), siteLedger); disconnectAll();
-          if (!d!.enabled && await chrome.permissions.contains(grants)) await stopOpen();
-          await reconcile(); if (d!.enabled) await injectOpen();
+          await configureSite(d!.enabled!);
         }
         if (confirmSchema(raw)) { await siteTransport.confirm(d!.accountId!); await synchronizeSourceAuthority(await read(), siteLedger); disconnectAll(); await injectOpen(); }
         if (reconnectSchema(raw)) {
@@ -537,6 +517,15 @@ function createSiteHost(definition: SiteDefinition, driver: SiteDriver = bundled
     void started.then(async () => { await wakeSourceWork(); }).catch(() => undefined);
   }
   let started: Promise<void> = Promise.resolve();
+
+  async function configureSite(enabled: boolean, guard?: () => Promise<void>) {
+    if (!browserSupport().supported && enabled) throw Error('browserUnsupported');
+    if (enabled && !await chrome.permissions.contains(grants)) throw Error('permissionRequired');
+    if (enabled && !await driver.available()) throw Error('communityToggleRequired');
+    await siteTransport.configure(enabled, guard); await synchronizeSourceAuthority(await read(), siteLedger); disconnectAll();
+    if (!enabled && await chrome.permissions.contains(grants)) await stopOpen();
+    await reconcile(); if (enabled) await injectOpen();
+  }
 
   async function synchronizeSourceAuthorityFromCurrent() { await synchronizeSourceAuthority(await read(), siteLedger); }
   /** Retires an installed package's host: before new bytes take over its site, or for good once the package is removed. */
