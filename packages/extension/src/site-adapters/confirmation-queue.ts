@@ -111,7 +111,12 @@ export function createConfirmationQueue(ledger: Ledger, scheduler: ReturnType<ty
         }
         put(tx, 'readRequests', rowKey(id), row);
       });
-      ports.send(c, command); ports.alarm(deadlineAt + LIMITS.spacingMs);
+      ports.alarm(deadlineAt + LIMITS.spacingMs);
+      try { ports.send(c, command); }
+      catch {
+        await fail(row, 'pageUnavailable');
+        await scheduler.finish(requestId);
+      }
     }),
     async accept(context: SourceContext, message: AdapterMessage) {
       if (message.operation !== 'membership.result' && message.operation !== 'item.result') return false;

@@ -245,7 +245,13 @@ function createSiteHost(definition: SiteDefinition, driver: SiteDriver = bundled
       void flushLocalTransfers().catch(() => undefined);
       migrating ??= captureDeviceId().then(deviceId => migrateLocalFirstBatch(siteLedger.db, { deviceId, lookup: async id => (await chrome.bookmarks.get(id).catch(() => []))[0] ?? null }))
         .then(more => { if (more) scheduleSourceWork(Date.now() + 100); }).catch(() => undefined).finally(() => { migrating = undefined; });
-      if ((await read()).enabled) { void refreshSharedCatalog().catch(() => undefined); await confirmations.wake(); await archives.live.wake(); }
+      if ((await read()).enabled) {
+        void refreshSharedCatalog().catch(() => undefined);
+        for (const wake of [() => confirmations.wake(), () => archives.live.wake()]) {
+          try { await wake(); }
+          catch (error) { await failed({ kind: 'known.siteAdapters.operations.check' }, error); scheduleSourceWork(Date.now() + 30000); }
+        }
+      }
       await wakePlannedSaves();
       importing ??= archives.importer.wake().catch(() => undefined).finally(() => { importing = undefined; });
       reconciling ??= reconciliationRuns.wake().catch(() => undefined).finally(() => { reconciling = undefined; });

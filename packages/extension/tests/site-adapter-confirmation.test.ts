@@ -28,8 +28,20 @@ async function fixture(beforeCommit?: (tx: IDBTransaction) => void) {
     leaseId: c.leaseId, capability: 'host-validated', ...(c.operation === 'readMemberships' ? { operation: 'membership.result', readSessionId: c.readSessionId, readRequestId: c.readRequestId }
       : { operation: 'item.result', resolutionId: c.resolutionId }), result }) as AdapterMessage;
   const membership = { status: 'ok', itemId: video.id, edges: [{ collectionId: '101', state: 'present', evidence: { kind: 'siteResponse', operation: 'ids.fresh' } }] };
-  return { db, ledger, context, sent, queue, create, advance, reply, membership, storage };
+  return { db, ledger, context, sent, queue, create, advance, reply, membership, storage, ports };
 }
+test('a disconnected collector records a visible failure and retains a recovery wake', async () => {
+  const f = await fixture();
+  let scheduled = false;
+  f.ports.alarm = () => { scheduled = true; };
+  f.ports.send = () => { expect(scheduled).toBe(true); throw new Error('disconnected'); };
+  try {
+    await f.queue.enqueue(f.context, 'request', hint);
+    await f.queue.wake();
+    expect(scheduled).toBe(true);
+    expect(await f.queue.status()).toMatchObject({ pending: 0, last: { state: 'uncertain', reason: 'pageUnavailable' } });
+  } finally { await f.db.close(); }
+});
 test('durably accepts and deduplicates hints, then atomically records only observed positive membership', async () => {
   const f = await fixture(), accepted = await f.queue.enqueue(f.context, 'request', hint);
   expect(accepted.status).toBe('accepted');
