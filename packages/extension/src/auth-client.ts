@@ -109,7 +109,8 @@ export function createAuthClient(options: {
     // A gateway hiccup is transient whatever its body says; it is not a verdict on the credential (W2B-P2-5).
     if (classifyHttpStatus(response.status) === 'transient') throw new Error('server_unavailable');
     await assertOk(response, 'session_unavailable');
-    const body = await readBoundedJson(response, AUTH_RESPONSE_MAX_BYTES, 'session_unavailable');
+    const body = await readBoundedJson(response, AUTH_RESPONSE_MAX_BYTES, 'session_unavailable')
+      .catch(error => { throw normalizeTransport(error); });
     if (body === null) throw new Error('authentication_required');
     const parsed = parseSession(body);
     if (!parsed) throw new Error('session_unavailable');

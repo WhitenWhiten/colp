@@ -109,6 +109,22 @@ describe('W2B-P2-4 the identity server gets a deadline', () => {
 });
 
 describe('W2B-P2-5 a credential check that could not be made keeps the Session', () => {
+  const timedOutBody = () => new Response(new ReadableStream({ start(stream) {
+    stream.error(new DOMException('The operation was aborted.', 'AbortError'));
+  } }), { headers: { 'Content-Type': 'application/json' } });
+  test('a body timeout preserves sync authority', async () => {
+    const store = await signedInStore();
+    await assert.rejects(() => controllerAnswering(store, timedOutBody).ensureFreshCredential(true), /offline/u);
+    assert.equal((await store.loadSession())?.sessionId, 'session-fixture');
+  });
+  test('cookie restoration retries after a body timeout', async () => {
+    const { store } = await restartedStore();
+    let broken = true;
+    const controller = controllerAnswering(store, () => broken ? timedOutBody() : Response.json(sessionJson(NOW)));
+    assert.equal((await controller.status()).status, 'offline');
+    broken = false;
+    assert.equal((await controller.status()).status, 'connected');
+  });
   for (const [name, respond] of [
     ['offline', () => { throw new TypeError('Failed to fetch'); }],
     ['a 503', () => new Response('<html></html>', { status: 503 })],
