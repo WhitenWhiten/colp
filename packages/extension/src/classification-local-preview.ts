@@ -47,7 +47,7 @@ export async function previewLocalClassification(input:{credential:LocalClassifi
   const context={bookmark,requested,candidates,folderSelectionMode:document.folderSelectionMode,collection:{title:compileClassificationText(projection.title,CLASSIFICATION_POLICY.titleBytes),
     summary:projection.summary===null?null:compileClassificationText(projection.summary,CLASSIFICATION_POLICY.summaryBytes)},snapshot:{node:null,settings:{maxAutoTags:3}}};
   const signal=AbortSignal.any([input.signal,AbortSignal.timeout(20000)]),called=new Set<string>();
-  const result=await provider.classify(context,{signal,calls:{async run(stage,chunk,_body,send){
+  const result=await provider.classify(context,{signal,deadlineAt:new Date(Date.now()+20000).toISOString(),calls:{async run(stage,chunk,_body,send){
     await input.assertCurrent();signal.throwIfAborted();const key=`${stage}:${chunk}`;
     if(called.has(key))throw new Error('local_duplicate_dispatch');called.add(key);dispatched=true;return send();
   }}});

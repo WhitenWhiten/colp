@@ -63,3 +63,10 @@ test('a forced retry with one legal folder succeeds without a single-option Type
   expect(await run()).toMatchObject({ ok: true, nativeFolder: { nativeId: '10' } });
   expect(transport).not.toHaveBeenCalled();
 });
+
+test('a Retry-After exceeding the local deadline returns rate limited without another dispatch', async () => {
+  const transport = vi.fn(async () => new Response(null, { status: 429, headers: { 'Retry-After': '60' } }));
+  vi.stubGlobal('fetch', transport);
+  expect(await run()).toEqual({ ok: false, error: 'local_rate_limited' });
+  expect(transport).toHaveBeenCalledTimes(1);
+});
