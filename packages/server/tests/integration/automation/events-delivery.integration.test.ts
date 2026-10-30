@@ -105,6 +105,22 @@ describeWithPostgres('AW-29 durable ready wake delivery',() => {
     expect((await sql<{state:string}>`SELECT state FROM automation_event_subscriptions`.execute(f.db)).rows[0]!.state).toBe('active');
   });
 
+  test('a dead letter from an expired subscription cannot report a successful retry under its successor generation', async () => {
+    await setup();
+    const first = (await rows())[0]!;
+    await sql`UPDATE automation_event_deliveries SET attempt_count=7 WHERE id=${first.id}`.execute(f.db);
+    await createDeliveryWorker(f.db, f.worker.authorize, { ...cipher, send: async () => ({ status: 503, retryAfter: null }) }).tick();
+    expect((await rows())[0]!.state).toBe('deadLetter');
+    await sql`UPDATE automation_event_subscriptions SET refresh_before=clock_timestamp()-interval '1 second' WHERE id=${first.subscription_id}`.execute(f.db);
+    await createSubscriptionStore(f.db, f.worker, { ...cipher, verify: async () => {} }).subscribe(f.actor, {
+      name: 'colp.automation.triggered', arguments: { targetId: f.target.id }, delivery: { mode: 'webhook', url: 'https://receiver.example', secret },
+    });
+    await expect(f.db.transaction().execute(tx => createOwnerDeliveryStore(tx, f.owner).retry(first.id)))
+      .rejects.toMatchObject({ code: 'automation_command_conflict', message: expect.stringContaining('automation.jobs.list') });
+    expect((await rows())[0]!.state).toBe('deadLetter');
+    expect((await f.work!.list(f.actor, { targetId: f.target.id })).items).toHaveLength(1);
+  });
+
   test('a safe worker retry creates a new wake while HTTP retries retain one occurrence',async()=>{
     await setup(2);
     const worker=createDeliveryWorker(f.db,f.worker.authorize,{...cipher,send:async()=>({status:204,retryAfter:null})});

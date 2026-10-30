@@ -4,6 +4,7 @@ import { AutomationError,type AutomationActor } from '../../modules/automation/i
 import type { OwnerDeliveryStore } from '../../modules/automation/index.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 interface Row { id: string; run_id: string; job_id: string; target_id: string; subscription_id: string; state: DeliveryView['state'];
+  subscription_generation: string; ready_generation: string;
   attempt_count: number; next_attempt_at: Date | null; last_error_code: string | null; sort_created_at: string }
 const view = (r: Row): DeliveryView => ({ id:r.id,runId:r.run_id,jobId:r.job_id,targetId:r.target_id,subscriptionId:r.subscription_id,
   state:r.state,attemptCount:r.attempt_count,nextAttemptAt:r.next_attempt_at?.toISOString() ?? null,lastErrorCode:r.last_error_code });
@@ -28,10 +29,13 @@ export function createOwnerDeliveryStore(tx: DatabaseTransaction,actor: Automati
         JOIN automation_connection_profiles p ON p.id=s.profile_id JOIN automation_jobs j ON j.id=${row.job_id}
         JOIN automation_runs r ON r.id=j.run_id LEFT JOIN automation_settings a ON a.owner_id=r.owner_id
         WHERE s.id=${row.subscription_id} AND s.state='active' AND s.refresh_before>clock_timestamp()
+        AND s.generation=${String(row.subscription_generation)}::bigint AND j.ready_generation=${String(row.ready_generation)}::bigint
+        AND s.target_id=${row.target_id} AND j.target_id=${row.target_id}
         AND s.pairing_generation=t.pairing_generation AND s.profile_revision=p.revision AND t.paired AND NOT t.revoked
         AND coalesce(t.configuration_json->>'wakeMode','events')='events' AND j.state='ready' AND NOT r.held
         AND r.state<>'cancelled' AND NOT coalesce(a.paused,false)`.execute(tx)).rows[0];
-      if (!allowed) throw new AutomationError('automation_command_conflict','Current delivery path is unavailable.');
+      if (!allowed) throw new AutomationError('automation_command_conflict',
+        'Delivery authority changed or is unavailable. Reconcile automation.jobs.list under the current subscription before retrying work.');
       const updated=(await sql<Row>`UPDATE automation_event_deliveries SET state='retrying',generation=generation+1,
         next_attempt_at=clock_timestamp(),last_error_code=NULL WHERE id=${id} RETURNING *`.execute(tx)).rows[0]!;
       return view(updated);
