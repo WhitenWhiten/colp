@@ -103,13 +103,14 @@ function errorCopy(code: string | undefined) {
 /** One notice at the top of the page, for what blocks the whole site; a step's own result is a toast. */
 function showAlert(message: string | null) { text('site-alert-text', message ?? ''); $('site-alert').hidden = !message; }
 function statusAlert(s: SiteStatus) {
-  if (s.error) return s.error === 'browserUnsupported' ? errorCopy(s.error) : t('sites_statusUnreadable', 'Couldn’t read the current sync status. Try again, or open Recovery for details.');
+  if (s.error) return ['browserUnsupported', 'permissionRequired', 'communityToggleRequired'].includes(s.error) ? errorCopy(s.error) : t('sites_statusUnreadable', 'Couldn’t read the current sync status. Try again, or open Recovery for details.');
   if (!s.browser || s.browser.supported) return null;
   return s.browser.major ? t('sites_chromeVersion', 'Site adapters need Chrome $1 or later; this is Chrome $2.', s.browser.minimum, s.browser.major)
     : t('sites_chromeMinimum', 'Site adapters need Chrome $1 or later.', s.browser.minimum);
 }
 
 let status: SiteStatus = {};
+let statusReady = false, statusError: string | undefined, statusFailures = 0;
 const requestOrder = createSettingsRequestOrder(), responseOrder = new WeakMap<object, () => boolean>();
 const activityView = createSiteActivityView(message => sendSiteMessage(message), selectedSite);
 const problemEvent = (event: Event) => { const detail = (event as CustomEvent<{ kind: string; error: string; incidentId?: string }>).detail;
@@ -135,10 +136,12 @@ async function request(message: unknown, current = requestOrder.read()): Promise
   } catch { result = { error: 'unavailable' }; }
   responseOrder.set(result, current); return result;
 }
-async function refresh() { const result = await request({ kind: 'known.siteAdapters.status', reconcileOffset: reconcilePageOffset() });
+async function refresh() { if (disposed) return status; clearTimeout(refreshTimer);
+  const result = await request({ kind: 'known.siteAdapters.status', reconcileOffset: reconcilePageOffset() });
   if (responseOrder.get(result)?.() && !result.error) activityView.succeeded('status'); return apply(result); }
 /** Run a step. Refusals remain in the operation record while status is refreshed. */
 async function act(message: unknown, done?: () => void): Promise<boolean> {
+  if (!statusReady || disposed) return false;
   const action = message as { kind: string }, ticket = requestOrder.action(action.kind);
   if (!ticket) return false;
   clearTimeout(refreshTimer); paint(); configuration.pending(true);
@@ -165,21 +168,24 @@ function apply(result: SiteStatus) {
   if (disposed || responseOrder.get(result)?.() === false) return result;
   clearTimeout(refreshTimer);
   $('status').textContent = JSON.stringify({ ...result, ...(lastActionError ? { lastActionError } : {}) }, null, 2);
-  showAlert(result.error && result.error !== 'browserUnsupported' ? null : statusAlert(result)); paintSiteNav(selectedSite.adapterId, result);
+  showAlert(statusAlert(result)); paintSiteNav(selectedSite.adapterId, result);
   button('retry-site-status').hidden = !result.error;
+  statusReady = !result.error; statusError = result.error;
   if (result.error) {
+    statusFailures = Math.min(5, statusFailures + 1); paint();
     showActionProblem(result, 'known.siteAdapters.status');
-    $('source-overview').hidden = true; configuration.unavailable();
-    for (const id of ['step-import', 'semantic-progress', 'reconcile-details']) $(id).hidden = true;
-    activityView.layout();
-    return result;
+    schedule(); return result;
   }
+  statusFailures = 0;
   activityView.paint(result.activity?.problem);
   if (result.archive?.import?.authorization === 'current' && ['preparing', 'preview'].includes(result.archive.import.phase)) activityView.succeeded('read');
   status = result; paint(); schedule(); return result;
 }
 /** Poll while something moves (a scan, a read, a confirmation) or while waiting for a tab or an account. */
 function schedule() {
+  clearTimeout(refreshTimer);
+  if (disposed || document.visibilityState === 'hidden') return;
+  if (statusError) { refreshTimer = setTimeout(() => { void refresh(); }, Math.min(30000, 3000 * 2 ** (statusFailures - 1))); return; }
   const job = status.archive?.import;
   const busy = job && ['scanning', 'preparing', 'approved'].includes(job.phase) || !!status.confirmations?.pending || !!status.catalog?.reading
     || !!status.inspection && !status.inspection.result && status.inspection.command.deadlineAt > Date.now() || !!status.archive?.semantic?.pending
@@ -187,10 +193,13 @@ function schedule() {
   const waiting = !!status.enabled && (!status.connected || !status.documents);
   if (busy || waiting || status.archive?.config) refreshTimer = setTimeout(() => { if (document.visibilityState === 'visible') void refresh(); }, busy ? 500 : waiting ? 2000 : 5000);
 }
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') void refresh(); });
-window.addEventListener('pagehide', () => { disposed = true; clearTimeout(refreshTimer); clearTimeout(inspectionRetry); document.removeEventListener(SITE_PROBLEM_EVENT, problemEvent); }, { once: true });
+const visibilityChanged = () => { clearTimeout(refreshTimer); if (document.visibilityState === 'visible') void refresh(); };
+document.addEventListener('visibilitychange', visibilityChanged);
+window.addEventListener('pagehide', () => { disposed = true; clearTimeout(refreshTimer); clearTimeout(inspectionRetry);
+  document.removeEventListener('visibilitychange', visibilityChanged); document.removeEventListener(SITE_PROBLEM_EVENT, problemEvent); }, { once: true });
 /** Ask for a read, waiting out a busy read slot for up to 30 seconds; `gaveUp` runs if it never started. */
 async function requestInspection(message: unknown, until = Date.now() + 30000, gaveUp?: () => void) {
+  if (!statusReady || disposed) { gaveUp?.(); return; }
   clearTimeout(inspectionRetry);
   const result = await request(message);
   if (!responseOrder.get(result)?.()) { gaveUp?.(); return; }
@@ -206,6 +215,12 @@ for (const id of ['open-site', 'open-site-list']) button(id).addEventListener('c
 // ---- Step 1: connect
 function paintConnection() {
   if (selectedSite.connectionKind !== 'page') text('sites-connection-heading', status.archive?.config ? t('sites_accountAndAccess', 'Account and access') : t('sites_stepConnect', 'Connect your account'));
+  if (!statusReady) {
+    text('connection-title', t('sites_checkingSourceConnection', 'Checking the $1 connection…', site));
+    text('connection', statusError ? statusAlert({ error: statusError })! : '');
+    for (const id of ['enable', 'confirm', 'disable', 'open-site', 'account-value']) $(id).hidden = true;
+    return;
+  }
   const s = status, enabled = !!s.enabled, granted = s.grants?.site ?? false, candidate = s.candidateAccount ?? null, connected = !!s.connected && !candidate, docs = s.documents ?? 0;
   // An installed package also needs Chrome's Allow User Scripts, which only the person can turn on.
   const userScriptsOff = enabled && granted && s.grants?.userScripts === false;
@@ -236,6 +251,7 @@ function paintConnection() {
   }
 }
 button('enable').addEventListener('click', () => {
+  if (!statusReady) return;
   void chrome.permissions.request(siteGrants(selectedSite)).then(granted => {
     if (granted) return act({ kind: 'known.siteAdapters.enable', enabled: true }); showToast(t('sites_siteAccessRequired', 'Site access is required.'), 'error', { announce: true });
   }).catch(() => { showToast(t('sites_siteAccessUnavailable', 'Site access is unavailable.'), 'error', { announce: true }); });
@@ -489,6 +505,12 @@ function paintSemantic() {
 
 const step = (id: string, state: 'current' | 'done' | 'later') => { $(id).dataset.step = state; };
 function paint() {
+  paintConnection();
+  if (!statusReady) {
+    $('source-overview').hidden = true; configuration.unavailable(); button('site-configure').hidden = true;
+    for (const id of ['step-import', 'semantic-progress', 'reconcile-details']) $(id).hidden = true;
+    activityView.layout(); return;
+  }
   const config = status.archive?.config ?? null, job = status.archive?.import ?? null, connected = !!status.connected && !status.candidateAccount;
   lastImport = job; loadConfig(config);
   step('step-connect', connected ? 'done' : 'current');
@@ -496,7 +518,7 @@ function paint() {
   step('step-import', config?.state !== 'active' && !job ? 'later' : job?.phase === 'completed' ? 'done' : 'current');
   $('archive-hold').hidden = !status.archiveHold;
   if (status.archiveHold) text('archive-hold', errorCopy(status.archiveHold));
-  paintConnection(); paintCollections(); paintForm(); paintInspector(); paintSemantic();
+  paintCollections(); paintForm(); paintInspector(); paintSemantic();
   paintReconciliation(status.archive?.reconciliation, status.archive?.reconciliationRun, job?.phase);
   $('reconcile-details').hidden = !paintImportReview(job, selectedSite, !!status.archive?.reconciliation) && !status.archive?.reconciliation;
   paintImport(job);
@@ -510,5 +532,6 @@ function paint() {
 }
 onRoute(route => { if (route.tab !== 'sync') $<HTMLDetailsElement>('site-tools').open = true; if (route.view === 'site') autoCatalog(); });
 if (currentRoute().tab !== 'sync') $<HTMLDetailsElement>('site-tools').open = true;
+paint(); showAlert(t('sites_checkingSourceConnection', 'Checking the $1 connection…', site));
 void refresh();
 void loadRoots();

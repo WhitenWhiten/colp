@@ -33,6 +33,6 @@ export function createSiteConfiguration(discard: () => void) {
       element.scrollIntoView({ block: 'nearest' });
     },
     saved() { if (dialog.open) { accepted = true; dialog.close(); } },
-    unavailable() { if (!configured) content.hidden = true; },
+    unavailable() { content.hidden = true; },
   };
 }

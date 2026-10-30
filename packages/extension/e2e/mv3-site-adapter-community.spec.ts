@@ -57,12 +57,22 @@ test('an installed package is a full site: live saves, import, a worker restart,
     await expect(page.locator('#site-title')).toHaveText('Shelf'); await expect(page.locator('#tab-cloud')).toBeHidden();
     expect(await world()).toBeUndefined(); // Off until turned on, like a built-in site.
 
-    // Turn on and connect, exactly as for a built-in site.
+    // Logging in within the same document is detected without reloading the site or Settings.
     const site = await context.newPage(); await site.goto('https://shelf.example/a/alpha');
+    await site.locator('meta[name="shelf:user"]').evaluate(meta => meta.setAttribute('content', '0'));
+    const bilibiliBefore = await send({ kind: 'known.siteAdapters.status', adapterId: 'bundled.bilibili' });
+    await page.bringToFront();
     await page.locator('#enable').click();
+    await expect(page.locator('#connection-title')).toHaveText('Open Shelf and sign in');
+    expect((await status()).candidateAccount).toBeNull();
+    await site.bringToFront();
+    await site.locator('meta[name="shelf:user"]').evaluate(meta => meta.setAttribute('content', '42'));
     await expect.poll(async () => (await status()).candidateAccount, { timeout: 20000 }).toBe('42');
-    await page.locator('#refresh').click(); await page.locator('#confirm').click();
+    await page.bringToFront(); await expect(page.locator('#confirm')).toBeVisible();
+    await expect(page.locator('#connection-title')).toHaveText('Confirm the account detected on Shelf');
+    await page.locator('#confirm').click();
     await expect.poll(async () => (await status()).documents, { timeout: 20000 }).toBe(1);
+    expect((await send({ kind: 'known.siteAdapters.status', adapterId: 'bundled.bilibili' })).enabled).toBe(bilibiliBefore.enabled);
     const root = await page.evaluate(async () => chrome.bookmarks.create({ parentId: (await chrome.bookmarks.getTree())[0]!.children![0]!.id, title: 'Shelf archive' }));
     expect(await send({ kind: 'known.siteAdapters.archive.configure', adapterId, rootNativeId: root.id, collectionIds: ['saved'], live: true })).toMatchObject({ archiveResult: { configured: true }, writes: true });
     await expect.poll(() => leased(), { timeout: 20000 }).toBe(true);

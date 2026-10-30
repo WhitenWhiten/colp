@@ -21,8 +21,8 @@
     <section id="view-site" class="main-inner sites-view" aria-labelledby="site-title">
       <header class="page-head">
         <div class="page-head-copy">
-          <h1 id="site-title">Bilibili</h1>
-          <p id="sites-lede">Keep your Bilibili favorites as bookmarks in this browser.</p>
+          <h1 id="site-title" data-i18n="shell_siteAdapters">Site adapters</h1>
+          <p id="sites-lede"></p>
         </div>
         <div class="page-head-actions">
           <button id="site-configure" class="btn btn-secondary btn-sm" type="button" hidden data-i18n="sites_syncSettings">Sync settings</button>
@@ -125,14 +125,14 @@
             <h2 id="sites-connection-heading" data-i18n="sites_stepConnect">Connect your account</h2></div>
           <div class="set-card">
             <div class="set-row">
-              <div class="set-row-text"><p id="connection-title" class="set-row-title">Turn on Bilibili</p>
-                <p id="connection" class="set-row-hint">Know-N reads your favorites from the Bilibili tabs you open. Nothing leaves this browser.</p></div>
+              <div class="set-row-text"><p id="connection-title" class="set-row-title" data-i18n="common_loadingConnection">Loading connection</p>
+                <p id="connection" class="set-row-hint"></p></div>
               <div class="set-row-control">
                 <span id="account-value" class="set-row-value" hidden><span class="set-dot" aria-hidden="true"></span><span data-i18n="sites_connected">Connected</span></span>
                 <button id="disable" class="btn btn-ghost btn-sm" type="button" hidden data-i18n="sites_turnOff">Turn off</button>
-                <button id="open-site" class="btn btn-secondary btn-sm" type="button" hidden><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="arrow-up-right"></svg><span id="open-site-label">Open Bilibili</span></button>
+                <button id="open-site" class="btn btn-secondary btn-sm" type="button" hidden><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="arrow-up-right"></svg><span id="open-site-label"></span></button>
                 <button id="confirm" class="btn btn-primary btn-sm" type="button" hidden data-i18n="sites_connectAccount">Connect this account</button>
-                <button id="enable" class="btn btn-primary btn-sm" type="button" data-i18n="sites_turnOn">Turn on</button>
+                <button id="enable" class="btn btn-primary btn-sm" type="button" hidden data-i18n="sites_turnOn">Turn on</button>
               </div>
             </div>
           </div>
@@ -162,7 +162,7 @@
               <div id="archive-collections" class="option-list option-list--boxed sites-collection-list" role="group" aria-labelledby="collections-title"></div>
               <div id="collections-empty" class="sites-collections-empty">
                 <p id="collections-empty-text" data-i18n="sites_collectionsAppearHere">Your collections appear here once Know-N reads them.</p>
-                <button id="open-site-list" class="btn btn-secondary btn-sm" type="button" hidden><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="arrow-up-right"></svg><span id="open-site-list-label">Open Bilibili</span></button>
+                <button id="open-site-list" class="btn btn-secondary btn-sm" type="button" hidden><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="arrow-up-right"></svg><span id="open-site-list-label"></span></button>
               </div>
               <p id="collections-error" class="field-error" hidden data-i18n="sites_chooseCollection">Choose at least one collection.</p>
             </div>
@@ -177,7 +177,7 @@
             </div>
             <div class="set-row">
               <div class="set-row-text"><p id="archive-live-title" class="set-row-title" data-i18n="sites_keepSyncing">Keep syncing new favorites</p>
-                <p id="archive-live-hint" class="set-row-hint">Favorites you add on Bilibili are saved here as you add them.</p></div>
+                <p id="archive-live-hint" class="set-row-hint"></p></div>
               <div class="set-row-control"><button id="archive-live" class="toggle" type="button" role="switch" aria-checked="true" aria-labelledby="archive-live-title"></button></div>
             </div>
             <details id="archive-options" class="disclosure sites-options">

@@ -41,16 +41,19 @@ async function setup(definition = observer) {
   state.layout = createSourceLayout(db, { rules: async () => flattenList(await state.rules!.load()), paused: async () => false, deviceId: async () => 'device', lookup: async id => id === 'root' ? node : null, assertRoot: async () => {} });
   vi.stubGlobal('chrome', { permissions: { contains: async () => true }, bookmarks: { get: async () => [node] } });
   const catalog = vi.fn(async () => { if (!siteFeatures(definition).collections) throw new Error('unexpectedEnumeration'); return [saved]; });
-  const runtime = createSourceArchiveRuntime(createReadScheduler(new MemoryStorageArea(), 'reads'), { source: async () => ({ context, expiresAt: Date.now() + 60000 }), readSource: async () => ({ context, expiresAt: Date.now() + 60000 }),
+  const source = vi.fn(async () => ({ context, expiresAt: Date.now() + 60000 }));
+  const readSource = vi.fn(async (): Promise<{ context: typeof context; expiresAt: number } | null> => ({ context, expiresAt: Date.now() + 60000 }));
+  const runtime = createSourceArchiveRuntime(createReadScheduler(new MemoryStorageArea(), 'reads'), { source, readSource,
     catalog, send: () => {}, prioritizeLive: async () => {}, alarm: () => {} }, ledger, definition);
   const configure = (live = true) => runtime.handle({ kind: 'known.siteAdapters.archive.configure', rootNativeId: 'root', collectionIds: [saved.id], live });
-  return { db, ledger, context, runtime, catalog, configure };
+  return { db, ledger, context, runtime, catalog, configure, source, readSource };
 }
 test('observation-only adapters configure and plan live archives from current catalog facts without enumeration', async () => {
   validateSiteDefinitions([observer]); const adapter = createDomPostsAdapter(); validateAdapterImplementation(observer, { start: adapter.start, detectSource: adapter.detectSource });
   const f = await setup(); try {
     expect((await f.ledger.acceptObservation(f.context, 'catalog', { type: 'catalog.upsert', collections: [saved] })).status).toBe('accepted');
     expect(await f.runtime.status()).toMatchObject({ catalog: [saved], catalogCoverage: 'observedOnly' });
+    expect(f.source).not.toHaveBeenCalled(); expect(f.readSource).toHaveBeenCalledOnce();
     await f.configure(); expect(f.catalog).not.toHaveBeenCalled();
     await expect(f.runtime.handle({ kind: 'known.siteAdapters.import.start' })).rejects.toThrow('unsupported');
     await f.ledger.acceptObservation(f.context, 'favorite', { type: 'favorite.confirmed', interactionId: 'click', item: post, memberships: { mode: 'delta', added: [saved.id], removed: [] }, confirmation: { kind: 'settledDom', detector: 'fixture-dom' } });
@@ -58,6 +61,22 @@ test('observation-only adapters configure and plan live archives from current ca
     const plans = await f.db.transaction(['savePlans'], 'readonly', tx => new Promise<StoredSavePlan[]>(resolve => { const r = tx.objectStore('savePlans').getAll(); r.onsuccess = () => resolve(r.result); }));
     expect(plans).toHaveLength(1); expect(plans[0]).toMatchObject({ state: 'approved', plan: { classification: 'disabled', purpose: 'sourceArchive' } });
     expect(plans[0]!.plan.effects.map(e => e.kind)).toEqual(['ensureSourceFolder', 'createBookmark']);
+  } finally { await f.db.close(); }
+});
+test('a fixed-list status returns while account connection is unavailable without attempting to reconnect', async () => {
+  const f = await setup({ ...observer, defaultCollection: saved });
+  try {
+    f.source.mockImplementation(() => new Promise(() => {})); f.readSource.mockResolvedValue(null);
+    expect(await f.runtime.status()).toMatchObject({ catalog: [saved], catalogCoverage: 'complete' });
+    expect(f.source).not.toHaveBeenCalled(); expect(f.readSource).not.toHaveBeenCalled();
+  } finally { await f.db.close(); }
+});
+test('an observed-list status without a connected page returns immediately without attempting to reconnect', async () => {
+  const f = await setup();
+  try {
+    f.source.mockImplementation(() => new Promise(() => {})); f.readSource.mockResolvedValue(null);
+    expect(await f.runtime.status()).toMatchObject({ catalog: [], catalogCoverage: 'observedOnly' });
+    expect(f.source).not.toHaveBeenCalled(); expect(f.readSource).toHaveBeenCalledOnce();
   } finally { await f.db.close(); }
 });
 test('observation-only setup ignores old generations and other connections', async () => {

@@ -22,6 +22,50 @@ test('a transient adapter construction failure uses the bounded recovery path', 
   expect(factory).toHaveBeenCalledTimes(2);
   expect(connect).toHaveBeenCalledOnce();
 });
+test.each(['signedOut', 'unknown'] as const)('a %s page detects login in the same document and still waits for account confirmation', async initial => {
+  vi.useFakeTimers(); vi.setSystemTime(1000); vi.stubGlobal('location', { href: post.url });
+  let signedIn = false, confirmed = false;
+  const detectSource = vi.fn(async () => signedIn ? { state: 'signedIn' as const, accountId: 'acct:reader' } : { state: initial });
+  const start = vi.fn(async () => {});
+  const factory = () => ({ ...createPostsAdapter(), detectSource, start });
+  const connect = vi.fn(() => ({ onMessage: { addListener() {} }, onDisconnect: { addListener() {} }, disconnect() {}, postMessage() {} }));
+  vi.stubGlobal('chrome', { runtime: { connect, sendMessage: async (m: { kind: string }) => m.kind.endsWith('.activation')
+    ? { status: 'ready', activationId: 'activation', deadlineAt: Date.now() + 10000 }
+    : confirmed ? { status: 'ready', leaseId: 'lease', capability: 'secret', routeEpoch: 0, expiresAt: Date.now() + 60000, readerEpoch: 'epoch' }
+    : { status: 'unavailable', reason: 'sourceUnresolved' } } });
+  startAdapterRuntime(postsDefinition, factory); await vi.advanceTimersByTimeAsync(30000);
+  expect(detectSource.mock.calls.length).toBeGreaterThan(1);
+  signedIn = true; await vi.advanceTimersByTimeAsync(30000);
+  await expect(detectSource.mock.results.at(-1)?.value).resolves.toMatchObject({ state: 'signedIn' });
+  expect(start).not.toHaveBeenCalled(); expect(connect).not.toHaveBeenCalled();
+  const reads = detectSource.mock.calls.length;
+  await vi.advanceTimersByTimeAsync(60000); expect(detectSource).toHaveBeenCalledTimes(reads);
+  confirmed = true; startAdapterRuntime(postsDefinition, factory); await vi.advanceTimersByTimeAsync(0);
+  expect(connect).toHaveBeenCalledOnce(); expect(start).toHaveBeenCalledOnce();
+});
+test('waiting login probes pause in hidden pages, resume on visibility or focus and stop when disabled', async () => {
+  vi.useFakeTimers(); vi.setSystemTime(1000); vi.stubGlobal('location', { href: post.url });
+  let enabled = true;
+  const detectSource = vi.fn(async () => ({ state: 'signedOut' as const }));
+  const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+  vi.stubGlobal('chrome', { runtime: { sendMessage: async (m: { kind: string }) => m.kind.endsWith('.activation')
+    ? enabled ? { status: 'ready', activationId: 'activation', deadlineAt: Date.now() + 10000 } : { status: 'unavailable', reason: 'disabled' }
+    : { status: 'unavailable', reason: 'sourceUnresolved' } } });
+  try {
+    startAdapterRuntime(postsDefinition, () => ({ ...createPostsAdapter(), detectSource })); await vi.advanceTimersByTimeAsync(0);
+    expect(detectSource).toHaveBeenCalledOnce();
+    visibility.mockReturnValue('hidden'); document.dispatchEvent(new Event('visibilitychange'));
+    await vi.advanceTimersByTimeAsync(60000); expect(detectSource).toHaveBeenCalledOnce();
+    visibility.mockReturnValue('visible'); document.dispatchEvent(new Event('visibilitychange')); await vi.advanceTimersByTimeAsync(0);
+    expect(detectSource).toHaveBeenCalledTimes(2);
+    window.dispatchEvent(new Event('focus')); await vi.advanceTimersByTimeAsync(0);
+    expect(detectSource).toHaveBeenCalledTimes(3);
+    enabled = false; await vi.advanceTimersByTimeAsync(5000);
+    document.dispatchEvent(new Event('visibilitychange')); window.dispatchEvent(new Event('focus'));
+    await vi.advanceTimersByTimeAsync(60000); expect(detectSource).toHaveBeenCalledTimes(3);
+    expect(vi.getTimerCount()).toBe(0);
+  } finally { visibility.mockRestore(); }
+});
 test('a worker disconnect during asynchronous adapter startup promptly reconnects and disposes late listeners', async () => {
   vi.useFakeTimers(); vi.setSystemTime(1000); vi.stubGlobal('location', { href: post.url });
   let disconnected: (() => void) | undefined, finishStart!: (cleanup: () => void) => void;

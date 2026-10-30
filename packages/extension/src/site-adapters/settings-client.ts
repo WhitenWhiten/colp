@@ -8,9 +8,17 @@ setCommunitySites(installedSites(await communityStore.read().catch(() => [])).ma
 const requestedSite = new URL(location.href).searchParams.get('adapterId');
 export const selectedSite = allSites().find(s => s.adapterId === requestedSite) ?? legacySite;
 export const SITE_PROBLEM_EVENT = 'known:site-adapter-problem';
+/** Only reads may time out locally; a mutation can still be running in the worker. */
+async function statusReply(reply: Promise<unknown>) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([reply, new Promise<unknown>(resolve => {
+    timer = setTimeout(() => resolve({ error: 'unavailable' }), 10000);
+  })]).finally(() => clearTimeout(timer));
+}
 export const sendSiteMessage = async (message: unknown, options?: { reportErrors?: boolean }) => {
   const input = message as Record<string, unknown>;
-  const result = await chrome.runtime.sendMessage({ ...input, adapterId: selectedSite.adapterId }).catch(() => ({ error: 'unavailable' })) ?? { error: 'unavailable' };
+  const reply = chrome.runtime.sendMessage({ ...input, adapterId: selectedSite.adapterId }).catch(() => ({ error: 'unavailable' }));
+  const result = await (input.kind === 'known.siteAdapters.status' ? statusReply(reply) : reply) ?? { error: 'unavailable' };
   if (result && typeof result === 'object' && typeof (result as { error?: unknown }).error === 'string'
     && options?.reportErrors !== false && !String(input.kind).includes('.activity.')) document.dispatchEvent(new CustomEvent(SITE_PROBLEM_EVENT,
       { detail: { kind: input.kind, error: (result as { error: string }).error, incidentId: (result as { incidentId?: string }).incidentId } }));

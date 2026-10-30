@@ -17,17 +17,17 @@ export function startAdapterRuntime(definition: SiteDefinition, createAdapter: S
   const stopEvent = `known-site-adapter-stop:${definition.adapterId}`, routeEvent = `known-site-route:${definition.adapterId}`;
   const scope = globalThis as typeof globalThis & Record<string, { restart(): void; version?: number } | undefined>;
   if (matchesSiteUrl(definition, location.href) && window.top === window) {
-    if (scope[slot] && scope[slot].version !== 10) window.dispatchEvent(new Event(stopEvent));
+    if (scope[slot] && scope[slot].version !== 11) window.dispatchEvent(new Event(stopEvent));
     if (scope[slot]) scope[slot].restart();
     else {
       let controller: AbortController | null = null, port: chrome.runtime.Port | null = null, timer: ReturnType<typeof setTimeout> | undefined;
-      let failures = 0;
+      let failures = 0, sourceWaits = 0, waitingForSource = false;
       let epoch = 0, reader: SiteAdapter | null = null, readerEpoch: string | undefined;
       const retainedHints = new Map<string, { hint: MembershipHint; readerEpoch: string; accountId: string; expiresAt: number }>();
       let removeHints = () => {};
       const reset = (preserve: boolean) => { removeHints(); removeHints = () => {}; epoch++; controller?.abort(); controller = null; const oldPort = port; port = null; oldPort?.disconnect(); clearTimeout(timer); if (!preserve) { reader?.clear?.(); reader = null; readerEpoch = undefined; } };
-      const stop = () => { retainedHints.clear(); reset(false); };
-      const begin = (preserve: boolean) => { reset(preserve); const current = epoch; controller = new AbortController(); const signal = controller.signal;
+      const stop = () => { waitingForSource = false; retainedHints.clear(); reset(false); };
+      const begin = (preserve: boolean) => { waitingForSource = false; reset(preserve); const current = epoch; controller = new AbortController(); const signal = controller.signal;
         void (async () => {
           reader ??= createAdapter(Object.freeze({ readPolicy: LIMITS }));
           validateAdapterImplementation(definition, reader);
@@ -53,11 +53,17 @@ export function startAdapterRuntime(definition: SiteDefinition, createAdapter: S
             protocolVersion: 1, operation: 'hello', adapterId: definition.adapterId, ...runtime, activationId: activation.activationId, source } }) as BootstrapReply;
           if (epoch !== current) return;
           if (reply.status !== 'ready' || source.state !== 'signedIn') {
-            if (source.state === 'unknown' && reply.status === 'unavailable' && reply.reason === 'sourceUnresolved') recover(true);
+            if (reply.status === 'unavailable' && reply.reason === 'sourceUnresolved') {
+              if (source.state === 'unknown' && failures < LIMITS.commandAttempts) recover(true);
+              else {
+                if (source.state === 'signedOut') retainedHints.clear();
+                waitForSource(source.state !== 'signedIn');
+              }
+            }
             else deactivate(); return;
           }
           if (!reply.readerEpoch || readerEpoch !== reply.readerEpoch) localReader.clear?.();
-          readerEpoch = reply.readerEpoch; failures = 0;
+          readerEpoch = reply.readerEpoch; failures = 0; sourceWaits = 0;
           const accountId = source.accountId;
           for (const [id, value] of retainedHints) if (value.readerEpoch !== reply.readerEpoch || value.accountId !== accountId || value.expiresAt <= Date.now()) retainedHints.delete(id);
           port = chrome.runtime.connect({ name: installationKey(SITE_PORT, definition) }); const ownPort = port;
@@ -157,18 +163,33 @@ export function startAdapterRuntime(definition: SiteDefinition, createAdapter: S
         if (++failures > LIMITS.commandAttempts) { deactivate(); return; }
         reset(preserve); timer = setTimeout(() => begin(preserve), LIMITS.spacingMs * failures);
       };
-      const restart = () => { window.dispatchEvent(new Event(routeEvent)); begin(false); };
+      // Waiting for login or explicit account confirmation grants no lease and starts no adapter listeners.
+      const waitForSource = (poll: boolean) => {
+        reset(true); waitingForSource = true;
+        if (poll && document.visibilityState !== 'hidden') {
+          const delay = Math.min(30000, Math.max(5000, LIMITS.spacingMs) * 2 ** Math.min(sourceWaits++, 3));
+          timer = setTimeout(() => begin(true), delay);
+        }
+      };
+      const sourceVisibilityChanged = () => {
+        if (!waitingForSource) return;
+        clearTimeout(timer);
+        if (document.visibilityState !== 'hidden') { sourceWaits = 0; begin(true); }
+      };
+      const restart = () => { failures = 0; sourceWaits = 0; window.dispatchEvent(new Event(routeEvent)); begin(false); };
       const deactivate = () => {
         stop();
         window.removeEventListener('pagehide', stop); window.removeEventListener('pageshow', restart);
         window.removeEventListener('popstate', restart); window.removeEventListener('hashchange', restart);
+        document.removeEventListener('visibilitychange', sourceVisibilityChanged); window.removeEventListener('focus', sourceVisibilityChanged);
         window.removeEventListener(stopEvent, deactivate);
         delete scope[slot];
       };
-      scope[slot] = { restart, version: 10 };
+      scope[slot] = { restart, version: 11 };
       window.addEventListener(stopEvent, deactivate);
       window.addEventListener('pagehide', stop); window.addEventListener('pageshow', restart);
       window.addEventListener('popstate', restart); window.addEventListener('hashchange', restart);
+      document.addEventListener('visibilitychange', sourceVisibilityChanged); window.addEventListener('focus', sourceVisibilityChanged);
       restart();
     }
   }

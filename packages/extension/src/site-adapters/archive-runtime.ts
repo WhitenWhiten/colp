@@ -76,7 +76,8 @@ export function createSourceArchiveRuntime(reads: ReturnType<typeof createReadSc
     importer, live,
     valid: (v: unknown) => !!ports.reconciliation?.valid(v) || jsonBytes(v, 16384) && [configureSchema, disableSchema, startSchema, changeSchema, approveSchema].some(s => s(v)),
     async status(offset = 0) {
-      const source = !features.collections && features.observe ? await ports.source() : null;
+      // Status must not reinject pages or wait for login/confirmation just to display a catalog.
+      const source = !features.collections && features.observe && !definition.defaultCollection ? await ports.readSource() : null;
       const current = await config(); let hold: string | null = null;
       if (current?.state === 'active') try { await sourceLayout.validateRoot(current.connectionId, current.ruleId, current.root.nativeId); }
       catch (e) { hold = e instanceof Error ? e.message : 'sourceNeedsReview'; }
