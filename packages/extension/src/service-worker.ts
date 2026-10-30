@@ -1,3 +1,4 @@
+import { readCloudDisplayFavicon } from './sw/favicon-display.js';
 import { installSiteAdapters } from './site-adapters/worker.js';
 import { validSubscriptionSender } from './bookmark-subscriptions/commands.js';
 import { validateCommand as validSubscriptionRequest } from './bookmark-subscriptions/commands.js';
@@ -440,6 +441,10 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     return true;
   }
   if (validFaviconRequest(message)) {
+    if (message.kind === 'known.favicon.display') {
+      void readCloudDisplayFavicon(message.nativeId, message.pageUrl).then(respond, () => respond({ ok: false }));
+      return true;
+    }
     if (message.kind === 'known.favicon.save-context-local') {
       void resolveLocalSaveContext().then(respond, () => respond({ ok: false }));
       return true;

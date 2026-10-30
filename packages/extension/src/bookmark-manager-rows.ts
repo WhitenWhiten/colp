@@ -144,7 +144,7 @@ export function renderManagerRow(node: NativeNode, facts: RowFacts, host: RowHos
   });
 
   const lead = element('span', 'mgr-lead');
-  lead.append(isFolder ? iconTile('folder') : faviconTile(node.url!));
+  lead.append(isFolder ? iconTile('folder') : faviconTile(node.url!, node.id));
   const copy = element('span', 'list-row-main mgr-copy');
   const meta = element('span', 'list-row-meta mgr-meta');
   const title = node.title;

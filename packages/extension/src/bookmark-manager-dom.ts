@@ -37,8 +37,8 @@ export function isNodeSynced(
   return false;
 }
 
-/** The site icon slot: the browser's own favicon cache, a globe when there is none. */
-export function faviconTile(pageUrl: string): HTMLElement {
+/** Device icons and authorized server icons affect this extension view only. */
+export function faviconTile(pageUrl: string, nativeId?: string): HTMLElement {
   const tile = document.createElement('span');
   tile.className = 'favicon-tile';
   const img = document.createElement('img');
@@ -53,7 +53,17 @@ export function faviconTile(pageUrl: string): HTMLElement {
   img.addEventListener('error', attempt);
   tile.append(img);
   attempt();
-  void readDisplayFavicon(pageUrl).then(source => { if (source) img.src = source; }).catch(() => undefined);
+  void (async () => {
+    const source = await readDisplayFavicon(pageUrl).catch(() => null);
+    if (source) { tile.replaceChildren(img); img.src = source; }
+    if (!nativeId) return;
+    const cloud = await chrome.runtime.sendMessage({ kind: 'known.favicon.display', nativeId, pageUrl }) as
+      { ok?: boolean; suppressed?: boolean; iconUrl?: string | null } | undefined;
+    if (cloud?.ok && cloud.suppressed) tile.replaceChildren(icon('globe'));
+    else if (cloud?.ok && typeof cloud.iconUrl === 'string') {
+      tile.replaceChildren(img); img.referrerPolicy = 'no-referrer'; img.src = cloud.iconUrl;
+    }
+  })().catch(() => undefined);
   return tile;
 }
 

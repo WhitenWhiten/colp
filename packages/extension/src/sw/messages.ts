@@ -178,9 +178,13 @@ export function validSyncStateEvidenceRequest(value: unknown): value is SyncStat
 
 export function validFaviconRequest(value: unknown): value is
   | { readonly kind: 'known.favicon.save-context' | 'known.favicon.save-context-local' | 'known.favicon.drain' | 'known.favicon.policy' }
-  | { readonly kind: 'known.favicon.clear'; readonly nativeId: string } {
+  | { readonly kind: 'known.favicon.clear'; readonly nativeId: string }
+  | { readonly kind: 'known.favicon.display'; readonly nativeId: string; readonly pageUrl: string } {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const request = value as Record<string, unknown>;
+  if (request.kind === 'known.favicon.display') return typeof request.nativeId === 'string' && request.nativeId.length > 0
+    && request.nativeId.length <= 256 && typeof request.pageUrl === 'string' && request.pageUrl.length <= 8192
+    && Object.keys(request).length === 3;
   if (request.kind === 'known.favicon.clear') {
     return typeof request.nativeId === 'string' && request.nativeId.length > 0 && request.nativeId.length <= 256
       && Object.keys(request).length === 2;
