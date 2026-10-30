@@ -32,6 +32,19 @@ your [COLP Server](../server/README.md) to keep the same library in every browse
 
 <br clear="right">
 
+## Browser bookmark icons
+
+Chrome's native bookmark bar and bookmark manager obtain icons from the browser's own
+favicon database. The extension's bookmark API cannot write that database. Website
+favorites, imported bookmarks and bookmarks downloaded from your server may therefore
+show a default icon in Chrome even when the server has an icon. Opening a page normally
+may let Chrome discover its icon; this is not a guarantee of immediate refresh.
+
+Missing native icons do not mean that bookmark synchronization failed. The extension
+does not recreate bookmarks, visit their URLs in the background or import temporary
+copies to repair native icons. Icons shown inside Know-N are independent of Chrome's
+native bookmark icons.
+
 ## Website favorites
 
 <p align="center">
