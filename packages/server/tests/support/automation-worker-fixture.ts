@@ -49,7 +49,7 @@ export async function automationWorkerFixture(prefix: string,maxPairRequests = 1
     if (machineMode) {
       if (!child || options.subjectId || options.clientId) throw new Error('Machine fixture cannot change its verified identity');
       const issued = await credentials.execute(p => exchangeAccountKey(p,{ body: { grant_type: 'urn:known:params:oauth:grant-type:account-key',credential: child!.secret,audience: 'mcp_strict',scope: (options.scopes ?? ['automation:work']).join(' ') },
-        supportedScopes: ['automation:work','automation:read','automation:manage','mcp:read:own'],audienceConfig: { productOrigin: origin,mcpStrictAudience: audience },privateJwk: config.accountCredentials.es256PrivateJwk!,issuer }));
+        supportedScopes: ['automation:work','automation:read','automation:manage','mcp:read:own','nodes:write'],audienceConfig: { productOrigin: origin,mcpStrictAudience: audience },privateJwk: config.accountCredentials.es256PrivateJwk!,issuer }));
       return issued.access_token;
     }
     const subjectId = options.subjectId ?? f.owner.subjectId,account = await f.db.selectFrom('accounts').select('security_epoch').where('subject_id','=',subjectId).executeTakeFirstOrThrow();

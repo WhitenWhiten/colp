@@ -11,7 +11,7 @@ export function automationWorkerVerifier(db: Kysely<DatabaseSchema>, jwk: JWK, o
   const credentials = createPostgresAccountCredentialUnitOfWork(db);
   const revocations = createPostgresMcpOauthRevocationStore({ db });
   const verifier = createMcpOauthVerifier({ issuer: origin+'/api/v1/auth',audience: origin+'/collections/-/mcp',
-    allowedScopes: ['automation:work','automation:read','automation:manage','mcp:read:own'],
+    allowedScopes: ['automation:work','automation:read','automation:manage','mcp:read:own','nodes:write'],
     jwks: { getKeySet: async () => ({ keys: [jwk] }) },securityEpoch: async () => MCP_OAUTH_DEFAULT_SECURITY_EPOCH,
     isRevoked: input => revocations.isRevoked(input),requireAccountEpoch: true,clockToleranceSeconds: 0,
     ...(machineMode ? { machine: { kids: new Set([String(jwk.kid)]),bind: (input: Parameters<typeof resolveMachineMcpBinding>[0]) => resolveMachineMcpBinding({ ...input,load: id => credentials.execute(p => loadCredentialAuthority(p,id)) }) } } : {}),

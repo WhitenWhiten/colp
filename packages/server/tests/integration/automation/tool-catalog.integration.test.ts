@@ -85,14 +85,14 @@ describeWithPostgres('AW-30 current conditional Automation catalogs',() => {
     const target = await f.app.inject({ url: `/api/v1/me/automations/targets/${s.target.id}`,headers: { cookie: f.owner.cookie } });
     const grant = await f.ownerPost(`/targets/${s.target.id}/pairings`,{ reason: 'Pair combined catalog' },String(target.headers.etag));
     expect(grant.statusCode,grant.body).toBe(201);expect((await f.pair(grant.json())).statusCode).toBe(200);
-    const api = facade(),worker = await context(),all = await context(await f.mint({ scopes: ['automation:work','automation:read','automation:manage','mcp:read:own'] }));
+    const api = facade(),worker = await context(),all = await context(await f.mint({ scopes: ['automation:work','automation:read','automation:manage','mcp:read:own','nodes:write'] }));
     const listed = await api.listTools(all);expect(listed.tools).toHaveLength(AUTOMATION_TOOL_CONTRACTS.length + 1);
     expect((await api.listTools(worker)).tools.filter(t => t.name.startsWith('automation.rules.'))).toEqual([]);
     expect(await api.callTool(worker,'automation.rules.describe',{})).toMatchObject({ stableCode: 'unknown_tool' });
     expect(await api.getTool!(all,'automation.rules.describe')).toBeTruthy();
     expect(await api.callTool(all,'automation.rules.describe',{})).toMatchObject({ stableCode: 'automation_unsupported_capability' });
     expect(listed.cacheKey).not.toBe((await api.listTools(worker)).cacheKey);
-    const manager = await context(await f.mint({ scopes: ['automation:read','automation:manage'] }));
+    const manager = await context(await f.mint({ scopes: ['automation:read','automation:manage','mcp:read:own','nodes:write'] }));
     expect((await api.listTools(manager)).tools.filter(t => t.name.startsWith('automation.'))).toHaveLength(AUTOMATION_TOOL_CONTRACTS.filter(t => t.profile === 'automationManager').length);
     expect(await api.callTool(manager,'automation.jobs.list',{})).toMatchObject({ stableCode: 'unknown_tool' });
     await f.revokeWorker();

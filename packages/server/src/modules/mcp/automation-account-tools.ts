@@ -1,10 +1,12 @@
-import { AutomationError } from '../automation/index.js';
+import { AutomationError, type WorkPrincipal } from '../automation/index.js';
+import { callAutomationSyncRecovery } from './automation-sync-tools.js';
 import { ActivityCommandError, type ActivityPorts, type ActivityReadRequest } from '../activity/index.js';
 import type { ProductSyncCenterUnitOfWork } from '../sync/index.js';
 import { pageQuery } from './automation-manager.js';
 export interface AutomationAccountTools { activity?: ActivityPorts; sync?: ProductSyncCenterUnitOfWork }
-export async function callAutomationAccountTool(ports: AutomationAccountTools, accountId: string, name: string,
+export async function callAutomationAccountTool(ports: AutomationAccountTools, actor: WorkPrincipal, name: string,
   args: Readonly<Record<string, unknown>>): Promise<unknown> {
+  const accountId = actor.accountId;
   if (name.startsWith('automation.activity.')) {
     if (!ports.activity) throw unavailable();
     try {
@@ -29,7 +31,7 @@ export async function callAutomationAccountTool(ports: AutomationAccountTools, a
           throw error;
         }
       }
-      throw unavailable();
+      return callAutomationSyncRecovery(reads, actor, name, args);
     });
   }
   throw unavailable();

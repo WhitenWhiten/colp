@@ -889,6 +889,103 @@
         "idempotentHint": true
       },
       "description": "Run one of the actions advertised by a selected browser task, with its observed revision. Retries preserve existing native commands and receipts; import/reconcile controls retain their original approval and ownership checks. No action enables an adapter, grants permissions, approves a new import, or removes bookmarks."
+    },
+    {
+      "name": "automation.sync.conflicts",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read",
+        "mcp:read:own"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/SyncConflictsInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/AccountDiagnosticResult"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "List owner-visible Sync conflicts with observed revisions and allowed resolutions. A cursor cannot be combined with a new limit."
+    },
+    {
+      "name": "automation.sync.replica_plan",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/SyncReplicaPlanInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/AccountDiagnosticResult"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "Review a replica lifecycle revision, health, available recovery actions and expected effects before requesting a command. This read changes no Sync authority."
+    },
+    {
+      "name": "automation.sync.resolve_conflict",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:manage",
+        "nodes:write",
+        "mcp:read:own"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/SyncResolveConflictInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/AccountDiagnosticResult"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "Resolve one observed Sync conflict through the same owner-scoped service, revision precondition and durable receipt as the Sync center. Provide value only for custom resolution."
+    },
+    {
+      "name": "automation.sync.retry_issue",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:manage"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/SyncRetryIssueInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/AccountDiagnosticResult"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "Queue retry for one issue currently advertised by the browser. The original operation and command identities are preserved; inspect sync.issues or sync.status for asynchronous completion."
+    },
+    {
+      "name": "automation.sync.replica_command",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:manage",
+        "nodes:write"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/SyncReplicaCommandInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/AccountDiagnosticResult"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "Queue an explicitly reviewed replica retry or rebuild against its lifecycle revision. Only actions advertised by the browser are accepted. Rebuild requires confirmation=rebuild_replica; it uses the existing fenced retirement and projection recovery protocol. Inspect sync.status for completion."
     }
   ],
   "$defs": {
@@ -6930,6 +7027,168 @@
         "revision",
         "action"
       ]
+    },
+    "SyncConflictsInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [],
+      "not": {
+        "required": [
+          "cursor",
+          "limit"
+        ]
+      }
+    },
+    "SyncReplicaPlanInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      },
+      "required": [
+        "replicaId"
+      ]
+    },
+    "SyncResolveConflictInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "conflictId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "baseRevision": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/HostCommandId"
+        },
+        "resolution": {
+          "enum": [
+            "server",
+            "incoming",
+            "custom",
+            "both"
+          ]
+        },
+        "value": {}
+      },
+      "required": [
+        "conflictId",
+        "baseRevision",
+        "commandId",
+        "resolution"
+      ],
+      "oneOf": [
+        {
+          "properties": {
+            "resolution": {
+              "const": "custom"
+            }
+          },
+          "required": [
+            "value"
+          ]
+        },
+        {
+          "properties": {
+            "resolution": {
+              "enum": [
+                "server",
+                "incoming",
+                "both"
+              ]
+            }
+          },
+          "not": {
+            "required": [
+              "value"
+            ]
+          }
+        }
+      ]
+    },
+    "SyncRetryIssueInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "issueId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/HostCommandId"
+        }
+      },
+      "required": [
+        "replicaId",
+        "issueId",
+        "commandId"
+      ]
+    },
+    "SyncReplicaCommandInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "baseRevision": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/HostCommandId"
+        },
+        "action": {
+          "enum": [
+            "retry",
+            "rebuild"
+          ]
+        },
+        "confirmation": {
+          "const": "rebuild_replica"
+        }
+      },
+      "required": [
+        "replicaId",
+        "baseRevision",
+        "commandId",
+        "action"
+      ],
+      "if": {
+        "properties": {
+          "action": {
+            "const": "rebuild"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "confirmation"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "confirmation"
+          ]
+        }
+      }
     }
   }
 }

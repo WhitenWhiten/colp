@@ -200,10 +200,12 @@ function ports(transaction: DatabaseTransaction, options: ProductSyncCenterPostg
     }),
     sendReplicaCommand: (input) => command(transaction, { principalId: input.accountId,
       commandScope: `sync-replica-command:${input.replicaId}`, commandId: input.commandId }, input.fingerprint, async () => {
-      const replica = await transaction.selectFrom('sync_replicas').select('status')
+      const replica = await transaction.selectFrom('sync_replicas').select(['status', 'lifecycle_revision'])
         // Serializes commands for one replica without blocking the Sync rows that reference it.
         .where('replica_id', '=', input.replicaId).where('account_id', '=', input.accountId).forNoKeyUpdate().executeTakeFirst();
       if (!replica) throw notFound();
+      if (input.expectedLifecycleRevision !== undefined && replica.lifecycle_revision.toString() !== input.expectedLifecycleRevision)
+        throw Object.assign(new Error('Replica lifecycle revision changed'), { code: 'precondition_failed' });
       const report = await transaction.selectFrom('sync_replica_reports').select(['health_state', 'health_actions', 'issues'])
         .where('replica_id', '=', input.replicaId).executeTakeFirst();
       const resumingReset = replica.status === 'retired' && input.action === 'rebuild' && input.issueId === undefined

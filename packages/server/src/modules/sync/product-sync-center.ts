@@ -77,6 +77,7 @@ export interface ProductSyncCenterPorts {
    * open command for the same action and issue is returned instead of a second.
    */
   sendReplicaCommand(input: { readonly accountId: string; readonly replicaId: string;
+    readonly expectedLifecycleRevision?: string;
     readonly action: import('./replica-health.js').ReplicaIssueAction; readonly issueId?: string;
     readonly commandId: string; readonly fingerprint: string }): Promise<ProductSyncCommandOutcome<ProductReplicaCommandView>>;
   listTrash(input: { readonly accountId: string; readonly subjectId: string; readonly collectionId: string;
