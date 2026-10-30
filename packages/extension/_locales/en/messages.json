@@ -167,6 +167,24 @@
   "automation_activityAgent": {
     "message": "An agent"
   },
+  "automation_activityAgentDeleted_one": {
+    "message": "$1 deleted $2 item"
+  },
+  "automation_activityAgentDeleted_other": {
+    "message": "$1 deleted $2 items"
+  },
+  "automation_activityAgentMoved_one": {
+    "message": "$1 moved $2 item"
+  },
+  "automation_activityAgentMoved_other": {
+    "message": "$1 moved $2 items"
+  },
+  "automation_activityAgentUpdated_one": {
+    "message": "$1 updated $2 item"
+  },
+  "automation_activityAgentUpdated_other": {
+    "message": "$1 updated $2 items"
+  },
   "automation_activityApproval": {
     "message": "$1 wants your approval"
   },
@@ -223,6 +241,18 @@
   },
   "automation_badgeStale": {
     "message": "$1 as of $2. Your server couldn’t be reached since."
+  },
+  "automation_bridgeDisable": {
+    "message": "Disable browser access for agents"
+  },
+  "automation_bridgeEnable": {
+    "message": "Allow agents to inspect and retry tasks in this browser"
+  },
+  "automation_bridgeHint": {
+    "message": "For this account, allow connected agents to read task diagnostics, request AI previews, and retry failed website tasks on this device."
+  },
+  "automation_bridgeTitle": {
+    "message": "Agent access to this browser"
   },
   "automation_browserBadCollection": {
     "message": "This site is no longer in its subscription. Choose another one."
@@ -1159,6 +1189,12 @@
   },
   "automation_previewWhereSaved": {
     "message": "where you save it"
+  },
+  "automation_receiptExport": {
+    "message": "Export damaged receipts for recovery"
+  },
+  "automation_receiptQuarantined": {
+    "message": "An automation receipt is damaged and has been isolated. Other receipts continue syncing. The original record is retained for recovery."
   },
   "automation_recentActivity": {
     "message": "Recent activity"
@@ -2270,6 +2306,9 @@
   "automation_thenRole": {
     "message": "The set’s folder for “$1”"
   },
+  "automation_unknownAgent": {
+    "message": "An agent"
+  },
   "automation_updatedAt": {
     "message": "Updated $1."
   },
@@ -2983,9 +3022,6 @@
   },
   "capture_savedLocalRequestTooLarge": {
     "message": "Saved. The page and folder list are too large to send."
-  },
-  "capture_savedLocalSessionLimit": {
-    "message": "Saved. This browser session reached its suggestion limit."
   },
   "capture_savedLocalSettingsChanged": {
     "message": "Saved. Your AI service settings changed. Try again."
@@ -5819,9 +5855,6 @@
   "popup_localResultUnknown": {
     "message": "The suggestion result wasn't received. Try again."
   },
-  "popup_localSessionLimit": {
-    "message": "This browser session reached its suggestion limit. Restart the browser to try again."
-  },
   "popup_localSettingsChanged": {
     "message": "Your AI service settings changed. Try again."
   },
@@ -7952,8 +7985,20 @@
   "sites_semanticCopies": {
     "message": "Copies by topic"
   },
+  "sites_semanticFind": {
+    "message": "Find task"
+  },
+  "sites_semanticHistory": {
+    "message": "View task history"
+  },
+  "sites_semanticJobId": {
+    "message": "Task ID"
+  },
   "sites_semanticKeyRequired": {
     "message": "Configure and enable your AI provider in Settings, then retry this copy."
+  },
+  "sites_semanticMore": {
+    "message": "Load more tasks"
   },
   "sites_semanticOtherDevice": {
     "message": "Another browser is handling this copy. Taking over starts a new classification attempt."
@@ -7963,6 +8008,9 @@
   },
   "sites_semanticPaused": {
     "message": "Paused because the source account or settings changed."
+  },
+  "sites_semanticRecovery": {
+    "message": "View tasks needing attention"
   },
   "sites_semanticReview": {
     "message": "This copy was changed or its old association needs review. Existing bookmarks are kept."

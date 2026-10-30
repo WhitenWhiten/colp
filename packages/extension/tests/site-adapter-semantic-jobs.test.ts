@@ -163,3 +163,28 @@ test('pause during a possibly dispatched classification does not replay it', asy
     expect(f.ports.execute).not.toHaveBeenCalled();
   } finally { await f.db.close(); }
 });
+
+test('attention remains visible before newer suppressed history; both lists paginate and IDs are connection scoped', async () => {
+  const f = await fixture();
+  try {
+    await f.jobs.enqueue(input());
+    const first = await f.first();
+    await f.db.transaction(['semanticJobs'], 'readwrite', async tx => {
+      tx.objectStore('semanticJobs').put({ ...first, state: 'attention', reason: 'providerFailed', updatedAt: 1 }, first.id);
+      for (let i = 0; i < 25; i++) tx.objectStore('semanticJobs').put({ ...first, id: `history-${i}`, state: 'suppressed', updatedAt: 100 + i }, `history-${i}`);
+      for (let i = 0; i < 25; i++) tx.objectStore('semanticJobs').put({ ...first, id: `pending-${i}`, state: 'pending', updatedAt: 100 + i }, `pending-${i}`);
+    });
+    const page = await f.jobs.status('source-one');
+    expect(page).toMatchObject({ attention: 1, pending: 25, suppressed: 25, jobs: [{ id: first.id }, ...Array.from({ length: 19 }, () => ({}))] });
+    expect(page.nextCursor).toBeTruthy();
+    const second = await f.jobs.status('source-one', { cursor: page.nextCursor! });
+    expect(second.jobs).toHaveLength(6); expect(second.nextCursor).toBeNull();
+    expect(new Set([...page.jobs, ...second.jobs].map(j => j.id)).size).toBe(26);
+    const history = await f.jobs.status('source-one', { group: 'history' });
+    expect(history.jobs).toHaveLength(20); expect(history.jobs.every(j => j.state === 'suppressed')).toBe(true);
+    expect((await f.jobs.status('source-one', { group: 'history', cursor: history.nextCursor! })).jobs).toHaveLength(5);
+    expect(await f.jobs.get(first.id, 'source-one')).toMatchObject({ state: 'attention' });
+    await expect(f.jobs.get(first.id, 'foreign')).rejects.toThrow('semanticJobUnavailable');
+    await expect(f.jobs.status('foreign', { cursor: page.nextCursor! })).rejects.toThrow('invalid_request');
+  } finally { await f.db.close(); }
+});

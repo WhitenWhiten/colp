@@ -1,4 +1,4 @@
-export type ActivityKind = 'agent_bookmarks_added' | 'run_completed' | 'run_partial' | 'run_failed' | 'run_attention'
+export type ActivityKind = 'agent_bookmarks_added' | 'agent_nodes_updated' | 'agent_nodes_moved' | 'agent_nodes_deleted' | 'run_completed' | 'run_partial' | 'run_failed' | 'run_attention'
   | 'approval_requested'
 
 export interface ActivityItem {

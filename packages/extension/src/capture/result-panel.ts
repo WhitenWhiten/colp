@@ -31,7 +31,6 @@ localized(() => {
   local_settings_changed: t('capture_savedLocalSettingsChanged', 'Saved. Your AI service settings changed. Try again.'),
   local_request_too_large: t('capture_savedLocalRequestTooLarge', 'Saved. The page and folder list are too large to send.'),
   local_taxonomy_too_large: t('capture_savedLocalTaxonomyTooLarge', 'Saved. There are too many folders for a suggestion.'),
-  local_session_budget_exhausted: t('capture_savedLocalSessionLimit', 'Saved. This browser session reached its suggestion limit.'),
   local_no_folder: t('capture_savedLocalNoFolder', 'Saved. No folder fit this page.'),
   local_no_folders: t('capture_savedLocalNoFolders', 'Saved. Create a bookmark folder for suggestions to choose from.'),
   local_result_unknown: t('capture_savedLocalInterrupted', 'Saved. The suggestion was interrupted.'),

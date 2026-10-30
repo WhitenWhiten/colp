@@ -217,3 +217,33 @@ describe('Sync store evidence', () => {
     expect(await evidence.move(NATIVE_ID, NATIVE_FOLDER, NOW + 60_000)).toBeNull();
   });
 });
+
+describe('receipt failure isolation and retention', () => {
+  it('retains every unfinished receipt beyond 300 and bounds only completed history', async () => {
+    const store = createReceiptStore(memoryArea());
+    for (let i = 0; i < 305; i++) await store.add({ ...receipt({}, NOW + i), localReceiptId: `pending-${i}` }, NOW + i);
+    expect(await store.list()).toHaveLength(305);
+    for (let i = 0; i < 305; i++) await store.add({ ...receipt({}, NOW + i), localReceiptId: `done-${i}`, state: 'accepted' }, NOW + i);
+    expect((await store.list()).filter(r => r.state === 'local')).toHaveLength(305);
+    expect((await store.list()).filter(r => r.state === 'accepted')).toHaveLength(300);
+    expect((await store.list()).some(r => r.localReceiptId === 'pending-0')).toBe(true);
+  });
+  it('quarantines invalid persisted records with their original content and continues after restart', async () => {
+    const area = memoryArea();
+    const bad = { ...receipt(), localReceiptId: 'bad', native: undefined };
+    await area.set('known.automation.receipts.v1', [bad, receipt()]);
+    const store = createReceiptStore(area), run = context({ create: async () => created }, [answer('accepted')]);
+    expect(await syncReceipts(store, run.value)).toEqual({ sent: 1, pending: 0 });
+    expect(await store.quarantine()).toMatchObject([{ raw: bad, reason: expect.any(String) }]);
+    expect(await createReceiptStore(area).quarantine()).toHaveLength(1);
+    expect(await store.list()).toMatchObject([{ state: 'accepted' }]);
+  });
+  it('backs off one evidence failure and still delivers the following receipt', async () => {
+    const store = createReceiptStore(memoryArea());
+    await store.add({ ...receipt({ native: { nativeId: 'broken', destinationNativeId: NATIVE_FOLDER } }, NOW + 1), localReceiptId: 'bad' }, NOW);
+    await store.add(receipt(), NOW);
+    const run = context({ create: async id => { if (id === 'broken') throw new Error('item unavailable'); return created; } }, [answer('accepted')], { now: NOW + 1 });
+    expect(await syncReceipts(store, run.value)).toEqual({ sent: 1, pending: 1 });
+    expect(await store.list()).toMatchObject([{ localReceiptId: 'bad', state: 'local', attempts: 1 }, { state: 'accepted' }]);
+  });
+});

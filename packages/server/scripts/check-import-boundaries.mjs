@@ -194,7 +194,7 @@ const moduleEdges = {
   // Report read tools content-load the public/owned report surfaces the reports
   // facade exports; MCP reads reports through that facade only.
   // nodes.search reads through the search facade.
-  mcp: new Set(['identity', 'publication', 'access-policy', 'commands', 'collections', 'attachments', 'community', 'reports', 'search', 'exposure', 'automation', 'canonical-json']),
+  mcp: new Set(['activity', 'sync', 'identity', 'publication', 'access-policy', 'commands', 'collections', 'attachments', 'community', 'reports', 'search', 'exposure', 'automation', 'canonical-json']),
   notifications: new Set(['commands']),
   // ND-02 reports application reuses the shared command cursor codec and
   // publication-owned canonical slug predicate through the public facade.

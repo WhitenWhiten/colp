@@ -31,3 +31,5 @@ export { createManualRunConsumer } from './manual-run-consumer.js';
 
 export { undoAutomationApproval } from './approval-undo.js';
 export { capturePlacementMoveFacts } from './canonical-placement.js';
+
+export { createDeviceBridgeOwnerPort } from './device-bridge-store.js';

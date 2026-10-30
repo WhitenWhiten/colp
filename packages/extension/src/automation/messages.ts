@@ -28,6 +28,8 @@ export const AUTOMATION_CHANGED_KEY = 'known.automation.changed.v1';
 
 export type AutomationRequest =
   | { readonly kind: 'known.automation.state' }
+  | { readonly kind: 'known.automation.receipts.export'; readonly userGesture: true }
+  | { readonly kind: 'known.automation.deviceBridge.enable'; readonly enabled: boolean; readonly userGesture: true }
   | { readonly kind: 'known.automation.refresh'; readonly userGesture: true }
   | { readonly kind: 'known.automation.match'; readonly url: string; readonly title: string; readonly parentNativeId: string }
   | { readonly kind: 'known.automation.digest' };
@@ -35,6 +37,8 @@ export type AutomationRequest =
 export function validAutomationRequest(value: unknown): value is AutomationRequest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const raw = value as Record<string, unknown>;
+  if (raw.kind === 'known.automation.receipts.export') return Object.keys(raw).length === 2 && raw.userGesture === true;
+  if (raw.kind === 'known.automation.deviceBridge.enable') return Object.keys(raw).length === 3 && typeof raw.enabled === 'boolean' && raw.userGesture === true;
   if (raw.kind === 'known.automation.state' || raw.kind === 'known.automation.digest') return Object.keys(raw).length === 1;
   if (raw.kind === 'known.automation.match') return Object.keys(raw).length === 4 && typeof raw.url === 'string'
     && raw.url.length <= 8192 && typeof raw.title === 'string' && raw.title.length <= 4096
@@ -497,6 +501,8 @@ export interface AutomationStateView {
   readonly rules: readonly AutomationRuleView[];
   /** Recent placements in this browser, by this account's rules and this browser's own, newest first. */
   readonly placements: readonly AutomationPlacementView[];
+  readonly deviceBridgeEnabled?: boolean;
+  readonly receiptIssues?: readonly { id: string; reason: string; at: number }[];
   /** This browser's own rules, signed in or not, in the order saves try them, those in sets included. */
   readonly browserRules: readonly BrowserRuleView[];
   /** The same rules as the list they are kept in: individual rules, sets and subscriptions. */
@@ -524,6 +530,6 @@ export interface SavingFlowView {
   readonly suggestInForm: boolean;
 }
 
-export type AutomationResponse = { readonly ok: true; readonly state: AutomationStateView }
+export type AutomationResponse = { readonly ok: true; readonly backup: { readonly content: string; readonly filename: string } } | { readonly ok: true; readonly state: AutomationStateView }
   | { readonly ok: true; readonly digest: DigestIndicator | null }
   | { readonly ok: true; readonly match: AutomationMatchView | null } | { readonly ok: false; readonly error: string };

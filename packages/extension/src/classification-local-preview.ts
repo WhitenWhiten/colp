@@ -25,7 +25,6 @@ export async function previewLocalClassification(input:{credential:LocalClassifi
   const prior=(await chrome.storage.session.get(LOCAL_CLASSIFICATION_COMMANDS))[LOCAL_CLASSIFICATION_COMMANDS] as {generation:string;commands:string[]}|undefined;
   const commands=prior?.generation===credential.generation?prior.commands:[];
   if(commands.includes(input.commandId))throw new Error('local_result_unavailable');
-  if(commands.length>=100)throw new Error('local_session_budget_exhausted');
   // Persist before any network side effect. A worker restart cannot repeat this command.
   await chrome.storage.session.set({[LOCAL_CLASSIFICATION_COMMANDS]:{generation:credential.generation,commands:[...commands,input.commandId]}});
   marked=true;

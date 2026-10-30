@@ -2304,7 +2304,7 @@ export interface components {
         ActivityItem: {
             id: string;
             /** @enum {string} */
-            kind: "agent_bookmarks_added" | "run_completed" | "run_partial" | "run_failed" | "run_attention" | "approval_requested";
+            kind: "agent_bookmarks_added" | "agent_nodes_updated" | "agent_nodes_moved" | "agent_nodes_deleted" | "run_completed" | "run_partial" | "run_failed" | "run_attention" | "approval_requested";
             /** @enum {string} */
             state: "unread" | "read";
             revision: string;

@@ -3945,6 +3945,141 @@ paths:
       security:
         - DeviceBearer: []
       x-known-feature-gate: automation_runtime
+  /api/v1/automation-device/bridge-requests:
+    get:
+      operationId: getAutomationDeviceRequests
+      tags:
+        - Automation
+      summary: Fetch requests for this authenticated browser replica
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded.
+        Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+      x-delivery-phase: M1
+      parameters:
+        - in: header
+          name: Known-Sync-Session
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 256
+        - $ref: "#/components/parameters/AutomationOrigin"
+      responses:
+        "200":
+          description: Device-scoped bridge response
+          content:
+            application/json:
+              schema:
+                type: object
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/XRequestId"
+            Cache-Control:
+              $ref: "#/components/headers/PrivateNoStore"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      security:
+        - DeviceBearer: []
+      x-known-feature-gate: automation_configuration
+  /api/v1/automation-device/bridge-results:
+    post:
+      operationId: completeAutomationDeviceRequest
+      tags:
+        - Automation
+      summary: Record a browser request result
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded.
+        Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+      x-delivery-phase: M1
+      parameters:
+        - $ref: "#/components/parameters/AutomationCommandId"
+        - in: header
+          name: Known-Sync-Session
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 256
+        - $ref: "#/components/parameters/AutomationOrigin"
+      responses:
+        "200":
+          description: Device-scoped bridge response
+          content:
+            application/json:
+              schema:
+                type: object
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/XRequestId"
+            Cache-Control:
+              $ref: "#/components/headers/PrivateNoStore"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - requestId
+                - state
+                - result
+              properties:
+                requestId:
+                  type: string
+                  maxLength: 128
+                state:
+                  enum:
+                    - done
+                    - failed
+                result: {}
+      security:
+        - DeviceBearer: []
+      x-known-feature-gate: automation_configuration
   /api/v1/me/automations/agent-setup:
     post:
       operationId: prepareAutomationAgent

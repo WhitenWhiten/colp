@@ -137,23 +137,43 @@ export function createSemanticJobs(db: SourceDatabase, ports: SemanticPorts) {
       } else await save({ ...frozen, state: 'pending', step: frozen.command ? 'saving' : 'classified', reason: null });
       ports.schedule();
     }),
-    async status(connectionId: string) {
+    async get(id: string, connectionId: string) {
+      const job = await db.read<SemanticJob>('semanticJobs', id);
+      if (!job || !job.connections.includes(connectionId)) throw new Error('semanticJobUnavailable');
+      return semanticJobView(job);
+    },
+    async status(connectionId: string, options: { cursor?: string; group?: 'recovery' | 'history'; limit?: number } = {}) {
+      const group = options.group ?? 'recovery', limit = options.limit ?? 20;
+      if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('invalid_request');
+      const states = group === 'recovery' ? ['attention', 'pending'] : ['suppressed', 'completed'];
+      let after: { connectionId: string; group: string; state: string; updatedAt: number; id: string } | undefined;
+      if (options.cursor) {
+        try { after = JSON.parse(options.cursor); } catch { throw new Error('invalid_request'); }
+        if (!after || after.connectionId !== connectionId || after.group !== group || !states.includes(after.state)
+          || !Number.isFinite(after.updatedAt) || typeof after.id !== 'string') throw new Error('invalid_request');
+      }
       const counts = { pending: 0, attention: 0, completed: 0, suppressed: 0 }, jobs: SemanticJob[] = [];
-      // Completed history is counted by index; only unfinished/suppressed jobs need their bodies read.
+      const compare = (a: { state: string; updatedAt: number; id: string }, b: { state: string; updatedAt: number; id: string }) => states.indexOf(a.state) - states.indexOf(b.state)
+        || b.updatedAt - a.updatedAt || a.id.localeCompare(b.id);
       await db.transaction(['semanticJobs'], 'readonly', async tx => {
         const store = tx.objectStore('semanticJobs');
         const total = await requestValue(store.index('connections').count(IDBKeyRange.only(connectionId)));
-        for (const state of ['pending', 'attention', 'suppressed'] as const) {
+        for (const state of ['attention', 'pending', 'suppressed', ...(group === 'history' ? ['completed' as const] : [])] as const) {
           await iterateCursor(store.index('stateUpdatedAt'), IDBKeyRange.bound([state, 0], [state, Number.MAX_SAFE_INTEGER]), value => {
             const job = value as SemanticJob; if (!job.connections.includes(connectionId)) return;
-            counts[state]++; jobs.push(job); jobs.sort((a, b) => b.updatedAt - a.updatedAt); if (jobs.length > 20) jobs.pop();
+            counts[state]++;
+            if (!states.includes(state) || after && compare(job, after) <= 0) return;
+            jobs.push(job); jobs.sort(compare); if (jobs.length > limit + 1) jobs.pop();
           });
         }
         counts.completed = total - counts.pending - counts.attention - counts.suppressed;
       });
-      return { ...counts,
-        jobs: jobs
-          .map(j => ({ id: j.id, title: j.title, state: j.state, reason: j.reason, takeover: j.reason === 'semanticOtherDevice' })) };
+      const last = jobs[limit - 1];
+      return { connectionId, ...counts, jobs: jobs.slice(0, limit).map(semanticJobView),
+        nextCursor: jobs.length > limit && last ? JSON.stringify({ connectionId, group, state: last.state, updatedAt: last.updatedAt, id: last.id }) : null };
     },
   };
+}
+export function semanticJobView(j: SemanticJob) {
+  return { id: j.id, title: j.title, state: j.state, reason: j.reason, takeover: j.reason === 'semanticOtherDevice' };
 }

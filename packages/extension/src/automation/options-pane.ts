@@ -264,11 +264,28 @@ function placementActions(placement: AutomationPlacementView, view: AutomationSt
 }
 
 function placementList(view: AutomationStateView): HTMLElement {
-  if (!view.placements.length) {
+  if (!view.placements.length && !view.receiptIssues?.length) {
     return emptyBlock({ icon: 'bookmark', title: t('automation_noPlacementsTitle', 'Nothing filed here yet'),
       hint: t('automation_noPlacementsHint', 'When a rule files a bookmark you save in this browser, it shows up here.') });
   }
   const list = el('ul', undefined, 'automation-rules automation-placements');
+  for (const issue of view.receiptIssues ?? []) {
+    const item = el('li', undefined, 'list-row');
+    item.append(el('p', t('automation_receiptQuarantined', 'An automation receipt is damaged and has been isolated. Other receipts continue syncing. The original record is retained for recovery.'), 'list-row-title'),
+      el('p', `${issue.id}: ${issue.reason}`, 'list-row-meta'));
+    list.append(item);
+  }
+  if (view.receiptIssues?.length) {
+    const exportButton = el('button', t('automation_receiptExport', 'Export damaged receipts for recovery'), 'btn btn-secondary btn-sm') as HTMLButtonElement;
+    exportButton.type = 'button';
+    exportButton.addEventListener('click', () => { void (async () => {
+      const reply = await chrome.runtime.sendMessage({ kind: 'known.automation.receipts.export', userGesture: true }) as AutomationResponse;
+      if (!reply.ok || !('backup' in reply)) return;
+      const url = URL.createObjectURL(new Blob([reply.backup.content], { type: 'application/json' }));
+      const link = document.createElement('a'); link.href = url; link.download = reply.backup.filename; link.click(); URL.revokeObjectURL(url);
+    })(); });
+    const item = el('li', undefined, 'list-row'); item.append(exportButton); list.append(item);
+  }
   for (const placement of view.placements) {
     const item = el('li', undefined, 'list-row');
     const main = el('div', undefined, 'list-row-main');
@@ -333,8 +350,8 @@ type ActivityTab = 'browser' | 'server' | 'activity';
 function activityGroup(view: AutomationStateView, chosen: ActivityTab | null, choose: (tab: ActivityTab) => void): HTMLElement | null {
   // The account's inbox leads when the server has one: it is the tab that opens first.
   const tabs: ActivityTab[] = view.server ? [...(view.server.activity ? ['activity' as const] : []), 'browser', 'server'] : ['browser'];
-  if (!view.placements.length && !view.server) return null;
-  const current = chosen && tabs.includes(chosen) ? chosen : view.server?.activity ? 'activity' : view.placements.length || !view.server ? 'browser' : 'server';
+  if (!view.placements.length && !view.receiptIssues?.length && !view.server) return null;
+  const current = chosen && tabs.includes(chosen) ? chosen : view.server?.activity ? 'activity' : view.placements.length || view.receiptIssues?.length || !view.server ? 'browser' : 'server';
   const section = el('section', undefined, 'set-group automation-activity');
   section.setAttribute('aria-labelledby', 'automation-activity-heading');
   const head = el('div', undefined, 'set-group-head automation-activity-head');
@@ -345,7 +362,7 @@ function activityGroup(view: AutomationStateView, chosen: ActivityTab | null, ch
   rail.setAttribute('role', 'tablist'); rail.setAttribute('aria-labelledby', 'automation-activity-heading');
   const labels: Record<ActivityTab, [string, string, number]> = {
     activity: ['automation-inbox-heading', t('automation_tabActivity', 'Activity'), view.server?.activity?.unreadCount ?? 0],
-    browser: ['automation-placements-heading', t('automation_tabBrowser', 'This browser'), view.placements.length],
+    browser: ['automation-placements-heading', t('automation_tabBrowser', 'This browser'), view.placements.length + (view.receiptIssues?.length ?? 0)],
     server: ['automation-server-heading', t('automation_tabServer', 'Your server'), view.server?.runs.length ?? 0],
   };
   const panels: Record<ActivityTab, () => HTMLElement> = {
@@ -457,6 +474,13 @@ export function bindAutomationsPane(pane: HTMLElement): AutomationsPane {
       parts.push(flowStrip(view), statusCard(view, refresh, busy));
       if (view.state === 'active' || view.state === 'paused' || (view.state === 'none' && view.problem !== 'unavailable')) parts.push(rulesGroup(view));
       parts.push(ruleListGroup(view, tried, [configCard()]), risk.element);
+      if (view.deviceBridgeEnabled !== undefined) {
+      const bridge = el('button', view.deviceBridgeEnabled ? t('automation_bridgeDisable', 'Disable browser access for agents') : t('automation_bridgeEnable', 'Allow agents to inspect and retry tasks in this browser'), 'btn btn-secondary btn-sm') as HTMLButtonElement;
+      bridge.type = 'button';
+      bridge.addEventListener('click', () => { bridge.disabled = true; void chrome.runtime.sendMessage({ kind: 'known.automation.deviceBridge.enable', enabled: !view.deviceBridgeEnabled, userGesture: true }).then(() => load('known.automation.state')); });
+      parts.push(row(t('automation_bridgeTitle', 'Agent access to this browser'), t('automation_bridgeHint', 'For this account, allow connected agents to read task diagnostics, request AI previews, and retry failed website tasks on this device.'), bridge));
+      }
+
     }
     const activity = activityGroup(view, tab, (next) => { tab = next; if (last) render(last); });
     if (activity) parts.push(activity);

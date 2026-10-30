@@ -4,7 +4,9 @@ import { sql } from 'kysely';
 import { afterEach, expect, test } from 'vitest';
 import { automationFixture } from '../../support/automation-fixture.js';
 import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
-import { createCollectionNode } from '../../../src/modules/collections/index.js';
+import { createCollectionNode, updateCollectionNode, moveCollectionNode, deleteCollectionNode } from '../../../src/modules/collections/index.js';
+import { readFileSync } from 'node:fs';
+import { parse } from 'yaml';
 import { createActivityAgentRoute, createActivityStore, setAgentActivityEnabled } from '../../../src/infrastructure/activity/index.js';
 import { setAutomationCaptureEnabled } from '../../../src/infrastructure/automation/index.js';
 import { registerActivityRoutes } from '../../../src/transport/product/activity-routes.js';
@@ -71,6 +73,42 @@ describeWithPostgres('durable owner agent activity', () => {
     expect(await f.db.selectFrom('outbox_events').select('outbox_id').where('handler_name', '=', 'activity_agent').execute()).toHaveLength(9);
     await f.db.updateTable('outbox_events').set({ lease_generation: 2n }).where('outbox_id', '=', delivery.attempt!.outboxId).execute();
     await expect(route.handle(delivery)).rejects.toThrow('lease lost');
+  });
+  test('MCP update, move and delete produce separate durable activity and retries do not duplicate it', async () => {
+    await setup(); await create('changed');
+    const route = createActivityAgentRoute(f.db);
+    await route.handle(await context('changed'));
+    const canonical = <T>(work: (ports: Parameters<Parameters<typeof f.canonical.execute>[0]>[0]) => Promise<T>) => f.canonical.execute(ports => work({ ...ports,
+      canonical: { ...ports.canonical, execute: input => ports.canonical.execute({ ...input,
+        automationContext: { origin: 'mcp', agent: { clientId: 'client-a', credentialBindingId: 'cred-1' } } }) } }));
+    const node = () => f.db.selectFrom('nodes').select('resource_revision').where('id', '=', 'changed').executeTakeFirstOrThrow();
+    await canonical(async ports => updateCollectionNode(ports, { actor: f.actor, command: f.command(), collectionId: 'collection',
+      nodeId: 'changed', ifMatch: `"${(await node()).resource_revision}"`, patch: { title: 'Updated title' } }));
+    const parents = await f.db.selectFrom('nodes').select(['id', 'children_revision']).where('id', 'in', ['parent', 'academic']).execute();
+    await canonical(async ports => moveCollectionNode(ports, { actor: f.actor, command: f.command(), collectionId: 'collection',
+      nodeId: 'changed', ifMatch: `"${(await node()).resource_revision}"`, newParentId: 'academic', afterId: null, beforeId: null,
+      baseSourceParentRevision: parents.find(p => p.id === 'parent')!.children_revision, baseTargetParentRevision: parents.find(p => p.id === 'academic')!.children_revision }));
+    await canonical(async ports => deleteCollectionNode(ports, { actor: f.actor, command: f.command(), collectionId: 'collection',
+      nodeId: 'changed', ifMatch: `"${(await node()).resource_revision}"`, recursive: false }));
+    const rows = await f.db.selectFrom('outbox_events').selectAll().where('handler_name', '=', 'activity_agent').execute();
+    expect(rows).toHaveLength(4);
+    for (const row of rows.filter(row => (row.payload_json as { action?: string }).action)) {
+      await f.db.updateTable('outbox_events').set({ state: 'leased', lease_generation: 1n,
+        locked_until: sql<Date>`clock_timestamp()+interval '60 seconds'` }).where('outbox_id', '=', row.outbox_id).execute();
+      const delivery: OutboxHandlerContext = { signal: new AbortController().signal, idempotencyKey: row.domain_event_id,
+        attempt: { outboxId: row.outbox_id, leaseGeneration: '1' }, envelope: { event_id: row.domain_event_id,
+          event_type: row.event_type, event_version: 1, aggregate_identity: { aggregate_type: 'collection', aggregate_id: 'collection', aggregate_scope: 'collection' },
+          aggregate_revision: null, commit_ordinal: String(row.commit_ordinal), occurred_at: row.occurred_at.toISOString(), payload: row.payload_json } };
+      await route.handle(delivery); await route.handle(delivery);
+    }
+    const kinds = (await store.list(f.owner.accountId, {})).items.map(i => i.kind).sort();
+    expect(kinds).toEqual([
+      'agent_bookmarks_added', 'agent_nodes_deleted', 'agent_nodes_moved', 'agent_nodes_updated']);
+    for (const name of ['product-v1.yaml', 'colp-server-v1.yaml']) {
+      const contract = parse(readFileSync(new URL(`../../../openapi/${name}`, import.meta.url), 'utf8'));
+      for (const kind of kinds) expect(contract.components.schemas.ActivityItem.properties.kind.enum).toContain(kind);
+    }
+    expect(await f.db.selectFrom('activity_members').selectAll().execute()).toHaveLength(4);
   });
   test('private list, summary, id and through reads; deleted samples; signed pagination', async () => {
     await setup(); const route = createActivityAgentRoute(f.db);

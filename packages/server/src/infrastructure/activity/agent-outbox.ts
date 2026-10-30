@@ -2,29 +2,35 @@ import { randomUUID } from 'node:crypto';
 import { sql, type Kysely } from 'kysely';
 import type { DatabaseSchema } from '../database/index.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
-import { defineClosedPayloadValidator, type EventPayloadRegistration } from '../outbox/envelope.js';
+import { defineClosedPayloadValidator, type EventPayloadRegistration, type ClosedPayload } from '../outbox/envelope.js';
 import type { OutboxHandlerContext, OutboxRoute } from '../outbox/router.js';
 import { selectOpenAgentItem } from '../../modules/activity/index.js';
 
 export const ACTIVITY_AGENT_EVENT = 'activity.agent_bookmark_created';
 export const ACTIVITY_AGENT_HANDLER = 'activity_agent';
+const ACTION_KINDS = { create: 'agent_bookmarks_added', update: 'agent_nodes_updated', move: 'agent_nodes_moved', delete: 'agent_nodes_deleted' } as const;
 let enabled = false;
 export function setAgentActivityEnabled(value: boolean): void { enabled = value; }
 export function agentActivityEnabled(): boolean { return enabled; }
 const text = (value: unknown) => typeof value === 'string' && value.length > 0;
 const nullableText = (value: unknown) => value === null || text(value);
-const validate = defineClosedPayloadValidator({ collectionId: text, nodeId: text, operationId: text,
+const validateCreated = defineClosedPayloadValidator({ collectionId: text, nodeId: text, operationId: text,
   agentClientId: nullableText, credentialBindingId: nullableText,
   occurredAt: value => typeof value === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)$/u.test(value) && Number.isFinite(Date.parse(value)) });
+const validate = (value: unknown): value is ClosedPayload => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const { action, ...rest } = value as Record<string, unknown>;
+  return (action === undefined || typeof action === 'string' && Object.hasOwn(ACTION_KINDS, action)) && validateCreated(rest);
+};
 export const activityAgentRegistration: EventPayloadRegistration = { eventType: ACTIVITY_AGENT_EVENT, eventVersion: 1, validatePayload: validate };
-interface AgentEvent { collectionId: string; nodeId: string; operationId: string; agentClientId: string | null;
+interface AgentEvent { action?: keyof typeof ACTION_KINDS; collectionId: string; nodeId: string; operationId: string; agentClientId: string | null;
   credentialBindingId: string | null; occurredAt: string }
 export async function appendAgentActivityOutbox(tx: DatabaseTransaction,
   event: { domainEventId: string; operationId: string; collectionId: string; commitOrdinal: bigint },
   input: { mutation: { action: string; target: { resourceId: string }; fields?: { kindFields: { readonly [key: string]: unknown } } };
     automationContext?: { origin: string; agent?: { clientId: string; credentialBindingId: string } } }): Promise<void> {
-  if (!agentActivityEnabled() || input.automationContext?.origin !== 'mcp' || input.mutation.action !== 'create'
-    || input.mutation.fields?.kindFields.kind !== 'bookmark') return;
+  if (!agentActivityEnabled() || input.automationContext?.origin !== 'mcp' || !Object.hasOwn(ACTION_KINDS, input.mutation.action)
+    || (input.mutation.action === 'create' && input.mutation.fields?.kindFields.kind !== 'bookmark')) return;
   // Facts capture precedes the projection append that normally reserves this shared domain event.
   const reserved = await tx.insertInto('resource_id_ledger').values({ resource_id: event.domainEventId, resource_type: 'domain-event' })
     .onConflict(conflict => conflict.column('resource_id').doNothing()).returning('resource_type').executeTakeFirst();
@@ -34,7 +40,7 @@ export async function appendAgentActivityOutbox(tx: DatabaseTransaction,
   }
   const now = (await sql<{ now: Date }>`SELECT clock_timestamp() AS now`.execute(tx)).rows[0]!.now;
   const id = randomUUID(), agent = input.automationContext?.agent;
-  const payload: AgentEvent = { collectionId: event.collectionId, nodeId: input.mutation.target.resourceId,
+  const payload: AgentEvent = { ...(input.mutation.action !== 'create' ? { action: input.mutation.action as keyof typeof ACTION_KINDS } : {}), collectionId: event.collectionId, nodeId: input.mutation.target.resourceId,
     operationId: event.operationId, agentClientId: agent?.clientId ?? null, credentialBindingId: agent?.credentialBindingId ?? null,
     occurredAt: now.toISOString() };
   await sql`WITH reserved AS (INSERT INTO resource_id_ledger(resource_id,resource_type) VALUES (${id},'outbox') RETURNING resource_id)
@@ -61,6 +67,7 @@ export function createActivityAgentRoute(db: Kysely<DatabaseSchema>): OutboxRout
         || context.envelope.aggregate_identity.aggregate_type !== 'collection' || !context.envelope.commit_ordinal)
         throw new Error('Invalid activity source delivery');
       const payload = context.envelope.payload as unknown as AgentEvent;
+      const kind = ACTION_KINDS[payload.action ?? 'create'];
       await db.transaction().execute(async tx => {
         // The account row also serializes the first aggregate, before any activity row exists.
         const owner = await tx.selectFrom('collections as c').innerJoin('accounts as a', 'a.subject_id', 'c.owner_subject_id')
@@ -71,13 +78,13 @@ export function createActivityAgentRoute(db: Kysely<DatabaseSchema>): OutboxRout
           if (!duplicate) {
             const now = (await sql<{ now: Date }>`SELECT clock_timestamp() AS now`.execute(tx)).rows[0]!.now;
             const candidates = (await sql<{ id: string; created_at: Date; read_at: Date | null }>`SELECT id,created_at,read_at
-              FROM activity_items WHERE account_id=${owner.id} AND kind='agent_bookmarks_added'
+              FROM activity_items WHERE account_id=${owner.id} AND kind=${kind}
                 AND agent_client_id IS NOT DISTINCT FROM ${payload.agentClientId} AND collection_id=${payload.collectionId}
                 AND read_at IS NULL AND created_at>clock_timestamp()-interval '24 hours' ORDER BY updated_at DESC,id DESC FOR UPDATE`.execute(tx)).rows;
             const open = selectOpenAgentItem(candidates.map(row => ({ id: row.id, openedAt: row.created_at, readAt: row.read_at })), now);
             const activityId = open?.id ?? randomUUID();
             if (!open) await sql`INSERT INTO activity_items(id,account_id,kind,source_key,agent_client_id,collection_id,occurred_at)
-              VALUES(${activityId},${owner.id},'agent_bookmarks_added',${`agent:${payload.agentClientId ?? 'unknown'}:${payload.collectionId}:${activityId}`},
+              VALUES(${activityId},${owner.id},${kind},${`agent:${payload.agentClientId ?? 'unknown'}:${payload.collectionId}:${activityId}`},
                 ${payload.agentClientId},${payload.collectionId},${payload.occurredAt}::timestamptz)`.execute(tx);
             const inserted = await sql`INSERT INTO activity_members(source_event_id,activity_id,collection_id,node_id,parent_id,operation_id,occurred_at)
               VALUES(${context.envelope.event_id},${activityId},${payload.collectionId},${payload.nodeId},

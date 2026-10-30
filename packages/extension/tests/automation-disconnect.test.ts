@@ -41,6 +41,7 @@ vi.mock('../src/automation/device-client.js', () => ({ fetchRuleBundle: () => { 
 vi.mock('../src/bookmark-subscriptions/runtime.js', () => ({ prepareSubscriptionLogout: async () => undefined,
   maintenance: { cleanup: async () => undefined }, wakeSubscriptions: vi.fn() }));
 vi.mock('../src/sw/engine.js', () => ({ scheduleSyncEngineWake: vi.fn() }));
+vi.mock('../src/sw/device-bridge.js', () => ({ pollDeviceBridge: vi.fn(async () => undefined) }));
 vi.mock('../src/sw/personal-sync.js', () => ({ suspendPersonalSyncForLogout: vi.fn() }));
 vi.mock('../src/sw/library.js', () => ({ verifyLibraryAvailability: vi.fn(), ensureLibraryBinding: async () => undefined, libraryUnsupported: async () => false, bindLibraryOnStartup: async () => undefined }));
 vi.mock('../src/save-context-cache.js', () => ({ clearSaveContextCache: async () => undefined }));

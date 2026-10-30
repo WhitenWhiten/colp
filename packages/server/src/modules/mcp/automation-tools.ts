@@ -1,3 +1,5 @@
+import { callAutomationAccountTool, type AutomationAccountTools } from './automation-account-tools.js';
+import { automationManagerReadOrRecover, AUTOMATION_MANAGER_MUTATIONS } from './automation-manager.js';
 import { randomUUID } from 'node:crypto';
 import { AutomationError,automationCapabilities,createRule,replaceRule,setLifecycle,validateRule,previewRule,createAutomationPagination,
   type AutomationUnitOfWork,type AutomationWorkerService,type WorkerPairingPort } from '../automation/index.js';
@@ -8,7 +10,7 @@ import type { McpApplicationContext } from './application-context.js';
 import { AUTOMATION_CONTRACT_VERSION } from '@know-n/colp/automation';
 
 export function createAutomationToolPort(options: { access: AutomationCatalogPort['access']; configurations: AutomationUnitOfWork;
-  worker?: AutomationWorkerService; pairing: WorkerPairingPort; cursorKey: string }): AutomationCatalogPort {
+  worker?: AutomationWorkerService; pairing: WorkerPairingPort; cursorKey: string; accountTools?: AutomationAccountTools; deviceBridge?: import('../automation/index.js').DeviceBridgeOwnerPort }): AutomationCatalogPort {
   const pages = createAutomationPagination(options.cursorKey);
   return { access: options.access,
     async call(context,name,args) {
@@ -22,7 +24,7 @@ export function createAutomationToolPort(options: { access: AutomationCatalogPor
           else throw new AutomationError('automation_command_conflict','Pairing command is unavailable or conflicted.');
         } else if (name === 'automation.targets.mine') {
           value=await options.pairing.mine(actor,query(args));
-        } else if (name.startsWith('automation.jobs.')) {
+        } else if (name.startsWith('automation.jobs.') && name !== 'automation.jobs.retry') {
           if (!options.worker) throw new AutomationError('automation_unsupported_capability','Worker orchestration is unavailable.');
           const id = String(args.jobId),operation = name.slice('automation.jobs.'.length);
           if (operation === 'list') value=await options.worker.list(actor,query(args));
@@ -30,7 +32,12 @@ export function createAutomationToolPort(options: { access: AutomationCatalogPor
           else if (operation === 'inputs') value=await options.worker.inputs(actor,id,{ ...query(args),deliveryHandle: String(args.deliveryHandle) });
           else if (operation === 'claim' || operation === 'heartbeat' || operation === 'submit' || operation === 'fail') value=await options.worker.mutate(actor,id,operation,args.request,String(args.commandId));
           else throw new AutomationError('automation_unsupported_capability','Tool is unavailable.');
-        } else value=await managerCall(context,name,args);
+        } else if (name.startsWith('automation.adapters.') || name.startsWith('automation.classification.') || name === 'automation.device_requests.get') {
+          if (!options.deviceBridge) throw new AutomationError('automation_unsupported_capability','Browser bridge unavailable.');
+          value = name === 'automation.device_requests.get' ? await options.deviceBridge.get(actor,String(args.requestId))
+            : await options.deviceBridge.request(actor,name.slice('automation.'.length) as import('../automation/index.js').DeviceBridgeOperation,args);
+        } else if (name.startsWith('automation.activity.') || name.startsWith('automation.sync.')) value=await callAutomationAccountTool(options.accountTools ?? {},actor.accountId,name,args);
+        else value=await managerCall(context,name,args);
         return { kind: 'complete',content: [{ type: 'text',text: JSON.stringify(value) }],structuredContent: value };
       } catch (error) {
         if (!(error instanceof AutomationError)) throw error;
@@ -41,7 +48,7 @@ export function createAutomationToolPort(options: { access: AutomationCatalogPor
   async function managerCall(context: McpApplicationContext,name: string,args: Readonly<Record<string,unknown>>) {
     const actor = automationWorkPrincipal(context);
     return options.configurations.execute(actor,async ports => {
-      const mutation = name === 'automation.rules.save' || name === 'automation.rules.set_state',commandId = mutation ? String(args.commandId) : randomUUID();
+      const mutation = AUTOMATION_MANAGER_MUTATIONS.has(name),commandId = mutation ? String(args.commandId) : randomUUID();
       const binding = { principalId: actor.accountId,commandScope: JSON.stringify(['automation-manager',actor.clientId,actor.credentialBindingId,name]),commandId };
       const fingerprint = canonicalCommandFingerprint({ method: 'POST',route: name,mediaType: 'application/json',body: args });
       if (mutation) {
@@ -63,7 +70,7 @@ export function createAutomationToolPort(options: { access: AutomationCatalogPor
           const rows = scope === 'bindings' ? await ports.bindings.list(actor.accountId,after,limit+1) : await ports.targets.targets.list(after,limit+1),last = rows[limit-1];
           value={ items: rows.slice(0,limit).map(r => r.view),nextCursor: rows.length>limit && last ? pages.next(actor.accountId,scope,limit,{ id: last.view.id,createdAt: last.createdAt },now) : null };break;
         }
-        default: throw new AutomationError('automation_unsupported_capability','Tool is unavailable.');
+        default: value=await automationManagerReadOrRecover(ports,actor,name,args,options.cursorKey);
       }
       if (mutation) await ports.receipts.complete(binding,fingerprint,{ status: 200,body: new TextEncoder().encode(JSON.stringify(value)),mediaType: 'application/json',contractVersion: AUTOMATION_CONTRACT_VERSION,stableHeaders: { 'cache-control': 'private, no-store' } });
       return value;

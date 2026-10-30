@@ -15,6 +15,7 @@ export const AUTOMATION_SUBSCRIPTION_RETENTION_DAYS = 30;
 export async function retainAutomationHistory(db: Kysely<DatabaseSchema>,ownerId: string, workerHistory = true): Promise<number> {
   return db.transaction().execute(async tx => {
     const owner = await tx.selectFrom('accounts').select(['id','subject_id']).where('id','=',ownerId).forUpdate().executeTakeFirstOrThrow();
+    await sql`DELETE FROM automation_device_requests WHERE owner_id=${ownerId} AND expires_at<clock_timestamp()-interval '30 days'`.execute(tx);
     const factExpired = sql`f.commit_ordinal<=p.last_inspected_ordinal AND f.root_run_id IS NULL
       AND f.occurred_at<clock_timestamp()-make_interval(days => ${AUTOMATION_FACTS_RETENTION_DAYS})`;
     const inspected = sql`automation_event_facts f JOIN collections c ON c.id=f.collection_id AND c.owner_subject_id=${owner.subject_id}

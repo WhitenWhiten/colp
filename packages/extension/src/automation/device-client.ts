@@ -78,3 +78,11 @@ export function postIntakeReceipt(authority: DeviceAuthority, input: LocalReceip
   fetcher: typeof fetch = fetch): Promise<DeviceResult> {
   return call(authority, '/intake-receipts', { method: 'POST', body: input, commandId }, fetcher);
 }
+
+export function fetchDeviceRequests(authority: DeviceAuthority, fetcher: typeof fetch = fetch): Promise<DeviceResult> {
+  return call(authority, '/bridge-requests', { method: 'GET' }, fetcher);
+}
+export function completeDeviceRequest(authority: DeviceAuthority, result: import('./device-bridge.js').BrowserRequestResult,
+  fetcher: typeof fetch = fetch): Promise<DeviceResult> {
+  return call(authority, '/bridge-results', { method: 'POST', body: result, commandId: crypto.randomUUID() }, fetcher);
+}

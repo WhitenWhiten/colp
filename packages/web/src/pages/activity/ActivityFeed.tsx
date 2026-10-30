@@ -13,10 +13,12 @@ import { runPath } from '../automations/paths'
    A decision waiting for the owner takes the attention glyph. */
 
 const OUTCOME: Record<Exclude<ActivityKind, 'agent_bookmarks_added' | 'approval_requested'>, string> = {
+  agent_nodes_updated: 'updated', agent_nodes_moved: 'moved', agent_nodes_deleted: 'deleted',
   run_completed: 'finished', run_partial: 'partly finished', run_failed: 'failed', run_attention: 'needs your decision',
 }
 const GLYPH: Record<ActivityKind, [IconName, 'warning' | 'danger' | undefined]> = {
   agent_bookmarks_added: ['bookmark', undefined],
+  agent_nodes_updated: ['bookmark', undefined], agent_nodes_moved: ['folder', undefined], agent_nodes_deleted: ['bookmark', undefined],
   run_completed: ['check', undefined],
   run_partial: ['alert', 'warning'],
   run_failed: ['alert', 'danger'],
@@ -36,6 +38,7 @@ function destination(item: ActivityItem): string | null {
 
 function sentence(item: ActivityItem): string {
   if (item.kind === 'approval_requested') return `${item.agent?.name || 'An agent'} wants your approval`
+  if (['agent_nodes_updated', 'agent_nodes_moved', 'agent_nodes_deleted'].includes(item.kind)) return `${item.agent?.name || 'An agent'} ${OUTCOME[item.kind as keyof typeof OUTCOME]} ${plural(item.count, 'item')}`
   if (item.kind !== 'agent_bookmarks_added') return `${item.run?.ruleName || 'A rule'} ${OUTCOME[item.kind]}`
   const folder = item.folders[0]
   const extra = item.folders.length - 1
@@ -55,7 +58,7 @@ function Entry({ item }: { item: ActivityItem }) {
   const title = sentence(item)
   const unread = item.state === 'unread'
   const [glyph, tone] = GLYPH[item.kind]
-  const added = item.kind === 'agent_bookmarks_added'
+  const added = item.kind.startsWith('agent_')
   return (
     <article className="activity-item" data-activity-id={item.id} data-kind={item.kind} data-unread={unread ? 'true' : undefined}>
       <span className="activity-icon" data-tone={tone} aria-hidden><Icon name={glyph} /></span>

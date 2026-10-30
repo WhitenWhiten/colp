@@ -23,7 +23,6 @@ export function localClassificationFailure(error: unknown): string {
     if (error.message === 'sourceAutomationPaused' || error.message === 'sourceAutomationPausedBeforeDispatch') return error.message;
     if (error.message === 'local_authority_changed') return 'local_settings_changed';
     if (error.message === 'local_result_unavailable') return 'local_result_unknown';
-    if (error.message === 'local_session_budget_exhausted') return 'local_session_budget_exhausted';
   }
   return 'local_classification_failed';
 }

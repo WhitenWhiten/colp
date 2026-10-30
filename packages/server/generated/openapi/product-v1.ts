@@ -5253,6 +5253,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/automation-device/bridge-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Fetch requests for this authenticated browser replica
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        get: operations["getAutomationDeviceRequests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/automation-device/bridge-results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record a browser request result
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         */
+        post: operations["completeAutomationDeviceRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/automations/agent-setup": {
         parameters: {
             query?: never;
@@ -5381,7 +5421,7 @@ export interface components {
         ActivityItem: {
             id: string;
             /** @enum {string} */
-            kind: "agent_bookmarks_added" | "run_completed" | "run_partial" | "run_failed" | "run_attention" | "approval_requested";
+            kind: "agent_bookmarks_added" | "agent_nodes_updated" | "agent_nodes_moved" | "agent_nodes_deleted" | "run_completed" | "run_partial" | "run_failed" | "run_attention" | "approval_requested";
             /** @enum {string} */
             state: "unread" | "read";
             revision: string;
@@ -26901,6 +26941,93 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AutomationTarget"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    getAutomationDeviceRequests: {
+        parameters: {
+            query?: never;
+            header: {
+                "Known-Sync-Session": string;
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Device-scoped bridge response */
+            200: {
+                headers: {
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    completeAutomationDeviceRequest: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+                "Known-Sync-Session": string;
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    requestId: string;
+                    /** @enum {unknown} */
+                    state: "done" | "failed";
+                    result: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Device-scoped bridge response */
+            200: {
+                headers: {
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
                 };
             };
             400: components["responses"]["Automation400"];

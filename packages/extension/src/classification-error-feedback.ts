@@ -23,7 +23,6 @@ export function classificationErrorFeedback(error: string | undefined, local: bo
     local_settings_changed: t('popup_localSettingsChanged', 'Your AI service settings changed. Try again.'),
     local_request_too_large: t('popup_localRequestTooLarge', 'The page and folder list are too large to send. Choose a folder manually.'),
     local_taxonomy_too_large: t('popup_localTaxonomyTooLarge', 'There are too many folders for a suggestion. Choose a folder manually.'),
-    local_session_budget_exhausted: t('popup_localSessionLimit', 'This browser session reached its suggestion limit. Restart the browser to try again.'),
     local_classification_failed: t('popup_localClassificationFailed', "The suggestion couldn't run. Try again, or choose a folder manually."),
   };
   if (!local) messages.reconnect_required = t('popup_signAgainExtensionSettings', 'Sign in again in the extension settings to get suggestions. You can still save.');

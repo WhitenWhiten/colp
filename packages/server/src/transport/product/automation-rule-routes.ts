@@ -1,3 +1,4 @@
+import { getAutomationRule, listAutomationRules } from '../../modules/automation/index.js';
 import { authorizeTagPreference, setTagPreference } from '../../modules/automation/index.js';
 import { CollectionExportCapacityError } from '../../modules/collections/index.js';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
@@ -5,7 +6,7 @@ import { canonicalCommandFingerprint, type ProductCommandClaim } from '../../mod
 import type { IdentityUnitOfWork } from '../../modules/identity/index.js';
 import { automationCapabilities,createRule, replaceRule, validateRule, saveBinding, requireRule, requireBinding, requireEtag } from '../../modules/automation/index.js';
 import { previewRule } from '../../modules/automation/index.js';
-import { assessRuleHealth, setLifecycle, setPause } from '../../modules/automation/index.js';
+import { setLifecycle, setPause } from '../../modules/automation/index.js';
 import type { AutomationPorts, AutomationUnitOfWork } from '../../modules/automation/index.js';
 import type { AutomationActor } from '../../modules/automation/index.js';
 import { AutomationError } from '../../modules/automation/index.js';
@@ -54,19 +55,10 @@ export function registerAutomationRoutes(app: FastifyInstance, deps: AutomationR
     { method: 'POST', path: '/rules/preview', action: async ({ ports, actor, request }) => automationView(await previewRule(ports, actor, request.body)) },
     { method: 'POST', path: '/rules', action: async ({ ports, actor, request }) => automationView(await createRule(ports, actor, request.body), 201) },
     { method: 'GET', path: '/rules', query: ['limit', 'cursor'], action: async ({ ports, actor, request }) => {
-      const now = await ports.now(), { limit, after } = pagination.read(request.query as Record<string, string>, actor.accountId, 'rules', now);
-      const rows = await ports.rules.list(actor.accountId, after, limit + 1), last = rows[limit - 1], paused = (await ports.settings.get(actor.accountId)).paused;
-      if (ports.runtimeEnabled) for (const row of rows.slice(0, limit)) row.view.effectiveState = (await assessRuleHealth(ports, actor, row.view.id)).effectiveState;
-      if (ports.usage) for (const row of rows.slice(0, limit)) row.view.usage = await ports.usage.rule(row.view.id);
-      return automationView({ items: rows.slice(0, limit).map((row) => ({ ...row.view, effectiveState: row.view.desiredState === 'enabled' && paused ? 'paused' : row.view.effectiveState })),
-        nextCursor: rows.length > limit && last ? pagination.next(actor.accountId, 'rules', limit, { createdAt: last.sortCreatedAt, id: last.view.id }, now) : null });
+      return automationView(await listAutomationRules(ports, actor, deps.cursorKey, request.query as Record<string, string>));
     } },
     { method: 'GET', path: '/rules/:ruleId', noBody: true, action: async ({ ports, actor, request }) => {
-      const stored = await requireRule(ports, actor, id(request, 'ruleId'));
-      if (stored.view.desiredState === 'enabled' && (await ports.settings.get(actor.accountId)).paused) stored.view.effectiveState = 'paused';
-      if (ports.runtimeEnabled) stored.view.effectiveState = (await assessRuleHealth(ports, actor, stored.view.id)).effectiveState;
-      if (ports.usage) stored.view.usage = await ports.usage.rule(stored.view.id);
-      return automationView(stored.view);
+      return automationView(await getAutomationRule(ports, actor, id(request, 'ruleId')));
     } },
     { method: 'PUT', path: '/rules/:ruleId', ifMatch: true, action: async ({ ports, actor, request, ifMatch }) => automationView(await replaceRule(ports, actor, id(request, 'ruleId'), request.body, ifMatch)) },
     { method: 'POST', path: '/rules/:ruleId/lifecycle', ifMatch: true, action: async ({ ports, actor, request, ifMatch }) => automationView(await setLifecycle(ports, actor, id(request, 'ruleId'), request.body, ifMatch)) },

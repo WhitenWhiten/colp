@@ -58,5 +58,7 @@
   "previewAutomationRunOnce",
   "startAutomationRunOnce",
   "listAutomationRunOutputs",
-  "markAutomationRunRead"
+  "markAutomationRunRead",
+  "getAutomationDeviceRequests",
+  "completeAutomationDeviceRequest"
 ]

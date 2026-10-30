@@ -1,3 +1,4 @@
+import { AUTOMATION_TOOL_CONTRACTS } from '../../../src/modules/mcp/automation-tool-contracts.generated.js';
 import { afterEach,expect,test } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
@@ -246,8 +247,8 @@ describeWithPostgres('AW-31 authenticated polling and typed canonical orchestrat
     expect((await sql`SELECT * FROM automation_job_attempts`.execute(f.db)).rows).toEqual([]);
     await f.revokeWorker();expect((await read(`/jobs/${job.id}?deliveryHandle=${job.deliveryHandle}`)).statusCode).toBe(401);
   });
-  test('all sixteen MCP tools dispatch real application operations and share worker state with HTTP',async () => {
-    const { target,ruleInput } = await setup('aw31_mcp');
+  test('MCP tools dispatch real application operations and share worker state with HTTP',async () => {
+    const { target,ruleInput } = await setup('aw31_mcp', { maxCalls: 2 });
     const profile = (await f.app.inject({ url: `/api/v1/me/automations/connection-profiles/${target.configuration.connectionProfileId}`,headers: { cookie: f.owner.cookie } })).json();
     const updated = await f.app.inject({ method: 'PUT',url: `/api/v1/me/automations/connection-profiles/${profile.id}`,
       headers: f.ownerHeaders(randomUUID(),`"${profile.revision}"`),payload: { ...profile.configuration,catalogs: ['automationManager','automationWorker'] } });
@@ -274,17 +275,34 @@ describeWithPostgres('AW-31 authenticated polling and typed canonical orchestrat
       expect(result.kind === 'complete' && result.structuredContent).toEqual(value);return value;
     };
     await call('automation.targets.pair',{ pairingId: grant.json().pairingId,code: grant.json().code });
-    expect((await api.listTools(context)).tools).toHaveLength(16);
+    expect((await api.listTools(context)).tools).toHaveLength(AUTOMATION_TOOL_CONTRACTS.length);
     const capabilities = await call('automation.rules.describe');
     expect(capabilities.runtimeProfiles).toEqual(['browser-bounded-v1']);
     expect(capabilities).toEqual((await f.app.inject({ url: '/api/v1/me/automations/capabilities',headers: { cookie: f.owner.cookie } })).json());
     expect((await call('automation.bindings.list')).items.length).toBeGreaterThan(0);
+    const binding = await call('automation.bindings.get', { bindingSetId: ruleInput.bindingSetId });
+    const extraBinding = await call('automation.bindings.save', { mode: 'create', binding: { name: 'MCP recovery binding', values: binding.values }, commandId: randomUUID() });
+    const editBinding = { mode: 'update', bindingSetId: extraBinding.id, baseRevision: extraBinding.revision,
+      binding: { name: 'Updated recovery binding', values: binding.values }, commandId: randomUUID() };
+    const editedBinding = await call('automation.bindings.save', editBinding);
+    expect(editedBinding.revision).not.toBe(extraBinding.revision);
+    expect(await call('automation.bindings.save', editBinding)).toEqual(editedBinding);
+
     expect((await call('automation.targets.list')).items[0].id).toBe(target.id);
     expect((await call('automation.targets.mine')).items.map((item: { id: string }) => item.id)).toEqual([target.id]);
     await call('automation.rules.validate',ruleInput);
     await call('automation.rules.preview',{ rule: ruleInput,mode: 'currentState' });
     const saved = await call('automation.rules.save',{ mode: 'create',rule: ruleInput,commandId: randomUUID() });
-    await call('automation.rules.set_state',{ ruleId: saved.id,baseRevision: saved.revision,commandId: randomUUID(),change: { state: 'paused',pendingRuns: 'hold',reason: 'Keep additional rule inactive' } });
+    const listed = await call('automation.rules.list', { limit: 1 });
+    expect(listed.items).toHaveLength(1);
+    const current = await call('automation.rules.get', { ruleId: saved.id });
+    expect(current).toMatchObject({ id: saved.id, revision: saved.revision });
+    await call('automation.rules.health', { ruleId: current.id });
+    await call('automation.rules.diagnostics', { ruleId: current.id });
+    const edited = await call('automation.rules.save', { mode: 'replace', ruleId: current.id, baseRevision: current.revision,
+      commandId: randomUUID(), change: { definition: current.definition, bindingSetId: current.bindingSetId, pendingRuns: 'hold', counterPolicy: 'resetOnSemanticChange' } });
+    expect(edited.revision).not.toBe(current.revision);
+    await call('automation.rules.set_state',{ ruleId: edited.id,baseRevision: edited.revision,commandId: randomUUID(),change: { state: 'paused',pendingRuns: 'hold',reason: 'Keep additional rule inactive' } });
     const job = (await call('automation.jobs.list')).items[0];
     expect((await call('automation.jobs.get',{ jobId: job.id,deliveryHandle: job.deliveryHandle })).id).toBe(job.id);
     const inputs = await call('automation.jobs.inputs',{ jobId: job.id,deliveryHandle: job.deliveryHandle });
@@ -297,8 +315,17 @@ describeWithPostgres('AW-31 authenticated polling and typed canonical orchestrat
     await f.createNode('second-paper','root','Second paper','https://arxiv.org/abs/second');await f.inspect();
     const second = (await read('/jobs')).json().items[0],secondLease = (await post(`/jobs/${second.id}/claim`,{ deliveryHandle: second.deliveryHandle })).json();
     await call('automation.jobs.fail',{ jobId: second.id,commandId: randomUUID(),request: { claimToken: secondLease.claimToken,generation: secondLease.generation,kind: 'unknownOutcome',code: 'provider_timeout',message: 'Unknown provider outcome' } });
-    expect((await read(`/jobs/${second.id}?deliveryHandle=${second.deliveryHandle}`)).json().status).toBe('uncertain');
-    expect(called.size).toBe(16);
+    const uncertain = (await read(`/jobs/${second.id}?deliveryHandle=${second.deliveryHandle}`)).json();
+    expect(uncertain.status).toBe('uncertain');
+    const retry = { jobId: second.id, baseRevision: uncertain.revision, commandId: randomUUID(), request: { reason: 'Explicit retry after an unknown provider outcome' } };
+    expect((await call('automation.jobs.retry', retry)).status).toBe('ready');
+    expect((await call('automation.jobs.retry', retry)).status).toBe('ready');
+    const runPage = await call('automation.runs.list'); expect(runPage.items.length).toBeGreaterThan(0);
+    const run = await call('automation.runs.get', { runId: uncertain.runId });
+    await call('automation.outputs.list', { runId: run.id });
+    await call('automation.deliveries.list');
+    expect((await call('automation.runs.cancel', { runId: run.id, baseRevision: run.revision, commandId: randomUUID() })).status).toBe('cancelled');
+    expect(called.size).toBe(28);
     await f.revokeWorker();expect((await api.listTools(context)).tools).toEqual([]);
     expect(await api.callTool(context,'automation.jobs.list',{})).toMatchObject({ stableCode: 'unknown_tool' });
   });

@@ -4309,6 +4309,112 @@ paths:
               $ref: '#/components/schemas/PairingClaimInput'
       security:
       - DeviceBearer: []
+  /api/v1/automation-device/bridge-requests:
+    get:
+      operationId: getAutomationDeviceRequests
+      tags:
+        - Device
+      summary: Fetch requests for this authenticated browser replica
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded.
+      x-delivery-phase: M1
+      parameters: []
+      responses:
+        "200":
+          description: Device-scoped bridge response
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
+        "404":
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "412":
+          $ref: "#/components/responses/412"
+        "413":
+          $ref: "#/components/responses/413"
+        "422":
+          $ref: "#/components/responses/422"
+        "428":
+          $ref: "#/components/responses/428"
+        "429":
+          $ref: "#/components/responses/429"
+        "500":
+          $ref: "#/components/responses/500"
+        "503":
+          $ref: "#/components/responses/503"
+      security:
+        - DeviceBearer: []
+  /api/v1/automation-device/bridge-results:
+    post:
+      operationId: completeAutomationDeviceRequest
+      tags:
+        - Device
+      summary: Record a browser request result
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded.
+      x-delivery-phase: M1
+      parameters:
+        - $ref: "#/components/parameters/CommandId"
+      responses:
+        "200":
+          description: Device-scoped bridge response
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
+        "404":
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "412":
+          $ref: "#/components/responses/412"
+        "413":
+          $ref: "#/components/responses/413"
+        "422":
+          $ref: "#/components/responses/422"
+        "428":
+          $ref: "#/components/responses/428"
+        "429":
+          $ref: "#/components/responses/429"
+        "500":
+          $ref: "#/components/responses/500"
+        "503":
+          $ref: "#/components/responses/503"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - requestId
+                - state
+                - result
+              properties:
+                requestId:
+                  type: string
+                  maxLength: 128
+                state:
+                  enum:
+                    - done
+                    - failed
+                result: {}
+      security:
+        - DeviceBearer: []
+
 components:
   schemas:
     OpaqueId:

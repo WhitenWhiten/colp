@@ -1,3 +1,4 @@
+import { DEVICE_BRIDGE_KEY } from '../automation/device-bridge.js';
 import { validateAutomation, type BundleAckInput, type PauseState } from '@know-n/colp/automation';
 import { assertCredentialHostPermission } from '../server-origin-permission.js';
 import { acknowledgeRuleBundle, fetchRuleBundle, postIntakeReceipt, type DeviceAuthority, type DeviceProblem } from '../automation/device-client.js';
@@ -113,6 +114,8 @@ async function run(manual: boolean): Promise<void> {
     sessionId: authority.session.sessionId, origin: extensionOrigin() };
   if (bundleDue) await refreshBundle(owner, bundles, device);
   if (receiptsDue) await flushReceipts(owner, device, Number(authority.session.replicaLease.generation));
+  // Optional browser requests cannot prevent receipt delivery or bundle refresh.
+  await (await import('./device-bridge.js')).pollDeviceBridge(device, isCurrent).catch(() => undefined);
 }
 
 async function refreshBundle(owner: AutomationOwner, bundles: ReturnType<typeof createBundleStore>, device: DeviceAuthority): Promise<void> {
@@ -166,9 +169,9 @@ export async function clearAccountAutomation(owner: AutomationOwner): Promise<vo
   const ownerKey = automationOwnerKey(owner);
   const clear = async () => {
     await automationDatabase().clearAccount(ownerKey);
-    const local = await chrome.storage.local.get([PAUSE_KEY, DEVICE_KEY]);
+    const local = await chrome.storage.local.get([PAUSE_KEY, DEVICE_KEY, DEVICE_BRIDGE_KEY]);
     const pause = local[PAUSE_KEY] as { ownerKey?: unknown } | undefined, device = local[DEVICE_KEY] as { key?: unknown } | undefined;
-    const owned = [...pause?.ownerKey === ownerKey ? [PAUSE_KEY] : [], ...deviceOwner(device?.key) === ownerKey ? [DEVICE_KEY] : []];
+    const owned = [...local[DEVICE_BRIDGE_KEY] === ownerKey ? [DEVICE_BRIDGE_KEY] : [], ...pause?.ownerKey === ownerKey ? [PAUSE_KEY] : [], ...deviceOwner(device?.key) === ownerKey ? [DEVICE_KEY] : []];
     if (owned.length) await chrome.storage.local.remove(owned);
     await paintDigestBadge(await currentOwner());
   };
@@ -444,8 +447,9 @@ export async function automationStateView(): Promise<AutomationStateView> {
   const pause = (await chrome.storage.local.get(PAUSE_KEY))[PAUSE_KEY] as { ownerKey?: string; pausedAt?: string | null; pausedBy?: AutomationStateView['pausedBy'] } | undefined;
   const pauseKnown = current.state === 'paused' && pause?.ownerKey === automationOwnerKey(owner);
   const pausedAt = pauseKnown && pause?.pausedAt ? Date.parse(pause.pausedAt) : current.state === 'paused' ? current.since : null;
-  return { account: 'signedIn', state: current.state, webUrl,
+  return { account: 'signedIn', state: current.state, webUrl, deviceBridgeEnabled: (await chrome.storage.local.get(DEVICE_BRIDGE_KEY))[DEVICE_BRIDGE_KEY] === automationOwnerKey(owner),
     rules: current.state === 'active' ? await ruleViews(record) : [],
+    receiptIssues: (await createReceiptStore(automationArea()).quarantine()).filter(issue => { const raw = issue.raw as { ownerKey?: string } | null; return typeof raw?.ownerKey !== 'string' || raw.ownerKey === automationOwnerKey(owner); }).map(issue => ({ id: issue.id, reason: issue.reason, at: issue.quarantinedAt })),
     placements: [...await placementViews(automationOwnerKey(owner)), ...filed].sort((a, b) => b.at - a.at).slice(0, 10),
     browserRules: browser.rules, browserList: browser.list, browserRuns: await browserRunViews(),
     pausedAt: Number.isFinite(pausedAt) ? pausedAt : null, pausedBy: pauseKnown ? pause?.pausedBy ?? null : null,
@@ -455,6 +459,20 @@ export async function automationStateView(): Promise<AutomationStateView> {
 }
 
 export async function handleAutomationRequest(request: AutomationRequest): Promise<AutomationResponse> {
+  if (request.kind === 'known.automation.receipts.export') {
+    const owner = await currentOwner();
+    if (!owner) return { ok: false, error: 'signedOut' };
+    const receipts = await createReceiptStore(automationArea()).quarantine();
+    const owned = receipts.filter(issue => (issue.raw as { ownerKey?: unknown } | null)?.ownerKey === automationOwnerKey(owner));
+    return { ok: true, backup: { filename: 'automation-receipt-recovery.json', content: JSON.stringify({ version: 1, quarantined: owned }, null, 2) } };
+  }
+  if (request.kind === 'known.automation.deviceBridge.enable') {
+    const owner = await currentOwner();
+    if (!owner) return { ok: false, error: 'signedOut' };
+    await chrome.storage.local.set({ [DEVICE_BRIDGE_KEY]: request.enabled ? automationOwnerKey(owner) : null });
+    return { ok: true, state: await automationStateView() };
+  }
+
   if (request.kind === 'known.automation.match') return { ok: true, match: await matchView(request) };
   if (request.kind === 'known.automation.digest') {
     // The popup shows the last answer at once; a due read follows and repaints the badge.

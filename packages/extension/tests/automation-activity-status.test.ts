@@ -1,3 +1,4 @@
+import 'fake-indexeddb/auto';
 import { describe, expect, it, vi } from 'vitest';
 import type { ActivitySummary } from '../src/automation/activity-types.js';
 import { ACTIVITY_STATUS_KEY, activityStatusDue, createActivityStatusStore, readActivitySummary } from '../src/automation/activity-status.js';

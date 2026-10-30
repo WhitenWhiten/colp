@@ -10,6 +10,7 @@ import { serverFreshness } from './status-ui.js';
 /** The web inbox's glyphs: tone only for a problem, as on the run rows. */
 const GLYPH: Record<ActivityKind, [IconName, 'warning' | 'danger' | undefined]> = {
   agent_bookmarks_added: ['bookmark', undefined],
+  agent_nodes_updated: ['bookmark', undefined], agent_nodes_moved: ['folder', undefined], agent_nodes_deleted: ['bookmark', undefined],
   run_completed: ['check', undefined],
   run_partial: ['alert', 'warning'],
   run_failed: ['alert', 'danger'],
@@ -22,6 +23,9 @@ export function activityTitle(item: ActivityItem): string {
   if (item.kind === 'approval_requested') {
     return t('automation_activityApproval', '$1 wants your approval', item.agent?.name || t('automation_activityAgent', 'An agent'));
   }
+  if (item.kind === 'agent_nodes_updated') return tn('automation_activityAgentUpdated', item.count, '$1 updated $2 item', '$1 updated $2 items', item.agent?.name || t('automation_unknownAgent', 'An agent'), item.count);
+  if (item.kind === 'agent_nodes_moved') return tn('automation_activityAgentMoved', item.count, '$1 moved $2 item', '$1 moved $2 items', item.agent?.name || t('automation_unknownAgent', 'An agent'), item.count);
+  if (item.kind === 'agent_nodes_deleted') return tn('automation_activityAgentDeleted', item.count, '$1 deleted $2 item', '$1 deleted $2 items', item.agent?.name || t('automation_unknownAgent', 'An agent'), item.count);
   if (item.kind === 'agent_bookmarks_added') {
     const agent = item.agent?.name || t('automation_activityAgent', 'An agent');
     const folder = item.folders[0]?.title || item.collection?.title || t('automation_activityLibrary', 'your library');

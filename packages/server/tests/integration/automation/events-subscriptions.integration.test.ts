@@ -39,6 +39,26 @@ describeWithPostgres('AW-27 durable Events subscriptions', () => {
     expect(observation.credentialDigest).toBe(verified.credentialDigest);expect(observation.credentialDigest).not.toBe(f.actor.credentialDigest);
     await expect(store.subscribe({...actor,expiresAt:new Date(Date.now()+30_000).toISOString()},input)).rejects.toMatchObject({code:-32602});
   });
+  for (const sameSecond of [false, true]) test(`late old-token subscription cannot overwrite renewed profile evidence (same second: ${sameSecond})`, async () => {
+    const input = await setup();
+    let release!: () => void, entered!: () => void;
+    const held = new Promise<void>(resolve => { release = resolve; });
+    const started = new Promise<void>(resolve => { entered = resolve; });
+    const old = { ...f.actor };
+    const slow = createSubscriptionStore(f.db, f.worker, { ...verifier, verify: async () => { entered(); await held; } });
+    const pending = slow.subscribe(old, input);
+    await started;
+    try {
+      const verified = await f.verifier.verify({ authorization: 'Bearer ' + await f.mint(), requiredScopes: ['automation:work'] });
+      const renewed = { ...f.actor, credentialDigest: verified.credentialDigest, expiresAt: verified.expiresAt.toISOString(),
+        issuedAtSeconds: sameSecond ? old.issuedAtSeconds : (old.issuedAtSeconds ?? 0) + 1 };
+      await createSubscriptionStore(f.db, f.worker, verifier).subscribe(renewed,
+        { ...input, delivery: { ...input.delivery, url: 'https://receiver.example/new-callback' } });
+      release(); await pending;
+      const row = (await sql<{ observation_json: { credentialDigest: string } }>`SELECT observation_json FROM automation_connection_profiles`.execute(f.db)).rows[0]!;
+      expect(row.observation_json.credentialDigest).toBe(renewed.credentialDigest);
+    } finally { release(); await pending.catch(() => undefined); }
+  });
   test('slow verification cannot resurrect an unsubscribe or overtake a later refresh',async () => {
     const input = await setup(); let release!: () => void, entered!: () => void;
     const started = new Promise<void>(resolve => { entered=resolve; });

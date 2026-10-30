@@ -3759,10 +3759,6 @@
     "message": "已保存。页面和文件夹列表过大，无法发送。",
     "description": "Saved. The page and folder list are too large to send."
   },
-  "capture_savedLocalSessionLimit": {
-    "message": "已保存。本次浏览器会话已达到建议次数上限。",
-    "description": "Saved. This browser session reached its suggestion limit."
-  },
   "capture_savedLocalSettingsChanged": {
     "message": "已保存。AI 服务设置已更改。请重试。",
     "description": "Saved. Your AI service settings changed. Try again."
@@ -7446,10 +7442,6 @@
   "popup_localResultUnknown": {
     "message": "未收到建议结果。请重试。",
     "description": "The suggestion result wasn't received. Try again."
-  },
-  "popup_localSessionLimit": {
-    "message": "本次浏览器会话已达到建议次数上限。请重启浏览器后重试。",
-    "description": "This browser session reached its suggestion limit. Restart the browser to try again."
   },
   "popup_localSettingsChanged": {
     "message": "AI 服务设置已更改。请重试。",
@@ -13530,5 +13522,77 @@
   "sites_localConvergenceReview": {
     "message": "已保存在本地 · 有个人改动的副本需要检查后才能合并",
     "description": "Saved locally · copies with personal changes need review before combining"
+  },
+  "automation_activityAgentDeleted_one": {
+    "message": "$1 删除了 $2 项内容",
+    "description": "$1 deleted $2 item"
+  },
+  "automation_activityAgentDeleted_other": {
+    "message": "$1 删除了 $2 项内容",
+    "description": "$1 deleted $2 items"
+  },
+  "automation_activityAgentMoved_one": {
+    "message": "$1 移动了 $2 项内容",
+    "description": "$1 moved $2 item"
+  },
+  "automation_activityAgentMoved_other": {
+    "message": "$1 移动了 $2 项内容",
+    "description": "$1 moved $2 items"
+  },
+  "automation_activityAgentUpdated_one": {
+    "message": "$1 更新了 $2 项内容",
+    "description": "$1 updated $2 item"
+  },
+  "automation_activityAgentUpdated_other": {
+    "message": "$1 更新了 $2 项内容",
+    "description": "$1 updated $2 items"
+  },
+  "automation_bridgeDisable": {
+    "message": "关闭 Agent 对此浏览器的访问",
+    "description": "Disable browser access for agents"
+  },
+  "automation_bridgeEnable": {
+    "message": "允许 Agent 查看和重试此浏览器中的任务",
+    "description": "Allow agents to inspect and retry tasks in this browser"
+  },
+  "automation_bridgeHint": {
+    "message": "允许此账号已连接的 Agent 读取本设备的任务诊断、请求 AI 预览，以及重试失败的网站任务。",
+    "description": "For this account, allow connected agents to read task diagnostics, request AI previews, and retry failed website tasks on this device."
+  },
+  "automation_bridgeTitle": {
+    "message": "Agent 对此浏览器的访问",
+    "description": "Agent access to this browser"
+  },
+  "automation_receiptExport": {
+    "message": "导出损坏的回执以便恢复",
+    "description": "Export damaged receipts for recovery"
+  },
+  "automation_receiptQuarantined": {
+    "message": "一条自动化回执已损坏并被隔离，其他回执会继续同步。原始记录已保留，可用于恢复。",
+    "description": "An automation receipt is damaged and has been isolated. Other receipts continue syncing. The original record is retained for recovery."
+  },
+  "automation_unknownAgent": {
+    "message": "Agent",
+    "description": "An agent"
+  },
+  "sites_semanticFind": {
+    "message": "查找任务",
+    "description": "Find task"
+  },
+  "sites_semanticHistory": {
+    "message": "查看任务历史",
+    "description": "View task history"
+  },
+  "sites_semanticJobId": {
+    "message": "任务 ID",
+    "description": "Task ID"
+  },
+  "sites_semanticMore": {
+    "message": "加载更多任务",
+    "description": "Load more tasks"
+  },
+  "sites_semanticRecovery": {
+    "message": "查看需要处理的任务",
+    "description": "View tasks needing attention"
   }
 }

@@ -1,3 +1,4 @@
+import { paintSemanticRecovery, type SemanticStatus } from './settings-semantic.js';
 import { siteFeatures } from './capabilities.js';
 import { siteGrants } from './community-definition.js';
 import { renderSiteCapabilities } from './settings-capabilities.js';
@@ -29,8 +30,6 @@ import type { ReconcilePreview } from './reconcile-model.js';
 import type { ReconcileRun } from './reconcile-run.js';
 interface Collection { id: string; title: string }
 interface ArchiveConfig { root: { nativeId: string }; collectionIds: readonly string[]; live: boolean; state: string; copies?: string; primarySourceCollectionId?: string | null; aiDestination?: string; semantic?: string }
-interface SemanticStatus { pending: number; attention: number; completed: number; suppressed: number;
-  jobs: { id: string; title: string; state: string; reason: string | null; takeover: boolean }[] }
 interface SiteStatus { pipeline?: import('./local-progress.js').LocalSourceProgress; inspectionStatus?: { status: string; retryAfterMs?: number }; enabled?: boolean; connected?: boolean; accountId?: string | null; documents?: number; candidateAccount?: string | null; error?: string; incidentId?: string;
   accountLabel?: string; candidateLabel?: string;
   activity?: { problem: SiteActivity | null; lastEvent: SiteActivity | null };
@@ -496,19 +495,7 @@ function paintSemantic() {
   $('semantic-progress').hidden = !summary || !(summary.pending + summary.attention + summary.completed + summary.suppressed);
   if (!summary) return;
   text('semantic-summary', t('sites_semanticSummary', '$1 saved · $2 waiting · $3 need attention', summary.completed, summary.pending, summary.attention));
-  $('semantic-jobs').replaceChildren(...summary.jobs.map(job => {
-    const row = document.createElement('div'); row.className = 'set-row';
-    const body = document.createElement('div'); body.className = 'set-row-text';
-    const title = document.createElement('p'); title.className = 'set-row-title'; title.textContent = job.title;
-    const hint = document.createElement('p'); hint.className = 'set-row-hint'; hint.textContent = errorCopy(job.reason ?? 'sourceSyncPending'); body.append(title, hint); row.append(body);
-    if (job.state === 'attention' || job.takeover) {
-      const reclassify = ['semanticChooseFolder', 'semanticDestinationMapped', 'semanticDestinationOutsideLibrary', 'destination_policy_changed'].includes(job.reason ?? '');
-      const retry = document.createElement('button'); retry.className = 'btn btn-secondary btn-sm'; retry.type = 'button';
-      retry.textContent = job.takeover ? t('sites_semanticTakeover', 'Take over and retry') : reclassify ? t('sites_classifyAgain', 'Classify again') : t('common_retry', 'Retry');
-      retry.addEventListener('click', () => { retry.disabled = true; void act({ kind: 'known.siteAdapters.semantic.retry', jobId: job.id, ...(reclassify ? { reclassify: true } : {}) }); }); row.append(retry);
-    }
-    return row;
-  }));
+  paintSemanticRecovery($('semantic-jobs'), summary, message => sendSiteMessage(message), message => act(message), errorCopy);
 }
 
 const step = (id: string, state: 'current' | 'done' | 'later') => { $(id).dataset.step = state; };

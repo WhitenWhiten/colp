@@ -1,4 +1,4 @@
-import { principalObservation } from './principal-observation.js';
+import { refreshPrincipalObservation } from './principal-observation.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { sql, type Kysely } from 'kysely';
 import { McpEventsError, type McpEventSubscription } from '@know-n/colp/mcp';
@@ -112,7 +112,7 @@ export function createSubscriptionStore(db: Kysely<DatabaseSchema>, targets: Tar
      AND profile_revision=${String(profile.revision)}::bigint AND pairing_generation=${String(target.pairing_generation)}::bigint RETURNING refresh_before`.execute(tx)).rows;
         if (!rows.length)
           throw new McpEventsError(-32015, 'Subscription changed during verification.');
-        await sql`UPDATE automation_connection_profiles SET observation_json=${JSON.stringify(principalObservation(actor))}::jsonb WHERE id=${profile.id}`.execute(tx);
+        await refreshPrincipalObservation(tx, profile.id, actor);
         return { id: pending.id, refreshBefore: rows[0]!.refresh_before.toISOString(), cursor: null, truncated: false as const };
       });
     },

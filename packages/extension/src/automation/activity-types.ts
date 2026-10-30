@@ -1,7 +1,7 @@
 /** The owner-facing activity contract, shared by the summary, badge and Options. */
-export type ActivityKind = 'agent_bookmarks_added' | 'run_completed' | 'run_partial' | 'run_failed' | 'run_attention'
+export type ActivityKind = 'agent_bookmarks_added' | 'agent_nodes_updated' | 'agent_nodes_moved' | 'agent_nodes_deleted' | 'run_completed' | 'run_partial' | 'run_failed' | 'run_attention'
   | 'approval_requested';
-const KINDS: readonly string[] = ['agent_bookmarks_added', 'run_completed', 'run_partial', 'run_failed', 'run_attention', 'approval_requested'];
+const KINDS: readonly string[] = ['agent_bookmarks_added', 'agent_nodes_updated', 'agent_nodes_moved', 'agent_nodes_deleted', 'run_completed', 'run_partial', 'run_failed', 'run_attention', 'approval_requested'];
 export interface ActivityItem {
   readonly id: string;
   readonly kind: ActivityKind;

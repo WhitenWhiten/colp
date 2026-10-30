@@ -3,6 +3,7 @@ import { automationDigest, taskInputDigest, validateAutomation,
 import type { AutomationStateArea } from './bundle-store.js';
 import type { DeviceResult } from './device-client.js';
 import { AUTOMATION_RECEIPTS_KEY } from './messages.js';
+import { validPlacementReceipt, invalidReceiptReason, type QuarantinedReceipt } from './receipt-validation.js';
 import { RECEIPT_MAX_AGE_MS } from './receipt-limits.js';
 export { RECEIPT_MAX_AGE_MS } from './receipt-limits.js';
 
@@ -95,11 +96,6 @@ export function serializeReceipt(receipt: PlacementReceipt, created: CanonicalCr
   return input;
 }
 
-function parse(value: unknown): PlacementReceipt[] {
-  return Array.isArray(value) ? value.filter((item): item is PlacementReceipt => !!item && typeof item === 'object'
-    && (item as PlacementReceipt).version === 1 && typeof (item as PlacementReceipt).localReceiptId === 'string') : [];
-}
-
 let queue: Promise<unknown> = Promise.resolve();
 function exclusive<T>(work: () => Promise<T>): Promise<T> {
   const run = queue.then(work, work);
@@ -108,21 +104,44 @@ function exclusive<T>(work: () => Promise<T>): Promise<T> {
 }
 
 export function createReceiptStore(area: AutomationStateArea) {
-  const read = async () => parse(await area.get(AUTOMATION_RECEIPTS_KEY));
-  /** Newest first; settled receipts age out, and the list never grows past its bound. */
+  const quarantineKey = `${AUTOMATION_RECEIPTS_KEY}.quarantine`;
+  const read = async (): Promise<PlacementReceipt[]> => {
+    const raw = await area.get(AUTOMATION_RECEIPTS_KEY);
+    const items = raw === undefined ? [] : Array.isArray(raw) ? raw : [raw];
+    const valid: PlacementReceipt[] = [], invalid: unknown[] = [];
+    for (const item of items) (validPlacementReceipt(item) ? valid : invalid).push(item as PlacementReceipt);
+    if (invalid.length) {
+      const previous = (await area.get(quarantineKey) ?? []) as QuarantinedReceipt[];
+      // Persist the originals before removing anything from the active queue.
+      const quarantined = [...previous, ...invalid.map(raw => ({ id: crypto.randomUUID(), raw,
+        reason: invalidReceiptReason(raw), quarantinedAt: Date.now() }))];
+      if ('commit' in area && typeof area.commit === 'function') {
+        await area.commit({ [quarantineKey]: quarantined, [AUTOMATION_RECEIPTS_KEY]: valid });
+      } else {
+        await area.set(quarantineKey, quarantined);
+        await area.set(AUTOMATION_RECEIPTS_KEY, valid);
+      }
+    }
+    return valid;
+  };
+  /** Only completed history is bounded. Pending work and unresolved attention are never evicted. */
   const write = async (receipts: readonly PlacementReceipt[], now: number) => {
+    let completed = 0;
     const kept = [...receipts].sort((a, b) => b.createdAt - a.createdAt)
-      .filter((receipt) => !settled(receipt.state) || now - receipt.updatedAt < KEEP_SETTLED_MS).slice(0, MAX_RECEIPTS);
+      .filter(receipt => !settled(receipt.state) || (receipt.state === 'attention' || receipt.state === 'review')
+        || (now - receipt.updatedAt < KEEP_SETTLED_MS && completed++ < MAX_RECEIPTS));
     await area.set(AUTOMATION_RECEIPTS_KEY, kept);
   };
   return {
-    list: read,
+    list: () => exclusive(read),
+    quarantine: () => exclusive(async () => { await read(); return (await area.get(quarantineKey) ?? []) as QuarantinedReceipt[]; }),
     /**
      * Durable before any network work is scheduled. Add-if-absent: a placement is
      * recorded once, so a repeated acknowledgement never resets a receipt in progress.
      */
     add(receipt: PlacementReceipt, now: number): Promise<boolean> {
       return exclusive(async () => {
+        if (!validPlacementReceipt(receipt)) throw new Error('receipt_invalid');
         const receipts = await read();
         if (receipts.some((item) => item.localReceiptId === receipt.localReceiptId)) return false;
         await write([receipt, ...receipts], now); return true;
@@ -156,6 +175,11 @@ export interface ReceiptSyncContext {
 const answered = (body: unknown): ReceiptIngestResult | null =>
   validateAutomation('ReceiptIngestResult', body).valid ? body as ReceiptIngestResult : null;
 
+class ReceiptItemUnavailable extends Error {}
+async function itemQuery<T>(read: () => Promise<T>): Promise<T> {
+  try { return await read(); } catch { throw new ReceiptItemUnavailable(); }
+}
+
 /**
  * One pass over this account's due receipts. Other accounts' receipts are never
  * read for sending; a receipt from an earlier replica generation needs
@@ -174,10 +198,11 @@ export async function syncReceipts(store: ReceiptStore, context: ReceiptSyncCont
       await settle('attention', { attention: 'staleGeneration' }); continue;
     }
     if (context.now - receipt.createdAt > RECEIPT_MAX_AGE_MS) { await settle('attention', { attention: 'expired' }); continue; }
-    const created = await context.evidence.create(receipt.native.nativeId);
+    try {
+    const created = await itemQuery(() => context.evidence.create(receipt.native.nativeId));
     if (!created) {
       // Removed before its create reached the server: no identity to join, so it needs attention, never a guess.
-      if (context.now - receipt.createdAt > ORPHAN_AFTER_MS && context.evidence.present && !await context.evidence.present(receipt.native.nativeId)) {
+      if (context.now - receipt.createdAt > ORPHAN_AFTER_MS && context.evidence.present && !await itemQuery(() => context.evidence.present!(receipt.native.nativeId))) {
         await settle('attention', { attention: 'identityUnknown' }); continue;
       }
       pending += 1; await retry(); continue;
@@ -186,13 +211,13 @@ export async function syncReceipts(store: ReceiptStore, context: ReceiptSyncCont
     // An observed correction is joined to its move. A create the queue already placed in the
     // destination (the move folded into it) needs no move.
     const needsMove = receipt.path === 'observed' && created.parentNodeId !== receipt.destination.nodeId;
-    const placementOperationId = needsMove ? await context.evidence.move(receipt.native.nativeId, receipt.native.destinationNativeId, receipt.native.movedAt ?? receipt.createdAt) : undefined;
+    const placementOperationId = needsMove ? await itemQuery(() => context.evidence.move(receipt.native.nativeId, receipt.native.destinationNativeId, receipt.native.movedAt ?? receipt.createdAt)) : undefined;
     const canonical = { nodeId: created.nodeId, operationId: created.operationId, ...(placementOperationId ? { placementOperationId } : {}) };
     if ((needsMove && !placementOperationId) || !context.deviceId) { pending += 1; await retry({ canonical }); continue; }
     let input: LocalReceiptInput;
     try { input = serializeReceipt({ ...receipt, canonical }, created, { deviceId: context.deviceId, replicaGeneration: context.replicaGeneration }); }
     catch { await settle('attention', { attention: 'invalid', canonical }); continue; }
-    const response = await context.post(input);
+    const response = await itemQuery(() => context.post(input));
     sent += 1;
     const result = response.ok ? answered(response.body) : null;
     if (result) {
@@ -201,6 +226,11 @@ export async function syncReceipts(store: ReceiptStore, context: ReceiptSyncCont
     } else if (!response.ok && (response.code === 'automation_command_conflict' || response.code === 'invalid_request')) {
       await settle('attention', { attention: response.code === 'invalid_request' ? 'invalid' : 'conflict', canonical });
     } else { pending += 1; await retry({ canonical }); }
+    } catch (error) {
+      if (!(error instanceof ReceiptItemUnavailable)) throw error;
+      // Evidence/network failures belong to this item. A failed store write still propagates.
+      pending += 1; await retry();
+    }
   }
   return { sent, pending };
 }

@@ -36,6 +36,5 @@ test('rate limiting, deadlines and interrupted results keep their recovery guida
   expect(classificationErrorFeedback(localClassificationFailure(new ClassificationProviderError('rate_limited')), true).text).toContain('rate limited');
   expect(classificationErrorFeedback(localClassificationFailure(new ClassificationProviderError('deadline')), true).text).toContain('timed out');
   expect(classificationErrorFeedback(localClassificationFailure(new ClassificationProviderError('outcome_unknown')), true).text).toContain("wasn't received");
-  expect(classificationErrorFeedback(localClassificationFailure(new Error('local_session_budget_exhausted')), true).text).toContain('Restart the browser');
   expect(classificationErrorFeedback(localClassificationFailure(new ClassificationError('context_limit')), true).text).toContain('too large');
 });

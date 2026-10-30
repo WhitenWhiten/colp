@@ -48,6 +48,8 @@ import { createLane } from '../automation/lane.js';
 import { sourceLiveReport } from './live-report.js';
 import { sourceAutomationsPaused } from '../sw/automation.js';
 function createSiteHost(definition: SiteDefinition, driver: SiteDriver = bundledDriver(definition)) {
+  const semanticList = object({ kind: literal('known.siteAdapters.semantic.list'), cursor: v => v === undefined || str(2048)(v), group: v => v === undefined || literal('recovery', 'history')(v) });
+  const semanticGet = object({ kind: literal('known.siteAdapters.semantic.get'), jobId: str(128) });
   const semanticRetry = object({ kind: literal('known.siteAdapters.semantic.retry'), jobId: str(128), reclassify: v => v === undefined || literal(true, false)(v) });
   const LIMITS = readLimits(definition);
   const siteLedger = createSourceLedger(sharedLedger.db, {}, definition);
@@ -391,7 +393,7 @@ function createSiteHost(definition: SiteDefinition, driver: SiteDriver = bundled
         })
           .then(result => settledManagement(raw, result)).then(respond, async e => respond(await failed(raw, e))); return true;
       }
-      if (!management(sender) || !(statusSchema(raw) || enableSchema(raw) || confirmSchema(raw) || reconnectSchema(raw) || inspectSchema(raw) || retrySchema(raw) || semanticRetry(raw) || archives.valid(raw))) return false;
+      if (!management(sender) || !(statusSchema(raw) || enableSchema(raw) || confirmSchema(raw) || reconnectSchema(raw) || inspectSchema(raw) || retrySchema(raw) || semanticRetry(raw) || semanticList(raw) || semanticGet(raw) || archives.valid(raw))) return false;
       void (async () => {
         if (!browserSupport().supported && !statusSchema(raw) && !(enableSchema(raw) && !d!.enabled)) throw new Error('browserUnsupported');
         if (enableSchema(raw)) {
@@ -409,6 +411,13 @@ function createSiteHost(definition: SiteDefinition, driver: SiteDriver = bundled
         }
         let archiveResult: unknown;
         if (archives.valid(raw)) archiveResult = await archives.handle(raw);
+        if (semanticList(raw) || semanticGet(raw)) {
+          const authority = await siteLedger.db.read<import('./ledger-types.js').SourceAuthority>('authorities', definition.adapterId);
+          if (!authority?.connectionId) throw new Error('semanticJobUnavailable');
+          const input = raw as { jobId: string; cursor?: string; group?: 'recovery' | 'history' };
+          return semanticGet(raw) ? { ok: true, job: await semanticJobs.get(input.jobId, authority.connectionId) }
+            : { ok: true, ...await semanticJobs.status(authority.connectionId, input) };
+        }
         if (semanticRetry(raw)) {
           const authority = await siteLedger.db.read<import('./ledger-types.js').SourceAuthority>('authorities', definition.adapterId);
           if (!authority?.connectionId) throw new Error('semanticJobUnavailable');

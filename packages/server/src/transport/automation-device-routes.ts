@@ -27,10 +27,10 @@ export function registerAutomationDeviceRoutes(app: FastifyInstance, deps: Autom
   const security = createSyncTransportSecurity({ allowInsecureLoopback: deps.allowInsecureLoopback === true, trustedIngress: deps.trustedIngress });
   const admission = deps.admission ?? createMemorySyncAdmissionPolicy({ budgets: { push: { maxRequests: 120, windowMs: 60_000 } } });
   if (!deps.admission) app.addHook('onClose', async () => admission.close());
-  for (const [method, path] of [['POST','/intake-receipts'], ['GET','/bundle'], ['POST','/bundle-acks']] as const) app.route({
+  for (const [method, path] of [['POST','/intake-receipts'], ['GET','/bundle'], ['POST','/bundle-acks'], ['GET','/bridge-requests'], ['POST','/bridge-results']] as const) app.route({
     method, url: BASE + path, exposeHeadRoute: false,
     config: { ...productRouteMetadata(method, BASE + path), productTransport: {
-      allowedQuery: method === 'GET' ? ['profile'] : [], acceptedMediaTypes: ['application/json'], rejectRequestBody: method === 'GET', bodyLimitBytes: 32_768, cacheControl: 'private-no-store' } },
+      allowedQuery: path === '/bundle' ? ['profile'] : [], acceptedMediaTypes: ['application/json'], rejectRequestBody: method === 'GET', bodyLimitBytes: 32_768, cacheControl: 'private-no-store' } },
   handler: async (request, reply) => {
     if (!security.isSecure(request)) throw new ProductHttpError({ statusCode: 401, code: 'authentication_required', message: 'Secure transport required.' });
     const origin = header(request, 'origin');
@@ -47,12 +47,12 @@ export function registerAutomationDeviceRoutes(app: FastifyInstance, deps: Autom
     const sessionId = header(request, 'known-sync-session'), commandId = method === 'GET' ? '' : readKnownCommandId(request);
     try {
       const result = await deps.unitOfWork.execute({ credential, sessionId, origin }, async ports => {
-        if (method === 'GET') return { body: await ports.bundle((request.query as { profile?: string }).profile ?? 'browser-bounded-v1') };
+        if (method === 'GET') return { body: path === '/bridge-requests' ? await ports.bridge!.pending() : await ports.bundle((request.query as { profile?: string }).profile ?? 'browser-bounded-v1') };
         const binding = { principalId: ports.actor.accountId, commandScope: `${BASE}${path}:${ports.actor.deviceId}`, commandId };
         const fingerprint = canonicalCommandFingerprint({ method: 'POST', route: BASE + path, mediaType: 'application/json', body: request.body, conditions: { sessionId } });
         const claim = await ports.receipts.claim(binding, fingerprint);
         if (claim.kind !== 'claimed') return { claim };
-        const body = path === '/intake-receipts' ? await acceptIntakeReceipt(ports, request.body)
+        const body = path === '/bridge-results' ? await ports.bridge!.complete(request.body) : path === '/intake-receipts' ? await acceptIntakeReceipt(ports, request.body)
           : await ports.acknowledge(parseContract('BundleAckInput', request.body));
         await ports.receipts.complete(binding, fingerprint, { status: path === '/intake-receipts' ? 202 : 200, body: new TextEncoder().encode(JSON.stringify(body)),
           mediaType: 'application/json', contractVersion: AUTOMATION_CONTRACT_VERSION, stableHeaders: { 'cache-control': 'private, no-store',

@@ -7,6 +7,7 @@ export interface AutomationDeviceActor {
   collectionId: string; sessionId: string;
 }
 export interface AutomationDevicePorts {
+  bridge?: import('./device-bridge.js').DeviceBridgeDevicePort;
   actor: AutomationDeviceActor;
   receipts: ProductCommandReceiptPort;
   bundle(profile: string): Promise<import('@know-n/colp/automation').RuleBundle>;

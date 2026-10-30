@@ -29,3 +29,39 @@ the default probe is evidence for investigating the host or delivery layer, not
 proof of a particular ChatGPT bug. The raw HTTP contract is covered by
 `tests/unit/phase4b/phase4b-mcp-compat-json-wire.test.ts` for the supported
 compatibility protocol version (`2025-11-25`).
+
+Automation management now supports `automation.rules.list/get`, binding reads and saves,
+rule health and dependency diagnostics, run and output reads, cancellation, job retries,
+and delivery inspection/retry. Use the revision returned by a fresh read as `baseRevision`;
+mutations require a stable `commandId`. Activity list/summary/read and Sync
+status/devices/issues use the same account-scoped services as the product UI.
+
+Events are wake hints without history replay (`cursor: null`). At startup, after every
+subscription or reconnection, and after each wake, reconcile every page of
+`automation.jobs.list`. A successful subscription does not prove the queue is empty.
+
+Browser diagnostics use an explicit asynchronous device bridge. First choose a replica
+from `automation.sync.status`; its owner must enable **Agent access to this browser** in
+that browser's Automations settings. `automation.adapters.status/jobs/diagnostics/retry`
+and `automation.classification.diagnostics/preview/retry` return a durable request ID.
+Poll `automation.device_requests.get` for the result. An offline device leaves the request
+pending; requests expire after one day and results are retained for thirty more days.
+The bridge is bound to the account, collection, replica and lease generation. It never
+transfers provider credentials. Classification previews can call the configured provider;
+an interrupted dispatched request reports an unknown result and requires a new explicit
+command rather than replaying the provider call. A save already in progress retains its
+original command when retried. Adapter jobs currently expose the semantic copy recovery
+queue; supported adapters retain their documented flat collection and set membership bounds.
+
+Diagnostic task pages fit the 32 KiB UTF-8 result envelope and contain at most twenty
+tasks. Follow `nextCursor` even when a page contains fewer than twenty tasks. An
+individual result that cannot fit becomes `failed` with `device_result_too_large`;
+an invalid result rejected by the server becomes `device_result_rejected`. These
+failures release the request's queue slot. Retrying a cached result never repeats
+a classification provider call.
+
+The Activity API reports direct MCP bookmark creation as `agent_bookmarks_added`
+and node edits, moves and deletions as `agent_nodes_updated`, `agent_nodes_moved`
+and `agent_nodes_deleted`. Both public OpenAPI documents and generated client
+types include these kinds. Clients should preserve unfamiliar future activity
+kinds instead of rejecting the entire inbox.

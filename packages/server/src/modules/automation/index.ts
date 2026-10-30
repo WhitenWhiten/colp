@@ -47,3 +47,6 @@ export { countPartition, countDistinctKey, estimateCountMembers } from './applic
 export { authorizeTagPreference, setTagPreference } from './application/tag-preferences.js';
 
 export { PREDECESSOR_FAILED, taskBlocksSuccessors, terminalTaskRunState } from './application/task-state.js';
+
+export { getAutomationRule, listAutomationRules } from './application/rule-reads.js';
+export * from './application/device-bridge.js';

@@ -1,4 +1,4 @@
-import { principalObservation } from './principal-observation.js';
+import { principalObservation, observationArrival, refreshPrincipalObservation } from './principal-observation.js';
 import type { AutomationProfileAccess } from '../../modules/mcp/index.js';
 import { randomUUID,timingSafeEqual } from 'node:crypto';
 import { sql,type Kysely } from 'kysely';
@@ -113,6 +113,7 @@ export function createTargetWorkerService(db: Kysely<DatabaseSchema>,verifyBindi
       AND p.configuration_json->>'authorizedClientId'=${actor.clientId} AND p.configuration_json->>'credentialBindingId'=${actor.credentialBindingId}
       AND p.configuration_json->>'automationEnabled'='true' AND p.configuration_json->'catalogs' ? 'automationWorker'`.execute(tx)).rows[0];
   const profile = async (tx: DatabaseTransaction,actor: WorkPrincipal,options: ProfileCheckOptions = {}): Promise<ProfileRow> => {
+    await observationArrival(tx,actor);
     if (!actor.scopes.includes('automation:work')) throw unavailable();
     let row = await enabledProfile(tx,actor);
     // Evidence provenance and expiry are separate: even unexpired stored observations only verify.
@@ -125,9 +126,7 @@ export function createTargetWorkerService(db: Kysely<DatabaseSchema>,verifyBindi
     // Refresh token-free observations only after the current credential passed all
     // checks. Background health/delivery must not keep using the pairing token.
     if (options.liveRequest && actor.credentialDigest && actor.expiresAt) {
-      await sql`UPDATE automation_connection_profiles SET observation_json=${JSON.stringify(principalObservation(actor))}::jsonb
-        WHERE id=${row.id} AND (observation_json IS NULL OR observation_json->>'credentialDigest' IS DISTINCT FROM ${actor.credentialDigest})
-        AND (observation_json IS NULL OR (observation_json->>'issuedAtSeconds')::bigint <= ${actor.issuedAtSeconds ?? 0})`.execute(tx);
+      await refreshPrincipalObservation(tx,row.id,actor);
     }
     return row;
   };

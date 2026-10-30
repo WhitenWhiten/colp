@@ -1,4 +1,4 @@
-import { requestValue, transactionDone } from '../sync-state/idb.js';
+import { requestValue, transactionDone, iterateCursor } from '../sync-state/idb.js';
 import type { SnapshotStateArea } from './bundle-store.js';
 import type { ObservedPlacement } from './observed-create.js';
 import { AUTOMATION_BUNDLE_KEY, AUTOMATION_CHANGED_KEY, AUTOMATION_RECEIPTS_KEY } from './messages.js';
@@ -131,6 +131,12 @@ export function createAutomationDatabase(factory: IDBFactory, options: {
      * placement intents go, in one transaction. Another account's entries and
      * this browser's own rules and their log (rule-list-store.ts, browser-rule-store.ts) stay.
      */
+    async pruneDeviceRequests(now: number): Promise<void> {
+      await run([STATE], 'readwrite', async tx => {
+        await iterateCursor(tx.objectStore(STATE), IDBKeyRange.bound('known.automation.device-bridge.v1.request.', 'known.automation.device-bridge.v1.request.\uffff'),
+          (value, cursor) => { if (typeof value === 'object' && value && 'retainUntil' in value && typeof value.retainUntil === 'number' && value.retainUntil < now) cursor.delete(); });
+      });
+    },
     async clearAccount(ownerKey: string): Promise<void> {
       await run([STATE, INTENTS], 'readwrite', async (tx) => {
         const state = tx.objectStore(STATE), intents = tx.objectStore(INTENTS);
@@ -139,6 +145,11 @@ export function createAutomationDatabase(factory: IDBFactory, options: {
         if (Array.isArray(receipts) && receipts.some((receipt) => owns(receipt, ownerKey))) {
           state.put(receipts.filter((receipt) => !owns(receipt, ownerKey)), AUTOMATION_RECEIPTS_KEY);
         }
+        const quarantineKey = `${AUTOMATION_RECEIPTS_KEY}.quarantine`;
+        const quarantined = await requestValue(state.get(quarantineKey));
+        if (Array.isArray(quarantined)) state.put(quarantined.filter(item => !owns(item?.raw, ownerKey)), quarantineKey);
+        await iterateCursor(state, IDBKeyRange.bound('known.automation.device-bridge.v1.request.', 'known.automation.device-bridge.v1.request.\uffff'),
+          (value, cursor) => { if (owns(value, ownerKey)) cursor.delete(); });
         for (const intent of await requestValue(intents.getAll()) as PlacementIntent[]) {
           if (intent.ownerKey === ownerKey) intents.delete(intent.intentId);
         }

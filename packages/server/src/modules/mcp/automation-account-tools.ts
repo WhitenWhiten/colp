@@ -1,0 +1,37 @@
+import { AutomationError } from '../automation/index.js';
+import { ActivityCommandError, type ActivityPorts, type ActivityReadRequest } from '../activity/index.js';
+import type { ProductSyncCenterUnitOfWork } from '../sync/index.js';
+import { pageQuery } from './automation-manager.js';
+export interface AutomationAccountTools { activity?: ActivityPorts; sync?: ProductSyncCenterUnitOfWork }
+export async function callAutomationAccountTool(ports: AutomationAccountTools, accountId: string, name: string,
+  args: Readonly<Record<string, unknown>>): Promise<unknown> {
+  if (name.startsWith('automation.activity.')) {
+    if (!ports.activity) throw unavailable();
+    try {
+      if (name === 'automation.activity.list') return ports.activity.list(accountId, { ...pageQuery(args), ...(args.state ? { state: String(args.state) } : {}) });
+      if (name === 'automation.activity.summary') return ports.activity.summary(accountId);
+      if (name === 'automation.activity.read') return await ports.activity.markRead(accountId, args.request as ActivityReadRequest, String(args.commandId));
+    } catch (error) {
+      if (!(error instanceof ActivityCommandError)) throw error;
+      throw new AutomationError('automation_command_conflict', error.message);
+    }
+  }
+  if (name.startsWith('automation.sync.')) {
+    if (!ports.sync) throw unavailable();
+    return ports.sync.execute(async reads => {
+      if (name === 'automation.sync.status') return reads.getStatus({ accountId });
+      if (name === 'automation.sync.devices') return { items: (await reads.getStatus({ accountId })).devices };
+      if (name === 'automation.sync.issues') {
+        try { return await reads.getReplicaIssues({ accountId, replicaId: String(args.replicaId) }); }
+        catch (error) {
+          if (error && typeof error === 'object' && 'code' in error && error.code === 'resource_not_found')
+            throw new AutomationError('resource_not_found', 'Replica is unavailable under current owner authority.');
+          throw error;
+        }
+      }
+      throw unavailable();
+    });
+  }
+  throw unavailable();
+}
+function unavailable() { return new AutomationError('automation_unsupported_capability', 'Account diagnostics are unavailable.'); }

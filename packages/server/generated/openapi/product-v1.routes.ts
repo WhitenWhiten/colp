@@ -77,6 +77,16 @@ export const PRODUCT_ROUTE_MANIFEST = [
   },
   {
     "method": "GET",
+    "path": "/api/v1/automation-device/bridge-requests",
+    "operationId": "getAutomationDeviceRequests"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/automation-device/bridge-results",
+    "operationId": "completeAutomationDeviceRequest"
+  },
+  {
+    "method": "GET",
     "path": "/api/v1/automation-device/bundle",
     "operationId": "getAutomationDeviceBundle"
   },

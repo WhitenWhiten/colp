@@ -399,6 +399,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     return true;
   }
   if (validAutomationRequest(message)) {
+    if ((message.kind === 'known.automation.deviceBridge.enable' || message.kind === 'known.automation.receipts.export') && !trustedLifecyclePage(sender, chrome.runtime.id)) return false;
     void handleAutomationRequest(message).then(respond, error => respond({ ok: false, error: safeError(error) }));
     return true;
   }

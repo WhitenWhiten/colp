@@ -1,6 +1,6 @@
 {
   "contractVersion": "0.2.1-design",
-  "description": "Conditional catalogs compose through ConnectionProfileInput.catalogs. Seven manager tools and nine worker tools (pair, mine and seven job tools); only pair is available before binding, and a consent that granted automation:work binds without a code. Catalog visibility never substitutes for scope/authority checks.",
+  "description": "Conditional worker and manager catalogs. All management reads and recovery operations use current owner authority. Events are wake hints; reconcile jobs.list on startup and reconnect.",
   "tools": [
     {
       "name": "automation.rules.describe",
@@ -161,7 +161,7 @@
     },
     {
       "name": "automation.jobs.list",
-      "description": "Reconcile the ready queue for one authorized paired target, including after setup/reconnect. Returns job access handles in both events and polling modes. Does not accept a foreign target or stale cross-principal cursor.",
+      "description": "Reconcile outstanding work at agent startup, after every subscription or reconnection, and after webhook wakes. Follow all pages. Events are wake hints without history replay; never rely on the next webhook to discover already queued work.",
       "profile": "automationWorker",
       "availability": "pairedOnly",
       "requiredScopes": [
@@ -285,6 +285,500 @@
         "openWorldHint": false
       },
       "availability": "pairedOnly"
+    },
+    {
+      "name": "automation.rules.list",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/PaginationInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/RulePage"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "automation.rules.list: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+    },
+    {
+      "name": "automation.rules.get",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/RuleIdentityInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/Rule"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "automation.rules.get: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+    },
+    {
+      "name": "automation.rules.health",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/RuleIdentityInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/HealthReport"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "automation.rules.health: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+    },
+    {
+      "name": "automation.rules.diagnostics",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/RuleIdentityInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DependencyReport"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "automation.rules.diagnostics: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+    },
+    {
+      "name": "automation.bindings.get",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/BindingIdentityInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/BindingSet"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "automation.bindings.get: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+    },
+    {
+      "name": "automation.bindings.save",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:manage"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/SaveBindingToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/BindingSet"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "automation.bindings.save: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+    },
+    {
+      "name": "automation.runs.list",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/PaginationInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/RunPage"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "automation.runs.list: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+    },
+    {
+      "name": "automation.runs.get",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/RunIdentityInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/Run"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "automation.runs.get: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+    },
+    {
+      "name": "automation.runs.cancel",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:manage"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/RunCancelToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/Run"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "automation.runs.cancel: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+    },
+    {
+      "name": "automation.outputs.list",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/OutputListToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/RunOutputPage"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "automation.outputs.list: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+    },
+    {
+      "name": "automation.deliveries.list",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/PaginationInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DeliveryViewPage"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "automation.deliveries.list: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+    },
+    {
+      "name": "automation.deliveries.retry",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:manage"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/DeliveryRetryToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DeliveryView"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "automation.deliveries.retry: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+    },
+    {
+      "name": "automation.jobs.retry",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:manage"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/JobRetryToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/Job"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "automation.jobs.retry: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+    },
+    {
+      "name": "automation.activity.list",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/ActivityListToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/AccountDiagnosticResult"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "automation.activity.list: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+    },
+    {
+      "name": "automation.activity.summary",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/EmptyInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/AccountDiagnosticResult"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "automation.activity.summary: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+    },
+    {
+      "name": "automation.activity.read",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:manage"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/ActivityReadToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/AccountDiagnosticResult"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "automation.activity.read: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+    },
+    {
+      "name": "automation.sync.devices",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/EmptyInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/AccountDiagnosticResult"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "automation.sync.devices: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+    },
+    {
+      "name": "automation.sync.status",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/EmptyInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/AccountDiagnosticResult"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "automation.sync.status: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+    },
+    {
+      "name": "automation.sync.issues",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/ReplicaIssuesToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/AccountDiagnosticResult"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "automation.sync.issues: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+    },
+    {
+      "name": "automation.device_requests.get",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/DeviceRequestGetInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DeviceBridgeView"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "Read the durable result of an explicit browser request. pending/running require checking again; an offline browser cannot produce a result. expired requests require a new command ID. Never assume a missing response means a preview or retry did not run."
+    },
+    {
+      "name": "automation.adapters.status",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/BridgeAdaptersStatusInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DeviceBridgeView"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "Queue adapters.status on the explicitly selected replica. Requires the owner to enable the device bridge in that browser. Returns a request handle, not the operation result; use automation.device_requests.get. Classification previews may call the configured provider once. Retries preserve any existing save command and require a new explicit command ID after an unknown outcome."
+    },
+    {
+      "name": "automation.adapters.jobs",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/BridgeAdaptersJobsInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DeviceBridgeView"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "Queue adapters.jobs on the explicitly selected replica. Requires the owner to enable the device bridge in that browser. Returns a request handle, not the operation result; use automation.device_requests.get. Classification previews may call the configured provider once. Retries preserve any existing save command and require a new explicit command ID after an unknown outcome."
+    },
+    {
+      "name": "automation.adapters.diagnostics",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/BridgeAdaptersDiagnosticsInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DeviceBridgeView"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "Queue adapters.diagnostics on the explicitly selected replica. Requires the owner to enable the device bridge in that browser. Returns a request handle, not the operation result; use automation.device_requests.get. Classification previews may call the configured provider once. Retries preserve any existing save command and require a new explicit command ID after an unknown outcome."
+    },
+    {
+      "name": "automation.adapters.retry",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:manage"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/BridgeAdaptersRetryInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DeviceBridgeView"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "Queue adapters.retry on the explicitly selected replica. Requires the owner to enable the device bridge in that browser. Returns a request handle, not the operation result; use automation.device_requests.get. Classification previews may call the configured provider once. Retries preserve any existing save command and require a new explicit command ID after an unknown outcome."
+    },
+    {
+      "name": "automation.classification.diagnostics",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/BridgeClassificationDiagnosticsInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DeviceBridgeView"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "Queue classification.diagnostics on the explicitly selected replica. Requires the owner to enable the device bridge in that browser. Returns a request handle, not the operation result; use automation.device_requests.get. Classification previews may call the configured provider once. Retries preserve any existing save command and require a new explicit command ID after an unknown outcome."
+    },
+    {
+      "name": "automation.classification.preview",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:manage"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/BridgeClassificationPreviewInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DeviceBridgeView"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "Queue classification.preview on the explicitly selected replica. Requires the owner to enable the device bridge in that browser. Returns a request handle, not the operation result; use automation.device_requests.get. Classification previews may call the configured provider once. Retries preserve any existing save command and require a new explicit command ID after an unknown outcome."
+    },
+    {
+      "name": "automation.classification.retry",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:manage"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/BridgeClassificationRetryInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DeviceBridgeView"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "Queue classification.retry on the explicitly selected replica. Requires the owner to enable the device bridge in that browser. Returns a request handle, not the operation result; use automation.device_requests.get. Classification previews may call the configured provider once. Retries preserve any existing save command and require a new explicit command ID after an unknown outcome."
     }
   ],
   "$defs": {
@@ -5575,6 +6069,466 @@
         "costDisplay"
       ],
       "additionalProperties": false
+    },
+    "RuleIdentityInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ruleId"
+      ],
+      "properties": {
+        "ruleId": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      }
+    },
+    "BindingIdentityInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bindingSetId"
+      ],
+      "properties": {
+        "bindingSetId": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      }
+    },
+    "RunIdentityInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runId"
+      ],
+      "properties": {
+        "runId": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      }
+    },
+    "SaveBindingToolInput": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "binding",
+            "commandId"
+          ],
+          "properties": {
+            "mode": {
+              "const": "create"
+            },
+            "binding": {
+              "$ref": "#/$defs/BindingSetInput"
+            },
+            "commandId": {
+              "$ref": "#/$defs/OpaqueId"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "bindingSetId",
+            "baseRevision",
+            "binding",
+            "commandId"
+          ],
+          "properties": {
+            "mode": {
+              "const": "update"
+            },
+            "bindingSetId": {
+              "$ref": "#/$defs/OpaqueId"
+            },
+            "baseRevision": {
+              "$ref": "#/$defs/Revision"
+            },
+            "binding": {
+              "$ref": "#/$defs/BindingSetInput"
+            },
+            "commandId": {
+              "$ref": "#/$defs/OpaqueId"
+            }
+          }
+        }
+      ],
+      "type": "object"
+    },
+    "RunCancelToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runId",
+        "baseRevision",
+        "commandId"
+      ],
+      "properties": {
+        "runId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "baseRevision": {
+          "$ref": "#/$defs/Revision"
+        },
+        "commandId": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      }
+    },
+    "OutputListToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runId"
+      ],
+      "properties": {
+        "runId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "cursor": {
+          "type": "string",
+          "maxLength": 2048
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      }
+    },
+    "DeliveryRetryToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "deliveryId",
+        "commandId"
+      ],
+      "properties": {
+        "deliveryId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      }
+    },
+    "JobRetryToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "jobId",
+        "baseRevision",
+        "request",
+        "commandId"
+      ],
+      "properties": {
+        "jobId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "baseRevision": {
+          "$ref": "#/$defs/Revision"
+        },
+        "request": {
+          "$ref": "#/$defs/CommandReason"
+        },
+        "commandId": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      }
+    },
+    "AccountDiagnosticResult": {
+      "type": "object",
+      "description": "Owner-scoped product diagnostics; uses the product activity and Sync Center view contracts."
+    },
+    "ActivityListToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "cursor": {
+          "type": "string",
+          "maxLength": 2048
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "state": {
+          "enum": [
+            "all",
+            "unread"
+          ]
+        }
+      }
+    },
+    "ActivityReadToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request",
+        "commandId"
+      ],
+      "properties": {
+        "request": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "ids"
+              ],
+              "properties": {
+                "ids": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/OpaqueId"
+                  },
+                  "minItems": 1,
+                  "maxItems": 100,
+                  "uniqueItems": true
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "through",
+                "throughRevision"
+              ],
+              "properties": {
+                "through": {
+                  "$ref": "#/$defs/OpaqueId"
+                },
+                "throughRevision": {
+                  "$ref": "#/$defs/Revision"
+                }
+              }
+            }
+          ]
+        },
+        "commandId": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      }
+    },
+    "ReplicaIssuesToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "replicaId"
+      ],
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      }
+    },
+    "DeviceBridgeView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requestId",
+        "replicaId",
+        "operation",
+        "state",
+        "expiresAt",
+        "result"
+      ],
+      "properties": {
+        "requestId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "operation": {
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "pending",
+            "running",
+            "done",
+            "failed",
+            "expired"
+          ]
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "result": {}
+      }
+    },
+    "DeviceRequestGetInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requestId"
+      ],
+      "properties": {
+        "requestId": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      }
+    },
+    "BridgeAdaptersStatusInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "replicaId",
+        "commandId"
+      ],
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      }
+    },
+    "BridgeAdaptersJobsInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "replicaId",
+        "commandId",
+        "connectionId"
+      ],
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "connectionId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "cursor": {
+          "type": "string",
+          "maxLength": 2048
+        },
+        "group": {
+          "enum": [
+            "recovery",
+            "history"
+          ]
+        }
+      }
+    },
+    "BridgeAdaptersDiagnosticsInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "replicaId",
+        "commandId",
+        "connectionId"
+      ],
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "connectionId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "cursor": {
+          "type": "string",
+          "maxLength": 2048
+        },
+        "group": {
+          "enum": [
+            "recovery",
+            "history"
+          ]
+        }
+      }
+    },
+    "BridgeAdaptersRetryInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "replicaId",
+        "commandId",
+        "jobId"
+      ],
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "jobId": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      }
+    },
+    "BridgeClassificationDiagnosticsInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "replicaId",
+        "commandId"
+      ],
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      }
+    },
+    "BridgeClassificationPreviewInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "replicaId",
+        "commandId",
+        "jobId"
+      ],
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "jobId": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      }
+    },
+    "BridgeClassificationRetryInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "replicaId",
+        "commandId",
+        "jobId"
+      ],
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "jobId": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      }
     }
   }
 }

@@ -1,3 +1,6 @@
+import { createDeviceBridgeOwnerPort } from '../infrastructure/automation/index.js';
+import { createActivityStore } from '../infrastructure/activity/index.js';
+import { createPostgresProductSyncCenterUnitOfWork } from '../infrastructure/sync/index.js';
 import { createWebhookVerifier } from '../infrastructure/automation/index.js';
 import { createSubscriptionStore } from '../infrastructure/automation/index.js';
 import { createMcpEventsAdapter } from '../modules/mcp/index.js';
@@ -360,6 +363,13 @@ export async function composeApiMcpSurface(input: {
       access: async context => context.principal.kind === 'anonymous' ? Promise.resolve(null) : automationTargetWorker.access(automationWorkPrincipal(context)).then(access => access ? { ...access,workAvailable: !!automationWorker } : null),
       configurations: createAutomationUnitOfWork(database.db,config.publication.serverUuid,{ eventsEnabled:config.mcpEventsEnabled === true && !!automationWorker,runtimeEnabled: true,workerEnabled: !!automationWorker,verifyTargetBinding }),
       worker: automationWorker,pairing: automationTargetWorker,cursorKey: config.productEditorCursor.current.key,
+      deviceBridge: createDeviceBridgeOwnerPort(database.db),
+      accountTools: { activity: createActivityStore(database.db,config.productEditorCursor.current.key),
+        ...(config.syncSession ? { sync: createPostgresProductSyncCenterUnitOfWork(database.db, {
+          cursorSecret: config.productEditorCursor.current.key,
+          cursorPreviousSecrets: config.productEditorCursor.previous.map(key => ({ secret: key.key,retainUntilMs: Date.parse(key.retainUntil) })),
+          conflictPayloadKeyring: config.syncSession.conflictPayloadKeyring,metrics,
+        }) } : {}) },
     }));
   }
   if (config.mcpEventsEnabled && mcpApplicationFacade && automationTargetWorker && automationWorker) {

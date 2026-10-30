@@ -23,7 +23,7 @@ The experimental sketch W02 is a draft with poll/push and provisional errors. Ke
 | Membership/state | Added tools | Required authority |
 |---|---|---|
 | standard only | None | No automation instructions or resources leak into ordinary clients |
-| automationManager | rules.describe, bindings.list, targets.list, rules.validate, rules.preview, rules.save, rules.set_state (all prefixed `automation.`) | Explicit manager opt-in and each tool's read/manage scope |
+| automationManager | rules.describe/list/get/health/diagnostics/validate/preview/save/set_state, bindings.list/get/save, targets.list, runs.list/get/cancel, outputs.list, jobs.retry, deliveries.list/retry, activity.list/summary/read, sync.devices/status/issues and explicit device bridge requests (all prefixed `automation.`) | Explicit manager opt-in and each tool's read/manage scope |
 | automationWorker, not paired | `automation.targets.pair` only | Authenticated worker opt-in, `automation:work`, one-use Owner grant bound to expected client/credential |
 | automationWorker, paired | Pair plus `automation.targets.mine`, `automation.jobs.list`, get, inputs, claim, heartbeat, submit, fail | Current target binding, work scope, job/input authority |
 
@@ -64,3 +64,5 @@ Read inputs through `automation.jobs.inputs` or its HTTP counterpart. This enfor
 ## 9. Release evidence
 
 AW-02 is an independent backend fixture spike, not a production pairing flow that depends on M2 UI. AW-46 verifies the real hosted lifecycle: discovery, list, challenge, create/refresh/expiry/restart/unsubscribe, schema rescan, identity isolation limits, bad secret, DNS/redirect blocks, duplicate/out-of-order delivery, fresh retry signatures, burst grouping, reconnection and accepted effects. Preserve redacted build/version/date evidence. Missing account access or an unproven platform behavior remains an explicit feature gate. M1 does not depend on that hosted gate.
+
+Agents must reconcile every page of `automation.jobs.list` at startup, after subscription or reconnection, and after a webhook wake. Subscriptions return `cursor: null`; no event history replay closes an offline gap.
