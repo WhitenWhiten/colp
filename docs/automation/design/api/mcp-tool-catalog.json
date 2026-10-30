@@ -1134,6 +1134,116 @@
         "idempotentHint": true
       },
       "description": "Manage an owner-scoped targets configuration through the same validator, revision precondition and durable command receipt as the web. Profile identity/data-term changes may invalidate worker bindings and subscriptions; display edits preserve them."
+    },
+    {
+      "name": "automation.executors.list",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/ExecutorListToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/ExecutorPage"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "Read owner-scoped executors configurations and revisions. List cursors bind account, resource and page size."
+    },
+    {
+      "name": "automation.executors.get",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/ExecutorGetToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/Executor"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "Read owner-scoped executors configurations and revisions. List cursors bind account, resource and page size."
+    },
+    {
+      "name": "automation.executors.save",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:manage"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/ExecutorSaveToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/Executor"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "Manage executor configuration with owner isolation, observed revisions and command receipts. Only installed mcpEventsBot executors with an owned target are supported; capability declarations do not prove availability."
+    },
+    {
+      "name": "automation.execution_policies.list",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/ExecutionPolicyListToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/ExecutionPolicyPage"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "Read owner-scoped execution_policies configurations and revisions. List cursors bind account, resource and page size."
+    },
+    {
+      "name": "automation.execution_policies.get",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/ExecutionPolicyGetToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/ExecutionPolicy"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "Read owner-scoped execution_policies configurations and revisions. List cursors bind account, resource and page size."
+    },
+    {
+      "name": "automation.execution_policies.save",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:manage"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/ExecutionPolicySaveToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/ExecutionPolicy"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "Manage execution policy with owner isolation, observed revisions and command receipts. Monetary limits must be zero and automatic fallback is unsupported; call caps and explicit data allowlists remain enforced."
     }
   ],
   "$defs": {
@@ -7553,6 +7663,188 @@
         "targetId",
         "baseRevision",
         "reason"
+      ]
+    },
+    "ExecutorListToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "type": "string",
+          "maxLength": 2048
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": []
+    },
+    "ExecutorGetToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "executorId": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      },
+      "required": [
+        "executorId"
+      ]
+    },
+    "ExecutorSaveToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "commandId": {
+          "$ref": "#/$defs/HostCommandId"
+        },
+        "baseRevision": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "mode": {
+          "enum": [
+            "create",
+            "update"
+          ]
+        },
+        "configuration": {
+          "$ref": "#/$defs/ExecutorInput"
+        },
+        "executorId": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      },
+      "required": [
+        "commandId",
+        "mode",
+        "configuration"
+      ],
+      "oneOf": [
+        {
+          "properties": {
+            "mode": {
+              "const": "create"
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "executorId"
+                ]
+              },
+              {
+                "required": [
+                  "baseRevision"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "properties": {
+            "mode": {
+              "const": "update"
+            }
+          },
+          "required": [
+            "executorId",
+            "baseRevision"
+          ]
+        }
+      ]
+    },
+    "ExecutionPolicyListToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "type": "string",
+          "maxLength": 2048
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": []
+    },
+    "ExecutionPolicyGetToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "policyId": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      },
+      "required": [
+        "policyId"
+      ]
+    },
+    "ExecutionPolicySaveToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "commandId": {
+          "$ref": "#/$defs/HostCommandId"
+        },
+        "baseRevision": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "mode": {
+          "enum": [
+            "create",
+            "update"
+          ]
+        },
+        "configuration": {
+          "$ref": "#/$defs/ExecutionPolicyInput"
+        },
+        "policyId": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      },
+      "required": [
+        "commandId",
+        "mode",
+        "configuration"
+      ],
+      "oneOf": [
+        {
+          "properties": {
+            "mode": {
+              "const": "create"
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "policyId"
+                ]
+              },
+              {
+                "required": [
+                  "baseRevision"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "properties": {
+            "mode": {
+              "const": "update"
+            }
+          },
+          "required": [
+            "policyId",
+            "baseRevision"
+          ]
+        }
       ]
     }
   }

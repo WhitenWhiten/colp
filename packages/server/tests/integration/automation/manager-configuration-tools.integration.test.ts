@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
 import { automationManagerFixture } from '../../support/automation-manager-fixture.js';
-import type { ConnectionProfile, Target } from '@know-n/colp/automation';
+import type { ConnectionProfile, Target, Executor, ExecutionPolicy, ExecutionPolicyInput } from '@know-n/colp/automation';
 import { createAutomationUnitOfWork } from '../../../src/infrastructure/automation/index.js';
 import { saveConnectionProfile } from '../../../src/modules/automation/index.js';
 
@@ -61,5 +61,44 @@ describeWithPostgres('MCP automation manager configuration', () => {
       commandId: randomUUID(), reason: 'Retire test inbox' })).toMatchObject({ status: 'revoked' });
     expect(await f.api.callTool({ ...f.context, scopes: ['automation:read'] }, 'automation.targets.save', { mode: 'create', commandId: randomUUID(), configuration: {} }))
       .toMatchObject({ kind: 'rejected', stableCode: 'unknown_tool' });
+  });
+
+  test('executor and policy management enforce installed capabilities and revision fences', async () => {
+    const profile = await f.value<ConnectionProfile>('automation.connection_profiles.save', { mode: 'create', commandId: randomUUID(), configuration: {
+      name: 'Policy agent', automationEnabled: true, catalogs: ['automationWorker'], authorizedClientId: 'policy-agent', credentialBindingId: 'policy-binding' } });
+    const target = await f.value<Target>('automation.targets.save', { mode: 'create', commandId: randomUUID(), configuration: {
+      name: 'Policy inbox', providerLabel: '', broadcastOptIn: false, privacy: 'standard', connectionProfileId: profile.id, wakeMode: 'poll', pollIntervalMinutes: 1 } });
+    const page = await f.value<{ items: Executor[] }>('automation.executors.list');
+    const executor = page.items.find(row => row.configuration.targetId === target.id)!;
+    expect(executor).toBeTruthy();
+    const update = { mode: 'update', commandId: randomUUID(), executorId: executor.id, baseRevision: executor.revision,
+      configuration: { ...executor.configuration, capabilities: ['summary.generate'] } };
+    const updated = await f.value<Executor>('automation.executors.save', update);
+    expect(await f.value('automation.executors.get', { executorId: executor.id })).toEqual(updated);
+    expect(await f.value('automation.executors.save', update)).toEqual(updated);
+    expect(await f.call('automation.executors.save', { ...update, commandId: randomUUID() }))
+      .toMatchObject({ kind: 'rejected', stableCode: 'precondition_failed' });
+    expect(await f.call('automation.executors.save', { mode: 'create', commandId: randomUUID(), configuration: { ...executor.configuration, kind: 'serverModel' } }))
+      .toMatchObject({ kind: 'rejected', stableCode: 'automation_unsupported_capability' });
+    expect(await f.call('automation.executors.save', { mode: 'create', commandId: randomUUID(), configuration: { ...executor.configuration, targetId: randomUUID() } }))
+      .toMatchObject({ kind: 'rejected', stableCode: 'resource_not_found' });
+    const configuration: ExecutionPolicyInput = { name: 'Summary policy', maxDailyCostMicros: 0, externalCosts: 'unknownDisclosed', allowAutomaticWrites: false,
+      assignments: [{ taskType: 'summary.generate', primaryRole: 'agent', fallbackRoles: [], fallbackOn: [], allowedData: ['url', 'title'],
+        allowedDestinations: [executor.id], destinationScope: 'explicit', maxCalls: 1, maxCostMicros: 0, currency: 'USD',
+        onUnknownOutcome: 'holdForReconciliation', onInsufficientResult: 'review' }] };
+    const create = { mode: 'create', commandId: randomUUID(), configuration };
+    const policy = await f.value<ExecutionPolicy>('automation.execution_policies.save', create);
+    expect(await f.value('automation.execution_policies.save', create)).toEqual(policy);
+    expect(await f.value('automation.execution_policies.get', { policyId: policy.id })).toEqual(policy);
+    expect((await f.value<{ items: ExecutionPolicy[] }>('automation.execution_policies.list')).items.some(row => row.id === policy.id)).toBe(true);
+    const changed = { mode: 'update', commandId: randomUUID(), policyId: policy.id, baseRevision: policy.revision, configuration: { ...configuration, name: 'Updated policy' } };
+    expect(await f.value('automation.execution_policies.save', changed)).toMatchObject({ configuration: { name: 'Updated policy' } });
+    expect(await f.call('automation.execution_policies.save', { ...changed, commandId: randomUUID() }))
+      .toMatchObject({ kind: 'rejected', stableCode: 'precondition_failed' });
+    for (const unsupported of [{ ...configuration, maxDailyCostMicros: 1 },
+      { ...configuration, assignments: [{ ...configuration.assignments[0]!, fallbackRoles: ['backup'] }] }]) {
+      expect(await f.call('automation.execution_policies.save', { ...create, commandId: randomUUID(), configuration: unsupported }))
+        .toMatchObject({ kind: 'rejected', stableCode: 'automation_unsupported_capability' });
+    }
   });
 });

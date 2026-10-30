@@ -1,4 +1,4 @@
-import { AutomationError, createAutomationPagination, parseContract, requireEtag, saveConnectionProfile, saveTarget,
+import { AutomationError, createAutomationPagination, parseContract, requireEtag, saveConnectionProfile, saveTarget, saveExecutor, saveExecutionPolicy,
   type AutomationActor, type AutomationPorts } from '../automation/index.js';
 import { pageQuery } from './automation-tool-query.js';
 
@@ -11,6 +11,10 @@ export async function automationConfigurationTool(ports: AutomationPorts, actor:
       save: (body: unknown, id?: string, etag?: string) => saveConnectionProfile(ports.targets, body, id, etag) },
     targets: { store: ports.targets.targets, idKey: 'targetId', scope: 'targets',
       save: (body: unknown, id?: string, etag?: string) => saveTarget(ports.targets, body, id, etag) },
+    executors: { store: ports.targets.executors, idKey: 'executorId', scope: 'executors',
+      save: (body: unknown, id?: string, etag?: string) => saveExecutor(ports.targets, body, id, etag) },
+    execution_policies: { store: ports.policies, idKey: 'policyId', scope: 'execution_policies',
+      save: (body: unknown, id?: string, etag?: string) => saveExecutionPolicy(ports.policies, body, id, etag) },
   };
   const [, resource, operation] = name.split('.');
   if (!resource || !Object.hasOwn(resources, resource)) throw new AutomationError('automation_unsupported_capability', 'Configuration operation is unavailable.');
@@ -39,4 +43,5 @@ export async function automationConfigurationTool(ports: AutomationPorts, actor:
   throw new AutomationError('automation_unsupported_capability', 'Configuration operation is unavailable.');
 }
 
-export const CONFIGURATION_MUTATIONS = ['automation.connection_profiles.save', 'automation.targets.save', 'automation.targets.revoke'];
+export const CONFIGURATION_MUTATIONS = ['automation.connection_profiles.save', 'automation.targets.save', 'automation.targets.revoke',
+  'automation.executors.save', 'automation.execution_policies.save'];
