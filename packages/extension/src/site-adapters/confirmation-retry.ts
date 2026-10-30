@@ -13,12 +13,12 @@ export function createConfirmationRetry(db: SourceDatabase, installationId: stri
     && !['siteWriteFailed', 'negativeReadbackUnavailable', 'sourceChanged', 'conflict'].includes(row.reason ?? '');
   const authority = (tx: IDBTransaction) => get<SourceAuthority>(tx, 'authorities', installationId);
   return {
-    async request(pauseKey: string) {
+    async request(pauseKey: string, id?: string) {
       await db.transaction(['authorities', 'meta', 'readRequests'], 'readwrite', async tx => {
         const current = await authority(tx); if (!current?.enabled || !current.connectionId) return;
         await iterateCursorSequentially(tx.objectStore('readRequests').index('confirmationState'), IDBKeyRange.only([current.connectionId, 'uncertain']), async value => {
           const row = value as ConfirmationRow;
-          if (eligible(row, current)) put(tx, 'readRequests', sourceKey('hint', row.id), { ...row, retryRequested: 1 });
+          if ((!id || row.id === id) && eligible(row, current)) put(tx, 'readRequests', sourceKey('hint', row.id), { ...row, retryRequested: 1 });
         });
         tx.objectStore('meta').delete(pauseKey);
       });

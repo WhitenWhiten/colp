@@ -86,6 +86,8 @@ export async function pollDeviceBridge(device: DeviceAuthority | DeviceBridgeAut
       await authorize(request);
       if (isCaptureBridgeOperation(request)) return (await import('./device-bridge-classification.js'))
         .handleCaptureBridge(request, scope, () => authorize(request));
+      if (request.operation.startsWith('adapters.tasks.')) return (await import('./device-bridge-adapters.js'))
+        .handleAdapterTasks(request, scope, () => authorize(request));
       if (request.operation === 'adapters.status') {
         return { sites: await adapterStatus(),
           classificationEnabled: await localClassificationEnabled() };

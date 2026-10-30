@@ -48,6 +48,8 @@ import { createLane } from '../automation/lane.js';
 import { sourceLiveReport } from './live-report.js';
 import { sourceAutomationsPaused } from '../sw/automation.js';
 import { resolvePageContent } from './content-resolver.js';
+import { registerSiteAgent } from './agent-runtime.js';
+import { createSiteAgentController } from './agent-controller.js';
 function createSiteHost(definition: SiteDefinition, driver: SiteDriver = bundledDriver(definition)) {
   const semanticList = object({ kind: literal('known.siteAdapters.semantic.list'), cursor: v => v === undefined || str(2048)(v), group: v => v === undefined || literal('recovery', 'history')(v) });
   const semanticGet = object({ kind: literal('known.siteAdapters.semantic.get'), jobId: str(128) });
@@ -177,7 +179,7 @@ function createSiteHost(definition: SiteDefinition, driver: SiteDriver = bundled
     return true;
   }
   const ports = new Map<string, chrome.runtime.Port>();
-  let workTimer: ReturnType<typeof setTimeout> | undefined, workAt = Infinity, disposed = false;
+  let workTimer: ReturnType<typeof setTimeout> | undefined, workAt = Infinity, disposed = false, unregisterAgent = () => {};
   // Registration and disposal take turns, so a reconcile already running cannot re-register a retired package's world.
   const registration = createLane();
   function scheduleSourceWork(at: number) {
@@ -321,6 +323,11 @@ function createSiteHost(definition: SiteDefinition, driver: SiteDriver = bundled
       return null;
   }
   function installHandlers() {
+    unregisterAgent = registerSiteAgent(definition.adapterId, createSiteAgentController({ db: siteLedger.db, adapterId: definition.adapterId,
+      ready: trustedStorage, wake: () => scheduleSourceWork(Date.now() + 50), importer: archives.importer,
+      confirm: id => confirmations.retry(id), semantic: (id, connectionId) => semanticJobs.retry(id, connectionId),
+      reconcile: (id, action, connectionId) => handleReconcileRequest({ kind: `known.siteAdapters.reconcile.${action}`, id }, connectionId),
+    }));
     // Registered synchronously; initialization is awaited inside each handler.
     driver.events.message((raw, sender, respond, channel) => {
       const addressed = raw as { adapterId?: string; request?: { adapterId?: string } } | null;
@@ -528,6 +535,7 @@ function createSiteHost(definition: SiteDefinition, driver: SiteDriver = bundled
   async function synchronizeSourceAuthorityFromCurrent() { await synchronizeSourceAuthority(await read(), siteLedger); }
   /** Retires an installed package's host: before new bytes take over its site, or for good once the package is removed. */
   function dispose(removed: boolean) {
+    unregisterAgent();
     disposed = true; clearTimeout(workTimer); workTimer = undefined;
     return registration(async () => {
       await chrome.alarms.clear(recoveryAlarm).catch(() => undefined);

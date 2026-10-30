@@ -24,3 +24,13 @@ test('classification previews accept exactly one incoming, capture or semantic s
   expect(validate(base)).toBe(false);
   expect(validate({ ...base, captureId: 'saved', jobId: 'semantic' })).toBe(false);
 });
+
+test('adapter controls require an explicit task kind, observed revision and supported action', () => {
+  const tool = AUTOMATION_TOOL_CONTRACTS.find(t => t.name === 'automation.adapters.tasks.control')!;
+  const validate = createAjv({ allErrors: true }).compile(tool.inputSchema);
+  const request = { replicaId: 'replica', commandId: randomUUID(), connectionId: 'connection', taskKind: 'save',
+    taskId: 'observation:original', revision: 'sha256:observed', action: 'retry' };
+  expect(validate(request)).toBe(true);
+  expect(validate({ ...request, action: 'approve' })).toBe(false);
+  expect(validate({ ...request, taskKind: 'arbitraryStore' })).toBe(false);
+});

@@ -50,9 +50,11 @@ export function createLocalTransferQueue(db: SourceDatabase, ports: {
   };
 }
 /** An explicit user retry changes derived work only, retaining the original owner and command identity. */
-export async function retryLocalTransfers(db: SourceDatabase, connectionId: string) {
+export async function retryLocalTransfers(db: SourceDatabase, connectionId: string, commandId?: string) {
   await db.transaction(['transfers', 'meta'], 'readwrite', async tx => {
-    const rows = await cursorPage<PendingLocalTransfer>(tx.objectStore('transfers').index('connectionState'), IDBKeyRange.only([connectionId, 'attention']), 50);
+    const selected = commandId ? await get<PendingLocalTransfer>(tx, 'transfers', commandId) : undefined;
+    const rows = commandId ? selected?.connectionId === connectionId && selected.state === 'attention' ? [selected] : []
+      : await cursorPage<PendingLocalTransfer>(tx.objectStore('transfers').index('connectionState'), IDBKeyRange.only([connectionId, 'attention']), 50);
     for (const row of rows) {
       put(tx, 'transfers', row.commandId, { ...row, state: 'pending', dueAt: 0 });
       const record = await get<LocalCopyTransfer>(tx, 'meta', localTransferKey(row.commandId));

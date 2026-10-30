@@ -1,11 +1,13 @@
 import type { WorkPrincipal } from './claim-job.js';
 export const DEVICE_BRIDGE_OPERATIONS = ['adapters.status','adapters.jobs','adapters.diagnostics','adapters.retry',
   'classification.diagnostics','classification.preview','classification.retry',
-  'classification.captures.list','classification.captures.get','classification.captures.retry'] as const;
+  'classification.captures.list','classification.captures.get','classification.captures.retry',
+  'adapters.tasks.list','adapters.tasks.get','adapters.tasks.control'] as const;
 export type DeviceBridgeOperation = typeof DEVICE_BRIDGE_OPERATIONS[number];
 export interface DeviceBridgeRequest { id: string; replicaId: string; collectionId: string; operation: DeviceBridgeOperation;
   input: { connectionId?: string; jobId?: string; cursor?: string; group?: 'recovery' | 'history'; captureId?: string; baseRevision?: number;
-    bookmark?: { title: string; url: string }; tags?: boolean }; expiresAt: string }
+    bookmark?: { title: string; url: string }; tags?: boolean; taskId?: string; revision?: string;
+    taskKind?: 'semantic' | 'confirmation' | 'import' | 'save' | 'transfer' | 'reconcile' | 'observation'; action?: 'retry' | 'resume' | 'cancel' }; expiresAt: string }
 export interface DeviceBridgeView { requestId: string; replicaId: string; operation: DeviceBridgeOperation;
   state: 'pending' | 'running' | 'done' | 'failed' | 'expired'; expiresAt: string; result: unknown }
 export interface DeviceBridgeOwnerPort {

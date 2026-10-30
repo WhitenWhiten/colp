@@ -4,7 +4,9 @@ export const DEVICE_BRIDGE_KEY = 'known.automation.device-bridge.v1';
 export const DEVICE_BRIDGE_STATUS_KEY = 'known.automation.device-bridge-status.v1';
 export interface BrowserRequest { id: string; replicaId: string; collectionId: string; operation: string;
   input: { jobId?: string; connectionId?: string; cursor?: string; group?: 'recovery' | 'history'; captureId?: string;
-    baseRevision?: number; bookmark?: { title: string; url: string }; tags?: boolean }; expiresAt: string }
+    baseRevision?: number; bookmark?: { title: string; url: string }; tags?: boolean;
+    taskKind?: import('../site-adapters/agent-tasks.js').AdapterTaskKind; taskId?: string; revision?: string;
+    action?: import('../site-adapters/agent-tasks.js').AdapterTaskAction }; expiresAt: string }
 export interface BrowserRequestResult { requestId: string; state: 'done' | 'failed'; result: unknown }
 export const isCaptureBridgeOperation = (request: BrowserRequest) => request.operation.startsWith('classification.captures.')
   || request.operation === 'classification.preview' && !request.input.jobId;

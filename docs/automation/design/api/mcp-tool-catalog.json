@@ -834,6 +834,61 @@
         "idempotentHint": true
       },
       "description": "Explicitly retry failed local classification on an existing saved bookmark with its observed revision. Preserves the original save identity and respects pause, user edits and existing authorization; may spend one new provider attempt."
+    },
+    {
+      "name": "automation.adapters.tasks.list",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/BridgeAdapterTaskListInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DeviceBridgeView"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "Inspect browser adapter work by explicit connection and task kind: confirmations, imports, native save work, local-to-cloud transfers, reconciliation, semantic classification, and observations. Results expose reasons, revisions and available recovery actions. Use automation.device_requests.get; continuation cursors are scoped to the owner, connection and kind."
+    },
+    {
+      "name": "automation.adapters.tasks.get",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/BridgeAdapterTaskGetInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DeviceBridgeView"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "Inspect browser adapter work by explicit connection and task kind: confirmations, imports, native save work, local-to-cloud transfers, reconciliation, semantic classification, and observations. Results expose reasons, revisions and available recovery actions. Use automation.device_requests.get; continuation cursors are scoped to the owner, connection and kind."
+    },
+    {
+      "name": "automation.adapters.tasks.control",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:manage"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/BridgeAdapterTaskControlInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DeviceBridgeView"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "Run one of the actions advertised by a selected browser task, with its observed revision. Retries preserve existing native commands and receipts; import/reconcile controls retain their original approval and ownership checks. No action enables an adapter, grants permissions, approves a new import, or removes bookmarks."
     }
   ],
   "$defs": {
@@ -6749,6 +6804,131 @@
         "commandId",
         "captureId",
         "baseRevision"
+      ]
+    },
+    "BridgeAdapterTaskListInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/HostCommandId"
+        },
+        "connectionId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "taskKind": {
+          "enum": [
+            "semantic",
+            "confirmation",
+            "import",
+            "save",
+            "transfer",
+            "reconcile",
+            "observation"
+          ]
+        },
+        "cursor": {
+          "type": "string",
+          "maxLength": 8192
+        }
+      },
+      "required": [
+        "replicaId",
+        "commandId",
+        "connectionId",
+        "taskKind"
+      ]
+    },
+    "BridgeAdapterTaskGetInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/HostCommandId"
+        },
+        "connectionId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "taskKind": {
+          "enum": [
+            "semantic",
+            "confirmation",
+            "import",
+            "save",
+            "transfer",
+            "reconcile",
+            "observation"
+          ]
+        },
+        "taskId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        }
+      },
+      "required": [
+        "replicaId",
+        "commandId",
+        "connectionId",
+        "taskKind",
+        "taskId"
+      ]
+    },
+    "BridgeAdapterTaskControlInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/HostCommandId"
+        },
+        "connectionId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "taskKind": {
+          "enum": [
+            "semantic",
+            "confirmation",
+            "import",
+            "save",
+            "transfer",
+            "reconcile",
+            "observation"
+          ]
+        },
+        "taskId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "revision": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "action": {
+          "enum": [
+            "retry",
+            "resume",
+            "cancel"
+          ]
+        }
+      },
+      "required": [
+        "replicaId",
+        "commandId",
+        "connectionId",
+        "taskKind",
+        "taskId",
+        "revision",
+        "action"
       ]
     }
   }

@@ -181,8 +181,8 @@ export function createConfirmationQueue(ledger: Ledger, scheduler: ReturnType<ty
     },
     async status() { return { pending: (await db.read<string[]>('meta', PENDING) ?? []).length + await retries.waiting(),
       paused: await db.read('meta', PAUSE) ?? null, last: await db.read('meta', LAST) ?? null }; },
-    async retry() {
-      await retries.request(PAUSE); await retries.fill();
+    async retry(id?: string) {
+      await retries.request(PAUSE, id); await retries.fill();
       ports.alarm(now() + LIMITS.spacingMs);
     },
   };

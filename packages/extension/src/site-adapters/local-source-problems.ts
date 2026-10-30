@@ -7,7 +7,7 @@ import type { SourceWork } from './work-queue.js';
 import type { SourceOutbox, StoredSavePlan } from './planned-types.js';
 import type { SourceFolderReservation } from './contracts.js';
 /** Explicit retry may reopen a failed observation, but never grants a new account/generation authority. */
-export async function retrySourceObservations(db: SourceDatabase, connectionId: string) {
+export async function retrySourceObservations(db: SourceDatabase, connectionId: string, observationId?: string) {
   await db.transaction(['work', 'observations', 'authorities', 'meta', 'savePlans', 'outbox', 'folderReservations'], 'readwrite', async tx => {
     const authority = await authorityForConnection(tx, connectionId), policy = await get<SourcePolicyRecord>(tx, 'meta', `policy:${connectionId}`);
     if (!authority?.enabled || !policy?.enabled || !policy.liveArchive) return;
@@ -19,6 +19,7 @@ export async function retrySourceObservations(db: SourceDatabase, connectionId: 
       const id = work.id.startsWith('observation:') ? work.id.slice('observation:'.length)
         : plan?.plan.trigger.kind === 'observation' ? plan.plan.trigger.observationId : undefined;
       const row = id ? await get<ObservationRow>(tx, 'observations', id) : undefined;
+      if (observationId && id !== observationId) return;
       if (!row || row.context.installationGeneration !== authority.installationGeneration || row.context.sourceSessionGeneration !== authority.sourceSessionGeneration
         || row.context.connectionId !== connectionId || row.ordinal <= (policy.admittedAfterOrdinal ?? 0)) return;
       put(tx, 'observations', row.id, { ...row, state: 'pending', readyAt: 0, retryRevision: (row.retryRevision ?? 0) + 1 });
