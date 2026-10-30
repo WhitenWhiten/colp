@@ -15,6 +15,29 @@ import { video } from './fixtures/site-adapters/bilibili.js';
 
 // Metadata-only fixtures exercise two installations of the same implementation, not another adapter.
 const revision = { ...legacySite, adapterId: 'fixture.installation', identityVersion: 2 };
+test('a disabled installation with a full connection backlog cannot deny another installation admission', async () => {
+  const db = createSourceDatabase(new IDBFactory());
+  try {
+    const first = createSourceLedger(db), second = createSourceLedger(db, {}, revision);
+    const input = { enabled: true, accountId: '42', installationGeneration: 1, sourceSessionGeneration: 1, negativeReadback: false };
+    const a = await first.setAuthority(input), b = await second.setAuthority(input);
+    const ca = { connectionId: a.connectionId!, installationGeneration: 1, sourceSessionGeneration: 1, documentId: 'one', tabId: 1, leaseId: 'one', routeEpoch: 0 };
+    const cb = { ...ca, connectionId: b.connectionId!, installationId: revision.adapterId, documentId: 'two', leaseId: 'two', tabId: 2 };
+    await first.bindLease(ca, Date.now() + 60000); await second.bindLease(cb, Date.now() + 60000);
+    const observation = { type: 'membership.observed' as const, item: video, memberships: { mode: 'delta' as const, added: ['101'], removed: [] } };
+    await db.transaction(['observations'], 'readwrite', async tx => {
+      for (let i = 0; i < 10000; i++) tx.objectStore('observations').put({ id: String(i), installationId: legacySite.adapterId,
+        ordinal: i + 1, state: 'pending', context: ca, observation, readyAt: 0 }, String(i));
+    });
+    expect(await first.acceptObservation(ca, 'overflow', observation)).toMatchObject({ status: 'rejected', reason: 'capacity' });
+    await first.setAuthority({ ...input, enabled: false, installationGeneration: 2 });
+    expect(await second.acceptObservation(cb, 'healthy', observation)).toMatchObject({ status: 'accepted' });
+    const count = await db.transaction(['observations'], 'readonly', tx => new Promise<number>((resolve, reject) => {
+      const request = tx.objectStore('observations').count(); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
+    }));
+    expect(count).toBe(10001);
+  } finally { await db.close(); }
+});
 test('installations preserve independent source authority and pending observation ownership', async () => {
   const db = createSourceDatabase(new IDBFactory());
   const first = createSourceLedger(db), second = createSourceLedger(db, {}, revision);

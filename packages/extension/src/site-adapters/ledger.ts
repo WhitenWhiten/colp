@@ -32,10 +32,11 @@ export async function requireSourceAuthority(tx: IDBTransaction, context: Source
 async function ordinal(tx: IDBTransaction): Promise<number> {
   const current = await get<number>(tx, 'meta', 'ordinal') ?? 0; put(tx, 'meta', 'ordinal', current + 1); return current + 1;
 }
-async function admitObservation(tx: IDBTransaction) {
-  const count = await pendingObservations(tx);
+async function admitObservation(tx: IDBTransaction, connectionId: string) {
+  // A stalled or disabled source keeps its evidence without consuming another source's slots.
+  const count = await requestValue(tx.objectStore('observations').index('connectionState').count([connectionId, 'pending']));
   if (count >= LIMITS.pendingObservations) throw new Error('capacity');
-  put(tx, 'meta', 'pendingObservations', count + 1);
+  put(tx, 'meta', 'pendingObservations', await pendingObservations(tx) + 1);
 }
 async function pendingObservations(tx: IDBTransaction): Promise<number> {
   const store = tx.objectStore('observations');
@@ -71,7 +72,7 @@ export function createSourceLedger(db: SourceDatabase = createSourceDatabase(), 
         await commit?.(tx, previous.id); return { status: 'duplicate', receiptId: previous.id };
       }
       // Receipts are retained replay evidence, not outstanding work. They never consume admission slots.
-      await admitObservation(tx);
+      await admitObservation(tx, context.connectionId);
       const receipt = { id: random(), digest, ordinal: await ordinal(tx) };
       if (readBaseline !== undefined) {
         const authority = await requireAuthority(tx, context);
