@@ -1244,6 +1244,25 @@
         "idempotentHint": true
       },
       "description": "Manage execution policy with owner isolation, observed revisions and command receipts. Monetary limits must be zero and automatic fallback is unsupported; call caps and explicit data allowlists remain enforced."
+    },
+    {
+      "name": "automation.targets.issue_pairing",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:manage"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/TargetPairingToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/TargetPairingToolResult"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "description": "Issue a five-minute, one-time pairing code for an owned worker target with its observed revision. A new grant invalidates earlier grants and advances the target revision. Share the code only with the intended worker. Exact command replay redacts the code; reconcile the target then explicitly issue a new grant when the first response was lost."
     }
   ],
   "$defs": {
@@ -7846,6 +7865,76 @@
           ]
         }
       ]
+    },
+    "TargetPairingToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "commandId": {
+          "$ref": "#/$defs/HostCommandId"
+        },
+        "baseRevision": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "targetId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        }
+      },
+      "required": [
+        "commandId",
+        "targetId",
+        "baseRevision",
+        "reason"
+      ]
+    },
+    "TargetPairingToolResult": {
+      "type": "object",
+      "properties": {
+        "pairingId": {
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._~-]+$"
+        },
+        "targetId": {
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._~-]+$"
+        },
+        "code": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 128
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "replayed": {
+          "type": "boolean"
+        },
+        "targetRevision": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      },
+      "required": [
+        "pairingId",
+        "targetId",
+        "code",
+        "expiresAt",
+        "replayed",
+        "targetRevision"
+      ],
+      "additionalProperties": false,
+      "description": "Code is returned once. Exact replay returns code:null and replayed:true. Read the target revision and explicitly issue a new grant if the first response was lost."
     }
   }
 }

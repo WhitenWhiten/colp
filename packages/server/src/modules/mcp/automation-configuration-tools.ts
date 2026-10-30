@@ -33,15 +33,26 @@ export async function automationConfigurationTool(ports: AutomationPorts, actor:
     return { items: rows.slice(0, limit).map(row => row.view), nextCursor: rows.length > limit && last
       ? pages.next(actor.accountId, spec.scope, limit, { id: last.view.id, createdAt: last.createdAt }, now) : null };
   }
-  if (resource === 'targets' && operation === 'revoke') {
+  if (resource === 'targets' && (operation === 'revoke' || operation === 'issue_pairing')) {
     parseContract('CommandReason', { reason: args.reason });
     const target = await ports.targets.targets.load(id);
     if (!target) throw new AutomationError('resource_not_found', 'Target is unavailable.');
     requireEtag(target.revision, `"${String(args.baseRevision)}"`);
+    if (operation === 'issue_pairing') {
+      const grant = await ports.targets.issuePairing(id);
+      const current = (await ports.targets.targets.load(id))!;
+      return { ...grant, targetRevision: current.revision, replayed: false };
+    }
     return ports.targets.revoke(id);
   }
   throw new AutomationError('automation_unsupported_capability', 'Configuration operation is unavailable.');
 }
 
 export const CONFIGURATION_MUTATIONS = ['automation.connection_profiles.save', 'automation.targets.save', 'automation.targets.revoke',
-  'automation.executors.save', 'automation.execution_policies.save'];
+  'automation.executors.save', 'automation.execution_policies.save', 'automation.targets.issue_pairing'];
+
+/** Pairing codes are returned once and stored only as hashes by the target
+ * store. A lost response requires an explicit new grant, not secret replay. */
+export function configurationReceiptValue(name: string, value: unknown): unknown {
+  return name === 'automation.targets.issue_pairing' ? { ...(value as Record<string, unknown>), code: null, replayed: true } : value;
+}

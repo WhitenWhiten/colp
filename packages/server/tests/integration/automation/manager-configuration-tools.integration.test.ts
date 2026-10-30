@@ -101,4 +101,21 @@ describeWithPostgres('MCP automation manager configuration', () => {
         .toMatchObject({ kind: 'rejected', stableCode: 'automation_unsupported_capability' });
     }
   });
+
+  test('pairing codes appear once, with redacted replay and revision-fenced renewal', async () => {
+    const profile = await f.value<ConnectionProfile>('automation.connection_profiles.save', { mode: 'create', commandId: randomUUID(), configuration: {
+      name: 'Pairing agent', automationEnabled: true, catalogs: ['automationWorker'], authorizedClientId: 'pairing-agent', credentialBindingId: 'pairing-binding' } });
+    const target = await f.value<Target>('automation.targets.save', { mode: 'create', commandId: randomUUID(), configuration: {
+      name: 'Pairing inbox', providerLabel: '', broadcastOptIn: false, privacy: 'standard', connectionProfileId: profile.id, wakeMode: 'poll', pollIntervalMinutes: 1 } });
+    const args = { targetId: target.id, baseRevision: target.revision, commandId: randomUUID(), reason: 'Connect intended worker' };
+    const grant = await f.value<{ code: string; pairingId: string; targetRevision: string; replayed: boolean }>('automation.targets.issue_pairing', args);
+    expect(grant.code).toMatch(/^[A-Za-z0-9_-]{43}$/u); expect(grant.replayed).toBe(false);
+    expect(grant.targetRevision).not.toBe(target.revision);
+    expect(await f.value('automation.targets.issue_pairing', args)).toEqual({ ...grant, code: null, replayed: true });
+    expect(await f.call('automation.targets.issue_pairing', { ...args, commandId: randomUUID() }))
+      .toMatchObject({ kind: 'rejected', stableCode: 'precondition_failed' });
+    const next = await f.value<{ code: string; pairingId: string }>('automation.targets.issue_pairing', { ...args,
+      commandId: randomUUID(), baseRevision: grant.targetRevision });
+    expect(next.code).not.toBe(grant.code); expect(next.pairingId).not.toBe(grant.pairingId);
+  });
 });

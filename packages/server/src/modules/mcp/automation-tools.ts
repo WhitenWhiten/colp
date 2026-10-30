@@ -1,5 +1,6 @@
 import { callAutomationAccountTool, type AutomationAccountTools } from './automation-account-tools.js';
 import { automationManagerReadOrRecover, AUTOMATION_MANAGER_MUTATIONS } from './automation-manager.js';
+import { configurationReceiptValue } from './automation-configuration-tools.js';
 import { randomUUID } from 'node:crypto';
 import { AutomationError,automationCapabilities,createRule,replaceRule,setLifecycle,validateRule,previewRule,createAutomationPagination,
   type AutomationUnitOfWork,type AutomationWorkerService,type WorkerPairingPort } from '../automation/index.js';
@@ -72,7 +73,7 @@ export function createAutomationToolPort(options: { access: AutomationCatalogPor
         }
         default: value=await automationManagerReadOrRecover(ports,actor,name,args,options.cursorKey);
       }
-      if (mutation) await ports.receipts.complete(binding,fingerprint,{ status: 200,body: new TextEncoder().encode(JSON.stringify(value)),mediaType: 'application/json',contractVersion: AUTOMATION_CONTRACT_VERSION,stableHeaders: { 'cache-control': 'private, no-store' } });
+      if (mutation) await ports.receipts.complete(binding,fingerprint,{ status: 200,body: new TextEncoder().encode(JSON.stringify(configurationReceiptValue(name,value))),mediaType: 'application/json',contractVersion: AUTOMATION_CONTRACT_VERSION,stableHeaders: { 'cache-control': 'private, no-store' } });
       return value;
     });
   }
