@@ -1,6 +1,9 @@
 import { AutomationError, getAutomationRule, listAutomationRules, requireBinding, saveBinding, assessRuleHealth,
   ruleDependencies, getAutomationRun, cancelAutomationRun, createAutomationPagination,
   setPause, type AutomationPorts, type AutomationActor } from '../automation/index.js';
+import { automationConfigurationTool, CONFIGURATION_MUTATIONS } from './automation-configuration-tools.js';
+import { pageQuery } from './automation-tool-query.js';
+export { pageQuery } from './automation-tool-query.js';
 
 /** The same owner-scoped services and stores used by product HTTP routes. */
 export async function automationManagerReadOrRecover(ports: AutomationPorts, actor: AutomationActor, name: string,
@@ -36,13 +39,10 @@ export async function automationManagerReadOrRecover(ports: AutomationPorts, act
       return { items: rows.slice(0, limit).map(r => r.view), nextCursor: rows.length > limit && last
         ? pages.next(actor.accountId, scope, limit, { id: last.view.id, createdAt: last.createdAt }, now) : null };
     }
-    default: throw unavailable();
+    default: return automationConfigurationTool(ports, actor, name, args, cursorKey);
   }
 }
 function unavailable() { return new AutomationError('automation_unsupported_capability', 'Management operation is unavailable.'); }
 function missing(): never { throw unavailable(); }
-export function pageQuery(args: Readonly<Record<string, unknown>>) {
-  return { ...(typeof args.cursor === 'string' ? { cursor: args.cursor } : {}), ...(typeof args.limit === 'number' ? { limit: String(args.limit) } : {}) };
-}
 export const AUTOMATION_MANAGER_MUTATIONS = new Set(['automation.rules.save', 'automation.rules.set_state',
-  'automation.bindings.save', 'automation.runs.cancel', 'automation.jobs.retry', 'automation.deliveries.retry', 'automation.pause.set']);
+  'automation.bindings.save', 'automation.runs.cancel', 'automation.jobs.retry', 'automation.deliveries.retry', 'automation.pause.set', ...CONFIGURATION_MUTATIONS]);

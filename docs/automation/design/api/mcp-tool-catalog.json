@@ -1023,6 +1023,117 @@
         "idempotentHint": true
       },
       "description": "Set the account-wide automation pause with its observed revision and an exact command ID. Uses the same service as the web switch; browsers learn the change on refresh and retain a learned pause while offline."
+    },
+    {
+      "name": "automation.connection_profiles.list",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/ConnectionProfileListToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/ConnectionProfilePage"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "Read owner-scoped connection_profiles configurations and revisions. List continuations remain bound to this account and resource type."
+    },
+    {
+      "name": "automation.connection_profiles.get",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/ConnectionProfileGetToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/ConnectionProfile"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "Read owner-scoped connection_profiles configurations and revisions. List continuations remain bound to this account and resource type."
+    },
+    {
+      "name": "automation.connection_profiles.save",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:manage"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/ConnectionProfileSaveToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/ConnectionProfile"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "Manage an owner-scoped connection_profiles configuration through the same validator, revision precondition and durable command receipt as the web. Profile identity/data-term changes may invalidate worker bindings and subscriptions; display edits preserve them."
+    },
+    {
+      "name": "automation.targets.get",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/TargetGetToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/Target"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "Read owner-scoped targets configurations and revisions. List continuations remain bound to this account and resource type."
+    },
+    {
+      "name": "automation.targets.save",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:manage"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/TargetSaveToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/Target"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "Manage an owner-scoped targets configuration through the same validator, revision precondition and durable command receipt as the web. Profile identity/data-term changes may invalidate worker bindings and subscriptions; display edits preserve them."
+    },
+    {
+      "name": "automation.targets.revoke",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:manage"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/TargetRevokeToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/Target"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "Manage an owner-scoped targets configuration through the same validator, revision precondition and durable command receipt as the web. Profile identity/data-term changes may invalidate worker bindings and subscriptions; display edits preserve them."
     }
   ],
   "$defs": {
@@ -7250,6 +7361,198 @@
         "baseRevision",
         "commandId",
         "change"
+      ]
+    },
+    "ConnectionProfileListToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "type": "string",
+          "maxLength": 2048
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": []
+    },
+    "ConnectionProfileGetToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "profileId": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      },
+      "required": [
+        "profileId"
+      ]
+    },
+    "ConnectionProfileSaveToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "commandId": {
+          "$ref": "#/$defs/HostCommandId"
+        },
+        "baseRevision": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "profileId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "mode": {
+          "enum": [
+            "create",
+            "update"
+          ]
+        },
+        "configuration": {
+          "$ref": "#/$defs/ConnectionProfileInput"
+        }
+      },
+      "required": [
+        "commandId",
+        "mode",
+        "configuration"
+      ],
+      "oneOf": [
+        {
+          "properties": {
+            "mode": {
+              "const": "create"
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "profileId"
+                ]
+              },
+              {
+                "required": [
+                  "baseRevision"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "properties": {
+            "mode": {
+              "const": "update"
+            }
+          },
+          "required": [
+            "profileId",
+            "baseRevision"
+          ]
+        }
+      ]
+    },
+    "TargetGetToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "targetId": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      },
+      "required": [
+        "targetId"
+      ]
+    },
+    "TargetSaveToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "commandId": {
+          "$ref": "#/$defs/HostCommandId"
+        },
+        "baseRevision": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "targetId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "mode": {
+          "enum": [
+            "create",
+            "update"
+          ]
+        },
+        "configuration": {
+          "$ref": "#/$defs/TargetInput"
+        }
+      },
+      "required": [
+        "commandId",
+        "mode",
+        "configuration"
+      ],
+      "oneOf": [
+        {
+          "properties": {
+            "mode": {
+              "const": "create"
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "targetId"
+                ]
+              },
+              {
+                "required": [
+                  "baseRevision"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "properties": {
+            "mode": {
+              "const": "update"
+            }
+          },
+          "required": [
+            "targetId",
+            "baseRevision"
+          ]
+        }
+      ]
+    },
+    "TargetRevokeToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "commandId": {
+          "$ref": "#/$defs/HostCommandId"
+        },
+        "baseRevision": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "targetId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        }
+      },
+      "required": [
+        "commandId",
+        "targetId",
+        "baseRevision",
+        "reason"
       ]
     }
   }
