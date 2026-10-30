@@ -1263,6 +1263,66 @@
         "openWorldHint": false
       },
       "description": "Issue a five-minute, one-time pairing code for an owned worker target with its observed revision. A new grant invalidates earlier grants and advances the target revision. Share the code only with the intended worker. Exact command replay redacts the code; reconcile the target then explicitly issue a new grant when the first response was lost."
+    },
+    {
+      "name": "automation.runs.preview",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:manage",
+        "mcp:read:own"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/RunPreviewToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/RunOncePreview"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "Preview one owned rule against a bounded selection of existing bookmarks without changing bookmarks. Supply a stable commandId; inspect canStart, counts, sample, expiry and previewDigest before starting."
+    },
+    {
+      "name": "automation.runs.start",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:manage",
+        "nodes:write"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/RunStartToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/Run"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "Execute exactly an owned persisted run-once preview: pass its previewId and previewDigest, a stable commandId and the same ruleId. Stale members/configuration or an expired preview require a fresh preview. tasks=all uses the pinned execution policy and budget."
+    },
+    {
+      "name": "automation.runs.undo",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:manage",
+        "nodes:write"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/RunUndoToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/OperationReceipt"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "Undo exactly one recorded reversible effect from automation.runs.get. Pass the current run revision, effectReceiptId and expectedEffectDigest with a reason and stable commandId. Later edits or incomplete compensation are rejected; unrelated bookmarks are preserved."
     }
   ],
   "$defs": {
@@ -7980,6 +8040,70 @@
             ]
           }
         }
+      ]
+    },
+    "RunPreviewToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ruleId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "request": {
+          "$ref": "#/$defs/RunOnceInput"
+        }
+      },
+      "required": [
+        "ruleId",
+        "commandId",
+        "request"
+      ]
+    },
+    "RunStartToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ruleId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "request": {
+          "$ref": "#/$defs/RunOnceStartInput"
+        }
+      },
+      "required": [
+        "ruleId",
+        "commandId",
+        "request"
+      ]
+    },
+    "RunUndoToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "runId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "baseRevision": {
+          "$ref": "#/$defs/Revision"
+        },
+        "request": {
+          "$ref": "#/$defs/UndoInput"
+        }
+      },
+      "required": [
+        "runId",
+        "commandId",
+        "baseRevision",
+        "request"
       ]
     }
   }

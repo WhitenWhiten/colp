@@ -1,5 +1,5 @@
 import { AutomationError, getAutomationRule, listAutomationRules, requireBinding, saveBinding, assessRuleHealth,
-  ruleDependencies, getAutomationRun, cancelAutomationRun, createAutomationPagination,
+  ruleDependencies, getAutomationRun, cancelAutomationRun, undoAutomationRun, createAutomationPagination,
   setPause, type AutomationPorts, type AutomationActor } from '../automation/index.js';
 import { automationConfigurationTool, CONFIGURATION_MUTATIONS } from './automation-configuration-tools.js';
 import { pageQuery } from './automation-tool-query.js';
@@ -19,6 +19,12 @@ export async function automationManagerReadOrRecover(ports: AutomationPorts, act
     case 'automation.bindings.get': return requireBinding(ports, actor, String(args.bindingSetId));
     case 'automation.bindings.save': return saveBinding(ports, actor, args.binding, args.mode === 'update' ? String(args.bindingSetId) : undefined, etag);
     case 'automation.runs.get': return getAutomationRun(ports.runs, String(args.runId));
+    case 'automation.runs.preview':
+    case 'automation.runs.start':
+      if (!ports.runOnce) throw unavailable();
+      return name === 'automation.runs.preview' ? ports.runOnce.preview(String(args.ruleId), args.request)
+        : ports.runOnce.start(String(args.ruleId), args.request);
+    case 'automation.runs.undo': return undoAutomationRun(ports, String(args.runId), args.request, etag);
     case 'automation.runs.cancel': return cancelAutomationRun(ports.runs, String(args.runId), etag);
     case 'automation.jobs.retry':
       if (!ports.ownerJobs) throw unavailable();
@@ -47,4 +53,5 @@ export async function automationManagerReadOrRecover(ports: AutomationPorts, act
 function unavailable() { return new AutomationError('automation_unsupported_capability', 'Management operation is unavailable.'); }
 function missing(): never { throw unavailable(); }
 export const AUTOMATION_MANAGER_MUTATIONS = new Set(['automation.rules.save', 'automation.rules.set_state',
-  'automation.bindings.save', 'automation.runs.cancel', 'automation.jobs.retry', 'automation.deliveries.retry', 'automation.pause.set', ...CONFIGURATION_MUTATIONS]);
+  'automation.bindings.save', 'automation.runs.cancel', 'automation.runs.preview', 'automation.runs.start', 'automation.runs.undo',
+  'automation.jobs.retry', 'automation.deliveries.retry', 'automation.pause.set', ...CONFIGURATION_MUTATIONS]);

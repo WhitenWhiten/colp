@@ -36,6 +36,13 @@ and delivery inspection/retry. Use the revision returned by a fresh read as `bas
 mutations require a stable `commandId`. Activity list/summary/read and Sync
 status/devices/issues use the same account-scoped services as the product UI.
 
+For existing bookmarks, call `automation.runs.preview` with a rule, folder,
+selection options and a stable command ID. Review `canStart`, counts, samples,
+expiry and `previewDigest`, then call `automation.runs.start` with that preview's
+ID and digest. Changed bookmarks or configuration require a new preview.
+`automation.runs.undo` compensates one effect from a fresh run read using its
+effect ID, digest and run revision; later edits prevent compensation.
+
 Events are wake hints without history replay (`cursor: null`). At startup, after every
 subscription or reconnection, and after each wake, reconcile every page of
 `automation.jobs.list`. A successful subscription does not prove the queue is empty.

@@ -5,11 +5,11 @@ import { createAutomationToolPort, createMcpApplicationContext, withAutomationCa
 
 /** The fixture supplies an admitted manager principal; business operations and
  * command receipts use the real owner-scoped PostgreSQL services. */
-export async function automationManagerFixture(prefix: string) {
+export async function automationManagerFixture(prefix: string, additionalScopes: readonly string[] = []) {
   const f = await automationRuntimeFixture(prefix, true);
   const context = createMcpApplicationContext({ principal: { kind: 'authenticated', principalId: f.owner.accountId,
     clientId: 'manager', credentialBindingId: 'binding', resourceAudience: 'https://manager.test/collections/-/mcp', securityEpoch: '1' },
-    scopes: ['automation:read', 'automation:manage'], abortSignal: new AbortController().signal,
+    scopes: ['automation:read', 'automation:manage', ...additionalScopes], abortSignal: new AbortController().signal,
     budgets: { maxDepth: 32, maxNodes: 10000, maxBytes: 1_000_000, maxOperations: 100 }, correlationId: randomUUID(),
     authorization: { accountSubjectId: f.owner.subjectId } });
   const base: McpApplicationFacade = { listTools: async () => ({ tools: [] }),

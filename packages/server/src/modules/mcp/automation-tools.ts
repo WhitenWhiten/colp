@@ -54,7 +54,17 @@ export function createAutomationToolPort(options: { access: AutomationCatalogPor
       const fingerprint = canonicalCommandFingerprint({ method: 'POST',route: name,mediaType: 'application/json',body: args });
       if (mutation) {
         const claim = await ports.receipts.claim(binding,fingerprint);
-        if (claim.kind === 'replay') return JSON.parse(new TextDecoder().decode(claim.result.body));
+        if (claim.kind === 'replay') {
+          const replay = JSON.parse(new TextDecoder().decode(claim.result.body));
+          if (name === 'automation.runs.preview' || name === 'automation.runs.start') {
+            if (!ports.runOnce) throw new AutomationError('automation_unsupported_capability', 'Run-once unavailable.');
+            await ports.runOnce.authorizePreview(name === 'automation.runs.preview' ? replay.id : String((args.request as Record<string, unknown>).previewId));
+          }
+          if (name === 'automation.runs.undo') await ports.runs.load(String(args.runId)).then(run => {
+            if (!run) throw new AutomationError('resource_not_found', 'Run is unavailable under current owner authority.');
+          });
+          return replay;
+        }
         if (claim.kind !== 'claimed') throw new AutomationError('automation_command_conflict','Manager command is unavailable or conflicted.');
       }
       let value: unknown;
