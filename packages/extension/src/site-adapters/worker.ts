@@ -47,6 +47,7 @@ import { installSiteActivity } from './activity-runtime.js';
 import { createLane } from '../automation/lane.js';
 import { sourceLiveReport } from './live-report.js';
 import { sourceAutomationsPaused } from '../sw/automation.js';
+import { resolvePageContent } from './content-resolver.js';
 function createSiteHost(definition: SiteDefinition, driver: SiteDriver = bundledDriver(definition)) {
   const semanticList = object({ kind: literal('known.siteAdapters.semantic.list'), cursor: v => v === undefined || str(2048)(v), group: v => v === undefined || literal('recovery', 'history')(v) });
   const semanticGet = object({ kind: literal('known.siteAdapters.semantic.get'), jobId: str(128) });
@@ -296,7 +297,7 @@ function createSiteHost(definition: SiteDefinition, driver: SiteDriver = bundled
   const confirmSchema = object({ kind: literal('known.siteAdapters.confirm'), accountId: str(128) });
   const reconnectSchema = object({ kind: literal('known.siteAdapters.reconnect') });
   async function resolve(url: string, tabId?: number) {
-      if (tabId === undefined) return null;
+      if (tabId === undefined || !matchesSiteUrl(definition, url)) return null;
       const source = await currentSiteSource(tabId);
       if (!source) return null;
       const state = await read(), lease = state.leases.find(l => l.id === source.context.leaseId);
@@ -584,11 +585,7 @@ export function installSiteAdapters() {
   installSourceRecoveryScheduler(at => hosts[0]!.wakeAt(at));
   installContentResolver(async (url, tabId) => {
     await communityStarted;
-    for (const host of siteHosts()) {
-      if (!host.definition.capabilities.includes('resolveItem')) continue; // Not every site, bundled or installed, can name the item a page shows.
-      const id = await host.resolve(url, tabId); if (id) return { siteKey: host.definition.siteKey, identityVersion: host.definition.identityVersion, itemId: id };
-    }
-    return null;
+    return resolvePageContent(siteHosts(), url, tabId);
   });
   if (__KNOWN_EXTENSION_EVIDENCE__) installSiteAdapterEvidence();
   for (const host of hosts) host.install();
