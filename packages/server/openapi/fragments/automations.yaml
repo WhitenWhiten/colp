@@ -3951,13 +3951,33 @@ paths:
       tags:
         - Automation
       summary: Fetch requests for this authenticated browser replica
-      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded.
-        Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. With a
+        current device bearer, supply either Known-Sync-Session or both Known-Sync-Replica-Id and
+        Known-Sync-Replica-Proof. Installation authority remains usable while personal Sync is paused; account,
+        collection, replica ownership and credential revocation are checked. Backend surface; runtime availability is
+        reported by capabilities. Historical preview has no fallback.
       x-delivery-phase: M1
       parameters:
         - in: header
           name: Known-Sync-Session
-          required: true
+          required: false
+          description: Legacy live Sync session. When omitted, both installation headers are required instead.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 256
+        - in: header
+          name: Known-Sync-Replica-Id
+          required: false
+          description: Required when Known-Sync-Session is omitted.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 256
+        - in: header
+          name: Known-Sync-Replica-Proof
+          required: false
+          description: Required when Known-Sync-Session is omitted.
           schema:
             type: string
             minLength: 1
@@ -4008,14 +4028,34 @@ paths:
       tags:
         - Automation
       summary: Record a browser request result
-      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded.
-        Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+      description: Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. With a
+        current device bearer, supply either Known-Sync-Session or both Known-Sync-Replica-Id and
+        Known-Sync-Replica-Proof. Installation authority remains usable while personal Sync is paused; account,
+        collection, replica ownership and credential revocation are checked. Backend surface; runtime availability is
+        reported by capabilities. Historical preview has no fallback.
       x-delivery-phase: M1
       parameters:
         - $ref: "#/components/parameters/AutomationCommandId"
         - in: header
           name: Known-Sync-Session
-          required: true
+          required: false
+          description: Legacy live Sync session. When omitted, both installation headers are required instead.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 256
+        - in: header
+          name: Known-Sync-Replica-Id
+          required: false
+          description: Required when Known-Sync-Session is omitted.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 256
+        - in: header
+          name: Known-Sync-Replica-Proof
+          required: false
+          description: Required when Known-Sync-Session is omitted.
           schema:
             type: string
             minLength: 1

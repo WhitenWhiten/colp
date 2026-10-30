@@ -23,10 +23,19 @@ for (const [path, item] of Object.entries(design.paths)) {
       paths[path][method].description += ' Uses the existing MCP OAuth verifier and resource audience, including machine account-key tokens; no additional issuer.';
     }
     if (path.startsWith('/api/v1/automation-device/')) {
-      // Existing authenticated Sync session is the device/generation proof.
+      // Bridge recovery also accepts installation possession without a live Sync lease.
+      const bridge = path === '/api/v1/automation-device/bridge-requests' || path === '/api/v1/automation-device/bridge-results';
       paths[path][method].security = [{ DeviceBearer: [] }];
-      paths[path][method].parameters.push({ in: 'header', name: 'Known-Sync-Session', required: true,
+      paths[path][method].parameters.push({ in: 'header', name: 'Known-Sync-Session', required: !bridge,
+        ...(bridge ? { description: 'Legacy live Sync session. When omitted, both installation headers are required instead.' } : {}),
         schema: { type: 'string', minLength: 1, maxLength: 256 } });
+      if (bridge) {
+        paths[path][method].description += ' With a current device bearer, supply either Known-Sync-Session or both Known-Sync-Replica-Id and Known-Sync-Replica-Proof. Installation authority remains usable while personal Sync is paused; account, collection, replica ownership and credential revocation are checked.';
+        for (const name of ['Known-Sync-Replica-Id', 'Known-Sync-Replica-Proof']) paths[path][method].parameters.push({
+          in: 'header', name, required: false, description: 'Required when Known-Sync-Session is omitted.',
+          schema: { type: 'string', minLength: 1, maxLength: 256 },
+        });
+      }
       paths[path][method].parameters.push({ $ref: '#/components/parameters/Origin' });
     }
     paths[path][method].description += ' Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.';

@@ -5262,7 +5262,7 @@ export interface paths {
         };
         /**
          * Fetch requests for this authenticated browser replica
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. With a current device bearer, supply either Known-Sync-Session or both Known-Sync-Replica-Id and Known-Sync-Replica-Proof. Installation authority remains usable while personal Sync is paused; account, collection, replica ownership and credential revocation are checked. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["getAutomationDeviceRequests"];
         put?: never;
@@ -5284,7 +5284,7 @@ export interface paths {
         put?: never;
         /**
          * Record a browser request result
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. With a current device bearer, supply either Known-Sync-Session or both Known-Sync-Replica-Id and Known-Sync-Replica-Proof. Installation authority remains usable while personal Sync is paused; account, collection, replica ownership and credential revocation are checked. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         post: operations["completeAutomationDeviceRequest"];
         delete?: never;
@@ -26961,7 +26961,12 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                "Known-Sync-Session": string;
+                /** @description Legacy live Sync session. When omitted, both installation headers are required instead. */
+                "Known-Sync-Session"?: string;
+                /** @description Required when Known-Sync-Session is omitted. */
+                "Known-Sync-Replica-Id"?: string;
+                /** @description Required when Known-Sync-Session is omitted. */
+                "Known-Sync-Replica-Proof"?: string;
                 /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
                 Origin: components["parameters"]["AutomationOrigin"];
             };
@@ -27001,7 +27006,12 @@ export interface operations {
             header: {
                 /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
                 "Known-Command-Id": components["parameters"]["AutomationCommandId"];
-                "Known-Sync-Session": string;
+                /** @description Legacy live Sync session. When omitted, both installation headers are required instead. */
+                "Known-Sync-Session"?: string;
+                /** @description Required when Known-Sync-Session is omitted. */
+                "Known-Sync-Replica-Id"?: string;
+                /** @description Required when Known-Sync-Session is omitted. */
+                "Known-Sync-Replica-Proof"?: string;
                 /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
                 Origin: components["parameters"]["AutomationOrigin"];
             };
