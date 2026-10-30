@@ -94,8 +94,19 @@ test('an installed package is a full site: live saves, import, a worker restart,
     await send({ kind: 'known.siteAdapters.import.start', adapterId });
     await expect.poll(async () => (await status()).archive?.import?.preview?.counts, { timeout: 30000 }).toEqual({ createFolders: 0, createBookmarks: 1, reuseBookmarks: 1, review: 0 });
 
-    // A stopped worker reads its packages again before the page's next message.
-    await stopWorker(context, page); await site.goto('https://shelf.example/a/gamma');
+    // Status must count a reattached port, not the stopped worker's retained lease.
+    // A new live favorite also saves while the earlier bulk import awaits approval.
+    await stopWorker(context, page);
+    await expect.poll(async () => (await status()).documents, { timeout: 20000 }).toBe(1);
+    await site.evaluate(() => {
+      document.querySelector('article')!.setAttribute('data-shelf-id', 'gamma');
+      document.querySelector('h1')!.textContent = 'Gamma';
+      document.querySelector('button')!.setAttribute('aria-pressed', 'false');
+    });
+    await site.locator('[data-shelf-save]').click();
+    await expect.poll(() => bookmarks('https://shelf.example/a/gamma'), { timeout: 20000 }).toEqual(['Gamma']);
+    expect((await status()).archive?.import?.phase).toBe('preview');
+    await site.goto('https://shelf.example/a/gamma');
     await expect.poll(() => leased('https://shelf.example/a/gamma'), { timeout: 20000 }).toBe(true);
     await site.locator('[data-shelf-save]').click();
     await expect.poll(() => bookmarks('https://shelf.example/a/gamma'), { timeout: 20000 }).toEqual(['Gamma']);

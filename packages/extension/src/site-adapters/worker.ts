@@ -425,13 +425,14 @@ function createSiteHost(definition: SiteDefinition, driver: SiteDriver = bundled
         const archiveStatus = await archives.status(statusSchema(raw) ? (raw as { reconcileOffset?: number }).reconcileOffset : 0);
         const archiveState = { ...archiveStatus, semantic: archiveStatus.config ? await semanticJobs.status(archiveStatus.config.connectionId) : null };
         const siteStatus = await siteTransport.status();
+        const documents = (await read()).leases.filter(lease => lease.expiresAt > Date.now() && ports.has(lease.id)).length;
         let archiveHold: string | null = archiveState.hold;
         if (archiveState.config) try { await assertSourceRebound(siteLedger.db, archiveState.config.connectionId); } catch (e) { archiveHold = e instanceof Error ? e.message : 'sourceNeedsReview'; }
         const writes = !archiveHold && browserSupport().supported && siteStatus.enabled && siteStatus.connected && archiveState.config?.state === 'active' && await chrome.permissions.contains({ permissions: ['bookmarks'] });
         if (statusSchema(raw)) await activity.resolve('management:status', 'status').catch(() => undefined);
         const events = await activity.list().catch(() => []);
         const problem = currentSiteProblem(events, { connectionId: archiveState.config?.connectionId, taskId: archiveState.import?.id, phase: archiveState.import?.phase });
-        return { ...siteStatus, browser: browserSupport(), grants: { site: await chrome.permissions.contains(grants), bookmarks: await chrome.permissions.contains({ permissions: ['bookmarks'] }),
+        return { ...siteStatus, documents, browser: browserSupport(), grants: { site: await chrome.permissions.contains(grants), bookmarks: await chrome.permissions.contains({ permissions: ['bookmarks'] }),
           ...(definition.runtime === 'userScript' ? { userScripts: await driver.available() } : {}) },
           mode: writes ? 'localArchive' : 'inspector', writes, archiveHold, pipeline: await localSourceProgress(siteLedger.db, archiveState.config?.connectionId), activity: { problem, lastEvent: events[0] ?? null }, archive: archiveState, catalog: await catalogStatus(), ...(archiveResult ? { archiveResult } : {}), adapterId: definition.adapterId, features: siteFeatures(definition), capabilities: { itemIdentity: `${definition.siteKey}:${definition.identityVersion}`, observation: siteFeatures(definition).observe ? 'sourceObservations' : 'unavailable', humanActionProof: 'unavailable',
           negativeMembership: definition.negativeReadback ? 'available' : 'unavailable', reconciliation: reconciliationCapability(definition), collectionHierarchy: 'flat', shortLinks: 'unavailable', collectionChanges: siteFeatures(definition).collections ? 'explicitCatalogRead' : siteFeatures(definition).observe ? 'observedCatalog' : 'unavailable', nativeWrites: archiveState.config?.state === 'active' ? 'previewApprovalOrEnabledLivePolicy' : 'unavailable' },
