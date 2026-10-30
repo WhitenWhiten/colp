@@ -64,7 +64,7 @@ async function preview(scopeNativeId: string): Promise<BrowserRuleResponse> {
     examples: plan.moves.slice(0, 5).map((move) => ({ title: move.title, url: move.url, to: move.toTitle })) } };
 }
 
-async function apply(previewId: string): Promise<BrowserRuleResponse> {
+async function apply(previewId: string, assertCurrent: () => Promise<void>): Promise<BrowserRuleResponse> {
   const stored = await area().get(RUN_PREVIEW_KEY) as StoredPreview | null | undefined;
   if (!record(stored) || stored.previewId !== previewId || stored.expiresAt < Date.now()) return { ok: false, error: 'expired' };
   await area().set(RUN_PREVIEW_KEY, null);
@@ -79,6 +79,7 @@ async function apply(previewId: string): Promise<BrowserRuleResponse> {
   try {
     await log.create(journal, stored.moves.length);
     for (const [ordinal, move] of stored.moves.entries()) {
+      await assertCurrent();
       const current = await node(move.nativeId);
       let item: JournalItem = { ordinal, nativeId: move.nativeId, fromParentId: move.fromParentId,
         fromIndex: current?.index ?? 0, toParentId: move.toParentId, title: move.title, url: move.url, state: 'moving' };
@@ -90,6 +91,7 @@ async function apply(previewId: string): Promise<BrowserRuleResponse> {
         // A worker stop before or after the native call leaves an intent that Undo can inspect.
         await log.write(journal.runId, item);
         const settlePosition = positions.expectMove(current, { parentId: move.toParentId, index: item.toIndex! });
+        await assertCurrent();
         try { await personalBookmarks.move(move.nativeId, { parentId: move.toParentId, index: item.toIndex }); }
         catch { /* A rejected native call can still have applied; inspect its effect before deciding. */ }
         const observed = await node(move.nativeId); settlePosition(observed);
@@ -104,13 +106,14 @@ async function apply(previewId: string): Promise<BrowserRuleResponse> {
   return { ok: true, result: { runId: journal.runId, moved: count('moved'), skipped: count('skipped') - count('skipped', 'missing'), missing: count('skipped', 'missing') } };
 }
 
-async function undo(runId: string): Promise<BrowserRuleResponse> {
+async function undo(runId: string, assertCurrent: () => Promise<void>): Promise<BrowserRuleResponse> {
   const log = journalStore(), journal = (await log.list()).find((item) => item.runId === runId);
   if (!journal) return { ok: false, error: 'notFound' };
   const positions = createRunFolderPositions();
   try {
     let moved = 0, skipped = 0, missing = 0;
     for (const original of [...journal.items].reverse()) {
+      await assertCurrent();
       let item = original;
       const current = await node(item.nativeId);
       if (item.state === 'moving' || item.state === 'undoing') {
@@ -128,6 +131,7 @@ async function undo(runId: string): Promise<BrowserRuleResponse> {
       item = { ...item, state: 'undoing', undoIndex };
       await log.write(runId, item);
       const settlePosition = positions.expectMove(current, { parentId: item.fromParentId, index: undoIndex });
+      await assertCurrent();
       try { await personalBookmarks.move(item.nativeId, { parentId: item.fromParentId, index: undoIndex }); }
       catch { /* Settle the durable intent from the observed location, including lost native replies. */ }
       const observed = await node(item.nativeId); settlePosition(observed);
@@ -140,13 +144,14 @@ async function undo(runId: string): Promise<BrowserRuleResponse> {
   } finally { positions.dispose(); }
 }
 
-export function handleRunCommand(command: BrowserRunCommand): Promise<BrowserRuleResponse> {
+export function handleRunCommand(command: BrowserRunCommand, assertCurrent: () => Promise<void> = async () => {}): Promise<BrowserRuleResponse> {
   return exclusive(async () => {
+    await assertCurrent();
     if (!await hasBookmarkPermission()) return { ok: false, error: 'noAccess' };
     switch (command.kind) {
       case 'known.automation.browser.runPreview': return preview(command.scopeNativeId);
-      case 'known.automation.browser.runApply': return apply(command.previewId);
-      case 'known.automation.browser.runUndo': return undo(command.runId);
+      case 'known.automation.browser.runApply': return apply(command.previewId, assertCurrent);
+      case 'known.automation.browser.runUndo': return undo(command.runId, assertCurrent);
     }
   });
 }

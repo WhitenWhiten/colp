@@ -6,7 +6,7 @@ import { decideList, type ListDecision, type ListResult } from '../automation/ru
 import { flattenList, type FlatItem, type FlatList } from '../automation/rule-list-flatten.js';
 import { collectionRef } from '../automation/rule-conditions.js';
 import { createRuleListStore, individualRules, ruleFolderNativeId, type LocalRule, type LocalSet, type RuleListRecord,
-  type RuleListStore } from '../automation/rule-list-store.js';
+  type RuleListStore, type RuleListGuard } from '../automation/rule-list-store.js';
 import { collectionLookup, collectionStale, goneSettings, subscriptionItems, subscriptionRecordView,
   type SubscriptionSource } from '../automation/subscription-list.js';
 import { createSubscriptionStore, type SubscriptionStore } from '../automation/subscription-store.js';
@@ -297,26 +297,26 @@ export async function browserPlacementViews(): Promise<AutomationPlacementView[]
 
 export async function handleBrowserRuleCommand(command: Exclude<BrowserRuleCommand, BrowserRunCommand | BrowserConfigCommand | BrowserRulesetCommand
   | SubscriptionCommand>,
-  link: () => Promise<AccountLink | null> = async () => null): Promise<BrowserRuleResponse> {
+  link: () => Promise<AccountLink | null> = async () => null, guard?: RuleListGuard): Promise<BrowserRuleResponse> {
   const store = browserRuleStore(), now = Date.now();
   const rule = (value: LocalRule | null): BrowserRuleResponse => value ? { ok: true, rule: value } : { ok: false, error: 'notFound' };
   switch (command.kind) {
     case 'known.automation.browser.forAccount': return forAccount(command.draft, await link().catch(() => null));
-    case 'known.automation.browser.remove': return await store.removeRule(command.id) ? { ok: true, rule: null } : { ok: false, error: 'notFound' };
+    case 'known.automation.browser.remove': return await store.removeRule(command.id, guard) ? { ok: true, rule: null } : { ok: false, error: 'notFound' };
     case 'known.automation.browser.review': return rule(await store.review(command.id, command.accountRuleId, command.key));
     case 'known.automation.browser.stay': return rule(await store.stopMoving(command.id));
     case 'known.automation.browser.moving': return rule(await store.markMoving(command.id, now));
     case 'known.automation.browser.enable': {
-      const entry = await store.setEnabled({ kind: command.entry ?? 'rule', id: command.id }, command.enabled, now);
+      const entry = await store.setEnabled({ kind: command.entry ?? 'rule', id: command.id }, command.enabled, now, guard);
       if (!entry) return { ok: false, error: 'notFound' };
       return entry.kind === 'rule' ? { ok: true, rule: entry.rule } : entry.kind === 'set' ? { ok: true, set: entry.set }
         : { ok: true, revision: (await store.load()).revision };
     }
-    case 'known.automation.browser.reorder': return store.reorder(command.order);
+    case 'known.automation.browser.reorder': return store.reorder(command.order, guard);
     case 'known.automation.browser.moveRule': return store.moveRule(command.ruleId, command.into, command.index, now);
     case 'known.automation.browser.set.save': return store.saveSet({ ...(command.id ? { id: command.id } : {}), name: command.name }, now);
     case 'known.automation.browser.set.remove': return store.removeSet(command.id, command.keepRules, now);
-    case 'known.automation.browser.list.enable': return store.setListEnabled(command.enabled);
+    case 'known.automation.browser.list.enable': return store.setListEnabled(command.enabled, guard);
     case 'known.automation.browser.duplicate': return store.duplicate({ kind: command.entry, id: command.id }, command.name, now);
     case 'known.automation.browser.notice.dismiss': await store.dismissOrderNotice(); return { ok: true, revision: (await store.load()).revision };
     case 'known.automation.browser.preview': return browserPreview(command);
@@ -329,7 +329,7 @@ export async function handleBrowserRuleCommand(command: Exclude<BrowserRuleComma
       const collections = { read: async (list: RuleListRecord) => collectionLookup(await listSources(list)) };
       const result = await store.saveRule({ ...(command.id ? { id: command.id } : {}), draft: command.draft,
         ...(command.enabled === undefined ? {} : { enabled: command.enabled }), ...(command.into ? { into: command.into } : {}),
-        ...(command.index === undefined ? {} : { index: command.index }) }, now, collections);
+        ...(command.index === undefined ? {} : { index: command.index }) }, now, collections, guard);
       if (result.ok) return { ok: true, rule: result.rule };
       return result.error === 'invalid' ? { ok: false, error: 'invalid', problems: result.problems } : { ok: false, error: result.error };
     }

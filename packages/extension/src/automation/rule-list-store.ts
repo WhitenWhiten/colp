@@ -83,6 +83,7 @@ export type EntryRef = { readonly kind: 'rule' | 'set' | 'subscription'; readonl
 /** `writes` and `deletes`: a subscription's own keys (subscription-store.ts), in the list's transaction; `touch`: a new revision with nothing else changed. */
 type Change<T> = { readonly result: T; readonly entries?: readonly ListEntry[]; readonly enabled?: boolean; readonly notice?: 'dismiss';
   readonly writes?: Readonly<Record<string, unknown>>; readonly deletes?: readonly string[]; readonly touch?: true };
+export type RuleListGuard = (list: RuleListRecord) => Promise<void>;
 
 export function createRuleListStore(area: AtomicStateArea, options: { readonly id?: () => string; readonly now?: () => number } = {}) {
   const newId = options.id ?? (() => crypto.randomUUID());
@@ -103,18 +104,20 @@ export function createRuleListStore(area: AtomicStateArea, options: { readonly i
     return migrated;
   }
   /** One change: written with the next revision when it changes anything, else left alone. */
-  function update<T>(work: (list: RuleListRecord) => Change<T>): Promise<T> {
-    return updateAsync((list) => Promise.resolve(work(list)));
+  function update<T>(work: (list: RuleListRecord) => Change<T>, guard?: RuleListGuard): Promise<T> {
+    return updateAsync((list) => Promise.resolve(work(list)), guard);
   }
   /** The same, for a change that reads more of the store first: it reads inside the lane, so nothing is written between its read and its write. */
-  function updateAsync<T>(work: (list: RuleListRecord) => Promise<Change<T>>): Promise<T> {
+  function updateAsync<T>(work: (list: RuleListRecord) => Promise<Change<T>>, guard?: RuleListGuard): Promise<T> {
     return exclusive(async () => {
       const list = await current();
+      await guard?.(list);
       const change = await work(list);
       if (change.entries === undefined && change.enabled === undefined && change.notice === undefined && !change.touch) return change.result;
       const { orderNotice, ...rest } = list;
       const next: RuleListRecord = { ...rest, revision: list.revision + 1, entries: change.entries ?? list.entries, enabled: change.enabled ?? list.enabled,
         ...(orderNotice && change.notice !== 'dismiss' ? { orderNotice } : {}) };
+      await guard?.(list);
       if (change.writes || change.deletes) await area.commit({ ...change.writes, [RULE_LIST_KEY]: next }, change.deletes);
       else await area.set(RULE_LIST_KEY, next);
       return change.result;
@@ -145,7 +148,7 @@ export function createRuleListStore(area: AtomicStateArea, options: { readonly i
      * rule compiled from the one before (RS-10.4).
      */
     saveRule(input: { readonly id?: string; readonly draft: RuleDraft; readonly enabled?: boolean; readonly into?: string | null;
-      readonly index?: number }, now: number, collections?: CollectionLookup | { readonly read: (list: RuleListRecord) => Promise<CollectionLookup> }): Promise<RuleSaveResult> {
+      readonly index?: number }, now: number, collections?: CollectionLookup | { readonly read: (list: RuleListRecord) => Promise<CollectionLookup> }, guard?: RuleListGuard): Promise<RuleSaveResult> {
       return updateAsync(async (list): Promise<Change<RuleSaveResult>> => {
         const found = input.id === undefined ? null : locate(list, input.id);
         const draft = { ...input.draft, ...(input.draft.site ?? found?.rule.site ? { site: input.draft.site ?? found?.rule.site } : {}) };
@@ -170,13 +173,13 @@ export function createRuleListStore(area: AtomicStateArea, options: { readonly i
         const entries = into === null ? insertAt(list.entries, input.index, { kind: 'rule', rule })
           : mapSet(list.entries, into, (target) => ({ ...target, rules: insertAt(target.rules, input.index, insideSet(rule)) }));
         return overLimits(entries) ? { result: { ok: false, error: 'limit' } } : { result: { ok: true, rule }, entries };
-      });
+      }, guard);
     },
-    removeRule(id: string): Promise<boolean> {
-      return update((list) => locate(list, id) ? { result: true, entries: withoutRule(list.entries, id) } : { result: false });
+    removeRule(id: string, guard?: RuleListGuard): Promise<boolean> {
+      return update((list) => locate(list, id) ? { result: true, entries: withoutRule(list.entries, id) } : { result: false }, guard);
     },
     /** A rule, a set or a subscription on or off; the list's own place and content stay. */
-    setEnabled(target: EntryRef, enabled: boolean, now: number): Promise<ListEntry | null> {
+    setEnabled(target: EntryRef, enabled: boolean, now: number, guard?: RuleListGuard): Promise<ListEntry | null> {
       return update((list): Change<ListEntry | null> => {
         if (target.kind === 'rule') {
           const found = locate(list, target.id);
@@ -191,14 +194,14 @@ export function createRuleListStore(area: AtomicStateArea, options: { readonly i
           : entry.kind === 'subscription' ? { ...entry, enabled } : entry;
         const same = entry.kind === 'set' ? entry.set.enabled === enabled : entry.kind === 'subscription' && entry.enabled === enabled;
         return same ? { result: entry } : { result: next, entries: list.entries.map((item, index) => index === at ? next : item) };
-      });
+      }, guard);
     },
-    setListEnabled(enabled: boolean): Promise<ListChangeResult> {
+    setListEnabled(enabled: boolean, guard?: RuleListGuard): Promise<ListChangeResult> {
       return update((list) => list.enabled === enabled ? { result: { ok: true, revision: list.revision } }
-        : { result: { ok: true, revision: list.revision + 1 }, enabled });
+        : { result: { ok: true, revision: list.revision + 1 }, enabled }, guard);
     },
     /** The top-level entries in a new order; refused unless it names exactly the entries the list has. */
-    reorder(order: readonly string[]): Promise<ListChangeResult> {
+    reorder(order: readonly string[], guard?: RuleListGuard): Promise<ListChangeResult> {
       return update((list): Change<ListChangeResult> => {
         const ids = list.entries.map(entryId);
         if (order.length !== ids.length || new Set(order).size !== order.length || !order.every((id) => ids.includes(id))) {
@@ -206,7 +209,7 @@ export function createRuleListStore(area: AtomicStateArea, options: { readonly i
         }
         if (order.every((id, index) => ids[index] === id)) return { result: { ok: true, revision: list.revision } };
         return { result: { ok: true, revision: list.revision + 1 }, entries: order.map((id) => list.entries[ids.indexOf(id)]!) };
-      });
+      }, guard);
     },
     /** A rule to `index` among the list's entries (`into` null) or a set's rules, after it is taken from where it was. */
     moveRule(ruleId: string, into: string | null, index: number, now: number): Promise<ListChangeResult> {

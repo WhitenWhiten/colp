@@ -33,7 +33,7 @@ export function createAutomationToolPort(options: { access: AutomationCatalogPor
           else if (operation === 'inputs') value=await options.worker.inputs(actor,id,{ ...query(args),deliveryHandle: String(args.deliveryHandle) });
           else if (operation === 'claim' || operation === 'heartbeat' || operation === 'submit' || operation === 'fail') value=await options.worker.mutate(actor,id,operation,args.request,String(args.commandId));
           else throw new AutomationError('automation_unsupported_capability','Tool is unavailable.');
-        } else if (name.startsWith('automation.adapters.') || name.startsWith('automation.classification.') || name === 'automation.device_requests.get') {
+        } else if (name.startsWith('automation.adapters.') || name.startsWith('automation.browser_rules.') || name.startsWith('automation.classification.') || name === 'automation.device_requests.get') {
           if (!options.deviceBridge) throw new AutomationError('automation_unsupported_capability','Browser bridge unavailable.');
           value = name === 'automation.device_requests.get' ? await options.deviceBridge.get(actor,String(args.requestId))
             : await options.deviceBridge.request(actor,name.slice('automation.'.length) as import('../automation/index.js').DeviceBridgeOperation,args);

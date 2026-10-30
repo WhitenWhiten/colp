@@ -1323,6 +1323,160 @@
         "idempotentHint": true
       },
       "description": "Undo exactly one recorded reversible effect from automation.runs.get. Pass the current run revision, effectReceiptId and expectedEffectDigest with a reason and stable commandId. Later edits or incomplete compensation are rejected; unrelated bookmarks are preserved."
+    },
+    {
+      "name": "automation.browser_rules.list",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/BrowserRulesListToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DeviceBridgeView"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "List this browser profile's local rule entries, groups and order in bounded pages. Each page returns revision and enabled; use that revision for configure. A cursor is invalidated by edits. Requires enabled Agent access to this browser. Returns a durable request; poll automation.device_requests.get."
+    },
+    {
+      "name": "automation.browser_rules.folders",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/BrowserRulesFoldersToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DeviceBridgeView"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "List writable native bookmark folders under parentNativeId, or browser roots when omitted. Follow pages and folder ids to select a destination for a local rule. Requires enabled Agent access to this browser. Returns a durable request; poll automation.device_requests.get."
+    },
+    {
+      "name": "automation.browser_rules.configure",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:manage"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/BrowserRulesConfigureToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DeviceBridgeView"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "Create, edit, remove, enable or reorder local browser rules using the freshly observed list baseRevision. These rules belong to this browser profile. Concurrent edits or lost device authorization reject the change. Requires enabled Agent access to this browser. Returns a durable request; poll automation.device_requests.get."
+    },
+    {
+      "name": "automation.browser_rules.preview",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/BrowserRulesPreviewToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DeviceBridgeView"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "Try a bookmark against the current local rule list without saving or moving it. Requires enabled Agent access to this browser. Returns a durable request; poll automation.device_requests.get."
+    },
+    {
+      "name": "automation.browser_rules.run_preview",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/BrowserRulesRunPreviewToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DeviceBridgeView"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "Preview bulk local rule placement within a native folder. Does not move bookmarks. Review counts, examples, expiry and previewId before run_apply; a new preview replaces the previous preview. Requires enabled Agent access to this browser. Returns a durable request; poll automation.device_requests.get."
+    },
+    {
+      "name": "automation.browser_rules.run_apply",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:manage",
+        "nodes:write"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/BrowserRulesRunApplyToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DeviceBridgeView"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "Apply exactly the reviewed unexpired local rule preview. Rule changes invalidate it; changed bookmarks are skipped. The durable run journal supports run_undo after interruptions. Requires enabled Agent access to this browser. Returns a durable request; poll automation.device_requests.get."
+    },
+    {
+      "name": "automation.browser_rules.run_undo",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:manage",
+        "nodes:write"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/BrowserRulesRunUndoToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DeviceBridgeView"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "Undo a local browser rule run conservatively from its journal. Bookmarks edited or moved since that run are preserved. Requires enabled Agent access to this browser. Returns a durable request; poll automation.device_requests.get."
+    },
+    {
+      "name": "automation.browser_rules.runs",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/BrowserRulesRunsToolInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DeviceBridgeView"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "List recent local rule runs and whether each can be undone, including interrupted work. Requires enabled Agent access to this browser. Returns a durable request; poll automation.device_requests.get."
     }
   ],
   "$defs": {
@@ -8104,6 +8258,372 @@
         "commandId",
         "baseRevision",
         "request"
+      ]
+    },
+    "BrowserRuleDraft": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "combinator": {
+          "enum": [
+            "all",
+            "any"
+          ]
+        },
+        "conditions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "value"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "siteIs",
+                  "siteEndsWith",
+                  "titleContains",
+                  "pathStartsWith",
+                  "pathUnder",
+                  "siteCollection"
+                ]
+              },
+              "value": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              }
+            }
+          }
+        },
+        "action": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "const": "file"
+                },
+                "folderNativeId": {
+                  "$ref": "#/$defs/OpaqueId"
+                }
+              },
+              "required": [
+                "kind",
+                "folderNativeId"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "const": "keepHere"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "combinator",
+        "conditions",
+        "action"
+      ]
+    },
+    "BrowserRuleChange": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "operation": {
+              "const": "save"
+            },
+            "ruleId": {
+              "$ref": "#/$defs/OpaqueId"
+            },
+            "draft": {
+              "$ref": "#/$defs/BrowserRuleDraft"
+            },
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "operation",
+            "draft"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "operation": {
+              "const": "remove"
+            },
+            "ruleId": {
+              "$ref": "#/$defs/OpaqueId"
+            }
+          },
+          "required": [
+            "operation",
+            "ruleId"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "operation": {
+              "const": "reorder"
+            },
+            "order": {
+              "type": "array",
+              "maxItems": 1000,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/OpaqueId"
+              }
+            }
+          },
+          "required": [
+            "operation",
+            "order"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "operation": {
+              "const": "enable"
+            },
+            "ruleId": {
+              "$ref": "#/$defs/OpaqueId"
+            },
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "operation",
+            "ruleId",
+            "enabled"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "operation": {
+              "const": "list_enable"
+            },
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "operation",
+            "enabled"
+          ]
+        }
+      ]
+    },
+    "BrowserRulesListToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "cursor": {
+          "type": "string",
+          "maxLength": 2048
+        }
+      },
+      "required": [
+        "replicaId",
+        "commandId"
+      ]
+    },
+    "BrowserRulesFoldersToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "parentNativeId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "cursor": {
+          "type": "string",
+          "maxLength": 2048
+        }
+      },
+      "required": [
+        "replicaId",
+        "commandId"
+      ]
+    },
+    "BrowserRulesConfigureToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "baseRevision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "request": {
+          "$ref": "#/$defs/BrowserRuleChange"
+        }
+      },
+      "required": [
+        "replicaId",
+        "commandId",
+        "baseRevision",
+        "request"
+      ]
+    },
+    "BrowserRulesPreviewToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "bookmark": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "url": {
+              "type": "string",
+              "maxLength": 8192
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 500
+            }
+          },
+          "required": [
+            "url",
+            "title"
+          ]
+        }
+      },
+      "required": [
+        "replicaId",
+        "commandId",
+        "bookmark"
+      ]
+    },
+    "BrowserRulesRunPreviewToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "scopeNativeId": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      },
+      "required": [
+        "replicaId",
+        "commandId",
+        "scopeNativeId"
+      ]
+    },
+    "BrowserRulesRunApplyToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "previewId": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      },
+      "required": [
+        "replicaId",
+        "commandId",
+        "previewId"
+      ]
+    },
+    "BrowserRulesRunUndoToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "runId": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      },
+      "required": [
+        "replicaId",
+        "commandId",
+        "runId"
+      ]
+    },
+    "BrowserRulesRunsToolInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "cursor": {
+          "type": "string",
+          "maxLength": 2048
+        }
+      },
+      "required": [
+        "replicaId",
+        "commandId"
       ]
     }
   }

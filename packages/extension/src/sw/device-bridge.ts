@@ -84,6 +84,8 @@ export async function pollDeviceBridge(device: DeviceAuthority | DeviceBridgeAut
     authorize,
     async execute(request) {
       await authorize(request);
+      if (request.operation.startsWith('browser_rules.')) return (await import('./device-bridge-browser-rules.js'))
+        .handleBrowserRulesBridge(request, () => authorize(request));
       if (isCaptureBridgeOperation(request)) return (await import('./device-bridge-classification.js'))
         .handleCaptureBridge(request, scope, () => authorize(request));
       if (request.operation.startsWith('adapters.tasks.')) return (await import('./device-bridge-adapters.js'))

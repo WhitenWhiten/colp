@@ -67,6 +67,14 @@ an invalid result rejected by the server becomes `device_result_rejected`. These
 failures release the request's queue slot. Retrying a cached result never repeats
 a classification provider call.
 
+`automation.browser_rules.*` uses the same device bridge for this profile's local
+rules. Enumerate writable destinations with `folders`, page through `list`, then
+use `configure` with the observed list revision to save, remove, enable or reorder
+rules. `preview` tries one bookmark. For existing bookmarks, review `run_preview`
+before `run_apply`; `runs` and `run_undo` inspect and compensate the durable local
+journal. Apply and undo require `nodes:write`. Device authorization is checked
+before each native move, and concurrent UI edits fence configuration writes.
+
 The Activity API reports direct MCP bookmark creation as `agent_bookmarks_added`
 and node edits, moves and deletions as `agent_nodes_updated`, `agent_nodes_moved`
 and `agent_nodes_deleted`. Both public OpenAPI documents and generated client

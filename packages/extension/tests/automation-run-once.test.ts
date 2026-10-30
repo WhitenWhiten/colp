@@ -27,6 +27,8 @@ vi.mock('../src/bookmark-subscriptions/guards.js', () => ({
 import { handleRunCommand, RUN_PREVIEW_KEY } from '../src/sw/automation-run.js';
 import { browserRuleStore, handleBrowserRuleCommand } from '../src/sw/automation-browser.js';
 import { automationDatabase } from '../src/automation/indexeddb-store.js';
+import { handleBrowserRulesBridge } from '../src/sw/device-bridge-browser-rules.js';
+import type { BrowserRequest } from '../src/automation/device-bridge.js';
 
 // ---- the planner, over a supplied tree ----
 const folders: Record<string, { id: string; title: string }> = { 30: { id: '30', title: 'Papers' }, 31: { id: '31', title: 'Reading' }, 40: { id: '40', title: 'Managed' } };
@@ -117,6 +119,7 @@ beforeEach(async () => {
   vi.stubGlobal('chrome', { storage: { local: { get: async () => ({}), set: async () => undefined } }, bookmarks: {
     get: async (id: string) => { if (!tree.nodes.has(id)) throw new Error('Can’t find bookmark for id.'); return [view(id)]; },
     getChildren: async (id: string) => tree.nodes.get(id)!.children!.map(view),
+    getRecent: async () => [...tree.nodes.values()].filter(node => node.url).map(node => view(node.id)),
     getSubTree: async (id: string) => [sub(id)], move: async (id: string, destination: { parentId: string; index?: number }) => move(id, destination) } });
   await handleBrowserRuleCommand({ kind: 'known.automation.browser.save', draft: draft('30') });
 });
@@ -127,6 +130,61 @@ const preview = async (scopeNativeId = '20') => {
   if (!reply.ok || !('run' in reply)) throw new Error(JSON.stringify(reply));
   return reply.run;
 };
+
+const bridge = (operation: string, input: BrowserRequest['input'] = {}, authorize = async () => {}) => handleBrowserRulesBridge({
+  id: crypto.randomUUID(), replicaId: 'replica', collectionId: 'collection', operation: `browser_rules.${operation}`,
+  input, expiresAt: new Date(NOW + 60000).toISOString(),
+}, authorize);
+
+describe('agent browser rule workflows', () => {
+  it('lists destinations, edits with a revision, tries a bookmark, and removes a rule', async () => {
+    const folders = await bridge('folders', { parentNativeId: '1' }) as { items: { id: string }[] };
+    expect(folders.items.map(item => item.id)).toEqual(['20', '30']);
+    const before = await browserRuleStore().load(), id = before.entries[0]!.kind === 'rule' ? before.entries[0]!.rule.id : '';
+    expect(await bridge('configure', { baseRevision: before.revision, request: { operation: 'save', ruleId: id, draft: draft('20') } }))
+      .toMatchObject({ ok: true, rule: { action: { folderNativeId: '20' } } });
+    await expect(bridge('configure', { baseRevision: before.revision, request: { operation: 'remove', ruleId: id } })).rejects.toThrow('browser_rules_changed');
+    expect(await bridge('preview', { bookmark: { url: 'https://arxiv.org/abs/1', title: 'Paper' } })).toMatchObject({ ok: true });
+    const current = await bridge('list') as { revision: number; items: { id: string; draft: unknown }[] };
+    expect(current.items).toMatchObject([{ id, draft: { action: { folderNativeId: '20' } } }]);
+    expect(await bridge('configure', { baseRevision: current.revision, request: { operation: 'remove', ruleId: id } })).toMatchObject({ ok: true });
+    expect((await browserRuleStore().load()).entries).toEqual([]);
+  });
+
+  it('rejects lost authority inside the store write lane and excluded destinations', async () => {
+    const before = await browserRuleStore().load(); let checks = 0;
+    await expect(bridge('configure', { baseRevision: before.revision, request: { operation: 'save', draft: draft('30') } }, async () => {
+      if (++checks === 3) throw Error('device_bridge_disabled');
+    })).rejects.toThrow('device_bridge_disabled');
+    expect((await browserRuleStore().load()).revision).toBe(before.revision);
+    tree.excluded.add('30');
+    await expect(bridge('configure', { baseRevision: before.revision, request: { operation: 'save', draft: draft('30') } })).rejects.toThrow('excluded');
+  });
+
+  it('previews, applies and undoes using the existing durable journal', async () => {
+    const planned = await bridge('run_preview', { scopeNativeId: '20' }) as { run: { previewId: string } };
+    expect(parent('b1')).toBe('20');
+    const applied = await bridge('run_apply', { previewId: planned.run.previewId }) as { result: { runId: string; moved: number } };
+    expect(applied.result.moved).toBe(3);
+    const runs = await bridge('runs') as { items: { id: string; canUndo: boolean }[] };
+    expect(runs.items).toMatchObject([{ id: applied.result.runId, canUndo: true }]);
+    expect(await bridge('run_undo', { runId: applied.result.runId })).toMatchObject({ ok: true, result: { moved: 3 } });
+    expect(parent('b1')).toBe('20');
+  });
+
+  it('fences a revoked bridge between native moves and retains an undoable partial journal', async () => {
+    const planned = await bridge('run_preview', { scopeNativeId: '20' }) as { run: { previewId: string } };
+    let revoked = false;
+    vi.spyOn(chrome.bookmarks, 'move').mockImplementation(async (id, destination) => { const result = move(id, { ...destination, parentId: destination.parentId! }); revoked = true; return result; });
+    await expect(bridge('run_apply', { previewId: planned.run.previewId }, async () => { if (revoked) throw Error('device_bridge_disabled'); }))
+      .rejects.toThrow('device_bridge_disabled');
+    expect(['b1', 'b3', 'b4'].filter(id => parent(id) === '30')).toHaveLength(1);
+    const runs = await bridge('runs') as { items: { id: string; state: string; canUndo: boolean }[] };
+    expect(runs.items[0]).toMatchObject({ state: 'interrupted', canUndo: true });
+    await bridge('run_undo', { runId: runs.items[0]!.id });
+    expect(['b1', 'b3', 'b4'].map(parent)).toEqual(['20', '20', '20']);
+  });
+});
 
 describe('a run', () => {
   it('previews a folder, moves what it listed on apply, and moves it back on undo, at its old place', async () => {
