@@ -48,8 +48,8 @@ async function stopReason(task: CaptureTask): Promise<string | null> {
  * credits or server decision is involved. The user can still change the folder
  * from the result panel, the options page or Know-N.
  */
-export function classifyLocalCapture(task: CaptureTask, ledger: CaptureStore): Promise<CaptureTask> {
-  return workCoordinator.run('local-classification', context => classifyOnce(task, ledger, context).catch(async error => {
+export function classifyLocalCapture(task: CaptureTask, ledger: CaptureStore, assertCurrent?: () => Promise<void>): Promise<CaptureTask> {
+  return workCoordinator.run('local-classification', context => classifyOnce(task, ledger, context, assertCurrent).catch(async error => {
     const current = await ledger.get(task.scope, task.captureId);
     // A concurrent writer won the CAS: the durable intent is intact and the next resume continues it.
     if (error instanceof Error && error.message === 'capture_revision_conflict') return current ?? task;
@@ -63,7 +63,22 @@ export function classifyLocalCapture(task: CaptureTask, ledger: CaptureStore): P
   }));
 }
 
-async function classifyOnce(task: CaptureTask, ledger: CaptureStore, context: AuthorityContext): Promise<CaptureTask> {
+/** An explicit classification retry changes no native save identity or consent. */
+export async function retryLocalCaptureClassification(task: CaptureTask, ledger: CaptureStore, expectedRevision: number, assertCurrent: () => Promise<void>) {
+  await assertCurrent();
+  const current = await ledger.get(task.scope, task.captureId);
+  if (!current || current.revision !== expectedRevision) throw Error('capture_revision_conflict');
+  if (!current.local || current.planned || current.manualFence || current.disposition !== 'new' || current.save !== 'local-saved'
+    || !current.nativeId || !['manual', 'failed', 'waiting'].includes(current.classification)) throw Error('classification_retry_unavailable');
+  const reason = await stopReason(current); if (reason) throw Error(reason);
+  const next: CaptureTask = { ...current, classification: 'waiting', reason: null, local: { ...current.local, state: 'waiting' },
+    revision: current.revision + 1, updatedAt: Date.now() };
+  await assertCurrent(); await ledger.update(next, current.revision);
+  return classifyLocalCapture(next, ledger, assertCurrent);
+}
+
+async function classifyOnce(task: CaptureTask, ledger: CaptureStore, context: AuthorityContext, assertCurrent?: () => Promise<void>): Promise<CaptureTask> {
+  await assertCurrent?.();
   let current = await ledger.get(task.scope, task.captureId) ?? task;
   const write = async (patch: Partial<CaptureTask>, attempts = 3): Promise<CaptureTask> => {
     const next: CaptureTask = { ...current, ...patch, revision: current.revision + 1, updatedAt: Date.now() };
@@ -90,7 +105,9 @@ async function classifyOnce(task: CaptureTask, ledger: CaptureStore, context: Au
   await write({ classification: 'running', reason: null, local: { ...local, commandId, state: 'running', fromNativeId: current.targetNativeId } });
   const document = classificationDocument(current, { tags: tagMode !== 'off', folder: !tagsOnly });
   await assertCaptureContent(current);
-  const reply = await runLocalClassification({ document, commandId, generation: context.generation, signal: context.signal, excludeBookmarkId: current.nativeId!, assertCurrent: () => assertCaptureContent(current) });
+  const reply = await runLocalClassification({ document, commandId, generation: context.generation, signal: context.signal, excludeBookmarkId: current.nativeId!,
+    assertCurrent: async () => { await assertCurrent?.(); await assertCaptureContent(current); } });
+  await assertCurrent?.();
   current = await ledger.get(task.scope, task.captureId) ?? current;
   const running = current.local ?? local;
   if (!reply.ok && tagsOnly && reply.error === 'local_no_tags') return write({ classification: 'applied', reason: null, local: { ...running, state: 'kept' } });
@@ -115,11 +132,14 @@ async function classifyOnce(task: CaptureTask, ledger: CaptureStore, context: Au
       const [bookmark] = await chrome.bookmarks.get(current.nativeId!);
       if (!bookmark) throw new Error('capture_bookmark_changed');
       const row = await annotations.get(bookmark), base = { tags: row?.tags ?? [], note: row?.note ?? null };
+      await assertCurrent?.();
       await annotations.save(bookmark, { tags: [...new Set([...base.tags, ...addedTags])], note: base.note }, { preserveTags: true, base });
     } finally { annotations.close(); }
   }
   if (!tagsOnly) await classificationDestinationPolicy.assertAllowed(folder.nativeId, reply.destinationPolicyDigest);
-  if (folder.nativeId !== current.targetNativeId) await moveCaptureContent(current, folder.nativeId, () => personalBookmarks.move(current.nativeId!, { parentId: folder.nativeId }));
+  if (folder.nativeId !== current.targetNativeId) await moveCaptureContent(current, folder.nativeId, async () => {
+    await assertCurrent?.(); return personalBookmarks.move(current.nativeId!, { parentId: folder.nativeId });
+  });
   const location = await nativeCaptureLocation(current.nativeId!, current.scope).catch(() => current.localLocation);
   return write({ classification: 'applied', classificationAppliedAt: Date.now(), reason: null, localLocation: location,
     local: { ...running, ...suggestion, state: folder.nativeId === current.targetNativeId ? 'kept' : 'applied' } });

@@ -759,7 +759,7 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Queue classification.preview on the explicitly selected replica. Requires the owner to enable the device bridge in that browser. Returns a request handle, not the operation result; use automation.device_requests.get. Classification previews may call the configured provider once. Retries preserve any existing save command and require a new explicit command ID after an unknown outcome."
+      "description": "Preview a site semantic job, an ordinary saved capture, or an incoming bookmark with the explicitly selected browser provider. Exactly one of jobId, captureId, bookmark is required. May spend one provider call; returns suggestions without moving or creating bookmarks. The Owner must enable browser agent access; use automation.device_requests.get for the result."
     },
     {
       "name": "automation.classification.retry",
@@ -779,6 +779,61 @@
         "idempotentHint": true
       },
       "description": "Queue classification.retry on the explicitly selected replica. Requires the owner to enable the device bridge in that browser. Returns a request handle, not the operation result; use automation.device_requests.get. Classification previews may call the configured provider once. Retries preserve any existing save command and require a new explicit command ID after an unknown outcome."
+    },
+    {
+      "name": "automation.classification.captures.list",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/BridgeCaptureListInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DeviceBridgeView"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "Inspect ordinary saved capture classification tasks, including local provider failures, under the selected device and account. Returns a durable device request; use automation.device_requests.get. List continuations are scoped to the account and collection."
+    },
+    {
+      "name": "automation.classification.captures.get",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:read"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/BridgeCaptureGetInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DeviceBridgeView"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "Inspect ordinary saved capture classification tasks, including local provider failures, under the selected device and account. Returns a durable device request; use automation.device_requests.get. List continuations are scoped to the account and collection."
+    },
+    {
+      "name": "automation.classification.captures.retry",
+      "profile": "automationManager",
+      "requiredScopes": [
+        "automation:manage"
+      ],
+      "inputSchema": {
+        "$ref": "#/$defs/BridgeCaptureRetryInput"
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/DeviceBridgeView"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      },
+      "description": "Explicitly retry failed local classification on an existing saved bookmark with its observed revision. Preserves the original save identity and respects pause, user edits and existing authorization; may spend one new provider attempt."
     }
   ],
   "$defs": {
@@ -6507,8 +6562,7 @@
       "additionalProperties": false,
       "required": [
         "replicaId",
-        "commandId",
-        "jobId"
+        "commandId"
       ],
       "properties": {
         "replicaId": {
@@ -6519,8 +6573,92 @@
         },
         "jobId": {
           "$ref": "#/$defs/OpaqueId"
+        },
+        "captureId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "bookmark": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "title": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "url": {
+              "type": "string",
+              "format": "uri",
+              "maxLength": 8192
+            }
+          },
+          "required": [
+            "title",
+            "url"
+          ]
+        },
+        "tags": {
+          "type": "boolean"
         }
-      }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "jobId"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "captureId"
+                ]
+              },
+              {
+                "required": [
+                  "bookmark"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "captureId"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "jobId"
+                ]
+              },
+              {
+                "required": [
+                  "bookmark"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "bookmark"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "jobId"
+                ]
+              },
+              {
+                "required": [
+                  "captureId"
+                ]
+              }
+            ]
+          }
+        }
+      ]
     },
     "BridgeClassificationRetryInput": {
       "type": "object",
@@ -6541,6 +6679,77 @@
           "$ref": "#/$defs/OpaqueId"
         }
       }
+    },
+    "HostCommandId": {
+      "type": "string",
+      "minLength": 36,
+      "maxLength": 36,
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "BridgeCaptureListInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/HostCommandId"
+        },
+        "cursor": {
+          "type": "string",
+          "maxLength": 2048
+        }
+      },
+      "required": [
+        "replicaId",
+        "commandId"
+      ]
+    },
+    "BridgeCaptureGetInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/HostCommandId"
+        },
+        "captureId": {
+          "$ref": "#/$defs/OpaqueId"
+        }
+      },
+      "required": [
+        "replicaId",
+        "commandId",
+        "captureId"
+      ]
+    },
+    "BridgeCaptureRetryInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "replicaId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "commandId": {
+          "$ref": "#/$defs/HostCommandId"
+        },
+        "captureId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "baseRevision": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "replicaId",
+        "commandId",
+        "captureId",
+        "baseRevision"
+      ]
     }
   }
 }

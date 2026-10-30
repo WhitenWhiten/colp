@@ -14,3 +14,13 @@ test('classification diagnostics accepts the returned continuation and history s
   expect(validate({ replicaId: 'replica', commandId: randomUUID(), group: 'anything' })).toBe(false);
   expect(validate({ replicaId: 'replica', commandId: randomUUID(), cursor: '', foreign: true })).toBe(false);
 });
+
+test('classification previews accept exactly one incoming, capture or semantic source', () => {
+  const tool = AUTOMATION_TOOL_CONTRACTS.find(t => t.name === 'automation.classification.preview')!;
+  const validate = createAjv({ allErrors: true }).compile(tool.inputSchema), base = { replicaId: 'replica', commandId: randomUUID() };
+  expect(validate({ ...base, jobId: 'semantic' })).toBe(true);
+  expect(validate({ ...base, captureId: 'saved' })).toBe(true);
+  expect(validate({ ...base, bookmark: { title: 'Article', url: 'https://example.org' } })).toBe(true);
+  expect(validate(base)).toBe(false);
+  expect(validate({ ...base, captureId: 'saved', jobId: 'semantic' })).toBe(false);
+});

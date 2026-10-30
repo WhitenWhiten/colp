@@ -3,8 +3,11 @@ import { boundedDeviceResult, failedDeviceResult } from './device-bridge-result.
 export const DEVICE_BRIDGE_KEY = 'known.automation.device-bridge.v1';
 export const DEVICE_BRIDGE_STATUS_KEY = 'known.automation.device-bridge-status.v1';
 export interface BrowserRequest { id: string; replicaId: string; collectionId: string; operation: string;
-  input: { jobId?: string; connectionId?: string; cursor?: string; group?: 'recovery' | 'history' }; expiresAt: string }
+  input: { jobId?: string; connectionId?: string; cursor?: string; group?: 'recovery' | 'history'; captureId?: string;
+    baseRevision?: number; bookmark?: { title: string; url: string }; tags?: boolean }; expiresAt: string }
 export interface BrowserRequestResult { requestId: string; state: 'done' | 'failed'; result: unknown }
+export const isCaptureBridgeOperation = (request: BrowserRequest) => request.operation.startsWith('classification.captures.')
+  || request.operation === 'classification.preview' && !request.input.jobId;
 export type DeviceCompletion = 'accepted' | 'retry' | 'tooLarge' | 'rejected';
 /** A write-ahead dispatch marker prevents replay after a worker dies during a paid preview or retry. */
 export function createDeviceBridgeRunner(area: AutomationStateArea, ports: {

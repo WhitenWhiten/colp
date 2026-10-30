@@ -14,11 +14,13 @@ export function boundedDeviceResult(response: BrowserRequestResult): BrowserRequ
 }
 
 /** Never omit an oversized task or advance past it. Return a cursor only after the last included task. */
-export function deviceResultPage<T extends { id: string }>(requestId: string, candidates: readonly T[], base: Record<string, unknown>) {
+export function deviceResultPage<T extends { id: string }>(requestId: string, candidates: readonly T[], base: Record<string, unknown>,
+  pagination: { cursorFor?: (item: T) => string; tailCursor?: string | null } = {}) {
   const items: T[] = [];
-  let nextCursor: string | null = null;
+  let nextCursor: string | null = pagination.tailCursor ?? null;
   for (const item of candidates.slice(0, 20)) {
-    const next = [...items, item], cursor = candidates.length > next.length ? item.id : null;
+    const next = [...items, item], cursor = candidates.length > next.length
+      ? pagination.cursorFor?.(item) ?? item.id : pagination.tailCursor ?? null;
     if (!deviceResultFits({ requestId, state: 'done', result: { ...base, items: next, nextCursor: cursor } })) {
       if (!items.length) throw new Error('device_result_too_large');
       break;

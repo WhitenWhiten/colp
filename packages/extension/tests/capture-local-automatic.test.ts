@@ -37,7 +37,7 @@ vi.mock('../src/sw/classification-local.js', () => ({ runLocalClassification: f.
 vi.mock('../src/bookmark-subscriptions/guards.js', () => ({ isSubscriptionExcluded: async () => false,
   personalBookmarks: { move: f.move } }));
 
-import { classifyLocalCapture } from '../src/sw/capture-local.js';
+import { classifyLocalCapture, retryLocalCaptureClassification } from '../src/sw/capture-local.js';
 
 const reply = (decision: 'l2' | 'later', folder: string | null) => ({ ok: true,
   result: { folder: { decision, folderId: folder }, candidateCoverage: { l1Included: 1 } }, nativeFolder: folder ? { folderId: folder, nativeId: folder, title: 'Recipes' } : null });
@@ -82,6 +82,25 @@ test('"later" keeps the save where it is', async () => {
   const result = await classifyLocalCapture(await f.ledger!.claim(seed()), f.ledger!);
   expect(f.move).not.toHaveBeenCalled();
   expect(result).toMatchObject({ classification: 'manual', reason: 'local_no_folder', local: { state: 'later', folderCandidateCount: 1 } });
+});
+
+test('explicit retry classifies the original saved bookmark once and rejects stale revisions', async () => {
+  const created = await f.ledger!.claim(seed({ classification: 'manual', reason: 'local_timeout', local: { state: 'unknown', commandId: 'spent' } }));
+  const authorize = vi.fn(async () => {});
+  f.classify.mockResolvedValue(reply('l2', 'recipes'));
+  await expect(retryLocalCaptureClassification(created, f.ledger!, created.revision + 1, authorize)).rejects.toThrow('capture_revision_conflict');
+  expect(f.classify).not.toHaveBeenCalled();
+  const result = await retryLocalCaptureClassification(created, f.ledger!, created.revision, authorize);
+  expect(result).toMatchObject({ commandId: created.commandId, nativeId: created.nativeId, classification: 'applied' });
+  expect(f.classify).toHaveBeenCalledOnce(); expect(authorize).toHaveBeenCalled();
+});
+
+test('agent revocation during a paid retry prevents applying its suggestion', async () => {
+  const created = await f.ledger!.claim(seed({ classification: 'manual', local: { state: 'unknown', commandId: 'spent' } }));
+  const authorize = vi.fn(async () => {});
+  f.classify.mockImplementationOnce(async () => { authorize.mockRejectedValue(Error('device_bridge_disabled')); return reply('l2', 'recipes'); });
+  await retryLocalCaptureClassification(created, f.ledger!, created.revision, authorize);
+  expect(f.move).not.toHaveBeenCalled();
 });
 
 test.each(['existing', 'cancelled'] as const)('a %s capture never reaches the local provider even with a saved receipt', async disposition => {

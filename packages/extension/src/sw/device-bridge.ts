@@ -1,6 +1,6 @@
 import { siteGrants } from '../site-adapters/community-definition.js';
 import type { SourceAuthority } from '../site-adapters/ledger-types.js';
-import { DEVICE_BRIDGE_KEY, DEVICE_BRIDGE_STATUS_KEY, createDeviceBridgeRunner, type BrowserRequest } from '../automation/device-bridge.js';
+import { DEVICE_BRIDGE_KEY, DEVICE_BRIDGE_STATUS_KEY, createDeviceBridgeRunner, isCaptureBridgeOperation, type BrowserRequest } from '../automation/device-bridge.js';
 import { deviceResultPage } from '../automation/device-bridge-result.js';
 import { fetchDeviceRequests, completeDeviceRequest, type DeviceAuthority, type DeviceBridgeAuthority } from '../automation/device-client.js';
 import { automationDatabase } from '../automation/indexeddb-store.js';
@@ -84,6 +84,8 @@ export async function pollDeviceBridge(device: DeviceAuthority | DeviceBridgeAut
     authorize,
     async execute(request) {
       await authorize(request);
+      if (isCaptureBridgeOperation(request)) return (await import('./device-bridge-classification.js'))
+        .handleCaptureBridge(request, scope, () => authorize(request));
       if (request.operation === 'adapters.status') {
         return { sites: await adapterStatus(),
           classificationEnabled: await localClassificationEnabled() };
