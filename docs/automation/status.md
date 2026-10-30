@@ -143,3 +143,33 @@ Each packet is committed separately; the commit column is filled in by the next 
 The AW-72 report's leftovers, and what a UX review found may mislead users, each fixed in its own commit.
 The [follow-up record](evidence/browser-rules-follow-up.md) maps every item to its commit and lists what
 was left unchanged, and why.
+
+## Server and extension recovery review (2026-10-30)
+
+Reviewed from `f7d18a0b`; each fix and capability was committed separately. This record covers local unit and PostgreSQL verification, not hosted acceptance. The current recovery workflow and exact tool contract are in the [API guide](design/04-api-guide.md#10-implemented-manager-recovery-tools-2026-10-30) and [MCP catalog](design/api/mcp-tool-catalog.json).
+
+| Finding / capability | Commit |
+| --- | --- |
+| Bundle expiry must retain a learned pause | `13c0a2c7` |
+| Unrelated broken adapters must not block ordinary page capture | `9777b643` |
+| Avatar reads must not rotate the renewed session credential | `495327eb` |
+| Optional tag context failures must not block folder classification | `0e5bb2c5` |
+| Browser agent recovery must work independently of paused personal Sync | `69b574fa`, composition-boundary cleanup `137d55c6` |
+| Dead delivery retries must reject stale subscription authority | `b8b3e575` |
+| Classification diagnostics pagination | `22c698e6` |
+| Ordinary capture inspection/retry and incoming classification previews | `0279afbe` |
+| Scoped recovery for seven adapter task kinds | `b788e0b2` |
+| Sync conflict resolution, issue retry and reviewed replica recovery | `a57ea270` |
+| Account-wide pause management | `28c4aca8` |
+| Signed continuation page-size preservation | `afea7d9f` |
+| Connection profile and worker target configuration | `af30079b` |
+| Executor and execution policy configuration | `15750a54` |
+| One-time worker pairing grants with redacted receipt replay | `a40d1a80` |
+| Agent recovery warnings must survive page rendering | `411ef209` |
+| Pause propagation and explanation independent of personal Sync | `c7efebc9` |
+| Chinese recovery and permission feedback | `7fcfdd3a` |
+| OpenAPI installation-proof alternative and generated server/web types | `9b1b3750` |
+
+Added regression coverage for owner isolation, observed revision conflicts, exact replay, lost authority, pagination, damaged local records and independent pause propagation. Browser operations still depend on the opted-in device being online, an installed adapter and the existing permissions/confirmations. Recovery actions expose those boundaries instead of bypassing them.
+
+Final verification: 100 extension tests across the 11 changed suites; 12 PostgreSQL cases across manager configuration, device bridge, Sync recovery and live tool catalog authorization; 8 server unit cases for browser contracts, recovery and pagination. The separate Events delivery regression suite passed 9 cases. Both package builds and typechecks passed, as did lint on changed TypeScript files, source-size checks, server import boundaries, automation OpenAPI/catalog drift and the English/Chinese catalog check. No real-browser E2E or hosted deployment was performed in this round.

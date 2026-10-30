@@ -68,7 +68,7 @@ Create the draft rule (the web editor creates its binding set in the same flow).
 
 ### Pause all (M1)
 
-`POST /api/v1/me/automations/pause` with `{ "paused": true }` stops admission for every rule, holds pending jobs and sets the bundle flag. Workers that list jobs receive `503 automation_paused` with `Retry-After`. Resume captures fresh source/activation high-water fences and does not backfill. Offline devices learn pause only on refresh or stop when their cached bundle expires; the UI must expose this limit. A previously learned pause cannot be rolled back by an older bundle. Bookmarks saved while paused can later be selected explicitly by M3 run-once; M1 must not imply that action is already available.
+`POST /api/v1/me/automations/pause` with `{ "paused": true }` stops admission for every rule, holds pending jobs and sets the bundle flag. Workers that list jobs receive `503 automation_paused` with `Retry-After`. Resume captures fresh source/activation high-water fences and does not backfill. Browsers read `/pause` with their web session independently of personal Sync, checking `Known-Automation-Account-Id` in the same response. Offline devices learn a new pause on their next successful refresh; an expired bundle withdraws account placement permission. A learned pause also stops browser rules and site automations, survives expiry and failed reads, and cannot be rolled back by an older settings response. Pause revisions and bundle configuration epochs are separate sequences. Bookmarks saved while paused can later be selected explicitly by M3 run-once; M1 must not imply that action is already available.
 
 ### Device handoff (M1)
 
@@ -148,3 +148,23 @@ The 201 response contains a draft Rule and ETag. A separate lifecycle call enabl
 ## 9. Contract ownership
 
 The backend owns OpenAPI, result states and permission decisions; Web/extension consume generated DTOs and versioned fixtures. Catalogs are a composable set; pre-pair worker authority exposes only pairing, not manager functions. The complete worker interface includes queue list and HTTP pairing. Run outputs are paginated backend data; read commands name the last viewed output so concurrent outputs remain unread. See [execution contract](11-execution-contract.md) and [delivery lanes](12-delivery-lanes.md).
+
+## 10. Implemented manager recovery tools (2026-10-30)
+
+The source of tool names, closed input schemas and required scopes is the [MCP catalog](api/mcp-tool-catalog.json). The manager profile must be enabled for the current credential; enabling a browser bridge additionally requires the Owner's explicit opt-in on that device.
+
+| Task | Tools and constraints |
+| --- | --- |
+| Inspect ordinary saved classification | `automation.classification.captures.list/get/retry`; list cursors bind account and collection. Retry requires the observed capture revision and retains the original save identity. User edits and stopped work remain fenced. |
+| Preview classification | `automation.classification.preview` accepts exactly one of `jobId`, `captureId`, or incoming `bookmark`. It may call the browser's configured provider once and returns suggestions without creating or moving a bookmark. Diagnostics accept `cursor` and `group` (`recovery` or `history`). |
+| Repair adapter work | `automation.adapters.tasks.list/get/control` select a connection and one task kind: semantic, confirmation, import, save, transfer, reconcile or observation. Each task exposes reasons, revision and permitted actions. Control requires that revision and only accepts advertised retry/resume/cancel actions. Existing confirmation and permission requirements still apply. |
+| Repair personal Sync | `automation.sync.conflicts/resolve_conflict`, `retry_issue`, `replica_plan/replica_command`. Read the current plan before sending retry/rebuild. Rebuild requires `confirmation: "rebuild_replica"` and the observed lifecycle revision; commands remain asynchronous and are reconciled through Sync status. |
+| Configure automation | `automation.pause.get/set`; `connection_profiles`, `executors`, `execution_policies` each provide `list/get/save`; `targets` provides `list/get/save/revoke/issue_pairing`. Save selects create or update explicitly; updates require the observed revision. Only installed executor kinds and enforceable policy limits are accepted. |
+
+Browser tools return a durable device request handle; poll `automation.device_requests.get` for the operation result. Use a new `commandId` for each continuation request. The bridge authenticates with the current bearer and installation proof (`Known-Sync-Replica-Id` and `Known-Sync-Replica-Proof`), independently of personal Sync's run state or lease. Account, replica ownership, proof, credential security epoch and revocation are still checked. Legacy live Sync-session authority remains accepted. Disabling the bridge prevents pending work from applying.
+
+Manager reads require `automation:read`; mutations require `automation:manage`. Sync conflicts additionally require `mcp:read:own`; resolving them and issuing replica commands additionally require `nodes:write`. Configuration writes use the same owner transaction, validators, revision preconditions and durable receipts as Product HTTP. A lost reply is retried with the same command and arguments; a changed body with the same command is rejected. List continuations inherit the signed page size when `limit` is omitted; explicitly changing it requires restarting the list.
+
+To connect a worker, create its profile and target, then issue a pairing grant with the target revision. `automation.targets.issue_pairing` returns a five-minute code once and advances `targetRevision`. Its exact receipt replay returns `code: null, replayed: true`; the server never stores the code in receipt plaintext. If the first response was lost, read the current target and explicitly issue a new grant, invalidating older grants. Deliver the code only to the intended worker, which redeems it with `automation.targets.pair` under its own worker authority.
+
+Events remain wake hints. Workers reconcile `jobs.list` on startup/reconnect. Retrying a dead delivery after its subscription generation or target authority changed is rejected with an explanation; it does not report a retry that the worker will immediately cancel.
