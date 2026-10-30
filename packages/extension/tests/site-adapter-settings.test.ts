@@ -66,6 +66,20 @@ test('the site sidebar and page head paint the supported site favicon with a let
   expect(document.querySelector('.sites-page-head .sites-mark-letter')?.textContent).toBe('B');
 });
 
+test('retrying local saving keeps the real site status instead of painting an operation acknowledgment as off', async () => {
+  const f = await mount(undefined, true);
+  const statusReads = () => f.sendMessage.mock.calls.filter(([message]) => message.kind === 'known.siteAdapters.status').length;
+  const before = statusReads();
+  element('source-pipeline-retry').click();
+  await vi.waitFor(() => expect(f.sendMessage).toHaveBeenCalledWith({ kind: 'known.siteAdapters.operations.check', adapterId: 'bundled.bilibili' }));
+  expect(f.state.enabled).toBe(true);
+  await vi.waitFor(() => expect(statusReads()).toBeGreaterThan(before));
+  expect(details().enabled).toBe(true);
+  expect(details().archive.config.state).toBe('active');
+  expect(element('import-state').textContent).not.toBe('Website saving is off');
+  expect(f.sendMessage.mock.calls.some(([message]) => message.kind === 'known.siteAdapters.enable')).toBe(false);
+});
+
 test('a refused action survives status refresh with the chosen scope intact', async () => {
   const f = await mount('permissionRequired');
   element('configure-archive').click();

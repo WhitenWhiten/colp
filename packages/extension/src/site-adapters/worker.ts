@@ -45,6 +45,8 @@ import { siteGrants } from './community-definition.js';
 import { createSiteActivity, currentSiteProblem, activityCode, siteOperation, sourceActivityCounts } from './activity.js';
 import { installSiteActivity } from './activity-runtime.js';
 import { createLane } from '../automation/lane.js';
+import { sourceLiveReport } from './live-report.js';
+import { sourceAutomationsPaused } from '../sw/automation.js';
 function createSiteHost(definition: SiteDefinition, driver: SiteDriver = bundledDriver(definition)) {
   const semanticRetry = object({ kind: literal('known.siteAdapters.semantic.retry'), jobId: str(128), reclassify: v => v === undefined || literal(true, false)(v) });
   const LIMITS = readLimits(definition);
@@ -374,7 +376,9 @@ function createSiteHost(definition: SiteDefinition, driver: SiteDriver = bundled
       if (management(sender) && activityRequest(raw)) {
         void (async () => { await trustedStorage(); const r = raw as { kind: string; id?: string };
           if (r.kind.endsWith('.dismiss')) { if (!r.id) throw new Error('activityMissing'); await activity.dismiss(r.id); return { dismissed: true }; }
-          return r.kind.endsWith('.list') ? { events: await activity.list() } : { report: await activity.report(r.id) };
+          if (r.kind.endsWith('.list')) return { events: await activity.list() };
+          const current = await sourceLiveReport(siteLedger.db, definition, await read(), new Set(ports.keys())).catch(() => ({ available: false }));
+          return { report: { ...await activity.report(r.id), current: { ...current, automationsPaused: await sourceAutomationsPaused().catch(() => null) } } };
         })().then(respond, async e => respond(await failed(raw, e))); return true;
       }
       if (management(sender) && checkOperations(raw)) {

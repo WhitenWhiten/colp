@@ -94,6 +94,16 @@ test('an installed package is a full site: live saves, import, a worker restart,
     await send({ kind: 'known.siteAdapters.import.start', adapterId });
     await expect.poll(async () => (await status()).archive?.import?.preview?.counts, { timeout: 30000 }).toEqual({ createFolders: 0, createBookmarks: 1, reuseBookmarks: 1, review: 0 });
 
+    // Recovery returns an acknowledgment. It must not replace the displayed site status.
+    await page.locator('#source-pipeline-retry').evaluate(button => (button as HTMLButtonElement).click());
+    await expect(page.locator('#site-settings-dialog')).toHaveAttribute('aria-busy', 'false');
+    expect(await page.locator('#status').evaluate(element => JSON.parse(element.textContent!).enabled)).toBe(true);
+    await expect(page.locator('#source-overview')).toBeVisible();
+    const report = await send({ kind: 'known.siteAdapters.activity.report', adapterId });
+    expect(report.report.current).toMatchObject({ available: true, source: { enabled: true, accountConfirmed: true, documents: 1 },
+      configuration: { state: 'active', live: true, policyEnabled: true, policyLive: true } });
+    expect(report.report.current.events.settled + report.report.current.events.pending).toBeGreaterThan(0);
+
     // Status must count a reattached port, not the stopped worker's retained lease.
     // A new live favorite also saves while the earlier bulk import awaits approval.
     await stopWorker(context, page);

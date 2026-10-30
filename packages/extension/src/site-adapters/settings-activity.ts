@@ -27,9 +27,11 @@ export function createSiteActivityView(send: Send, definition: SiteDefinition) {
   const history = element<HTMLDetailsElement>('site-history');
   async function copy(id?: string) {
     const chosen = current, client = fallback ? structuredClone(fallback) : null;
-    const result = id?.startsWith('client:') ? { report: { format: 'known.site-adapter-report/v1',
-      adapter: { adapterId: definition.adapterId, version: definition.version, siteKey: definition.siteKey }, clientProblem: clientRecord } }
-      : await send({ kind: 'known.siteAdapters.activity.report', ...(id ? { id } : {}) }) as { report?: unknown; error?: string };
+    const clientId = id?.startsWith('client:');
+    const host = await send({ kind: 'known.siteAdapters.activity.report', ...(id && !clientId ? { id } : {}) }) as { report?: { current?: unknown }; error?: string };
+    const result = clientId ? { report: { format: 'known.site-adapter-report/v1',
+      adapter: { adapterId: definition.adapterId, version: definition.version, siteKey: definition.siteKey }, clientProblem: clientRecord,
+      current: host.report?.current ?? null }, error: host.error } : host;
     const report = id ? result.report : { format: 'known.site-adapter-report/v1',
       adapter: { adapterId: definition.adapterId, version: definition.version, siteKey: definition.siteKey },
       clientProblem: client, host: result.report ?? null };

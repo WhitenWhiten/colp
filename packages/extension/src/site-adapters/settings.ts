@@ -127,6 +127,9 @@ let disposed = false;
 installReconcileControls(message => act(message), () => { if (lastImport) paintImport(lastImport); });
 let lastActionError: { operation: string; error: string; at: number } | undefined;
 let refreshTimer: ReturnType<typeof setTimeout> | undefined, inspectionRetry: ReturnType<typeof setTimeout> | undefined;
+function completeStatus(result: SiteStatus) {
+  return typeof result.enabled === 'boolean' && typeof result.connected === 'boolean' && Number.isSafeInteger(result.documents);
+}
 /** The worker answers with the full status; a message nothing answers comes back as a refusal, never as silence. */
 async function request(message: unknown, current = requestOrder.read()): Promise<SiteStatus> {
   let result: SiteStatus;
@@ -134,6 +137,7 @@ async function request(message: unknown, current = requestOrder.read()): Promise
     const reply: unknown = await sendSiteMessage(message, { reportErrors: false });
     result = reply && typeof reply === 'object' && !Array.isArray(reply) ? reply as SiteStatus : { error: 'unavailable' };
   } catch { result = { error: 'unavailable' }; }
+  if ((message as { kind?: string }).kind === 'known.siteAdapters.status' && !result.error && !completeStatus(result)) result = { error: 'unavailable' };
   responseOrder.set(result, current); return result;
 }
 async function refresh() { if (disposed) return status; clearTimeout(refreshTimer);
@@ -153,7 +157,11 @@ async function act(message: unknown, done?: () => void): Promise<boolean> {
       showActionProblem(result, action.kind); showToast(errorCopy(result.error), 'error', { announce: true }); return false;
     }
     if (lastActionError?.operation === action.kind) lastActionError = undefined;
-    activityView.succeeded(siteOperation(action.kind)); done?.(); apply(result); activityView.changed(); return true;
+    activityView.succeeded(siteOperation(action.kind)); done?.();
+    // Recovery and cloud operations acknowledge completion without returning site state.
+    // Keep the current view until a fresh status arrives under this action's ordering fence.
+    apply(completeStatus(result) ? result : await request({ kind: 'known.siteAdapters.status', reconcileOffset: reconcilePageOffset() }, ticket.current));
+    activityView.changed(); return true;
   } finally {
     ticket.finish(); configuration.pending(false);
     if (!disposed) { paint(); if (failed) await refresh(); }

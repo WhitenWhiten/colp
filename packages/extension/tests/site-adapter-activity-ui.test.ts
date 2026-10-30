@@ -60,6 +60,19 @@ test('configuration failures stay in the open dialog, offer manual copying, and 
   expect(element('site-problem').hidden).toBe(true);
 });
 
+test('copying a client failure from history includes current host evidence without treating its client ID as a host incident', async () => {
+  const f = mount(), current = { source: { enabled: true }, work: { count: 1 } };
+  const send = vi.fn(async (request: Record<string, unknown>) => String(request.kind).endsWith('.list')
+    ? { events: [] } : { report: { current } });
+  const view = createSiteActivityView(send, postsDefinition); view.failed('unavailable');
+  const history = element<HTMLDetailsElement>('site-history'); history.open = true; history.dispatchEvent(new Event('toggle'));
+  await vi.waitFor(() => expect(history.querySelector('[data-id^="client:"] button')).not.toBeNull());
+  (history.querySelector('[data-id^="client:"] button') as HTMLButtonElement).click();
+  await vi.waitFor(() => expect(f.clipboard).toHaveBeenCalledOnce());
+  expect(JSON.parse(f.clipboard.mock.calls[0]![0])).toMatchObject({ clientProblem: { code: 'unavailable' }, current });
+  expect(send).toHaveBeenCalledWith({ kind: 'known.siteAdapters.activity.report' });
+});
+
 test('a server missing source create effects names the required update and keeps the original approval retryable', async () => {
   const f = mount(), journal = createSiteActivity(f.storage, postsDefinition, { extensionVersion: 'test' });
   const failed = await journal.record({ kind: 'problem', operation: 'save', taskId: 'task', code: 'sourceSyncUpgradeRequired' });
