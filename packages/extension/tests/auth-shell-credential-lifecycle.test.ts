@@ -203,6 +203,26 @@ describe('P3-27 Better Auth credential lifecycle', () => {
     assert.equal(await controller.dependencies.store.loadSession(), null);
   });
 
+  test('logout keeps the jar cookie until remote revocation while fencing local work', async () => {
+    const cookies = memoryCookies();
+    const key = `https://known.example/:${SESSION_COOKIE_NAME}`;
+    cookies.values.set(key, COOKIE_VALUE);
+    const store = createCredentialStore(new MemoryStorageArea(), () => NOW);
+    await store.saveCredential(fixtureCredential(config(), NOW));
+    let sent = false;
+    const controller = createAuthController({ config: config(), store, origin: EXTENSION_ORIGIN, cookies,
+      fetch: async () => {
+        assert.equal((await store.fence.read()).revoked, true);
+        assert.equal(await store.loadCredential(), null);
+        assert.equal(cookies.values.get(key), COOKIE_VALUE);
+        sent = true;
+        return new Response(null, { status: 200 });
+      } });
+    await controller.logout();
+    assert.equal(sent, true);
+    assert.equal(cookies.values.has(key), false);
+  });
+
   test('logout fences local authority first and treats Replica retirement failure as best effort', async () => {
     const controller = fixtureController({ config: config(), now: () => NOW, logout: 'retire_failure' });
     await controller.dependencies.store.saveCredential(fixtureCredential(config(), NOW));

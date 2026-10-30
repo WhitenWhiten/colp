@@ -159,7 +159,6 @@ function controller(dependencies: Dependencies) {
       // excluded by the service-worker drain callback because this operation
       // itself is in-flight on that lane.
       await dependencies.drain?.();
-      await removeHostCookie(dependencies);
       await dependencies.store.clearAuthority();
       await dependencies.store.clearSignOutReason();
       const timeoutMs = dependencies.logoutTimeoutMs ?? 10_000;
@@ -172,7 +171,12 @@ function controller(dependencies: Dependencies) {
           await withTimeout(dependencies.retire(credential, session, remoteAbort.signal), timeoutMs);
         }
         if (credential) await withTimeout(auth.signOut(credential.accessToken, remoteAbort.signal), timeoutMs);
-      } finally { clearTimeout(timer); }
+      } finally {
+        clearTimeout(timer);
+        // Chromium sends the jar cookie and strips script-supplied Cookie headers.
+        // Keep it until remote sign-out has had its bounded attempt.
+        await removeHostCookie(dependencies);
+      }
       return stateView('signed_out', dependencies.config);
     },
     async status(): Promise<PublicAuthState> {
