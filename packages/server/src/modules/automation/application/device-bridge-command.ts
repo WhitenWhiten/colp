@@ -1,6 +1,7 @@
-import { AutomationError, type AutomationDeviceUnitOfWork } from '../modules/automation/index.js';
-import type { VerifiedExtensionCredential } from '../modules/identity/index.js';
-import { canonicalCommandFingerprint } from '../modules/commands/index.js';
+import { AutomationError } from '../domain/errors.js';
+import type { AutomationDeviceUnitOfWork } from './accept-intake-receipt.js';
+import type { VerifiedExtensionCredential } from '../../identity/index.js';
+import { canonicalCommandFingerprint } from '../../commands/index.js';
 import { AUTOMATION_CONTRACT_VERSION } from '@know-n/colp/automation';
 
 export async function executeBridgeDeviceCommand(unitOfWork: AutomationDeviceUnitOfWork, input: {

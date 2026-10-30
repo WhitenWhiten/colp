@@ -12,6 +12,7 @@ import { ProductHttpError, sendProductError } from '../../../src/transport/produ
 import type { WorkPrincipal } from '../../../src/modules/automation/index.js';
 import { createDeviceBridgeRunner } from '../../../../extension/src/automation/device-bridge.js';
 import { replicaReportProofDigest } from '../../../src/infrastructure/sync/replica-report-authority.js';
+import { hasReplicaReportAuthority, isJoseSyncCredentialRevoked } from '../../../src/infrastructure/sync/index.js';
 
 describeWithPostgres('explicit browser device bridge', () => {
   let f: Awaited<ReturnType<typeof automationDeviceFixture>>, app: ReturnType<typeof Fastify>;
@@ -19,7 +20,12 @@ describeWithPostgres('explicit browser device bridge', () => {
     f = await automationDeviceFixture('device_bridge'); app = Fastify({ exposeHeadRoutes: false }); installProductAdmission(app);
     app.setErrorHandler((error, request, reply) => sendProductError(request, reply, error instanceof ProductHttpError ? error
       : new ProductHttpError({ statusCode: 500, code: 'internal_error', message: String(error) })));
-    registerAutomationDeviceRoutes(app, { unitOfWork: createAutomationDeviceUnitOfWork(f.db, 'server'), credentialVerifier: f.http.verifier,
+    registerAutomationDeviceRoutes(app, { unitOfWork: createAutomationDeviceUnitOfWork(f.db, 'server', {
+      hasReplicaAuthority: hasReplicaReportAuthority,
+      isCredentialRevoked: (tx, credential) => isJoseSyncCredentialRevoked(tx, { issuer: credential.issuer, subject: credential.subject,
+        tokenId: credential.credentialId, tokenDigest: credential.credentialDigest,
+        issuedAtSeconds: Math.floor(credential.credentialIssuedAt.getTime() / 1000), clockSkewSeconds: 0 }),
+    }), credentialVerifier: f.http.verifier,
       allowedOrigins: [AUTOMATION_DEVICE_ORIGIN], allowInsecureLoopback: true });
   });
   afterAll(async () => { await app?.close(); await f?.isolated.close(); });

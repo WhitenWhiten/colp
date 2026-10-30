@@ -6,6 +6,7 @@ import { createAutomationBindingVerifier } from './automation-binding-verifier.j
 import { createMcpSecurityEpochReader } from './api-mcp-oauth-composition.js';
 import { createPostgresMcpOauthRevocationStore } from '../infrastructure/database/index.js';
 import { createAutomationDeviceUnitOfWork, createAutomationUnitOfWork, createAutomationHealthMonitor, setAutomationCaptureEnabled } from '../infrastructure/automation/index.js';
+import { hasReplicaReportAuthority, isJoseSyncCredentialRevoked } from '../infrastructure/sync/index.js';
 import { createPostgresBookmarkSubscriptionUnitOfWork } from '../infrastructure/bookmark-subscriptions/unit-of-work.js';
 import { loadConfig } from './config.js';
 import { isReportCacheInvalidationEnabled } from './report-cache-enablement.js';
@@ -323,7 +324,12 @@ export function createApiPostgresAppDependencies(input: {
     } : {}),
     ...(config.agentActivityEnabled ? { activity: createActivityStore(database.db, config.productEditorCursor.current.key) } : {}),
     ...(config.automationRulesEnabled ? { automationUnitOfWork: createAutomationUnitOfWork(database.db, config.publication.serverUuid, { eventsEnabled:config.mcpEventsEnabled === true,runtimeEnabled: config.automationAdmissionEnabled === true,workerEnabled: config.automationWorkEnabled === true,verifyTargetBinding: createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,createPostgresMcpOauthRevocationStore({ db: database.db }))) }),
-      automationDeviceUnitOfWork: createAutomationDeviceUnitOfWork(database.db, config.publication.serverUuid),
+      automationDeviceUnitOfWork: createAutomationDeviceUnitOfWork(database.db, config.publication.serverUuid, {
+        hasReplicaAuthority: hasReplicaReportAuthority,
+        isCredentialRevoked: (tx, credential) => isJoseSyncCredentialRevoked(tx, { issuer: credential.issuer, subject: credential.subject,
+          tokenId: credential.credentialId, tokenDigest: credential.credentialDigest,
+          issuedAtSeconds: Math.floor(credential.credentialIssuedAt.getTime() / 1000), clockSkewSeconds: 0 }),
+      }),
       automationHealthStartup: () => createAutomationHealthMonitor(database.db, config.publication.serverUuid, metrics, config.automationAdmissionEnabled, {
         eventsEnabled:config.mcpEventsEnabled === true,workerEnabled: config.automationWorkEnabled === true,
         verifyTargetBinding: createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,createPostgresMcpOauthRevocationStore({ db: database.db }))),

@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ExtensionAuthError, type ExtensionCredentialEvidencePort } from '../modules/identity/index.js';
-import { executeBridgeDeviceCommand } from './automation-device-bridge-command.js';
+import { executeBridgeDeviceCommand } from '../modules/automation/index.js';
 import { acceptIntakeReceipt, parseContract, AutomationError, type AutomationDeviceUnitOfWork } from '../modules/automation/index.js';
 import { canonicalCommandFingerprint } from '../modules/commands/index.js';
 import { rateLimitClientIp, createMemorySyncAdmissionPolicy, syncAdmissionSubjectKey, type SyncAdmissionPolicy } from '../infrastructure/rate-limit/index.js';

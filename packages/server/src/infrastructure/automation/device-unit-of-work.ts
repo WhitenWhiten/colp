@@ -4,12 +4,13 @@ import type { Kysely } from 'kysely';
 import type { DatabaseSchema } from '../database/runtime.js';
 import { createPostgresProductCommandReceiptPort } from '../database/product-command-receipt.js';
 import { authorizeAutomationDevice } from './device-authority.js';
-import { authorizeAutomationBridgeDevice } from './device-bridge-authority.js';
+import { authorizeAutomationBridgeDevice, type BridgeAuthorityDependencies } from './device-bridge-authority.js';
 import { acceptStoredIntakeReceipt } from './intake-receipt-store.js';
-import type { AutomationDeviceUnitOfWork } from '../../modules/automation/index.js';
-export function createAutomationDeviceUnitOfWork(db: Kysely<DatabaseSchema>, serverUuid: string): AutomationDeviceUnitOfWork {
+import { AutomationError, type AutomationDeviceUnitOfWork } from '../../modules/automation/index.js';
+export function createAutomationDeviceUnitOfWork(db: Kysely<DatabaseSchema>, serverUuid: string, bridgeAuthority?: BridgeAuthorityDependencies): AutomationDeviceUnitOfWork {
   return { executeBridge: (input, work) => db.transaction().execute(async tx => {
-    const actor = await authorizeAutomationBridgeDevice(tx, input);
+    if (!bridgeAuthority) throw new AutomationError('automation_unsupported_capability', 'Installation bridge authority is unavailable.');
+    const actor = await authorizeAutomationBridgeDevice(tx, input, bridgeAuthority);
     return work({ actor, bridge: deviceBridgeDevicePort(tx, actor), receipts: createPostgresProductCommandReceiptPort(tx) });
   }), execute: (input, work) => db.transaction().execute(async tx => {
     const actor = await authorizeAutomationDevice(tx, input);

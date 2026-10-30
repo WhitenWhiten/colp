@@ -50,3 +50,4 @@ export { PREDECESSOR_FAILED, taskBlocksSuccessors, terminalTaskRunState } from '
 
 export { getAutomationRule, listAutomationRules } from './application/rule-reads.js';
 export * from './application/device-bridge.js';
+export { executeBridgeDeviceCommand } from './application/device-bridge-command.js';
