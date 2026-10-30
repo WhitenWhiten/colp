@@ -6487,6 +6487,18 @@
         },
         "commandId": {
           "$ref": "#/$defs/OpaqueId"
+        },
+        "cursor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "group": {
+          "type": "string",
+          "enum": [
+            "recovery",
+            "history"
+          ]
         }
       }
     },
