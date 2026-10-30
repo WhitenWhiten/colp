@@ -477,7 +477,7 @@ export function bindAutomationsPane(pane: HTMLElement): AutomationsPane {
       if (view.state === 'active' || view.state === 'paused' || (view.state === 'none' && view.problem !== 'unavailable')) parts.push(rulesGroup(view));
       parts.push(ruleListGroup(view, tried, [configCard()]), risk.element);
       if (view.deviceBridgeEnabled !== undefined) {
-      if (view.deviceBridgeEnabled && view.deviceBridgeProblem) body.append(inlineAlert('warning',
+      if (view.deviceBridgeEnabled && view.deviceBridgeProblem) parts.push(inlineAlert('warning',
         t('automation_bridgeProblem', 'Agent access needs attention: $1. Check the server connection and this device’s registration, then check again.', view.deviceBridgeProblem)));
       const bridge = el('button', view.deviceBridgeEnabled ? t('automation_bridgeDisable', 'Disable browser access for agents') : t('automation_bridgeEnable', 'Allow agents to inspect and retry tasks in this browser'), 'btn btn-secondary btn-sm') as HTMLButtonElement;
       bridge.type = 'button';
