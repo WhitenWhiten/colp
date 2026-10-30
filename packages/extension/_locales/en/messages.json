@@ -191,6 +191,9 @@
   "automation_activityAttention": {
     "message": "$1 needs your decision"
   },
+  "automation_activityUncertain": {
+    "message": "$1 has an unknown result. Review before retrying."
+  },
   "automation_activityDigests_one": {
     "message": "$1 new digest"
   },

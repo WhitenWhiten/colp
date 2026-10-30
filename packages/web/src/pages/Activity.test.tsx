@@ -23,6 +23,17 @@ describe('Activity inbox', () => {
   beforeEach(() => { vi.clearAllMocks(); resetActivityStatus(); auth.isLoggedIn = true })
   afterEach(() => { cleanup(); resetActivityStatus() })
 
+  it('explains an unknown result and opens its run for review before retrying', async () => {
+    const api = fakeActivityApi()
+    api.listActivity.mockResolvedValue({ items: [activityItem('uncertain', { kind: 'run_attention',
+      run: { id: 'run-unknown', ruleId: 'rule-1', ruleName: 'Weekly papers', status: 'uncertain', outputCount: 0, attention: 'review' },
+    })], nextCursor: null, unreadCount: 1 })
+    renderWithRouter(<Activity api={api} />, { route: '/activity' })
+    await waitForDom(() => entries().length === 1)
+    expect(document.body.textContent).toContain('Weekly papers has an unknown result. Review before retrying.')
+    expect(document.querySelector('a[href="/automations/runs/run-unknown"]')).not.toBeNull()
+  })
+
   it('renders agent additions and every run outcome with links, dates, samples and New markers', async () => {
     const api = fakeActivityApi()
     const run = { id: 'run-1', ruleId: 'rule-1', ruleName: 'Weekly papers', status: 'completed', outputCount: 1, attention: null }

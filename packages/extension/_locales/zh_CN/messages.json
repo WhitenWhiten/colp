@@ -223,6 +223,10 @@
     "message": "$1 需要你做出决定",
     "description": "$1 needs your decision"
   },
+  "automation_activityUncertain": {
+    "message": "$1 的执行结果未知，请核对后再重试。",
+    "description": "$1 has an unknown result. Review before retrying."
+  },
   "automation_activityDigests_one": {
     "message": "$1 篇新摘要",
     "description": "$1 new digest"

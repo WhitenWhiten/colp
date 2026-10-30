@@ -28,6 +28,10 @@ from the first inbox delivery. Later deliveries never extend this window. Source
 unchanged, so delayed or out-of-order outbox events can aggregate after a worker outage.
 Samples, folder names, agent names, and collection names are read from current server records.
 Run completion, partial success, failure, review, and approval attention update one activity item per run.
+An expired worker lease also creates `run_attention`, with `run.status: "uncertain"`
+and `attention: "review"`. The run stays active while its unknown external result
+is reconciled. Repeated sweeps preserve read state; an explicit retry clears the
+obsolete item, and a later unknown attempt creates a fresh notification.
 Cancelled runs and resolved approval requests are removed from the inbox; restarting a run clears its obsolete outcome
 unless an approval is still pending. New final outcomes create a fresh notification.
 Placement-only runs and manual selection parents do not create activity.

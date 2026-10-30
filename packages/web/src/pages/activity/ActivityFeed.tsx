@@ -37,6 +37,7 @@ function destination(item: ActivityItem): string | null {
 }
 
 function sentence(item: ActivityItem): string {
+  if (item.kind === 'run_attention' && item.run?.status === 'uncertain') return `${item.run.ruleName || 'A rule'} has an unknown result. Review before retrying.`
   if (item.kind === 'approval_requested') return `${item.agent?.name || 'An agent'} wants your approval`
   if (['agent_nodes_updated', 'agent_nodes_moved', 'agent_nodes_deleted'].includes(item.kind)) return `${item.agent?.name || 'An agent'} ${OUTCOME[item.kind as keyof typeof OUTCOME]} ${plural(item.count, 'item')}`
   if (item.kind !== 'agent_bookmarks_added') return `${item.run?.ruleName || 'A rule'} ${OUTCOME[item.kind]}`

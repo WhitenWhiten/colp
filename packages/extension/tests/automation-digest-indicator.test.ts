@@ -106,6 +106,8 @@ describe('the unified owner activity signal', () => {
   });
 
   it('uses the web item vocabulary and existing row patterns for the Options preview', () => {
+    expect(activityTitle({ ...item, kind: 'run_attention', run: { id: 'run-1', ruleId: 'rule-1', ruleName: 'Reading digest',
+      status: 'uncertain', outputCount: 0, attention: 'review' } })).toBe('Reading digest has an unknown result. Review before retrying.');
     expect(activityTitle(item)).toBe('Claude added 7 bookmarks to LLM Papers');
     expect(activityTitle({ ...item, agent: null, count: 1 })).toBe('An agent added 1 bookmark to LLM Papers');
     for (const [kind, words] of [['run_completed', 'finished'], ['run_partial', 'partly finished'], ['run_failed', 'failed'], ['run_attention', 'needs your decision']] as const) {

@@ -38,7 +38,9 @@ export function activityTitle(item: ActivityItem): string {
     case 'run_completed': return t('automation_activityFinished', '$1 finished', name);
     case 'run_partial': return t('automation_activityPartial', '$1 partly finished', name);
     case 'run_failed': return t('automation_activityFailed', '$1 failed', name);
-    case 'run_attention': return t('automation_activityAttention', '$1 needs your decision', name);
+    case 'run_attention': return item.run?.status === 'uncertain'
+      ? t('automation_activityUncertain', '$1 has an unknown result. Review before retrying.', name)
+      : t('automation_activityAttention', '$1 needs your decision', name);
   }
 }
 
