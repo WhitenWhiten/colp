@@ -1,11 +1,11 @@
 import { siteGrants } from '../site-adapters/community-definition.js';
 import type { SourceAuthority } from '../site-adapters/ledger-types.js';
-import { DEVICE_BRIDGE_KEY, createDeviceBridgeRunner, type BrowserRequest } from '../automation/device-bridge.js';
+import { DEVICE_BRIDGE_KEY, DEVICE_BRIDGE_STATUS_KEY, createDeviceBridgeRunner, type BrowserRequest } from '../automation/device-bridge.js';
 import { deviceResultPage } from '../automation/device-bridge-result.js';
-import { fetchDeviceRequests, completeDeviceRequest, type DeviceAuthority } from '../automation/device-client.js';
+import { fetchDeviceRequests, completeDeviceRequest, type DeviceAuthority, type DeviceBridgeAuthority } from '../automation/device-client.js';
 import { automationDatabase } from '../automation/indexeddb-store.js';
 import { automationOwnerKey } from '../automation/bundle-store.js';
-import { currentSyncScope } from './scope.js';
+import { createRuntimeAuth, currentSyncScope, loadConfig } from './scope.js';
 import { siteLedger } from '../site-adapters/source-runtime.js';
 import { semanticJobs } from '../site-adapters/semantic-runtime.js';
 import type { SemanticJob } from '../site-adapters/semantic-jobs.js';
@@ -13,22 +13,49 @@ import { allSites, sitesLoaded } from '../site-adapters/registry.js';
 import { localClassificationEnabled } from '../classification-local-session.js';
 import { runLocalClassification } from './classification-local.js';
 import { classificationDocument } from '../classification-intent.js';
-import { workCoordinator } from './runtime.js';
+import { extensionOrigin, store, workCoordinator } from './runtime.js';
 import { managedDestinations } from '../site-adapters/managed-destinations.js';
 import { iterateCursor } from '../sync-state/idb.js';
 
-export async function pollDeviceBridge(device: DeviceAuthority, isCurrent: () => Promise<boolean>): Promise<void> {
-  const scope = await currentSyncScope(); if (!scope) return;
+/** A separate installation channel: a paused or broken Sync session cannot
+ * prevent an explicitly enabled agent from diagnosing this browser. */
+export async function refreshDeviceBridge(): Promise<void> {
+  const ownerKey = (await chrome.storage.local.get(DEVICE_BRIDGE_KEY))[DEVICE_BRIDGE_KEY];
+  if (typeof ownerKey !== 'string') return;
+  let code: string | null = null;
+  try {
+    const credential = await createRuntimeAuth(await loadConfig()).ensureFreshCredential();
+    const scope = await currentSyncScope({ allowStopped: true });
+    if (automationOwnerKey({ serverOrigin: credential.serverOrigin, accountId: credential.subject! }) !== ownerKey) return;
+    const proof = await store.loadReplicaReportProof(scope);
+    if (!proof) throw Error('device_proof_unavailable');
+    const authority = await store.fence.capture();
+    const isCurrent = async () => {
+      await store.fence.assertWritable(authority.generation);
+      const current = await currentSyncScope({ allowStopped: true });
+      return current.serverOrigin === scope.serverOrigin && current.accountId === scope.accountId && current.replicaId === scope.replicaId
+        && current.collectionId === scope.collectionId && current.generation === scope.generation;
+    };
+    await pollDeviceBridge({ serverOrigin: credential.serverOrigin, accessToken: credential.accessToken,
+      origin: extensionOrigin(), replicaId: scope.replicaId, replicaProof: proof }, isCurrent);
+  } catch (error) { code = error instanceof Error && /^[a-zA-Z0-9_]{1,80}$/u.test(error.message) ? error.message : 'bridge_unavailable'; }
+  if ((await chrome.storage.local.get(DEVICE_BRIDGE_KEY))[DEVICE_BRIDGE_KEY] === ownerKey)
+    await chrome.storage.local.set({ [DEVICE_BRIDGE_STATUS_KEY]: { ownerKey, at: Date.now(), code } });
+}
+
+export async function pollDeviceBridge(device: DeviceAuthority | DeviceBridgeAuthority, isCurrent: () => Promise<boolean>): Promise<void> {
+  const scope = await currentSyncScope({ allowStopped: true }); if (!scope) return;
   const enabled = async () => (await chrome.storage.local.get(DEVICE_BRIDGE_KEY))[DEVICE_BRIDGE_KEY] === automationOwnerKey({ serverOrigin: scope.serverOrigin, accountId: scope.accountId });
   const authorize = async (request: BrowserRequest) => {
     if (!await isCurrent() || !await enabled()) throw new Error('device_bridge_disabled');
-    const current = await currentSyncScope();
+    const current = await currentSyncScope({ allowStopped: true });
     if (!current || current.replicaId !== scope.replicaId || current.accountId !== scope.accountId || current.serverOrigin !== scope.serverOrigin
-      || request.replicaId !== scope.replicaId || request.collectionId !== scope.collectionId) throw new Error('device_scope_changed');
+      || current.generation !== scope.generation || request.replicaId !== scope.replicaId || request.collectionId !== scope.collectionId) throw new Error('device_scope_changed');
   };
   await automationDatabase().pruneDeviceRequests(Date.now());
   const response = await fetchDeviceRequests(device);
-  if (!response.ok || !response.body || typeof response.body !== 'object') return;
+  if (!response.ok) throw new Error(`bridge_${response.problem}`);
+  if (!response.body || typeof response.body !== 'object') throw new Error('device_request_invalid');
   const requests = (response.body as { items?: unknown }).items;
   if (!Array.isArray(requests) || requests.length > 8 || requests.some(r => !r || typeof r !== 'object' || typeof r.id !== 'string' || typeof r.replicaId !== 'string' || typeof r.collectionId !== 'string' || typeof r.operation !== 'string' || typeof r.expiresAt !== 'string' || !r.input || typeof r.input !== 'object')) throw new Error('device_request_invalid');
   const adapterStatus = async () => {

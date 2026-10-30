@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import type { ExtensionCredentialEvidencePort } from '../modules/identity/index.js';
+import { ExtensionAuthError, type ExtensionCredentialEvidencePort } from '../modules/identity/index.js';
+import { executeBridgeDeviceCommand } from './automation-device-bridge-command.js';
 import { acceptIntakeReceipt, parseContract, AutomationError, type AutomationDeviceUnitOfWork } from '../modules/automation/index.js';
 import { canonicalCommandFingerprint } from '../modules/commands/index.js';
 import { rateLimitClientIp, createMemorySyncAdmissionPolicy, syncAdmissionSubjectKey, type SyncAdmissionPolicy } from '../infrastructure/rate-limit/index.js';
@@ -40,13 +41,22 @@ export function registerAutomationDeviceRoutes(app: FastifyInstance, deps: Autom
       code: pre.kind === 'denied' ? 'rate_limited' : 'feature_temporarily_unavailable', message: 'Device admission is unavailable.' });
     let credential;
     try { credential = await deps.credentialVerifier.verify({ authorization: header(request, 'authorization') }); }
-    catch { throw new ProductHttpError({ statusCode: 401, code: 'authentication_required', message: 'Valid device bearer required.' }); }
+    catch (error) {
+      if (error instanceof ProductHttpError) throw error;
+      if (error instanceof ExtensionAuthError && error.reason !== 'verifier_unavailable')
+        throw new ProductHttpError({ statusCode: 401, code: 'authentication_required', message: 'Valid device bearer required.' });
+      throw new ProductHttpError({ statusCode: 503, code: 'feature_temporarily_unavailable', message: 'Device authentication is temporarily unavailable.' });
+    }
     const allowed = await admission.admitSubject({ purpose: 'push', subjectKey: syncAdmissionSubjectKey({ credential }) });
     if (allowed.kind !== 'allowed') throw new ProductHttpError({ statusCode: allowed.kind === 'denied' ? 429 : 503,
       code: allowed.kind === 'denied' ? 'rate_limited' : 'feature_temporarily_unavailable', message: 'Device admission is unavailable.' });
-    const sessionId = header(request, 'known-sync-session'), commandId = method === 'GET' ? '' : readKnownCommandId(request);
+    const installationBridge = (path === '/bridge-requests' || path === '/bridge-results') && request.headers['known-sync-session'] === undefined;
+    const sessionId = installationBridge ? '' : header(request, 'known-sync-session'), commandId = method === 'GET' ? '' : readKnownCommandId(request);
     try {
-      const result = await deps.unitOfWork.execute({ credential, sessionId, origin }, async ports => {
+      const result = installationBridge ? await executeBridgeDeviceCommand(deps.unitOfWork, {
+        credential, origin, replicaId: header(request, 'known-sync-replica-id'), replicaProof: header(request, 'known-sync-replica-proof'),
+        method, commandId, body: request.body,
+      }) : await deps.unitOfWork.execute({ credential, sessionId, origin }, async ports => {
         if (method === 'GET') return { body: path === '/bridge-requests' ? await ports.bridge!.pending() : await ports.bundle((request.query as { profile?: string }).profile ?? 'browser-bounded-v1') };
         const binding = { principalId: ports.actor.accountId, commandScope: `${BASE}${path}:${ports.actor.deviceId}`, commandId };
         const fingerprint = canonicalCommandFingerprint({ method: 'POST', route: BASE + path, mediaType: 'application/json', body: request.body, conditions: { sessionId } });

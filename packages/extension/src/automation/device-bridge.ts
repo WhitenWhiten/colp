@@ -1,6 +1,7 @@
 import type { AutomationStateArea } from './bundle-store.js';
 import { boundedDeviceResult, failedDeviceResult } from './device-bridge-result.js';
 export const DEVICE_BRIDGE_KEY = 'known.automation.device-bridge.v1';
+export const DEVICE_BRIDGE_STATUS_KEY = 'known.automation.device-bridge-status.v1';
 export interface BrowserRequest { id: string; replicaId: string; collectionId: string; operation: string;
   input: { jobId?: string; connectionId?: string; cursor?: string; group?: 'recovery' | 'history' }; expiresAt: string }
 export interface BrowserRequestResult { requestId: string; state: 'done' | 'failed'; result: unknown }

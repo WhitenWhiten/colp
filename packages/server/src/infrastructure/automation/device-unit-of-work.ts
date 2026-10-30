@@ -4,10 +4,14 @@ import type { Kysely } from 'kysely';
 import type { DatabaseSchema } from '../database/runtime.js';
 import { createPostgresProductCommandReceiptPort } from '../database/product-command-receipt.js';
 import { authorizeAutomationDevice } from './device-authority.js';
+import { authorizeAutomationBridgeDevice } from './device-bridge-authority.js';
 import { acceptStoredIntakeReceipt } from './intake-receipt-store.js';
 import type { AutomationDeviceUnitOfWork } from '../../modules/automation/index.js';
 export function createAutomationDeviceUnitOfWork(db: Kysely<DatabaseSchema>, serverUuid: string): AutomationDeviceUnitOfWork {
-  return { execute: (input, work) => db.transaction().execute(async tx => {
+  return { executeBridge: (input, work) => db.transaction().execute(async tx => {
+    const actor = await authorizeAutomationBridgeDevice(tx, input);
+    return work({ actor, bridge: deviceBridgeDevicePort(tx, actor), receipts: createPostgresProductCommandReceiptPort(tx) });
+  }), execute: (input, work) => db.transaction().execute(async tx => {
     const actor = await authorizeAutomationDevice(tx, input);
     return work({ actor, bridge: deviceBridgeDevicePort(tx, actor), bundle: profile => issueDeviceBundle(tx, actor, serverUuid, profile),
       acknowledge: input => acknowledgeDeviceBundle(tx, actor, input), receipts: createPostgresProductCommandReceiptPort(tx),

@@ -14,6 +14,7 @@ export interface DeviceAuthority {
   readonly sessionId: string;
   readonly origin: string;
 }
+export type DeviceBridgeAuthority = Omit<DeviceAuthority, 'sessionId'> & { readonly replicaId: string; readonly replicaProof: string };
 
 export type DeviceProblem = 'offline' | 'unavailable' | 'signedOut' | 'rateLimited' | 'server' | 'invalid';
 export type DeviceResult = { readonly ok: true; readonly status: number; readonly body: unknown }
@@ -35,14 +36,15 @@ function retryAfter(response: Response): number | undefined {
   return value && /^\d{1,6}$/u.test(value) ? Number(value) * 1_000 : undefined;
 }
 
-async function call(authority: DeviceAuthority, path: string, init: { method: 'GET' | 'POST'; body?: unknown; commandId?: string },
+async function call(authority: DeviceAuthority | DeviceBridgeAuthority, path: string, init: { method: 'GET' | 'POST'; body?: unknown; commandId?: string },
   fetcher: typeof fetch): Promise<DeviceResult> {
   let response: Response;
   const url = `${authority.serverOrigin.replace(/\/$/u, '')}${BASE}${path}`;
   const request: RequestInit = {
     method: init.method, credentials: 'omit', redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(TIMEOUT_MS),
     headers: { Accept: 'application/json', ...colpCredentialHeaders(authority.accessToken), Origin: authority.origin,
-      'Known-Sync-Session': authority.sessionId,
+      ...('sessionId' in authority ? { 'Known-Sync-Session': authority.sessionId }
+        : { 'Known-Sync-Replica-Id': authority.replicaId, 'Known-Sync-Replica-Proof': authority.replicaProof }),
       ...(init.method === 'POST' ? { 'Content-Type': 'application/json', 'Known-Command-Id': init.commandId! } : {}) },
     ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
   };
@@ -79,10 +81,10 @@ export function postIntakeReceipt(authority: DeviceAuthority, input: LocalReceip
   return call(authority, '/intake-receipts', { method: 'POST', body: input, commandId }, fetcher);
 }
 
-export function fetchDeviceRequests(authority: DeviceAuthority, fetcher: typeof fetch = fetch): Promise<DeviceResult> {
+export function fetchDeviceRequests(authority: DeviceAuthority | DeviceBridgeAuthority, fetcher: typeof fetch = fetch): Promise<DeviceResult> {
   return call(authority, '/bridge-requests', { method: 'GET' }, fetcher);
 }
-export function completeDeviceRequest(authority: DeviceAuthority, result: import('./device-bridge.js').BrowserRequestResult,
+export function completeDeviceRequest(authority: DeviceAuthority | DeviceBridgeAuthority, result: import('./device-bridge.js').BrowserRequestResult,
   fetcher: typeof fetch = fetch): Promise<DeviceResult> {
   return call(authority, '/bridge-results', { method: 'POST', body: result, commandId: crypto.randomUUID() }, fetcher);
 }

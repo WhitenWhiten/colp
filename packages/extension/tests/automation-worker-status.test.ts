@@ -61,7 +61,7 @@ describe('the server’s status in the worker', () => {
       ['https://colp.example/api/v1/me/activity/summary', 'include']]));
     const { server, problem } = await automationStateView();
     // The bundle refresh failed on its own (no Sync authority); the server's status still came through.
-    expect(problem).toBe('signedOut');
+    expect(problem).toBe('offline');
     expect(server).toEqual({ fetchedAt: NOW, problem: null, activity: null, activityProblem: null,
       rules: [{ id: 'rule-arxiv', name: 'arXiv papers', state: 'degraded', inBrowser: true, waiting: null, held: null, approvals: null, cost: null },
         { id: 'rule-digest', name: 'Weekly digest', state: 'active', inBrowser: false, waiting: null, held: null, approvals: null, cost: null }],

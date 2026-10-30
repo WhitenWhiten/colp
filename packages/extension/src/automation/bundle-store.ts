@@ -20,7 +20,7 @@ export { AUTOMATION_BUNDLE_KEY };
 export interface AutomationOwner { readonly serverOrigin: string; readonly accountId: string }
 export const automationOwnerKey = (owner: AutomationOwner) => JSON.stringify([owner.serverOrigin, owner.accountId]);
 
-export type RefreshProblem = 'offline' | 'signedOut' | 'unavailable' | 'rateLimited' | 'server' | 'rejected';
+export type RefreshProblem = 'offline' | 'signedOut' | 'unavailable' | 'rateLimited' | 'server' | 'rejected' | 'syncPaused' | 'permission';
 export interface BundleRecord {
   readonly version: 1;
   readonly ownerKey: string;

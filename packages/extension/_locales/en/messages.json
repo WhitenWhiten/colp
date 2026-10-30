@@ -251,6 +251,9 @@
   "automation_bridgeHint": {
     "message": "For this account, allow connected agents to read task diagnostics, request AI previews, and retry failed website tasks on this device."
   },
+  "automation_bridgeProblem": {
+    "message": "Agent access needs attention: $1. Check the server connection and this device’s registration, then check again."
+  },
   "automation_bridgeTitle": {
     "message": "Agent access to this browser"
   },
@@ -1784,6 +1787,9 @@
   "automation_serverInvalidTitle": {
     "message": "Couldn’t read your server’s runs"
   },
+  "automation_serverPermission": {
+    "message": "Restore access to your server in extension settings, then check again."
+  },
   "automation_serverRetryHint": {
     "message": "Saving and filing in this browser don’t need it. This page tries again in a few minutes."
   },
@@ -2284,6 +2290,9 @@
   },
   "automation_subscriptionUse": {
     "message": "Use this subscription"
+  },
+  "automation_syncPaused": {
+    "message": "Personal sync is paused, so account rules cannot refresh. Agent access to this browser remains independent."
   },
   "automation_tabActivity": {
     "message": "Activity"

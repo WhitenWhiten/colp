@@ -68,6 +68,8 @@ function pausedHint(view: AutomationStateView): string {
 
 /** Only what the status card cannot say: a bundle was refused and an older one is still in force. */
 function notice(view: AutomationStateView): HTMLElement | null {
+  if (view.problem === 'syncPaused') return inlineAlert('warning', t('automation_syncPaused', 'Personal sync is paused, so account rules cannot refresh. Agent access to this browser remains independent.'));
+  if (view.problem === 'permission') return inlineAlert('warning', t('automation_serverPermission', 'Restore access to your server in extension settings, then check again.'));
   return view.problem === 'rejected'
     ? inlineAlert('warning', t('automation_noticeRejected', 'The server sent rules this browser can’t use. The previous rules stay in force.'))
     : null;
@@ -475,6 +477,8 @@ export function bindAutomationsPane(pane: HTMLElement): AutomationsPane {
       if (view.state === 'active' || view.state === 'paused' || (view.state === 'none' && view.problem !== 'unavailable')) parts.push(rulesGroup(view));
       parts.push(ruleListGroup(view, tried, [configCard()]), risk.element);
       if (view.deviceBridgeEnabled !== undefined) {
+      if (view.deviceBridgeEnabled && view.deviceBridgeProblem) body.append(inlineAlert('warning',
+        t('automation_bridgeProblem', 'Agent access needs attention: $1. Check the server connection and this device’s registration, then check again.', view.deviceBridgeProblem)));
       const bridge = el('button', view.deviceBridgeEnabled ? t('automation_bridgeDisable', 'Disable browser access for agents') : t('automation_bridgeEnable', 'Allow agents to inspect and retry tasks in this browser'), 'btn btn-secondary btn-sm') as HTMLButtonElement;
       bridge.type = 'button';
       bridge.addEventListener('click', () => { bridge.disabled = true; void chrome.runtime.sendMessage({ kind: 'known.automation.deviceBridge.enable', enabled: !view.deviceBridgeEnabled, userGesture: true }).then(() => load('known.automation.state')); });

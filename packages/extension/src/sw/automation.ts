@@ -1,4 +1,5 @@
-import { DEVICE_BRIDGE_KEY } from '../automation/device-bridge.js';
+import { DEVICE_BRIDGE_KEY, DEVICE_BRIDGE_STATUS_KEY } from '../automation/device-bridge.js';
+import { automationRefreshProblem } from '../automation/refresh-problem.js';
 import { validateAutomation, type BundleAckInput, type PauseState } from '@know-n/colp/automation';
 import { assertCredentialHostPermission } from '../server-origin-permission.js';
 import { acknowledgeRuleBundle, fetchRuleBundle, postIntakeReceipt, type DeviceAuthority, type DeviceProblem } from '../automation/device-client.js';
@@ -72,7 +73,10 @@ export function refreshAutomation(options: { readonly manual?: boolean } = {}): 
   const manual = options.manual === true;
   if (inFlight && (inFlight.manual || !manual)) return inFlight.promise;
   const before = inFlight?.promise.catch(() => undefined) ?? Promise.resolve();
-  const current = { manual, promise: before.then(() => run(manual)).finally(() => { if (inFlight === current) inFlight = undefined; }) };
+  const current = { manual, promise: before.then(() => run(manual)).finally(async () => {
+    try { await (await import('./device-bridge.js')).refreshDeviceBridge(); } catch { /* Independent bridge failures never gate rule refresh. */ }
+    if (inFlight === current) inFlight = undefined;
+  }) };
   inFlight = current;
   return current.promise;
 }
@@ -108,14 +112,12 @@ async function run(manual: boolean): Promise<void> {
   if (!bundleDue && !receiptsDue) return;
   let authority: Awaited<ReturnType<typeof pushSessionAuthority>>;
   try { authority = await pushSessionAuthority(); }
-  catch { if (bundleDue && await isCurrent()) await bundles.recordProblem(navigator.onLine === false ? 'offline' : 'signedOut', now); return; }
+  catch (error) { if (bundleDue && await isCurrent()) await bundles.recordProblem(automationRefreshProblem(error), now); return; }
   if (!await isCurrent()) return;
   const device: DeviceAuthority = { serverOrigin: owner.serverOrigin, accessToken: authority.credential.accessToken,
     sessionId: authority.session.sessionId, origin: extensionOrigin() };
   if (bundleDue) await refreshBundle(owner, bundles, device);
   if (receiptsDue) await flushReceipts(owner, device, Number(authority.session.replicaLease.generation));
-  // Optional browser requests cannot prevent receipt delivery or bundle refresh.
-  await (await import('./device-bridge.js')).pollDeviceBridge(device, isCurrent).catch(() => undefined);
 }
 
 async function refreshBundle(owner: AutomationOwner, bundles: ReturnType<typeof createBundleStore>, device: DeviceAuthority): Promise<void> {
@@ -169,9 +171,11 @@ export async function clearAccountAutomation(owner: AutomationOwner): Promise<vo
   const ownerKey = automationOwnerKey(owner);
   const clear = async () => {
     await automationDatabase().clearAccount(ownerKey);
-    const local = await chrome.storage.local.get([PAUSE_KEY, DEVICE_KEY, DEVICE_BRIDGE_KEY]);
+    const local = await chrome.storage.local.get([PAUSE_KEY, DEVICE_KEY, DEVICE_BRIDGE_KEY, DEVICE_BRIDGE_STATUS_KEY]);
     const pause = local[PAUSE_KEY] as { ownerKey?: unknown } | undefined, device = local[DEVICE_KEY] as { key?: unknown } | undefined;
-    const owned = [...local[DEVICE_BRIDGE_KEY] === ownerKey ? [DEVICE_BRIDGE_KEY] : [], ...pause?.ownerKey === ownerKey ? [PAUSE_KEY] : [], ...deviceOwner(device?.key) === ownerKey ? [DEVICE_KEY] : []];
+    const owned = [...local[DEVICE_BRIDGE_KEY] === ownerKey ? [DEVICE_BRIDGE_KEY] : [],
+      ...(local[DEVICE_BRIDGE_STATUS_KEY] as { ownerKey?: string } | undefined)?.ownerKey === ownerKey ? [DEVICE_BRIDGE_STATUS_KEY] : [],
+      ...pause?.ownerKey === ownerKey ? [PAUSE_KEY] : [], ...deviceOwner(device?.key) === ownerKey ? [DEVICE_KEY] : []];
     if (owned.length) await chrome.storage.local.remove(owned);
     await paintDigestBadge(await currentOwner());
   };
@@ -447,7 +451,9 @@ export async function automationStateView(): Promise<AutomationStateView> {
   const pause = (await chrome.storage.local.get(PAUSE_KEY))[PAUSE_KEY] as { ownerKey?: string; pausedAt?: string | null; pausedBy?: AutomationStateView['pausedBy'] } | undefined;
   const pauseKnown = current.state === 'paused' && pause?.ownerKey === automationOwnerKey(owner);
   const pausedAt = pauseKnown && pause?.pausedAt ? Date.parse(pause.pausedAt) : current.state === 'paused' ? current.since : null;
+  const bridgeStatus = (await chrome.storage.local.get(DEVICE_BRIDGE_STATUS_KEY))[DEVICE_BRIDGE_STATUS_KEY] as { ownerKey: string; code: string | null } | undefined;
   return { account: 'signedIn', state: current.state, webUrl, deviceBridgeEnabled: (await chrome.storage.local.get(DEVICE_BRIDGE_KEY))[DEVICE_BRIDGE_KEY] === automationOwnerKey(owner),
+    deviceBridgeProblem: bridgeStatus?.ownerKey === automationOwnerKey(owner) ? bridgeStatus.code : null,
     rules: current.state === 'active' ? await ruleViews(record) : [],
     receiptIssues: (await createReceiptStore(automationArea()).quarantine()).filter(issue => { const raw = issue.raw as { ownerKey?: string } | null; return typeof raw?.ownerKey !== 'string' || raw.ownerKey === automationOwnerKey(owner); }).map(issue => ({ id: issue.id, reason: issue.reason, at: issue.quarantinedAt })),
     placements: [...await placementViews(automationOwnerKey(owner)), ...filed].sort((a, b) => b.at - a.at).slice(0, 10),
@@ -470,6 +476,7 @@ export async function handleAutomationRequest(request: AutomationRequest): Promi
     const owner = await currentOwner();
     if (!owner) return { ok: false, error: 'signedOut' };
     await chrome.storage.local.set({ [DEVICE_BRIDGE_KEY]: request.enabled ? automationOwnerKey(owner) : null });
+    void refreshAutomation({ manual: true }).catch(() => undefined);
     return { ok: true, state: await automationStateView() };
   }
 

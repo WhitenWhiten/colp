@@ -449,7 +449,7 @@ export interface AutomationPlacementView {
   readonly entryState?: 'on' | 'off' | 'gone';
 }
 
-export type AutomationProblem = 'offline' | 'signedOut' | 'unavailable' | 'rateLimited' | 'server' | 'rejected';
+export type AutomationProblem = 'offline' | 'signedOut' | 'unavailable' | 'rateLimited' | 'server' | 'rejected' | 'syncPaused' | 'permission';
 
 /** A rule as the server reports it: its state and the server's own counts, nothing worked out here. */
 export interface AutomationServerRuleView {
@@ -502,6 +502,7 @@ export interface AutomationStateView {
   /** Recent placements in this browser, by this account's rules and this browser's own, newest first. */
   readonly placements: readonly AutomationPlacementView[];
   readonly deviceBridgeEnabled?: boolean;
+  readonly deviceBridgeProblem?: string | null;
   readonly receiptIssues?: readonly { id: string; reason: string; at: number }[];
   /** This browser's own rules, signed in or not, in the order saves try them, those in sets included. */
   readonly browserRules: readonly BrowserRuleView[];

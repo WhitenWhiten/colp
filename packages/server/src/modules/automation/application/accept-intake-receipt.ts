@@ -15,6 +15,8 @@ export interface AutomationDevicePorts {
   accept(input: LocalReceiptInput): Promise<ReceiptIngestResult>;
 }
 export interface AutomationDeviceUnitOfWork {
+  executeBridge?<T>(input: { credential: VerifiedExtensionCredential; replicaId: string; replicaProof: string; origin: string },
+    work: (ports: Pick<AutomationDevicePorts, 'actor' | 'bridge' | 'receipts'>) => Promise<T>): Promise<T>;
   execute<T>(input: { credential: VerifiedExtensionCredential; sessionId: string; origin: string }, work: (ports: AutomationDevicePorts) => Promise<T>): Promise<T>;
 }
 export async function acceptIntakeReceipt(ports: AutomationDevicePorts, body: unknown): Promise<ReceiptIngestResult> {

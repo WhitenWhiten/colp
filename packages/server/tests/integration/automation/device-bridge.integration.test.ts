@@ -11,6 +11,7 @@ import { installProductAdmission } from '../../../src/transport/product-admissio
 import { ProductHttpError, sendProductError } from '../../../src/transport/product-error.js';
 import type { WorkPrincipal } from '../../../src/modules/automation/index.js';
 import { createDeviceBridgeRunner } from '../../../../extension/src/automation/device-bridge.js';
+import { replicaReportProofDigest } from '../../../src/infrastructure/sync/replica-report-authority.js';
 
 describeWithPostgres('explicit browser device bridge', () => {
   let f: Awaited<ReturnType<typeof automationDeviceFixture>>, app: ReturnType<typeof Fastify>;
@@ -77,5 +78,35 @@ describeWithPostgres('explicit browser device bridge', () => {
     const next = await get(); expect(next.json().items.map((r: { id: string }) => r.id)).toEqual([ids[8]]);
     await run(next.json().items); expect(executions).toBe(1);
     expect((await get()).json().items).toEqual([]);
+  });
+
+  test('installation proof authorizes bridge access without a live Sync session or lease renewal', async () => {
+    const proof = 'bridge-installation-proof', replicaId = f.replica.replicaId;
+    const replica = await f.db.selectFrom('sync_replicas').selectAll().where('replica_id', '=', replicaId).executeTakeFirstOrThrow();
+    const account = await f.db.selectFrom('accounts').select('security_epoch').where('id', '=', f.owner.accountId).executeTakeFirstOrThrow();
+    await f.db.insertInto('sync_replica_report_authorities').values({ proof_digest: replicaReportProofDigest(proof), replica_id: replicaId,
+      account_id: f.owner.accountId, device_id: replica.device_id, browser_profile_id: replica.browser_profile_id,
+      browser_generation: replica.browser_generation, credential_issuer: f.http.credential.issuer, oauth_client_id: f.http.credential.clientId,
+      account_security_epoch: account.security_epoch, created_at: new Date() }).execute();
+    const session = await f.db.selectFrom('sync_sessions').select('expires_at').where('session_id', '=', f.sessionId).executeTakeFirstOrThrow();
+    await sql`UPDATE sync_sessions SET status='terminated',termination_reason='administrative',terminated_at=clock_timestamp()
+      WHERE session_id=${f.sessionId}`.execute(f.db);
+    const request = await createDeviceBridgeOwnerPort(f.db).request(actor(), 'adapters.status', { replicaId, commandId: randomUUID() });
+    const read = (replicaProof: string, id = replicaId) => app.inject({ url: '/api/v1/automation-device/bridge-requests', headers: {
+      authorization: f.http.authorization, origin: AUTOMATION_DEVICE_ORIGIN, 'known-sync-replica-id': id, 'known-sync-replica-proof': replicaProof } });
+    expect((await read('wrong-proof')).statusCode).toBe(403);
+    expect((await read(proof, 'foreign-replica')).statusCode).toBe(403);
+    const response = await read(proof); expect(response.statusCode, response.body).toBe(200);
+    expect(response.json().items.map((r: { id: string }) => r.id)).toContain(request.requestId);
+    const completion = await app.inject({ method: 'POST', url: '/api/v1/automation-device/bridge-results',
+      payload: { requestId: request.requestId, state: 'done', result: { inspected: true } }, headers: {
+        authorization: f.http.authorization, origin: AUTOMATION_DEVICE_ORIGIN, 'known-sync-replica-id': replicaId,
+        'known-sync-replica-proof': proof, 'known-command-id': randomUUID() } });
+    expect(completion.statusCode, completion.body).toBe(200);
+    expect(completion.json()).toEqual({ recorded: true });
+    expect((await f.db.selectFrom('sync_replicas').select('lease_expires_at').where('replica_id', '=', replicaId).executeTakeFirstOrThrow()).lease_expires_at)
+      .toEqual(replica.lease_expires_at);
+    expect(await f.db.selectFrom('sync_sessions').select(['status', 'expires_at']).where('session_id', '=', f.sessionId).executeTakeFirstOrThrow())
+      .toEqual({ status: 'terminated', expires_at: session.expires_at });
   });
 });
