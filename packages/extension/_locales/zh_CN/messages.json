@@ -13594,5 +13594,25 @@
   "sites_semanticRecovery": {
     "message": "查看需要处理的任务",
     "description": "View tasks needing attention"
+  },
+  "automation_bridgeProblem": {
+    "message": "Agent 访问需要处理：$1。请检查服务器连接及此设备的注册状态，然后重新检查。",
+    "description": "Agent access needs attention: $1. Check the server connection and this device’s registration, then check again."
+  },
+  "automation_pauseReadProblem": {
+    "message": "无法检查账号的自动化暂停状态（$1）。将保留上次已知的暂停状态。请检查服务器登录和连接，然后点击“立即检查”。",
+    "description": "Could not check the account’s automation pause ($1). The last known pause is kept. Check your server sign-in and connection, then use Check now."
+  },
+  "automation_serverPermission": {
+    "message": "请在扩展设置中恢复对服务器的访问权限，然后重新检查。",
+    "description": "Restore access to your server in extension settings, then check again."
+  },
+  "automation_syncPaused": {
+    "message": "个人同步已暂停，因此无法刷新账号规则。Agent 对此浏览器的访问仍然独立可用。",
+    "description": "Personal sync is paused, so account rules cannot refresh. Agent access to this browser remains independent."
+  },
+  "popup_localTagContextUnavailable": {
+    "message": "无法读取已保存的标签词库。请恢复本地存储后重试；文件夹建议仍然可用。",
+    "description": "Your saved tag vocabulary could not be read. Retry after restoring local storage; folder suggestions remain available."
   }
 }
