@@ -19,8 +19,8 @@ export function createAutomationPagination(key: string) {
   return {
     read(query: Record<string, string>, ownerId: string, scope: string, now: Date) {
       if (query.limit !== undefined && !/^(?:[1-9][0-9]?|100)$/u.test(query.limit)) throw new AutomationError('invalid_request','Limit must be 1–100.');
-      const limit = Number(query.limit ?? 50);
       const decoded = query.cursor ? codec.verify(query.cursor, now) : null;
+      const limit = query.limit === undefined ? decoded?.limit ?? 50 : Number(query.limit);
       if (decoded && (decoded.ownerId !== ownerId || decoded.scope !== scope || decoded.limit !== limit)) throw invalid();
       return { limit, after: decoded?.after ?? null };
     },

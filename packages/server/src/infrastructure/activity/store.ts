@@ -15,7 +15,8 @@ export function createActivityStore(db: Kysely<DatabaseSchema>, cursorKey: strin
     async list(accountId, query) {
       const state = query.state ?? 'all';
       if (state !== 'unread' && state !== 'all') throw new AutomationError('invalid_request', 'Activity state must be all or unread.');
-      const now = new Date(), scope = `activity:${state}`, { limit, after } = page.read({ ...query, limit: query.limit ?? '20' }, accountId, scope, now);
+      const now = new Date(), scope = `activity:${state}`, { limit, after } = page.read({ ...query,
+        ...(!query.cursor && query.limit === undefined ? { limit: '20' } : {}) }, accountId, scope, now);
       return db.transaction().setIsolationLevel('repeatable read').execute(async tx => {
         const rows = (await sql<ActivityRow>`SELECT *,revision::text,to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS sort_updated_at
           FROM activity_items WHERE account_id=${accountId} ${state === 'unread' ? sql`AND read_at IS NULL` : sql``}
