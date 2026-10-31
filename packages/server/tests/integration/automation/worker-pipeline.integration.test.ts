@@ -275,7 +275,8 @@ describeWithPostgres('AW-31 authenticated polling and typed canonical orchestrat
       expect(result.kind === 'complete' && result.structuredContent).toEqual(value);return value;
     };
     await call('automation.targets.pair',{ pairingId: grant.json().pairingId,code: grant.json().code });
-    expect((await api.listTools(context)).tools).toHaveLength(AUTOMATION_TOOL_CONTRACTS.length);
+    const permittedTools = AUTOMATION_TOOL_CONTRACTS.filter(tool => tool.requiredScopes.every(scope => context.scopes.includes(scope)));
+    expect((await api.listTools(context)).tools.map(tool => tool.name)).toEqual(permittedTools.map(tool => tool.name));
     const capabilities = await call('automation.rules.describe');
     expect(capabilities.runtimeProfiles).toEqual(['browser-bounded-v1']);
     expect(capabilities).toEqual((await f.app.inject({ url: '/api/v1/me/automations/capabilities',headers: { cookie: f.owner.cookie } })).json());

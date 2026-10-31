@@ -9,6 +9,7 @@ import { individualRules, RULE_LIST_KEY } from '../src/automation/rule-list-stor
 import { automationDatabase, createAutomationDatabase, type PlacementIntent } from '../src/automation/indexeddb-store.js';
 import { AUTOMATION_BUNDLE_KEY, AUTOMATION_RECEIPTS_KEY } from '../src/automation/messages.js';
 import { SERVER_STATUS_KEY } from '../src/automation/server-status.js';
+import { PAUSE_KEY } from '../src/automation/pause-status.js';
 import { NOW, compiledRule, ruleBundle } from './automation-fixture.js';
 
 /** AW-72 (AC-74): signing out, or in as someone else, takes the account's automation data and leaves this browser's own rules working. */
@@ -132,11 +133,17 @@ describe('signing in', () => {
 
   it('as another account takes the earlier account’s data and keeps this browser’s rules', async () => {
     const rules = await automationArea().get(RULE_LIST_KEY);
+    await chrome.storage.local.set({ [PAUSE_KEY]: { version: 2, ownerKey,
+      pause: { paused: true, revision: '9', pausedAt: new Date(NOW).toISOString(), pausedBy: 'owner', heldJobs: 1 },
+      requestedAt: NOW, lastAttemptAt: NOW, problem: 'offline' } });
     expect(await login('someone-else')).toMatchObject({ ok: true });
     expect(await automationArea().get(AUTOMATION_BUNDLE_KEY)).toBeUndefined();
     expect(await automationArea().get(SERVER_STATUS_KEY)).toBeUndefined();
     expect((await automationDatabase().intents.list()).map((item) => item.intentId)).toEqual(['i-other']);
-    expect(await chrome.storage.local.get('known.automation.pause.v1')).toEqual({});
+    expect(await chrome.storage.local.get(PAUSE_KEY)).toEqual({ [PAUSE_KEY]: {
+      version: 2, ownerKey: automationOwnerKey({ ...owner, accountId: 'someone-else' }),
+      pause: null, requestedAt: null, lastAttemptAt: null, problem: null,
+    } });
     expect(await automationArea().get(RULE_LIST_KEY)).toEqual(rules);
   });
 

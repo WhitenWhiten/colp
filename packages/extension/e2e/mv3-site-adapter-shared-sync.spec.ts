@@ -163,7 +163,7 @@ test(`${concurrent ? 'offline concurrent: ' : single ? `${single}: ` : ''}source
     expect(await a.evaluate(() => chrome.bookmarks.search({ title: 'Shared source video' }))).toHaveLength(2);
     await expect.poll(async () => (await status(a)).archive.semantic?.attention, { timeout: 30000 }).toBe(1);
     expect(modelCalls[0]).toBeGreaterThan(0); providerFails = false;
-    await a.locator('#refresh').click(); await a.locator('#semantic-jobs button').click();
+    await a.locator('#refresh').click(); await a.locator('#semantic-jobs').getByRole('button', { name: 'Retry', exact: true }).click();
     await expect.poll(async () => (await status(a)).archive.semantic?.completed, { timeout: 90000 }).toBe(1);
     expect(await a.evaluate(() => chrome.bookmarks.search({ title: 'Shared source video' }))).toHaveLength(3);
     const callsAfterRetry = modelCalls[0];

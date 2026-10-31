@@ -56,15 +56,19 @@ test('pins in the bookmarks manager: native order, drag groups and the condition
     await page.locator('#manager-card').screenshot({ path: testInfo.outputPath('pins-manager.png') });
 
     // Each group reorders inside itself; an unpinned bookmark cannot land among the pins.
-    await row('E').dragTo(row('C'));
+    // The upper half means "before"; the center is the before/after boundary.
+    const before = { targetPosition: { x: 10, y: 5 } };
+    await row('E').dragTo(row('C'), before);
     await expect.poll(() => titles(page, folder)).toEqual(['Sub', 'E', 'C', 'A', 'B', 'D']);
-    await row('A').dragTo(row('D'));
+    await expect.poll(listed).toEqual(['Sub', 'E', 'C', 'A', 'B', 'D']);
+    await row('A').dragTo(row('D'), before);
     await expect.poll(() => titles(page, folder)).toEqual(['Sub', 'E', 'C', 'B', 'A', 'D']);
-    await row('D').dragTo(row('C'));
+    await expect.poll(listed).toEqual(['Sub', 'E', 'C', 'B', 'A', 'D']);
+    await row('D').dragTo(row('C'), before);
     await page.waitForTimeout(300);
     expect(await titles(page, folder)).toEqual(['Sub', 'E', 'C', 'B', 'A', 'D']);
     // Dropping a pin on the first other bookmark puts it at the end of the pinned section.
-    await row('E').dragTo(row('B'));
+    await row('E').dragTo(row('B'), before);
     await expect.poll(() => titles(page, folder)).toEqual(['Sub', 'C', 'E', 'B', 'A', 'D']);
 
     // With new bookmarks going to the bottom, pins pause: kept, shown muted, and unpinning still works.
