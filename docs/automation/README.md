@@ -40,6 +40,8 @@ Each [evidence record](evidence/) lists executed checks and limitations.
 The [post-review fixes](evidence/post-review-fixes.md) list every review finding with its
 commit, and the findings deliberately left unchanged.
 
+The [MCP context optimization implementation and acceptance plan](mcp-context-optimization-plan.md) defines the next work on task toolsets, capability descriptions, host loading measurements and conditional compact exposure. It is a plan, not completed implementation evidence.
+
 ## Running the configuration slice
 
 The flags follow the design rollout order (07 §7); each requires the ones before it, and
