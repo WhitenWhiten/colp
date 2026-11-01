@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest';
 import { AUTOMATION_TOOL_CONTRACTS, TASK_TOOLSETS } from '../../../src/modules/mcp/automation-tool-contracts.generated.js';
-import { automationCatalogKey, capabilityMetadata, createMcpApplicationContext, PHASE4B_MCP_READ_TOOL_CATALOG } from '../../../src/modules/mcp/index.js';
+import { automationCatalogKey, capabilityMetadata, createMcpApplicationContext, PHASE4B_MCP_READ_TOOL_CATALOG, NODES_SEARCH_TOOL_DESCRIPTOR } from '../../../src/modules/mcp/index.js';
+import { PHASE4B_MCP_COLLECTIONS_LIST_TOOL } from '../../../src/modules/mcp/owned-collection-mcp.js';
 
 test('metadata binds reviewed task relationships and versions to existing contracts', () => {
   const contract = AUTOMATION_TOOL_CONTRACTS.find(item => item.name === 'automation.trash.get')!;
@@ -17,9 +18,14 @@ test('metadata binds reviewed task relationships and versions to existing contra
   expect(AUTOMATION_TOOL_CONTRACTS.find(item => item.name === 'automation.classification.preview')?.effects.providerConsumption).toBe(true);
   const collection = PHASE4B_MCP_READ_TOOL_CATALOG.find(item => item.name === 'collections.get')!;
   expect(capabilityMetadata(collection)?.taskToolsets).toContain('recovery');
+  expect(capabilityMetadata(PHASE4B_MCP_COLLECTIONS_LIST_TOOL)?.effects.businessMutation).toBe(true);
+  expect(capabilityMetadata(NODES_SEARCH_TOOL_DESCRIPTOR)?.effects.businessMutation).toBe(false);
+  const activation = capabilityMetadata(AUTOMATION_TOOL_CONTRACTS.find(item => item.name === 'automation.rules.set_state')!)!;
+  expect(activation.description).toContain('change.activationPreviewId');
+  expect(activation.prerequisites).toContainEqual(expect.objectContaining({ id: 'automation.rules.preview', input: expect.stringContaining('change.activationPreviewId') }));
   expect(capabilityMetadata({ ...collection, description: collection.description + ' updated' })?.contractDigest)
     .not.toEqual(capabilityMetadata(collection)?.contractDigest);
-  const all = new Set([...AUTOMATION_TOOL_CONTRACTS.map(item => item.name),...PHASE4B_MCP_READ_TOOL_CATALOG.map(item => item.name),'collections.list']);
+  const all = new Set([...AUTOMATION_TOOL_CONTRACTS.map(item => item.name),...PHASE4B_MCP_READ_TOOL_CATALOG.map(item => item.name),'collections.list',NODES_SEARCH_TOOL_DESCRIPTOR.name]);
   for (const set of Object.values(TASK_TOOLSETS)) for (const name of set.members) expect(all.has(name),name).toBe(true);
 });
 

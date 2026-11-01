@@ -26,7 +26,7 @@ test('strict and compat requests recheck task selection before core and extensio
     resourceAudience: `https://collections.example.test/collections/-/mcp${input.authorization === 'Bearer compat' ? '-compat' : ''}`,securityEpoch: '1' },accountSubjectId: 'owner',
     scopes: ['mcp:read:own','automation:read','automation:manage','nodes:write','access:write'], expiresAt: new Date(Date.now() + 60_000) } as never)) };
   const tools = hostToolSurface(), write = createWriteFixture();
-  const server = startCompatApp({ writeEnabled: true, env: { MCP_OAUTH_SCOPES: 'mcp:read:own,automation:read,automation:manage,nodes:write,access:write', MCP_OUTPUT_MAX_ITEMS: '100000', MCP_OUTPUT_MAX_DEPTH: '64' },
+  const server = startCompatApp({ writeEnabled: true, env: { MCP_OAUTH_SCOPES: 'mcp:read:own,automation:read,automation:manage,nodes:write,access:write' },
     mcpReadTransport: { oauthVerifier: verifier,applicationFacade: facade,readToolAdapter: tools.adapter,readToolParamDeclarations: tools.paramDeclarations,writeToolAdapter: write.bundle.adapter,writeToolParamDeclarations: write.bundle.paramDeclarations } });
   app = server.app;
   const auth = { authorization: 'Bearer test' };

@@ -5,7 +5,7 @@
   },
   "rule-authoring": {
     "aliases": ["create and enable automation rules", "edit rule bindings", "创建并启用自动化规则"],
-    "members": ["collections.list", "collections.get", "nodes.get", "automation.rules.describe", "automation.rules.list", "automation.rules.get", "automation.rules.health", "automation.rules.diagnostics", "automation.bindings.list", "automation.bindings.get", "automation.bindings.save", "automation.targets.list", "automation.targets.get", "automation.executors.list", "automation.executors.get", "automation.execution_policies.list", "automation.execution_policies.get", "automation.rules.validate", "automation.rules.preview", "automation.rules.save", "automation.rules.set_state"]
+    "members": ["collections.list", "collections.get", "collections.get_snapshot", "nodes.search", "nodes.get", "automation.rules.describe", "automation.rules.list", "automation.rules.get", "automation.rules.health", "automation.rules.diagnostics", "automation.bindings.list", "automation.bindings.get", "automation.bindings.save", "automation.targets.list", "automation.targets.get", "automation.executors.list", "automation.executors.get", "automation.execution_policies.list", "automation.execution_policies.get", "automation.rules.validate", "automation.rules.preview", "automation.rules.save", "automation.rules.set_state"]
   },
   "sync-diagnostics": {
     "aliases": ["diagnose synchronization", "inspect device issues and conflicts", "排查同步问题"],

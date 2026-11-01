@@ -7,10 +7,11 @@ export function capabilityMetadata(tool: McpApplicationToolDescriptor) {
   const taskToolsets = Object.entries(TASK_TOOLSETS)
     .filter(([,set]) => (set.members as readonly string[]).includes(tool.name));
   const automation = AUTOMATION_TOOL_CONTRACTS.find(item => item.name === tool.name);
-  // The only standard members are the reviewed collection/node reads. Unrecognized
-  // standard tools do not acquire an inferred effect classification.
+  // Standard helpers are reviewed individually. collections.list can lazily create
+  // an account library; its read-like name is not a promise of no business writes.
+  // Unrecognized standard tools do not acquire an inferred effect classification.
   if (!automation && taskToolsets.length === 0) return undefined;
-  const effects = automation?.effects ?? { businessMutation: false,deviceRequest: false,externalRequest: false,providerConsumption: false };
+  const effects = automation?.effects ?? { businessMutation: tool.name === 'collections.list',deviceRequest: false,externalRequest: false,providerConsumption: false };
   const relations = (CAPABILITY_RELATIONS as Readonly<Record<string,{ prerequisites?: readonly { id: string; input: string }[];
     nextSteps?: readonly { id: string; input: string }[] }>>)[tool.name];
   const standardContract = { name: tool.name,description: tool.description,inputSchema: tool.inputSchema,

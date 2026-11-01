@@ -59,6 +59,19 @@ existing bindings for isolation; a chat cannot choose a profile with an argument
 modify connection authority or execution policies. Browser rules require the Owner to
 enable Agent access on the selected browser; they do not grant that access.
 
+For a new rule targeting an existing folder, use `collections.list` to locate the
+collection and `collections.get_snapshot` to find the folder. Follow `page.nextCursor`
+until the intended identity is found; `nodes.get` requires an already-known node ID.
+`nodes.search` is also available in this toolset when the host installs it and the
+credential grants its original scope. A task selection never grants that scope.
+Save the discovered folder reference with `automation.bindings.save`, validate and
+save the rule, then preview the saved configuration. To enable it, pass the returned
+`previewId` as `change.activationPreviewId` to `automation.rules.set_state`, together
+with the current rule revision and a stable command ID. Missing or expired previews,
+or changed binding/configuration state, require a fresh preview. Pausing and archiving
+do not require an activation preview. Reuse an already-valid preview instead of
+unconditionally adding another call.
+
 For existing bookmarks, call `automation.runs.preview` with a rule, folder,
 selection options and a stable command ID. Review `canStart`, counts, samples,
 expiry and `previewDigest`, then call `automation.runs.start` with that preview's

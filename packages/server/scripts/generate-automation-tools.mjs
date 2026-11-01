@@ -42,7 +42,7 @@ function closed(ref) {
   visit(schema);
   return { ...schema,type: schema.type ?? 'object',...(Object.keys(defs).length ? { $defs: defs } : {}) };
 }
-const standardHelpers = new Set(['collections.list','collections.get','nodes.get']);
+const standardHelpers = new Set(['collections.list','collections.get','collections.get_snapshot','nodes.get','nodes.search']);
 const names = catalog.tools.map(tool => tool.name), known = new Set([...names,...standardHelpers]);
 if (new Set(names).size !== names.length) throw new Error('Duplicate capability ID');
 const taskNames = ['recovery','rule-authoring','sync-diagnostics','browser-rules'];

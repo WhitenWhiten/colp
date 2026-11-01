@@ -164,7 +164,7 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Preview a proposed rule against supplied facts or current state and bindings; stores a short-lived activation preview. Inspect matches and issues before saving or enabling.",
+      "description": "Preview a proposed or saved rule and its bindings; stores a short-lived activation preview. Inspect decisions, then pass previewId as change.activationPreviewId to rules.set_state when enabling the exact saved configuration. Preview again if it expires or dependencies change.",
       "effects": {
         "businessMutation": true,
         "deviceRequest": false,
@@ -188,7 +188,7 @@
         "readOnlyHint": false,
         "openWorldHint": false
       },
-      "description": "Create a draft or update an owned rule. Updates require the observed baseRevision; supply a stable commandId and inspect the returned rule.",
+      "description": "Create a draft or update an owned rule with a stable commandId; updates require the observed baseRevision. Saving does not enable it. To enable, use rules.preview for the saved configuration and pass its previewId to rules.set_state.",
       "effects": {
         "businessMutation": true,
         "deviceRequest": false,
@@ -212,7 +212,7 @@
         "readOnlyHint": false,
         "openWorldHint": false
       },
-      "description": "Change an owned rule lifecycle state with its current baseRevision and a stable commandId; enabling checks current dependencies.",
+      "description": "Change an owned rule state using its current baseRevision and a stable commandId. state=enabled requires change.activationPreviewId from rules.preview for the exact configuration. Missing, expired or changed previews are rejected; preview again before enabling. Pause/archive need no activation preview.",
       "effects": {
         "businessMutation": true,
         "deviceRequest": false,
