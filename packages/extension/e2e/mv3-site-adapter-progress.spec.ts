@@ -9,6 +9,14 @@ const extensionPath = resolve(import.meta.dirname, '../dist/development'), exten
 interface SiteStatus { candidateAccount?: string | null; archive: { import?: { id: string; phase: string } | null } }
 const status = (page: Page): Promise<SiteStatus> => page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.siteAdapters.status' }) as Promise<SiteStatus>);
 
+async function copyProblemReport(page: Page): Promise<string> {
+  // Each click requests the report asynchronously; never reuse the previous copy.
+  await page.evaluate(() => { delete (globalThis as unknown as { siteReport?: string }).siteReport; });
+  await page.locator('#problem-copy').click();
+  await expect.poll(() => page.evaluate(() => (globalThis as unknown as { siteReport?: string }).siteReport)).toEqual(expect.any(String));
+  return page.evaluate(() => (globalThis as unknown as { siteReport: string }).siteReport);
+}
+
 test('favorites become a preview in the background, skip deleted videos, and show a compact task before settings', async () => {
   test.setTimeout(180000);
   const profile = await mkdtemp(resolve(tmpdir(), 'known-site-progress-'));
@@ -89,8 +97,7 @@ test('favorites become a preview in the background, skip deleted videos, and sho
         (globalThis as unknown as { siteReport: string }).siteReport = text;
       } } });
     });
-    await page.locator('#problem-copy').click();
-    const copied = await page.evaluate(() => (globalThis as unknown as { siteReport: string }).siteReport);
+    const copied = await copyProblemReport(page);
     const report = JSON.parse(copied);
     expect(report.incident).toMatchObject({ operation: 'read', code: 'rateLimited', httpStatus: 429, taskRef: failedRun });
     for (const secret of ['not-for-diagnostics', 'A useful video', 'Adapter destination', 'accountId', 'capability', 'accessToken']) expect(copied).not.toContain(secret);
@@ -122,8 +129,7 @@ test('favorites become a preview in the background, skip deleted videos, and sho
     await expect(page.locator('#import-review-list')).toContainText('A shared video');
     await expect(page.locator('#import-review-list')).toContainText('Choose its primary collection');
     await expect(page.locator('#import-review-list')).not.toContainText('primarySourceCollectionRequired');
-    await page.locator('#problem-copy').click();
-    const reviewReport = await page.evaluate(() => (globalThis as unknown as { siteReport: string }).siteReport);
+    const reviewReport = await copyProblemReport(page);
     expect(JSON.parse(reviewReport).incident.review).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'primarySourceCollectionRequired' })]));
     expect(reviewReport).not.toContain('A shared video');
     const saved = await page.evaluate(async id => {
