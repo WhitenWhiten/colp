@@ -96,13 +96,16 @@ Product 1.95.0 adds dependency/incident read and revalidation operations, preser
 immutable 1.94.0 and 1.93.0 baselines. `/ready/features/automation` reports runtimeUnsupported
 independently of the usable configuration API and the server's general readiness.
 
-The server, server runtime, extension and web share the vendored `@know-n/colp`
-`0.3.1-mcp-context.0` prerelease. `node scripts/check-sdk-pins.mjs` checks their
-pins and common artifact. The server Dockerfile copies the vendored artifact for
-both builds and runtime installation. After a shared-source change, regenerate
-contracts and use `node packages/server/scripts/refresh-automation-package.mjs`
-with Node 22/npm 10. Return consumers to an exact published release only after
-publication and artifact verification.
+The server, server runtime, extension and web pin the published `@know-n/colp`
+`0.3.1` release. Its registry tarball matches the accepted release artifact.
+`node scripts/check-sdk-pins.mjs` checks the application pins and common
+integrity; `npm --prefix packages/server run runtime:manifest:check` checks the
+runtime manifest and lockfile. Builds and runtime installation use the registry
+without a local SDK tarball. For unpublished shared-source changes, select a
+prerelease version, regenerate contracts and use
+`node packages/server/scripts/refresh-automation-package.mjs` with Node 22/npm 10.
+Return consumers to an exact published release after publication and artifact
+verification.
 
 ## Guided AI connection
 
