@@ -8,7 +8,7 @@ const args = process.argv.slice(2);
 const option = name => { const i = args.indexOf(name); return i < 0 ? undefined : args[i + 1]; };
 const contractFile = new URL('../src/modules/mcp/automation-tool-contracts.generated.ts', import.meta.url);
 const source = await readFile(contractFile, 'utf8');
-const json = source.match(/export const AUTOMATION_TOOL_CONTRACTS = (.*) as const;/s)?.[1];
+const json = source.match(/export const AUTOMATION_TOOL_CONTRACTS = (.*) as const;/)?.[1];
 if (!json) throw new Error('Cannot parse generated Automation contracts');
 const contracts = JSON.parse(json);
 const sizes = value => { const text = JSON.stringify(value); return { characters: text.length, utf8Bytes: Buffer.byteLength(text) }; };
@@ -23,10 +23,13 @@ const summarize = tools => ({ count: tools.length, input: sizes(tools.map(input)
 let commit = 'unknown';
 try { commit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(); } catch { /* not a checkout */ }
 if (args.includes('--static')) {
+  const setsJson = source.match(/export const TASK_TOOLSETS = (.*) as const;/)?.[1];
+  const sets = setsJson ? JSON.parse(setsJson) : {};
   console.log(JSON.stringify({ kind: 'static contracts; not actual model loading', commit, node: process.version,
     tokenEstimate: null, tokenizer: null, providerUsage: null,
     automation: summarize(contracts), manager: summarize(contracts.filter(t => t.profile === 'automationManager')),
-    worker: summarize(contracts.filter(t => t.profile === 'automationWorker')) }, null, 2));
+    worker: summarize(contracts.filter(t => t.profile === 'automationWorker')),
+    taskSetsAutomationOnly: Object.fromEntries(Object.entries(sets).map(([name,set]) => [name, summarize(contracts.filter(t => set.members.includes(t.name)))])) }, null, 2));
 } else if (option('--catalog')) {
   const raw = JSON.parse(await readFile(option('--catalog'), 'utf8'));
   const tools = Array.isArray(raw) ? raw : raw.tools ?? raw.result?.tools;

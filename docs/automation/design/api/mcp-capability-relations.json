@@ -1,0 +1,14 @@
+{
+  "automation.trash.list": {"nextSteps": [{"id":"automation.trash.get", "input":"deletionId from a listed item"}]},
+  "automation.trash.get": {"nextSteps": [{"id":"automation.trash.restore", "input":"deletionId and current revision"}, {"id":"automation.trash.restore_subtree", "input":"folder deletionId and current revision"}]},
+  "automation.trash.restore": {"prerequisites": [{"id":"automation.trash.get", "input":"current deletion revision when not already known"}]},
+  "automation.trash.restore_subtree": {"prerequisites": [{"id":"automation.trash.get", "input":"current folder deletion revision when not already known"}]},
+  "automation.rules.validate": {"nextSteps": [{"id":"automation.rules.preview", "input":"validated rule and bindings"}]},
+  "automation.rules.preview": {"nextSteps": [{"id":"automation.rules.save", "input":"reviewed rule and bindings"}]},
+  "automation.rules.save": {"nextSteps": [{"id":"automation.rules.set_state", "input":"saved rule id and current revision"}]},
+  "automation.rules.set_state": {"prerequisites": [{"id":"automation.rules.get", "input":"current rule id and revision when not already known"}]},
+  "automation.browser_rules.list": {"nextSteps": [{"id":"automation.device_requests.get", "input":"requestId from the queued request"}]},
+  "automation.browser_rules.run_preview": {"nextSteps": [{"id":"automation.device_requests.get", "input":"requestId; inspect preview before applying"}]},
+  "automation.browser_rules.run_apply": {"prerequisites": [{"id":"automation.browser_rules.run_preview", "input":"reviewed unexpired preview identity"}], "nextSteps": [{"id":"automation.device_requests.get", "input":"requestId from the queued apply"}]},
+  "automation.browser_rules.run_undo": {"prerequisites": [{"id":"automation.browser_rules.runs", "input":"reviewed run identity when not already known"}], "nextSteps": [{"id":"automation.device_requests.get", "input":"requestId from the queued undo"}]}
+}

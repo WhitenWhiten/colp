@@ -1,0 +1,18 @@
+{
+  "recovery": {
+    "aliases": ["restore deleted bookmarks and folders", "recover trash", "恢复已删除书签和文件夹"],
+    "members": ["collections.list", "collections.get", "automation.trash.list", "automation.trash.get", "automation.trash.restore", "automation.trash.restore_subtree"]
+  },
+  "rule-authoring": {
+    "aliases": ["create and enable automation rules", "edit rule bindings", "创建并启用自动化规则"],
+    "members": ["collections.list", "collections.get", "nodes.get", "automation.rules.describe", "automation.rules.list", "automation.rules.get", "automation.rules.health", "automation.rules.diagnostics", "automation.bindings.list", "automation.bindings.get", "automation.bindings.save", "automation.targets.list", "automation.targets.get", "automation.executors.list", "automation.executors.get", "automation.execution_policies.list", "automation.execution_policies.get", "automation.rules.validate", "automation.rules.preview", "automation.rules.save", "automation.rules.set_state"]
+  },
+  "sync-diagnostics": {
+    "aliases": ["diagnose synchronization", "inspect device issues and conflicts", "排查同步问题"],
+    "members": ["collections.list", "collections.get", "nodes.get", "automation.sync.devices", "automation.sync.status", "automation.sync.issues", "automation.sync.conflicts", "automation.sync.replica_plan"]
+  },
+  "browser-rules": {
+    "aliases": ["manage browser rules", "execute and undo local rules", "执行浏览器规则"],
+    "members": ["automation.sync.devices", "automation.sync.status", "automation.device_requests.get", "automation.browser_rules.list", "automation.browser_rules.folders", "automation.browser_rules.configure", "automation.browser_rules.preview", "automation.browser_rules.run_preview", "automation.browser_rules.run_apply", "automation.browser_rules.run_undo", "automation.browser_rules.runs"]
+  }
+}

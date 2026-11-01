@@ -31,3 +31,9 @@ Record the commit, host/API/provider and version, model and price, catalog/scope
 ## MC-04 compact decision
 
 No specific target client has been shown to lack native deferred loading, and no remaining typed-catalog budget or cross-task usability failure has been established for such a client. Compact entry conditions are not met. Do not implement the four-entry gateway based only on the host-access gap.
+
+## MC-01 contract and task metadata
+
+The source catalog now has explicit effect fields, including durable browser requests, persisted run previews, activity read state and potential provider consumption. These are descriptive metadata, not a new execution authorization. The 13 missing and 18 generic descriptions were replaced. `mcp-task-toolsets.json` contains reviewed explicit member lists and English/Chinese aliases; `mcp-capability-relations.json` gives optional input provenance, not mandatory recursive calls. The generator checks IDs, task names/members, relationships, descriptions, effects and closed local references, and emits deterministic SHA-256 contract digests. A contract digest includes description, scopes, availability, input and output schemas, annotations and effect fields. The overall generated definition digest also covers task membership and relationships. Business revisions and authority remain separate.
+
+`npm --prefix packages/server run check:automation-tools` passed. `node packages/server/scripts/measure-mcp-context.mjs --static` reports Automation-only task inputs: recovery 4 tools / 2755 bytes, rule-authoring 18 / 39580, sync-diagnostics 5 / 1775, browser-rules 11 / 9686. These omit standard helpers and are static, not authorized catalogs or token counts.

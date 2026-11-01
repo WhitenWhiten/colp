@@ -17,6 +17,13 @@
       "annotations": {
         "readOnlyHint": true,
         "openWorldHint": false
+      },
+      "description": "Read supported rule versions, triggers, tasks and limits before composing a rule.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
       }
     },
     {
@@ -34,6 +41,13 @@
       "annotations": {
         "readOnlyHint": true,
         "openWorldHint": false
+      },
+      "description": "List owned binding sets and their revisions; follow the cursor to resolve rule roles.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
       }
     },
     {
@@ -51,6 +65,13 @@
       "annotations": {
         "readOnlyHint": true,
         "openWorldHint": false
+      },
+      "description": "List owned worker targets, readiness and revisions to choose an existing authorized target.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
       }
     },
     {
@@ -70,7 +91,13 @@
         "openWorldHint": false
       },
       "availability": "bootstrapAndPaired",
-      "description": "Redeem a one-use Owner grant as the intended authenticated opted-in worker. This tool alone is visible before target binding; it does not require automationManager and does not grant manager or ordinary node tools."
+      "description": "Redeem a one-use Owner grant as the intended authenticated opted-in worker. This tool alone is visible before target binding; it does not require automationManager and does not grant manager or ordinary node tools.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.targets.mine",
@@ -89,7 +116,13 @@
         "openWorldHint": false
       },
       "availability": "pairedOnly",
-      "description": "List the paired inboxes (targets) this credential works for, with wake mode and readiness. Call it after sign-in or reconnect to learn the targetId for automation.jobs.list and events/subscribe. It shows no other credential's targets and needs no manager scope."
+      "description": "List the paired inboxes (targets) this credential works for, with wake mode and readiness. Call it after sign-in or reconnect to learn the targetId for automation.jobs.list and events/subscribe. It shows no other credential's targets and needs no manager scope.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.rules.validate",
@@ -106,6 +139,13 @@
       "annotations": {
         "readOnlyHint": true,
         "openWorldHint": false
+      },
+      "description": "Validate a proposed rule and bindings against current capabilities; returns issues without saving.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
       }
     },
     {
@@ -123,6 +163,13 @@
       "annotations": {
         "readOnlyHint": true,
         "openWorldHint": false
+      },
+      "description": "Preview a proposed rule against supplied event facts and bindings; inspect matches and issues before saving.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
       }
     },
     {
@@ -140,6 +187,13 @@
       "annotations": {
         "readOnlyHint": false,
         "openWorldHint": false
+      },
+      "description": "Create a draft or update an owned rule. Updates require the observed baseRevision; supply a stable commandId and inspect the returned rule.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
       }
     },
     {
@@ -157,6 +211,13 @@
       "annotations": {
         "readOnlyHint": false,
         "openWorldHint": false
+      },
+      "description": "Change an owned rule lifecycle state with its current baseRevision and a stable commandId; enabling checks current dependencies.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
       }
     },
     {
@@ -176,6 +237,12 @@
       "annotations": {
         "readOnlyHint": true,
         "openWorldHint": false
+      },
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
       }
     },
     {
@@ -194,7 +261,14 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "availability": "pairedOnly"
+      "availability": "pairedOnly",
+      "description": "Read one assigned worker job using its delivery handle; inspect state and revision before claiming.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.jobs.inputs",
@@ -212,7 +286,14 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "availability": "pairedOnly"
+      "availability": "pairedOnly",
+      "description": "Page through pinned task inputs for an assigned job using its delivery handle; follow the cursor before processing.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.jobs.claim",
@@ -230,7 +311,14 @@
         "readOnlyHint": false,
         "openWorldHint": false
       },
-      "availability": "pairedOnly"
+      "availability": "pairedOnly",
+      "description": "Claim an assigned job using its delivery handle and stable commandId; returns a fenced lease for heartbeat and submission.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.jobs.heartbeat",
@@ -248,7 +336,14 @@
         "readOnlyHint": false,
         "openWorldHint": false
       },
-      "availability": "pairedOnly"
+      "availability": "pairedOnly",
+      "description": "Renew a current worker lease with its lease token, generation and stable commandId; rejected stale leases cannot submit.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.jobs.submit",
@@ -266,7 +361,14 @@
         "readOnlyHint": false,
         "openWorldHint": false
       },
-      "availability": "pairedOnly"
+      "availability": "pairedOnly",
+      "description": "Submit a leased job result with its current lease authority and stable commandId; inspect the resulting proposal or receipt.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.jobs.fail",
@@ -284,7 +386,14 @@
         "readOnlyHint": false,
         "openWorldHint": false
       },
-      "availability": "pairedOnly"
+      "availability": "pairedOnly",
+      "description": "Report a leased job failure with current lease authority and stable commandId; inspect the returned receipt.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.rules.list",
@@ -302,7 +411,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "automation.rules.list: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+      "description": "List owned automation rules with states and revisions; follow the cursor before selecting a rule.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.rules.get",
@@ -320,7 +435,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "automation.rules.get: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+      "description": "Read one owned rule and its current revision before editing or changing its state.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.rules.health",
@@ -338,7 +459,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "automation.rules.health: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+      "description": "Inspect an owned rule’s current health and blocking conditions before enabling or diagnosing it.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.rules.diagnostics",
@@ -356,7 +483,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "automation.rules.diagnostics: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+      "description": "Inspect an owned rule’s binding, target and executor dependencies to diagnose why it cannot run.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.bindings.get",
@@ -374,7 +507,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "automation.bindings.get: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+      "description": "Read an owned binding set and revision to resolve roles or prepare a revision-checked update.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.bindings.save",
@@ -393,7 +532,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "automation.bindings.save: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+      "description": "Create or update an owned binding set with a stable commandId; updates require its observed baseRevision.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.runs.list",
@@ -411,7 +556,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "List automation runs, optionally filtered by collectionId and nodeId together to explain changes to one bookmark. Cursors bind the filter and page size."
+      "description": "List automation runs, optionally filtered by collectionId and nodeId together to explain changes to one bookmark. Cursors bind the filter and page size.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.runs.get",
@@ -429,7 +580,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "automation.runs.get: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+      "description": "Inspect an owned run, its current state, revision and effect receipts before cancellation or undo.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.runs.cancel",
@@ -448,7 +605,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "automation.runs.cancel: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+      "description": "Cancel an owned run using its observed baseRevision and a stable commandId; inspect the resulting run state.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.outputs.list",
@@ -466,7 +629,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "automation.outputs.list: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+      "description": "List a run’s visible outputs in pages; provide its runId and follow nextCursor.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.deliveries.list",
@@ -484,7 +653,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "automation.deliveries.list: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+      "description": "List owned worker event deliveries and their current status; follow nextCursor to inspect failures.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.deliveries.retry",
@@ -503,7 +678,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "automation.deliveries.retry: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+      "description": "Retry an eligible failed event delivery using its deliveryId and a stable commandId; current subscription and target authority are checked.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.jobs.retry",
@@ -522,7 +703,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "automation.jobs.retry: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+      "description": "Explicitly retry eligible uncertain work with the observed job revision, reason and stable commandId; pinned work and limits remain enforced.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.activity.list",
@@ -540,7 +727,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "automation.activity.list: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+      "description": "List account activity in bounded pages; inspect activity IDs before marking items read.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.activity.summary",
@@ -558,7 +751,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "automation.activity.summary: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+      "description": "Read the account activity summary and unread counts for the current owner.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.activity.read",
@@ -577,7 +776,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "automation.activity.read: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+      "description": "Mark account activity read through a specified item using a stable commandId; later activity remains unread.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.sync.devices",
@@ -595,7 +800,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "automation.sync.devices: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+      "description": "List the owner’s synchronization devices and identifiers for diagnosing a selected replica.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.sync.status",
@@ -613,7 +824,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "automation.sync.status: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+      "description": "Inspect synchronization status, devices and replicas; choose the relevant replica before requesting browser operations.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.sync.issues",
@@ -631,7 +848,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "automation.sync.issues: owner-scoped management; inspect current revisions before changing configuration or retrying work."
+      "description": "Inspect issues for a selected synchronization replica; use its current identity and follow any continuation.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.device_requests.get",
@@ -649,7 +872,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Read the durable result of an explicit browser request. pending/running require checking again; an offline browser cannot produce a result. expired requests require a new command ID. Never assume a missing response means a preview or retry did not run."
+      "description": "Read the durable result of an explicit browser request. pending/running require checking again; an offline browser cannot produce a result. expired requests require a new command ID. Never assume a missing response means a preview or retry did not run.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.adapters.status",
@@ -667,7 +896,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Queue adapters.status on the explicitly selected replica. Requires the owner to enable the device bridge in that browser. Returns a request handle, not the operation result; use automation.device_requests.get. Classification previews may call the configured provider once. Retries preserve any existing save command and require a new explicit command ID after an unknown outcome."
+      "description": "Queue adapters.status on the explicitly selected replica. Requires the owner to enable the device bridge in that browser. Returns a request handle, not the operation result; use automation.device_requests.get. Classification previews may call the configured provider once. Retries preserve any existing save command and require a new explicit command ID after an unknown outcome.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": true,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.adapters.jobs",
@@ -685,7 +920,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Queue adapters.jobs on the explicitly selected replica. Requires the owner to enable the device bridge in that browser. Returns a request handle, not the operation result; use automation.device_requests.get. Classification previews may call the configured provider once. Retries preserve any existing save command and require a new explicit command ID after an unknown outcome."
+      "description": "Queue adapters.jobs on the explicitly selected replica. Requires the owner to enable the device bridge in that browser. Returns a request handle, not the operation result; use automation.device_requests.get. Classification previews may call the configured provider once. Retries preserve any existing save command and require a new explicit command ID after an unknown outcome.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": true,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.adapters.diagnostics",
@@ -703,7 +944,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Queue adapters.diagnostics on the explicitly selected replica. Requires the owner to enable the device bridge in that browser. Returns a request handle, not the operation result; use automation.device_requests.get. Classification previews may call the configured provider once. Retries preserve any existing save command and require a new explicit command ID after an unknown outcome."
+      "description": "Queue adapters.diagnostics on the explicitly selected replica. Requires the owner to enable the device bridge in that browser. Returns a request handle, not the operation result; use automation.device_requests.get. Classification previews may call the configured provider once. Retries preserve any existing save command and require a new explicit command ID after an unknown outcome.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": true,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.adapters.retry",
@@ -722,7 +969,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Queue adapters.retry on the explicitly selected replica. Requires the owner to enable the device bridge in that browser. Returns a request handle, not the operation result; use automation.device_requests.get. Classification previews may call the configured provider once. Retries preserve any existing save command and require a new explicit command ID after an unknown outcome."
+      "description": "Queue adapters.retry on the explicitly selected replica. Requires the owner to enable the device bridge in that browser. Returns a request handle, not the operation result; use automation.device_requests.get. Classification previews may call the configured provider once. Retries preserve any existing save command and require a new explicit command ID after an unknown outcome.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": true,
+        "externalRequest": true,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.classification.diagnostics",
@@ -740,7 +993,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Queue classification.diagnostics on the explicitly selected replica. Requires the owner to enable the device bridge in that browser. Returns a request handle, not the operation result; use automation.device_requests.get. Classification previews may call the configured provider once. Retries preserve any existing save command and require a new explicit command ID after an unknown outcome."
+      "description": "Queue classification.diagnostics on the explicitly selected replica. Requires the owner to enable the device bridge in that browser. Returns a request handle, not the operation result; use automation.device_requests.get. Classification previews may call the configured provider once. Retries preserve any existing save command and require a new explicit command ID after an unknown outcome.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": true,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.classification.preview",
@@ -759,7 +1018,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Preview a site semantic job, an ordinary saved capture, or an incoming bookmark with the explicitly selected browser provider. Exactly one of jobId, captureId, bookmark is required. May spend one provider call; returns suggestions without moving or creating bookmarks. The Owner must enable browser agent access; use automation.device_requests.get for the result."
+      "description": "Preview a site semantic job, an ordinary saved capture, or an incoming bookmark with the explicitly selected browser provider. Exactly one of jobId, captureId, bookmark is required. May spend one provider call; returns suggestions without moving or creating bookmarks. The Owner must enable browser agent access; use automation.device_requests.get for the result.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": true,
+        "externalRequest": true,
+        "providerConsumption": true
+      }
     },
     {
       "name": "automation.classification.retry",
@@ -778,7 +1043,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Queue classification.retry on the explicitly selected replica. Requires the owner to enable the device bridge in that browser. Returns a request handle, not the operation result; use automation.device_requests.get. Classification previews may call the configured provider once. Retries preserve any existing save command and require a new explicit command ID after an unknown outcome."
+      "description": "Queue classification.retry on the explicitly selected replica. Requires the owner to enable the device bridge in that browser. Returns a request handle, not the operation result; use automation.device_requests.get. Classification previews may call the configured provider once. Retries preserve any existing save command and require a new explicit command ID after an unknown outcome.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": true,
+        "externalRequest": true,
+        "providerConsumption": true
+      }
     },
     {
       "name": "automation.classification.captures.list",
@@ -796,7 +1067,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Inspect ordinary saved capture classification tasks, including local provider failures, under the selected device and account. Returns a durable device request; use automation.device_requests.get. List continuations are scoped to the account and collection."
+      "description": "Inspect ordinary saved capture classification tasks, including local provider failures, under the selected device and account. Returns a durable device request; use automation.device_requests.get. List continuations are scoped to the account and collection.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": true,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.classification.captures.get",
@@ -814,7 +1091,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Inspect ordinary saved capture classification tasks, including local provider failures, under the selected device and account. Returns a durable device request; use automation.device_requests.get. List continuations are scoped to the account and collection."
+      "description": "Inspect ordinary saved capture classification tasks, including local provider failures, under the selected device and account. Returns a durable device request; use automation.device_requests.get. List continuations are scoped to the account and collection.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": true,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.classification.captures.retry",
@@ -833,7 +1116,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Explicitly retry failed local classification on an existing saved bookmark with its observed revision. Preserves the original save identity and respects pause, user edits and existing authorization; may spend one new provider attempt."
+      "description": "Explicitly retry failed local classification on an existing saved bookmark with its observed revision. Preserves the original save identity and respects pause, user edits and existing authorization; may spend one new provider attempt.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": true,
+        "externalRequest": true,
+        "providerConsumption": true
+      }
     },
     {
       "name": "automation.adapters.tasks.list",
@@ -851,7 +1140,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Inspect browser adapter work by explicit connection and task kind: confirmations, imports, native save work, local-to-cloud transfers, reconciliation, semantic classification, and observations. Results expose reasons, revisions and available recovery actions. Use automation.device_requests.get; continuation cursors are scoped to the owner, connection and kind."
+      "description": "Inspect browser adapter work by explicit connection and task kind: confirmations, imports, native save work, local-to-cloud transfers, reconciliation, semantic classification, and observations. Results expose reasons, revisions and available recovery actions. Use automation.device_requests.get; continuation cursors are scoped to the owner, connection and kind.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": true,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.adapters.tasks.get",
@@ -869,7 +1164,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Inspect browser adapter work by explicit connection and task kind: confirmations, imports, native save work, local-to-cloud transfers, reconciliation, semantic classification, and observations. Results expose reasons, revisions and available recovery actions. Use automation.device_requests.get; continuation cursors are scoped to the owner, connection and kind."
+      "description": "Inspect browser adapter work by explicit connection and task kind: confirmations, imports, native save work, local-to-cloud transfers, reconciliation, semantic classification, and observations. Results expose reasons, revisions and available recovery actions. Use automation.device_requests.get; continuation cursors are scoped to the owner, connection and kind.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": true,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.adapters.tasks.control",
@@ -888,7 +1189,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Run one of the actions advertised by a selected browser task, with its observed revision. Retries preserve existing native commands and receipts; import/reconcile controls retain their original approval and ownership checks. No action enables an adapter, grants permissions, approves a new import, or removes bookmarks."
+      "description": "Run one of the actions advertised by a selected browser task, with its observed revision. Retries preserve existing native commands and receipts; import/reconcile controls retain their original approval and ownership checks. No action enables an adapter, grants permissions, approves a new import, or removes bookmarks.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": true,
+        "externalRequest": true,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.sync.conflicts",
@@ -907,7 +1214,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "List owner-visible Sync conflicts with observed revisions and allowed resolutions. A cursor cannot be combined with a new limit."
+      "description": "List owner-visible Sync conflicts with observed revisions and allowed resolutions. A cursor cannot be combined with a new limit.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.sync.replica_plan",
@@ -925,7 +1238,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Review a replica lifecycle revision, health, available recovery actions and expected effects before requesting a command. This read changes no Sync authority."
+      "description": "Review a replica lifecycle revision, health, available recovery actions and expected effects before requesting a command. This read changes no Sync authority.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.sync.resolve_conflict",
@@ -946,7 +1265,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Resolve one observed Sync conflict through the same owner-scoped service, revision precondition and durable receipt as the Sync center. Provide value only for custom resolution."
+      "description": "Resolve one observed Sync conflict through the same owner-scoped service, revision precondition and durable receipt as the Sync center. Provide value only for custom resolution.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.sync.retry_issue",
@@ -965,7 +1290,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Queue retry for one issue currently advertised by the browser. The original operation and command identities are preserved; inspect sync.issues or sync.status for asynchronous completion."
+      "description": "Queue retry for one issue currently advertised by the browser. The original operation and command identities are preserved; inspect sync.issues or sync.status for asynchronous completion.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.sync.replica_command",
@@ -985,7 +1316,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Queue an explicitly reviewed replica retry or rebuild against its lifecycle revision. Only actions advertised by the browser are accepted. Rebuild requires confirmation=rebuild_replica; it uses the existing fenced retirement and projection recovery protocol. Inspect sync.status for completion."
+      "description": "Queue an explicitly reviewed replica retry or rebuild against its lifecycle revision. Only actions advertised by the browser are accepted. Rebuild requires confirmation=rebuild_replica; it uses the existing fenced retirement and projection recovery protocol. Inspect sync.status for completion.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.pause.get",
@@ -1003,7 +1340,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Read account-wide automation pause, revision and held job count before changing it."
+      "description": "Read account-wide automation pause, revision and held job count before changing it.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.pause.set",
@@ -1022,7 +1365,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Set the account-wide automation pause with its observed revision and an exact command ID. Uses the same service as the web switch; browsers learn the change on refresh and retain a learned pause while offline."
+      "description": "Set the account-wide automation pause with its observed revision and an exact command ID. Uses the same service as the web switch; browsers learn the change on refresh and retain a learned pause while offline.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.connection_profiles.list",
@@ -1040,7 +1389,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Read owner-scoped connection_profiles configurations and revisions. List continuations remain bound to this account and resource type."
+      "description": "Read owner-scoped connection_profiles configurations and revisions. List continuations remain bound to this account and resource type.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.connection_profiles.get",
@@ -1058,7 +1413,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Read owner-scoped connection_profiles configurations and revisions. List continuations remain bound to this account and resource type."
+      "description": "Read owner-scoped connection_profiles configurations and revisions. List continuations remain bound to this account and resource type.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.connection_profiles.save",
@@ -1077,7 +1438,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Manage an owner-scoped connection_profiles configuration through the same validator, revision precondition and durable command receipt as the web. Profile identity/data-term changes may invalidate worker bindings and subscriptions; display edits preserve them."
+      "description": "Manage an owner-scoped connection_profiles configuration through the same validator, revision precondition and durable command receipt as the web. Profile identity/data-term changes may invalidate worker bindings and subscriptions; display edits preserve them.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.targets.get",
@@ -1095,7 +1462,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Read owner-scoped targets configurations and revisions. List continuations remain bound to this account and resource type."
+      "description": "Read owner-scoped targets configurations and revisions. List continuations remain bound to this account and resource type.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.targets.save",
@@ -1114,7 +1487,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Manage an owner-scoped targets configuration through the same validator, revision precondition and durable command receipt as the web. Profile identity/data-term changes may invalidate worker bindings and subscriptions; display edits preserve them."
+      "description": "Manage an owner-scoped targets configuration through the same validator, revision precondition and durable command receipt as the web. Profile identity/data-term changes may invalidate worker bindings and subscriptions; display edits preserve them.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.targets.revoke",
@@ -1133,7 +1512,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Manage an owner-scoped targets configuration through the same validator, revision precondition and durable command receipt as the web. Profile identity/data-term changes may invalidate worker bindings and subscriptions; display edits preserve them."
+      "description": "Manage an owner-scoped targets configuration through the same validator, revision precondition and durable command receipt as the web. Profile identity/data-term changes may invalidate worker bindings and subscriptions; display edits preserve them.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.executors.list",
@@ -1151,7 +1536,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Read owner-scoped executors configurations and revisions. List cursors bind account, resource and page size."
+      "description": "Read owner-scoped executors configurations and revisions. List cursors bind account, resource and page size.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.executors.get",
@@ -1169,7 +1560,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Read owner-scoped executors configurations and revisions. List cursors bind account, resource and page size."
+      "description": "Read owner-scoped executors configurations and revisions. List cursors bind account, resource and page size.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.executors.save",
@@ -1188,7 +1585,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Manage executor configuration with owner isolation, observed revisions and command receipts. Only installed mcpEventsBot executors with an owned target are supported; capability declarations do not prove availability."
+      "description": "Manage executor configuration with owner isolation, observed revisions and command receipts. Only installed mcpEventsBot executors with an owned target are supported; capability declarations do not prove availability.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.execution_policies.list",
@@ -1206,7 +1609,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Read owner-scoped execution_policies configurations and revisions. List cursors bind account, resource and page size."
+      "description": "Read owner-scoped execution_policies configurations and revisions. List cursors bind account, resource and page size.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.execution_policies.get",
@@ -1224,7 +1633,13 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Read owner-scoped execution_policies configurations and revisions. List cursors bind account, resource and page size."
+      "description": "Read owner-scoped execution_policies configurations and revisions. List cursors bind account, resource and page size.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.execution_policies.save",
@@ -1243,7 +1658,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Manage execution policy with owner isolation, observed revisions and command receipts. Monetary limits must be zero and automatic fallback is unsupported; call caps and explicit data allowlists remain enforced."
+      "description": "Manage execution policy with owner isolation, observed revisions and command receipts. Monetary limits must be zero and automatic fallback is unsupported; call caps and explicit data allowlists remain enforced.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.targets.issue_pairing",
@@ -1262,7 +1683,13 @@
         "idempotentHint": true,
         "openWorldHint": false
       },
-      "description": "Issue a five-minute, one-time pairing code for an owned worker target with its observed revision. A new grant invalidates earlier grants and advances the target revision. Share the code only with the intended worker. Exact command replay redacts the code; reconcile the target then explicitly issue a new grant when the first response was lost."
+      "description": "Issue a five-minute, one-time pairing code for an owned worker target with its observed revision. A new grant invalidates earlier grants and advances the target revision. Share the code only with the intended worker. Exact command replay redacts the code; reconcile the target then explicitly issue a new grant when the first response was lost.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.runs.preview",
@@ -1282,7 +1709,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Preview one owned rule against a bounded selection of existing bookmarks without changing bookmarks. Supply a stable commandId; inspect canStart, counts, sample, expiry and previewDigest before starting."
+      "description": "Preview one owned rule against a bounded selection of existing bookmarks without changing bookmarks. Supply a stable commandId; inspect canStart, counts, sample, expiry and previewDigest before starting.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.runs.start",
@@ -1302,7 +1735,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Execute exactly an owned persisted run-once preview: pass its previewId and previewDigest, a stable commandId and the same ruleId. Stale members/configuration or an expired preview require a fresh preview. tasks=all uses the pinned execution policy and budget."
+      "description": "Execute exactly an owned persisted run-once preview: pass its previewId and previewDigest, a stable commandId and the same ruleId. Stale members/configuration or an expired preview require a fresh preview. tasks=all uses the pinned execution policy and budget.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.runs.undo",
@@ -1322,7 +1761,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Undo exactly one recorded reversible effect from automation.runs.get. Pass the current run revision, effectReceiptId and expectedEffectDigest with a reason and stable commandId. Later edits or incomplete compensation are rejected; unrelated bookmarks are preserved."
+      "description": "Undo exactly one recorded reversible effect from automation.runs.get. Pass the current run revision, effectReceiptId and expectedEffectDigest with a reason and stable commandId. Later edits or incomplete compensation are rejected; unrelated bookmarks are preserved.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.browser_rules.list",
@@ -1341,7 +1786,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "List this browser profile's local rule entries, groups and order in bounded pages. Each page returns revision and enabled; use that revision for configure. A cursor is invalidated by edits. Requires enabled Agent access to this browser. Returns a durable request; poll automation.device_requests.get."
+      "description": "List this browser profile's local rule entries, groups and order in bounded pages. Each page returns revision and enabled; use that revision for configure. A cursor is invalidated by edits. Requires enabled Agent access to this browser. Returns a durable request; poll automation.device_requests.get.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": true,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.browser_rules.folders",
@@ -1360,7 +1811,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "List writable native bookmark folders under parentNativeId, or browser roots when omitted. Follow pages and folder ids to select a destination for a local rule. Requires enabled Agent access to this browser. Returns a durable request; poll automation.device_requests.get."
+      "description": "List writable native bookmark folders under parentNativeId, or browser roots when omitted. Follow pages and folder ids to select a destination for a local rule. Requires enabled Agent access to this browser. Returns a durable request; poll automation.device_requests.get.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": true,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.browser_rules.configure",
@@ -1379,7 +1836,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Create, edit, remove, enable or reorder local browser rules using the freshly observed list baseRevision. These rules belong to this browser profile. Concurrent edits or lost device authorization reject the change. Requires enabled Agent access to this browser. Returns a durable request; poll automation.device_requests.get."
+      "description": "Create, edit, remove, enable or reorder local browser rules using the freshly observed list baseRevision. These rules belong to this browser profile. Concurrent edits or lost device authorization reject the change. Requires enabled Agent access to this browser. Returns a durable request; poll automation.device_requests.get.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": true,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.browser_rules.preview",
@@ -1398,7 +1861,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Try a bookmark against the current local rule list without saving or moving it. Requires enabled Agent access to this browser. Returns a durable request; poll automation.device_requests.get."
+      "description": "Try a bookmark against the current local rule list without saving or moving it. Requires enabled Agent access to this browser. Returns a durable request; poll automation.device_requests.get.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": true,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.browser_rules.run_preview",
@@ -1417,7 +1886,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Preview bulk local rule placement within a native folder. Does not move bookmarks. Review counts, examples, expiry and previewId before run_apply; a new preview replaces the previous preview. Requires enabled Agent access to this browser. Returns a durable request; poll automation.device_requests.get."
+      "description": "Preview bulk local rule placement within a native folder. Does not move bookmarks. Review counts, examples, expiry and previewId before run_apply; a new preview replaces the previous preview. Requires enabled Agent access to this browser. Returns a durable request; poll automation.device_requests.get.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": true,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.browser_rules.run_apply",
@@ -1437,7 +1912,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Apply exactly the reviewed unexpired local rule preview. Rule changes invalidate it; changed bookmarks are skipped. The durable run journal supports run_undo after interruptions. Requires enabled Agent access to this browser. Returns a durable request; poll automation.device_requests.get."
+      "description": "Apply exactly the reviewed unexpired local rule preview. Rule changes invalidate it; changed bookmarks are skipped. The durable run journal supports run_undo after interruptions. Requires enabled Agent access to this browser. Returns a durable request; poll automation.device_requests.get.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": true,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.browser_rules.run_undo",
@@ -1457,7 +1938,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Undo a local browser rule run conservatively from its journal. Bookmarks edited or moved since that run are preserved. Requires enabled Agent access to this browser. Returns a durable request; poll automation.device_requests.get."
+      "description": "Undo a local browser rule run conservatively from its journal. Bookmarks edited or moved since that run are preserved. Requires enabled Agent access to this browser. Returns a durable request; poll automation.device_requests.get.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": true,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.browser_rules.runs",
@@ -1476,7 +1963,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "List recent local rule runs and whether each can be undone, including interrupted work. Requires enabled Agent access to this browser. Returns a durable request; poll automation.device_requests.get."
+      "description": "List recent local rule runs and whether each can be undone, including interrupted work. Requires enabled Agent access to this browser. Returns a durable request; poll automation.device_requests.get.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": true,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.adapters.configuration",
@@ -1495,7 +1988,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Inspect an installed site adapter and its current source account, candidate account, archive configuration and revision. Site login, host grants and any ambiguous source-account confirmation stay in the browser UI. Requires Agent access to this browser; poll automation.device_requests.get for the durable request result."
+      "description": "Inspect an installed site adapter and its current source account, candidate account, archive configuration and revision. Site login, host grants and any ambiguous source-account confirmation stay in the browser UI. Requires Agent access to this browser; poll automation.device_requests.get for the durable request result.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": true,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.adapters.collections",
@@ -1514,7 +2013,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "List cached source collections in bounded pages. mode=refresh starts a source read using the configuration revision; mode=list reads its result. Continue remote source pagination with sourceCursor, and cached pages with nextCursor. Use a fresh command to inspect a pending read. Requires Agent access to this browser; poll automation.device_requests.get for the durable request result."
+      "description": "List cached source collections in bounded pages. mode=refresh starts a source read using the configuration revision; mode=list reads its result. Continue remote source pagination with sourceCursor, and cached pages with nextCursor. Use a fresh command to inspect a pending read. Requires Agent access to this browser; poll automation.device_requests.get for the durable request result.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": true,
+        "externalRequest": true,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.adapters.configure",
@@ -1533,7 +2038,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Enable an installed adapter with already-granted browser permissions, choose source collections and a writable native archive root, or disable archiving. Requires the observed configuration revision. Defaults keep semantic classification manual; automatic semantic mode uses this browser's configured provider. Requires Agent access to this browser; poll automation.device_requests.get for the durable request result."
+      "description": "Enable an installed adapter with already-granted browser permissions, choose source collections and a writable native archive root, or disable archiving. Requires the observed configuration revision. Defaults keep semantic classification manual; automatic semantic mode uses this browser's configured provider. Requires Agent access to this browser; poll automation.device_requests.get for the durable request result.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": true,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.adapters.import_preview",
@@ -1552,7 +2063,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Start checking existing source items selected by the current archive configuration. Scanning prepares a preview without approving native saves. Poll import_get with fresh commands until preview or attention. Requires Agent access to this browser; poll automation.device_requests.get for the durable request result."
+      "description": "Start checking existing source items selected by the current archive configuration. Scanning prepares a preview without approving native saves. Poll import_get with fresh commands until preview or attention. Requires Agent access to this browser; poll automation.device_requests.get for the durable request result.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": true,
+        "externalRequest": true,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.adapters.import_get",
@@ -1571,7 +2088,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Inspect the current source import, its progress, coverage, omissions, reasons and bounded preview samples. Review counts and preview identity before import_approve. Requires Agent access to this browser; poll automation.device_requests.get for the durable request result."
+      "description": "Inspect the current source import, its progress, coverage, omissions, reasons and bounded preview samples. Review counts and preview identity before import_approve. Requires Agent access to this browser; poll automation.device_requests.get for the durable request result.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": true,
+        "externalRequest": true,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.adapters.import_approve",
@@ -1591,7 +2114,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Approve exactly the reviewed source import using its jobId, previewId, preview revision and digest. Configuration, source and frozen plans are rechecked before activation; no replacement preview is approved implicitly. Requires Agent access to this browser; poll automation.device_requests.get for the durable request result."
+      "description": "Approve exactly the reviewed source import using its jobId, previewId, preview revision and digest. Configuration, source and frozen plans are rechecked before activation; no replacement preview is approved implicitly. Requires Agent access to this browser; poll automation.device_requests.get for the durable request result.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": true,
+        "externalRequest": true,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.trash.list",
@@ -1611,7 +2140,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "List deleted nodes in an owned collection with their deletion identities, revisions and retention deadlines. Follow page.nextCursor; a cursor retains its original page size."
+      "description": "List deleted nodes in an owned collection with their deletion identities, revisions and retention deadlines. Follow page.nextCursor; a cursor retains its original page size.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.trash.get",
@@ -1631,7 +2166,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Inspect one owned trash item, its URL, original parent, current deletion revision and purge deadline before restoring."
+      "description": "Inspect one owned trash item, its URL, original parent, current deletion revision and purge deadline before restoring.",
+      "effects": {
+        "businessMutation": false,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.trash.restore",
@@ -1652,7 +2193,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Restore one reviewed deleted node under its original identity and destination, using the deletion revision from a fresh trash read and a stable commandId. Missing parents, changed revisions or purged payloads are rejected."
+      "description": "Restore one reviewed deleted node under its original identity and destination, using the deletion revision from a fresh trash read and a stable commandId. Missing parents, changed revisions or purged payloads are rejected.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     },
     {
       "name": "automation.trash.restore_subtree",
@@ -1673,7 +2220,13 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Restore the bounded subtree belonging to the selected original folder deletion. Use its observed deletion revision and a stable commandId. Inspect per-item outcomes: changed or unavailable members are not substituted, and partial restoration is reported explicitly."
+      "description": "Restore the bounded subtree belonging to the selected original folder deletion. Use its observed deletion revision and a stable commandId. Inspect per-item outcomes: changed or unavailable members are not substituted, and partial restoration is reported explicitly.",
+      "effects": {
+        "businessMutation": true,
+        "deviceRequest": false,
+        "externalRequest": false,
+        "providerConsumption": false
+      }
     }
   ],
   "$defs": {
