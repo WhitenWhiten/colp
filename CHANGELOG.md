@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-01
+
+### Node.js package
+
+- Extend experimental Automation connection profiles with optional `taskToolsets`
+  for recovery, rule authoring, synchronization diagnostics and browser rules.
+  Generated types and validators preserve the distinction between an omitted
+  selection and an empty selection; hosts enforce the selected tool policy.
+- Allow trusted MCP result builders to supply an explicit `fieldsBudget` for
+  generated fields, so hosts can return larger bounded tool catalogs. Default
+  result snapshot limits and request/write-input limits remain unchanged.
+
+Protocol 0.1/0.2 negotiation, canonical Schemas, the seven exported Profiles,
+Requirements Digest and Apache-2.0 license are unchanged from 0.3.0. This package
+supplies the shared contracts used by the server's MCP context optimization;
+actual model context loading and long-session performance remain unverified.
+
 ## [0.3.0] - 2026-10-25
 
 This minor package release includes the changes since 0.2.1 and replaces the

@@ -159,7 +159,7 @@ COLP 拆分为可组合的一致性 Profile。服务器只在 Manifest 中声明
 需要 **Node.js 22 或更高版本**。在你的应用中安装参考实现：
 
 ```bash
-npm install @know-n/colp@0.3.0
+npm install @know-n/colp@0.3.1
 ```
 
 包内附带 TypeScript 类型声明，同时支持 ESM 和 CommonJS。将下面的示例保存为 `colp-demo.mjs`，无需服务器即可试用这个包：
@@ -305,7 +305,7 @@ cd protocol && python scripts/validate_examples.py   # validate the protocol exa
 | 组成部分 | 版本 | 状态 |
 |---|---|---|
 | 规范 | `0.1-draft` | 0.1 的 Wire Contract 已收口：每个 DTO 都有稳定的 `$defs` 名称。0.2 新增的内容（Sync 的权威 Pull Effect）有自己的 Schema 和 Requirement Registry。 |
-| `@know-n/colp` | 0.3.0 | 实现全部七个 Profile。每条 MUST 与 MUST NOT 需求都对应到测试，见 [TRACEABILITY.md](packages/node/docs/TRACEABILITY.md)。 |
+| `@know-n/colp` | 0.3.1 | 实现全部七个 Profile。每条 MUST 与 MUST NOT 需求都对应到测试，见 [TRACEABILITY.md](packages/node/docs/TRACEABILITY.md)。 |
 | `@know-n/colp-conformance` | 0.1.1 | 覆盖匿名的 `core + publication` 读取。带认证的读取和其他 Profile 将在后续加入。 |
 | COLP Server | 0.1.0 候选版本 | 书签库、同步、分享、自动化、智能体与审批。容器镜像发布在 GitHub；见 [更新日志](packages/server/CHANGELOG.md)。 |
 | Know-N 扩展 | 0.1.0 候选版本 | 在稳定版上架 Chrome 应用商店之前，从 GitHub Releases 下载后以未打包方式安装；见 [更新日志](packages/extension/CHANGELOG.md)。 |

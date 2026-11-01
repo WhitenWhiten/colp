@@ -167,6 +167,14 @@ a token-free authenticated binding. The package never resolves raw credentials.
 | Snapshot link Tool port | own `getCollectionSnapshotLinkMetadata` | Same pattern |
 | Stateless Resource projection port | exact own-data list/read surface | protocol-neutral; no wire/session types |
 
+Hosts that build results with `createMcp20260728Result` can supply
+`fieldsBudget` to set finite snapshot limits for generated `fields`. This is
+useful for a server-owned tool catalog larger than the default 10,000-node
+snapshot. The budget uses `McpWriteInputBudget` limits (`maxNodes`, `maxDepth`
+and `maxBytes`); omitted limits retain their defaults. Choose the override from
+trusted host configuration. Result budgets do not change request or write-input
+limits, and JSON data/prototype/accessor validation still applies.
+
 ## Write: host responsibilities
 
 Beyond the read responsibilities, a write host owns the OAuth approval UI,

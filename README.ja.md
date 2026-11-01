@@ -161,7 +161,7 @@ COLP は組み合わせ可能な適合プロファイルに分かれています
 **Node.js 22 以降**が必要です。アプリケーションにリファレンス実装をインストールします。
 
 ```bash
-npm install @know-n/colp@0.3.0
+npm install @know-n/colp@0.3.1
 ```
 
 TypeScript の型定義が含まれ、ESM と CommonJS の両方に対応しています。次の例を `colp-demo.mjs` として保存すると、サーバーなしでパッケージを試せます。
@@ -307,7 +307,7 @@ cd protocol && python scripts/validate_examples.py   # validate the protocol exa
 | 構成要素 | バージョン | 状態 |
 |---|---|---|
 | 仕様 | `0.1-draft` | 0.1 のワイヤー契約は確定しており、すべての DTO に安定した `$defs` 名があります。0.2 の追加分（Sync のサーバーを正とするプルの効果、authoritative pull effects）には、専用のスキーマと要件レジストリがあります。 |
-| `@know-n/colp` | 0.3.0 | 7 つのプロファイルをすべて実装しています。MUST と MUST NOT の要件はすべてテストに対応付けられ、[TRACEABILITY.md](packages/node/docs/TRACEABILITY.md) に一覧があります。 |
+| `@know-n/colp` | 0.3.1 | 7 つのプロファイルをすべて実装しています。MUST と MUST NOT の要件はすべてテストに対応付けられ、[TRACEABILITY.md](packages/node/docs/TRACEABILITY.md) に一覧があります。 |
 | `@know-n/colp-conformance` | 0.1.1 | 匿名での `core + publication` の読み取りに対応しています。認証付きの読み取りとほかのプロファイルは、次に対応する予定です。 |
 | COLP Server | 0.1.0 のリリース候補 | ライブラリ、同期、共有、オートメーション、エージェントと承認。コンテナーイメージを GitHub で公開しています。[変更履歴](packages/server/CHANGELOG.md) を参照してください。 |
 | Know-N 拡張機能 | 0.1.0 のリリース候補 | 安定版が Chrome ウェブストアに公開されるまでは、GitHub のリリースから入手し、パッケージ化されていない拡張機能として読み込みます。[変更履歴](packages/extension/CHANGELOG.md) を参照してください。 |

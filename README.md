@@ -159,7 +159,7 @@ COLP is split into composable conformance profiles. A server declares in its Man
 Requires **Node.js 22 or later**. Install the reference implementation in your application:
 
 ```bash
-npm install @know-n/colp@0.3.0
+npm install @know-n/colp@0.3.1
 ```
 
 The package includes TypeScript declarations and supports ESM and CommonJS. Save this example as `colp-demo.mjs` to try the package without a server:
@@ -305,7 +305,7 @@ cd protocol && python scripts/validate_examples.py   # validate the protocol exa
 | Part | Version | State |
 |---|---|---|
 | Specification | `0.1-draft` | The 0.1 wire contract is closed: every DTO has a stable `$defs` name. The 0.2 additions, authoritative pull effects for Sync, have their own schema and requirement registry. |
-| `@know-n/colp` | 0.3.0 | All seven profiles. Every MUST and MUST NOT requirement maps to tests, as listed in [TRACEABILITY.md](packages/node/docs/TRACEABILITY.md). |
+| `@know-n/colp` | 0.3.1 | All seven profiles. Every MUST and MUST NOT requirement maps to tests, as listed in [TRACEABILITY.md](packages/node/docs/TRACEABILITY.md). |
 | `@know-n/colp-conformance` | 0.1.1 | Anonymous `core + publication` reads. Authenticated reads and the other profiles are next. |
 | COLP Server | 0.1.0 release candidates | Library, Sync, sharing, Automations, agents and approvals. Container images on GitHub; see the [changelog](packages/server/CHANGELOG.md). |
 | Know-N extension | 0.1.0 release candidates | Installed unpacked from GitHub releases until the stable release reaches the Chrome Web Store; see the [changelog](packages/extension/CHANGELOG.md). |
