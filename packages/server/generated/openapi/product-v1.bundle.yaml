@@ -22852,6 +22852,18 @@ components:
           maxItems: 3
           uniqueItems: true
           description: Explicit composable catalog membership. Each automation catalog requires Owner opt-in and its own scopes. Standard never implicitly enables automation.
+        taskToolsets:
+          type: array
+          items:
+            type: string
+            enum:
+              - recovery
+              - rule-authoring
+              - sync-diagnostics
+              - browser-rules
+          uniqueItems: true
+          maxItems: 4
+          description: Optional Manager and standard tool restriction. Omitted preserves existing tools; an empty list removes all Manager and standard tools. Worker tools are unaffected.
       required:
         - name
         - automationEnabled

@@ -8,7 +8,7 @@ import { recordMcpDeleteSubtreeTombstones } from '../../../src/infrastructure/sy
 
 describeWithPostgres('MCP owner trash recovery', () => {
   test('lists and restores a reviewed deletion with revision, scope and command replay fences', async () => {
-    const f = await automationManagerFixture('mcp_trash', ['nodes:write', 'mcp:read:own'], { sync: true });
+    const f = await automationManagerFixture('mcp_trash', ['nodes:write', 'mcp:read:own'], { sync: true, taskToolsets: ['recovery'] });
     try {
       const before = await f.db.selectFrom('nodes').select('resource_revision').where('id', '=', 'paper').executeTakeFirstOrThrow();
       const deleted = await f.canonical.execute(ports => deleteCollectionNode(ports, { actor: f.actor, command: f.command(),
@@ -38,7 +38,7 @@ describeWithPostgres('MCP owner trash recovery', () => {
   });
 
   test('restores a folder and its original deleted children without recreating identities', async () => {
-    const f = await automationManagerFixture('mcp_trash_subtree', ['nodes:write', 'mcp:read:own'], { sync: true });
+    const f = await automationManagerFixture('mcp_trash_subtree', ['nodes:write', 'mcp:read:own'], { sync: true, taskToolsets: ['recovery'] });
     try {
       await f.createNode('branch', 'root', 'Branch');
       await f.createNode('child', 'branch', 'Child', 'https://example.test/child');

@@ -225,6 +225,19 @@ describe('Automation workers on Agents', () => {
     expect(api.replaceConnectionProfile.mock.calls[1]?.[1]).toMatchObject({ catalogs: ['standard'] })
   })
 
+  it('saves a manager task restriction without unpairing workers', async () => {
+    const api = automation([scenario('active', 'live')])
+    api.replaceConnectionProfile.mockImplementation(async (_id, configuration) => ({ ...profile(), configuration }))
+    mount(api)
+    await waitForDom(() => Boolean(document.querySelector('[data-profile-id="profile.fixture"]')))
+    const restriction = [...document.querySelectorAll('label')].find((label) => label.textContent?.includes('Restrict to selected tasks'))?.querySelector('input')
+    expect(restriction).toBeDefined()
+    act(() => restriction?.click())
+    await waitForDom(() => api.replaceConnectionProfile.mock.calls.length === 1)
+    expect(api.replaceConnectionProfile.mock.calls[0]?.[1]).toMatchObject({ taskToolsets: [] })
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+  })
+
   /** Targets the fake server lists, with whatever Add worker creates added to them. */
   function serverTargets(api: ReturnType<typeof automation>, created: AutomationTarget) {
     let targets: AutomationTarget[] = []

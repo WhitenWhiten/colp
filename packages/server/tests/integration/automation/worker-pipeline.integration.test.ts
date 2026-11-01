@@ -277,6 +277,12 @@ describeWithPostgres('AW-31 authenticated polling and typed canonical orchestrat
     await call('automation.targets.pair',{ pairingId: grant.json().pairingId,code: grant.json().code });
     const permittedTools = AUTOMATION_TOOL_CONTRACTS.filter(tool => tool.requiredScopes.every(scope => context.scopes.includes(scope)));
     expect((await api.listTools(context)).tools.map(tool => tool.name)).toEqual(permittedTools.map(tool => tool.name));
+    // A Manager-only edit must preserve the active pairing through claim, heartbeat and submission.
+    const pairedProfile = (await f.app.inject({ url: `/api/v1/me/automations/connection-profiles/${profile.id}`,headers: { cookie: f.owner.cookie } })).json();
+    const selected = await f.app.inject({ method: 'PUT',url: `/api/v1/me/automations/connection-profiles/${profile.id}`,
+      headers: f.ownerHeaders(randomUUID(),`"${pairedProfile.revision}"`),payload: { ...pairedProfile.configuration,taskToolsets: ['rule-authoring'] } });
+    expect(selected.statusCode,selected.body).toBe(200);
+    expect(await api.callTool(context,'automation.connection_profiles.save',{})).toMatchObject({ stableCode: 'unknown_tool' });
     const capabilities = await call('automation.rules.describe');
     expect(capabilities.runtimeProfiles).toEqual(['browser-bounded-v1']);
     expect(capabilities).toEqual((await f.app.inject({ url: '/api/v1/me/automations/capabilities',headers: { cookie: f.owner.cookie } })).json());
@@ -303,7 +309,10 @@ describeWithPostgres('AW-31 authenticated polling and typed canonical orchestrat
     const edited = await call('automation.rules.save', { mode: 'replace', ruleId: current.id, baseRevision: current.revision,
       commandId: randomUUID(), change: { definition: current.definition, bindingSetId: current.bindingSetId, pendingRuns: 'hold', counterPolicy: 'resetOnSemanticChange' } });
     expect(edited.revision).not.toBe(current.revision);
-    await call('automation.rules.set_state',{ ruleId: edited.id,baseRevision: edited.revision,commandId: randomUUID(),change: { state: 'paused',pendingRuns: 'hold',reason: 'Keep additional rule inactive' } });
+    const paused = await call('automation.rules.set_state',{ ruleId: edited.id,baseRevision: edited.revision,commandId: randomUUID(),change: { state: 'paused',pendingRuns: 'hold',reason: 'Review additional rule' } });
+    const activation = await call('automation.rules.preview',{ ruleId: edited.id,rule: ruleInput,mode: 'currentState' });
+    const enabled = await call('automation.rules.set_state',{ ruleId: edited.id,baseRevision: paused.revision,commandId: randomUUID(),change: { state: 'enabled',pendingRuns: 'hold',reason: 'Enable reviewed rule',activationPreviewId: activation.previewId } });
+    expect(enabled.desiredState).toBe('enabled');
     const job = (await call('automation.jobs.list')).items[0];
     expect((await call('automation.jobs.get',{ jobId: job.id,deliveryHandle: job.deliveryHandle })).id).toBe(job.id);
     const inputs = await call('automation.jobs.inputs',{ jobId: job.id,deliveryHandle: job.deliveryHandle });
@@ -313,6 +322,11 @@ describeWithPostgres('AW-31 authenticated polling and typed canonical orchestrat
       inputDigest: lease.inputDigest,outputContract: job.task.outputContract,output: { kind: 'text',textType: 'summary',text: 'MCP summary',language: 'en',
         evidence: [{ kind: 'source',reference: inputs.items[0].sourceEventId,observedAt: new Date().toISOString() }] } } });
     expect(submitted.status).toBe('succeeded');expect((await read('/jobs')).json().items).toEqual([]);
+    const selectedProfile = selected.json();
+    const { taskToolsets: _selection, ...unrestricted } = selectedProfile.configuration;
+    const reset = await f.app.inject({ method: 'PUT',url: `/api/v1/me/automations/connection-profiles/${profile.id}`,
+      headers: f.ownerHeaders(randomUUID(),`"${selectedProfile.revision}"`),payload: unrestricted });
+    expect(reset.statusCode,reset.body).toBe(200);
     await f.createNode('second-paper','root','Second paper','https://arxiv.org/abs/second');await f.inspect();
     const second = (await read('/jobs')).json().items[0],secondLease = (await post(`/jobs/${second.id}/claim`,{ deliveryHandle: second.deliveryHandle })).json();
     await call('automation.jobs.fail',{ jobId: second.id,commandId: randomUUID(),request: { claimToken: secondLease.claimToken,generation: secondLease.generation,kind: 'unknownOutcome',code: 'provider_timeout',message: 'Unknown provider outcome' } });

@@ -41,6 +41,16 @@ describe('reviewed closed Automation schema', () => {
     expect(validateAutomation('AgentSetupInput', { ...input, allowAutomaticWrites: true }).valid).toBe(false);
   });
 
+  test('task selection is optional, bounded, unique and closed to known names', () => {
+    const input = { name: 'Agent', automationEnabled: true, authorizedClientId: 'client', credentialBindingId: 'binding', catalogs: ['standard','automationManager'] };
+    for (const taskToolsets of [undefined, [], ['recovery'], ['recovery','sync-diagnostics'], ['recovery','rule-authoring','sync-diagnostics','browser-rules']]) {
+      expect(validateAutomation('ConnectionProfileInput', taskToolsets === undefined ? input : { ...input, taskToolsets }).valid).toBe(true);
+    }
+    for (const taskToolsets of [['recovery','recovery'], ['unknown'], ['recovery','rule-authoring','sync-diagnostics','browser-rules','recovery']]) {
+      expect(validateAutomation('ConnectionProfileInput', { ...input, taskToolsets }).valid).toBe(false);
+    }
+  });
+
   test('connection profiles accept opaque and HTTPS CIMD client identities without widening other IDs', () => {
     const profile = { name: 'ChatGPT', automationEnabled: true, catalogs: ['standard', 'automationWorker'],
       credentialBindingId: 'pending-owner-chose-agent' };

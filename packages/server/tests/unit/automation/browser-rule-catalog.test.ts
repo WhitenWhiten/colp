@@ -10,8 +10,9 @@ test('browser rule tools validate inputs, enforce scopes and use the durable dev
   }));
   const base: McpApplicationFacade = { listTools: async () => ({ tools: [] }), callTool: async () => { throw Error('unexpected standard call'); },
     listResources: async () => ({ resources: [] }), listResourceTemplates: async () => ({ resourceTemplates: [] }), readResource: async () => ({ contents: [] }) };
+  let restricted = true;
   const api = withAutomationCatalog(base, createAutomationToolPort({
-    access: async () => ({ id: 'profile', revision: '1', automationEnabled: true, catalogs: ['automationManager'], pairedTargets: [] }),
+    access: async () => ({ id: 'profile', revision: '1', automationEnabled: true, catalogs: ['automationManager'], pairedTargets: [], ...(restricted ? { taskToolsets: ['browser-rules'] as const } : {}) }),
     configurations: { execute: async () => { throw Error('unexpected manager call'); } },
     pairing: { pair: async () => { throw Error('unexpected pair'); }, mine: async () => ({ items: [], nextCursor: null }) },
     cursorKey: 'browser-rule-catalog-cursor-key-at-least-32', deviceBridge: { request, get: async () => { throw Error('unused'); } },
@@ -33,6 +34,8 @@ test('browser rule tools validate inputs, enforce scopes and use the durable dev
     replicaId: 'replica', commandId: randomUUID(), previewId: 'preview',
   })).toMatchObject({ kind: 'rejected', stableCode: 'unknown_tool' });
   expect(request).toHaveBeenCalledTimes(1);
+  expect(await api.callTool(context, 'automation.adapters.configure', {})).toMatchObject({ kind: 'rejected', stableCode: 'unknown_tool' });
+  restricted = false;
   const adapter = { replicaId: 'replica', commandId: randomUUID(), adapterId: 'known.bilibili', revision: 'observed', request: {
     operation: 'archive', rootNativeId: '30', collectionIds: ['101'], live: true,
   } };

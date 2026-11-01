@@ -10,9 +10,10 @@ import { registerAutomationDeviceRoutes } from '../../../src/transport/automatio
 import { installProductAdmission } from '../../../src/transport/product-admission.js';
 import { ProductHttpError, sendProductError } from '../../../src/transport/product-error.js';
 import type { WorkPrincipal } from '../../../src/modules/automation/index.js';
+import { createAutomationToolPort, createMcpApplicationContext, withAutomationCatalog, type McpApplicationFacade } from '../../../src/modules/mcp/index.js';
 import { createDeviceBridgeRunner } from '../../../../extension/src/automation/device-bridge.js';
 import { replicaReportProofDigest } from '../../../src/infrastructure/sync/replica-report-authority.js';
-import { hasReplicaReportAuthority, isJoseSyncCredentialRevoked } from '../../../src/infrastructure/sync/index.js';
+import { createPostgresProductSyncCenterUnitOfWork, hasReplicaReportAuthority, isJoseSyncCredentialRevoked } from '../../../src/infrastructure/sync/index.js';
 
 describeWithPostgres('explicit browser device bridge', () => {
   let f: Awaited<ReturnType<typeof automationDeviceFixture>>, app: ReturnType<typeof Fastify>;
@@ -55,6 +56,44 @@ describeWithPostgres('explicit browser device bridge', () => {
     expect((await complete(stale.requestId)).json()).toEqual({ recorded: false });
     await sql`UPDATE automation_device_requests SET expires_at=clock_timestamp()-interval '1 second' WHERE id=${stale.requestId}`.execute(f.db);
     expect((await port.get(actor(), stale.requestId)).state).toBe('expired');
+    // Use the selected MCP facade with the real durable bridge and a simulated device completion.
+    const base: McpApplicationFacade = { listTools: async () => ({ tools: [] }),callTool: async () => { throw Error('unexpected standard call'); },
+      listResources: async () => ({ resources: [] }),listResourceTemplates: async () => ({ resourceTemplates: [] }),readResource: async () => ({ contents: [] }) };
+    const api = withAutomationCatalog(base,createAutomationToolPort({
+      access: async () => ({ id: 'browser-profile',revision: '1',automationEnabled: true,catalogs: ['automationManager'],pairedTargets: [],taskToolsets: ['browser-rules'] }),
+      configurations: { execute: async () => { throw Error('unexpected configuration call'); } },
+      pairing: { pair: async () => { throw Error('unexpected pair'); },mine: async () => ({ items: [],nextCursor: null }) },
+      cursorKey: 'browser-bridge-test-cursor-at-least-32-bytes',deviceBridge: port }));
+    const context = createMcpApplicationContext({ principal: { kind: 'authenticated',principalId: f.owner.accountId,clientId: 'manager',credentialBindingId: 'binding',
+      resourceAudience: 'https://example.test/collections/-/mcp',securityEpoch: '1' },scopes: ['automation:read','automation:manage','nodes:write'],
+      abortSignal: new AbortController().signal,budgets: { maxDepth: 32,maxNodes: 10000,maxBytes: 1000000,maxOperations: 100 },
+      correlationId: randomUUID(),authorization: { accountSubjectId: f.owner.subjectId } });
+    const runId = randomUUID();
+    const pending = await api.callTool(context,'automation.browser_rules.run_apply',{ replicaId: f.replica.replicaId,commandId: runId,previewId: 'reviewed-preview' });
+    expect(pending).toMatchObject({ kind: 'complete',structuredContent: { requestId: runId,state: 'pending' } });
+    expect(await api.callTool(context,'automation.device_requests.get',{ requestId: runId })).toMatchObject({ kind: 'complete',structuredContent: { state: 'pending' } });
+    const work = await get();expect(work.json().items.map((item: { id: string }) => item.id)).toContain(runId);
+    expect((await complete(runId)).statusCode).toBe(200);
+    expect(await api.callTool(context,'automation.device_requests.get',{ requestId: runId })).toMatchObject({ kind: 'complete',structuredContent: { state: 'done',result: { attention: 1 } } });
+  });
+
+  test('selected Sync diagnostics use the real owner-scoped services without admitting repair writes', async () => {
+    const base: McpApplicationFacade = { listTools: async () => ({ tools: [] }),callTool: async () => { throw Error('unexpected standard call'); },
+      listResources: async () => ({ resources: [] }),listResourceTemplates: async () => ({ resourceTemplates: [] }),readResource: async () => ({ contents: [] }) };
+    const api = withAutomationCatalog(base,createAutomationToolPort({
+      access: async () => ({ id: 'profile',revision: '1',automationEnabled: true,catalogs: ['automationManager'],pairedTargets: [],taskToolsets: ['sync-diagnostics'] }),
+      configurations: { execute: async () => { throw Error('unexpected configuration call'); } },
+      pairing: { pair: async () => { throw Error('unexpected pair'); },mine: async () => ({ items: [],nextCursor: null }) },
+      cursorKey: 'sync-diagnostics-cursor-at-least-32-bytes',accountTools: { sync: createPostgresProductSyncCenterUnitOfWork(f.db, {
+        cursorSecret: 'sync-diagnostics-cursor-at-least-32-bytes',conflictPayloadKeyring: { active: { key: Buffer.alloc(32,71),keyVersion: 7 },retained: [] } }) } }));
+    const context = createMcpApplicationContext({ principal: { kind: 'authenticated',principalId: f.owner.accountId,clientId: 'manager',credentialBindingId: 'binding',
+      resourceAudience: 'https://example.test/collections/-/mcp',securityEpoch: '1' },scopes: ['automation:read','automation:manage','mcp:read:own','nodes:write'],
+      abortSignal: new AbortController().signal,budgets: { maxDepth: 32,maxNodes: 10000,maxBytes: 1000000,maxOperations: 100 },
+      correlationId: randomUUID(),authorization: { accountSubjectId: f.owner.subjectId } });
+    for (const [name,args] of [['automation.sync.devices',{}],['automation.sync.status',{}],['automation.sync.issues',{ replicaId: f.replica.replicaId }]] as const) {
+      expect(await api.callTool(context,name,args),name).toMatchObject({ kind: 'complete' });
+    }
+    expect(await api.callTool(context,'automation.sync.retry_issue',{})).toMatchObject({ kind: 'rejected',stableCode: 'unknown_tool' });
   });
 
   test('eight oversized cached browser results settle and let the ninth request progress', async () => {

@@ -43,6 +43,17 @@ describeWithPostgres('AW-46 production MCP Events envelope lifecycle (simulated 
     const anonymousDiscovery=await postJson(server,'server/discover',1);expect((await anonymousDiscovery.json()).result.capabilities.events).toBeUndefined();
     expect((await rpc('events/subscribe',{...input!,cursor:'replay'})).error.code).toBe(-32602);
     expect((await rpc('events/subscribe',input!)).result.id).toBe(subscription!.id);
+    const profileId = f.target.configuration.connectionProfileId;
+    const before = await f.db.selectFrom('automation_connection_profiles').select(['revision','configuration_json','observation_json']).where('id','=',profileId).executeTakeFirstOrThrow();
+    const state = (await sql<{ generation: string; state: string }>`SELECT t.pairing_generation::text AS generation,s.state FROM automation_targets t
+      JOIN automation_event_subscriptions s ON s.target_id=t.id WHERE t.id=${f.target.id}`.execute(f.db)).rows[0];
+    const edit = await f.app.inject({ method:'PUT',url:`/api/v1/me/automations/connection-profiles/${profileId}`,
+      headers:f.ownerHeaders(randomUUID(),`"${before.revision}"`),payload:{ ...before.configuration_json,taskToolsets:['recovery'] } });
+    expect(edit.statusCode,edit.body).toBe(200);
+    const after = await f.db.selectFrom('automation_connection_profiles').select('observation_json').where('id','=',profileId).executeTakeFirstOrThrow();
+    expect(after.observation_json).toEqual(before.observation_json);
+    expect((await sql<{ generation: string; state: string }>`SELECT t.pairing_generation::text AS generation,s.state FROM automation_targets t
+      JOIN automation_event_subscriptions s ON s.target_id=t.id WHERE t.id=${f.target.id}`.execute(f.db)).rows[0]).toEqual(state);
     // Renewal preserves queued occurrences; host reconciliation still tolerates missed/duplicate wakes.
     const worker=createDeliveryWorker(f.db,f.worker.authorize,verifier);await worker.tick();expect(delivered).toHaveLength(1);
     await f.createNode('second-paper','root','Second','https://arxiv.org/abs/second');

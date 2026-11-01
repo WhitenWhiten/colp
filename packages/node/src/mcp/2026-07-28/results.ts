@@ -23,7 +23,7 @@
  *   `cacheScope: 'private'` (`DEFAULT_CACHE_TTL_MS` / `DEFAULT_CACHE_SCOPE`).
  * - `_meta` carries `io.modelcontextprotocol/serverInfo` (spec PR #3002).
  */
-import { snapshotMcpData } from '../safe-data.js';
+import { snapshotMcpData, type McpWriteInputBudget } from '../safe-data.js';
 import type { Mcp20260728ClientInfo } from './request-context.js';
 import {
   MCP_WIRE_INTERNAL_ERROR_CODE,
@@ -81,6 +81,8 @@ export interface Mcp20260728ResultInput {
   readonly serverInfo?: Mcp20260728ServerInfo;
   /** Protocol-neutral result fields (contents, resources, structuredContent, ...). */
   readonly fields?: Readonly<Record<string, unknown>>;
+  /** Trusted host limit for a generated result; never derived from client input. */
+  readonly fieldsBudget?: McpWriteInputBudget;
 }
 
 /** Frozen Modern result with required `resultType` and cache metadata. */
@@ -153,7 +155,7 @@ export function createMcp20260728Result(input: Mcp20260728ResultInput): Mcp20260
   const fieldsRaw = readOwnValue(input, 'fields');
   const fields = fieldsRaw === undefined
     ? Object.freeze({})
-    : snapshotFields(fieldsRaw);
+    : snapshotFields(fieldsRaw, readOwnValue(input, 'fieldsBudget') as McpWriteInputBudget | undefined);
 
   const result = Object.freeze({
     resultType,
@@ -189,7 +191,7 @@ const RESERVED_RESULT_FIELD_KEYS: ReadonlySet<string> = new Set([
   '_meta',
 ]);
 
-function snapshotFields(fields: unknown): Readonly<Record<string, unknown>> {
+function snapshotFields(fields: unknown, budget?: McpWriteInputBudget): Readonly<Record<string, unknown>> {
   if (typeof fields !== 'object' || fields === null || Array.isArray(fields)) {
     throw new TypeError('MCP result fields must be an object.');
   }
@@ -200,7 +202,7 @@ function snapshotFields(fields: unknown): Readonly<Record<string, unknown>> {
       );
     }
   }
-  const snapshot = snapshotMcpData(fields) as Readonly<Record<string, unknown>>;
+  const snapshot = snapshotMcpData(fields, budget) as Readonly<Record<string, unknown>>;
   return snapshot;
 }
 

@@ -40,7 +40,7 @@ Each [evidence record](evidence/) lists executed checks and limitations.
 The [post-review fixes](evidence/post-review-fixes.md) list every review finding with its
 commit, and the findings deliberately left unchanged.
 
-The [MCP context optimization implementation and acceptance plan](mcp-context-optimization-plan.md) defines the next work on task toolsets, capability descriptions, host loading measurements and conditional compact exposure. It is a plan, not completed implementation evidence.
+The [MCP context optimization plan](mcp-context-optimization-plan.md) and its [implementation evidence](evidence/mcp-context-optimization.md) describe task toolsets, capability descriptions and remaining host-loading verification.
 
 ## Running the configuration slice
 
@@ -94,19 +94,13 @@ Product 1.95.0 adds dependency/incident read and revalidation operations, preser
 immutable 1.94.0 and 1.93.0 baselines. `/ready/features/automation` reports runtimeUnsupported
 independently of the usable configuration API and the server's general readiness.
 
-The server, server runtime, extension and web pin the published `@know-n/colp`
-0.3.0 package. Their lockfiles retain the same registry artifact and integrity,
-including the CIMD connection-profile and Sync recovery contracts. Docker stages
-install that registry package directly. `node scripts/check-sdk-pins.mjs` checks
-that all three application consumers match `packages/node` and share one artifact;
-the runtime manifest check keeps the server's production dependency lock aligned.
-For future unreleased shared-source changes, first select a unique prerelease
-version in `packages/node`, then
-`node packages/server/scripts/refresh-automation-package.mjs` packs a prerelease
-into `packages/server/vendor/` and updates all four locks. Such a vendored build
-also requires restoring its Docker COPY steps. Return all consumers to the exact
-registry release and remove those COPY steps after publication and artifact
-integrity verification.
+The server, server runtime, extension and web share the vendored `@know-n/colp`
+`0.3.1-mcp-context.0` prerelease. `node scripts/check-sdk-pins.mjs` checks their
+pins and common artifact. The server Dockerfile copies the vendored artifact for
+both builds and runtime installation. After a shared-source change, regenerate
+contracts and use `node packages/server/scripts/refresh-automation-package.mjs`
+with Node 22/npm 10. Return consumers to an exact published release only after
+publication and artifact verification.
 
 ## Guided AI connection
 

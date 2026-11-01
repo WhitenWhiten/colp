@@ -82,6 +82,13 @@ function Switch({
   )
 }
 
+const MANAGER_TASKS: ReadonlyArray<{ id: NonNullable<AutomationConnectionProfileInput['taskToolsets']>[number]; label: string }> = [
+  { id: 'recovery', label: 'Recover deleted content' },
+  { id: 'rule-authoring', label: 'Create and manage rules' },
+  { id: 'sync-diagnostics', label: 'Diagnose synchronization' },
+  { id: 'browser-rules', label: 'Use browser rules' },
+]
+
 /**
  * One agent's automation opt-ins (AU-21): automations on or off, and the two
  * catalogs, each its own choice. Standard tools never turn automation on.
@@ -138,6 +145,30 @@ export function AgentAutomationOptIns({
         disabled={busy}
         onChange={(next) => void save(withCatalog(configuration, 'automationManager', next), false)}
       />
+      <fieldset disabled={busy}>
+        <legend>Manager task tools</legend>
+        <p>Limit which Manager and standard tools this connection may use. Worker tools and existing permissions stay separate. Selecting no tasks hides all Manager and standard tools.</p>
+        <label>
+          <input type="checkbox" checked={configuration.taskToolsets !== undefined}
+            onChange={(event) => {
+              if (event.currentTarget.checked) void save({ ...configuration, taskToolsets: [] }, false)
+              else {
+                const { taskToolsets: _selection, ...unrestricted } = configuration
+                void save(unrestricted, false)
+              }
+            }} /> Restrict to selected tasks
+        </label>
+        {configuration.taskToolsets !== undefined && MANAGER_TASKS.map((task) => (
+          <label key={task.id}>
+            <input type="checkbox" checked={configuration.taskToolsets?.includes(task.id) ?? false}
+              onChange={(event) => {
+                const current = configuration.taskToolsets ?? []
+                const taskToolsets = event.currentTarget.checked ? [...current, task.id] : current.filter((item) => item !== task.id)
+                void save({ ...configuration, taskToolsets }, false)
+              }} /> {task.label}
+          </label>
+        ))}
+      </fieldset>
       <Switch
         id={`${id}-worker`}
         label="Do rule work"

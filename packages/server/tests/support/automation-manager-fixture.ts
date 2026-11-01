@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { automationRuntimeFixture } from './automation-runtime-fixture.js';
 import { createAutomationUnitOfWork } from '../../src/infrastructure/automation/index.js';
-import { createAutomationToolPort, createMcpApplicationContext, withAutomationCatalog, type McpApplicationFacade } from '../../src/modules/mcp/index.js';
+import { createAutomationToolPort, createMcpApplicationContext, withAutomationCatalog, type McpApplicationFacade, type AutomationProfileAccess } from '../../src/modules/mcp/index.js';
 import { createPostgresProductSyncCenterUnitOfWork } from '../../src/infrastructure/sync/index.js';
 
 /** The fixture supplies an admitted manager principal; business operations and
  * command receipts use the real owner-scoped PostgreSQL services. */
-export async function automationManagerFixture(prefix: string, additionalScopes: readonly string[] = [], options: { sync?: boolean } = {}) {
+export async function automationManagerFixture(prefix: string, additionalScopes: readonly string[] = [], options: { sync?: boolean; taskToolsets?: AutomationProfileAccess['taskToolsets'] } = {}) {
   const f = await automationRuntimeFixture(prefix, true);
   const context = createMcpApplicationContext({ principal: { kind: 'authenticated', principalId: f.owner.accountId,
     clientId: 'manager', credentialBindingId: 'binding', resourceAudience: 'https://manager.test/collections/-/mcp', securityEpoch: '1' },
@@ -17,7 +17,7 @@ export async function automationManagerFixture(prefix: string, additionalScopes:
     callTool: async () => ({ kind: 'rejected', stableCode: 'unknown_tool', safeMessage: 'Unknown tool.', retryable: false }),
     listResources: async () => ({ resources: [] }), listResourceTemplates: async () => ({ resourceTemplates: [] }), readResource: async () => ({ contents: [] }) };
   const api = withAutomationCatalog(base, createAutomationToolPort({ access: async c => c.principal.principalId === f.owner.accountId
-    ? { id: 'manager-profile', revision: '1', automationEnabled: true, catalogs: ['automationManager'], pairedTargets: [] } : null,
+    ? { id: 'manager-profile', revision: '1', automationEnabled: true, catalogs: ['automationManager'], pairedTargets: [], ...(options.taskToolsets === undefined ? {} : { taskToolsets: options.taskToolsets }) } : null,
     configurations: createAutomationUnitOfWork(f.db, 'server', { runtimeEnabled: true, workerEnabled: true }),
     pairing: { pair: async () => { throw Error('Worker pairing is not installed in this manager fixture.'); }, mine: async () => ({ items: [], nextCursor: null }) },
     cursorKey: 'automation-manager-test-cursor-key-at-least-32',

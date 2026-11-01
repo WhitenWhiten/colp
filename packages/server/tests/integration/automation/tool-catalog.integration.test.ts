@@ -98,6 +98,69 @@ describeWithPostgres('AW-30 current conditional Automation catalogs',() => {
     await f.revokeWorker();
     expect((await api.listTools(all)).tools).toEqual([]);
   });
+  test('selection updates a paired combined profile without revoking worker authority or expanding scopes',async () => {
+    f = await automationWorkerFixture('mc02_selection',100,true);const s = await f.setup();
+    let profile = s.profile;
+    const update = async (taskToolsets: unknown, catalogs = ['standard','automationManager','automationWorker']) => {
+      const response = await f.app.inject({ method: 'PUT',url: `/api/v1/me/automations/connection-profiles/${profile.id}`,
+        headers: f.ownerHeaders(randomUUID(),`"${profile.revision}"`),payload: { ...profile.configuration,catalogs,taskToolsets } });
+      if (response.statusCode === 200) profile = response.json();
+      return response;
+    };
+    // Add Manager first: this does not change the worker opt-in.
+    expect((await update(undefined)).statusCode).toBe(200);
+    expect((await f.pair(s.grant)).statusCode).toBe(200);
+    const c = await context(await f.mint({ scopes: ['automation:work','automation:read','automation:manage','mcp:read:own','nodes:write'] })),api = facade();
+    const before = await f.worker.access(automationWorkPrincipal(c));
+    expect(before?.pairedTargets).toHaveLength(1);
+    const baseline = await api.listTools(c);
+    expect((await update(['recovery'])).statusCode).toBe(200);
+    const listed = await api.listTools(c);
+    const bytes = (tools: typeof listed.tools) => Buffer.byteLength(JSON.stringify(tools.map(({ name,description,inputSchema }) => ({ name,description,inputSchema }))));
+    console.log('MC persisted combined binding catalog',JSON.stringify({ baseline: { count: baseline.tools.length,bytes: bytes(baseline.tools) },recovery: { count: listed.tools.length,bytes: bytes(listed.tools) } }));
+    expect(listed.tools.map(t => t.name)).toContain('automation.trash.restore');
+    expect(listed.tools.map(t => t.name)).toContain('automation.jobs.claim');
+    expect(await api.getTool!(c,'automation.rules.save')).toBeUndefined();
+    expect(await api.callTool(c,'automation.rules.save',{})).toMatchObject({ stableCode: 'unknown_tool' });
+    expect((await update(['recovery','sync-diagnostics'])).statusCode).toBe(200);
+    const union = await api.listTools(c);
+    expect(union.tools.map(t => t.name)).toContain('automation.sync.status');
+    expect(union.tools.map(t => t.name)).toContain('automation.trash.get');
+    expect(union.cacheKey).not.toBe(listed.cacheKey);
+    expect((await f.worker.access(automationWorkPrincipal(c)))?.pairedTargets).toEqual(before?.pairedTargets);
+    expect((await update([])).statusCode).toBe(200);
+    const empty = await api.listTools(c);
+    expect(empty.tools.every(t => t.name.startsWith('automation.jobs.') || t.name.startsWith('automation.targets.'))).toBe(true);
+    expect(await api.getTool!(c,'automation.trash.restore')).toBeUndefined();
+    expect(await api.callTool(c,'automation.trash.restore',{})).toMatchObject({ stableCode: 'unknown_tool' });
+    expect(await api.callTool(c,'nodes.get',{})).toMatchObject({ stableCode: 'unknown_tool' });
+    expect((await f.worker.access(automationWorkPrincipal(c)))?.pairedTargets).toEqual(before?.pairedTargets);
+    expect((await update(['recovery','recovery'])).statusCode).toBe(400);
+    expect((await update(['unknown'])).statusCode).toBe(400);
+    expect((await update(['recovery','rule-authoring','sync-diagnostics','browser-rules','recovery'])).statusCode).toBe(400);
+    expect((await update(['rule-authoring'],['standard','automationWorker'])).statusCode).toBe(200);
+    expect((await api.listTools(c)).tools.map(t => t.name)).not.toContain('automation.rules.describe');
+    expect((await api.listTools(c)).tools.map(t => t.name)).toContain('nodes.get');
+  });
+  test('same verified binding shares a selection across tokens; another binding cannot see it',async () => {
+    f = await automationWorkerFixture('mc02_identity');
+    const scopes = ['automation:work','automation:read','mcp:read:own'];
+    const firstToken = await f.mint({ scopes });
+    const verified = await f.verifier.verify({ authorization: 'Bearer '+firstToken });
+    const s = await f.setup({ credentialBindingId: verified.automationConnectionId });
+    const response = await f.app.inject({ method: 'PUT',url: `/api/v1/me/automations/connection-profiles/${s.profile.id}`,
+      headers: f.ownerHeaders(randomUUID(),`"${s.profile.revision}"`),payload: { ...s.profile.configuration,catalogs: ['standard','automationWorker','automationManager'],taskToolsets: ['sync-diagnostics'] } });
+    expect(response.statusCode,response.body).toBe(200);
+    const a = await context(firstToken);
+    const b = await context(await f.mint({ scopes }));
+    const other = await context(await f.mint({ clientId: 'different-client',scopes }));
+    const api = facade(),first = await api.listTools(a),second = await api.listTools(b),outside = await api.listTools(other);
+    expect(first.tools.map(t => t.name)).toEqual(second.tools.map(t => t.name));
+    expect(first.tools.map(t => t.name)).toContain('automation.sync.status');
+    expect(outside.tools.map(t => t.name)).not.toContain('automation.sync.status');
+    expect(outside.tools.map(t => t.name)).toEqual(['nodes.get']);
+    expect(first.cacheKey).not.toBe(outside.cacheKey);
+  });
   test('dynamic strict catalogs have private zero TTL while ordinary catalogs retain their frozen cache contract',async () => {
     const dynamic = encodeStrictToolList([],false,true),ordinary = encodeStrictToolList([],false);
     expect(JSON.stringify(dynamic)).toContain('"ttlMs":0');

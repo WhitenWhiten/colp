@@ -237,6 +237,16 @@ describe('MCP 2026-07-28 result contracts [evidence:mcp.result-contract]', () =>
       .toThrow(TypeError);
   });
 
+  it('uses a host-supplied bounded result snapshot without changing the default', () => {
+    const fields = { tools: Array.from({ length: 10_050 }, (_, index) => ({ name: `tool-${index}` })) };
+    expect(() => createMcp20260728Result({ method: 'tools/list', fields })).toThrow(/snapshot node budget/);
+    const budget = { maxNodes: 25_000, maxDepth: 32, maxBytes: 1_048_576, maxOperations: 1_000 };
+    const result = createMcp20260728Result({ method: 'tools/list', fields, fieldsBudget: budget });
+    expect((result.tools as unknown[]).length).toBe(10_050);
+    expect(() => createMcp20260728Result({ method: 'tools/list', fields, fieldsBudget: { ...budget, maxNodes: 100 } })).toThrow(/snapshot node budget/);
+    expect(() => createMcp20260728Result({ method: 'tools/call', fields })).toThrow(/snapshot node budget/);
+  });
+
   it('returns an exact resultType union at runtime', () => {
     const result: Mcp20260728Result = createMcp20260728Result({ method: 'ping' });
     expect(['complete', 'input_required']).toContain(result.resultType);

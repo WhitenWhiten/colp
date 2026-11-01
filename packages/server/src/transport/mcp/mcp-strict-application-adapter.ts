@@ -207,6 +207,9 @@ export function encodeStrictToolList(
   return createPhase4bMcpResult({
     method: 'tools/list',
     fields: { tools },
+    // Server-owned closed schemas can exceed the generic 10,000-node snapshot.
+    // Keep an explicit upper bound; request and write-input budgets are unchanged.
+    fieldsBudget: { maxNodes: 100_000, maxDepth: 64, maxBytes: 1_048_576, maxOperations: 1_000 },
     cache: { ttlMs: dynamicCatalog ? 0 : PHASE4B_MCP_TOOL_CATALOG_CACHE_TTL_MS, cacheScope: 'private' },
   }, writeEnabled);
 }
@@ -478,6 +481,10 @@ export async function dispatchStrictToolCall(
     && canCallPhase4bMcpWriteTool(context, name);
   if (isCoreReadTool && !canAccessPhase4bMcpReadTools(context)) throw strictUnknownTool(name);
   if (isWriteTool && !canCallWrite) throw strictUnknownTool(name);
+  // Core adapters stay on their native wire path, but current profile selection and
+  // visibility must be rechecked for guessed names before entering either adapter.
+  if ((isCoreReadTool || isWriteTool) && name !== undefined
+      && await findMcpApplicationTool(facade, toMcpApplicationContextFromStrict(context), name) === undefined) throw strictUnknownTool(name);
   if (isWriteTool) {
     return ensureStrictToolCallTextContent(await writeToolAdapter!.callTool(context, params));
   }

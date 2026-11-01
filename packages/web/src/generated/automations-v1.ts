@@ -1717,6 +1717,8 @@ export interface components {
             credentialBindingId: string;
             /** @description Explicit composable catalog membership. Each automation catalog requires Owner opt-in and its own scopes. Standard never implicitly enables automation. */
             catalogs: ("standard" | "automationManager" | "automationWorker")[];
+            /** @description Optional Manager and standard tool restriction. Omitted preserves existing tools; an empty list removes all Manager and standard tools. Worker tools are unaffected. */
+            taskToolsets?: ("recovery" | "rule-authoring" | "sync-diagnostics" | "browser-rules")[];
         };
         /** @description Code is returned once, stored hashed, and must not be embedded in a template. */
         AutomationPairingGrant: {

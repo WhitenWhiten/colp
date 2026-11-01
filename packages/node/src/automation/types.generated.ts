@@ -722,6 +722,12 @@ export interface ConnectionProfileInput {
    * @maxItems 3
    */
   catalogs: ("standard" | "automationManager" | "automationWorker")[];
+  /**
+   * Optional Manager and standard tool restriction. Omitted preserves existing tools; an empty list removes all Manager and standard tools. Worker tools are unaffected.
+   *
+   * @maxItems 4
+   */
+  taskToolsets?: ("recovery" | "rule-authoring" | "sync-diagnostics" | "browser-rules")[];
 }
 export interface ConnectionProfile {
   id: string;

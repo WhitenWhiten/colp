@@ -78,3 +78,4 @@ export { buildAutomationStoredPlan } from './automation-plan-builder.js';
 export { createOrganizePlanPlanner } from './organize-plan.js';
 
 export { mcpAgentContext, withMcpAgentContext } from './agent-context.js';
+export * from './capability-metadata.js';

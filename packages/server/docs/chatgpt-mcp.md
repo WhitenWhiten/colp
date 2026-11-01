@@ -36,6 +36,29 @@ and delivery inspection/retry. Use the revision returned by a fresh read as `bas
 mutations require a stable `commandId`. Activity list/summary/read and Sync
 status/devices/issues use the same account-scoped services as the product UI.
 
+An Owner can limit a connection's Manager and standard tools on its agent card
+under **Manager task tools**, or update the existing connection profile through
+`PUT /api/v1/me/automations/connection-profiles/{id}` with the current `If-Match`
+and command ID. Preserve all other profile fields. For example, add
+`"taskToolsets": ["recovery", "sync-diagnostics"]` to the profile configuration.
+The available names are `recovery`, `rule-authoring`, `sync-diagnostics` and
+`browser-rules`; their exact members and aliases are in
+[`mcp-task-toolsets.json`](../../../docs/automation/design/api/mcp-task-toolsets.json).
+An omitted field preserves the old unrestricted catalog; an empty array hides all
+Manager and standard tools. Selections union their members but never grant catalogs,
+scopes, resource access or browser permissions. Worker tools retain their own pairing
+and scope rules. Resource and template reads retain their independent policy; tool
+selection is not resource isolation. Selection changes are revision-checked Owner
+configuration edits and do not unpair workers. Removing the field restores the old
+catalog within current authority; this is also the rollback procedure.
+
+Profiles are bound to authenticated connection identity, not individual chats.
+Multiple chats using the same binding share a selection. Use independently authorized
+existing bindings for isolation; a chat cannot choose a profile with an argument.
+`rule-authoring` includes reviewed binding writes but does not create executors or
+modify connection authority or execution policies. Browser rules require the Owner to
+enable Agent access on the selected browser; they do not grant that access.
+
 For existing bookmarks, call `automation.runs.preview` with a rule, folder,
 selection options and a stable command ID. Review `canStart`, counts, samples,
 expiry and `previewDigest`, then call `automation.runs.start` with that preview's

@@ -195,7 +195,7 @@ export function createTargetWorkerService(db: Kysely<DatabaseSchema>,verifyBindi
       let row = await boundProfile(tx,actor);
       if (!row) { await bindByConsent(tx,actor); row = await boundProfile(tx,actor); }
       if (!row) return confirmableAccess(tx,actor);
-      const access = { id: row.id,revision: String(row.revision),automationEnabled: row.configuration_json.automationEnabled,catalogs: row.configuration_json.catalogs,pairedTargets: [] as { id: string; generation: string }[] };
+      const access = { id: row.id,revision: String(row.revision),automationEnabled: row.configuration_json.automationEnabled,catalogs: row.configuration_json.catalogs,...(row.configuration_json.taskToolsets === undefined ? {} : { taskToolsets: row.configuration_json.taskToolsets }),pairedTargets: [] as { id: string; generation: string }[] };
       try { await verifyBinding(tx,actor); }
       catch (error) { if (!(error instanceof AutomationError)) throw error; return { ...access,automationEnabled: false,catalogs: [] }; }
       const inboxes = (await sql<{ id: string; generation: string; paired: boolean }>`SELECT id,pairing_generation::text AS generation,paired FROM automation_targets

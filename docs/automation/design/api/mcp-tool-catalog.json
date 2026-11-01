@@ -164,9 +164,9 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Preview a proposed rule against supplied event facts and bindings; inspect matches and issues before saving.",
+      "description": "Preview a proposed rule against supplied facts or current state and bindings; stores a short-lived activation preview. Inspect matches and issues before saving or enabling.",
       "effects": {
-        "businessMutation": false,
+        "businessMutation": true,
         "deviceRequest": false,
         "externalRequest": false,
         "providerConsumption": false
@@ -974,7 +974,7 @@
         "businessMutation": true,
         "deviceRequest": true,
         "externalRequest": true,
-        "providerConsumption": false
+        "providerConsumption": true
       }
     },
     {
@@ -1194,7 +1194,7 @@
         "businessMutation": true,
         "deviceRequest": true,
         "externalRequest": true,
-        "providerConsumption": false
+        "providerConsumption": true
       }
     },
     {
@@ -2119,7 +2119,7 @@
         "businessMutation": true,
         "deviceRequest": true,
         "externalRequest": true,
-        "providerConsumption": false
+        "providerConsumption": true
       }
     },
     {
