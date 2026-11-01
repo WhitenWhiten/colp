@@ -1,5 +1,7 @@
 # MCP context optimization evidence
 
+Current follow-up: [corrections and additional acceptance](mcp-context-optimization-follow-up.md), implementation `32bb910d`, fixes first-use folder discovery and activation metadata and adds native Chromium bridge coverage. The measurements and acceptance matrix below describe the initial implementation through `05a89d7d`, including its historical experiment-limit failure; they are not the latest completion status.
+
 Starting commit: `c94275ebda0181e565d1ba42ce4300baa5e480ff` (plan; reviewed code baseline `4682fc15df81a574212427ca98a041641400645f`). The plan remains the acceptance authority. Measurements below do not establish what any model loaded.
 
 ## MC-00 baseline and host investigation

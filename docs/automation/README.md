@@ -42,6 +42,8 @@ commit, and the findings deliberately left unchanged.
 
 The [MCP context optimization plan](mcp-context-optimization-plan.md) and its [implementation evidence](evidence/mcp-context-optimization.md) describe task toolsets, capability descriptions and remaining host-loading verification.
 
+The [MCP context optimization follow-up](evidence/mcp-context-optimization-follow-up.md) records the corrected folder-discovery and activation chains, native Chromium bridge verification, and the remaining external model-loading gap.
+
 ## Running the configuration slice
 
 The flags follow the design rollout order (07 §7); each requires the ones before it, and
