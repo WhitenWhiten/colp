@@ -836,6 +836,7 @@ const transportTargets = new Set([
   // Quota identity is the registered MCP route, not a client-supplied host.
   'transport/mcp/mcp-endpoint-audience.ts',
   'transport/mcp/mcp-strict-application-adapter.ts',
+  'transport/mcp/mcp-strict-application-context.ts',
   'transport/mcp/mcp-well-known-routes.ts',
   'transport/mcp/mcp-write-approval-routes.ts',
   'transport/mcp/agent-routes.ts',

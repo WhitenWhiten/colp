@@ -48,7 +48,6 @@
     "src/transport/auth/oidc-provider.ts": 671,
     "src/transport/http-security.ts": 769,
     "src/transport/mcp/mcp-read-routes.ts": 1729,
-    "src/transport/mcp/mcp-strict-application-adapter.ts": 644,
     "src/transport/product/node-routes.ts": 853
   }
 }
