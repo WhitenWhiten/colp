@@ -4,6 +4,10 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+## [0.1.0-rc.17] - 2026-11-01
+
+### Changed
+
 - MCP `rule-authoring` task connections can discover existing destination folders through paginated snapshots and optional authorized search. Rule descriptions now explain the activation preview required to enable a saved rule. Regression coverage exercises both MCP transports and native Chromium configure/preview/apply/replay/undo through the durable device bridge.
 - Pin the published `@know-n/colp@0.3.1` SDK across server, runtime, extension and web. Remove the local prerelease tarball and its Docker copy steps, so runtime dependency installation works from a clean checkout without an untracked vendor directory.
 

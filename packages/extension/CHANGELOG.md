@@ -4,6 +4,27 @@ All notable changes to the Know-N browser extension are documented here. The for
 
 ## [Unreleased]
 
+## [0.1.0-rc.7] - 2026-11-01
+
+### Added
+
+- Local bookmark lists display authorized server bookmark icons and reuse a bounded local favicon cache.
+
+### Changed
+
+- Use the published `@know-n/colp@0.3.1` SDK.
+
+### Fixed
+
+- Site adapter setup and interrupted placement work retain their recovery state across reconnects. Account automation pause is honored during observed saves and local classification.
+- Response body timeouts preserve authentication, and avatar reads avoid unnecessary session rotation.
+
+### Upgrade notes
+
+Install alongside COLP Server `0.1.0-rc.17`. Chrome uses numeric version
+`0.1.0.7` and displays `0.1.0-rc.7`. Install the GitHub ZIP as an unpacked
+extension.
+
 ## [0.1.0-rc.6] - 2026-10-29
 
 ### Added
