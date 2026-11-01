@@ -238,6 +238,20 @@ describe('Automation workers on Agents', () => {
     expect(document.querySelector('[role="dialog"]')).toBeNull()
   })
 
+  it('adds a selected task while retaining the existing restriction', async () => {
+    const selected = profile({ taskToolsets: ['recovery'] })
+    const api = automation([scenario('active', 'live')], [selected])
+    api.replaceConnectionProfile.mockResolvedValue(selected)
+    mount(api)
+    await waitForDom(() => Boolean(document.querySelector('[data-profile-id="profile.fixture"]')))
+    const sync = [...document.querySelectorAll('label')].find((label) => label.textContent?.includes('Diagnose synchronization'))?.querySelector('input')
+    expect(sync).toBeDefined()
+    act(() => sync?.click())
+    await waitForDom(() => api.replaceConnectionProfile.mock.calls.length === 1)
+    expect(api.replaceConnectionProfile.mock.calls[0]?.[1]).toMatchObject({ taskToolsets: ['recovery', 'sync-diagnostics'] })
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+  })
+
   /** Targets the fake server lists, with whatever Add worker creates added to them. */
   function serverTargets(api: ReturnType<typeof automation>, created: AutomationTarget) {
     let targets: AutomationTarget[] = []

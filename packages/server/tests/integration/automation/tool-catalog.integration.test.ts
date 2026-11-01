@@ -154,12 +154,15 @@ describeWithPostgres('AW-30 current conditional Automation catalogs',() => {
     const a = await context(firstToken);
     const b = await context(await f.mint({ scopes }));
     const other = await context(await f.mint({ clientId: 'different-client',scopes }));
-    const api = facade(),first = await api.listTools(a),second = await api.listTools(b),outside = await api.listTools(other);
+    const otherBinding = await context(await f.mint({ scopes: ['automation:work','automation:read'] }));
+    const api = facade(),first = await api.listTools(a),second = await api.listTools(b),outside = await api.listTools(other),separate = await api.listTools(otherBinding);
     expect(first.tools.map(t => t.name)).toEqual(second.tools.map(t => t.name));
     expect(first.tools.map(t => t.name)).toContain('automation.sync.status');
     expect(outside.tools.map(t => t.name)).not.toContain('automation.sync.status');
+    expect(separate.tools.map(t => t.name)).not.toContain('automation.sync.status');
     expect(outside.tools.map(t => t.name)).toEqual(['nodes.get']);
     expect(first.cacheKey).not.toBe(outside.cacheKey);
+    expect(first.cacheKey).not.toBe(separate.cacheKey);
   });
   test('dynamic strict catalogs have private zero TTL while ordinary catalogs retain their frozen cache contract',async () => {
     const dynamic = encodeStrictToolList([],false,true),ordinary = encodeStrictToolList([],false);
