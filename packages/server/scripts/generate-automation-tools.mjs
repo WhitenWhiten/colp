@@ -61,9 +61,11 @@ for (const [name,links] of Object.entries(relations)) {
   }
 }
 const sha = value => createHash('sha256').update(stable(value)).digest('hex');
+const descriptions = catalog.tools.map(tool => typeof tool.description === 'string' ? tool.description.trim().replace(/\s+/g,' ').toLowerCase() : '');
+if (new Set(descriptions).size !== catalog.tools.length) throw new Error('Duplicate capability descriptions');
 const tools = catalog.tools.map(tool => {
   if (typeof tool.description !== 'string' || tool.description.trim().length < 35
-      || /owner-scoped management|authorized Automation operation/i.test(tool.description)) throw new Error(`Weak description: ${tool.name}`);
+      || /owner-scoped management|authorized Automation operation|^Queue\s+(?:automation\.)?(?:adapters|classification)\.[a-z_.]+(?:\s|[,:;.])/i.test(tool.description)) throw new Error(`Weak description: ${tool.name}`);
   const keys = ['businessMutation','deviceRequest','externalRequest','providerConsumption'];
   if (!tool.effects || keys.some(key => typeof tool.effects[key] !== 'boolean') || Object.keys(tool.effects).length !== keys.length)
     throw new Error(`Unreviewed effects: ${tool.name}`);

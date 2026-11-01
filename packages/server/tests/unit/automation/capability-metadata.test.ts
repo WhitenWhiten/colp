@@ -70,6 +70,15 @@ test('generator changes contract and catalog versions for deployed definition ch
     catalog.tools[0].effects.businessMutation = !catalog.tools[0].effects.businessMutation;
     await writeFile(catalogPath,JSON.stringify(catalog));
     const effects = await generate();expect(effects.contract).not.toBe(schema.contract);
+    const originalDescription = catalog.tools[1].description;
+    catalog.tools[1].description = catalog.tools[0].description;
+    await writeFile(catalogPath,JSON.stringify(catalog));
+    expect(spawnSync(process.execPath,[script]).status).not.toBe(0);
+    catalog.tools[1].description = 'Queue adapters.status on the explicitly selected replica; current profile and scopes are required.';
+    await writeFile(catalogPath,JSON.stringify(catalog));
+    expect(spawnSync(process.execPath,[script]).status).not.toBe(0);
+    catalog.tools[1].description = originalDescription;
+    await writeFile(catalogPath,JSON.stringify(catalog));
     const setPath = join(scratch,files[2]!),sets = JSON.parse(await readFile(setPath,'utf8'));
     sets.recovery.members.push('automation.sync.status');await writeFile(setPath,JSON.stringify(sets));
     const membership = await generate();expect(membership.catalog).not.toBe(effects.catalog);expect(membership.contract).toBe(effects.contract);

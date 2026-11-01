@@ -896,7 +896,7 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Queue adapters.status on the explicitly selected replica. Requires the owner to enable the device bridge in that browser. Returns a request handle, not the operation result; use automation.device_requests.get. Classification previews may call the configured provider once. Retries preserve any existing save command and require a new explicit command ID after an unknown outcome.",
+      "description": "Inspect installed site adapters, their connection and permission status, and whether local classification is enabled on a selected browser. Requires enabled Agent access; poll automation.device_requests.get for the durable request result.",
       "effects": {
         "businessMutation": true,
         "deviceRequest": true,
@@ -920,7 +920,7 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Queue adapters.jobs on the explicitly selected replica. Requires the owner to enable the device bridge in that browser. Returns a request handle, not the operation result; use automation.device_requests.get. Classification previews may call the configured provider once. Retries preserve any existing save command and require a new explicit command ID after an unknown outcome.",
+      "description": "List the selected connection’s semantic adapter jobs, including recovery or history states, reasons and retryability. Supply replicaId and connectionId; follow the cursor and poll automation.device_requests.get for each durable request.",
       "effects": {
         "businessMutation": true,
         "deviceRequest": true,
@@ -944,7 +944,7 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Queue adapters.diagnostics on the explicitly selected replica. Requires the owner to enable the device bridge in that browser. Returns a request handle, not the operation result; use automation.device_requests.get. Classification previews may call the configured provider once. Retries preserve any existing save command and require a new explicit command ID after an unknown outcome.",
+      "description": "Inspect a selected connection’s adapter status, semantic job counts and paginated recovery or history details. Requires browser Agent access and connectionId; poll automation.device_requests.get for the durable request result.",
       "effects": {
         "businessMutation": true,
         "deviceRequest": true,
@@ -969,7 +969,7 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Queue adapters.retry on the explicitly selected replica. Requires the owner to enable the device bridge in that browser. Returns a request handle, not the operation result; use automation.device_requests.get. Classification previews may call the configured provider once. Retries preserve any existing save command and require a new explicit command ID after an unknown outcome.",
+      "description": "Retry one eligible site adapter semantic job on the selected browser using its jobId. Existing save command identity is preserved; the request is durable and its result is available through automation.device_requests.get.",
       "effects": {
         "businessMutation": true,
         "deviceRequest": true,
@@ -993,7 +993,7 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Queue classification.diagnostics on the explicitly selected replica. Requires the owner to enable the device bridge in that browser. Returns a request handle, not the operation result; use automation.device_requests.get. Classification previews may call the configured provider once. Retries preserve any existing save command and require a new explicit command ID after an unknown outcome.",
+      "description": "Inspect local semantic classification recovery or history jobs and counts on the selected browser. Follow its cursor; requires enabled Agent access and polling automation.device_requests.get for the durable result.",
       "effects": {
         "businessMutation": true,
         "deviceRequest": true,
@@ -1043,7 +1043,7 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Queue classification.retry on the explicitly selected replica. Requires the owner to enable the device bridge in that browser. Returns a request handle, not the operation result; use automation.device_requests.get. Classification previews may call the configured provider once. Retries preserve any existing save command and require a new explicit command ID after an unknown outcome.",
+      "description": "Retry an eligible semantic classification job on the selected browser by jobId. It may use a provider attempt; existing save identity is preserved. Poll automation.device_requests.get for the durable request result.",
       "effects": {
         "businessMutation": true,
         "deviceRequest": true,
@@ -1067,7 +1067,7 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Inspect ordinary saved capture classification tasks, including local provider failures, under the selected device and account. Returns a durable device request; use automation.device_requests.get. List continuations are scoped to the account and collection.",
+      "description": "List ordinary saved capture classification tasks and provider failures for the selected browser and account. Follow account-and-collection-scoped continuations and poll automation.device_requests.get for each durable result.",
       "effects": {
         "businessMutation": true,
         "deviceRequest": true,
@@ -1091,7 +1091,7 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Inspect ordinary saved capture classification tasks, including local provider failures, under the selected device and account. Returns a durable device request; use automation.device_requests.get. List continuations are scoped to the account and collection.",
+      "description": "Inspect one ordinary saved capture classification task, its revision, save state and retryability using captureId. Requires enabled browser Agent access; poll automation.device_requests.get for the durable result.",
       "effects": {
         "businessMutation": true,
         "deviceRequest": true,
@@ -1140,7 +1140,7 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Inspect browser adapter work by explicit connection and task kind: confirmations, imports, native save work, local-to-cloud transfers, reconciliation, semantic classification, and observations. Results expose reasons, revisions and available recovery actions. Use automation.device_requests.get; continuation cursors are scoped to the owner, connection and kind.",
+      "description": "List paginated browser adapter tasks for an explicit connection and task kind, including confirmation, import, save, transfer, reconcile, semantic or observation work. Poll automation.device_requests.get for each durable result.",
       "effects": {
         "businessMutation": true,
         "deviceRequest": true,
@@ -1164,7 +1164,7 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Inspect browser adapter work by explicit connection and task kind: confirmations, imports, native save work, local-to-cloud transfers, reconciliation, semantic classification, and observations. Results expose reasons, revisions and available recovery actions. Use automation.device_requests.get; continuation cursors are scoped to the owner, connection and kind.",
+      "description": "Inspect one browser adapter task by connectionId, taskKind and taskId, including its revision and available recovery actions. Requires browser Agent access; poll automation.device_requests.get for the durable result.",
       "effects": {
         "businessMutation": true,
         "deviceRequest": true,
@@ -1389,7 +1389,7 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Read owner-scoped connection_profiles configurations and revisions. List continuations remain bound to this account and resource type.",
+      "description": "List owned connection profiles and their revisions in pages; follow the account-bound continuation before selecting a profile.",
       "effects": {
         "businessMutation": false,
         "deviceRequest": false,
@@ -1413,7 +1413,7 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Read owner-scoped connection_profiles configurations and revisions. List continuations remain bound to this account and resource type.",
+      "description": "Read one owned connection profile by profileId and obtain its current revision before a configuration update.",
       "effects": {
         "businessMutation": false,
         "deviceRequest": false,
@@ -1438,7 +1438,7 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Manage an owner-scoped connection_profiles configuration through the same validator, revision precondition and durable command receipt as the web. Profile identity/data-term changes may invalidate worker bindings and subscriptions; display edits preserve them.",
+      "description": "Create or update an owned connection profile with a stable commandId; updates require its current baseRevision. Identity or worker authority changes can invalidate pairings and subscriptions.",
       "effects": {
         "businessMutation": true,
         "deviceRequest": false,
@@ -1487,7 +1487,7 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Manage an owner-scoped targets configuration through the same validator, revision precondition and durable command receipt as the web. Profile identity/data-term changes may invalidate worker bindings and subscriptions; display edits preserve them.",
+      "description": "Create or update an owned worker target with a stable commandId; updates require its current baseRevision. Profile or privacy changes can affect pairing and subscriptions.",
       "effects": {
         "businessMutation": true,
         "deviceRequest": false,
@@ -1512,7 +1512,7 @@
         "openWorldHint": false,
         "idempotentHint": true
       },
-      "description": "Manage an owner-scoped targets configuration through the same validator, revision precondition and durable command receipt as the web. Profile identity/data-term changes may invalidate worker bindings and subscriptions; display edits preserve them.",
+      "description": "Revoke one owned worker target using its current baseRevision, a reason and stable commandId. The target is unpaired and its pairing generation advances.",
       "effects": {
         "businessMutation": true,
         "deviceRequest": false,
@@ -1536,7 +1536,7 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Read owner-scoped executors configurations and revisions. List cursors bind account, resource and page size.",
+      "description": "List owned executors, availability and configuration revisions in pages; follow the account-bound continuation when selecting an executor.",
       "effects": {
         "businessMutation": false,
         "deviceRequest": false,
@@ -1560,7 +1560,7 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Read owner-scoped executors configurations and revisions. List cursors bind account, resource and page size.",
+      "description": "Read one owned executor by executorId, including its configuration, availability and current revision.",
       "effects": {
         "businessMutation": false,
         "deviceRequest": false,
@@ -1609,7 +1609,7 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Read owner-scoped execution_policies configurations and revisions. List cursors bind account, resource and page size.",
+      "description": "List owned execution policies and their configuration revisions in pages; follow the account-bound continuation before selecting a policy.",
       "effects": {
         "businessMutation": false,
         "deviceRequest": false,
@@ -1633,7 +1633,7 @@
         "readOnlyHint": true,
         "openWorldHint": false
       },
-      "description": "Read owner-scoped execution_policies configurations and revisions. List cursors bind account, resource and page size.",
+      "description": "Read one owned execution policy by policyId, including its limits, assignments and current revision.",
       "effects": {
         "businessMutation": false,
         "deviceRequest": false,
