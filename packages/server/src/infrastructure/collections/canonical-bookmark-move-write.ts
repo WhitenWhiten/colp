@@ -1,4 +1,5 @@
 import { sql } from 'kysely';
+import { appendAgentActivityOutboxBatch } from '../activity/index.js';
 import { CanonicalMutationInvariantError, type JsonObject } from '../../modules/collections/index.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { appendOperationsWithPayload } from '../database/operation-payload-store.js';
@@ -79,5 +80,8 @@ export async function writeBookmarkMoves(tx: DatabaseTransaction, plan: Bookmark
   await appendAuditEvents(tx, moves.map(m => ({ operationId: m.input.operationId, collectionId: c.id,
     principalId: m.input.actor.principalId, eventType: m.operation.operationType, details: m.operation.canonicalPayload, createdAt: now })));
   await captureFacts?.(tx, moves);
+  await appendAgentActivityOutboxBatch(tx, moves.map(({ event, input, result }) => ({
+    event: { ...event, commitOrdinal: result.allocation.commitOrdinal }, input,
+  })));
   await appendBookmarkMoveOutbox(tx, outbox);
 }

@@ -25,31 +25,51 @@ const validate = (value: unknown): value is ClosedPayload => {
 export const activityAgentRegistration: EventPayloadRegistration = { eventType: ACTIVITY_AGENT_EVENT, eventVersion: 1, validatePayload: validate };
 interface AgentEvent { action?: keyof typeof ACTION_KINDS; collectionId: string; nodeId: string; operationId: string; agentClientId: string | null;
   credentialBindingId: string | null; occurredAt: string }
+interface AgentActivitySource {
+  readonly event: { domainEventId: string; operationId: string; collectionId: string; commitOrdinal: bigint };
+  readonly input: { mutation: { action: string; target: { resourceId: string }; fields?: { kindFields: { readonly [key: string]: unknown } } };
+    automationContext?: { origin: string; agent?: { clientId: string; credentialBindingId: string } } };
+}
 export async function appendAgentActivityOutbox(tx: DatabaseTransaction,
-  event: { domainEventId: string; operationId: string; collectionId: string; commitOrdinal: bigint },
-  input: { mutation: { action: string; target: { resourceId: string }; fields?: { kindFields: { readonly [key: string]: unknown } } };
-    automationContext?: { origin: string; agent?: { clientId: string; credentialBindingId: string } } }): Promise<void> {
-  if (!agentActivityEnabled() || input.automationContext?.origin !== 'mcp' || !Object.hasOwn(ACTION_KINDS, input.mutation.action)
-    || (input.mutation.action === 'create' && input.mutation.fields?.kindFields.kind !== 'bookmark')) return;
-  // Facts capture precedes the projection append that normally reserves this shared domain event.
-  const reserved = await tx.insertInto('resource_id_ledger').values({ resource_id: event.domainEventId, resource_type: 'domain-event' })
-    .onConflict(conflict => conflict.column('resource_id').doNothing()).returning('resource_type').executeTakeFirst();
-  if (!reserved) {
-    const existing = await tx.selectFrom('resource_id_ledger').select('resource_type').where('resource_id', '=', event.domainEventId).executeTakeFirst();
-    if (existing?.resource_type !== 'domain-event') throw new Error('Activity domain event reservation conflicts with another resource');
-  }
+  event: AgentActivitySource['event'], input: AgentActivitySource['input']): Promise<void> {
+  await appendAgentActivityOutboxBatch(tx, [{ event, input }]);
+}
+/** Shared by single writes and the canonical bulk path; SQL count does not grow with the batch. */
+export async function appendAgentActivityOutboxBatch(tx: DatabaseTransaction, sources: readonly AgentActivitySource[]): Promise<void> {
+  if (!agentActivityEnabled()) return;
+  const eligible = sources.filter(({ input }) => input.automationContext?.origin === 'mcp'
+    && Object.hasOwn(ACTION_KINDS, input.mutation.action)
+    && (input.mutation.action !== 'create' || input.mutation.fields?.kindFields.kind === 'bookmark'));
+  if (!eligible.length) return;
+  // Facts capture can precede the projection append that reserves these shared domain events.
+  const eventIds = [...new Set(eligible.map(({ event }) => event.domainEventId))];
+  await tx.insertInto('resource_id_ledger').values(eventIds.map(resource_id => ({ resource_id, resource_type: 'domain-event' })))
+    .onConflict(conflict => conflict.column('resource_id').doNothing()).execute();
+  const existing = await tx.selectFrom('resource_id_ledger').select(['resource_id', 'resource_type'])
+    .where('resource_id', 'in', eventIds).execute();
+  if (existing.length !== eventIds.length || existing.some(row => row.resource_type !== 'domain-event'))
+    throw new Error('Activity domain event reservation conflicts with another resource');
   const now = (await sql<{ now: Date }>`SELECT clock_timestamp() AS now`.execute(tx)).rows[0]!.now;
-  const id = randomUUID(), agent = input.automationContext?.agent;
-  const payload: AgentEvent = { ...(input.mutation.action !== 'create' ? { action: input.mutation.action as keyof typeof ACTION_KINDS } : {}), collectionId: event.collectionId, nodeId: input.mutation.target.resourceId,
-    operationId: event.operationId, agentClientId: agent?.clientId ?? null, credentialBindingId: agent?.credentialBindingId ?? null,
-    occurredAt: now.toISOString() };
-  await sql`WITH reserved AS (INSERT INTO resource_id_ledger(resource_id,resource_type) VALUES (${id},'outbox') RETURNING resource_id)
-    INSERT INTO outbox_events(outbox_id,domain_event_id,event_type,event_version,handler_name,handler_mode,
+  const rows = eligible.map(({ event, input }) => {
+    const agent = input.automationContext?.agent;
+    const payload: AgentEvent = { ...(input.mutation.action !== 'create' ? { action: input.mutation.action as keyof typeof ACTION_KINDS } : {}),
+      collectionId: event.collectionId, nodeId: input.mutation.target.resourceId, operationId: event.operationId,
+      agentClientId: agent?.clientId ?? null, credentialBindingId: agent?.credentialBindingId ?? null, occurredAt: now.toISOString() };
+    return { id: randomUUID(), event_id: event.domainEventId, collection_id: event.collectionId,
+      ordinal: event.commitOrdinal.toString(), payload };
+  });
+  await sql`WITH supplied AS (
+      SELECT * FROM jsonb_to_recordset(${JSON.stringify(rows)}::jsonb)
+        AS i(id text,event_id text,collection_id text,ordinal bigint,payload jsonb)
+    ), reserved AS (
+      INSERT INTO resource_id_ledger(resource_id,resource_type) SELECT id,'outbox' FROM supplied RETURNING resource_id
+    ) INSERT INTO outbox_events(outbox_id,domain_event_id,event_type,event_version,handler_name,handler_mode,
       aggregate_type,aggregate_id,aggregate_scope,aggregate_revision,commit_ordinal,payload_json,state,attempt_count,
       available_at,occurred_at,locked_until,lease_generation,completed_at,last_error,dead_lettered_at)
-    SELECT resource_id,${event.domainEventId},${ACTIVITY_AGENT_EVENT},1,${ACTIVITY_AGENT_HANDLER},'delivery_each_event',
-      'collection',${event.collectionId},${event.collectionId},NULL,${event.commitOrdinal},${JSON.stringify(payload)}::jsonb,
-      'pending',0,clock_timestamp(),${now},NULL,0,NULL,NULL,NULL FROM reserved`.execute(tx);
+    SELECT s.id,s.event_id,${ACTIVITY_AGENT_EVENT},1,${ACTIVITY_AGENT_HANDLER},'delivery_each_event',
+      'collection',s.collection_id,s.collection_id,NULL,s.ordinal,s.payload,
+      'pending',0,clock_timestamp(),${now},NULL,0,NULL,NULL,NULL
+    FROM supplied s JOIN reserved r ON r.resource_id=s.id`.execute(tx);
 }
 async function verifyLease(tx: DatabaseTransaction, context: OutboxHandlerContext): Promise<void> {
   const lease = await tx.selectFrom('outbox_events').select('outbox_id').where('outbox_id', '=', context.attempt!.outboxId)
