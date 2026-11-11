@@ -122,6 +122,8 @@ const BETTER_AUTH_ERROR_TRANSLATIONS: Readonly<Record<string, BetterAuthErrorTra
   PASSWORD_TOO_LONG: Object.freeze({ code: 'invalid_request', message: 'The password is too long.', recovery: 'user_action' }),
   INVALID_PASSWORD: Object.freeze({ code: 'invalid_credentials', message: 'The email or password is incorrect.', recovery: 'user_action' }),
   SESSION_EXPIRED: Object.freeze({ code: 'authentication_required', message: 'Authentication is required.', recovery: 'user_action' }),
+  session_revoked: Object.freeze({ code: 'authentication_required', message: 'Authentication is required.', recovery: 'user_action' }),
+  session_context_unavailable: Object.freeze({ code: 'authentication_required', message: 'Authentication is required.', recovery: 'user_action' }),
   SESSION_NOT_FRESH: Object.freeze({ code: 'authentication_required', message: 'Please sign in again to complete this action.', recovery: 'user_action' }),
   // Credentials (sign-in + sign-up existence): no enumeration.
   INVALID_EMAIL_OR_PASSWORD: Object.freeze({

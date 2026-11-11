@@ -57,6 +57,10 @@ const FROZEN_TRANSLATIONS: Readonly<Record<string, { readonly code: string; read
     message: 'The email or password is incorrect.', recovery: 'user_action' },
   SESSION_EXPIRED: { code: 'authentication_required', status: productErrorStatus('authentication_required'),
     message: 'Authentication is required.', recovery: 'user_action' },
+  session_revoked: { code: 'authentication_required', status: productErrorStatus('authentication_required'),
+    message: 'Authentication is required.', recovery: 'user_action' },
+  session_context_unavailable: { code: 'authentication_required', status: productErrorStatus('authentication_required'),
+    message: 'Authentication is required.', recovery: 'user_action' },
   SESSION_NOT_FRESH: { code: 'authentication_required', status: productErrorStatus('authentication_required'),
     message: 'Please sign in again to complete this action.', recovery: 'user_action' },
   INVALID_EMAIL_OR_PASSWORD: {

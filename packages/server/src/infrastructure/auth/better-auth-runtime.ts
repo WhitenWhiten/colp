@@ -714,9 +714,7 @@ async function assertProductSessionActive(
   ctx: Parameters<typeof getAuthoritativeSessionFromCtx>[0],
   db: Kysely<DatabaseSchema>,
 ): Promise<void> {
-  // User before hooks run before the endpoint itself loads its session. The
-  // Better Auth helper still resolves the carrier from the request context;
-  // if it cannot, fail closed instead of silently bypassing product revocation.
+  // A live Better Auth carrier still needs product lifetime checks with database time.
   const session = await getAuthoritativeSessionFromCtx(ctx);
   const candidate = session?.session.id;
   if (typeof candidate !== 'string' || candidate.length === 0) {
@@ -728,6 +726,8 @@ async function assertProductSessionActive(
   const row = await db.selectFrom('known_auth_session_metadata')
     .select(['revoked_at', 'security_epoch', 'account_id'])
     .where('auth_session_id', '=', candidate)
+    .where('idle_expires_at', '>', sql<Date>`clock_timestamp()`)
+    .where('absolute_expires_at', '>', sql<Date>`clock_timestamp()`)
     .executeTakeFirst();
   if (!row || row.revoked_at !== null) {
     throw APIError.from('UNAUTHORIZED', {
