@@ -13630,5 +13630,17 @@
   "automation_recoveryReceipt": {
     "message": "暂时无法记录此次移动，恢复记录已保留；请点击“立即检查”重试。",
     "description": "The move could not be recorded. Its recovery record is kept; choose Check now to retry."
+  },
+  "automation_evaluationUnavailable": {
+    "message": "无法检查规则。请选择文件夹保存此页面，或检查“自动化”后重试。",
+    "description": "Rules could not be checked. Choose a folder to save this page, or check Automations and try again."
+  },
+  "automation_evaluationUnavailableSaved": {
+    "message": "无法检查规则，页面已保存在你选择的文件夹中。请打开“自动化”检查规则，或自行选择文件夹。",
+    "description": "Rules could not be checked. Saved in your chosen folder. Open Automations to check the rules, or choose a folder yourself."
+  },
+  "capture_rulesUnavailable": {
+    "message": "无法检查规则",
+    "description": "Rules could not be checked"
   }
 }

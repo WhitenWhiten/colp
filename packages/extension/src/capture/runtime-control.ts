@@ -20,7 +20,7 @@ export function validCaptureControlRequest(value: unknown): value is CaptureCont
     && Number(raw.periodPoints) >= Number(raw.maxPoints);
 }
 export function canResumeCapture(task: CaptureTask, scope: CaptureScope, now: number) {
-  return sameCaptureScope(task.scope, scope) && task.automaticIntent && task.disposition === 'new' && task.save === 'local-saved'
+  return sameCaptureScope(task.scope, scope) && !task.automationIssue && task.automaticIntent && task.disposition === 'new' && task.save === 'local-saved'
     && !task.automatic && !task.manualFence && Boolean(task.local?.state === 'waiting' || task.billingAuthorization && task.billingAuthorization.expiresAt > now
       && task.billingAuthorization.collectionId === scope.collectionId) && now - task.createdAt < 86400000;
 }

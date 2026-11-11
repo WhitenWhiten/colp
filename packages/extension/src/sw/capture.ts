@@ -32,6 +32,7 @@ import { blockedPlacement } from '../automation/pre-save.js';
 import { recordPreSaveReceipt, recoverPreSaveReceipts, rulesDecision } from './automation.js';
 import { RECEIPT_MAX_AGE_MS } from '../automation/receipt-sync.js';
 import { captureTagMode } from './capture-local.js';
+import { AutomationEvaluationUnavailable, type AutomationEvaluationIssue } from '../automation/evaluation.js';
 
 export const CAPTURE_ALARM = 'known-capture-recovery';
 export const captureStore = createCaptureStore(indexedDB, () => {
@@ -70,17 +71,21 @@ export async function startCapture(input: {
   // Rules decide before the native create, so a rule places the bookmark directly. The account's rules
   // come first; this browser's own rules decide only a page none of them matched, and pause with them (design 01 §7.5).
   const page = { url: input.url, title: input.title, parentNativeId: requested?.nativeId ?? '', explicit: input.folderChoice === 'explicit' };
-  const decision = await rulesDecision(scope, page);
+  let automationIssue: AutomationEvaluationIssue | undefined;
+  const decision = await rulesDecision(scope, page).catch(error => {
+    if (!(error instanceof AutomationEvaluationUnavailable)) throw error;
+    automationIssue = error.issue; return null;
+  });
   const ruled = decision?.targetNativeId ? await captureTarget(scope, decision.targetNativeId).catch(() => null) : null;
   const target = ruled ?? requested;
-  if (!target) throw new Error('capture_target_required');
+  if (!target) throw new Error(automationIssue ? 'automation_unavailable' : 'capture_target_required');
   const automation = decision && decision.targetNativeId && !ruled ? blockedPlacement(decision.automation) : decision?.automation;
   const { nativeId: targetNativeId, inRange } = target;
   // Local mode files into any browser folder, so it never needs the synced range, an account or credits.
   const local = automatic && await localClassificationEnabled();
   // A matching rule owns the folder, whatever it decided: no model is asked for one. The user's own
   // provider may still suggest tags (`folder: false`); the cloud path does nothing.
-  const classify = automatic && (automation ? local && await captureTagMode(true) !== 'off' : local || inRange && Boolean(control.consent));
+  const classify = automatic && !automationIssue && (automation ? local && await captureTagMode(true) !== 'off' : local || inRange && Boolean(control.consent));
   const tab = input.source === 'context-link' ? null : input.tabId !== undefined
     ? await chrome.tabs.get(input.tabId).catch(() => null) : (await chrome.tabs.query({ active: true, currentWindow: true }).catch(() => []))[0];
   const favIconUrl = tab?.url === input.url ? tab.favIconUrl : undefined;
@@ -103,12 +108,13 @@ export async function startCapture(input: {
     saveAnother: content?.forceAnother || input.saveAnother || false, allowUnverifiedCloud: input.allowUnverifiedCloud ?? false,
     ...(input.resumeNativeIds ? { resumeNativeIds: [...input.resumeNativeIds] } : {}),
     createdAt: now, updatedAt: now, revision: 0, deviceId: await captureDeviceId(), policyVersion: 'capture-folder.v1', automaticIntent: reused && content?.mode !== 'reclassify' ? false : automatic,
-    ...(!local ? { billingAuthorization: control.consent } : classify ? { local: { commandId: null, state: 'waiting' as const } } : {}),
+    ...(!local && !automationIssue ? { billingAuthorization: control.consent } : classify ? { local: { commandId: null, state: 'waiting' as const } } : {}),
     ...(automation ? { automation } : {}),
-    disposition: reused ? 'existing' : 'new', save: reused ? 'local-saved' : 'unsubmitted', classification: classify && (!reused || content?.mode === 'reclassify') ? 'waiting' : 'none', sync: inRange ? 'pending' : 'local-only', existence: null,
+    ...(automationIssue ? { automationIssue } : {}),
+    disposition: reused ? 'existing' : 'new', save: reused ? 'local-saved' : 'unsubmitted', classification: automationIssue ? 'manual' : classify && (!reused || content?.mode === 'reclassify') ? 'waiting' : 'none', sync: inRange ? 'pending' : 'local-only', existence: null,
     nativeIntentId: null, nativeId: reused?.id ?? null, nodeId: null, executionId: null, decisionId: null,
     localLocation: existingLocation, cloudLocation: null, appliedRevision: null, manualFence: 0, controlGeneration: control.generation,
-    reason: null });
+    reason: automationIssue ? 'automation_unavailable' : null });
   // The pre-registered alarm recovers even a crash immediately after admission.
   void resumeCapture(task).catch(() => undefined);
   return task;

@@ -14,13 +14,13 @@ import { paintDestSync } from './popup-dest-sync.js';
 import { paintDigestNote } from './popup-digest.js';
 import { bindEditExisting } from './popup-edit-existing.js';
 
-import { readSaveFeedback, SAVE_FEEDBACK_PERMISSION, saveFeedbackIsError } from './save-feedback.js';
+import { readSaveFeedback, SAVE_FEEDBACK_PERMISSION, saveFeedbackIsError, saveFeedbackMessage } from './save-feedback.js';
 import { readPopupDraft, writePopupDraft, clearPopupDraft, type PopupDraft } from './popup-draft.js';
 import { savePopupNativePage } from './popup-native-save.js';
 import { bindPopupRule } from './popup-rule.js';
 import { bindPopupRisk } from './popup-risk.js';
 import { bindSaveFolderPicker } from './save-folder-ui.js';
-import { automationSaveLine, writeLastSave } from './save-status.js';
+import { captureAutomationSaveLine, writeLastSave } from './save-status.js';
 import { bindClearIconAction } from './clear-icon-ui.js';
 import { presentIconPolicyFeedback as iconPolicyFeedback } from './icon-policy-feedback.js';
 import { bindPopupCredits } from './popup-credits.js';
@@ -419,7 +419,7 @@ async function submit(hasUserGesture: boolean): Promise<void> {
     const localOnly = await folders.isOutOfRange();
     const live = await chrome.tabs.query({ active: true, currentWindow: true }).catch(() => []);
     const favIconUrl = typeof live[0]?.favIconUrl === 'string' ? live[0].favIconUrl : tabFavIcon;
-    let nativeId = '', ruleLine: ReturnType<typeof automationSaveLine> = null;
+    let nativeId = '', ruleLine: ReturnType<typeof captureAutomationSaveLine> = null;
     // Typed and accepted AI tags share the worker-owned local save and metadata sync lifecycle.
     const typed = captureAnnotation({ tags: fields.tags.tags(), note: fields.noteField.value });
     const annotation = pin.pinned() ? { ...(typed ?? { tags: [], note: null }), pinned: true as const } : typed;
@@ -427,7 +427,7 @@ async function submit(hasUserGesture: boolean): Promise<void> {
       frozenInsertPosition, annotation, target.folderChoice, classification?.destinationPolicy());
     nativeId = saved.nativeId;
     await rule.saved(saved.task);
-    ruleLine = saved.task.disposition === 'new' ? automationSaveLine(saved.task.automation) : null;
+    ruleLine = saved.task.disposition === 'new' ? captureAutomationSaveLine(saved.task) : null;
     if (parentNativeId) await folders.commit(collectionId ?? DEVICE_FOLDER_SCOPE);
     if (nativeId) {
       const savedIn = folders.chosenFolderId() || parentNativeId;
@@ -464,8 +464,9 @@ async function submit(hasUserGesture: boolean): Promise<void> {
     };
     document.addEventListener('pointerdown', cancelClose, { once: true });
     document.addEventListener('focusin', cancelClose, { once: true });
-  } catch {
-    setFeedback(t('popup_couldntSavePageCheck', "Couldn't save this page. Check that the browser allows bookmarks, then try again."), 'error');
+  } catch (error) {
+    setFeedback(error instanceof Error && error.message === 'automation_unavailable' ? saveFeedbackMessage('automation_unavailable')
+      : t('popup_couldntSavePageCheck', "Couldn't save this page. Check that the browser allows bookmarks, then try again."), 'error');
     restoreSave();
   }
 }

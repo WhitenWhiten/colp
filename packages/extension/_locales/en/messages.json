@@ -617,6 +617,12 @@
   "automation_duplicated": {
     "message": "Added “$1” below the original."
   },
+  "automation_evaluationUnavailable": {
+    "message": "Rules could not be checked. Choose a folder to save this page, or check Automations and try again."
+  },
+  "automation_evaluationUnavailableSaved": {
+    "message": "Rules could not be checked. Saved in your chosen folder. Open Automations to check the rules, or choose a folder yourself."
+  },
   "automation_explainAlreadyThere": {
     "message": "Already in the rule’s folder, so nothing moved."
   },
@@ -2947,6 +2953,9 @@
   },
   "capture_reviewSyncConfirmation": {
     "message": "Review this sync confirmation"
+  },
+  "capture_rulesUnavailable": {
+    "message": "Rules could not be checked"
   },
   "capture_saveAllTabsWindow": {
     "message": "Save all tabs in this window"

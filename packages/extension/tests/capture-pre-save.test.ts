@@ -42,7 +42,8 @@ vi.mock('../src/sw/capture-history.js', () => ({ captureDeviceId: async () => 'd
 vi.mock('../src/sw/capture-local.js', () => ({ captureTagMode: async () => f.tagMode }));
 // The account's rules, then this browser's (sw/automation.ts rulesDecision; its pause is tested with the worker).
 vi.mock('../src/sw/automation.js', () => ({ recordPreSaveReceipt: vi.fn(), recoverPreSaveReceipts: f.recover,
-  rulesDecision: async (scope: unknown, page: unknown) => await f.decide(scope, page).catch(() => null) ?? await f.browser(page).catch(() => null) }));
+  rulesDecision: async (scope: unknown, page: unknown) => await readAutomationEvaluation('account', () => f.decide(scope, page))
+    ?? await readAutomationEvaluation('browser', () => f.browser(page)) }));
 vi.mock('../src/sw/capture-classification.js', () => ({ classifySavedCapture: vi.fn(), undoSavedCapture: vi.fn() }));
 vi.mock('../src/sw/capture-annotation.js', () => ({ persistCaptureAnnotation: vi.fn() }));
 vi.mock('../src/sw/bookmark-pins.js', () => ({ pinNode: vi.fn() }));
@@ -54,6 +55,11 @@ vi.mock('../src/classification-product-client.js', () => ({ createClassification
 vi.mock('../src/site-adapters/planned-runtime.js', () => ({ executePlannedSave: async () => { throw new Error('unexpected planned save'); } }));
 
 import { captureStore, startCapture, wakeCaptures } from '../src/sw/capture.js';
+import { readAutomationEvaluation } from '../src/automation/evaluation.js';
+import { createCaptureCoordinator, type CapturePorts } from '../src/capture/coordinator.js';
+import { classificationTriggerReason } from '../src/classification-intent.js';
+import { captureAutomationSaveLine } from '../src/save-status.js';
+import { captureNeedsAttention } from '../src/capture/statistics.js';
 
 const placed: CaptureAutomation = { outcome: 'placed', ruleIds: ['rule-arxiv'], bundleRevision: 'b-1', settingsRevision: 1,
   satisfies: ['classify.root'], rule: { id: 'rule-arxiv', name: 'arXiv papers', revision: '1', bindingRevision: '1', semanticDigest: 'digest' },
@@ -101,6 +107,35 @@ describe('pre-save rules on every extension save path', () => {
     expect(await start('manual-popup')).not.toHaveProperty('automation');
     f.decide.mockRejectedValue(new Error('storage'));
     expect(await start('manual-popup')).toMatchObject({ targetNativeId: '21' });
+  });
+
+  it.each([false, true])('an account evaluation failure saves to the requested folder without browser fallback or AI (local: %s)', async local => {
+    f.mode = 'automatic'; f.local = local; f.consent = { expiresAt: Date.now() + 60_000 };
+    f.decide.mockRejectedValue(new Error('storage_unavailable'));
+    f.browser.mockResolvedValue({ automation: { source: 'browser', outcome: 'placed' }, targetNativeId: '30' });
+    const task = await start('action-popup', { parentNativeId: '21' });
+    expect(task).toMatchObject({ targetNativeId: '21', classification: 'manual', reason: 'automation_unavailable',
+      automationIssue: { stage: 'account', code: 'storage_unavailable' } });
+    expect(task.automation).toBeUndefined(); expect(task.local).toBeUndefined(); expect(task.billingAuthorization).toBeUndefined();
+    expect(f.browser).not.toHaveBeenCalled();
+    const create = vi.fn<CapturePorts['create']>(async (_task, reserved) => {
+      await reserved('native-intent'); return { nativeId: 'saved', sync: 'local-only' as const,
+        location: { nativeId: '21', nodeId: null, collectionId: null, collectionTitle: null, path: ['Inbox'], writable: true, url: task.url } };
+    });
+    const coordinator = createCaptureCoordinator({ store: captureStore, now: Date.now, assertCurrent: async () => {}, create,
+      existence: async () => ({ kind: 'not-found', exact: [], similar: [],
+        coverage: { local: 'complete', cloud: 'not-checked', collectionIds: [], checkedAt: Date.now(), stale: false } }), receipt: async () => null });
+    const saved = await coordinator.resume(task.scope, task.captureId);
+    expect(create).toHaveBeenCalledOnce(); expect(saved.save).toBe('local-saved');
+    expect(saved.reason).toBe('automation_unavailable');
+    expect(captureNeedsAttention(saved.save, saved.sync, saved.reason)).toBe(true);
+    expect(captureAutomationSaveLine(saved)).toMatchObject({ attention: true, text: expect.stringContaining('Open Automations') });
+    expect(classificationTriggerReason({ kind: 'saved-capture', task: { ...saved, classification: 'waiting' } })).toBe('capture_not_ready');
+  });
+
+  it('asks for a folder or repaired rules when evaluation fails and no save destination exists', async () => {
+    f.noDefault = true; f.decide.mockRejectedValue(new Error('storage_unavailable'));
+    await expect(start('manual-popup')).rejects.toThrow('automation_unavailable');
   });
 });
 

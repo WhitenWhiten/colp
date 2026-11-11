@@ -73,6 +73,39 @@ beforeEach(async () => {
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe('the popup’s preview', () => {
+  it('does not treat unavailable account rules as a non-match and resumes normal evaluation when storage recovers', async () => {
+    f.credential = { serverOrigin: owner.serverOrigin, subject: owner.accountId };
+    await createBundleStore(automationArea(), owner).install(ruleBundle([compiledRule()]), NOW);
+    const { automationDatabase } = await import('../src/automation/indexeddb-store.js');
+    const { AUTOMATION_BUNDLE_KEY } = await import('../src/automation/bundle-store.js');
+    const db = automationDatabase(), original = db.area.bind(db);
+    const read = vi.spyOn(db, 'area').mockImplementation(() => {
+      const area = original();
+      return { ...area, get: async key => { if (key === AUTOMATION_BUNDLE_KEY) throw Error('storage_unavailable'); return area.get(key); } };
+    });
+    try { await expect(rulesDecision(f.scope, { ...paper, explicit: false })).rejects.toMatchObject({
+      message: 'automation_unavailable', issue: { stage: 'account', code: 'storage_unavailable' } }); }
+    finally { read.mockRestore(); }
+    expect(await rulesDecision(f.scope, { ...paper, explicit: false })).toMatchObject({ targetNativeId: '10' });
+  });
+
+  it('does not grant browser automation when the global pause cannot be read', async () => {
+    f.credential = { serverOrigin: owner.serverOrigin, subject: owner.accountId }; f.scope = { ...f.scope, collectionId: null };
+    const read = vi.spyOn(chrome.storage.local, 'get').mockRejectedValue(Error('storage_unavailable'));
+    try { await expect(rulesDecision(f.scope, { ...paper, explicit: false })).rejects.toMatchObject({ issue: { stage: 'pause' } }); }
+    finally { read.mockRestore(); }
+    expect(await rulesDecision(f.scope, { ...paper, explicit: false })).toMatchObject({ targetNativeId: '30' });
+  });
+
+  it('reports an unreadable browser rule list instead of allowing an AI fallback', async () => {
+    f.scope = { ...f.scope, accountId: null, collectionId: null };
+    const { browserSubscriptionStore } = await import('../src/sw/automation-browser.js');
+    const read = vi.spyOn(browserSubscriptionStore(), 'snapshot').mockRejectedValue(Error('storage_blocked'));
+    try { await expect(rulesDecision(f.scope, { ...paper, explicit: false })).rejects.toMatchObject({
+      issue: { stage: 'browser', code: 'storage_blocked' } }); }
+    finally { read.mockRestore(); }
+  });
+
   it('shows a browser rule’s folder with no account at all', async () => {
     f.scope = { ...f.scope, accountId: null, collectionId: null };
     expect(await match()).toEqual({ ok: true, match: { outcome: 'placed', ruleName: 'Papers from arXiv', sourceName: null, ruleCount: 1, folderNativeId: '30',

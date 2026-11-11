@@ -93,6 +93,7 @@ function countCapture(counts: CaptureCounters, fact: CaptureStatisticFact) {
 }
 
 export const CAPTURE_ATTENTION_REASONS = ['authorization_required', 'sign_in_required', 'permission_required',
+  'automation_unavailable',
   'target_not_mapped', 'low_confidence', 'period_credit_limit', 'insufficient_credits', 'authorization_expired', 'resume_disabled', 'suggestion_requires_confirmation', 'execution_control_changed', 'feedback_conflict', 'feedback_needs_attention', 'existence_unavailable'] as const;
 export const captureNeedsAttention = (save: CaptureStatisticFact['save'], sync: CaptureStatisticFact['sync'], reason: string | null): boolean =>
   save === 'failed' || save === 'unknown' || sync === 'attention' || (CAPTURE_ATTENTION_REASONS as readonly string[]).includes(reason ?? '');

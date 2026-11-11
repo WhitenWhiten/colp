@@ -4,7 +4,7 @@ import { element, setHidden } from '../popup-dom.js';
 import type { PopupNote } from '../popup-note.js';
 import { paintCaptureAlert, paintStatusLine, setFooterMode, type StatusLine } from '../popup-shell.js';
 import { localized, t } from '../i18n.js';
-import { automationSaveLine } from '../save-status.js';
+import { captureAutomationSaveLine } from '../save-status.js';
 
 let reasons: Record<string, string>;
 localized(() => {
@@ -164,12 +164,12 @@ export function createCaptureResultPanel(options: ResultPanelOptions) {
 
   function paintMessages(next: CaptureTask): void {
     const classifying = !next.reason && next.automaticIntent && next.save === 'local-saved' && ['waiting', 'running'].includes(next.classification);
-    const message = next.reason ? reasons[next.reason] ?? t('capture_savedSomethingNeedsAttention', 'Saved. Something needs your attention: open Details.')
+    const message = next.reason === 'automation_unavailable' ? next.save === 'local-saved' ? captureAutomationSaveLine(next)?.text : undefined : next.reason ? reasons[next.reason] ?? t('capture_savedSomethingNeedsAttention', 'Saved. Something needs your attention: open Details.')
       // A rule chose the folder before the save; the user's own AI only suggests tags for it.
       : classifying ? next.automation ? t('capture_suggestingTags', 'Suggesting tags…') : t('capture_choosingFolder', 'Choosing a folder…') : '';
     const attention = Boolean(next.reason) && !CALM_REASONS.has(next.reason!);
     // What the rules did, in one line: a placement is calm, a rule that could not act needs the user's eye.
-    const rule = next.save === 'local-saved' && next.disposition === 'new' ? automationSaveLine(next.automation) : null;
+    const rule = next.save === 'local-saved' && next.disposition === 'new' ? captureAutomationSaveLine(next) : null;
     paintCaptureAlert(attention ? message : rule?.attention ? rule.text : undefined);
     options.note.set('rule', rule && !rule.attention ? rule.text : undefined);
     if (!options.suggestionsActive?.()) options.note.set('classify', attention ? undefined : message);

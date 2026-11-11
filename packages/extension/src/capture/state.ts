@@ -28,7 +28,8 @@ export function transitionCapture(task: CaptureTask, event: CaptureEvent, now: n
         if (task.nativeId && task.nativeId !== event.nativeId) throw new Error('capture_receipt_conflict');
         return { ...(event.reuseMode && task.contentIntent ? { disposition: 'existing' as const, contentIntent: { ...task.contentIntent, mode: event.reuseMode },
           automaticIntent: event.reuseMode === 'reclassify' && task.automaticIntent, classification: event.reuseMode === 'reclassify' ? task.classification : 'none' as const } : {}),
-          save: 'local-saved', savedAt: task.savedAt ?? event.savedAt ?? now, nativeId: event.nativeId, ...(event.nativeDateAdded === undefined ? {} : { nativeDateAdded: event.nativeDateAdded }), localLocation: event.location, sync: event.sync, reason: null };
+          save: 'local-saved', savedAt: task.savedAt ?? event.savedAt ?? now, nativeId: event.nativeId, ...(event.nativeDateAdded === undefined ? {} : { nativeDateAdded: event.nativeDateAdded }), localLocation: event.location, sync: event.sync,
+          reason: task.automationIssue && task.reason === 'automation_unavailable' ? task.reason : null };
       case 'save-failed':
         if (task.save !== 'unsubmitted') throw new Error('capture_unknown_requires_reconciliation');
         return { save: 'failed', reason: event.reason };

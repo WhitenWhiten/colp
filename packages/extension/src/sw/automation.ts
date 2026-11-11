@@ -1,4 +1,5 @@
 import { DEVICE_BRIDGE_KEY, DEVICE_BRIDGE_STATUS_KEY } from '../automation/device-bridge.js';
+import { readAutomationEvaluation } from '../automation/evaluation.js';
 import { automationRefreshProblem } from '../automation/refresh-problem.js';
 import type { BundleAckInput } from '@know-n/colp/automation';
 import { PAUSE_KEY, automationsPaused, createPauseStatusStore, pauseStatusDue, readPauseStatus } from '../automation/pause-status.js';
@@ -56,8 +57,8 @@ const pauseArea = () => ({ get: async (key: string) => (await chrome.storage.loc
 let inFlight: { readonly promise: Promise<void>; readonly manual: boolean } | undefined;
 let accountEpoch = 0;
 
-async function currentOwner(): Promise<AutomationOwner | null> {
-  const credential = await store.loadCredential().catch(() => null);
+async function currentOwner(strict = false): Promise<AutomationOwner | null> {
+  const credential = await (strict ? store.loadCredential() : store.loadCredential().catch(() => null));
   return credential?.subject ? { serverOrigin: credential.serverOrigin, accountId: credential.subject } : null;
 }
 
@@ -211,17 +212,17 @@ export async function preSaveDecision(scope: CaptureScope, input: PreSaveInput):
 
 /** The account's pause is for every automation here: while it holds, this browser's own rules stand still too (design 01 §7.5). */
 export async function sourceAutomationsPaused(): Promise<boolean> {
-  const owner = await currentOwner();
+  const owner = await currentOwner(true);
   return owner ? automationsPaused(await createBundleStore(automationArea(), owner).read(),
     await createPauseStatusStore(pauseArea(), owner).read(), Date.now()) : false;
 }
 
 /** What rules decide before a save: the account's first; this browser's only where none of them speaks and nothing is paused. */
 export async function rulesDecision(scope: CaptureScope, input: PreSaveInput): Promise<PreSaveDecision | BrowserPreSaveDecision | null> {
-  const account = await preSaveDecision(scope, input).catch(() => null);
+  const account = await readAutomationEvaluation('account', () => preSaveDecision(scope, input));
   if (account) return account;
-  if (await sourceAutomationsPaused().catch(() => false)) return null;
-  return browserPreSaveDecision(input).catch(() => null);
+  if (await readAutomationEvaluation('pause', sourceAutomationsPaused)) return null;
+  return readAutomationEvaluation('browser', () => browserPreSaveDecision(input));
 }
 
 /**

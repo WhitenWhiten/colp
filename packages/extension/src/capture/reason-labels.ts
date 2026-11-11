@@ -13,6 +13,7 @@ localized(() => {
   authority_fenced: t('common_sessionChanged', 'Session changed'),
   authorization_expired: t('common_authorizationExpired', 'Authorization expired'),
   authorization_required: t('common_authorizationRequired', 'Authorization required'),
+  automation_unavailable: t('capture_rulesUnavailable', 'Rules could not be checked'),
   awaiting_sync_receipt: t('capture_waitingReceipt', 'Waiting for receipt'),
   bookmark_deleted: t('capture_bookmarkDeletedLocally', 'Bookmark deleted locally'),
   bookmark_edited_after_classification: t('capture_bookmarkEditedAfterClassification', 'Bookmark edited after classification'),

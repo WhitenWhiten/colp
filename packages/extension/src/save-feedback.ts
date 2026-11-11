@@ -15,7 +15,7 @@ localized(() => {
 export const SAVE_FEEDBACK_TTL_MS = 5 * 60_000;
 
 export type SaveFeedbackCode =
-  | 'permission_required' | 'create_failed' | 'no_page' | 'saved' | 'no_folder' | 'busy' | 'folder_required';
+  | 'permission_required' | 'create_failed' | 'no_page' | 'saved' | 'no_folder' | 'busy' | 'folder_required' | 'automation_unavailable';
 export type SaveFeedbackEntry = 'page' | 'window' | 'popup';
 
 export interface SaveFeedback {
@@ -35,6 +35,7 @@ localized(() => {
     saved: SAVE_SAVED_TO_BROWSER,
     no_folder: SAVE_FEEDBACK_NO_FOLDER,
     folder_required: t('save_chooseFolderBeforeSaving', 'Choose a folder before saving.'),
+    automation_unavailable: t('automation_evaluationUnavailable', 'Rules could not be checked. Choose a folder to save this page, or check Automations and try again.'),
     busy: SAVE_FEEDBACK_CREATE_FAILED,
   };
 });
@@ -84,7 +85,7 @@ export async function clearSaveFeedback(): Promise<void> {
 }
 
 export function saveFeedbackIsError(code: SaveFeedbackCode): boolean {
-  return code === 'permission_required' || code === 'create_failed' || code === 'no_page' || code === 'folder_required';
+  return code === 'permission_required' || code === 'create_failed' || code === 'no_page' || code === 'folder_required' || code === 'automation_unavailable';
 }
 
 /** Badge + persisted copy. The badge invites the user to open the popup, which

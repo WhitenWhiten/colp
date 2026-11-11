@@ -7,7 +7,7 @@ import { t, tn } from '../i18n.js';
 import { bindPageLanguage } from '../page-language.js';
 import { hydrateIcons } from '../icons.js';
 import { folderChoices } from '../library-folder-picker.js';
-import { automationSaveLine } from '../save-status.js';
+import { captureAutomationSaveLine } from '../save-status.js';
 
 hydrateIcons(document);
 void bindPageLanguage();
@@ -89,7 +89,7 @@ function paint(tasks: readonly CaptureTask[] = []) {
         else { another.delete(item.itemId); selected.delete(item.itemId); } checkbox.checked = selected.has(item.itemId); updateCount(); });
       duplicate.append(input, document.createTextNode(` ${t('capture_saveAnotherCopy', 'Save another copy')}`)); extras.append(duplicate);
     }
-    const rule = task?.save === 'local-saved' && task.disposition === 'new' ? automationSaveLine(task.automation) : null;
+    const rule = task?.save === 'local-saved' && task.disposition === 'new' ? captureAutomationSaveLine(task) : null;
     if (rule?.attention) {
       const badge = document.createElement('span'); badge.className = 'badge'; badge.dataset.tone = 'warning';
       badge.textContent = t('tabs_ruleDidNotApply', 'Rule didn’t apply'); badge.title = rule.text; extras.append(badge);

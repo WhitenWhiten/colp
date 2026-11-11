@@ -5,7 +5,7 @@ import {
 } from './first-run-draft.js';
 import { localized, t } from './i18n.js';
 import type { SyncStatusKind } from './sync-status.js';
-import type { CaptureAutomation } from './capture/contracts.js';
+import type { CaptureAutomation, CaptureTask } from './capture/contracts.js';
 
 export let SAVE_SAVED_TO_BROWSER: string;
 localized(() => {
@@ -73,6 +73,12 @@ export function automationSaveLine(automation: CaptureAutomation | undefined): {
     case 'review': return { attention: true, text: t('automation_ruleNeedsReview', 'Rule “$1” needs a review on the web, so the page stayed where you saved it.', name) };
     case 'expired': return { attention: true, text: t('automation_rulesOutOfDateSaved', 'Rules are out of date; connect to refresh. The page stayed where you saved it.') };
   }
+}
+
+export function captureAutomationSaveLine(task: Pick<CaptureTask, 'automation' | 'automationIssue' | 'reason'>): ReturnType<typeof automationSaveLine> {
+  if (task.automationIssue && task.reason === 'automation_unavailable') return { attention: true,
+    text: t('automation_evaluationUnavailableSaved', 'Rules could not be checked. Saved in your chosen folder. Open Automations to check the rules, or choose a folder yourself.') };
+  return automationSaveLine(task.automation);
 }
 
 /** The notice for a bookmark created outside Know-N (star button): a placement is a move, so it says so. */

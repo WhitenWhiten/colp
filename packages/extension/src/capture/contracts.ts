@@ -88,6 +88,8 @@ export interface CaptureTask {
   readonly automatic?: import('./automatic.js').AutomaticIntent;
   /** What the account's rules decided before the native create; absent when no rule matched. */
   readonly automation?: CaptureAutomation;
+  /** A failed evaluation preserves the save destination and suppresses automatic AI. */
+  readonly automationIssue?: import('../automation/evaluation.js').AutomationEvaluationIssue;
   /** Automatic classification through the user's own provider (local-first; no account, credits or server decision). */
   readonly local?: LocalAutomatic;
   readonly billingAuthorization?: import('./control.js').CaptureControl['consent'];

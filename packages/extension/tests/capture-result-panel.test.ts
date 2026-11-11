@@ -114,6 +114,16 @@ test('polling preserves the active suggestion lane note and treats a confirmed c
   panel.dispose();
 });
 
+test('an unavailable rule evaluation explains the saved destination and offers a manual recovery path', () => {
+  const { panel } = mount();
+  panel.show({ ...filed, automation: undefined, classification: 'manual', reason: 'automation_unavailable',
+    automationIssue: { stage: 'account', code: 'storage_unavailable' } });
+  expect(byId('capture-alert').textContent).toContain('Rules could not be checked');
+  expect(byId('capture-alert').textContent).toContain('Open Automations');
+  expect(byId('capture-alert').hidden).toBe(false);
+  panel.dispose();
+});
+
 test('starting a suggestion explicitly pauses the automatic result countdown', async () => {
   const { panel, options, progress } = mount({ duration: 200 });
   panel.show(filed);

@@ -43,6 +43,6 @@ export async function captureDiagnostics() {
       ...(results[9].status === 'fulfilled' && results[9].value ? results[9].value : {}) },
     inspectedRecentTasks: tasks.length,
     // Allowlist only: never serialize task URLs, titles, account ids, cookies or bearer state.
-    tasks: tasks.map(task => ({ captureId: task.captureId, save: task.save, classification: task.classification, sync: task.sync, reason: task.reason })),
+    tasks: tasks.map(task => ({ captureId: task.captureId, save: task.save, classification: task.classification, sync: task.sync, reason: task.reason, automationIssue: task.automationIssue })),
   } };
 }
