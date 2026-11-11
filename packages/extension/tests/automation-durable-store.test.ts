@@ -9,6 +9,7 @@ import { recoverPlacementIntents } from '../src/automation/recovery.js';
 import type { AccountAutomation } from '../src/capture/contracts.js';
 import { MemoryStorageArea } from '../src/credential-store.js';
 import { COLLECTION_ID, NOW, folderRef } from './automation-fixture.js';
+import type { PendingObservation } from '../src/automation/observed-queue.js';
 
 /**
  * The automation store outlives the worker and the browser (AC-10): the bundle,
@@ -129,7 +130,75 @@ function intent(intentId: string, over: Partial<PlacementIntent> = {}): Placemen
     page: { title: 'A paper', url: 'https://arxiv.org/abs/1' }, native: { nativeId: `n-${intentId}`, destinationNativeId: '10', movedAt: NOW }, ...over };
 }
 
+const scope = { environment: 'production' as const, serverId: 'server', serverOrigin: 'https://colp.example', accountId: 'owner',
+  browserProfileId: 'profile', collectionId: COLLECTION_ID, replicaId: 'replica', generation: 2 };
+const observation = (id: string, over: Partial<PendingObservation> = {}): PendingObservation => ({ id, scope, ownerKey: OWNER,
+  nativeId: `n-${id}`, title: 'A paper', url: 'https://arxiv.org/abs/1', parentId: '2', dateAdded: NOW, observedAt: NOW,
+  state: 'pending', attempts: 0, nextAttemptAt: NOW + 3_000, ...over });
+
+describe('durable observed evaluation and its native boundary', () => {
+  it('keeps a claimed evaluation across restart, and atomically hands it to a native intent', async () => {
+    const first = createAutomationDatabase(factory);
+    await first.observations.save(observation('one'));
+    const entry = (await first.observations.claim('one', NOW + 3_000))!;
+    first.close();
+    const restarted = createAutomationDatabase(factory);
+    expect(await restarted.observations.list()).toMatchObject([{ id: 'one', state: 'processing', attempts: 1 }]);
+    // A failed intent write must keep the observation, including if the transaction already queued its deletion.
+    await expect(restarted.observations.handoff(entry, { ...intent('move'), page: { title: () => undefined, url: 'x' } } as unknown as PlacementIntent)).rejects.toThrow();
+    expect(await restarted.observations.list()).toMatchObject([{ id: 'one', state: 'processing' }]);
+    expect(await restarted.intents.list()).toEqual([]);
+    await restarted.observations.handoff(entry, intent('move'));
+    expect(await restarted.observations.list()).toEqual([]);
+    expect(await restarted.intents.list()).toMatchObject([{ intentId: 'move', observation: { id: 'one' } }]);
+    // A catch after commit cannot resurrect an evaluation and repeat a possibly completed move.
+    expect(await restarted.observations.fail('one', { stage: 'intent', code: 'storage_unavailable', retryable: true }, NOW + 3_001)).toBeNull();
+    expect(await restarted.observations.claim('one', NOW + 3_001, true)).toBeNull();
+    restarted.close();
+  });
+
+  it('fences pending work on sign-out while preserving another account’s observations', async () => {
+    const database = createAutomationDatabase(factory);
+    await database.observations.save(observation('mine'));
+    await database.observations.save(observation('theirs', { ownerKey: 'another-owner' }));
+    await database.clearAccount(OWNER);
+    expect(await database.observations.list()).toMatchObject([{ id: 'theirs' }]);
+    await expect(database.observations.handoff(observation('mine', { state: 'processing' }), intent('move'))).rejects.toThrow('observation_context_changed');
+    expect(await database.intents.list()).toEqual([]); database.close();
+  });
+
+  it('cannot resurrect signed-out work from a late reconciliation or failure callback', async () => {
+    const database = createAutomationDatabase(factory);
+    await database.observations.save(observation('one'));
+    const claimed = (await database.observations.claim('one', NOW + 3_000))!;
+    await database.observations.handoff(claimed, intent('move'));
+    await database.clearAccount(OWNER);
+    expect(await database.observations.abandon('move', { stage: 'move', code: 'move_not_confirmed', retryable: false })).toBe(false);
+    expect(await database.intents.defer('move', 'bookmark_unavailable')).toBe(false);
+    expect(await database.observations.list()).toEqual([]); expect(await database.intents.list()).toEqual([]);
+    database.close();
+  });
+
+  it('refuses a full evaluation queue without evicting admitted bookmarks', async () => {
+    const database = createAutomationDatabase(factory);
+    for (let index = 0; index < 100; index++) await database.observations.save(observation(String(index)));
+    await expect(database.observations.save(observation('overflow'))).rejects.toThrow('observation_queue_full');
+    expect(await database.observations.list()).toHaveLength(100);
+    expect((await database.observations.list()).map(item => item.id)).not.toContain('overflow'); database.close();
+  });
+});
+
 describe('recovering observed moves after a worker stop', () => {
+  it('continues recovering other moves when the first receipt cleanup cannot be persisted', async () => {
+    const left = new Map(['flaky', 'healthy'].map(id => [id, intent(id)])), recorded: string[] = [];
+    await recoverPlacementIntents({ ownerKey: OWNER, now: NOW + 5_000, list: async () => [...left.values()],
+      remove: async id => { if (id === 'flaky') throw new Error('storage_unavailable'); left.delete(id); },
+      node: async id => ({ id, parentId: '10', title: 'Paper', url: 'https://arxiv.org/abs/1', dateAdded: NOW }),
+      record: async item => { recorded.push(item.intentId); },
+      defer: async (item, recoveryProblem) => { left.set(item.intentId, { ...item, recoveryProblem }); } });
+    expect(recorded).toEqual(['flaky', 'healthy']);
+    expect([...left.values()]).toMatchObject([{ intentId: 'flaky', recoveryProblem: 'receipt_unavailable' }]);
+  });
   it('retains unavailable work and still recovers independent moves', async () => {
     const left = new Map(['unavailable', 'healthy'].map(id => [id, intent(id)])), recorded: string[] = [];
     const result = await recoverPlacementIntents({ ownerKey: OWNER, now: NOW + 5_000,

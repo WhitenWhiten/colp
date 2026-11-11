@@ -13642,5 +13642,49 @@
   "capture_rulesUnavailable": {
     "message": "无法检查规则",
     "description": "Rules could not be checked"
+  },
+  "automation_observedBookmark": {
+    "message": "无法读取书签。待处理的归档检查已保留。请选择“立即检查”重试，或自行选择文件夹。",
+    "description": "Could not read the bookmark. The pending filing check is kept. Choose Check now to retry, or choose a folder yourself."
+  },
+  "automation_observedCheck": {
+    "message": "浏览器书签归档检查",
+    "description": "Browser bookmark filing check"
+  },
+  "automation_observedEvidence": {
+    "message": "无法读取此书签的同步或导入记录。待处理的检查已保留。请选择“立即检查”重试，或自行选择文件夹。",
+    "description": "Could not read this bookmark’s sync or import history. The pending check is kept. Choose Check now to retry, or choose a folder yourself."
+  },
+  "automation_observedExpired": {
+    "message": "自动归档检查已过期。书签保留在当前文件夹中，请自行选择文件夹。",
+    "description": "The automatic filing check expired. The bookmark stayed in its current folder. Choose a folder yourself."
+  },
+  "automation_observedIntent": {
+    "message": "无法保存自动归档的恢复信息。书签保留在原处。请选择“立即检查”重试，或自行选择文件夹。",
+    "description": "Could not save recovery information for automatic filing. The bookmark stayed where it is. Choose Check now to retry, or choose a folder yourself."
+  },
+  "automation_observedInterrupted": {
+    "message": "自动归档检查已中断，或所属账号已更改。请检查书签并自行选择文件夹。",
+    "description": "The automatic filing check was interrupted or its account changed. Check the bookmark and choose a folder yourself."
+  },
+  "automation_observedMovePending": {
+    "message": "无法确认自动移动的结果，恢复记录已保留。请先选择“立即检查”核对书签的当前文件夹，再决定是否重试。",
+    "description": "Could not confirm the automatic move. Its recovery record is kept. Choose Check now to check the bookmark’s current folder before trying again."
+  },
+  "automation_observedMoveUnconfirmed": {
+    "message": "无法确认自动移动的结果。请检查书签的当前文件夹，并自行选择存放位置。",
+    "description": "The automatic move could not be confirmed. Check the bookmark’s current folder and choose its location yourself."
+  },
+  "automation_observedPermission": {
+    "message": "请允许访问书签，再选择“立即检查”重试待处理的归档检查。你也可以自行选择文件夹。",
+    "description": "Allow bookmark access, then choose Check now to retry the pending filing check. You can also choose a folder yourself."
+  },
+  "automation_observedRules": {
+    "message": "无法读取规则或暂停状态。待处理的检查已保留。请选择“立即检查”重试，或自行选择文件夹。",
+    "description": "Could not read rules or pause status. The pending check is kept. Choose Check now to retry, or choose a folder yourself."
+  },
+  "automation_recentChecksLede": {
+    "message": "此浏览器中最近的归档和待处理检查。每项检查会说明需要处理的问题。",
+    "description": "Recent filing and pending checks in this browser. Each check explains what needs attention."
   }
 }

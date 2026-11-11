@@ -23,6 +23,8 @@ export interface IntentRecoveryPorts {
   remove(intentId: string): Promise<void>;
   node(nativeId: string): Promise<NativeBookmark | null>;
   record(intent: PlacementIntent): Promise<void>;
+  /** Retain a visible terminal outcome when native evidence cannot confirm the move. */
+  abandon?(intent: PlacementIntent): Promise<void>;
   defer?(intent: PlacementIntent, problem: NonNullable<PlacementIntent['recoveryProblem']>): Promise<void>;
 }
 
@@ -42,8 +44,14 @@ export async function recoverPlacementIntents(ports: IntentRecoveryPorts): Promi
       try { await ports.record(intent); recorded += 1; }
       catch { await ports.defer?.(intent, 'receipt_unavailable').catch(() => undefined); continue; }
     }
-    else dropped += 1;
-    await ports.remove(intent.intentId);
+    else {
+      try { await ports.abandon?.(intent); }
+      catch { await ports.defer?.(intent, 'bookmark_unavailable').catch(() => undefined); continue; }
+      dropped += 1;
+    }
+    // One failed cleanup cannot prevent other bookmarks from recovering.
+    try { await ports.remove(intent.intentId); }
+    catch { await ports.defer?.(intent, 'receipt_unavailable').catch(() => undefined); }
   }
   return { recorded, dropped };
 }

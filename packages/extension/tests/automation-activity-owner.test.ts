@@ -21,6 +21,22 @@ import { automationArea, automationStateView, clearAccountAutomation, refreshAut
 import { ACTIVITY_STATUS_KEY } from '../src/automation/activity-status.js';
 
 afterEach(() => { automationDatabase().close(); state.accountId = 'account-a'; vi.unstubAllGlobals(); });
+it('shows durable observation failures for their account and removes them on account cleanup', async () => {
+  vi.stubGlobal('indexedDB', new IDBFactory());
+  vi.stubGlobal('chrome', { storage: { local: new MemoryStorageArea() }, i18n: { getMessage: () => '' } });
+  const scope = { environment: 'production' as const, serverId: 'server', serverOrigin: 'https://colp.example', accountId: 'account-a',
+    browserProfileId: 'profile', collectionId: 'collection', replicaId: 'replica', generation: 1 };
+  for (const accountId of ['account-a', 'account-b']) await automationDatabase().observations.save({ id: accountId,
+    ownerKey: JSON.stringify([scope.serverOrigin, accountId]), scope: { ...scope, accountId }, title: `Private ${accountId}`,
+    nativeId: accountId, url: 'https://example.test/bookmark', parentId: '2', dateAdded: 1, observedAt: Date.now(),
+    state: 'pending', attempts: 1, nextAttemptAt: Date.now(), problem: { stage: 'evidence', code: 'storage_unavailable', retryable: true } });
+  const view = await automationStateView();
+  expect(view.placements).toMatchObject([{ title: 'Private account-a', state: 'attention',
+    observationProblem: { stage: 'evidence', code: 'storage_unavailable', retryable: true } }]);
+  await clearAccountAutomation(scope);
+  expect(await automationDatabase().observations.list()).toMatchObject([{ title: 'Private account-b' }]);
+});
+
 it('must not retain cookie account B private activity under extension account A after B signs out', async () => {
   vi.stubGlobal('indexedDB', new IDBFactory());
   vi.stubGlobal('chrome', { storage: { local: new MemoryStorageArea() }, i18n: { getMessage: () => '' },

@@ -17,6 +17,7 @@ import { runList } from './run-once-pane.js';
 import { flowStrip } from './flow-strip.js';
 import { createRiskPane } from '../risk/risk-pane.js';
 import { placementBadge, ruleConditions, ruleServerBadge, ruleServerMeta, runRow, serverFreshness } from './status-ui.js';
+import { observedProblemMessage } from './observed-problem.js';
 
 /**
  * Options › Automations: the account's rules and this browser's own, laid out
@@ -221,6 +222,7 @@ function rulesGroup(view: AutomationStateView): HTMLElement {
 
 /** The rule that decided, with the set or subscription it came from as it was at the save (doc 17 RS-15). */
 function placementSource(placement: AutomationPlacementView): string {
+  if (placement.observationProblem) return t('automation_observedCheck', 'Browser bookmark filing check');
   const { entry, sourceName, ruleName } = placement;
   if (!entry || !sourceName) return t('automation_placementRule', 'Rule “$1”', ruleName);
   if (entry.kind === 'setRule') return t('automation_placementSetRule', 'Rule “$1” in “$2”', ruleName, sourceName);
@@ -296,6 +298,7 @@ function placementList(view: AutomationStateView): HTMLElement {
       el('span', placementSource(placement), 'grow'), el('span', undefined, 'sep'), when(placement.at));
     const title = el('p', placement.title || displayHost(placement.host), 'list-row-title'); title.title = placement.host;
     main.append(title, meta);
+    if (placement.observationProblem) main.append(el('p', observedProblemMessage(placement.observationProblem), 'list-row-meta'));
     if (placement.recoveryProblem) main.append(el('p', placement.recoveryProblem === 'permission_required'
       ? t('automation_recoveryPermission', 'Allow bookmark access, then choose Check now to confirm this move.')
       : placement.recoveryProblem === 'bookmark_unavailable'
@@ -379,7 +382,9 @@ function activityGroup(view: AutomationStateView, chosen: ActivityTab | null, ch
       // Only an account rule's placement has a server to confirm it; this browser's own rows never wait for one.
       const confirmed = view.placements.some((placement) => placement.state !== 'filed' && placement.state !== 'keptHere');
       const kept = view.placements.some((placement) => placement.state === 'keptHere');
-      panel.append(el('p', confirmed ? t('automation_recentPlacementsLede', 'Filed in this browser. The server confirms each one after it syncs.')
+      panel.append(el('p', view.placements.some(item => item.observationProblem)
+        ? t('automation_recentChecksLede', 'Recent filing and pending checks in this browser. Each check explains what needs attention.')
+        : confirmed ? t('automation_recentPlacementsLede', 'Filed in this browser. The server confirms each one after it syncs.')
         : kept ? t('automation_recentPlacementsLedeKept', 'What your rules did in this browser, including pages they had to leave where you saved them.')
           : t('automation_recentPlacementsLedeLocal', 'Filed in this browser by your rules.'), 'automation-panel-lede'), placementList(view));
       return panel;

@@ -64,6 +64,20 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); document.body.replaceChildren(); });
 
 describe('Rules in this browser on the page', () => {
+  it('explains pending and expired observed checks without presenting them as completed placements', async () => {
+    const placement = { id: 'observation:1', title: 'A paper', host: 'arxiv.org', url: 'https://arxiv.org/abs/1', ruleName: '', folder: '',
+      at: NOW, path: 'observed' as const, state: 'attention' as const };
+    const body = await render(view({ account: 'signedIn', webUrl: 'https://colp.example/automations', placements: [
+      { ...placement, observationProblem: { stage: 'evidence', code: 'storage_unavailable', retryable: true } },
+      { ...placement, id: 'expired', observationProblem: { stage: 'bookmark', code: 'observation_expired', retryable: false } },
+    ] }));
+    expect(text(body)).toContain('Recent filing and pending checks');
+    expect(text(body)).toContain('Could not read this bookmark’s sync or import history');
+    expect(text(body)).toContain('Choose Check now to retry');
+    expect(text(body)).toContain('The automatic filing check expired');
+    expect(text(body)).toContain('Choose a folder yourself');
+    expect(text(body)).not.toContain('Rule “”');
+  });
   it('shows pause verification and agent recovery problems with a way to check again', async () => {
     const body = await render(view({ account: 'signedIn', deviceBridgeEnabled: true, deviceBridgeProblem: 'replica_revoked',
       pauseProblem: 'signedOut', webUrl: 'https://colp.example/automations' }));

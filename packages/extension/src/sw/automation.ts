@@ -345,7 +345,11 @@ async function placementViews(ownerKey: string): Promise<AutomationPlacementView
     .map(intent => ({ id: `recovery:${intent.intentId}`, title: intent.page.title, host: '', url: intent.page.url,
       ruleName: intent.automation.rule.name, folder: intent.automation.folderTitle ?? '', at: intent.createdAt,
       path: 'observed', state: 'attention', recoveryProblem: intent.recoveryProblem }));
-  return [...recovery, ...receipts.map((receipt) => {
+  const observations: AutomationPlacementView[] = (await automationDatabase().observations.list())
+    .filter(item => item.ownerKey === ownerKey && item.problem).sort((a, b) => b.observedAt - a.observedAt).slice(0, 10)
+    .map(item => ({ id: `observation:${item.id}`, title: item.title, host: '', url: item.url, ruleName: '', folder: '',
+      at: item.observedAt, path: 'observed', state: 'attention', observationProblem: item.problem }));
+  return [...observations, ...recovery, ...receipts.map((receipt) => {
     let host = '';
     try { host = new URL(receipt.page.url).hostname; } catch { /* the title stands alone */ }
     return { id: receipt.localReceiptId, title: receipt.page.title, host, url: receipt.page.url, ruleName: receipt.rule.name, folder: receipt.destinationTitle,
@@ -485,7 +489,7 @@ export async function handleAutomationRequest(request: AutomationRequest): Promi
     return { ok: true, digest: owner ? await currentDigest(owner) : null };
   }
   if (request.kind === 'known.automation.refresh') {
-    await (await import('./automation-observed.js')).resumeObservedCreates();
+    await (await import('./automation-observed.js')).resumeObservedCreates({ manual: true });
     await refreshAutomation({ manual: true });
   }
   // Opening the page also nudges a due refresh; its result re-renders through storage.onChanged.

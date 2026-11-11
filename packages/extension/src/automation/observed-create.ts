@@ -68,7 +68,7 @@ export type ObservedOutcome =
 
 const skipped = (reason: Extract<ObservedOutcome, { kind: 'skipped' }>['reason']): ObservedOutcome => ({ kind: 'skipped', reason });
 
-/** Judge one observation once its settle window has passed. Never repeats: the caller hands each observation over once. */
+/** Retry evaluation from fresh evidence until a native intent owns it. The caller never replays an intended move. */
 export async function settleObservedCreate(ports: ObservedPorts, observation: Observation): Promise<ObservedOutcome> {
   if (ports.now() - observation.observedAt > OBSERVATION_TTL_MS) return skipped('stale');
   const node = await ports.node(observation.nativeId);

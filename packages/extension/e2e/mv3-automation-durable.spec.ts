@@ -51,6 +51,10 @@ test('rules, receipts and observed moves survive a killed worker and a browser r
     // Starred into the Bookmarks bar and filed by the migrated rules.
     const starred = await page.evaluate((parentId) => chrome.bookmarks.create({ parentId, title: 'Attention Is All You Need',
       url: 'https://arxiv.org/abs/1706.03762' }), bar);
+    await pendingObservation(page, starred);
+    await stopWorker(context, page);
+    await evidence(page, 'recoverBookmarkEventEvidence', scope);
+    await page.evaluate(() => chrome.alarms.create('known-automation-observed', { when: Date.now() + 200 }));
     await expect.poll(() => parentOf(page, starred.id), { timeout: 10_000 }).toBe(academic.id);
     await expect.poll(async () => (await receipts(page)).length).toBe(1);
     const filed = (await receipts(page))[0]!;
@@ -77,21 +81,30 @@ test('rules, receipts and observed moves survive a killed worker and a browser r
     // A move that never happened is not made late.
     expect(await parentOf(page, unmoved.id)).toBe(bar);
 
-    // Browser restart: everything is still there, and the starred page is not filed again.
+    // Browser restart while another star is still pending: recover the check too.
+    const pending = await page.evaluate((parentId) => chrome.bookmarks.create({ parentId, title: 'Pending at restart',
+      url: 'https://arxiv.org/abs/2302.04761' }), bar);
+    await pendingObservation(page, pending);
     const before = { bundle: await automationState(page, BUNDLE_KEY), receipts: recovered };
     await context.close();
     context = await launch(profile);
     page = (await openExtensionOptions(context)).page;
     await evidence(page, 'recoverBookmarkEventEvidence', scope);
+    await page.evaluate(() => chrome.alarms.create('known-automation-observed', { when: Date.now() + 200 }));
     expect(await automationState(page, BUNDLE_KEY)).toEqual(before.bundle);
-    expect(await receipts(page)).toEqual(before.receipts);
+    await expect.poll(() => parentOf(page, pending.id), { timeout: 15_000 }).toBe(academic.id);
+    await expect.poll(() => receipts(page)).toHaveLength(before.receipts.length + 1);
+    const after = await receipts(page);
+    expect(after).toEqual(expect.arrayContaining(before.receipts));
+    expect(after.filter(receipt => receipt.native.nativeId === pending.id)).toHaveLength(1);
     await page.waitForTimeout(5_000);
     expect(await parentOf(page, starred.id)).toBe(academic.id);
     expect(await parentOf(page, unmoved.id)).toBe(bar);
     const exported = await evidence<{ bookmarkEvents: { nativeId: string; kind: string }[] }>(page, 'exportScope', scope);
     // One create and one move (the export after a restart is not in staging order).
-    expect(exported.bookmarkEvents.filter((event) => event.nativeId === starred.id).map((event) => event.kind).sort()).toEqual(['create', 'move']);
-    expect(await receipts(page)).toEqual(before.receipts);
+    for (const id of [starred.id, pending.id])
+      expect(exported.bookmarkEvents.filter((event) => event.nativeId === id).map((event) => event.kind).sort()).toEqual(['create', 'move']);
+    expect(await receipts(page)).toEqual(after);
   } finally {
     await context.close();
     await rm(profile, { recursive: true, force: true });
@@ -112,6 +125,10 @@ function intent(intentId: string, node: chrome.bookmarks.BookmarkTreeNode, desti
     page: { title: node.title, url: node.url }, native: { nativeId: node.id, destinationNativeId, movedAt: Date.now() } };
 }
 async function receipts(page: Page): Promise<Receipt[]> { return await automationState<Receipt[]>(page, RECEIPTS_KEY) ?? []; }
+async function pendingObservation(page: Page, node: chrome.bookmarks.BookmarkTreeNode): Promise<void> {
+  const key = `known.automation.observation.v1.${JSON.stringify([OWNER_KEY, node.id, node.dateAdded])}`;
+  await expect.poll(() => automationState(page, key), { timeout: 2_000 }).toMatchObject({ nativeId: node.id, state: 'pending' });
+}
 async function stopWorker(context: BrowserContext, page: Page) {
   const cdp = await context.newCDPSession(page);
   const target = (await cdp.send('Target.getTargets')).targetInfos

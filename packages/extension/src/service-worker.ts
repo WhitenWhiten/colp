@@ -110,6 +110,7 @@ import { installRiskBrowsing } from './sw/risk-browse.js';
 import { POPUP_RISK_KINDS, validRiskCommand } from './risk/risk-messages.js';
 import { accountLink, AUTOMATION_ALARM, handleAutomationRequest, installAutomationRuntime, refreshAutomation } from './sw/automation.js';
 import { installObservedCreates, resumeObservedCreates } from './sw/automation-observed.js';
+import { OBSERVED_ALARM } from './automation/observed-queue.js';
 import { currentSyncScope, stateAfterFailure } from './sw/scope.js';
 import { createSyncEffectAuthority } from './sync-effect-authority.js';
 import { createChromePullBookmarkApi } from './pull-bookmark-api.js';
@@ -183,6 +184,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     void refreshDueSubscriptions().catch((error) => logBackgroundFailure('alarm.subscriptions', error));
     void refreshDueRiskLists().catch((error) => logBackgroundFailure('alarm.risk-lists', error));
   }
+  if (alarm.name === OBSERVED_ALARM) void resumeObservedCreates().catch((error) => logBackgroundFailure('alarm.observed-creates', error));
   if (alarm.name === AUTOMATION_ALARM) {
     void refreshAutomation().catch((error) => logBackgroundFailure('alarm.automation', error));
     void resumeObservedCreates().catch((error) => logBackgroundFailure('alarm.observed-creates', error));

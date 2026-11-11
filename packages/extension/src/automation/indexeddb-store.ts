@@ -4,6 +4,7 @@ import type { ObservedPlacement } from './observed-create.js';
 import { AUTOMATION_BUNDLE_KEY, AUTOMATION_CHANGED_KEY, AUTOMATION_RECEIPTS_KEY } from './messages.js';
 import { ACTIVITY_STATUS_KEY } from './activity-status.js';
 import { SERVER_STATUS_KEY } from './server-status.js';
+import { clearObservedAccount, createObservedQueue, type PendingObservation } from './observed-queue.js';
 
 /**
  * The automation store: this browser's installed rule bundle, its placement
@@ -28,6 +29,7 @@ const owns = (value: unknown, ownerKey: string) =>
 
 /** An observed move about to happen: written before the move, removed once its receipt exists. */
 export interface PlacementIntent extends ObservedPlacement {
+  readonly observation?: PendingObservation;
   readonly recoveryProblem?: 'permission_required' | 'bookmark_unavailable' | 'receipt_unavailable';
   readonly intentId: string;
   readonly ownerKey: string;
@@ -154,12 +156,22 @@ export function createAutomationDatabase(factory: IDBFactory, options: {
         for (const intent of await requestValue(intents.getAll()) as PlacementIntent[]) {
           if (intent.ownerKey === ownerKey) intents.delete(intent.intentId);
         }
+        await clearObservedAccount(state, ownerKey);
       });
       await changed();
     },
+    observations: createObservedQueue(run, changed),
     intents: {
-      put: (intent: PlacementIntent) => run([INTENTS], 'readwrite', async (tx) => { tx.objectStore(INTENTS).put(intent); }),
-      remove: (intentId: string) => run([INTENTS], 'readwrite', async (tx) => { tx.objectStore(INTENTS).delete(intentId); }),
+      async put(intent: PlacementIntent) { await run([INTENTS], 'readwrite', async (tx) => { tx.objectStore(INTENTS).put(intent); }); await changed(); },
+      async defer(intentId: string, recoveryProblem: NonNullable<PlacementIntent['recoveryProblem']>): Promise<boolean> {
+        const deferred = await run([INTENTS], 'readwrite', async tx => {
+          const intents = tx.objectStore(INTENTS), stored = await requestValue(intents.get(intentId)) as PlacementIntent | undefined;
+          if (!stored) return false;
+          intents.put({ ...stored, recoveryProblem }); return true;
+        });
+        if (deferred) await changed(); return deferred;
+      },
+      async remove(intentId: string) { await run([INTENTS], 'readwrite', async (tx) => { tx.objectStore(INTENTS).delete(intentId); }); await changed(); },
       list: () => run([INTENTS], 'readonly', (tx) => requestValue(tx.objectStore(INTENTS).getAll()) as Promise<PlacementIntent[]>),
     },
     close(): void { void connection?.then((db) => db.close()).catch(() => undefined); connection = undefined; },

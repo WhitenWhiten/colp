@@ -938,6 +938,36 @@
   "automation_noticeRejected": {
     "message": "The server sent rules this browser can’t use. The previous rules stay in force."
   },
+  "automation_observedBookmark": {
+    "message": "Could not read the bookmark. The pending filing check is kept. Choose Check now to retry, or choose a folder yourself."
+  },
+  "automation_observedCheck": {
+    "message": "Browser bookmark filing check"
+  },
+  "automation_observedEvidence": {
+    "message": "Could not read this bookmark’s sync or import history. The pending check is kept. Choose Check now to retry, or choose a folder yourself."
+  },
+  "automation_observedExpired": {
+    "message": "The automatic filing check expired. The bookmark stayed in its current folder. Choose a folder yourself."
+  },
+  "automation_observedIntent": {
+    "message": "Could not save recovery information for automatic filing. The bookmark stayed where it is. Choose Check now to retry, or choose a folder yourself."
+  },
+  "automation_observedInterrupted": {
+    "message": "The automatic filing check was interrupted or its account changed. Check the bookmark and choose a folder yourself."
+  },
+  "automation_observedMovePending": {
+    "message": "Could not confirm the automatic move. Its recovery record is kept. Choose Check now to check the bookmark’s current folder before trying again."
+  },
+  "automation_observedMoveUnconfirmed": {
+    "message": "The automatic move could not be confirmed. Check the bookmark’s current folder and choose its location yourself."
+  },
+  "automation_observedPermission": {
+    "message": "Allow bookmark access, then choose Check now to retry the pending filing check. You can also choose a folder yourself."
+  },
+  "automation_observedRules": {
+    "message": "Could not read rules or pause status. The pending check is kept. Choose Check now to retry, or choose a folder yourself."
+  },
   "automation_onServerLede": {
     "message": "Work your server does after a bookmark syncs. Filing in this browser never waits for it."
   },
@@ -1213,6 +1243,9 @@
   },
   "automation_recentActivity": {
     "message": "Recent activity"
+  },
+  "automation_recentChecksLede": {
+    "message": "Recent filing and pending checks in this browser. Each check explains what needs attention."
   },
   "automation_recentPlacementsLede": {
     "message": "Filed in this browser. The server confirms each one after it syncs."

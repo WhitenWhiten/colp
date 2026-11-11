@@ -5,11 +5,12 @@ import { MemoryStorageArea } from '../src/credential-store.js';
 import { createBundleStore } from '../src/automation/bundle-store.js';
 import { automationsPaused, createPauseStatusStore } from '../src/automation/pause-status.js';
 import { automationDatabase } from '../src/automation/indexeddb-store.js';
+import { OBSERVATION_TTL_MS } from '../src/automation/observed-create.js';
 import { COLLECTION_ID, NOW, compiledRule, folderRef, ruleBundle } from './automation-fixture.js';
 
 /**
- * The worker side of star-button creations: noted in session storage, judged
- * once after the settle window, with causation read from Sync and import state.
+ * Star-button creations: durable evaluation, then native reconciliation after
+ * an atomic handoff. Causation comes from Sync and import state.
  */
 const f = vi.hoisted(() => ({
   scope: { environment: 'production', serverId: 'https://colp.example', serverOrigin: 'https://colp.example', accountId: 'owner',
@@ -61,6 +62,9 @@ vi.mock('../src/local-import/store.js', () => ({ createLocalImportStore: () => (
 vi.mock('../src/save-feedback.js', () => ({ presentSaveFeedback: async (feedback: unknown) => { f.feedback.push(feedback); } }));
 
 import { installObservedCreates, observeCreatedBookmark, observeRemovedBookmark, resumeObservedCreates, settleDue } from '../src/sw/automation-observed.js';
+import { syncState } from '../src/sw/runtime.js';
+import { personalBookmarks } from '../src/bookmark-subscriptions/guards.js';
+import * as automation from '../src/sw/automation.js';
 
 const tree = f.tree;
 const paper = { url: 'https://arxiv.org/abs/1706.03762', title: 'Attention Is All You Need' };
@@ -88,7 +92,7 @@ beforeEach(async () => {
   await createBundleStore(automationDatabase().area(), { serverOrigin: 'https://colp.example', accountId: 'owner' })
     .install(ruleBundle([compiledRule({ folder: folderRef('academic') })]), NOW);
 });
-afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+afterEach(() => { automationDatabase().close(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 const pauseAccount = () => createPauseStatusStore({ get: async key => (await chrome.storage.local.get(key))[key],
   set: async (key, value) => chrome.storage.local.set({ [key]: value }) }, f.scope).apply({ ok: true,
@@ -106,13 +110,15 @@ describe('observed creations in the worker', () => {
   });
 
   it('rechecks a pause learned after the placement intent was persisted', async () => {
-    const intents = automationDatabase().intents, put = intents.put.bind(intents);
-    vi.spyOn(intents, 'put').mockImplementation(async intent => { await put(intent); await pauseAccount(); });
+    const queue = automationDatabase().observations, handoff = queue.handoff.bind(queue);
+    vi.spyOn(queue, 'handoff').mockImplementation(async (entry, intent) => { await handoff(entry, intent); await pauseAccount(); });
     await star('n1');
     vi.setSystemTime(NOW + 3_001);
     await settleDue();
     expect(f.moves).toEqual([]);
     expect(f.receipts).toEqual([]);
+    expect(await automationDatabase().observations.list()).toEqual([]);
+    expect(await automationDatabase().intents.list()).toHaveLength(1);
   });
 
   it('moves a starred page once after the settle window, with its receipt and notice', async () => {
@@ -203,5 +209,130 @@ describe('observed creations in the worker', () => {
       .install(ruleBundle([], { paused: true, settingsRevision: 2 }), NOW);
     await star('n1');
     expect(await chrome.storage.session.get('known.automation.observed.v1')).toEqual({});
+    expect(await automationDatabase().observations.list()).toEqual([]);
+  });
+
+  it('keeps a failed evidence read across restart, explains its cause, and can retry without losing the bookmark', async () => {
+    await star('retry'); vi.setSystemTime(NOW + 3_001);
+    vi.spyOn(syncState, 'listBookmarkEventsByNative').mockRejectedValueOnce(new Error('storage_unavailable'));
+    await settleDue();
+    expect(f.moves).toEqual([]); expect(await automationDatabase().intents.list()).toEqual([]);
+    expect(await automationDatabase().observations.list()).toMatchObject([{ nativeId: 'retry', state: 'pending', attempts: 1,
+      problem: { stage: 'evidence', code: 'storage_unavailable', retryable: true } }]);
+    expect(f.feedback).toMatchObject([{ code: 'automation_unavailable', message: expect.stringContaining('sync or import history') }]);
+    automationDatabase().close();
+    await resumeObservedCreates({ manual: true });
+    expect(f.moves).toEqual([['retry', '10']]); expect(f.receipts).toHaveLength(1);
+    expect(await automationDatabase().observations.list()).toEqual([]);
+    await resumeObservedCreates({ manual: true }); expect(f.moves).toHaveLength(1);
+  });
+
+  it('isolates a failed bookmark from healthy observations and retries only the failed one', async () => {
+    await star('failed'); await star('healthy'); vi.setSystemTime(NOW + 3_001);
+    const original = syncState.listBookmarkEventsByNative;
+    vi.spyOn(syncState, 'listBookmarkEventsByNative').mockImplementation(async (...args) => {
+      if (args[1] === 'failed') throw new Error('storage_unavailable'); return original(...args);
+    });
+    await settleDue();
+    expect(f.moves).toEqual([['healthy', '10']]);
+    expect(await automationDatabase().observations.list()).toMatchObject([{ nativeId: 'failed', state: 'pending' }]);
+    vi.restoreAllMocks(); await resumeObservedCreates({ manual: true });
+    expect(f.moves).toEqual([['healthy', '10'], ['failed', '10']]); expect(f.receipts).toHaveLength(2);
+  });
+
+  it('treats a temporary native read error as recoverable and respects a folder chosen during retry', async () => {
+    await star('native'); vi.setSystemTime(NOW + 3_001);
+    vi.spyOn(chrome.bookmarks, 'get').mockRejectedValueOnce(new Error('Temporary API failure'));
+    await settleDue();
+    expect(await automationDatabase().observations.list()).toMatchObject([{ problem: { stage: 'bookmark', retryable: true } }]);
+    tree.set('native', { ...tree.get('native')!, parentId: '20' });
+    await resumeObservedCreates({ manual: true });
+    expect(f.moves).toEqual([]); expect(await automationDatabase().observations.list()).toEqual([]);
+  });
+
+  it('recovers a claimed evaluation after a worker stop before the native boundary', async () => {
+    await star('claimed'); vi.setSystemTime(NOW + 3_001);
+    const [pending] = await automationDatabase().observations.list();
+    await automationDatabase().observations.claim(pending!.id, Date.now());
+    automationDatabase().close();
+    await resumeObservedCreates();
+    expect(f.moves).toEqual([['claimed', '10']]); expect(f.receipts).toHaveLength(1);
+    expect(await automationDatabase().observations.list()).toEqual([]);
+  });
+
+  it('reconciles a native move that applied before rejecting, without issuing it twice', async () => {
+    await star('unknown'); vi.setSystemTime(NOW + 3_001);
+    const move = personalBookmarks.move;
+    vi.spyOn(personalBookmarks, 'move').mockImplementationOnce(async (...args) => { await move(...args); throw new Error('Temporary API failure'); });
+    await settleDue();
+    expect(f.moves).toEqual([['unknown', '10']]); expect(f.receipts).toEqual([]);
+    expect(await automationDatabase().observations.list()).toEqual([]);
+    expect(await automationDatabase().intents.list()).toMatchObject([{ recoveryProblem: 'bookmark_unavailable' }]);
+    automationDatabase().close(); await resumeObservedCreates(); await resumeObservedCreates();
+    expect(f.moves).toHaveLength(1); expect(f.receipts).toHaveLength(1);
+    expect(await automationDatabase().intents.list()).toEqual([]);
+  });
+
+  it('keeps an explanation when a prepared move never applied, and never replays it late', async () => {
+    await star('not-applied'); vi.setSystemTime(NOW + 3_001);
+    vi.spyOn(personalBookmarks, 'move').mockRejectedValueOnce(new Error('Temporary API failure'));
+    await settleDue(); await resumeObservedCreates(); await resumeObservedCreates({ manual: true });
+    expect(f.moves).toEqual([]); expect(f.receipts).toEqual([]);
+    expect(await automationDatabase().intents.list()).toEqual([]);
+    expect(await automationDatabase().observations.list()).toMatchObject([{ state: 'attention',
+      problem: { code: 'move_not_confirmed', retryable: false } }]);
+    expect(f.feedback).toContainEqual(expect.objectContaining({ message: expect.stringContaining('choose its location yourself') }));
+  });
+
+  it('recovers an unavailable receipt without repeating the native move', async () => {
+    await star('receipt'); vi.setSystemTime(NOW + 3_001);
+    vi.spyOn(automation, 'recordPlacementReceipt').mockRejectedValueOnce(new Error('storage_unavailable'));
+    await settleDue();
+    expect(f.moves).toEqual([['receipt', '10']]); expect(f.receipts).toEqual([]);
+    expect(await automationDatabase().intents.list()).toMatchObject([{ recoveryProblem: 'receipt_unavailable' }]);
+    await resumeObservedCreates(); expect(f.moves).toHaveLength(1); expect(f.receipts).toHaveLength(1);
+    expect(await automationDatabase().intents.list()).toEqual([]);
+  });
+
+  it('keeps an actionable terminal record when the safe observation window expires', async () => {
+    await star('expired'); vi.setSystemTime(NOW + OBSERVATION_TTL_MS + 1);
+    await resumeObservedCreates(); await resumeObservedCreates({ manual: true });
+    expect(f.moves).toEqual([]);
+    expect(await automationDatabase().observations.list()).toMatchObject([{ state: 'attention',
+      problem: { code: 'observation_expired', retryable: false } }]);
+    expect(f.feedback).toMatchObject([{ message: expect.stringContaining('check expired') }]);
+  });
+
+  it('pins observations to the original account and sync generation', async () => {
+    const original = f.scope;
+    try {
+      await star('owned'); vi.setSystemTime(NOW + 3_001);
+      f.scope = { ...original, accountId: 'other' }; await resumeObservedCreates({ manual: true });
+      expect(f.moves).toEqual([]); expect(await automationDatabase().observations.list()).toMatchObject([{ state: 'pending' }]);
+      f.scope = { ...original, generation: 3 }; await resumeObservedCreates({ manual: true });
+      expect(f.moves).toEqual([]); expect(await automationDatabase().observations.list()).toMatchObject([{ state: 'attention',
+        problem: { code: 'observation_context_changed', retryable: false } }]);
+    } finally { f.scope = original; }
+  });
+
+  it('migrates unowned session observations to visible interrupted checks without moving them', async () => {
+    await chrome.storage.session.set({ 'known.automation.observed.v1': [{ nativeId: 'legacy', url: paper.url, parentId: '2', dateAdded: NOW, observedAt: NOW }] });
+    await resumeObservedCreates();
+    expect(f.moves).toEqual([]);
+    expect(await automationDatabase().observations.list()).toMatchObject([{ state: 'attention', problem: { code: 'observation_interrupted', retryable: false } }]);
+    expect(await chrome.storage.session.get('known.automation.observed.v1')).toEqual({});
+  });
+
+  it('keeps import and restore causation when browser restart clears session storage', async () => {
+    await chrome.storage.session.set({ 'known.automation.import.v1': { active: true, at: NOW } });
+    await star('imported');
+    await chrome.storage.session.remove('known.automation.import.v1');
+    await observeRemovedBookmark({ node: { url: paper.url } });
+    await star('restored');
+    await chrome.storage.session.remove(Object.keys(await chrome.storage.session.get(null)));
+    automationDatabase().close(); vi.setSystemTime(NOW + 3_001);
+    await resumeObservedCreates();
+    expect(f.moves).toEqual([]); expect(f.receipts).toEqual([]);
+    expect(await automationDatabase().observations.list()).toEqual([]);
   });
 });
