@@ -421,6 +421,7 @@ describe('POST /api/v1/auth/unlink-account last recovery method (P7)', () => {
   test('unlink of the last method returns 400 invalid_request with the exact keep-one message', async () => {
     const csrfRaw = 'csrf-p7-raw-token';
     const actor: AuthenticatedBrowserActor = {
+      authUserId: 'ba-user-1',
       account: {
         id: 'account-1',
         subjectId: 'subject-1',
@@ -511,6 +512,7 @@ describe('POST /api/v1/auth/account/delete (P10)', () => {
   function deleteHarness(accountDeletion: AccountDeletionService) {
     const csrfRaw = 'csrf-p10-raw-token';
     const actor: AuthenticatedBrowserActor = {
+      authUserId: 'ba-user-1',
       account: {
         id: 'account-1',
         subjectId: 'subject-1',

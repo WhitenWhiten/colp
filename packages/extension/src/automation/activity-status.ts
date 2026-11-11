@@ -1,4 +1,5 @@
 import { readBoundedJson } from '../json-response.js';
+import { responseBelongsToAuthUser } from '../auth-response-owner.js';
 import { assertCredentialHostPermission, SERVER_HOST_PERMISSION_ERROR } from '../server-origin-permission.js';
 import type { AutomationStateArea } from './bundle-store.js';
 import { knownActivitySummary, validActivitySummary, type ActivitySummary } from './activity-types.js';
@@ -16,7 +17,7 @@ export interface ActivityStatusRecord extends ActivitySummary {
 export type ActivityRead = { readonly ok: true; readonly summary: ActivitySummary } | { readonly ok: false; readonly problem: ServerProblem };
 
 /** Cookie authority only: activity remains available independently of automation flags. */
-export async function readActivitySummary(serverOrigin: string, expectedAccountId: string, fetcher: typeof fetch = fetch): Promise<ActivityRead> {
+export async function readActivitySummary(serverOrigin: string, expectedAuthUserId: string, fetcher: typeof fetch = fetch): Promise<ActivityRead> {
   const url = `${serverOrigin.replace(/\/$/u, '')}/api/v1/me/activity/summary`;
   const init: RequestInit = { method: 'GET', credentials: 'include', redirect: 'error', cache: 'no-store',
     signal: AbortSignal.timeout(15_000), headers: { Accept: 'application/json' } };
@@ -30,7 +31,7 @@ export async function readActivitySummary(serverOrigin: string, expectedAccountI
     : response.status === 401 || response.status === 403 ? 'signedOut'
       : response.status === 429 || response.status === 503 ? 'rateLimited' : 'server' };
   // Bind the data and its owner in the same response; a separate /me check races cookie changes.
-  if (response.headers.get('Known-Activity-Account-Id') !== expectedAccountId) return { ok: false, problem: 'signedOut' };
+  if (!responseBelongsToAuthUser(response, expectedAuthUserId, 'Known-Activity-Account-Id')) return { ok: false, problem: 'signedOut' };
   try {
     const summary = knownActivitySummary(await readBoundedJson(response, 64 * 1024, 'activity_summary_invalid'));
     return summary ? { ok: true, summary } : { ok: false, problem: 'invalid' };

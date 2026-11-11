@@ -43,6 +43,7 @@ export function registerActivityRoutes(app: FastifyInstance, deps: ActivityRoute
           } else result = suffix === '/summary' ? await deps.activity.summary(actor.account.id)
             : await deps.activity.list(actor.account.id, request.query as Record<string, string>);
           if (suffix === '/summary') reply.header('Known-Activity-Account-Id', actor.account.id);
+          if ('authUserId' in actor) reply.header('Known-Auth-User-Id', actor.authUserId);
           return reply.header('cache-control', 'private, no-store').send(result);
         } catch (error) {
           if (error instanceof ActivityCommandError) throw new ProductHttpError({ statusCode: productErrorStatus(error.code),

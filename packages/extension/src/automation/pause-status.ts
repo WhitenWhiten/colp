@@ -1,5 +1,6 @@
 import { validateAutomation, type PauseState } from '@know-n/colp/automation';
 import { readBoundedJson } from '../json-response.js';
+import { responseBelongsToAuthUser } from '../auth-response-owner.js';
 import { assertCredentialHostPermission } from '../server-origin-permission.js';
 import { automationOwnerKey, bundleState, type AutomationOwner, type AutomationStateArea, type BundleRecord } from './bundle-store.js';
 import { automationRefreshProblem } from './refresh-problem.js';
@@ -30,7 +31,7 @@ export async function readPauseStatus(owner: AutomationOwner, fetcher: typeof fe
     if (!response.ok) return { ok: false, problem: response.status === 404 ? 'unavailable'
       : response.status === 401 || response.status === 403 ? 'signedOut'
         : response.status === 429 || response.status === 503 ? 'rateLimited' : 'server' };
-    if (response.headers.get('Known-Automation-Account-Id') !== owner.accountId) return { ok: false, problem: 'signedOut' };
+    if (!responseBelongsToAuthUser(response, owner.accountId, 'Known-Automation-Account-Id')) return { ok: false, problem: 'signedOut' };
     const pause = await readBoundedJson(response, 16 * 1024, 'automation_pause_invalid');
     return validPause(pause) ? { ok: true, pause } : { ok: false, problem: 'rejected' };
   } catch (error) { return { ok: false, problem: automationRefreshProblem(error) }; }

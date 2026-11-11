@@ -8,6 +8,7 @@ import {
 } from '../modules/identity/index.js';
 import {
   BrowserSessionAuthenticationError,
+  type AuthenticatedBrowserActor,
   type BrowserSessionAuthority,
 } from '../modules/auth/index.js';
 import { ProductHttpError } from './product-error.js';
@@ -78,6 +79,7 @@ export interface ProductActorDeps {
 
 export type ProductActor =
   | AuthenticatedSession
+  | AuthenticatedBrowserActor
   | { readonly account: AuthenticatedSession['account'] };
 
 /**
@@ -133,7 +135,7 @@ export async function requireBrowserSessionActor(
   request: FastifyRequest,
   identityUnitOfWork: IdentityUnitOfWork,
   options: { readonly touch: boolean },
-): Promise<AuthenticatedSession> {
+): Promise<AuthenticatedSession | AuthenticatedBrowserActor> {
   rejectMixedCarriers(request);
   return requireCookieSessionActor(request, identityUnitOfWork, options);
 }
@@ -142,7 +144,7 @@ async function requireCookieSessionActor(
   request: FastifyRequest,
   identityUnitOfWork: IdentityUnitOfWork,
   options: { readonly touch: boolean },
-): Promise<AuthenticatedSession> {
+): Promise<AuthenticatedSession | AuthenticatedBrowserActor> {
   const authority = browserSessionAuthorityOf(request);
   if (authority) {
     try {

@@ -246,12 +246,10 @@ export class BrowserSessionAuthenticationError extends Error {
   }
 }
 
-/**
- * Authenticated product actor. Deliberately exposes NO Better Auth user/session
- * types: the `account` is the product business account and `session` is the
- * product-shaped view (shape-compatible with the legacy AuthenticatedSession).
- */
+/** The credential's authUserId remains distinct from the business account,
+ * including when a pre-existing account is adopted by a new auth user. */
 export interface AuthenticatedBrowserActor {
+  readonly authUserId: string;
   readonly account: Account;
   readonly session: Session;
 }
@@ -481,7 +479,7 @@ async function loadUsableActor(
       live = { ...metadata, lastSeenAt: now, idleExpiresAt };
     }
   }
-  return { account, session: toSessionView(live, account.id) };
+  return { authUserId: baSession.userId, account, session: toSessionView(live, account.id) };
 }
 
 /**

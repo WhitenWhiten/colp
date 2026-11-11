@@ -57,6 +57,7 @@ function testSession(overrides: Partial<Session> = {}): Session {
 function testActor(overrides: Partial<AuthenticatedBrowserActor> = {}): AuthenticatedBrowserActor {
   const account = testAccount();
   return {
+    authUserId: 'ba-user-1',
     account,
     session: testSession({ accountId: account.id }),
     ...overrides,

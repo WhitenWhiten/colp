@@ -1,5 +1,6 @@
 import { validateAutomation, type Rule, type RulePage, type Run, type RunPage } from '@know-n/colp/automation';
 import { readBoundedJson } from '../json-response.js';
+import { responseBelongsToAuthUser } from '../auth-response-owner.js';
 import { assertCredentialHostPermission, SERVER_HOST_PERMISSION_ERROR } from '../server-origin-permission.js';
 import type { AutomationStateArea } from './bundle-store.js';
 
@@ -70,7 +71,7 @@ function problemFor(status: number): ServerProblem {
   return 'server';
 }
 
-async function read(serverOrigin: string, path: string, schema: 'RulePage' | 'RunPage', expectedAccountId: string, fetcher: typeof fetch)
+async function read(serverOrigin: string, path: string, schema: 'RulePage' | 'RunPage', expectedAuthUserId: string, fetcher: typeof fetch)
   : Promise<{ readonly ok: true; readonly body: unknown } | { readonly ok: false; readonly problem: ServerProblem }> {
   let response: Response;
   const url = `${serverOrigin.replace(/\/$/u, '')}${path}`;
@@ -84,17 +85,17 @@ async function read(serverOrigin: string, path: string, schema: 'RulePage' | 'Ru
     return { ok: false, problem: 'offline' };
   }
   if (!response.ok) return { ok: false, problem: problemFor(response.status) };
-  if (response.headers.get('Known-Automation-Account-Id') !== expectedAccountId) return { ok: false, problem: 'signedOut' };
+  if (!responseBelongsToAuthUser(response, expectedAuthUserId, 'Known-Automation-Account-Id')) return { ok: false, problem: 'signedOut' };
   let body: unknown;
   try { body = await readBoundedJson(response, MAX_BYTES, 'automation_status_invalid'); } catch { return { ok: false, problem: 'invalid' }; }
   return validateAutomation(schema, body).valid ? { ok: true, body } : { ok: false, problem: 'invalid' };
 }
 
 /** The account's rules and its 20 newest runs. */
-export async function readServerStatus(serverOrigin: string, expectedAccountId: string, fetcher: typeof fetch = fetch): Promise<ServerRead> {
-  const rules = await read(serverOrigin, RULES_PATH, 'RulePage', expectedAccountId, fetcher);
+export async function readServerStatus(serverOrigin: string, expectedAuthUserId: string, fetcher: typeof fetch = fetch): Promise<ServerRead> {
+  const rules = await read(serverOrigin, RULES_PATH, 'RulePage', expectedAuthUserId, fetcher);
   if (!rules.ok) return rules;
-  const runs = await read(serverOrigin, RUNS_PATH, 'RunPage', expectedAccountId, fetcher);
+  const runs = await read(serverOrigin, RUNS_PATH, 'RunPage', expectedAuthUserId, fetcher);
   if (!runs.ok) return runs;
   return { ok: true, rules: (rules.body as RulePage).items, runs: (runs.body as RunPage).items };
 }

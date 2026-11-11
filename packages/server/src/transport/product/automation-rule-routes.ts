@@ -126,6 +126,7 @@ function registerAutomationRoute(app: FastifyInstance, deps: AutomationRoutesDep
         if (route.afterCommit) await route.afterCommit({ actor, request }, response).catch((error: unknown) =>
           request.log.warn({ err: error, route: url }, 'automation post-commit step failed; the maintenance sweep retries it'));
         if (!mutation) reply.header('Known-Automation-Account-Id', actor.accountId);
+        if (!mutation && 'authUserId' in authenticated) reply.header('Known-Auth-User-Id', authenticated.authUserId);
         if (response.etag) reply.header('etag', response.etag);
         return reply.code(response.status ?? 200).header('cache-control', 'private, no-store').send(response.body);
       } catch (error) {

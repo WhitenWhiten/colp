@@ -637,6 +637,7 @@ describe('BrowserSessionAuthority authenticate', () => {
     // The product subject is the business account id — NEVER the BA user id.
     assert.equal(actor.account.id, accountId);
     assert.notEqual(actor.account.id, 'ba-user-1');
+    assert.equal(actor.authUserId, 'ba-user-1');
     assert.equal(actor.session.id, 'ba-session-1');
     assert.equal(actor.session.accountId, accountId);
     assert.equal(actor.session.tokenHash, browserSessionTokenHash(token));
