@@ -10,7 +10,7 @@ vi.mock('../src/sw/runtime.js', () => ({
 }));
 import { createAuthController } from '../src/auth-controller.js';
 import { SESSION_COOKIE_NAME } from '../src/auth-client.js';
-import { MemoryStorageArea, createCredentialStore } from '../src/credential-store.js';
+import { MemoryStorageArea, createCredentialStore, type StorageArea } from '../src/credential-store.js';
 import { createSplitCredentialStorage } from '../src/sw/credential-storage.js';
 import {
   COOKIE_VALUE,
@@ -164,6 +164,47 @@ describe('P3-27 Better Auth credential lifecycle', () => {
     assert.equal(await store.loadCredential(), null, 'a photo cannot re-create a credential the server rejected');
   });
 
+  /**
+   * Second review of B4-1: the compare-and-swap was still a read-check-write across several storage awaits, so a
+   * token rotation could land between the check and the write and then be overwritten by the stale snapshot. The
+   * credential write lane makes the block atomic. This storage gates the avatar write for 25 ms: without the lane the
+   * concurrent rotation writes its new bearer in that window and the photo write copies the old one back.
+   */
+  test('serializes the avatar CAS with a token rotation between its read and write', async () => {
+    class GatedStorage implements StorageArea {
+      private readonly inner = new MemoryStorageArea();
+      avatarWriteGate: (() => Promise<void>) | undefined;
+      get(keys: string | string[] | null) { return this.inner.get(keys); }
+      remove(keys: string | string[]) { return this.inner.remove(keys); }
+      async set(items: Record<string, unknown>) {
+        const credential = items['known.auth.credential.v1'];
+        const gate = this.avatarWriteGate;
+        if (gate && credential && typeof credential === 'object' && 'avatarUrl' in credential) {
+          this.avatarWriteGate = undefined; await gate();
+        }
+        return this.inner.set(items);
+      }
+    }
+    const storage = new GatedStorage();
+    const store = createCredentialStore(storage, () => NOW);
+    const old = fixtureCredential(config(), NOW);
+    await store.saveCredential(old);
+    let rotationEnteredWindow = false;
+    storage.avatarWriteGate = async () => {
+      rotationEnteredWindow = true;
+      // Without the lane the rotation writes here; with it, the rotation is queued behind this very write.
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    };
+    const avatarWrite = store.saveAvatar('data:image/png;base64,cGhvdG8=',
+      { accessToken: old.accessToken, subject: old.subject });
+    const rotation = store.saveCredential({ ...old, accessToken: 'rotated-access-token' });
+    const [saved] = await Promise.all([avatarWrite, rotation]);
+    assert.equal(rotationEnteredWindow, true);
+    assert.equal(saved, true, 'the photo belonged to the credential it was fetched for');
+    assert.equal((await store.loadCredential())?.accessToken, 'rotated-access-token',
+      'the rotation must win, never be overwritten by the stale snapshot');
+  });
+
   test('drops a /me photo when another account signed in during the read', async () => {
     const store = createCredentialStore(new MemoryStorageArea(), () => NOW);
     await store.saveCredential(fixtureCredential(config(), NOW));
@@ -187,11 +228,12 @@ describe('P3-27 Better Auth credential lifecycle', () => {
   });
 
   /**
-   * B4-3: a report proof names a Session. `clearCredentialKeepingReplica` runs only after the server rejected that
-   * Session, so a retained proof would let a later report claim possession of it. An explicit sign-out is different:
-   * the final-delivery proof of the switched-away account is still valid there and must survive.
+   * B4-3 (second review): the server keeps replica possession proofs alive past the Session authority they were
+   * minted under, and an involuntary sign-out immediately followed by signing in again as the same account needs that
+   * proof to mint the next Session. The proof is keyed by account/server/replica identity, so keeping it cannot claim
+   * a Session for another account. An explicit sign-out keeps it for the same reason (final delivery).
    */
-  test('forgets report proofs when the server rejected the credential but keeps them across a sign-out', async () => {
+  test('keeps report proofs across a rejected credential so re-login can mint, and across a sign-out', async () => {
     const storage = new MemoryStorageArea();
     const store = createCredentialStore(storage, () => NOW);
     await store.saveCredential(fixtureCredential(config(), NOW));
@@ -203,8 +245,10 @@ describe('P3-27 Better Auth credential lifecycle', () => {
     await store.saveSession(fixtureSession(NOW));
     assert.equal(await store.loadReplicaReportProof(scope), 'session-fixture');
     await store.clearCredentialKeepingReplica();
-    assert.deepEqual(await proofs() ?? {}, {}, 'the proof of a rejected Session is forgotten');
+    assert.deepEqual(Object.values(await proofs() ?? {}), ['session-fixture'], 'the mint proof survives the sign-out');
     await store.saveCredential(fixtureCredential(config(), NOW));
+    assert.equal(await store.loadReplicaReportProof(scope), 'session-fixture',
+      'the same account can hand the proof to the next Session mint');
     await store.saveSession({ ...fixtureSession(NOW), sessionId: 'session-final-delivery' });
     await store.clearAuthority();
     assert.deepEqual(Object.values(await proofs() ?? {}), ['session-final-delivery']);

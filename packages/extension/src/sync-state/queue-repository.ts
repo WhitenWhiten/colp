@@ -25,7 +25,7 @@ import { validateCursor, validateEngineState } from './pull-validate.js';
 import { readAllQueueRowsByTarget, stampColpQueueRecord } from './queue-target.js';
 import { rebindCreateInTransaction, rebindProjectionInTransaction, assertAuthoritativeCreateReceipt,
   assertAuthoritativeProjectionReceipt, validateMapping } from './mapping-repository.js';
-import { settleImportNode } from './import-settle.js';
+import { reconcileParkedImportPlans, settleImportNode } from './import-settle.js';
 import type { SyncStoreRuntime } from './runtime.js';
 
 /** Every bounded queue read shares one ceiling and one error code. */
@@ -39,6 +39,8 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
   const maxRecordBytes = ctx.maxRecordBytes;
   const businessIssues = createQueueIssueRepository(ctx);
   const durableCache = ctx.durableCache;
+  // A plan paused before this worker existed has no parked rows: reconcile once per scope, inside the first claim.
+  const reconciledParkedPlans = new Set<string>();
   const open = () => ctx.open();
   const writableDatabase = () => ctx.writableDatabase();
   const assertWritable = () => ctx.assertWritable();
@@ -255,15 +257,17 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
     assertWritable(); const key = scopeKey(validateScope(input)); boundedString(ownerId, 'ownerId'); safeInteger(fence, 'fence', 1);
     safeInteger(now, 'now'); boundedLimit(limit);
     const db = await writableDatabase(); const claimed: QueueOperation[] = [];
-    await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.leases, STORES.queue], 'readwrite', async (tx) => {
+    const reconcile = !reconciledParkedPlans.has(key);
+    await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.leases, STORES.queue, STORES.importPlans, STORES.importNodes], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key); const lease = await requestValue(tx.objectStore(STORES.leases).get(key)) as LeaseRecord | undefined;
       if (!lease || lease.ownerId !== ownerId || lease.fence !== fence || lease.expiresAt <= now) throw new SyncStateError('stale_fence');
+      if (reconcile) await reconcileParkedImportPlans(tx, key, maxRecordBytes);
       const index = tx.objectStore(STORES.queue).index(INDEXES.queueByStatusSequence);
       await iterateCursor(index, IDBKeyRange.bound([key, 'pending', 1], [key, 'pending', Number.MAX_SAFE_INTEGER]),
         (value, cursor) => { if (claimed.length >= limit) return false; const queue = value as QueueOperation;
           const updated = { ...queue, status: 'claimed' as const, retry: { ...queue.retry, ownerId, fence,
             claimExpiresAt: lease.expiresAt } }; cursor.update(updated); claimed.push(updated); return undefined; });
-    }); return clone(claimed);
+    }); if (reconcile) reconciledParkedPlans.add(key); return clone(claimed);
   }
 
   async function claimNextQueue(input: SyncScope, ownerId: string, fence: number, now: number): Promise<QueueOperation | null> {
@@ -271,12 +275,14 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
     const key = scopeKey(validateScope(input)); boundedString(ownerId, 'ownerId');
     safeInteger(fence, 'fence', 1); safeInteger(now, 'now'); const db = await writableDatabase();
     let claimed: QueueOperation | null = null;
-    await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.leases, STORES.queue, STORES.receipts], 'readwrite', async (tx) => {
+    const reconcile = !reconciledParkedPlans.has(key);
+    await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.leases, STORES.queue, STORES.receipts, STORES.importPlans, STORES.importNodes], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key); const lease = await requestValue(tx.objectStore(STORES.leases).get(key)) as LeaseRecord | undefined;
       if (!lease || lease.ownerId !== ownerId || lease.fence !== fence || lease.expiresAt <= now) {
         throw new SyncStateError('stale_fence');
       }
       const queue = tx.objectStore(STORES.queue);
+      if (reconcile) await reconcileParkedImportPlans(tx, key, maxRecordBytes);
       // The queue is never pruned, so a bounded sequence scan stops seeing
       // outstanding work once a scope accumulates more than one contract page
       // of terminal rows. firstLiveQueueRow reads the earliest row per
@@ -303,6 +309,7 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
           claimExpiresAt: lease.expiresAt } }, maxRecordBytes);
       queue.put(updated); claimed = updated;
     });
+    if (reconcile) reconciledParkedPlans.add(key);
     return claimed ? clone(claimed) : null;
   }
 

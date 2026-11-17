@@ -16,20 +16,39 @@ import { digest, type RemoteNodeFact } from './matcher.js';
 const PAGE_LIMIT = 100;
 const REQUEST_TIMEOUT_MS = 15_000;
 /**
- * B4-2: the walk retains every page, node fact and digest until it returns, so the per-page budget bounds one
- * response and nothing bounds the lane. A server minting unique continuation cursors could otherwise grow it until
- * the worker died. These ceilings apply to every walk (not only the classification one below) and fail closed.
+ * B4-2 (second review): the walk retains every page, node fact and digest until it returns. The old fixed ceilings
+ * (1,000 pages / 50,000 Nodes / 32 MiB) were a client memory guard, but they rejected libraries the server
+ * deliberately serves and failed with `snapshot_too_large`, a registered stop: onboarding and recovery could never
+ * succeed, however long the person retried. A client-side retention limit is not a server refusal.
  *
- * The numbers are a Chromium library this extension is meant to hold: 50k Nodes, at most a thousand pages of the
- * product's 100-Node page size, and the JSON bytes those pages may total before they are projected.
+ * These defaults are derived from the server's operator-facing budgets: 256 MiB is 16 times the largest aggregate
+ * Snapshot quota an operator can configure (SYNC_SNAPSHOT_MAX_BYTES, capped at 16 MiB), and 1,000,000 Nodes is ten
+ * times the server's default publication Node budget (PUBLICATION_MAX_SNAPSHOT_NODES = 100,000). They are a guard
+ * against an unbounded cursor chain, not a product limit, and the caller (or an operator build) may override them
+ * with `walkBudget`.
  *
- * The code is the existing `snapshot_too_large`: it already means "this library cannot be brought to a new device"
- * and is registered as a stop, so the engine names the cause instead of retrying a deterministic refusal. A new
- * code would reach the failure table as an unknown fault and loop.
+ * Tripping one is a typed, retryable local failure (`snapshot_walk_budget_exceeded`): the engine backs off and tries
+ * again instead of converting the guard into a permanent "cannot send". Only a real server refusal (the 413 on the
+ * first page, where the server materializes the whole Snapshot) keeps the `snapshot_too_large` stop.
  */
-const TOTAL_PAGE_LIMIT = 1_000;
-const TOTAL_NODE_LIMIT = 50_000;
-const TOTAL_BYTES_LIMIT = 32 * 1024 * 1024;
+export interface SnapshotWalkBudget {
+  readonly maxPages: number;
+  readonly maxNodes: number;
+  readonly maxBytes: number;
+}
+export const DEFAULT_SNAPSHOT_WALK_BUDGET: SnapshotWalkBudget = Object.freeze({
+  maxPages: 20_000, maxNodes: 1_000_000, maxBytes: 256 * 1024 * 1024,
+});
+export type SnapshotWalkLimit = keyof SnapshotWalkBudget;
+
+/** The typed local retention guard. Its `code` is deliberately not the server's `snapshot_too_large` stop. */
+export class SnapshotWalkBudgetError extends Error {
+  readonly code = 'snapshot_walk_budget_exceeded';
+  constructor(readonly limit: SnapshotWalkLimit) {
+    super('snapshot_walk_budget_exceeded');
+    this.name = 'SnapshotWalkBudgetError';
+  }
+}
 /** The classification projection hands a subset of the walk to a consumer that must stay small (unchanged). */
 const CLASSIFICATION_BYTES_LIMIT = 4 * 1024 * 1024;
 const CLASSIFICATION_NODE_LIMIT = 10_000;
@@ -48,6 +67,8 @@ export async function loadCompleteRemoteSnapshot(input: {
   readonly origin: string;
   readonly requestTimeoutMilliseconds?: number;
   readonly signal?: AbortSignal;
+  /** Operator/caller retention budget for one walk; omitted uses {@link DEFAULT_SNAPSHOT_WALK_BUDGET}. */
+  readonly walkBudget?: Partial<SnapshotWalkBudget>;
 }): Promise<CompleteRemoteSnapshot> {
   const endpoint = new URL(input.endpoint);
   if (endpoint.origin !== input.scope.serverOrigin || endpoint.username || endpoint.password || endpoint.hash
@@ -57,6 +78,7 @@ export async function loadCompleteRemoteSnapshot(input: {
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 120_000) {
     throw new Error('snapshot_timeout_invalid');
   }
+  const walkBudget = resolveWalkBudget(input.walkBudget);
   const fetcher = input.fetcher ?? fetch; const pages: DurableSyncSnapshot[] = []; const pageDigests: string[] = [];
   const accumulator = createSnapshotV02Accumulator();
   let accumulated: SnapshotV02Accumulation = { ok: false, code: 'sequence_gap' };
@@ -105,11 +127,12 @@ export async function loadCompleteRemoteSnapshot(input: {
       seen.add(node.id); nodes.push(node);
     }
     if(input.classificationProjection&&nodes.length>CLASSIFICATION_NODE_LIMIT)throw new Error('local_projection_context_limit');
-    // B4-2: no page, node or byte ceiling the walk can grow past. Checked after each page so a hostile or broken
-    // continuation chain stops here instead of retaining the lane until the worker is killed.
-    if (pages.length > TOTAL_PAGE_LIMIT || nodes.length > TOTAL_NODE_LIMIT || accumulatedBytes > TOTAL_BYTES_LIMIT) {
-      throw new Error('snapshot_too_large');
-    }
+    // B4-2: no unbounded page, node or byte growth. Checked after each page so a hostile or broken continuation
+    // chain stops here instead of retaining the lane until the worker is killed. This is a local guard and its
+    // failure is retryable (see SnapshotWalkBudgetError), unlike the server's first-page 413 above.
+    if (pages.length > walkBudget.maxPages) throw new SnapshotWalkBudgetError('maxPages');
+    if (nodes.length > walkBudget.maxNodes) throw new SnapshotWalkBudgetError('maxNodes');
+    if (accumulatedBytes > walkBudget.maxBytes) throw new SnapshotWalkBudgetError('maxBytes');
     pageDigests.push(digest(document));
     if (!page.page.hasMore) {
       if (page.page.nextCursor !== null) throw new Error('snapshot_chain_invalid');
@@ -146,6 +169,17 @@ export async function loadCompleteRemoteSnapshot(input: {
     remoteFacts: nodes.map((node) => remoteFact(node, childrenRevisions)), pageCount: pages.length,
     identityDigest: digest({ snapshotId: first.snapshotId, revision: first.revision,
       syncCursor: first.syncCursor, pageDigests }) };
+}
+
+function resolveWalkBudget(overrides?: Partial<SnapshotWalkBudget>): SnapshotWalkBudget {
+  if (!overrides) return DEFAULT_SNAPSHOT_WALK_BUDGET;
+  const merged = { ...DEFAULT_SNAPSHOT_WALK_BUDGET, ...overrides };
+  if (!Number.isSafeInteger(merged.maxPages) || merged.maxPages < 1
+      || !Number.isSafeInteger(merged.maxNodes) || merged.maxNodes < 1
+      || !Number.isSafeInteger(merged.maxBytes) || merged.maxBytes < 1) {
+    throw new Error('snapshot_walk_budget_invalid');
+  }
+  return Object.freeze(merged);
 }
 
 function validatePage(page: DurableSyncSnapshot, scope: SyncScope, pageNumber: number,

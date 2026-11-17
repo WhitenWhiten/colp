@@ -4,7 +4,9 @@ import {
 import { cursorPage, iterateCursor, requestValue, scopeRowsRange } from './idb.js';
 import { INDEXES, STORES } from './schema.js';
 import { asHeld } from './queue-hold.js';
+import { tryValidateQueueRecord } from './queue-lenient.js';
 import { validateQueueRecord } from './queue-validate.js';
+import { validateImportPlan } from './pull-validate.js';
 import { IMPORT_HOLD } from './import-hold.js';
 
 /** One page of import-node rows: plans are streamed page by page, so no plan size is truncated by a single scan. */
@@ -142,8 +144,10 @@ export async function holdImportPlanQueue(tx: IDBTransaction, key: string, planI
   maxRecordBytes: number): Promise<number> {
   const queue = tx.objectStore(STORES.queue); let held = 0;
   await forEachPlanQueueRow(tx, key, planId, (raw) => {
-    const row = validateQueueRecord(raw, maxRecordBytes);
-    if (row.status !== 'pending' || row.attempt !== undefined) return;
+    // Rule C (second review): one unreadable row must not fail the pause. It owns no park this plan can trust;
+    // the lane's own quarantine (createQueueQuarantine) repairs or blocks it when it reaches the head.
+    const row = tryValidateQueueRecord(raw, maxRecordBytes);
+    if (!row || row.status !== 'pending' || row.attempt !== undefined) return;
     queue.put(asHeld(row, IMPORT_HOLD, maxRecordBytes)); held += 1;
   });
   return held;
@@ -159,10 +163,33 @@ export async function restoreImportPlanQueue(tx: IDBTransaction, key: string, pl
   maxRecordBytes: number): Promise<number> {
   const queue = tx.objectStore(STORES.queue); let restored = 0;
   await forEachPlanQueueRow(tx, key, planId, (raw) => {
-    const row = validateQueueRecord(raw, maxRecordBytes);
-    if (row.status !== 'set_aside' || row.recovery?.code !== IMPORT_HOLD) return;
+    // Same Rule C leniency as the hold: a corrupt row cannot abort the resume, and stays for the lane to repair.
+    const row = tryValidateQueueRecord(raw, maxRecordBytes);
+    if (!row || row.status !== 'set_aside' || row.recovery?.code !== IMPORT_HOLD) return;
     queue.put(validateQueueRecord({ ...row, status: 'pending', recovery: undefined,
       retry: { ...row.retry, notBefore: 0 } }, maxRecordBytes)); restored += 1;
   });
   return restored;
+}
+
+/**
+ * Second review of the paused-import fix: plans paused before the update kept their queued rows pending. The old
+ * claim guard (`unavailableImportOpIds`) made them harmless; with the guard gone those rows would upload after the
+ * update even though the plan is paused. This reconciles the durable state once per worker/scope before the first
+ * claim: every paused or attention plan parks its never-sent rows exactly as a state transition would.
+ *
+ * Plans are few and their rows are streamed, so this is bounded by what is actually queued.
+ */
+export async function reconcileParkedImportPlans(tx: IDBTransaction, key: string,
+  maxRecordBytes: number): Promise<number> {
+  const plans = await cursorPage<ImportPlanRecord>(tx.objectStore(STORES.importPlans),
+    scopeRowsRange(key), Number.MAX_SAFE_INTEGER);
+  let parked = 0;
+  for (const raw of plans) {
+    let plan: ImportPlanRecord;
+    try { plan = validateImportPlan(key, raw, maxRecordBytes); } catch { continue; }
+    if (plan.state !== 'paused' && plan.state !== 'attention') continue;
+    parked += await holdImportPlanQueue(tx, key, plan.planId, maxRecordBytes);
+  }
+  return parked;
 }

@@ -32,6 +32,19 @@ export class MemoryStorageArea implements StorageArea {
 export function createCredentialStore(storage: StorageArea, now: () => number = Date.now) {
   const fence = createAuthorityFence(storage);
   let identityGeneration: number | undefined;
+  /**
+   * B4-1: every credential-area mutation runs through one lane. The avatar save is a read-check-write across several
+   * `chrome.storage` awaits; without the lane a token rotation (saveCredential) can land between the check and the
+   * write, and the photo write then copies the stale access token back over the newer one. Serializing the mutations
+   * of one worker makes that block atomic: a concurrent rotation either happens before the check (the CAS refuses the
+   * photo) or after the write (the rotation wins and the photo is fetched again).
+   */
+  let writeTail: Promise<unknown> = Promise.resolve();
+  const write = <T>(operation: () => Promise<T>): Promise<T> => {
+    const run = writeTail.then(operation, operation);
+    writeTail = run.then(() => undefined, () => undefined);
+    return run;
+  };
   return Object.freeze({
     fence,
     saveTransaction: (value: OAuthTransaction) => storage.set({ [TRANSACTION]: value }),
@@ -42,7 +55,7 @@ export function createCredentialStore(storage: StorageArea, now: () => number = 
       return value?.id === id && value.expiresAt > now() ? value : null;
     },
     clearTransaction: () => storage.remove(TRANSACTION),
-    async saveCredential(value: StoredCredential, expectedGeneration?: number): Promise<void> {
+    saveCredential: (value: StoredCredential, expectedGeneration?: number): Promise<void> => write(async () => {
       const current = await fence.assertWritable(expectedGeneration);
       const generation = expectedGeneration ?? current.generation;
       const identity = accountIdentity(value);
@@ -54,13 +67,14 @@ export function createCredentialStore(storage: StorageArea, now: () => number = 
         ...(identity ? { [EXPECTED_IDENTITY]: stamp(identity, generation) } : {}) });
       await reclaimIfFenced(storage, fence, CREDENTIAL, generation);
       if (identity) { await reclaimIfFenced(storage, fence, EXPECTED_IDENTITY, generation); identityGeneration = generation; }
-    },
+    }),
     // B4-1: the avatar read happens outside the session lane (a /me request and a photo download), so the lane
     // may rotate the bearer, empty the secret area or replace the authority while it is in flight. Writing back
     // the whole credential read before the fetch would copy that stale snapshot over the newer state; this
-    // compare-and-swap writes only the photo, and only onto the credential it was fetched for.
-    async saveAvatar(avatarUrl: string, expected: Pick<StoredCredential, 'accessToken' | 'subject'>,
-      expectedGeneration?: number): Promise<boolean> {
+    // compare-and-swap writes only the photo, and only onto the credential it was fetched for. The read and the
+    // write share the credential write lane, so a rotation cannot slip between them (see `write`).
+    saveAvatar: (avatarUrl: string, expected: Pick<StoredCredential, 'accessToken' | 'subject'>,
+      expectedGeneration?: number): Promise<boolean> => write(async () => {
       const current = await fence.read();
       if (current.revoked || (expectedGeneration !== undefined && current.generation !== expectedGeneration)) return false;
       const stored = unstamp(await read<Stamped<StoredCredential>>(storage, CREDENTIAL), current);
@@ -68,8 +82,8 @@ export function createCredentialStore(storage: StorageArea, now: () => number = 
       await storage.set({ [CREDENTIAL]: stamp({ ...stored, avatarUrl }, current.generation) });
       await reclaimIfFenced(storage, fence, CREDENTIAL, current.generation);
       return true;
-    },
-    async loadCredential(): Promise<StoredCredential | null> {
+    }),
+    loadCredential: (): Promise<StoredCredential | null> => write(async () => {
       const raw = await read<Stamped<StoredCredential>>(storage, CREDENTIAL); const current = await fence.read();
       const value = unstamp(raw, current); const identity = value && accountIdentity(value);
       // Migrate a still-live pre-pin credential once per worker generation.
@@ -81,21 +95,20 @@ export function createCredentialStore(storage: StorageArea, now: () => number = 
         identityGeneration = current.generation;
       }
       return value;
-    },
+    }),
     async loadExpectedIdentity(): Promise<AccountIdentity | null> {
       return unstamp(await read<Stamped<AccountIdentity>>(storage, EXPECTED_IDENTITY), await fence.read());
     },
-    clearCredential: () => storage.remove(CREDENTIAL),
+    clearCredential: () => write(() => storage.remove(CREDENTIAL)),
     // W2B-P1-1: the server no longer accepts this credential. The secrets go; the replica binding and the account
     // pin stay, so signing in again as the same account resumes the same replica, scope and queue. Only an explicit
     // sign-out (`clearAuthority`) or another account/server (`saveCredential`) ends the binding.
-    // B4-3: the report proofs go too. Each names a Session under an account/server/authority identity, and both
-    // callers of this path retire that identity: the server rejected the Session, or the build configuration no
-    // longer matches the credential. A proof kept past either could claim possession of a Session the account no
-    // longer holds. An explicit sign-out keeps them: there the final-delivery proof of the switched-away account is
-    // still valid.
-    clearCredentialKeepingReplica: () => storage.remove([TRANSACTION, CREDENTIAL, SESSION, REPORT_PROOFS]),
-    async saveSession(value: StoredSession, expectedGeneration?: number): Promise<void> {
+    // B4-3 (second review): the report proofs stay too. The server keeps a replica possession proof alive past the
+    // Session authority it was minted under, and signing in again as the same account needs that proof to mint the
+    // next Session. Each proof is keyed by account, server and replica identity, so keeping it cannot claim a
+    // Session for another account; `loadReplicaReportProof` reads it only for the credential that owns it.
+    clearCredentialKeepingReplica: () => write(() => storage.remove([TRANSACTION, CREDENTIAL, SESSION])),
+    saveSession: (value: StoredSession, expectedGeneration?: number): Promise<void> => write(async () => {
       const current = await fence.assertWritable(expectedGeneration);
       const generation = expectedGeneration ?? current.generation;
       const credential = unstamp(await read<Stamped<StoredCredential>>(storage, CREDENTIAL), current);
@@ -108,12 +121,12 @@ export function createCredentialStore(storage: StorageArea, now: () => number = 
       }
       await storage.set({ [SESSION]: stamp(value, generation) });
       await reclaimIfFenced(storage, fence, SESSION, generation);
-    },
+    }),
     async loadSession(): Promise<StoredSession | null> {
       return unstamp(await read<Stamped<StoredSession>>(storage, SESSION), await fence.read());
     },
-    clearSession: () => storage.remove(SESSION),
-    async loadReplicaReportProof(scope: Pick<SyncScope, 'serverOrigin' | 'accountId' | 'replicaId' | 'browserProfileId' | 'generation'>): Promise<string | undefined> {
+    clearSession: () => write(() => storage.remove(SESSION)),
+    loadReplicaReportProof: (scope: Pick<SyncScope, 'serverOrigin' | 'accountId' | 'replicaId' | 'browserProfileId' | 'generation'>): Promise<string | undefined> => write(async () => {
       const authority = await fence.read(); if (authority.revoked) return undefined;
       const credential = unstamp(await read<Stamped<StoredCredential>>(storage, CREDENTIAL), authority);
       if (credential?.subject !== scope.accountId || credential.serverOrigin !== scope.serverOrigin) return undefined;
@@ -129,8 +142,8 @@ export function createCredentialStore(storage: StorageArea, now: () => number = 
         await storage.set({ [REPORT_PROOFS]: { ...proofs, [proofKey(scope)]: session.sessionId } });
       }
       return session?.sessionId;
-    },
-    async getOrCreateBinding(expectedGeneration: number): Promise<StoredAuthBinding> {
+    }),
+    getOrCreateBinding: (expectedGeneration: number): Promise<StoredAuthBinding> => write(async () => {
       await fence.assertWritable(expectedGeneration);
       const existing = await read<StoredAuthBinding>(storage, BINDING);
       if (existing) {
@@ -149,8 +162,8 @@ export function createCredentialStore(storage: StorageArea, now: () => number = 
         throw new AuthorityFencedError();
       }
       return created;
-    },
-    async bumpBindingGeneration(expectedGeneration: number): Promise<StoredAuthBinding> {
+    }),
+    bumpBindingGeneration: (expectedGeneration: number): Promise<StoredAuthBinding> => write(async () => {
       await fence.assertWritable(expectedGeneration);
       const existing = await read<StoredAuthBinding>(storage, BINDING);
       if (!existing) throw new Error('binding_missing');
@@ -159,9 +172,9 @@ export function createCredentialStore(storage: StorageArea, now: () => number = 
       const updated = Object.freeze({ ...existing, generation: next });
       await storage.set({ [BINDING]: updated });
       return updated;
-    },
-    async replaceBindingForRebuild(expectedGeneration: number, oldReplicaId: string,
-      next: StoredAuthBinding): Promise<void> {
+    }),
+    replaceBindingForRebuild: (expectedGeneration: number, oldReplicaId: string,
+      next: StoredAuthBinding): Promise<void> => write(async () => {
       await fence.assertWritable(expectedGeneration);
       const existing = await read<StoredAuthBinding>(storage, BINDING);
       if (existing?.replicaId === next.replicaId) return;
@@ -177,17 +190,17 @@ export function createCredentialStore(storage: StorageArea, now: () => number = 
         }
         throw error;
       }
-    },
+    }),
     loadBinding: () => read<StoredAuthBinding>(storage, BINDING),
-    clearBinding: () => storage.remove([BINDING, SESSION]),
-    async restoreBinding(value: StoredAuthBinding, expectedGeneration: number): Promise<void> {
+    clearBinding: () => write(() => storage.remove([BINDING, SESSION])),
+    restoreBinding: (value: StoredAuthBinding, expectedGeneration: number): Promise<void> => write(async () => {
       await fence.assertWritable(expectedGeneration);
       const profile = await read<string>(storage, BROWSER_PROFILE);
       const existing = await read<StoredAuthBinding>(storage, BINDING);
       if (profile !== value.browserProfileId || existing && existing.replicaId !== value.replicaId) throw new Error('binding_mismatch');
       await storage.set({ [BINDING]: value });
       await fence.assertWritable(expectedGeneration);
-    },
+    }),
     // Why the last forced sign-out happened (e.g. binding_mismatch). Written
     // before authority is cleared so every later status() — not just the first
     // caller — can explain the sign-out. Cleared on login and user logout.
@@ -195,7 +208,7 @@ export function createCredentialStore(storage: StorageArea, now: () => number = 
     loadSignOutReason: async (): Promise<string | null> =>
       (await read<{ readonly code?: string }>(storage, SIGN_OUT_REASON))?.code ?? null,
     clearSignOutReason: () => storage.remove(SIGN_OUT_REASON),
-    clearAuthority: () => storage.remove([TRANSACTION, CREDENTIAL, SESSION, BINDING, EXPECTED_IDENTITY]),
+    clearAuthority: () => write(() => storage.remove([TRANSACTION, CREDENTIAL, SESSION, BINDING, EXPECTED_IDENTITY])),
     activateAuthority: fence.activate,
     revokeAuthority: fence.revoke,
     assertWritable: fence.assertWritable,

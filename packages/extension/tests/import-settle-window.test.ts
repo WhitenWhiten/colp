@@ -100,6 +100,48 @@ describe('import settlement is not truncated by the first window of the scope', 
     } finally { store.close(); }
   }, 30_000);
 
+  /**
+   * Second review: pause and resume validate the rows they walk. A single unreadable row used to abort the pause (or
+   * the receipt settlement that parks siblings), so the whole plan could not be parked. Rule C applies here too:
+   * skip the row, let the lane's quarantine repair or block it when it reaches the head.
+   */
+  test('a corrupt queue row does not fail pause or resume; the readable rows still park and restore', async () => {
+    const { store, plan } = await setup();
+    try {
+      const queued = await store.listQueue(scope); assert.equal(queued.length, 2);
+      const [first, corrupt] = queued; assert.ok(first && corrupt);
+      await write(store, [STORES.queue], (tx) => {
+        tx.objectStore(STORES.queue).put({ ...corrupt, endpointIdentity: 'not-syncPush' });
+      });
+      // Drive the store transitions directly: the coordinator's advance reads the queue strictly for its own
+      // authority reconciliation, which is outside the hold/restore paths under review.
+      await store.setImportPlanState(scope, plan.planId, 'paused', 101);
+      assert.equal((await store.listImportPlans(scope)).find((item) => item.planId === plan.planId)?.state, 'paused');
+      assert.equal((await store.listQueue(scope)).find((row) => row.opId === first.opId)?.status, 'set_aside');
+      await store.setImportPlanState(scope, plan.planId, 'active', 102);
+      assert.equal((await store.listImportPlans(scope)).find((item) => item.planId === plan.planId)?.state, 'active');
+      assert.equal((await store.listQueue(scope)).find((row) => row.opId === first.opId)?.status, 'pending');
+      // The corrupt row is left for the claim's quarantine instead of aborting either transaction.
+      assert.equal((await store.listQueue(scope)).some((row) => row.opId === corrupt.opId), false);
+    } finally { store.close(); }
+  });
+
+  test('a corrupt sibling row does not abort the settlement that parks a rejected import', async () => {
+    const { store, plan } = await setup();
+    try {
+      const queued = await store.listQueue(scope); assert.equal(queued.length, 2);
+      const [first, corrupt] = queued; assert.ok(first && corrupt);
+      await write(store, [STORES.queue], (tx) => {
+        tx.objectStore(STORES.queue).put({ ...corrupt, endpointIdentity: 'not-syncPush' });
+      });
+      await store.completeQueueWithReceipt(scope, first.sequence, { opId: first.opId,
+        operationDigest: first.digest, kind: 'terminal', receiptId: 'rejected-corrupt-sibling',
+        resultDigest: 'sha256:rejected', result: { results: [{ opId: first.opId, sequence: first.sequence,
+          status: 'rejected', code: 'resource_not_found' }] } });
+      assert.equal((await store.listImportPlans(scope)).find((item) => item.planId === plan.planId)?.state, 'attention');
+    } finally { store.close(); }
+  });
+
   test('parks and resumes a paused plan queue row that sits beyond one page of its own plan', async () => {
     const { store, plan, coordinator } = await setup(oneLink);
     try {

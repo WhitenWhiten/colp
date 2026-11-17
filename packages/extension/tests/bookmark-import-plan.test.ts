@@ -6,6 +6,7 @@ import { assertPreviewSourceUnchanged, bindImportFolderChoices, createBookmarkIm
 } from '../src/bookmark-import-plan.js';
 import { previewChromeBookmarkImport, previewNetscapeBookmarkImport } from '../src/import-preview.js';
 import { isOpenQueueIssue } from '../src/sync-state/open-issue-facts.js';
+import { STORES } from '../src/sync-state/schema.js';
 import { createSyncStateStore, type SyncScope } from '../src/sync-state-store.js';
 
 const scope: SyncScope = { environment: 'production', serverId: 'known', serverOrigin: 'https://known.example',
@@ -319,6 +320,42 @@ describe('P3-35 durable bookmark import plans', () => {
     const lease = await store.acquireLease(scope, 'owner', 101, 1_000); assert.equal(lease.outcome, 'acquired');
     assert.equal((await store.claimNextQueue(scope, 'owner', lease.fence, 102))?.opId, 'live-op');
   });
+
+  /**
+   * Second review: removing the paused/attention claim guard needs a backfill. A plan paused before the update has
+   * its queued rows pending (no state transition ran to park them), and with the guard gone the first claim would
+   * upload them. The claim transaction reconciles the durable state once per scope before selecting the lane.
+   */
+  for (const parkedState of ['paused', 'attention'] as const) {
+    test(`a pre-existing ${parkedState} plan is parked before the first claim and stays ${parkedState}`, async () => {
+      const { store, coordinator } = await setup();
+      try {
+        const conversion = previewNetscapeBookmarkImport(html('<DT><A HREF="https://example.test/one">One</A>'
+          + '<DT><A HREF="https://example.test/two">Two</A>'));
+        const plan = await coordinator.commit({ conversion, choices: conversion.tree.map((node) => ({
+          sourceNodeId: node.sourceNodeId, action: 'import' as const,
+          target: { nativeId: 'native-root', colpId: 'server-root', revision: 'children-r1' },
+        })) });
+        const queued = await store.listQueue(scope); assert.equal(queued.length, 2);
+        // Simulate a plan parked by the old build: state says paused/attention, rows are still pending.
+        const stored = (await store.listImportPlans(scope)).find((item) => item.planId === plan.planId)!;
+        const db = await store.open();
+        const tx = db.transaction(STORES.importPlans, 'readwrite');
+        tx.objectStore(STORES.importPlans).put({ ...stored, state: parkedState });
+        await new Promise<void>((resolve, reject) => { tx.oncomplete = () => resolve(); tx.onabort = () => reject(tx.error); });
+        assert.equal((await store.getQueueByOpId(scope, queued[0]!.opId))?.status, 'pending');
+        const lease = await store.acquireLease(scope, 'owner', 101, 1_000); assert.equal(lease.outcome, 'acquired');
+        assert.equal(await store.claimNextQueue(scope, 'owner', lease.fence, 102), null, 'nothing of a parked plan is sent');
+        for (const row of queued) {
+          const parked = await store.getQueueByOpId(scope, row.opId);
+          assert.equal(parked?.status, 'set_aside'); assert.equal(parked?.recovery?.code, 'import_hold');
+        }
+        assert.equal((await store.listImportPlans(scope)).find((item) => item.planId === plan.planId)?.state, parkedState);
+        assert.equal(await store.claimNextQueue(scope, 'owner', lease.fence, 103), null);
+        assert.equal((await coordinator.advance(plan.planId)).state, parkedState);
+      } finally { store.close(); }
+    });
+  }
 
   test('pause stops advance without throwing and resume keeps the same plan and opIds', async () => {
     const { store, coordinator } = await setup(); const conversion = nested();

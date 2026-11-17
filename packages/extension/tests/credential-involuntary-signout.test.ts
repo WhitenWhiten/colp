@@ -2,8 +2,9 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'vitest';
 import { createAuthController } from '../src/auth-controller.js';
 import { MemoryStorageArea, createCredentialStore } from '../src/credential-store.js';
-import { EXTENSION_ORIGIN, NOW, config, fixtureController, fixtureCredential, fixtureSession, memoryCookies,
-  sessionJson, setCookieResponse } from './auth-shell-fixture.js';
+import { createSyncSession } from '../src/session-client.js';
+import { EXTENSION_ORIGIN, NOW, config, fixtureController, fixtureCredential, fixtureSession,
+  fixtureSessionRequest, fixtureSessionResult, memoryCookies, sessionJson, setCookieResponse } from './auth-shell-fixture.js';
 
 /**
  * W2B-P1-1 / W2B-P1-3: the replica binding belongs to one account on one server. An involuntary sign-out (the server
@@ -17,8 +18,8 @@ async function signedInStore() {
   const store = createCredentialStore(new MemoryStorageArea(), () => NOW);
   const live = await store.fence.activate();
   await store.saveCredential({ ...fixtureCredential(config(), NOW), expiresAt: NOW + 30_000 }, live.generation);
-  await store.saveSession(fixtureSession(NOW), live.generation);
   const binding = await store.getOrCreateBinding(live.generation);
+  await store.saveSession(fixtureSession(NOW), live.generation);
   return { store, binding };
 }
 
@@ -63,6 +64,39 @@ describe('W2B-P1-1 involuntary sign-out keeps the replica', () => {
     await fixtureController({ config: config(), store, now: () => NOW }).logout();
     assert.equal(await store.loadBinding(), null);
     assert.equal(await store.loadExpectedIdentity(), null);
+  });
+
+  /**
+   * Second review: the server keeps a replica possession proof alive past the Session authority it was minted under.
+   * An involuntary sign-out finds the proof gone under the old B4-3 behavior, and the re-login's first Session mint
+   * then omits `Known-Sync-Replica-Proof` — the server cannot associate the returning browser with its replica.
+   * This is the end-to-end path: rejected Session -> secrets dropped -> same-account login -> mint payload.
+   */
+  test('the first Session mint after re-login carries the replica proof', async () => {
+    const { store, binding } = await signedInStore();
+    await assert.rejects(
+      () => fixtureController({ config: config(), store, now: () => NOW, refresh: 'authentication_required' })
+        .ensureFreshCredential(true), /authentication_required/u);
+    assert.equal((await loginAs(store, 'auth-user-fixture').login(PASSWORD)).status, 'connected');
+    const credential = await store.loadCredential(); assert.ok(credential?.subject);
+    const proof = await store.loadReplicaReportProof({
+      serverOrigin: credential.serverOrigin, accountId: credential.subject,
+      replicaId: binding.replicaId, browserProfileId: binding.browserProfileId,
+      generation: Number(binding.generation) });
+    assert.equal(proof, 'session-fixture', "the involuntary sign-out must not delete this account's proof");
+    const headers: string[] = [];
+    const minted = await createSyncSession({
+      endpoints: { syncSessions: 'https://known.example/v1/session' } as
+        Parameters<typeof createSyncSession>[0]['endpoints'],
+      credential, request: fixtureSessionRequest(), replicaProof: proof, origin: EXTENSION_ORIGIN,
+      fetch: async (_url, init) => {
+        headers.push(new Headers(init?.headers).get('Known-Sync-Replica-Proof') ?? '');
+        return new Response(JSON.stringify(fixtureSessionResult(NOW)),
+          { status: 201, headers: { 'Content-Type': 'application/json' } });
+      },
+    });
+    assert.deepEqual(headers, ['session-fixture'], 'the mint must include replicaProof');
+    assert.equal(minted.sessionId, 'session-fixture');
   });
 });
 

@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'vitest';
 import type { StoredSession } from '../src/types.js';
-import { loadCompleteRemoteSnapshot } from '../src/bootstrap/remote-snapshot.js';
+import { DEFAULT_SNAPSHOT_WALK_BUDGET, SnapshotWalkBudgetError,
+  loadCompleteRemoteSnapshot } from '../src/bootstrap/remote-snapshot.js';
+import { classifySyncFailure, persistentLocalSyncFailure } from '../src/sync-failure-class.js';
 import { snapshot as snapshotFixture } from './durable-sync-engine-harness.js';
 import type { SyncScope } from '../src/sync-state-store.js';
 
@@ -20,7 +22,7 @@ const session = {
 } as StoredSession;
 
 describe('advanced remote snapshot loader', () => {
-  test('loads a large library incrementally beyond the former aggregate limits', async () => {
+  test('loads a library beyond the former 50k-node ceiling (second review)', async () => {
     const original = validPages();
     const [root, folder] = original[0]!.nodes;
     const bookmark = original[1]!.nodes[0]!;
@@ -28,7 +30,7 @@ describe('advanced remote snapshot loader', () => {
     const loaded = await loadCompleteRemoteSnapshot({ endpoint: 'https://sync.example/v1/snapshot',
       origin: 'chrome-extension://extension', credential: { accessToken: 'access-token' }, session, scope,
       fetcher: async () => {
-        const sequence = ++calls; const last = sequence === 121;
+        const sequence = ++calls; const last = sequence === 601;
         const body = { ...original[0],
           page: { sequence, hasMore: !last, nextCursor: last ? null : `large-page-${sequence + 1}` },
           parentRevisions: sequence === 1 ? original[0]!.parentRevisions : [],
@@ -38,12 +40,13 @@ describe('advanced remote snapshot loader', () => {
         };
         return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
       } });
-    assert.equal(calls, 121);
-    assert.equal(loaded.pageCount, 121);
-    assert.equal(loaded.remoteFacts.length, 12_102);
-    assert.equal(new Set(loaded.remoteFacts.map(node => node.nodeId)).size, 12_102);
+    assert.equal(calls, 601);
+    assert.equal(loaded.pageCount, 601);
+    // 50,000 was the old client guard; the server serves this library, so the walk must complete.
+    assert.equal(loaded.remoteFacts.length, 60_102);
+    assert.equal(new Set(loaded.remoteFacts.map(node => node.nodeId)).size, 60_102);
     assert.equal(loaded.remoteFacts.at(-1)?.parentId, folder!.id);
-  });
+  }, 30_000);
   test('S-03 AUD-06 different per-page parentRevisions succeed; same parent conflict fails', async () => {
     const pages = validPages();
     let count = 0;
@@ -131,8 +134,10 @@ describe('advanced remote snapshot loader', () => {
 
 /**
  * B4-2: each page was bounded, but the walk retained every page, node and digest with no total ceiling, so a server
- * minting unique cursors grew the lane until the worker died. The ceilings fail closed with the registered
- * `snapshot_too_large` stop, and the counters are exact: a walk stops on the page that crosses its limit.
+ * minting unique cursors grew the lane until the worker died. The contention is that a client guard must not become
+ * a permanent product limit: the defaults are now operator-scale, overridable, and a tripped guard is the typed,
+ * retryable `snapshot_walk_budget_exceeded` rather than the server's `snapshot_too_large` stop. The counters are
+ * exact: a walk stops on the page that crosses the configured limit.
  */
 describe('remote snapshot total ceilings (B4-2)', () => {
   const unlimited = (nodesPerPage: number, description = 0) => {
@@ -149,32 +154,50 @@ describe('remote snapshot total ceilings (B4-2)', () => {
         ...Array.from({ length: nodesPerPage }, (_, index) => node(sequence, index))],
       page: { sequence, hasMore: true, nextCursor: `minted-${sequence + 1}` } });
   };
-  const walk = (page: (sequence: number) => unknown) => {
+  const walk = (page: (sequence: number) => unknown, walkBudget?: { maxPages?: number; maxNodes?: number; maxBytes?: number }) => {
     let calls = 0;
     const loading = loadCompleteRemoteSnapshot({ endpoint: 'https://sync.example/v1/snapshot',
       origin: 'chrome-extension://extension', credential: { accessToken: 'access-token' }, session, scope,
+      ...(walkBudget ? { walkBudget } : {}),
       fetcher: async () => new Response(JSON.stringify(page(++calls)), {
         status: 200, headers: { 'Content-Type': 'application/json' } }) });
     return { loading, calls: () => calls };
   };
+  const guard = async (loading: Promise<unknown>) => {
+    const error = await loading.then(() => undefined, (reason: unknown) => reason);
+    assert.ok(error instanceof SnapshotWalkBudgetError, String(error));
+    assert.equal(error.code, 'snapshot_walk_budget_exceeded', 'a client memory guard is not a server refusal');
+    assert.equal(classifySyncFailure(error.code), undefined);
+    assert.equal(persistentLocalSyncFailure(error.code), false, 'the engine must retry, not stop forever');
+    return error;
+  };
 
-  test('stops at the total page ceiling', async () => {
-    const { loading, calls } = walk(unlimited(1));
-    await assert.rejects(loading, /^Error: snapshot_too_large$/u);
+  test('the defaults sit above the server operator budgets', () => {
+    // The server caps an operator aggregate quota at 16 MiB and defaults its publication Node budget to 100k.
+    assert.ok(DEFAULT_SNAPSHOT_WALK_BUDGET.maxBytes > 16 * 1024 * 1024);
+    assert.ok(DEFAULT_SNAPSHOT_WALK_BUDGET.maxNodes > 100_000);
+  });
+
+  test('stops at the total page ceiling of an abusive walk', async () => {
+    const { loading, calls } = walk(unlimited(1), { maxPages: 1_000 });
+    const error = await guard(loading);
+    assert.equal(error.limit, 'maxPages');
     assert.equal(calls(), 1_001);
   });
 
   test('stops at the accumulated node ceiling', async () => {
     // 500 is the accumulator's own page ceiling, and page 1 also carries the root: 49,901 Nodes are under the
-    // walk's ceiling, the 101st page (50,400) is over it.
-    const { loading, calls } = walk(unlimited(499));
-    await assert.rejects(loading, /^Error: snapshot_too_large$/u);
+    // configured ceiling, the 101st page (50,400) is over it.
+    const { loading, calls } = walk(unlimited(499), { maxNodes: 50_000 });
+    const error = await guard(loading);
+    assert.equal(error.limit, 'maxNodes');
     assert.equal(calls(), 101);
   });
 
   test('stops at the accumulated byte ceiling', async () => {
-    const { loading, calls } = walk(unlimited(9, 200_000));
-    await assert.rejects(loading, /^Error: snapshot_too_large$/u);
+    const { loading, calls } = walk(unlimited(9, 200_000), { maxBytes: 32 * 1024 * 1024 });
+    const error = await guard(loading);
+    assert.equal(error.limit, 'maxBytes');
     assert.equal(calls(), 19);
   }, 30_000);
 });
