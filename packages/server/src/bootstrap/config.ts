@@ -144,16 +144,14 @@ import {
 } from './config-product.js';
 import { parseEmailSkinConfig } from '../infrastructure/email/index.js';
 import type { AppConfig } from './config-types.js';
-import {
-  loadLedgerArchiveRuntimeConfig,
-} from './config-ledger-archive.js';
-import {
-  loadLedgerArchiveReaderRuntimeConfig,
-} from './config-ledger-archive-reader.js';
-import { loadDatabaseConnectionConfig } from '../infrastructure/config/database-connection.js';
+import { loadLedgerArchiveRuntimeConfig } from './config-ledger-archive.js';
+import { loadLedgerArchiveReaderRuntimeConfig } from './config-ledger-archive-reader.js';
+import { loadDatabaseConnectionConfig, loadListenHost } from '../infrastructure/config/database-connection.js';
 import { loadReportsFeatureConfig } from './config-reports.js'; import { loadAccountCredentialsFeatureConfig } from './config-account-credentials.js';
 
 export type * from './config-types.js';
+// Shared process-environment parsing for bootstrap and the maintenance CLIs.
+export { loadListenHost, loadNodeEnvironment } from '../infrastructure/config/database-connection.js';
 export { DEFAULT_MCP_WRITE_COMMIT_RATE_LIMIT } from './config-mcp.js';
 export {
   loadReportsFeatureConfig,
@@ -165,8 +163,10 @@ export {
 
 export { sanitizedRuntimeCapacity } from './config-capacity-summary.js';
 
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
-  const { nodeEnv, databaseUrl, databaseSsl } = loadDatabaseConnectionConfig(env);
+export function loadConfig(rawEnv: NodeJS.ProcessEnv = process.env): AppConfig {
+  const { nodeEnv, databaseUrl, databaseSsl } = loadDatabaseConnectionConfig(rawEnv);
+  // Feature loaders also read NODE_ENV directly; give them the normalized value.
+  const env: NodeJS.ProcessEnv = rawEnv.NODE_ENV === nodeEnv ? rawEnv : { ...rawEnv, NODE_ENV: nodeEnv };
   const reports = loadReportsFeatureConfig(env, nodeEnv);
   const ledgerArchive = loadLedgerArchiveRuntimeConfig(env, nodeEnv);
   const ledgerArchiveReader = loadLedgerArchiveReaderRuntimeConfig(env, nodeEnv);
@@ -558,7 +558,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     automationWebhookPreviousMasterKey: loadAutomationWebhookKey(env, 'AUTOMATION_WEBHOOK_PREVIOUS_MASTER_KEY'),
     ...loadAutomationFeatureFlags(env, mcpWriteEnabled),
     nodeEnv,
-    host: env.HOST ?? '127.0.0.1',
+    host: loadListenHost(env),
     port,
     databaseUrl,
     databaseSsl,

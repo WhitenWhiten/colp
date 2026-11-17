@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { sql } from 'kysely';
-import { loadConfig } from '../../bootstrap/config.js';
+import { loadConfig, loadListenHost, loadNodeEnvironment } from '../../bootstrap/config.js';
 import { isReportCacheInvalidationEnabled } from '../../bootstrap/report-cache-enablement.js';
 import { createDatabaseRuntime } from '../database/runtime.js';
 import { maintenanceDatabaseRuntimeOptions } from '../database/maintenance-options.js';
@@ -10,6 +10,12 @@ import { loadManifest, SeedError } from './manifest.js';
 import { applySeed, adoptSeed } from './injector.js';
 import { withdrawSeed } from './withdrawer.js';
 import { prefixCount } from './helpers.js';
+import {
+  assertSeedProductionAllowed,
+  describeDatabaseTarget,
+  isSeedMutatingCommand,
+  type SeedProductionGate,
+} from './production-guard.js';
 import { createPostgresReportSourceInvalidationOutboxPort } from '../outbox/index.js';
 
 /**
@@ -20,6 +26,9 @@ import { createPostgresReportSourceInvalidationOutboxPort } from '../outbox/inde
  *   node dist/src/infrastructure/seed/run.js --apply    [--allow-cascade] [--clean-dangling]
  *   node dist/src/infrastructure/seed/run.js --withdraw [--allow-cascade] [--clean-dangling]
  *   node dist/src/infrastructure/seed/run.js --adopt
+ *
+ * 生产保护：NODE_ENV=production 时 --apply/--withdraw/--adopt 必须显式加 --allow-production，
+ * 并打印解析后的 HOST；--status 只读，不受限制。
  *
  * 环境变量：SEED_DIR（数据包目录，默认 /app/seed/demo）、SEED_VERSION（--apply/--adopt 必填）、
  *           SEED_BY（来源标记，默认 cli）、KNOWN_DEMO_PASSWORD（--apply 时 auth 阶段必填：
@@ -33,24 +42,31 @@ export interface SeedCliOptions {
   by: string;
   allowCascade: boolean;
   cleanDangling: boolean;
+  /** Explicit production opt-in for --apply/--withdraw/--adopt. */
+  allowProduction: boolean;
 }
 
 function usage(): never {
   process.stderr.write(
     '用法: run.js <--apply|--withdraw|--status|--adopt> [--seed-dir <dir>] '
-    + '[--seed-version <sha>] [--allow-cascade] [--clean-dangling] [--by <label>]\n',
+    + '[--seed-version <sha>] [--allow-cascade] [--clean-dangling] [--by <label>] '
+    + '[--allow-production]\n',
   );
   process.exit(2);
 }
 
-function parseArgs(arguments_: readonly string[]): SeedCliOptions {
+function parseArgs(
+  arguments_: readonly string[],
+  env: NodeJS.ProcessEnv = process.env,
+): SeedCliOptions {
   const options: SeedCliOptions = {
     command: 'status',
-    seedDir: process.env.SEED_DIR ?? '/app/seed/demo',
-    version: process.env.SEED_VERSION ?? '',
-    by: process.env.SEED_BY ?? 'cli',
+    seedDir: env.SEED_DIR ?? '/app/seed/demo',
+    version: env.SEED_VERSION ?? '',
+    by: env.SEED_BY ?? 'cli',
     allowCascade: false,
     cleanDangling: false,
+    allowProduction: false,
   };
   for (let index = 0; index < arguments_.length; index += 1) {
     const arg = arguments_[index]!;
@@ -61,6 +77,7 @@ function parseArgs(arguments_: readonly string[]): SeedCliOptions {
       case '--adopt': options.command = 'adopt'; break;
       case '--allow-cascade': options.allowCascade = true; break;
       case '--clean-dangling': options.cleanDangling = true; break;
+      case '--allow-production': options.allowProduction = true; break;
       case '--seed-dir': options.seedDir = arguments_[++index] ?? usage(); break;
       case '--seed-version': options.version = arguments_[++index] ?? usage(); break;
       case '--by': options.by = arguments_[++index] ?? usage(); break;
@@ -78,11 +95,36 @@ function formatCounts(counts: Record<string, number>): string {
   return Object.entries(counts).map(([table, count]) => `${table}=${count}`).join(' ');
 }
 
-export async function seedCli(arguments_: readonly string[] = process.argv.slice(2)): Promise<void> {
-  const options = parseArgs(arguments_);
+/** Production mutations always announce the resolved host and database target. */
+function logProductionGate(
+  command: string,
+  gate: SeedProductionGate,
+  env: NodeJS.ProcessEnv,
+): void {
+  if (!gate.production || !isSeedMutatingCommand(command)) return;
+  console.log(
+    `[seed] ${command}: NODE_ENV=production HOST=${gate.host} `
+    + `DATABASE=${describeDatabaseTarget(env.DATABASE_URL)}`,
+  );
+}
+
+export async function seedCli(
+  arguments_: readonly string[] = process.argv.slice(2),
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<void> {
+  const options = parseArgs(arguments_, env);
+  // Fail closed before the manifest or any configuration is read: a production
+  // mutation must never reach the database without the explicit opt-in.
+  const gate = assertSeedProductionAllowed(
+    options.command,
+    options,
+    { nodeEnv: loadNodeEnvironment(env), host: loadListenHost(env) },
+    env.DATABASE_URL,
+  );
+  logProductionGate(options.command, gate, env);
   const seedDir = resolve(options.seedDir);
   const manifest = loadManifest(seedDir);
-  const config = loadConfig();
+  const config = loadConfig(env);
   const reportSourceInvalidation = isReportCacheInvalidationEnabled(config)
     ? createPostgresReportSourceInvalidationOutboxPort() : undefined;
   const runtime = createDatabaseRuntime(config.databaseUrl, {

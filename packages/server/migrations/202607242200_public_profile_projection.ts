@@ -3,17 +3,35 @@ import { sql, type Kysely } from 'kysely';
 /**
  * Expand-only P2B-01 indexes and canonical handle constraint.
  * Apply before deploying the public Profile readers. Existing mixed-case handles
- * are collision-checked and then canonicalized to lowercase before the constraint.
+ * are collision-checked and then canonicalized to lowercase before the constraint:
+ * the unique expression index must be built on already-canonical rows, otherwise
+ * pre-existing case variants abort the migration instead of being reported.
  */
 export async function up(db: Kysely<unknown>): Promise<void> {
-  await sql`
-    CREATE UNIQUE INDEX profile_handles_canonical_handle_unique
-      ON profile_handles ((lower(handle) COLLATE "C"))
-  `.execute(db);
+  // Collision gate first: canonicalizing must never silently merge two public
+  // identities. The check uses the same `lower(handle) COLLATE "C"` expression
+  // as the unique index below, so it fails closed exactly where the index would.
+  await sql`DO $profile_handle_collision$
+    DECLARE colliding_handle text;
+    BEGIN
+      SELECT lower(handle) COLLATE "C" INTO colliding_handle
+        FROM profile_handles
+       GROUP BY lower(handle) COLLATE "C"
+      HAVING count(*) > 1
+       LIMIT 1;
+      IF colliding_handle IS NOT NULL THEN
+        RAISE EXCEPTION 'profile_handles contains case-insensitive handle collision: %', colliding_handle;
+      END IF;
+    END
+  $profile_handle_collision$`.execute(db);
   await sql`
     UPDATE profile_handles
        SET handle = lower(handle)
      WHERE handle <> lower(handle)
+  `.execute(db);
+  await sql`
+    CREATE UNIQUE INDEX profile_handles_canonical_handle_unique
+      ON profile_handles ((lower(handle) COLLATE "C"))
   `.execute(db);
   await sql`
     ALTER TABLE profile_handles

@@ -229,7 +229,7 @@ describe('OIDC endpoint policy', () => {
     );
     assert.throws(
       () => loadConfig(testEnv({ NODE_ENV: 'staging' })),
-      /OIDC_ALLOW_TEST_PROVIDER requires NODE_ENV=test/,
+      /NODE_ENV must be one of development, test, production/,
     );
   });
 

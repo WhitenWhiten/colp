@@ -3,9 +3,13 @@
  *
  * When `signal` aborts while a statement is in flight, the caller's `cancel`
  * is invoked — for the Publication readers that is the runtime's controlled
- * `pg_cancel_backend` for the exact backend PID — and the operation is left to
- * settle in the background (its rejection is always handled, so no unhandled
- * rejection is possible). The caller rejects with `signal.reason`, so request
+ * `pg_cancel_backend` for the exact backend PID — and the cancellation attempt
+ * is awaited while the statement itself is left to settle in the background
+ * (its rejection is always handled, so no unhandled rejection is possible).
+ * Waiting for the aborted statement would hold the caller's request until the
+ * backend observes the cancel or hits `statement_timeout`, so it is deliberately
+ * not awaited: a cancel that reports failure (`false`) still returns the signal
+ * reason immediately. The caller rejects with `signal.reason`, so request
  * cancellation never masquerades as a database failure (query_canceled /
  * 57014) and never looks like a cache failure. Without a signal the operation
  * runs untouched with zero extra round trips.
@@ -16,7 +20,7 @@ import { observeBestEffort, settleBestEffort } from '../async/best-effort.js';
 export async function withPostgresAbort<Value>(
   operation: Promise<Value>,
   signal: AbortSignal | undefined,
-  cancel: () => Promise<void>,
+  cancel: () => Promise<unknown>,
 ): Promise<Value> {
   if (signal === undefined) return operation;
   if (signal.aborted) {
@@ -43,9 +47,14 @@ export async function withPostgresAbort<Value>(
     return outcome.value;
   }
   const reason = signal.reason ?? new DOMException('Aborted', 'AbortError');
+  // Await only the cancellation attempt: a failed cancel (`false`) does not
+  // make the aborted statement worth holding the caller for.
   await settleBestEffort(cancel(),
     'the aborted request result is authoritative over cancellation transport failure');
-  await settleBestEffort(operation,
+  // Background-settle: the statement may still be running until the backend
+  // observes the cancel (or its statement_timeout). The caller already has the
+  // authoritative reason, so this rejection stays observed instead of awaited.
+  observeBestEffort(operation,
     'the AbortSignal reason is authoritative over the cancelled query rejection');
   throw reason;
 }

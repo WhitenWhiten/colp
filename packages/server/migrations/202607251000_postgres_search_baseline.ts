@@ -1,4 +1,8 @@
 import { sql, type Kysely, type Migration } from 'kysely';
+import {
+  ensureTransactionalPerformanceIndex,
+  type OnlinePerformanceIndexDefinition,
+} from '../src/infrastructure/database/online-performance-indexes.js';
 import { forEachQueryPage, keysetIdPredicate } from './lib/for-each-query-page.js';
 
 interface LegacyNodeUrl {
@@ -63,6 +67,70 @@ export async function ensurePgTrgm<Database>(db: Kysely<Database>): Promise<void
   }
 }
 
+/**
+ * The four search GINs are built through the shared transactional online-index
+ * gate. New installs (the only ones that still execute this migration) build
+ * them against the empty phase-1 relations, and a relation that unexpectedly
+ * exceeds the transactional build budget fails before the write-blocking build
+ * lock instead of holding the migration's single transaction on it.
+ */
+const SEARCH_BASELINE_GIN_INDEXES: readonly OnlinePerformanceIndexDefinition[] = Object.freeze([
+  Object.freeze({
+    name: 'collections_search_vector_idx',
+    tableName: 'collections',
+    createConcurrentlySql: `CREATE INDEX CONCURRENTLY collections_search_vector_idx
+      ON collections USING gin (search_vector)
+      WHERE deleted_at IS NULL AND visibility='public' AND allow_search_indexing`,
+    definitionPatterns: Object.freeze([
+      /USING gin/iu,
+      /\(search_vector\)/u,
+      /deleted_at IS NULL/iu,
+      /allow_search_indexing/u,
+    ]),
+  }),
+  Object.freeze({
+    name: 'collections_search_trgm_idx',
+    tableName: 'collections',
+    createConcurrentlySql: `CREATE INDEX CONCURRENTLY collections_search_trgm_idx
+      ON collections USING gin (search_text public.gin_trgm_ops)
+      WHERE deleted_at IS NULL AND visibility='public' AND allow_search_indexing`,
+    definitionPatterns: Object.freeze([
+      /USING gin/iu,
+      /search_text/u,
+      /gin_trgm_ops/u,
+      /deleted_at IS NULL/iu,
+      /allow_search_indexing/u,
+    ]),
+  }),
+  Object.freeze({
+    name: 'nodes_search_vector_idx',
+    tableName: 'nodes',
+    createConcurrentlySql: `CREATE INDEX CONCURRENTLY nodes_search_vector_idx
+      ON nodes USING gin (search_vector)
+      WHERE deleted_at IS NULL AND NOT is_root AND visibility='inherit'`,
+    definitionPatterns: Object.freeze([
+      /USING gin/iu,
+      /\(search_vector\)/u,
+      /deleted_at IS NULL/iu,
+      /NOT is_root/iu,
+    ]),
+  }),
+  Object.freeze({
+    name: 'nodes_search_trgm_idx',
+    tableName: 'nodes',
+    createConcurrentlySql: `CREATE INDEX CONCURRENTLY nodes_search_trgm_idx
+      ON nodes USING gin (search_text public.gin_trgm_ops)
+      WHERE deleted_at IS NULL AND NOT is_root AND visibility='inherit'`,
+    definitionPatterns: Object.freeze([
+      /USING gin/iu,
+      /search_text/u,
+      /gin_trgm_ops/u,
+      /deleted_at IS NULL/iu,
+      /NOT is_root/iu,
+    ]),
+  }),
+]);
+
 /** Expand-only P2B-21 synchronous PostgreSQL Collection/Node search baseline. */
 export async function up(db: Kysely<unknown>): Promise<void> {
   await ensurePgTrgm(db);
@@ -88,19 +156,12 @@ export async function up(db: Kysely<unknown>): Promise<void> {
       setweight(to_tsvector('english'::regconfig, coalesce(description, '')), 'B') ||
       setweight(to_tsvector('simple'::regconfig, coalesce(search_url_host, '')), 'C')
     ) STORED`.execute(db);
-  await sql`CREATE INDEX collections_search_vector_idx ON collections USING gin (search_vector)
-    WHERE deleted_at IS NULL AND visibility='public' AND allow_search_indexing`.execute(db);
-  await sql`CREATE INDEX collections_search_trgm_idx ON collections
-    USING gin (search_text public.gin_trgm_ops)
-    WHERE deleted_at IS NULL AND visibility='public' AND allow_search_indexing`.execute(db);
+  for (const definition of SEARCH_BASELINE_GIN_INDEXES) {
+    await ensureTransactionalPerformanceIndex(db, definition);
+  }
   await sql`CREATE INDEX collections_search_authority_order_idx ON collections(
       visibility, allow_search_indexing, id COLLATE "C"
     ) WHERE deleted_at IS NULL`.execute(db);
-  await sql`CREATE INDEX nodes_search_vector_idx ON nodes USING gin (search_vector)
-    WHERE deleted_at IS NULL AND NOT is_root AND visibility='inherit'`.execute(db);
-  await sql`CREATE INDEX nodes_search_trgm_idx ON nodes
-    USING gin (search_text public.gin_trgm_ops)
-    WHERE deleted_at IS NULL AND NOT is_root AND visibility='inherit'`.execute(db);
   await sql`CREATE INDEX nodes_search_authority_order_idx ON nodes(
       collection_id, visibility, id COLLATE "C"
     ) WHERE deleted_at IS NULL AND NOT is_root`.execute(db);
