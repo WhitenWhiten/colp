@@ -18,14 +18,16 @@ const f = vi.hoisted(() => ({
   events: [] as { kind: string; details: Record<string, unknown> }[],
   mappings: {} as Record<string, string>,
   importing: false,
+  permissionGranted: true,
   moves: [] as [string, string][],
   receipts: [] as unknown[],
   feedback: [] as unknown[],
   imports: [] as (() => void)[],
+  alarmAt: [] as number[],
   tree: new Map<string, { id: string; parentId: string; title: string; url?: string; dateAdded?: number; folderType?: string }>(),
 }));
 vi.mock('../src/sw/runtime.js', () => ({
-  hasBookmarkPermission: async () => true, sw: {},
+  hasBookmarkPermission: async () => f.permissionGranted, sw: {},
   syncState: {
     listBookmarkEventsByNative: async () => f.events,
     getMappingByNativeId: async (_scope: unknown, nativeId: string) => {
@@ -77,7 +79,7 @@ beforeEach(async () => {
   vi.useFakeTimers({ toFake: ['Date', 'setTimeout'] }); vi.setSystemTime(NOW);
   vi.stubGlobal('__KNOWN_EXTENSION_EVIDENCE__', false);
   Object.assign(f, { events: [{ kind: 'create', details: { context: { parentNativeId: '2' } } }], mappings: { other: '2', academic: '10' },
-    importing: false, moves: [], receipts: [], feedback: [], imports: [] });
+    importing: false, permissionGranted: true, moves: [], receipts: [], feedback: [], imports: [], alarmAt: [] });
   tree.clear();
   for (const node of [{ id: '1', parentId: '0', title: 'Bookmarks bar', folderType: 'bookmarks-bar' }, { id: '2', parentId: '0', title: 'Other bookmarks', folderType: 'other' },
     { id: '10', parentId: '1', title: 'Academic' }, { id: '20', parentId: '1', title: 'Reading' }]) tree.set(node.id, node);
@@ -87,6 +89,9 @@ beforeEach(async () => {
     bookmarks: { get: async (id: string) => (tree.has(id) ? [tree.get(id)!] : []),
       onImportBegan: { addListener: (listener: () => void) => { f.imports[0] = listener; } },
       onImportEnded: { addListener: (listener: () => void) => { f.imports[1] = listener; } } },
+    permissions: { onAdded: { addListener: () => undefined } },
+    alarms: { create: (_name: string, alarm: { when: number }) => { f.alarmAt.push(alarm.when); },
+      clear: async () => true },
     runtime: { sendMessage: async () => undefined },
   });
   await createBundleStore(automationDatabase().area(), { serverOrigin: 'https://colp.example', accountId: 'owner' })
@@ -334,5 +339,87 @@ describe('observed creations in the worker', () => {
     await resumeObservedCreates();
     expect(f.moves).toEqual([]); expect(f.receipts).toEqual([]);
     expect(await automationDatabase().observations.list()).toEqual([]);
+  });
+});
+
+const OWNER_KEY = JSON.stringify(['https://colp.example', 'owner']);
+const recoveryAutomation = { outcome: 'placed', ruleIds: ['rule-arxiv'], bundleRevision: 'b-1', settingsRevision: 1, satisfies: ['classify.root'],
+  rule: { id: 'rule-arxiv', name: 'arXiv papers', revision: '1', bindingRevision: '1', semanticDigest: 'd' }, destination: folderRef('academic'),
+  folderTitle: 'Academic', fromNativeId: '2', collectionId: COLLECTION_ID, replicaId: 'replica-1', generation: 2 } as const;
+const intentFor = (intentId: string, nativeId: string) => ({ intentId, id: intentId, ownerKey: OWNER_KEY, fromParentId: '2',
+  dateAdded: NOW, createdAt: NOW, automation: recoveryAutomation, page: paper,
+  native: { nativeId, destinationNativeId: '10', movedAt: NOW } });
+const settledNode = (nativeId: string) => tree.set(nativeId, { id: nativeId, parentId: '10', title: paper.title, url: paper.url, dateAdded: NOW });
+
+/**
+ * B5-3: a retained placement intent used to be re-armed every five seconds for as long as it lived, whether or not
+ * anything could have changed. The cadence now doubles per failed attempt, and a terminal permission problem — the
+ * one a wake cannot end — is not retried until the permission is actually granted again.
+ */
+describe('retained placement intents (B5-3)', () => {
+  it('backs a retryable recovery problem off instead of re-arming five seconds forever', async () => {
+    settledNode('n1');
+    await automationDatabase().intents.put(intentFor('retry', 'n1'));
+    vi.spyOn(chrome.bookmarks, 'get').mockRejectedValue(new Error('Temporary API failure'));
+    await resumeObservedCreates();
+    expect(await automationDatabase().intents.list()).toMatchObject([{ intentId: 'retry', recoveryProblem: 'bookmark_unavailable' }]);
+    expect(f.alarmAt).toEqual([NOW + 5_000]);
+    vi.setSystemTime(NOW + 5_000);
+    await resumeObservedCreates();
+    expect(f.alarmAt).toEqual([NOW + 5_000, NOW + 15_000]);
+    vi.setSystemTime(NOW + 15_000);
+    await resumeObservedCreates();
+    expect(f.alarmAt).toEqual([NOW + 5_000, NOW + 15_000, NOW + 35_000]);
+  });
+
+  it('stops retrying and waking a terminal permission problem until the permission is granted', async () => {
+    f.permissionGranted = false;
+    settledNode('n3');
+    await automationDatabase().intents.put(intentFor('unreadable', 'n3'));
+    const read = vi.spyOn(chrome.bookmarks, 'get').mockRejectedValueOnce(new Error('Permission denied'));
+    await resumeObservedCreates();
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(await automationDatabase().intents.list()).toMatchObject([
+      { intentId: 'unreadable', recoveryProblem: 'permission_required' },
+    ]);
+    expect(f.alarmAt).toEqual([]); // a timer cannot grant a permission, so none is armed for it
+    await resumeObservedCreates();
+    expect(read).toHaveBeenCalledTimes(1); // still absent: no attempt
+    f.permissionGranted = true; // the grant is the wake that can end it
+    await resumeObservedCreates();
+    expect(read).toHaveBeenCalledTimes(2);
+    expect(f.receipts).toHaveLength(1);
+    expect(await automationDatabase().intents.list()).toEqual([]);
+  });
+});
+
+/**
+ * B5-4: a browser import creates hundreds of pages that all classify as `import` and are discarded. No bundle,
+ * pause, evidence or IndexedDB work is paid for them, and a full observation queue is backpressure — not a
+ * per-bookmark problem to explain.
+ */
+describe('browser import and queue backpressure (B5-4)', () => {
+  it('creates no observation for a page the browser is importing', async () => {
+    installObservedCreates();
+    f.imports[0]!();
+    await star('imported-1');
+    expect(await automationDatabase().observations.list()).toEqual([]);
+    expect(f.feedback).toEqual([]);
+    // The declared end still runs a short grace tail for creations that arrive just after it.
+    f.imports[1]!();
+    await star('imported-2');
+    expect(await automationDatabase().observations.list()).toEqual([]);
+    vi.setSystemTime(NOW + 6_000);
+    await star('after-import');
+    expect(await automationDatabase().observations.list()).toMatchObject([{ nativeId: 'after-import' }]);
+  });
+
+  it('treats a full observation queue as silent backpressure', async () => {
+    for (let index = 0; index < 100; index += 1) await star(`full-${index}`);
+    expect(await automationDatabase().observations.list()).toHaveLength(100);
+    f.feedback.length = 0;
+    await star('overflow');
+    expect(f.feedback).toEqual([]);
+    expect(await automationDatabase().observations.list()).toHaveLength(100);
   });
 });

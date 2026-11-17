@@ -15,6 +15,24 @@ import { digest, type RemoteNodeFact } from './matcher.js';
 
 const PAGE_LIMIT = 100;
 const REQUEST_TIMEOUT_MS = 15_000;
+/**
+ * B4-2: the walk retains every page, node fact and digest until it returns, so the per-page budget bounds one
+ * response and nothing bounds the lane. A server minting unique continuation cursors could otherwise grow it until
+ * the worker died. These ceilings apply to every walk (not only the classification one below) and fail closed.
+ *
+ * The numbers are a Chromium library this extension is meant to hold: 50k Nodes, at most a thousand pages of the
+ * product's 100-Node page size, and the JSON bytes those pages may total before they are projected.
+ *
+ * The code is the existing `snapshot_too_large`: it already means "this library cannot be brought to a new device"
+ * and is registered as a stop, so the engine names the cause instead of retrying a deterministic refusal. A new
+ * code would reach the failure table as an unknown fault and loop.
+ */
+const TOTAL_PAGE_LIMIT = 1_000;
+const TOTAL_NODE_LIMIT = 50_000;
+const TOTAL_BYTES_LIMIT = 32 * 1024 * 1024;
+/** The classification projection hands a subset of the walk to a consumer that must stay small (unchanged). */
+const CLASSIFICATION_BYTES_LIMIT = 4 * 1024 * 1024;
+const CLASSIFICATION_NODE_LIMIT = 10_000;
 
 export interface CompleteRemoteSnapshot {
   readonly classificationProjection?:{readonly collection:Collection;readonly nodes:readonly SnapshotNode[]};
@@ -43,7 +61,7 @@ export async function loadCompleteRemoteSnapshot(input: {
   const accumulator = createSnapshotV02Accumulator();
   let accumulated: SnapshotV02Accumulation = { ok: false, code: 'sequence_gap' };
   const continuations = new Set<string>();
-  let classificationBytes=0;
+  let classificationBytes=0, accumulatedBytes=0; const encoder = new TextEncoder();
   const nodes: SnapshotNode[] = []; const seen = new Set<string>(); let pageCursor: string | undefined;
   for (let pageNumber = 0; ; pageNumber += 1) {
     const url = new URL(endpoint); url.searchParams.set('sessionId', input.session.sessionId);
@@ -73,8 +91,9 @@ export async function loadCompleteRemoteSnapshot(input: {
     }
     const document = await readWithTimeout(response, sessionTransportBudget(input.session).snapshotPageBytes,
       timeoutMs, input.signal);
-    if(input.classificationProjection){classificationBytes+=new TextEncoder().encode(JSON.stringify(document)).length;
-      if(classificationBytes>4*1024*1024)throw new Error('local_projection_context_limit');}
+    const pageBytes = encoder.encode(JSON.stringify(document)).length; accumulatedBytes += pageBytes;
+    if(input.classificationProjection){classificationBytes+=pageBytes;
+      if(classificationBytes>CLASSIFICATION_BYTES_LIMIT)throw new Error('local_projection_context_limit');}
     if (!syncSnapshotV02(document)) throw schemaRejection(syncSnapshotV02, 'snapshot_invalid');
     const page = document as DurableSyncSnapshot;
     validatePage(page, input.scope, pageNumber, pages[0]);
@@ -85,7 +104,12 @@ export async function loadCompleteRemoteSnapshot(input: {
       if (seen.has(node.id)) throw new Error('snapshot_node_duplicate');
       seen.add(node.id); nodes.push(node);
     }
-    if(input.classificationProjection&&nodes.length>10000)throw new Error('local_projection_context_limit');
+    if(input.classificationProjection&&nodes.length>CLASSIFICATION_NODE_LIMIT)throw new Error('local_projection_context_limit');
+    // B4-2: no page, node or byte ceiling the walk can grow past. Checked after each page so a hostile or broken
+    // continuation chain stops here instead of retaining the lane until the worker is killed.
+    if (pages.length > TOTAL_PAGE_LIMIT || nodes.length > TOTAL_NODE_LIMIT || accumulatedBytes > TOTAL_BYTES_LIMIT) {
+      throw new Error('snapshot_too_large');
+    }
     pageDigests.push(digest(document));
     if (!page.page.hasMore) {
       if (page.page.nextCursor !== null) throw new Error('snapshot_chain_invalid');

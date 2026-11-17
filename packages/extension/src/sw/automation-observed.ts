@@ -2,7 +2,8 @@ import { createBundleStore, automationOwnerKey, bundleState } from '../automatio
 import type { CreateEvidence } from '../automation/causation.js';
 import { OBSERVATION_TTL_MS, SETTLE_MS, settleObservedCreate, type Observation, type ObservedPlacement, type ObservedPorts } from '../automation/observed-create.js';
 import { decidePreSave } from '../automation/pre-save.js';
-import { automationDatabase, type AutomationDatabase } from '../automation/indexeddb-store.js';
+import { automationDatabase, type AutomationDatabase, type PlacementIntent } from '../automation/indexeddb-store.js';
+import { RECEIPT_MAX_AGE_MS } from '../automation/receipt-sync.js';
 import { recoverPlacementIntents } from '../automation/recovery.js';
 import { newPlacementReceipt } from '../automation/receipt-sync.js';
 import { personalBookmarks } from '../bookmark-subscriptions/guards.js';
@@ -30,11 +31,26 @@ const MAX_REMOVED = 300;
 const REMOVED_TTL_MS = 10 * 60_000;
 /** The browser reports an import's end; its last creations may still arrive just after. */
 const IMPORT_GRACE_MS = 5_000;
+/**
+ * B5-3: a retained placement intent is re-checked after its native evidence failed, but never faster than this
+ * cadence, doubling per attempt. It used to be re-armed at a fixed 5 s for as long as the intent lived (up to the
+ * receipt lifetime), which for a deferred permission problem is a week of polling.
+ */
+const INTENT_RECOVERY_INITIAL_MS = 5_000;
+const INTENT_RECOVERY_MAX_MS = 5 * 60_000;
+/** Attempt and deadline state for that cadence. Session-scoped: it only paces this browser session's wakes. */
+const INTENT_RECOVERY_KEY = 'known.automation.intent-recovery.v1';
+/**
+ * A recovery problem no wake can end: without the bookmark permission the native read is refused however often it
+ * is retried. Such an intent waits for a permission grant, the account's own wake, or its receipt lifetime.
+ */
+const TERMINAL_RECOVERY_PROBLEMS: ReadonlySet<string> = new Set(['permission_required']);
 const ROOT_TYPES = new Set(['bookmarks-bar', 'other', 'mobile']);
 const LEGACY_ROOT_IDS = new Set(['1', '2', '3']);
 
 interface RemovedUrl { readonly url: string; readonly at: number }
 interface ImportWindow { readonly active: boolean; readonly at: number }
+interface IntentRecoveryState { readonly attempts: number; readonly notBefore: number }
 
 const session = {
   async get<T>(key: string, fallback: T): Promise<T> { return ((await chrome.storage.session.get(key))[key] as T | undefined) ?? fallback; },
@@ -63,18 +79,32 @@ export function installObservedCreates(): void {
   const mark = (active: boolean) => () => { void session.set(IMPORT_KEY, { active, at: Date.now() } satisfies ImportWindow).catch(() => undefined); };
   try { chrome.bookmarks?.onImportBegan?.addListener(mark(true)); chrome.bookmarks?.onImportEnded?.addListener(mark(false)); }
   catch { /* Without import events, a Know-N import is still recognized; a browser import may be judged as new bookmarks. */ }
+  // A granted bookmark permission is the one signal that can end a deferred permission problem, so it retries the
+  // terminal intents at once instead of waiting for the owner to find Check now (B5-3).
+  try {
+    chrome.permissions?.onAdded?.addListener?.((permissions: { readonly permissions?: readonly string[] }) => {
+      if (!permissions.permissions?.includes('bookmarks')) return;
+      void resumeObservedCreates({ retryTerminal: true }).catch(error => logBackgroundFailure('permission.observed-creates', error));
+    });
+  } catch { /* No permissions API: Check now still retries them. */ }
   void resumeObservedCreates().catch(error => logBackgroundFailure('startup.observed-creates', error));
 }
 
-/** Worker start and the automation alarm: finish moves a crash cut short, then judge what is due. */
-export async function resumeObservedCreates(options: { readonly manual?: boolean } = {}): Promise<void> {
+/** Worker start, the automation alarm and Check now: finish moves a crash cut short, then judge what is due. */
+export async function resumeObservedCreates(options: { readonly manual?: boolean; readonly retryTerminal?: boolean } = {}): Promise<void> {
   const scope = await observedScope();
   const database = automationDatabase();
+  const now = Date.now();
+  // A person's explicit retry and a permission grant are the two wakes that may re-attempt a terminal problem.
+  const retryTerminal = options.manual === true || options.retryTerminal === true;
   await exclusive(async () => {
     if (scope) await migrateLegacyObservations(scope).catch(error => logBackgroundFailure('observation.legacy-migration', error));
+    const ownerKey = scope ? automationOwnerKey(scope) : null;
+    const due = await duePlacementIntents(ownerKey, now, retryTerminal);
     await recoverPlacementIntents({
-      ownerKey: scope ? automationOwnerKey(scope) : null, now: Date.now(),
-      list: () => database.intents.list(), remove: intentId => database.intents.remove(intentId),
+      ownerKey, now,
+      list: async () => due,
+      remove: intentId => database.intents.remove(intentId),
       node: readNativeBookmark,
       record: intent => recordObservedPlacement(intent, intent.ownerKey),
       async abandon(intent) {
@@ -84,14 +114,19 @@ export async function resumeObservedCreates(options: { readonly manual?: boolean
       },
       defer: async (intent, recoveryProblem) => { await database.intents.defer(intent.intentId, recoveryProblem); },
     });
+    if (ownerKey) await recordIntentRecovery(ownerKey, due, now).catch(error => logBackgroundFailure('observation.recovery-state', error));
   }).catch(error => logBackgroundFailure('observation.intent-recovery', error));
-  await settleDue(Date.now(), options.manual);
+  await settleDue(now, options.manual);
 }
 
 /** A bookmark appeared outside the extension's own saves: judge it after the settle window. */
 export async function observeCreatedBookmark(nativeId: string, node: { readonly url?: string; readonly title?: string; readonly parentId?: string; readonly dateAdded?: number }): Promise<void> {
   const observedAt = Date.now();
   if (node.url === undefined || !node.parentId) return;
+  // B5-4: a browser import creates hundreds of pages that all classify as `import` and are then discarded. Return
+  // before the bundle, pause, evidence and IndexedDB work the judgement would throw away anyway.
+  const imported = await session.get<ImportWindow | null>(IMPORT_KEY, null).catch(() => null);
+  if (importWindowActive(imported, observedAt)) return;
   const scope = await observedScope();
   if (!scope) return;
   let problem: ObservationProblem | undefined;
@@ -105,12 +140,16 @@ export async function observeCreatedBookmark(nativeId: string, node: { readonly 
     ownerKey, scope, title: node.title ?? '', nativeId, url: node.url, parentId: node.parentId,
     dateAdded: node.dateAdded ?? null, observedAt, state: localCausation ? 'pending' : 'attention', attempts: 0, nextAttemptAt: observedAt + SETTLE_MS,
     ...(localCausation ? { localCausation } : {}), ...(problem ? { problem } : {}) };
+  let backpressure = false;
   await exclusive(async () => {
     await requireObservedScope(observation);
     await automationDatabase().observations.save(observation).catch(async error => {
+      // A full queue is backpressure, not this bookmark's problem: no notice, no wake. It clears as the queue settles.
+      if (error instanceof Error && error.message === 'observation_queue_full') { backpressure = true; return; }
       await notifyProblem(observation, observationProblem('intent', error)); throw error;
     });
   });
+  if (backpressure) return;
   if (problem) await notifyProblem(observation, problem);
   await scheduleObservedWake(observation.nextAttemptAt);
 }
@@ -171,8 +210,9 @@ export function settleDue(now = Date.now(), manual = false): Promise<void> {
       } catch (error) { logBackgroundFailure('observation.recovery', error); }
     }
     const remaining = (await database.observations.list()).filter(item => item.ownerKey === ownerKey && item.state !== 'attention');
+    const intentDeadline = remaining.length ? undefined : await nextIntentRecoveryDeadline(ownerKey, database, now);
     if (remaining.length) await scheduleObservedWake(Math.min(...remaining.map(item => item.nextAttemptAt)));
-    else if ((await database.intents.list()).some(intent => intent.ownerKey === ownerKey)) await scheduleObservedWake(Date.now() + 5_000);
+    else if (intentDeadline !== undefined) await scheduleObservedWake(intentDeadline);
     else {
       const wake = wakes.get(database);
       if (wake) clearTimeout(wake.timer);
@@ -180,6 +220,76 @@ export function settleDue(now = Date.now(), manual = false): Promise<void> {
       await chrome.alarms?.clear(OBSERVED_ALARM);
     }
   });
+}
+
+/**
+ * The intents a recovery pass may read now (B5-3). A retryable problem waits for its own deadline, so the cadence
+ * grows instead of polling every five seconds.
+ *
+ * A terminal problem is a missing bookmark permission: no wake can grant it, so the cadence never re-arms one. The
+ * intent is read again only when that precondition can have changed — the permission is currently granted (a grant
+ * that arrived while the worker was stopped, or a classification the browser has since stopped repeating), or a
+ * person asked with Check now. While the permission really is absent it is not read, however often a pass runs.
+ */
+async function duePlacementIntents(ownerKey: string | null, now: number, retryTerminal: boolean): Promise<PlacementIntent[]> {
+  const states = await intentRecoveryStates();
+  const permissionGranted = retryTerminal || await hasBookmarkPermission().catch(() => false);
+  return (await automationDatabase().intents.list()).filter(intent => {
+    if (intent.ownerKey !== ownerKey) return now - intent.createdAt > RECEIPT_MAX_AGE_MS; // another account's stale intent
+    if (now - intent.createdAt > RECEIPT_MAX_AGE_MS) return true;
+    if (intent.recoveryProblem && TERMINAL_RECOVERY_PROBLEMS.has(intent.recoveryProblem)) return permissionGranted;
+    if (retryTerminal) return true;
+    const state = states[intent.intentId];
+    return state === undefined || now >= state.notBefore;
+  });
+}
+
+/**
+ * When the retained intents deserve their next recovery pass, if they ever do. Terminal problems have no deadline:
+ * the permission grant, Check now or the receipt expiry wakes them instead of a timer that cannot change anything.
+ */
+async function nextIntentRecoveryDeadline(ownerKey: string, database: AutomationDatabase, now: number): Promise<number | undefined> {
+  const intents = (await database.intents.list()).filter(intent => intent.ownerKey === ownerKey);
+  if (!intents.length) return undefined;
+  const states = await intentRecoveryStates();
+  const deadlines = intents
+    .filter(intent => !intent.recoveryProblem || !TERMINAL_RECOVERY_PROBLEMS.has(intent.recoveryProblem))
+    .map(intent => states[intent.intentId]?.notBefore ?? now + INTENT_RECOVERY_INITIAL_MS);
+  return deadlines.length ? Math.min(...deadlines) : undefined;
+}
+
+/** Attempt state for the intent cadence; a malformed entry is simply forgotten. */
+async function intentRecoveryStates(): Promise<Record<string, IntentRecoveryState>> {
+  const stored = await session.get<Record<string, IntentRecoveryState>>(INTENT_RECOVERY_KEY, {});
+  const states: Record<string, IntentRecoveryState> = {};
+  if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return states;
+  for (const [intentId, value] of Object.entries(stored)) {
+    if (!value || typeof value !== 'object') continue;
+    const { attempts, notBefore } = value as Partial<IntentRecoveryState>;
+    if (typeof attempts === 'number' && Number.isFinite(attempts)
+        && typeof notBefore === 'number' && Number.isFinite(notBefore)) states[intentId] = { attempts, notBefore };
+  }
+  return states;
+}
+
+/** Records the pass for every intent it read and that still needs recovery, so the next wake waits longer. */
+async function recordIntentRecovery(ownerKey: string, attempted: readonly PlacementIntent[], now: number): Promise<void> {
+  const attemptedIds = new Set(attempted.map(intent => intent.intentId));
+  const states = await intentRecoveryStates();
+  const next: Record<string, IntentRecoveryState> = {};
+  for (const intent of (await automationDatabase().intents.list()).filter(item => item.ownerKey === ownerKey)) {
+    // A terminal problem waits for a permission grant, not for a cadence, and has no deadline to record (B5-3).
+    if (intent.recoveryProblem && TERMINAL_RECOVERY_PROBLEMS.has(intent.recoveryProblem)) continue;
+    const prior = states[intent.intentId];
+    if (!attemptedIds.has(intent.intentId)) {
+      next[intent.intentId] = prior ?? { attempts: 0, notBefore: now };
+      continue;
+    }
+    const attempts = (prior?.attempts ?? 0) + 1;
+    next[intent.intentId] = { attempts, notBefore: now + Math.min(INTENT_RECOVERY_MAX_MS,
+      INTENT_RECOVERY_INITIAL_MS * 2 ** Math.min(attempts - 1, 8)) };
+  }
+  await session.set(INTENT_RECOVERY_KEY, next);
 }
 
 async function processObservation(entry: PendingObservation): Promise<void> {
@@ -273,10 +383,15 @@ function observedPorts(entry: PendingObservation, mark: (stage: ObservationStage
   };
 }
 
+/** A browser import and its short grace tail: every creation in it classifies as `import` and is not intake. */
+function importWindowActive(imported: ImportWindow | null, at: number): boolean {
+  return Boolean(imported && (imported.active || at - imported.at < IMPORT_GRACE_MS));
+}
+
 async function sessionCausation(observedAt: number, url: string) {
   const imported = await session.get<ImportWindow | null>(IMPORT_KEY, null);
   const removed = await session.get<RemovedUrl[]>(REMOVED_KEY, []);
-  return { importing: Boolean(imported && (imported.active || observedAt - imported.at < IMPORT_GRACE_MS)),
+  return { importing: importWindowActive(imported, observedAt),
     recentlyRemoved: removed.some(item => item.url === url && observedAt - item.at < REMOVED_TTL_MS) };
 }
 

@@ -140,6 +140,10 @@ function controller(dependencies: Dependencies) {
       }
     },
     async hydrateAvatar(): Promise<void> {
+      // The photo read is two network calls outside the session lane. Pin the credential it belongs to — token,
+      // account and authority generation — so a refresh, a sign-out or a cleared credential in between drops the
+      // photo instead of overwriting newer state with this snapshot (B4-1).
+      const expectedGeneration = (await dependencies.store.fence.read()).generation;
       const current = await dependencies.store.loadCredential();
       if (!current || parsePaintAvatarUrl(current.avatarUrl, current.serverOrigin)) return;
       try {
@@ -148,7 +152,8 @@ function controller(dependencies: Dependencies) {
         );
         if (!remote) return;
         const avatarUrl = await inlineAvatarDataUrl(remote, dependencies.fetch ?? fetch) ?? remote;
-        await dependencies.store.saveCredential({ ...current, avatarUrl });
+        await dependencies.store.saveAvatar(avatarUrl,
+          { accessToken: current.accessToken, subject: current.subject }, expectedGeneration);
       } catch { /* photo is best-effort; never clear COLP from this path */ }
     },
     async logout(): Promise<PublicAuthState> {

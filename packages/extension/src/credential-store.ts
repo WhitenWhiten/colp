@@ -55,6 +55,20 @@ export function createCredentialStore(storage: StorageArea, now: () => number = 
       await reclaimIfFenced(storage, fence, CREDENTIAL, generation);
       if (identity) { await reclaimIfFenced(storage, fence, EXPECTED_IDENTITY, generation); identityGeneration = generation; }
     },
+    // B4-1: the avatar read happens outside the session lane (a /me request and a photo download), so the lane
+    // may rotate the bearer, empty the secret area or replace the authority while it is in flight. Writing back
+    // the whole credential read before the fetch would copy that stale snapshot over the newer state; this
+    // compare-and-swap writes only the photo, and only onto the credential it was fetched for.
+    async saveAvatar(avatarUrl: string, expected: Pick<StoredCredential, 'accessToken' | 'subject'>,
+      expectedGeneration?: number): Promise<boolean> {
+      const current = await fence.read();
+      if (current.revoked || (expectedGeneration !== undefined && current.generation !== expectedGeneration)) return false;
+      const stored = unstamp(await read<Stamped<StoredCredential>>(storage, CREDENTIAL), current);
+      if (!stored || stored.accessToken !== expected.accessToken || stored.subject !== expected.subject) return false;
+      await storage.set({ [CREDENTIAL]: stamp({ ...stored, avatarUrl }, current.generation) });
+      await reclaimIfFenced(storage, fence, CREDENTIAL, current.generation);
+      return true;
+    },
     async loadCredential(): Promise<StoredCredential | null> {
       const raw = await read<Stamped<StoredCredential>>(storage, CREDENTIAL); const current = await fence.read();
       const value = unstamp(raw, current); const identity = value && accountIdentity(value);
@@ -75,7 +89,12 @@ export function createCredentialStore(storage: StorageArea, now: () => number = 
     // W2B-P1-1: the server no longer accepts this credential. The secrets go; the replica binding and the account
     // pin stay, so signing in again as the same account resumes the same replica, scope and queue. Only an explicit
     // sign-out (`clearAuthority`) or another account/server (`saveCredential`) ends the binding.
-    clearCredentialKeepingReplica: () => storage.remove([TRANSACTION, CREDENTIAL, SESSION]),
+    // B4-3: the report proofs go too. Each names a Session under an account/server/authority identity, and both
+    // callers of this path retire that identity: the server rejected the Session, or the build configuration no
+    // longer matches the credential. A proof kept past either could claim possession of a Session the account no
+    // longer holds. An explicit sign-out keeps them: there the final-delivery proof of the switched-away account is
+    // still valid.
+    clearCredentialKeepingReplica: () => storage.remove([TRANSACTION, CREDENTIAL, SESSION, REPORT_PROOFS]),
     async saveSession(value: StoredSession, expectedGeneration?: number): Promise<void> {
       const current = await fence.assertWritable(expectedGeneration);
       const generation = expectedGeneration ?? current.generation;

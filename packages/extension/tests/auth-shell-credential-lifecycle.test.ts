@@ -56,6 +56,26 @@ async function loginFromChangedCookie(domain: string | undefined, accept: boolea
   };
 }
 
+const PRODUCT_PHOTO = 'https://known.example/api/v1/avatar/123e4567-e89b-42d3-a456-426614174000';
+
+/**
+ * B4-1: `hydrateAvatar` reads /me and the photo outside the session lane and used to write the whole credential it
+ * had read before those calls back over storage. Each case below changes the credential while the photo is in
+ * flight; the photo must be dropped instead of undoing the change.
+ */
+function hydratingAvatarController(store: ReturnType<typeof createCredentialStore>, during: () => Promise<unknown>) {
+  return createAuthController({
+    config: config(), store, now: () => NOW, origin: EXTENSION_ORIGIN,
+    fetch: async (url) => {
+      if (String(url).endsWith('/api/v1/me')) {
+        await during();
+        return Response.json({ profile: { avatarUrl: PRODUCT_PHOTO } });
+      }
+      return new Response(null, { status: 404 });
+    },
+  });
+}
+
 describe('P3-27 Better Auth credential lifecycle', () => {
   test('completes password login from Set-Cookie and stores the session cookie as the bearer', async () => {
     const controller = fixtureController({ config: config(), now: () => NOW });
@@ -122,6 +142,72 @@ describe('P3-27 Better Auth credential lifecycle', () => {
     await controller.hydrateAvatar();
     assert.equal((await store.loadCredential())?.avatarUrl, productPhoto);
     assert.equal((await controller.status()).avatarUrl, productPhoto);
+  });
+
+  test('drops a /me photo when the credential rotated its bearer during the read', async () => {
+    const store = createCredentialStore(new MemoryStorageArea(), () => NOW);
+    await store.saveCredential(fixtureCredential(config(), NOW));
+    const controller = hydratingAvatarController(store, async () => {
+      await store.saveCredential({ ...(await store.loadCredential())!, accessToken: 'rotated-access-token' });
+    });
+    await controller.hydrateAvatar();
+    const stored = await store.loadCredential();
+    assert.equal(stored?.accessToken, 'rotated-access-token', 'the refresh is not overwritten by the stale snapshot');
+    assert.equal(stored?.avatarUrl, undefined);
+  });
+
+  test('does not resurrect a credential that signed out during the /me read', async () => {
+    const store = createCredentialStore(new MemoryStorageArea(), () => NOW);
+    await store.saveCredential(fixtureCredential(config(), NOW));
+    const controller = hydratingAvatarController(store, () => store.clearCredentialKeepingReplica());
+    await controller.hydrateAvatar();
+    assert.equal(await store.loadCredential(), null, 'a photo cannot re-create a credential the server rejected');
+  });
+
+  test('drops a /me photo when another account signed in during the read', async () => {
+    const store = createCredentialStore(new MemoryStorageArea(), () => NOW);
+    await store.saveCredential(fixtureCredential(config(), NOW));
+    const controller = hydratingAvatarController(store, async () => {
+      await store.saveCredential({ ...fixtureCredential(config(), NOW), accessToken: 'other-account-token',
+        subject: 'other-account', accountLabel: 'other@example.test' });
+    });
+    await controller.hydrateAvatar();
+    const stored = await store.loadCredential();
+    assert.equal(stored?.subject, 'other-account');
+    assert.equal(stored?.accessToken, 'other-account-token');
+    assert.equal(stored?.avatarUrl, undefined);
+  });
+
+  test('does not resurrect a credential whose authority generation advanced during the /me read', async () => {
+    const store = createCredentialStore(new MemoryStorageArea(), () => NOW);
+    await store.saveCredential(fixtureCredential(config(), NOW));
+    const controller = hydratingAvatarController(store, async () => { await store.activateAuthority(); });
+    await controller.hydrateAvatar();
+    assert.equal(await store.loadCredential(), null, 'a photo fetched under the old generation is dropped');
+  });
+
+  /**
+   * B4-3: a report proof names a Session. `clearCredentialKeepingReplica` runs only after the server rejected that
+   * Session, so a retained proof would let a later report claim possession of it. An explicit sign-out is different:
+   * the final-delivery proof of the switched-away account is still valid there and must survive.
+   */
+  test('forgets report proofs when the server rejected the credential but keeps them across a sign-out', async () => {
+    const storage = new MemoryStorageArea();
+    const store = createCredentialStore(storage, () => NOW);
+    await store.saveCredential(fixtureCredential(config(), NOW));
+    const binding = await store.getOrCreateBinding(0);
+    const scope = { serverOrigin: 'https://known.example', accountId: 'auth-user-fixture',
+      replicaId: binding.replicaId, browserProfileId: binding.browserProfileId, generation: Number(binding.generation) };
+    const proofs = async () => (await storage.get('known.sync.report-proofs.v1'))['known.sync.report-proofs.v1'] as
+      Record<string, string> | undefined;
+    await store.saveSession(fixtureSession(NOW));
+    assert.equal(await store.loadReplicaReportProof(scope), 'session-fixture');
+    await store.clearCredentialKeepingReplica();
+    assert.deepEqual(await proofs() ?? {}, {}, 'the proof of a rejected Session is forgotten');
+    await store.saveCredential(fixtureCredential(config(), NOW));
+    await store.saveSession({ ...fixtureSession(NOW), sessionId: 'session-final-delivery' });
+    await store.clearAuthority();
+    assert.deepEqual(Object.values(await proofs() ?? {}), ['session-final-delivery']);
   });
 
   test('fails closed for wrong password, missing session cookie and offline sign-in', async () => {

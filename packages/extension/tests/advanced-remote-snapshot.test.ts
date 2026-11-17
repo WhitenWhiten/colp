@@ -129,6 +129,56 @@ describe('advanced remote snapshot loader', () => {
   });
 });
 
+/**
+ * B4-2: each page was bounded, but the walk retained every page, node and digest with no total ceiling, so a server
+ * minting unique cursors grew the lane until the worker died. The ceilings fail closed with the registered
+ * `snapshot_too_large` stop, and the counters are exact: a walk stops on the page that crosses its limit.
+ */
+describe('remote snapshot total ceilings (B4-2)', () => {
+  const unlimited = (nodesPerPage: number, description = 0) => {
+    const base = snapshotFixture(1, false, null) as any;
+    const root = base.nodes[0];
+    const node = (sequence: number, index: number) => ({ id: `minted-${sequence}-${index}`,
+      collectionId: scope.collectionId, kind: 'bookmark' as const, parentId: root.id,
+      position: `P${String(sequence * 10_000 + index).padStart(8, '0')}`, revision: `revision-${sequence}-${index}`,
+      title: 'Minted', url: 'https://example.test/minted', createdAt: base.generatedAt, updatedAt: base.generatedAt,
+      extensions: {}, ...(description ? { description: 'x'.repeat(description) } : {}) });
+    return (sequence: number) => ({ ...base,
+      parentRevisions: sequence === 1 ? [{ parentId: root.id, childrenRevision: 'children-root' }] : [],
+      nodes: [...(sequence === 1 ? [root] : []),
+        ...Array.from({ length: nodesPerPage }, (_, index) => node(sequence, index))],
+      page: { sequence, hasMore: true, nextCursor: `minted-${sequence + 1}` } });
+  };
+  const walk = (page: (sequence: number) => unknown) => {
+    let calls = 0;
+    const loading = loadCompleteRemoteSnapshot({ endpoint: 'https://sync.example/v1/snapshot',
+      origin: 'chrome-extension://extension', credential: { accessToken: 'access-token' }, session, scope,
+      fetcher: async () => new Response(JSON.stringify(page(++calls)), {
+        status: 200, headers: { 'Content-Type': 'application/json' } }) });
+    return { loading, calls: () => calls };
+  };
+
+  test('stops at the total page ceiling', async () => {
+    const { loading, calls } = walk(unlimited(1));
+    await assert.rejects(loading, /^Error: snapshot_too_large$/u);
+    assert.equal(calls(), 1_001);
+  });
+
+  test('stops at the accumulated node ceiling', async () => {
+    // 500 is the accumulator's own page ceiling, and page 1 also carries the root: 49,901 Nodes are under the
+    // walk's ceiling, the 101st page (50,400) is over it.
+    const { loading, calls } = walk(unlimited(499));
+    await assert.rejects(loading, /^Error: snapshot_too_large$/u);
+    assert.equal(calls(), 101);
+  });
+
+  test('stops at the accumulated byte ceiling', async () => {
+    const { loading, calls } = walk(unlimited(9, 200_000));
+    await assert.rejects(loading, /^Error: snapshot_too_large$/u);
+    assert.equal(calls(), 19);
+  }, 30_000);
+});
+
 function validPages() {
   const base = snapshotFixture(1, false, null) as any;
   const root = base.nodes[0];
