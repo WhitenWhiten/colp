@@ -10,6 +10,7 @@ profiles against a live server, starting from its Manifest.
 
 Options:
   --json                  Print the report as JSON
+  --allow-empty           Permit a schema-only run with no public Collections
   --max-collections <n>   Collections to inspect from the Directory (default 3)
   --max-pages <n>         Snapshot pages to follow per Collection (default 50)
   --max-snapshot-bytes <n> Cumulative Snapshot response bytes (default 67108864)
@@ -19,7 +20,10 @@ Options:
   --timeout <ms>          Per-request timeout (default 10000)
   -h, --help              Show this help
 
-Exit status: 0 when no MUST check fails, 1 when one does, 2 on usage errors.`;
+Exit status: 0 when every observable MUST check passes, 1 when a MUST check
+fails or cannot be observed, 2 on usage errors. A publication run with no
+publication mount or an empty anonymous Directory fails unless --allow-empty
+is given.`;
 
 let parsed;
 try {
@@ -27,6 +31,7 @@ try {
     allowPositionals: true,
     options: {
       json: { type: 'boolean' },
+      'allow-empty': { type: 'boolean' },
       'max-collections': { type: 'string' },
       'max-pages': { type: 'string' },
       'max-snapshot-bytes': { type: 'string' },
@@ -48,6 +53,7 @@ if (values.help) {
 if (positionals.length !== 1) fail('Expected exactly one server or Manifest URL.');
 
 const report = await runConformance(positionals[0], {
+  allowEmpty: values['allow-empty'],
   maxCollections: count(values['max-collections'], 'max-collections'),
   maxPages: count(values['max-pages'], 'max-pages'),
   maxSnapshotBytes: count(values['max-snapshot-bytes'], 'max-snapshot-bytes'),

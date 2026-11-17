@@ -53,6 +53,7 @@ Target: http://127.0.0.1:8080/.well-known/collection-protocol
 | Option | Default | Meaning |
 |---|---|---|
 | `--json` | off | Print the report as JSON, for CI |
+| `--allow-empty` | off | Permit a schema-only run when there is no publication mount or the Directory lists no Collections |
 | `--max-collections <n>` | 3 | Collections to inspect from the Directory |
 | `--max-pages <n>` | 50 | Snapshot pages to follow per Collection |
 | `--max-snapshot-bytes <n>` | 67108864 | Cumulative response bytes retained while assembling one Snapshot |
@@ -61,7 +62,9 @@ Target: http://127.0.0.1:8080/.well-known/collection-protocol
 | `--max-requests <n>` | 200 | Total request budget |
 | `--timeout <ms>` | 10000 | Per-request timeout |
 
-The exit status is 0 when no MUST check fails, 1 when one does, and 2 on a usage error. A failed SHOULD is reported as a warning and does not change the exit status. A check that the server gave no chance to observe, such as pagination on a server with only small Collections, is skipped with the reason.
+The exit status is 0 when every MUST check that the run reaches passes, 1 when a MUST check fails or cannot be observed, and 2 on a usage error. A failed SHOULD is reported as a warning and does not change the exit status. A SHOULD the server gives no chance to observe, such as pagination on a server with only small Collections, is skipped with the reason.
+
+A publication run fails closed (exit 1) when no mount declares the publication profile or the anonymous Directory lists no Collections: the MUST checks that need a public Collection are reported as failures instead of skips. Pass `--allow-empty` to run an intentionally empty deployment in schema-only mode; it permits those checks to remain skipped and exits successfully when no observed MUST check fails.
 
 ## What it checks
 
@@ -70,7 +73,7 @@ The exit status is 0 when no MUST check fails, 1 when one does, and 2 on a usage
 | Discovery and Manifest | PUB-0011, PUB-0012, PUB-0003, PUB-0001, PUB-0028, PUB-0027 |
 | Wire format | PUB-0016 (UTF-8), PUB-0017 (I-JSON), PUB-0018 (named `$defs`), PUB-0020 (media types) |
 | Snapshots | CORE-0001 (semantic validation of the assembled Snapshot), PUB-0033, PUB-0034, PUB-0040 |
-| Visibility | PUB-0009 (the anonymous Directory lists only public Collections) |
+| Visibility | PUB-0009 (the anonymous Directory lists only public Collections), PUB-0025 (Directory entries, Collection Metadata and Snapshot pages remove restricted content and non-allowlisted extensions) |
 | Errors and queries | PUB-0008 (Problem Details), PUB-0010 (unknown and duplicate parameters), PUB-0041 (406 `unsupported_version` for an unsupported header or Accept version) |
 | HTTP caching | PUB-0021, PUB-0022, PUB-0024, PUB-0032 |
 

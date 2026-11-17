@@ -74,6 +74,12 @@ export class Report {
     return ok;
   }
 
+  /** Whether a check has at least one passing or failing observation. */
+  hasObservations(id) {
+    const entry = this.#entry(id);
+    return entry.passed + entry.failures.length > 0;
+  }
+
   /** Marks why a check could not be observed; ignored once it has observations. */
   skip(id, reason) {
     const entry = this.#entry(id);

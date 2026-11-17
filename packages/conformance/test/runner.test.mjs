@@ -65,6 +65,45 @@ async function startMisbehavingProxy(upstream, faults) {
       if (faults.duplicateManifestMember && url.pathname === '/.well-known/collection-protocol') {
         body = body.replace('{', '{"title":"duplicate",');
       }
+      if (faults.coreOnlyProfiles && url.pathname === '/.well-known/collection-protocol'
+        && response.status === 200 && body !== '') {
+        const manifest = JSON.parse(body);
+        manifest.mounts = manifest.mounts.map((mount) => ({ ...mount, profiles: ['core'] }));
+        body = JSON.stringify(manifest);
+      }
+      if (faults.emptyDirectory && url.pathname === '/collections' && response.status === 200 && body !== '') {
+        const directory = JSON.parse(body);
+        directory.collections = [];
+        body = JSON.stringify(directory);
+      }
+      if ((faults.leakingDirectoryExtensions || faults.restrictedDirectory)
+        && url.pathname === '/collections' && response.status === 200 && body !== '') {
+        const directory = JSON.parse(body);
+        const entry = directory.collections[0];
+        if (entry !== undefined) {
+          if (faults.restrictedDirectory) entry.visibility = 'private';
+          if (faults.leakingDirectoryExtensions) {
+            entry.extensions = {
+              ...(entry.extensions ?? {}),
+              'https://example.test/extensions/private': { internal: true },
+            };
+          }
+          body = JSON.stringify(directory);
+        }
+      }
+      const metadataPath = url.pathname.startsWith('/collections/c/') && !url.pathname.endsWith('/snapshot');
+      if ((faults.leakingMetadataExtensions || faults.restrictedMetadata)
+        && metadataPath && response.status === 200 && body !== '') {
+        const metadata = JSON.parse(body);
+        if (faults.restrictedMetadata) metadata.collection.visibility = 'private';
+        if (faults.leakingMetadataExtensions) {
+          metadata.collection.extensions = {
+            ...(metadata.collection.extensions ?? {}),
+            'https://example.test/extensions/private': { internal: true },
+          };
+        }
+        body = JSON.stringify(metadata);
+      }
       if (faults.claimMorePages && url.pathname.endsWith('/snapshot')) {
         body = body.replace('"nextCursor":null,"hasMore":false', '"nextCursor":"page-two","hasMore":true');
       }
@@ -75,6 +114,11 @@ async function startMisbehavingProxy(upstream, faults) {
           hasMore: true,
           sequence: pageIndex,
         };
+        if (faults.paddedNextPage && pageIndex > 1) {
+          // Keep the first page inside the byte budget and make every later
+          // page large enough that the remaining cumulative budget rejects it.
+          page.collection = { ...page.collection, summary: 'x'.repeat(1024 * 1024) };
+        }
         body = JSON.stringify(page);
         responseHeaders.link = `<${origin}${url.pathname}?page=${pageIndex + 1}>; rel="next"`;
       }
@@ -191,6 +235,144 @@ test('fails PUB-0025 when a publication Snapshot carries an extension outside th
       publicExtensions: ['https://example.test/extensions/private'],
     });
     assert.equal(statusOf(allowed, 'PUB-0025'), 'pass', formatReport(allowed));
+  } finally {
+    await proxy.close();
+    await upstream.close();
+  }
+});
+
+test('fails PUB-0025 when the Directory or Collection Metadata leaks an extension outside the public allowlist', async () => {
+  const upstream = await startPublicationServer();
+  const proxy = await startMisbehavingProxy(upstream, {
+    leakingDirectoryExtensions: true,
+    leakingMetadataExtensions: true,
+  });
+  try {
+    const report = await runConformance(proxy.origin);
+    assert.equal(statusOf(report, 'PUB-0025'), 'fail', formatReport(report));
+    const output = formatReport(report);
+    assert.match(output,
+      /Directory\.collections\[0\].*https:\/\/example\.test\/extensions\/private/u);
+    assert.match(output,
+      /CollectionMetadata\.collection.*https:\/\/example\.test\/extensions\/private/u);
+
+    // The operator allowlist applies to these public documents exactly as it
+    // does to Snapshot resources.
+    const allowed = await runConformance(proxy.origin, {
+      publicExtensions: ['https://example.test/extensions/private'],
+    });
+    assert.equal(statusOf(allowed, 'PUB-0025'), 'pass', formatReport(allowed));
+  } finally {
+    await proxy.close();
+    await upstream.close();
+  }
+});
+
+test('fails PUB-0025 when the Directory or Collection Metadata exposes a restricted Collection', async () => {
+  const upstream = await startPublicationServer();
+  const proxy = await startMisbehavingProxy(upstream, {
+    restrictedDirectory: true,
+    restrictedMetadata: true,
+  });
+  try {
+    const report = await runConformance(proxy.origin);
+    assert.equal(statusOf(report, 'PUB-0025'), 'fail', formatReport(report));
+    const output = formatReport(report);
+    assert.match(output, /Directory\.collections\[0\] failed privacy checks/u);
+    assert.match(output, /CollectionMetadata\.collection failed privacy checks/u);
+  } finally {
+    await proxy.close();
+    await upstream.close();
+  }
+});
+
+test('fails page consistency and assembly when the Snapshot member budget is crossed', async () => {
+  const server = await startPublicationServer();
+  try {
+    const report = await runConformance(server.origin, { maxSnapshotMembers: 1 });
+    assert.equal(statusOf(report, 'PUB-0033'), 'fail', formatReport(report));
+    assert.equal(statusOf(report, 'CORE-0001'), 'fail', formatReport(report));
+    assert.equal(report.summary.skip, 0, formatReport(report));
+    assert.match(formatReport(report), /member budget of 1 was exhausted/u);
+  } finally {
+    await server.close();
+  }
+});
+
+test('fails page consistency and assembly when the Snapshot object budget is crossed', async () => {
+  const server = await startPublicationServer();
+  try {
+    const report = await runConformance(server.origin, { maxSnapshotObjects: 1 });
+    assert.equal(statusOf(report, 'PUB-0033'), 'fail', formatReport(report));
+    assert.equal(statusOf(report, 'CORE-0001'), 'fail', formatReport(report));
+    assert.equal(report.summary.skip, 0, formatReport(report));
+    assert.match(formatReport(report), /object budget of 1 was exhausted/u);
+  } finally {
+    await server.close();
+  }
+});
+
+test('fails page consistency and assembly when the first Snapshot page exceeds the byte budget', async () => {
+  const server = await startPublicationServer();
+  try {
+    const report = await runConformance(server.origin, { maxSnapshotBytes: 16 });
+    assert.equal(statusOf(report, 'PUB-0033'), 'fail', formatReport(report));
+    assert.equal(statusOf(report, 'CORE-0001'), 'fail', formatReport(report));
+    assert.equal(report.summary.skip, 0, formatReport(report));
+    assert.match(formatReport(report), /byte budget of 16 was exhausted/u);
+  } finally {
+    await server.close();
+  }
+});
+
+test('fails page consistency and assembly when a later Snapshot page exceeds the remaining byte budget', async () => {
+  const upstream = await startPublicationServer();
+  const proxy = await startMisbehavingProxy(upstream, { endlessPages: true, paddedNextPage: true });
+  try {
+    const report = await runConformance(proxy.origin, { maxSnapshotBytes: 32 * 1024 });
+    assert.equal(statusOf(report, 'PUB-0033'), 'fail', formatReport(report));
+    assert.equal(statusOf(report, 'CORE-0001'), 'fail', formatReport(report));
+    assert.equal(report.summary.skip, 0, formatReport(report));
+    assert.match(formatReport(report), /byte budget of 32768 was exhausted/u);
+  } finally {
+    await proxy.close();
+    await upstream.close();
+  }
+});
+
+test('fails closed when the anonymous Directory is empty unless allowEmpty is set', async () => {
+  const upstream = await startPublicationServer();
+  const proxy = await startMisbehavingProxy(upstream, { emptyDirectory: true });
+  try {
+    const report = await runConformance(proxy.origin);
+    assert.ok(report.summary.fail > 0, formatReport(report));
+    assert.equal(report.summary.skip, 0, formatReport(report));
+    assert.equal(statusOf(report, 'PUB-0025'), 'fail', formatReport(report));
+    assert.match(formatReport(report), /anonymous Directory lists no Collections/u);
+
+    const schemaOnly = await runConformance(proxy.origin, { allowEmpty: true });
+    assert.equal(schemaOnly.summary.fail, 0, formatReport(schemaOnly));
+    assert.ok(schemaOnly.summary.skip > 0, formatReport(schemaOnly));
+    assert.match(formatReport(schemaOnly), /--allow-empty/u);
+  } finally {
+    await proxy.close();
+    await upstream.close();
+  }
+});
+
+test('fails closed when the Manifest declares no publication mount unless allowEmpty is set', async () => {
+  const upstream = await startPublicationServer();
+  const proxy = await startMisbehavingProxy(upstream, { coreOnlyProfiles: true });
+  try {
+    const report = await runConformance(proxy.origin);
+    assert.ok(report.summary.fail > 0, formatReport(report));
+    assert.equal(report.summary.skip, 0, formatReport(report));
+    assert.equal(statusOf(report, 'PUB-0001'), 'fail', formatReport(report));
+    assert.match(formatReport(report), /no mount declares the publication profile/u);
+
+    const schemaOnly = await runConformance(proxy.origin, { allowEmpty: true });
+    assert.equal(schemaOnly.summary.fail, 0, formatReport(schemaOnly));
+    assert.ok(schemaOnly.summary.skip > 0, formatReport(schemaOnly));
   } finally {
     await proxy.close();
     await upstream.close();
@@ -322,6 +504,21 @@ test('the CLI exits 1 on a failing server and 2 on a usage error', async () => {
   await assert.rejects(exec(process.execPath, [cli.pathname, '--timeout', '2000', 'http://127.0.0.1:9']), { code: 1 });
   await assert.rejects(exec(process.execPath, [cli.pathname]), { code: 2 });
   await assert.rejects(exec(process.execPath, [cli.pathname, '--max-pages', '0', 'http://127.0.0.1:9']), { code: 2 });
+});
+
+test('the CLI fails an empty publication run unless --allow-empty is passed', async () => {
+  const upstream = await startPublicationServer();
+  const proxy = await startMisbehavingProxy(upstream, { emptyDirectory: true });
+  try {
+    await assert.rejects(exec(process.execPath, [cli.pathname, proxy.origin]), { code: 1 });
+    const { stdout } = await exec(process.execPath, [cli.pathname, '--json', '--allow-empty', proxy.origin]);
+    const report = JSON.parse(stdout);
+    assert.equal(report.summary.fail, 0, stdout);
+    assert.ok(report.summary.skip > 0, stdout);
+  } finally {
+    await proxy.close();
+    await upstream.close();
+  }
 });
 
 test('checks a DNS answer before the first conformance request', async () => {

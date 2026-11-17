@@ -58,7 +58,7 @@ export function resolveManifestUrl(target) {
  *   maxBytes?: number, maxRequests?: number, maxRedirects?: number,
  *   maxSnapshotBytes?: number, maxSnapshotMembers?: number,
  *   maxSnapshotObjects?: number, publicExtensions?: readonly string[],
- *   fetch?: typeof fetch }} [options]
+ *   allowEmpty?: boolean, fetch?: typeof fetch }} [options]
  */
 export async function runConformance(target, options = {}) {
   const manifestUrl = resolveManifestUrl(target);
@@ -95,6 +95,7 @@ class Probe {
   #maxSnapshotMembers;
   #maxSnapshotObjects;
   #publicExtensions;
+  #allowEmpty;
 
   constructor(report, http, options) {
     this.#report = report;
@@ -102,6 +103,10 @@ class Probe {
     this.#maxCollections = options.maxCollections ?? 3;
     this.#maxPages = options.maxPages ?? 50;
     this.#publicExtensions = publicExtensionNamespaces(options.publicExtensions);
+    if (options.allowEmpty !== undefined && typeof options.allowEmpty !== 'boolean') {
+      throw new TypeError('allowEmpty must be a boolean.');
+    }
+    this.#allowEmpty = options.allowEmpty ?? false;
     this.#maxSnapshotBytes = positiveSafeInteger(
       options.maxSnapshotBytes ?? DEFAULT_SNAPSHOT_BYTES,
       'maxSnapshotBytes',
@@ -124,7 +129,7 @@ class Probe {
     }
     const mounts = manifest.mounts.filter((mount) => mount.profiles.includes('publication'));
     if (mounts.length === 0) {
-      this.#report.skipRemaining('no mount declares the publication profile');
+      this.#stopWithoutPublication('no mount declares the publication profile');
       return;
     }
     for (const mount of mounts) await this.#publicationMount(mount);
@@ -133,6 +138,22 @@ class Probe {
     this.#report.skip('PUB-0040', 'no publication Bookmark observed');
     this.#report.skip('PUB-0024', 'no versioned COLP media type was returned');
     this.#report.skipRemaining('not observed');
+  }
+
+  /**
+   * A publication run that cannot observe any Collection must fail closed: a
+   * valid Manifest and empty Directory demonstrate only the schema, not the
+   * MUST requirements for public projections, Snapshots, or metadata. Operators
+   * testing an intentionally empty deployment can opt in to a schema-only run.
+   */
+  #stopWithoutPublication(reason) {
+    if (this.#allowEmpty) {
+      this.#report.note(`Publication checks skipped because ${reason} (--allow-empty).`);
+      this.#report.skipRemaining(reason);
+      return;
+    }
+    this.#report.note(`Publication checks failed because ${reason}; pass --allow-empty for a schema-only run.`);
+    this.#report.failRemaining(`not verified: ${reason}`);
   }
 
   // ---------------------------------------------------------------- Manifest
@@ -188,9 +209,16 @@ class Probe {
       this.#record('PUB-0009', entry.visibility === 'public',
         `Directory lists ${entry.id} with visibility "${entry.visibility}" to an anonymous client`);
     }
+    // Directory entries are public documents too: restricted visibility or an
+    // extension namespace the operator has not declared safe must fail here,
+    // not only when the same Collection eventually appears in a Snapshot.
+    if (directory.collections.length > 0) {
+      this.#publicProjection(`GET ${directoryUrl}`, directoryProjectionResources(directory));
+    }
     const collectionIds = directory.collections.slice(0, this.#maxCollections).map((entry) => entry.id);
     if (collectionIds.length === 0) {
-      this.#report.skipRemaining('the anonymous Directory lists no Collections');
+      this.#stopWithoutPublication('the anonymous Directory lists no Collections');
+      return;
     }
     for (const collectionId of collectionIds) await this.#collection(endpoints, collectionId);
   }
@@ -200,7 +228,10 @@ class Probe {
     if (metadataUrl !== undefined) {
       const exchange = await this.#readExchange(metadataUrl, MEDIA_TYPES.collection);
       if (exchange !== undefined) {
-        this.#document(exchange, 'collectionMetadata', MEDIA_TYPES.collection);
+        const metadata = this.#document(exchange, 'collectionMetadata', MEDIA_TYPES.collection);
+        if (metadata !== undefined) {
+          this.#publicProjection(`GET ${metadataUrl}`, [['CollectionMetadata.collection', metadata.collection]]);
+        }
         const relations = new Set(parseLinkHeader(exchange.headers.get('link')).map((link) => link.rel));
         const absent = ['self', 'canonical', SNAPSHOT_RELATION].filter((relation) => !relations.has(relation));
         this.#record('PUB-0032', absent.length === 0, `GET ${metadataUrl}: Link header lacks rel ${absent.join(', ')}`);
@@ -225,12 +256,14 @@ class Probe {
     // Link rel="next" that loops both leave the Snapshot incomplete: the checks
     // below then record a failure instead of being reported as skipped.
     let chainIncomplete;
+    let paginationObserved = false;
     while (next !== undefined) {
       if (pages.length >= this.#maxPages) {
         chainIncomplete = `the page budget of ${this.#maxPages} was exhausted before the final page`;
         break;
       }
       if (visited.has(next)) {
+        paginationObserved = true;
         this.#record('PUB-0034', false, `Link rel="next" from ${url} loops back to ${next}`);
         chainIncomplete = `Link rel="next" loops back to ${next} instead of reaching a final page`;
         break;
@@ -261,23 +294,7 @@ class Probe {
         chainIncomplete = `the Snapshot page ${next} is not a valid Snapshot`;
         break;
       }
-      const projectionFailures = [];
-      try {
-        assertAnonymousPublicationPrimaryVisibility(page);
-      } catch (error) {
-        projectionFailures.push(`failed privacy checks: ${describe(error)}`);
-      }
-      projectionFailures.push(
-        ...publicationExtensionViolations(page, this.#publicExtensions)
-          .map((violation) => `leaked extension ${violation}`),
-      );
-      this.#record(
-        'PUB-0025',
-        projectionFailures.length === 0,
-        projectionFailures.length === 0
-          ? `${exchange.url}: public projection passed privacy checks`
-          : `${exchange.url}: public projection ${projectionFailures.join('; ')}`,
-      );
+      this.#publicProjection(exchange.url, snapshotProjectionResources(page), page);
       totalBytes += exchange.bytes.byteLength;
       const pageMembers = snapshotMemberCount(page);
       totalMembers += pageMembers;
@@ -294,6 +311,7 @@ class Probe {
       pages.push(page);
       if (page.page.hasMore !== true) break;
       const link = parseLinkHeader(exchange.headers.get('link')).find((candidate) => candidate.rel === 'next');
+      paginationObserved = true;
       if (!this.#record('PUB-0034', link !== undefined, `GET ${exchange.url}: hasMore is true but there is no Link rel="next"`)) {
         chainIncomplete = 'hasMore is true but there is no Link rel="next" for the page collected so far';
         break;
@@ -324,6 +342,13 @@ class Probe {
       // each check it prevents instead of leaving them unobserved.
       this.#record('PUB-0033', false,
         `${url}: ${chainIncomplete}, so page metadata could not be verified across the Snapshot`);
+      if (!paginationObserved) {
+        // A budget can stop the run before any page, or before a page's
+        // hasMore/Link metadata is inspected. Do not report the SHOULD as a
+        // clean skip when the failure is the reason it was never observed.
+        this.#record('PUB-0034', false,
+          `${url}: ${chainIncomplete}, so Link rel="next" could not be inspected`);
+      }
     }
     await this.#conditional(first, MEDIA_TYPES.snapshot);
 
@@ -348,6 +373,11 @@ class Probe {
         if (node.kind !== 'bookmark' || node.redacted === true) continue;
         this.#record('PUB-0040', isPlainHttpUrl(node.url), `${url}: Bookmark ${node.id} has url ${JSON.stringify(node.url)}`);
       }
+    }
+    if (chainIncomplete !== undefined && !this.#report.hasObservations('PUB-0040')) {
+      // No page was retained, so no Bookmark URL could be inspected either.
+      this.#record('PUB-0040', false,
+        `${url}: ${chainIncomplete}, so publication Bookmark URLs could not be verified`);
     }
   }
 
@@ -538,6 +568,16 @@ class Probe {
     }
   }
 
+  #publicProjection(subject, resources, snapshot) {
+    const failures = snapshot === undefined
+      ? publicProjectionFailures(resources, this.#publicExtensions)
+      : snapshotPublicProjectionFailures(snapshot, resources, this.#publicExtensions);
+    this.#record('PUB-0025', failures.length === 0,
+      failures.length === 0
+        ? `${subject}: public projection passed privacy checks`
+        : `${subject}: public projection ${failures.join('; ')}`);
+  }
+
   #record(id, ok, detail) {
     return this.#report.record(id, ok, detail);
   }
@@ -562,31 +602,66 @@ function snapshotMemberCount(snapshot) {
 }
 
 /**
- * Enumerates extension namespaces in a public projection that are not on the
- * public allowlist. Publication Snapshot Collection, Node, and sidecar
- * resources may carry extensions only when the operator has explicitly
- * declared those namespaces safe; the default allowlist is empty.
+ * The privacy and extension checks shared by every public document. A
+ * Directory entry or a Collection Metadata Collection is as publicly readable
+ * as a Snapshot resource, so the same allowlist and visibility checks apply.
  */
-function publicationExtensionViolations(snapshot, allowlist = DEFAULT_PUBLIC_EXTENSIONS) {
-  if (snapshot.mode !== 'publication') return [];
-  const resources = [
+function publicProjectionFailures(resources, allowlist = DEFAULT_PUBLIC_EXTENSIONS) {
+  const failures = [];
+  for (const [label, resource] of resources) {
+    if (resource === null || typeof resource !== 'object' || Array.isArray(resource)) continue;
+    try {
+      assertAnonymousPublicationPrimaryVisibility(resource);
+    } catch (error) {
+      failures.push(`${label} failed privacy checks: ${describe(error)}`);
+    }
+    failures.push(...publicResourceExtensionViolations(label, resource, allowlist)
+      .map(violation => `leaked extension ${violation}`));
+  }
+  return failures;
+}
+
+/**
+ * Snapshot pages are checked as a graph first: inherited node visibility and
+ * sidecar subjects can only be resolved with the whole page. Their individual
+ * resources then receive the same extension allowlist projection check.
+ */
+function snapshotPublicProjectionFailures(snapshot, resources, allowlist = DEFAULT_PUBLIC_EXTENSIONS) {
+  const failures = [];
+  try {
+    assertAnonymousPublicationPrimaryVisibility(snapshot);
+  } catch (error) {
+    failures.push(`failed privacy checks: ${describe(error)}`);
+  }
+  for (const [label, resource] of resources) {
+    failures.push(...publicResourceExtensionViolations(label, resource, allowlist)
+      .map(violation => `leaked extension ${violation}`));
+  }
+  return failures;
+}
+
+/** Enumerates extension namespaces a public resource carries outside the allowlist. */
+function publicResourceExtensionViolations(label, resource, allowlist = DEFAULT_PUBLIC_EXTENSIONS) {
+  if (resource === null || typeof resource !== 'object' || Array.isArray(resource)) return [];
+  const extensions = resource.extensions;
+  if (extensions === null || typeof extensions !== 'object' || Array.isArray(extensions)) return [];
+  const unsafe = Object.keys(extensions).filter((namespace) => !allowlist.includes(namespace));
+  return unsafe.length === 0 ? [] : [`${label} ${resource.id}: ${unsafe.join(', ')}`];
+}
+
+function directoryProjectionResources(directory) {
+  return directory.collections.map((entry, index) => [`Directory.collections[${index}]`, entry]);
+}
+
+function snapshotProjectionResources(snapshot) {
+  return [
     ['Collection', snapshot.collection],
     ...snapshot.nodes.map((resource, index) => [`Nodes[${index}]`, resource]),
     ...snapshot.annotations.map((resource, index) => [`Annotations[${index}]`, resource]),
     ...snapshot.attachments.map((resource, index) => [`Attachments[${index}]`, resource]),
     ...snapshot.relations.map((resource, index) => [`Relations[${index}]`, resource]),
+    ...snapshot.tombstones.map((resource, index) => [`Tombstones[${index}]`, resource]),
   ];
-  const violations = [];
-  for (const [label, resource] of resources) {
-    if (resource === null || typeof resource !== 'object' || Array.isArray(resource)) continue;
-    const extensions = resource.extensions;
-    if (extensions === null || typeof extensions !== 'object' || Array.isArray(extensions)) continue;
-    const unsafe = Object.keys(extensions).filter((namespace) => !allowlist.includes(namespace));
-    if (unsafe.length > 0) {
-      violations.push(`${label} ${resource.id}: ${unsafe.join(', ')}`);
-    }
-  }
-  return violations;
 }
 
 function positiveSafeInteger(value, name) {

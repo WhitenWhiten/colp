@@ -2,7 +2,8 @@ name: colp-ci
 
 # No trigger-level path filters: ci-gate is a required status check, so it must
 # report on every pull request. The changes job selects affected jobs for all
-# authors, including Dependabot. Docs/release-only changes run just changes/gate.
+# authors, including Dependabot. Docs/release-only changes still run the
+# base-only selection, the contract tests and the tracked secret scan.
 on:
   pull_request:
   push:
@@ -25,15 +26,73 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Selection must never run PR code. This job checks out the base commit (or
+  # the pre-push commit) only, then runs that commit's selector. A PR cannot
+  # alter GITHUB_PATH/GITHUB_ENV to redirect `node` or rewrite the selector,
+  # because none of its files are ever checked out here.
   changes:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       jobs: ${{ steps.scope.outputs.jobs }}
+      base: ${{ steps.base.outputs.ref }}
     steps:
+      - id: base
+        name: Choose the base revision to check out
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          base="${PR_BASE_SHA}"
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            if [[ ! "${base}" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "pull_request event is missing a usable base sha" >&2
+              exit 1
+            fi
+          elif [[ ! "${base}" =~ ^[0-9a-f]{40}$ || "${base}" =~ ^0+$ ]]; then
+            # Push: compare the pushed commit with its predecessor. A new
+            # branch has an all-zero predecessor, so fall back to the pushed
+            # commit itself; the selector still treats that as unverifiable.
+            base="${PUSH_BEFORE_SHA}"
+            if [[ ! "${base}" =~ ^[0-9a-f]{40}$ || "${base}" =~ ^0+$ ]]; then
+              base="${GITHUB_SHA}"
+            fi
+          fi
+          if [[ ! "${base}" =~ ^[0-9a-f]{40}$ || "${base}" =~ ^0+$ ]]; then
+            echo "no usable base revision for this event" >&2
+            exit 1
+          fi
+          printf 'ref=%s\n' "${base}" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ steps.base.outputs.ref }}
           fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - id: scope
+        name: Select affected CI jobs from the base selector
+        env:
+          CHECKED_OUT_BASE: ${{ steps.base.outputs.ref }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]] \
+            && [[ "$(git rev-parse HEAD)" != "${CHECKED_OUT_BASE}" ]]; then
+            echo "the changes job did not check out the base commit" >&2
+            exit 1
+          fi
+          node scripts/select-ci-jobs.mjs
+
+  # PR-authored tests and docs checks run here, in their own job, after the
+  # base-only selection has finished. They may change their own job's
+  # environment but cannot redirect the base-selector step or the scan.
+  contract:
+    needs: changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
@@ -41,26 +100,43 @@ jobs:
         run: node --test scripts/select-ci-jobs.test.mjs scripts/check-sdk-pins.test.mjs scripts/check-readmes.test.mjs
       - name: READMEs agree across languages and with the packages
         run: node scripts/check-readmes.mjs
-      - id: scope
-        name: Select affected CI jobs
+
+  # Always on, including for documentation-only PRs. The files being scanned
+  # come from the PR checkout, but the scanner and allowlist are the base
+  # commit's blobs: a PR cannot add an allowlist entry that exempts a literal
+  # it introduced, and cannot rewrite the scanner it is judged by.
+  secret-scan:
+    needs: changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - name: Scan tracked files with the base commit's scanner and allowlist
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_SHA: ${{ needs.changes.outputs.base }}
         run: |
           set -euo pipefail
-          selector=scripts/select-ci-jobs.mjs
-          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
-            # Run the base commit's selector, not the PR's copy: the checked-out
-            # selector is writable by the PR, and ci-gate treats skipped jobs as
-            # success, so a PR could otherwise emit an empty job list and pass
-            # every required check without running anything.
-            if [[ ! "${BASE_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
-              echo "pull_request event is missing a usable base sha" >&2
-              exit 1
-            fi
-            git show "${BASE_SHA}:scripts/select-ci-jobs.mjs" > scripts/.select-ci-jobs.base.mjs
-            selector=scripts/.select-ci-jobs.base.mjs
+          if [[ ! "${BASE_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "no trusted base commit for the tracked secret scan" >&2
+            exit 1
           fi
-          node "$selector"
+          git cat-file -e "${BASE_SHA}^{commit}"
+          # The scanner derives the repository root from its own location, so
+          # run the base copy one directory below the root and replace the
+          # PR-controlled allowlist with the base blob before scanning.
+          rm -rf .trusted-base
+          mkdir -p .trusted-base
+          git show "${BASE_SHA}:scripts/scan-tracked-secrets.mjs" > .trusted-base/scan-tracked-secrets.mjs
+          mkdir -p scripts
+          rm -f scripts/secret-scan-allowlist.json
+          git show "${BASE_SHA}:scripts/secret-scan-allowlist.json" > scripts/secret-scan-allowlist.json
+          node --check .trusted-base/scan-tracked-secrets.mjs
+          node .trusted-base/scan-tracked-secrets.mjs
 
   static:
     needs: changes
@@ -213,8 +289,6 @@ jobs:
       - name: Build and validate package shape
         run: npm run build && npm run pack:check
         working-directory: packages/node
-      - name: Scan tracked files for secrets
-        run: node scripts/scan-tracked-secrets.mjs
       - name: Verify clean-consumer Docker isolation
         run: |
           node --test scripts/tests/clean-consumer-sandbox.test.mjs
@@ -243,6 +317,8 @@ jobs:
             tests/sync/production-export-surface.test.ts
         working-directory: packages/node
       - name: Scan COLP dist before packaging evidence
+        # Supplemental generated-output scan; source files are covered by the
+        # always-on tracked scan that uses the base scanner and allowlist.
         run: node scripts/scan-tracked-secrets.mjs --artifact packages/node/dist
       - name: Legacy MCP absence (source, declarations, tarball)
         run: npm run check:mcp-legacy-absence
@@ -825,6 +901,8 @@ jobs:
     if: always()
     needs:
       - changes
+      - contract
+      - secret-scan
       - static
       - test
       - publisher-coverage
@@ -850,10 +928,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Require every selected job to pass
+      - name: Require every required and selected job to pass
         shell: bash
         env:
           CHANGES_RESULT: ${{ needs.changes.result }}
+          CONTRACT_RESULT: ${{ needs.contract.result }}
+          SECRET_SCAN_RESULT: ${{ needs.secret-scan.result }}
           STATIC_RESULT: ${{ needs.static.result }}
           TEST_RESULT: ${{ needs.test.result }}
           PUBLISHER_RESULT: ${{ needs.publisher-coverage.result }}
@@ -877,7 +957,7 @@ jobs:
           EXTENSION_KNS09_RELEASE_RESULT: ${{ needs.extension-kns-09-release.result }}
           EXTENSION_KNS09_E2E_RESULT: ${{ needs.extension-kns-09-e2e.result }}
         run: |
-          for result in "$CHANGES_RESULT" "$STATIC_RESULT" "$TEST_RESULT" "$PUBLISHER_RESULT" "$SECURITY_RESULT" "$SYNC_CORE_RESULT" "$PACKAGE_RESULT" "$DEPENDENCY_AUDIT_RESULT" "$CONFORMANCE_RESULT" "$SERVER_RESULT" "$SERVER_INTEGRATION_RESULT" "$SERVER_CAPABILITIES_RESULT" "$WEB_RESULT" "$WEB_BROWSER_RESULT" "$WEB_ACCEPTANCE_RESULT" \
+          for result in "$CHANGES_RESULT" "$CONTRACT_RESULT" "$SECRET_SCAN_RESULT" "$STATIC_RESULT" "$TEST_RESULT" "$PUBLISHER_RESULT" "$SECURITY_RESULT" "$SYNC_CORE_RESULT" "$PACKAGE_RESULT" "$DEPENDENCY_AUDIT_RESULT" "$CONFORMANCE_RESULT" "$SERVER_RESULT" "$SERVER_INTEGRATION_RESULT" "$SERVER_CAPABILITIES_RESULT" "$WEB_RESULT" "$WEB_BROWSER_RESULT" "$WEB_ACCEPTANCE_RESULT" \
             "$EXTENSION_RESULT" "$EXTENSION_BROWSER_RESULT" "$SELF_HOSTED_BROWSER_RESULT" "$EXTENSION_COVERAGE_RESULT" "$EXTENSION_MV3_RESULT" "$EXTENSION_SYNC_REAL_STACK_RESULT" \
             "$EXTENSION_KNS09_RELEASE_RESULT" "$EXTENSION_KNS09_E2E_RESULT"; do
             if [[ "$result" != "success" && "$result" != "skipped" ]]; then

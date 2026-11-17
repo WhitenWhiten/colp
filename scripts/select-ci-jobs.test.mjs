@@ -9,6 +9,19 @@ import { CI_JOBS, isReleaseOnly, jobsForPaths, selectCiJobs } from './select-ci-
 
 const sort = values => [...values].sort();
 const json = value => JSON.stringify(value);
+const workflowPath = new URL('../.github/workflows/colp-ci.yml', import.meta.url);
+const readWorkflow = () => readFileSync(workflowPath, 'utf8');
+
+/** One top-level job block, stopping at the next job key. */
+function workflowJob(workflow, name) {
+  const marker = `\n  ${name}:`;
+  const start = workflow.indexOf(marker);
+  assert.ok(start >= 0, `workflow has a ${name} job`);
+  const rest = workflow.slice(start + marker.length);
+  const next = rest.search(/^\s{2}[\w-]+:\s*$/mu);
+  return next < 0 ? workflow.slice(start) : workflow.slice(start, start + marker.length + next);
+}
+
 const manifest = { name: 'example', version: '0.1.0', dependencies: { sdk: '1.0.0' } };
 const lock = { ...manifest, lockfileVersion: 3, packages: {
   '': manifest, 'node_modules/sdk': { version: '1.0.0', integrity: 'sha512-original' },
@@ -206,35 +219,65 @@ test('manual runs, new branches, missing history and unsupported events run all 
 });
 
 test('every selectable workflow job has a matching condition and participates in ci-gate', () => {
-  const workflow = readFileSync(new URL('../.github/workflows/colp-ci.yml', import.meta.url), 'utf8');
+  const workflow = readWorkflow();
   const jobNames = [...workflow.matchAll(/^  ([\w-]+):\n    (?:needs|if|runs-on):/gmu)].map(match => match[1]);
-  assert.deepEqual(sort(jobNames), sort(['changes', ...CI_JOBS, 'ci-gate']));
-  const gate = workflow.slice(workflow.indexOf('\n  ci-gate:'));
+  assert.deepEqual(sort(jobNames), sort(['changes', 'contract', 'secret-scan', ...CI_JOBS, 'ci-gate']));
+  const gate = workflowJob(workflow, 'ci-gate');
   for (const job of CI_JOBS) {
     assert.ok(workflow.includes(`  ${job}:\n    needs: changes\n    if: contains(fromJSON(needs.changes.outputs.jobs), '${job}')`), job);
     assert.ok(gate.includes(`      - ${job}\n`), job);
     assert.ok(gate.includes(`needs.${job}.result`), job);
   }
-  assert.ok(workflow.includes('fetch-depth: 0'));
-  // PR selection must run the base commit's copy: the checked-out selector is
-  // PR-controlled, and ci-gate treats skipped jobs as success.
-  assert.ok(workflow.includes('BASE_SHA: ${{ github.event.pull_request.base.sha }}'));
-  assert.ok(workflow.includes('git show "${BASE_SHA}:scripts/select-ci-jobs.mjs" > scripts/.select-ci-jobs.base.mjs'));
-  assert.ok(workflow.includes('node "$selector"'));
+  // The contract and base-trusted scan are unconditional, so the gate requires
+  // them directly rather than through the changed-path selector.
+  for (const job of ['contract', 'secret-scan']) {
+    assert.ok(gate.includes(`      - ${job}\n`), job);
+    assert.ok(gate.includes(`needs.${job}.result`), job);
+    assert.doesNotMatch(workflowJob(workflow, job), /^\s{4}if:/mu, job);
+  }
   assert.ok(workflow.includes('github.event.pull_request.number || github.run_id'));
   assert.ok(workflow.includes("cancel-in-progress: ${{ github.event_name == 'pull_request' }}"));
 });
 
-test('CI scans tracked files for secrets and builds package artifacts before the full test suite', () => {
-  const workflow = readFileSync(new URL('../.github/workflows/colp-ci.yml', import.meta.url), 'utf8');
-  const packageJob = workflow.slice(workflow.indexOf('\n  package:'), workflow.indexOf('\n  dependency-audit:'));
-  // The tracked-file scan covers source and test files; the artifact scans
-  // remain because they cover generated output that is not in git.
-  assert.ok(packageJob.includes('run: node scripts/scan-tracked-secrets.mjs\n'));
+test('CI selection checks out only the trusted base and runs no PR code', () => {
+  const workflow = readWorkflow();
+  const changes = workflowJob(workflow, 'changes');
+  assert.ok(changes.includes('PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}'));
+  assert.ok(changes.includes('ref: ${{ steps.base.outputs.ref }}'));
+  assert.ok(changes.includes('fetch-depth: 0'));
+  assert.ok(changes.includes('node scripts/select-ci-jobs.mjs'));
+  assert.ok(changes.includes('git rev-parse HEAD'));
+  // PR-authored tests and README checks must not run before selection.
+  assert.doesNotMatch(changes, /node --test/u);
+  assert.doesNotMatch(changes, /check-readmes/u);
+  assert.ok(!changes.includes('scripts/.select-ci-jobs.base.mjs'));
+
+  const contract = workflowJob(workflow, 'contract');
+  assert.ok(contract.includes('node --test scripts/select-ci-jobs.test.mjs scripts/check-sdk-pins.test.mjs scripts/check-readmes.test.mjs'));
+  assert.ok(contract.includes('run: node scripts/check-readmes.mjs'));
+});
+
+test('CI scans tracked files for secrets with the base scanner and allowlist', () => {
+  const workflow = readWorkflow();
+  const secretScan = workflowJob(workflow, 'secret-scan');
+  assert.ok(secretScan.includes('fetch-depth: 0'));
+  assert.ok(secretScan.includes('git show "${BASE_SHA}:scripts/scan-tracked-secrets.mjs" > .trusted-base/scan-tracked-secrets.mjs'));
+  assert.ok(secretScan.includes('git show "${BASE_SHA}:scripts/secret-scan-allowlist.json" > scripts/secret-scan-allowlist.json'));
+  assert.ok(secretScan.includes('node --check .trusted-base/scan-tracked-secrets.mjs'));
+  const allowlistFetch = secretScan.indexOf('git show "${BASE_SHA}:scripts/secret-scan-allowlist.json"');
+  const scan = secretScan.indexOf('node .trusted-base/scan-tracked-secrets.mjs');
+  assert.ok(allowlistFetch >= 0 && allowlistFetch < scan,
+    'the base allowlist must replace the PR allowlist before the scan runs');
+
+  // The tracked scan is no longer inside a path-selected job; the package job
+  // keeps only the generated-artifact scan for output that is not in git.
+  const packageJob = workflowJob(workflow, 'package');
+  assert.ok(!packageJob.includes('run: node scripts/scan-tracked-secrets.mjs\n'));
   assert.ok(packageJob.includes('run: node scripts/scan-tracked-secrets.mjs --artifact packages/node/dist'));
+
   // Export-surface tests skip themselves when dist/ is absent. CI must build
   // packages/node before the full suite instead of silently skipping them.
-  const testJob = workflow.slice(workflow.indexOf('\n  test:'), workflow.indexOf('\n  publisher-coverage:'));
+  const testJob = workflowJob(workflow, 'test');
   const build = testJob.indexOf('- name: Build package artifacts for the export-surface tests');
   const fullSuite = testJob.indexOf('node scripts/generate-conformance-evidence.mjs');
   assert.ok(build >= 0, 'test job must build packages/node before vitest');
