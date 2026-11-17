@@ -239,7 +239,7 @@ describe('MCP 2026-07-28 resource adapter: list/read/templates', () => {
 
   it('listResources honors configured cacheScope/TTL and passes cursor/scope through', async () => {
     const { adapter, projection } = resourceHarness({}, {
-      cache: { 'resources/list': { ttlMs: 5_000, cacheScope: 'public' } },
+      cache: { 'resources/list': { ttlMs: 5_000, cacheScope: 'private' } },
     });
     (projection.listResources as ReturnType<typeof vi.fn>).mockImplementationOnce(
       async (_input: unknown, _context: Mcp20260728RequestContext) => ({
@@ -252,7 +252,7 @@ describe('MCP 2026-07-28 resource adapter: list/read/templates', () => {
       resourceListInput('page-1'),
     );
     expect(result.ttlMs).toBe(5_000);
-    expect(result.cacheScope).toBe('public');
+    expect(result.cacheScope).toBe('private');
     expect(result.nextCursor).toBe('next-page');
     expect(projection.listResources).toHaveBeenCalledWith(
       { cursor: 'page-1' },

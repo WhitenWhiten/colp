@@ -141,7 +141,11 @@ export interface Mcp20260728SubscriptionsListenAdapterOptions {
   readonly maxConcurrentSessions?: number;
   /** Per-principal cap; prevents one authenticated subject monopolizing the adapter. */
   readonly maxConcurrentSessionsPerPrincipal?: number;
-  /** Per-forwarded-client-address cap; absent addresses share a conservative bucket. */
+  /**
+   * Per-client cap keyed on the host-verified credential binding (anonymous
+   * requests use their per-principal bucket). Caller-supplied forwarding
+   * headers are never trusted as a client identity.
+   */
   readonly maxConcurrentSessionsPerIp?: number;
   /** Idle stream timeout, refreshed by source activity and consumer reads. */
   readonly idleTimeoutMs?: number;

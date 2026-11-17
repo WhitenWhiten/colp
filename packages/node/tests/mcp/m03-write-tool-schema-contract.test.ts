@@ -29,7 +29,8 @@ interface PublishedToolDefinition {
 }
 
 interface WriteGateway {
-  readonly listTools: () => readonly PublishedToolDefinition[];
+  readonly listTools: (context?: McpTrustedWriteRequestContext) => readonly PublishedToolDefinition[];
+  readonly listAllTools: () => readonly PublishedToolDefinition[];
   readonly callTool: (
     name: string,
     input: unknown,
@@ -634,6 +635,15 @@ describe(`M-03 published MCP write Tool schemas ${evidence}`, () => {
       expectClosedRoot(tool.inputSchema);
       expectClosedRoot(tool.outputSchema);
     }
+  });
+
+  it(`keeps the unscoped registration surface separate from scoped advertisement ${evidence}`, () => {
+    const gateway = createGateway({
+      lowRiskTools: { 'custom.double': lowRiskTool({ requiredScopes: ['custom:write'] }) },
+    });
+    expect(gateway.listAllTools().map(({ name }) => name)).toContain('custom.double');
+    expect(gateway.listTools({ ...context, scope: Object.freeze([]) }).map(({ name }) => name))
+      .not.toContain('custom.double');
   });
 
   it(`publishes an immutable snapshot of dynamic schemas ${evidence}`, () => {

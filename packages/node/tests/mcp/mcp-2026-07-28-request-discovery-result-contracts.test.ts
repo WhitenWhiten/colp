@@ -169,12 +169,29 @@ describe('MCP 2026-07-28 result contracts [evidence:mcp.result-contract]', () =>
 
   it('honors explicit cache metadata on cacheable results', () => {
     const result = createMcp20260728Result({
-      method: 'resources/list',
+      method: 'resources/templates/list',
       cache: { ttlMs: 60_000, cacheScope: 'public' },
-      fields: { resources: [] },
+      fields: { resourceTemplates: [] },
     });
     expect(result.ttlMs).toBe(60_000);
     expect(result.cacheScope).toBe('public');
+  });
+
+  it('rejects public cache scope with a TTL for scope-filtered results', () => {
+    for (const method of ['tools/list', 'prompts/list', 'resources/list', 'resources/read']) {
+      expect(() => createMcp20260728Result({
+        method,
+        cache: { ttlMs: 60_000, cacheScope: 'public' },
+        fields: {},
+      })).toThrow(TypeError);
+    }
+    const safe = createMcp20260728Result({
+      method: 'tools/list',
+      cache: { ttlMs: 0, cacheScope: 'public' },
+      fields: { tools: [] },
+    });
+    expect(safe.ttlMs).toBe(0);
+    expect(safe.cacheScope).toBe('public');
   });
 
   it('rejects invalid ttlMs and cacheScope', () => {
@@ -210,7 +227,7 @@ describe('MCP 2026-07-28 result contracts [evidence:mcp.result-contract]', () =>
   it('deep-freezes results so mutation after call cannot leak', () => {
     const result = createMcp20260728Result({
       method: 'resources/read',
-      cache: { ttlMs: 5, cacheScope: 'public' },
+      cache: { ttlMs: 5, cacheScope: 'private' },
       serverInfo,
       fields: { contents: [{ uri: 'fixture://ping', text: 'pong' }] },
     });

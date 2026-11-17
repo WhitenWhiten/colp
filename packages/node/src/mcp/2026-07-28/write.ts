@@ -806,7 +806,9 @@ function readToolEntries(
   gateway: McpWriteToolGateway,
   schemaBudget: Required<McpSchemaBudget>,
 ): ToolEntry[] {
-  const definitions = gateway.listTools();
+  // Schema registration needs the complete definition set; it is not a
+  // client advertisement (advertisement goes through listTools(context)).
+  const definitions = gateway.listAllTools();
   if (!Array.isArray(definitions) || Object.getPrototypeOf(definitions) !== Array.prototype) {
     throw configError();
   }

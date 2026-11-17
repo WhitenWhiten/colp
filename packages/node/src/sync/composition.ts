@@ -173,8 +173,11 @@ async function assertReplicaOwnership(
       detail: 'Replica ownership does not belong to the verified Session principal.',
     });
   }
-  if (verdict !== true && verdict !== undefined) {
-    throw new TypeError('Replica lifecycle ownershipVerifier must return boolean or void.');
+  // Ownership must be proven with a literal `true`. A verifier that forgets to
+  // return a decision (undefined/null) or returns any other non-boolean value
+  // must never mint an authentication proof or open the lifecycle transaction.
+  if (verdict !== true) {
+    throw new TypeError('Replica lifecycle ownershipVerifier must return literal true to authorize.');
   }
 }
 
@@ -555,7 +558,8 @@ export async function coordinateSessionBoundSequence<
  * host's durable `ownershipVerifier` to prove the Replica belongs to the
  * Session principal, then mints the proof and enters the low-level durable
  * coordinator. Missing or negative ownership evidence fails before any
- * transaction is opened.
+ * transaction is opened; the verifier must return literal `true` (unlike the
+ * legacy `void` callback contract, an omitted return value is denial).
  */
 export async function coordinateSessionBoundReplicaLifecycle<
   Transaction extends ReplicaLifecycleTransaction = ReplicaLifecycleTransaction,

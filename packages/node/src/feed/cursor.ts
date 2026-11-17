@@ -7,7 +7,7 @@ import {
   updateFrame,
 } from '../server/cursor-hmac-primitives.js';
 import { getProblemDefinition, type ProblemCode } from '../shared/problems.js';
-import { isHttpUrl } from '../schema/uri.js';
+import { isSafeSnapshotHttpsUrl } from './release-snapshot-guards.js';
 
 const MIN_KEY_BYTES = 32;
 const MAX_KEY_BYTES = 1024;
@@ -213,12 +213,15 @@ export function verifyFeedCursor(
 /**
  * Builds the registered `410 feed_cursor_expired` recovery payload.
  *
- * `snapshotUrl` must be a safe absolute HTTP(S) Snapshot recovery URL without
- * private query material invented by this boundary.
+ * `snapshotUrl` must be a safe absolute HTTPS Snapshot recovery URL without
+ * userinfo, cleartext transport, or a local/private/metadata literal host, and
+ * without private query material invented by this boundary.
  */
 export function createFeedCursorExpiredProblem(snapshotUrl: string): FeedCursorExpiryResult {
-  if (!isHttpUrl(snapshotUrl)) {
-    throw new TypeError('Feed cursor expiry recovery Snapshot URL must be absolute HTTP(S) without userinfo.');
+  if (!isSafeSnapshotHttpsUrl(snapshotUrl)) {
+    throw new TypeError(
+      'Feed cursor expiry recovery Snapshot URL must be an absolute HTTPS URL without userinfo that does not target a local/private address.',
+    );
   }
   const definition = getProblemDefinition('feed_cursor_expired' satisfies ProblemCode);
   return Object.freeze({

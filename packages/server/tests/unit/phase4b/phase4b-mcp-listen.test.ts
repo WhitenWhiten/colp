@@ -895,7 +895,7 @@ test('authenticated credential/scope revocation ends the stream before the next 
   }
 });
 
-test('JWKS or database unavailability during listen recheck keeps the session', async () => {
+test('JWKS, database, or revocation failures during listen recheck close the stream without further notifications', async () => {
   const binding = mapOAuthEvidenceToAuthenticatedBinding(Object.freeze({
     credentialKind: 'oauth',
     principalId: SUBJECT,
@@ -919,35 +919,36 @@ test('JWKS or database unavailability during listen recheck keeps the session', 
     },
   };
   const server = await startApi(mcpEnv(), { oauthVerifier: verifier });
-  const { reader } = await postListen(
-    server,
-    { resourcesListChanged: true },
-    'recheck-dependency',
-    { authorization: 'Bearer valid-token' },
-  );
-  try {
-    assert.equal((await reader.next())?.method, 'notifications/subscriptions/acknowledged');
-    server.source.publish({ type: 'resource-list-changed' });
-    assert.equal((await reader.next())?.method, 'notifications/resources/list_changed');
+  // A verifier dependency outage cannot prove the credential is still
+  // authorized, so each failure mode must end the stream: every case gets its
+  // own listen connection because the first failed recheck tears it down.
+  for (const failure of ['jwks', 'database', 'revoked'] as const) {
+    mode = 'ok';
+    const { reader } = await postListen(
+      server,
+      { resourcesListChanged: true },
+      `recheck-dependency-${failure}`,
+      { authorization: 'Bearer valid-token' },
+    );
+    try {
+      assert.equal((await reader.next())?.method, 'notifications/subscriptions/acknowledged');
+      server.source.publish({ type: 'resource-list-changed' });
+      assert.equal((await reader.next())?.method, 'notifications/resources/list_changed');
 
-    mode = 'jwks';
-    server.source.publish({ type: 'resource-list-changed' });
-    assert.equal((await reader.next())?.method, 'notifications/resources/list_changed');
+      mode = failure;
+      server.source.publish({ type: 'resource-list-changed' });
+      assert.equal(await reader.next(), null);
+      assert.equal(server.source.listenerCount(), 0);
 
-    mode = 'database';
-    server.source.publish({ type: 'resource-list-changed' });
-    assert.equal((await reader.next())?.method, 'notifications/resources/list_changed');
-
-    mode = 'revoked';
-    server.source.publish({ type: 'resource-list-changed' });
-    assert.equal(await reader.next(), null);
-    assert.equal(server.source.listenerCount(), 0);
-  } finally {
-    reader.close();
+      server.source.publish({ type: 'resource-list-changed' });
+      assert.equal(await reader.next(), null);
+    } finally {
+      reader.close();
+    }
   }
 });
 
-test('a revocation-store connection failure is not revocation and does not close listen', async () => {
+test('revocation-store connection failures during listen recheck close the stream', async () => {
   const key = await createKeyFixture('listen-pg-connection');
   const token = await mintCredential({ key: key.privateKey, kid: key.kid });
   let mode: 'ok' | 'terminated' | 'timeout' | 'revoked' = 'ok';
@@ -960,33 +961,31 @@ test('a revocation-store connection failure is not revocation and does not close
     },
   }));
   const server = await startApi(mcpEnv(), { oauthVerifier: verifier });
-  const { reader } = await postListen(
-    server,
-    { resourcesListChanged: true },
-    'recheck-pg-connection',
-    { authorization: `Bearer ${token}` },
-  );
-  try {
-    assert.equal((await reader.next())?.method, 'notifications/subscriptions/acknowledged');
-    server.source.publish({ type: 'resource-list-changed' });
-    assert.equal((await reader.next())?.method, 'notifications/resources/list_changed');
+  // A revocation store that cannot answer is not evidence of a live
+  // credential, so both connection failures fail closed like a revocation.
+  for (const failure of ['terminated', 'timeout', 'revoked'] as const) {
+    mode = 'ok';
+    const { reader } = await postListen(
+      server,
+      { resourcesListChanged: true },
+      `recheck-pg-connection-${failure}`,
+      { authorization: `Bearer ${token}` },
+    );
+    try {
+      assert.equal((await reader.next())?.method, 'notifications/subscriptions/acknowledged');
+      server.source.publish({ type: 'resource-list-changed' });
+      assert.equal((await reader.next())?.method, 'notifications/resources/list_changed');
 
-    mode = 'terminated';
-    server.source.publish({ type: 'resource-list-changed' });
-    assert.equal((await reader.next())?.method, 'notifications/resources/list_changed');
-    assert.ok(server.source.listenerCount() > 0);
+      mode = failure;
+      server.source.publish({ type: 'resource-list-changed' });
+      assert.equal(await reader.next(), null);
+      assert.equal(server.source.listenerCount(), 0);
 
-    mode = 'timeout';
-    server.source.publish({ type: 'resource-list-changed' });
-    assert.equal((await reader.next())?.method, 'notifications/resources/list_changed');
-    assert.ok(server.source.listenerCount() > 0);
-
-    mode = 'revoked';
-    server.source.publish({ type: 'resource-list-changed' });
-    assert.equal(await reader.next(), null);
-    assert.equal(server.source.listenerCount(), 0);
-  } finally {
-    reader.close();
+      server.source.publish({ type: 'resource-list-changed' });
+      assert.equal(await reader.next(), null);
+    } finally {
+      reader.close();
+    }
   }
 });
 

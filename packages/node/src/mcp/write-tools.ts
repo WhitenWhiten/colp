@@ -64,7 +64,9 @@ export interface McpWriteToolResult {
 }
 
 export interface McpWriteToolGateway {
+  /** Scoped advertisement; unscoped calls are host registration, never `tools/list`. */
   readonly listTools: (context?: McpTrustedWriteRequestContext) => readonly McpToolDefinition[];
+  readonly listAllTools: () => readonly McpToolDefinition[];
   readonly callTool: (
     name: string,
     input: unknown,
@@ -516,7 +518,6 @@ export function createMcpWriteToolGateway<
   }
 
   const published = Object.freeze(tools.slice());
-
   const listTools = (context?: McpTrustedWriteRequestContext): readonly McpToolDefinition[] => {
     if (context === undefined) return published;
     const trustedContext = requireTrustedWriteRequestContext(context);
@@ -525,7 +526,6 @@ export function createMcpWriteToolGateway<
       hasWriteToolScopes(readWriteToolScopes(readOwnValue(definition, 'requiredScopes')), effectiveScope),
     ));
   };
-
   const callTool = async (
     name: string,
     input: unknown,
@@ -665,6 +665,7 @@ export function createMcpWriteToolGateway<
 
   return Object.freeze({
     listTools,
+    listAllTools: (): readonly McpToolDefinition[] => published,
     callTool,
     recordOutOfBandApproval,
     assessRisk,

@@ -8,7 +8,8 @@ import {
 } from '../../src/sync/session.js';
 import type {
   DurableReplicaCheckpoint, ReplicaAuthenticatedLifecycleCommandInput,
-  ReplicaLifecycleTransaction, ReplicaLifecycleUnitOfWork,
+  ReplicaLifecycleOwnershipVerifier, ReplicaLifecycleTransaction,
+  ReplicaLifecycleUnitOfWork,
 } from '../../src/sync/replica-lifecycle.js';
 
 const now = '2026-07-18T01:00:00Z';
@@ -138,6 +139,20 @@ describe('Replica lifecycle requires a bound Collection [evidence:sync.compositi
       () => false,
     )).rejects.toMatchObject({ denial: { state: 'request_binding_mismatch' } });
     expect(entered).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the ownership verifier omits a boolean verdict', async () => {
+    const session = await verifiedSession('collection');
+    const { entered, unitOfWork } = forbiddenUnitOfWork();
+    for (const verdict of [undefined, null, 'yes'] as const) {
+      const verifier = (() => verdict) as unknown as ReplicaLifecycleOwnershipVerifier;
+      await expect(coordinateSessionBoundReplicaLifecycle(
+        { kind: 'verified', session }, unitOfWork, key,
+        { type: 'retire', succeeded: true },
+        verifier,
+      )).rejects.toThrow(TypeError);
+      expect(entered).not.toHaveBeenCalled();
+    }
   });
 
   it.each([

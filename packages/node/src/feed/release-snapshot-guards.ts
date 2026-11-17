@@ -1,3 +1,4 @@
+import { isPrivateOrLocalLiteralHostname } from '../shared/private-or-local-literal-host.js';
 import { isHttpUrl } from '../schema/uri.js';
 
 /** Structured Field style digest: `sha-256=:<standard-base64>:` (32-byte SHA-256). */
@@ -9,14 +10,38 @@ export interface ReleaseSnapshotPathIds {
 }
 
 /**
+ * Transport/host policy for Snapshot and expired-cursor recovery URLs.
+ *
+ * Requires an absolute HTTPS URL without credentials whose literal host is
+ * not localhost, a private/local address, or a cloud-metadata endpoint
+ * (`169.254.169.254`). This is the same pure literal-host policy the Sync
+ * effect-page guard applies; it performs no DNS resolution, so non-literal
+ * hostnames remain the fetching host's responsibility.
+ */
+export function isSafeSnapshotHttpsUrl(url: unknown): url is string {
+  if (!isHttpUrl(url)) return false;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  return parsed.protocol === 'https:'
+    && parsed.username === ''
+    && parsed.password === ''
+    && !isPrivateOrLocalLiteralHostname(parsed.hostname);
+}
+
+/**
  * Parses an immutable release snapshot path without allowing WHATWG URL
  * dot-segment normalization to hide the original path. Query strings are
- * intentionally ignored; fragments are never valid for HTTP snapshots.
+ * intentionally ignored; fragments are never valid for HTTPS snapshots.
+ * Cleartext `http:` and local/private/metadata hosts are rejected.
  */
 export function parseImmutableReleaseSnapshotPath(
   url: unknown,
 ): ReleaseSnapshotPathIds | undefined {
-  if (!isHttpUrl(url)) return undefined;
+  if (!isSafeSnapshotHttpsUrl(url)) return undefined;
 
   const value = url;
   // A fragment is never part of the resource identity and is rejected even
@@ -27,7 +52,7 @@ export function parseImmutableReleaseSnapshotPath(
   const pathEnd = queryIndex >= 0 ? queryIndex : value.length;
 
   // Preserve the escaped path from the caller before WHATWG URL processing.
-  const authority = /^https?:\/\/[^/?#]*/iu.exec(value);
+  const authority = /^https:\/\/[^/?#]*/iu.exec(value);
   if (authority === null) return undefined;
   const rawPath = value.slice(authority[0].length, pathEnd);
   if (rawPath.length === 0 || !rawPath.startsWith('/')) return undefined;
@@ -101,8 +126,9 @@ export function parseImmutableReleaseSnapshotPath(
 }
 
 /**
- * Validates an absolute HTTP(S) URL targeting an immutable release snapshot.
- * Query parameters are allowed but never participate in path identity.
+ * Validates an absolute HTTPS URL targeting an immutable release snapshot
+ * whose literal host is not local/private/metadata. Query parameters are
+ * allowed but never participate in path identity.
  */
 export function isImmutableReleaseSnapshotUrl(url: unknown): boolean {
   return parseImmutableReleaseSnapshotPath(url) !== undefined;

@@ -235,17 +235,17 @@ export type ReplicaAuthenticatedLifecycleCommandInput =
  * Host supplied proof that the requested Replica belongs to the verified
  * Session's principal (and any deployment-specific credential/tenant binding).
  *
- * This callback is deliberately evaluated before a `ReplicaAuthProof` is
- * minted and before the lifecycle UnitOfWork is entered.  A deployment should
- * resolve the durable principal → Replica binding inside its authorization
- * boundary and return `true` (or `undefined` for a void callback).  `false`
- * denies the request; any other return value is an adapter contract error.
+ * Evaluated before a `ReplicaAuthProof` is minted and before the lifecycle
+ * UnitOfWork is entered. Return a boolean decision: literal `true` authorizes,
+ * `false` denies. `void`/`undefined` (for example a forgotten `return`) is not
+ * authorization and fails closed before any proof or transaction; any other
+ * non-boolean return value is an adapter contract error.
  */
 export type ReplicaLifecycleOwnershipVerifier = (
   session: VerifiedSyncSession,
   key: ReplicaLifecycleKey,
   command: ReplicaAuthenticatedLifecycleCommandInput,
-) => Promise<boolean | void> | boolean | void;
+) => Promise<boolean> | boolean;
 
 /** Scope required by each host-facing Replica lifecycle operation. */
 export function requiredReplicaLifecycleScope(

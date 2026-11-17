@@ -241,6 +241,20 @@ describe(`FEED-0002 feed cursor contracts [evidence:${evidence}]`, () => {
     expect(() => createFeedCursorExpiredProblem('file:///tmp/x')).toThrow();
   });
 
+  it(`[negative] rejects cleartext and local/private 410 recovery Snapshot URLs [evidence:${evidence}]`, () => {
+    for (const url of [
+      'http://alice.example/collections/c/collection-1/snapshot',
+      'https://169.254.169.254/latest/meta-data',
+      'https://127.0.0.1/collections/c/collection-1/snapshot',
+      'https://10.0.0.7/collections/c/collection-1/snapshot',
+      'https://192.168.1.1/collections/c/collection-1/snapshot',
+      'https://[::1]/collections/c/collection-1/snapshot',
+      'https://localhost/collections/c/collection-1/snapshot',
+    ]) {
+      expect(() => createFeedCursorExpiredProblem(url)).toThrow(TypeError);
+    }
+  });
+
   it(`[success] codec encode/decode matches free functions [evidence:${evidence}]`, () => {
     const key = createFeedCursorHmacKey(randomBytes(32));
     const codec = createFeedCursorCodec(key);

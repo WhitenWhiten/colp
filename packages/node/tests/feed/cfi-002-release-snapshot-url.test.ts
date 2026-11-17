@@ -89,6 +89,27 @@ describe(`CFI-002 Release Snapshot URL identity and path canonicalization [evide
   });
 
   it.each([
+    `http://alice.example/collections/c/${COLLECTION_ID}/releases/${RELEASE_ID}/snapshot`,
+    `https://169.254.169.254/c/${COLLECTION_ID}/releases/${RELEASE_ID}/snapshot`,
+    `https://127.0.0.1/c/${COLLECTION_ID}/releases/${RELEASE_ID}/snapshot`,
+    `https://10.0.0.7/c/${COLLECTION_ID}/releases/${RELEASE_ID}/snapshot`,
+    `https://192.168.1.1/c/${COLLECTION_ID}/releases/${RELEASE_ID}/snapshot`,
+    `https://[::1]/c/${COLLECTION_ID}/releases/${RELEASE_ID}/snapshot`,
+    `https://localhost/c/${COLLECTION_ID}/releases/${RELEASE_ID}/snapshot`,
+  ])(`[negative] rejects cleartext or local/private snapshot URL %s [evidence:${evidence}]`, (url) => {
+    expect(isImmutableReleaseSnapshotUrl(url)).toBe(false);
+    expect(buildReleasePublishedFeedEvent(releaseInput(url), validators)).toEqual({
+      ok: false,
+      code: 'mutable_snapshot_url',
+    });
+    expect(discriminateFeedEvent(releaseEvent(url), validators)).toEqual({
+      valid: false,
+      code: 'mutable_snapshot_url',
+      path: '/data/snapshotUrl',
+    });
+  });
+
+  it.each([
     `${BASE}/c/c1%2Freleases/r1/snapshot`,
     `${BASE}/c/c1%2freleases/r1/snapshot`,
     `${BASE}/c/c1%5Creleases/r1/snapshot`,

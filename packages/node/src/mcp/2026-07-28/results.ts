@@ -70,6 +70,21 @@ export const MCP_20260728_CACHEABLE_RESULT_METHODS: readonly string[] = Object.f
   'server/discover',
 ]);
 
+/**
+ * Cacheable methods whose result can differ by caller scope/principal.
+ * `tools/list` is scope-filtered; `resources/list` and `resources/read` are
+ * visibility/authorization-dependent; `prompts/list` may be filtered by the
+ * same permissions. Marking such a result `public` with a non-zero TTL lets a
+ * shared intermediary replay one principal's result to another, so that
+ * combination is rejected instead of being silently downgraded.
+ */
+export const MCP_20260728_PRINCIPAL_SCOPED_CACHE_METHODS: readonly string[] = Object.freeze([
+  'tools/list',
+  'prompts/list',
+  'resources/list',
+  'resources/read',
+]);
+
 const DEFAULT_CACHE_TTL_MS = 0;
 const DEFAULT_CACHE_SCOPE: Mcp20260728CacheScope = 'private';
 
@@ -99,8 +114,10 @@ export interface Mcp20260728Result {
  * cacheable `complete` results, `ttlMs: 0` + `cacheScope: 'private'` unless
  * the host provides valid metadata. `input_required` is confined to the
  * extended result-type methods; non-cacheable methods never carry cache
- * fields (mirrors the SDK encode contract). Malformed host input throws
- * `TypeError` (host bug).
+ * fields (mirrors the SDK encode contract). Scope-filtered cacheable results
+ * (see {@link MCP_20260728_PRINCIPAL_SCOPED_CACHE_METHODS}) reject a `public`
+ * cache scope with a non-zero TTL. Malformed host input throws `TypeError`
+ * (host bug).
  */
 export function createMcp20260728Result(input: Mcp20260728ResultInput): Mcp20260728Result {
   if (typeof input !== 'object' || input === null || Array.isArray(input)) {
@@ -127,6 +144,16 @@ export function createMcp20260728Result(input: Mcp20260728ResultInput): Mcp20260
     cache = validateCacheMetadata(cacheRaw);
   }
   const isCacheable = resultType === 'complete' && MCP_20260728_CACHEABLE_RESULT_METHODS.includes(method);
+  if (
+    isCacheable
+    && cache?.cacheScope === 'public'
+    && cache.ttlMs > 0
+    && MCP_20260728_PRINCIPAL_SCOPED_CACHE_METHODS.includes(method)
+  ) {
+    throw new TypeError(
+      `MCP ${method} result depends on the caller's scope; cacheScope 'public' requires ttlMs 0.`,
+    );
+  }
   const ttlMs = isCacheable ? (cache?.ttlMs ?? DEFAULT_CACHE_TTL_MS) : undefined;
   const cacheScope = isCacheable ? (cache?.cacheScope ?? DEFAULT_CACHE_SCOPE) : undefined;
 
