@@ -22,6 +22,7 @@ import {
   MEDIA_TYPES,
   parseLinkHeader,
   RequestBudgetError,
+  ResponseTooLargeError,
 } from './http.mjs';
 import { Report } from './report.mjs';
 
@@ -33,6 +34,12 @@ const UNSUPPORTED_VERSION = '999.0';
 const DEFAULT_SNAPSHOT_BYTES = 64 * 1024 * 1024;
 const DEFAULT_SNAPSHOT_MEMBERS = 100_000;
 const DEFAULT_SNAPSHOT_OBJECTS = 100_000;
+/**
+ * Publication projections may carry only extension namespaces the server has
+ * explicitly declared safe. The portable default is empty, matching
+ * protocol/scripts/validate_examples.py.
+ */
+const DEFAULT_PUBLIC_EXTENSIONS = Object.freeze([]);
 
 /** Accepts a server origin or a Manifest URL and returns the Manifest URL to probe. */
 export function resolveManifestUrl(target) {
@@ -48,8 +55,9 @@ export function resolveManifestUrl(target) {
  *
  * @param {string} target Server origin or Manifest URL.
  * @param {{ maxCollections?: number, maxPages?: number, timeoutMs?: number,
- *   maxBytes?: number, maxRequests?: number, maxSnapshotBytes?: number,
- *   maxSnapshotMembers?: number, maxSnapshotObjects?: number,
+ *   maxBytes?: number, maxRequests?: number, maxRedirects?: number,
+ *   maxSnapshotBytes?: number, maxSnapshotMembers?: number,
+ *   maxSnapshotObjects?: number, publicExtensions?: readonly string[],
  *   fetch?: typeof fetch }} [options]
  */
 export async function runConformance(target, options = {}) {
@@ -69,7 +77,10 @@ export async function runConformance(target, options = {}) {
   } catch (error) {
     if (!(error instanceof RequestBudgetError)) throw error;
     report.note(`Stopped early: ${error.message}`);
-    report.skipRemaining('not reached before the request budget ran out');
+    // A run that could not reach a check is not a skipped check: the server
+    // has not demonstrated the requirement, and reporting it as skipped would
+    // let a redirect loop or an undersized budget turn into a green run.
+    report.failRemaining(`not verified: the run stopped because ${error.message}`);
   }
   return report.finish(http.requestCount);
 }
@@ -83,12 +94,14 @@ class Probe {
   #maxSnapshotBytes;
   #maxSnapshotMembers;
   #maxSnapshotObjects;
+  #publicExtensions;
 
   constructor(report, http, options) {
     this.#report = report;
     this.#http = http;
     this.#maxCollections = options.maxCollections ?? 3;
     this.#maxPages = options.maxPages ?? 50;
+    this.#publicExtensions = publicExtensionNamespaces(options.publicExtensions);
     this.#maxSnapshotBytes = positiveSafeInteger(
       options.maxSnapshotBytes ?? DEFAULT_SNAPSHOT_BYTES,
       'maxSnapshotBytes',
@@ -208,62 +221,95 @@ class Probe {
     let totalObjects = 1; // The Collection is shared by every assembled page.
     let first;
     let next = url;
+    // Why the chain stopped before its terminal page. An exhausted budget and a
+    // Link rel="next" that loops both leave the Snapshot incomplete: the checks
+    // below then record a failure instead of being reported as skipped.
+    let chainIncomplete;
     while (next !== undefined) {
       if (pages.length >= this.#maxPages) {
-        this.#report.note(`Stopped following ${url} after ${this.#maxPages} pages.`);
-        return;
+        chainIncomplete = `the page budget of ${this.#maxPages} was exhausted before the final page`;
+        break;
       }
       if (visited.has(next)) {
         this.#record('PUB-0034', false, `Link rel="next" from ${url} loops back to ${next}`);
-        return;
+        chainIncomplete = `Link rel="next" loops back to ${next} instead of reaching a final page`;
+        break;
       }
       visited.add(next);
       const remainingBytes = this.#maxSnapshotBytes - totalBytes;
       if (remainingBytes < 1) {
-        this.#report.note(`Stopped assembling ${url}: Snapshot byte budget of ${this.#maxSnapshotBytes} exhausted.`);
-        return;
+        chainIncomplete = `the Snapshot byte budget of ${this.#maxSnapshotBytes} was exhausted before the final page`;
+        break;
       }
-      const exchange = await this.#readExchange(next, MEDIA_TYPES.snapshot, { maxBytes: remainingBytes });
-      if (exchange === undefined) return;
+      let exchange;
+      try {
+        exchange = await this.#readExchange(next, MEDIA_TYPES.snapshot, { maxBytes: remainingBytes });
+      } catch (error) {
+        if (!(error instanceof ResponseTooLargeError)) throw error;
+        // The per-response cap is the remaining cumulative Snapshot budget:
+        // stop fetching, but still evaluate the pages already collected below.
+        this.#record('PUB-0018', false, `GET ${next}: ${describe(error)}`);
+        chainIncomplete = `the Snapshot byte budget of ${this.#maxSnapshotBytes} was exhausted before the final page`;
+        break;
+      }
+      if (exchange === undefined) {
+        chainIncomplete = `the Snapshot page ${next} could not be read`;
+        break;
+      }
       const page = this.#document(exchange, 'snapshot', MEDIA_TYPES.snapshot);
-      if (page === undefined) return;
+      if (page === undefined) {
+        chainIncomplete = `the Snapshot page ${next} is not a valid Snapshot`;
+        break;
+      }
+      const projectionFailures = [];
       try {
         assertAnonymousPublicationPrimaryVisibility(page);
-        this.#record('PUB-0025', true, `${exchange.url}: public projection passed privacy checks`);
       } catch (error) {
-        this.#record('PUB-0025', false,
-          `${exchange.url}: public projection failed privacy checks: ${describe(error)}`);
+        projectionFailures.push(`failed privacy checks: ${describe(error)}`);
       }
+      projectionFailures.push(
+        ...publicationExtensionViolations(page, this.#publicExtensions)
+          .map((violation) => `leaked extension ${violation}`),
+      );
+      this.#record(
+        'PUB-0025',
+        projectionFailures.length === 0,
+        projectionFailures.length === 0
+          ? `${exchange.url}: public projection passed privacy checks`
+          : `${exchange.url}: public projection ${projectionFailures.join('; ')}`,
+      );
       totalBytes += exchange.bytes.byteLength;
       const pageMembers = snapshotMemberCount(page);
       totalMembers += pageMembers;
       totalObjects += pageMembers;
       if (totalMembers > this.#maxSnapshotMembers) {
-        this.#report.note(
-          `Stopped assembling ${url}: Snapshot member budget of ${this.#maxSnapshotMembers} exhausted.`,
-        );
-        return;
+        chainIncomplete = `the Snapshot member budget of ${this.#maxSnapshotMembers} was exhausted before the final page`;
+        break;
       }
       if (totalObjects > this.#maxSnapshotObjects) {
-        this.#report.note(
-          `Stopped assembling ${url}: Snapshot object budget of ${this.#maxSnapshotObjects} exhausted.`,
-        );
-        return;
+        chainIncomplete = `the Snapshot object budget of ${this.#maxSnapshotObjects} was exhausted before the final page`;
+        break;
       }
       first ??= exchange;
       pages.push(page);
       if (page.page.hasMore !== true) break;
       const link = parseLinkHeader(exchange.headers.get('link')).find((candidate) => candidate.rel === 'next');
       if (!this.#record('PUB-0034', link !== undefined, `GET ${exchange.url}: hasMore is true but there is no Link rel="next"`)) {
-        return;
+        chainIncomplete = 'hasMore is true but there is no Link rel="next" for the page collected so far';
+        break;
       }
       const nextUrl = new URL(link.href, exchange.finalUrl);
       if (new URL(exchange.finalUrl).protocol === 'https:' && nextUrl.protocol === 'http:') {
         this.#record('PUB-0034', false,
           `GET ${exchange.finalUrl}: rel="next" must not downgrade HTTPS to HTTP`);
-        return;
+        chainIncomplete = 'Link rel="next" downgrades HTTPS to HTTP before the final page';
+        break;
       }
       next = nextUrl.href;
+    }
+
+    if (chainIncomplete !== undefined) {
+      this.#report.note(`Stopped assembling ${url}: ${chainIncomplete}.`);
     }
 
     if (pages.length > 1) {
@@ -271,6 +317,13 @@ class Probe {
         const drift = ['snapshotId', 'revision', 'mode'].filter((key) => page[key] !== pages[0][key]);
         this.#record('PUB-0033', drift.length === 0, `${url}: page ${page.page.sequence} differs in ${drift.join(', ')}`);
       }
+    }
+    if (chainIncomplete !== undefined) {
+      // The chain never reached its terminal page, so the checks below cannot
+      // be claimed for the whole Snapshot. Record the reason as the failure of
+      // each check it prevents instead of leaving them unobserved.
+      this.#record('PUB-0033', false,
+        `${url}: ${chainIncomplete}, so page metadata could not be verified across the Snapshot`);
     }
     await this.#conditional(first, MEDIA_TYPES.snapshot);
 
@@ -284,6 +337,10 @@ class Probe {
       assembled = { valid: false, issues: [{ code: 'assembly_error', message: describe(error) }] };
     }
     this.#record('CORE-0001', assembled.valid, `${url}: ${formatIssues(assembled.issues)}`);
+    if (chainIncomplete !== undefined) {
+      this.#record('CORE-0001', false,
+        `${url}: ${chainIncomplete}, so the complete Snapshot could not be assembled`);
+    }
 
     for (const page of pages) {
       if (page.mode !== 'publication') continue;
@@ -299,9 +356,13 @@ class Probe {
     if (url === undefined) return;
     const exchange = await this.#get(url, MEDIA_TYPES.collection, 'PUB-0008');
     if (exchange === undefined) return;
-    if (this.#record('PUB-0008', exchange.status >= 400, `GET ${url} for a Collection that does not exist returned ${exchange.status}`)) {
-      this.#problem(exchange);
-    }
+    this.#record('PUB-0008', exchange.status === 404,
+      `GET ${url} for a Collection that does not exist returned ${exchange.status}, expected 404 resource_not_found`);
+    const problem = this.#problem(exchange);
+    this.#record('PUB-0008', problem?.code === 'resource_not_found',
+      `GET ${url}: expected problem code resource_not_found, got ${
+        problem === undefined ? 'an invalid Problem' : JSON.stringify(problem.code)
+      }`);
   }
 
   /**
@@ -370,7 +431,11 @@ class Probe {
         ...(requestOptions === undefined ? {} : requestOptions),
       });
     } catch (error) {
-      if (error instanceof RequestBudgetError) throw error;
+      if (error instanceof RequestBudgetError) {
+        this.#record(checkId, false, `GET ${url}: ${describe(error)}`);
+        throw error;
+      }
+      if (error instanceof ResponseTooLargeError && requestOptions?.maxBytes !== undefined) throw error;
       this.#record(checkId, false, `GET ${url} failed: ${describe(error)}`);
       return undefined;
     }
@@ -451,7 +516,10 @@ class Probe {
     try {
       revalidated = await this.#http.request(exchange.url, { accept, headers: { 'If-None-Match': etag } });
     } catch (error) {
-      if (error instanceof RequestBudgetError) throw error;
+      if (error instanceof RequestBudgetError) {
+        this.#record('PUB-0022', false, `GET ${exchange.url} with If-None-Match: ${describe(error)}`);
+        throw error;
+      }
       this.#record('PUB-0022', false, `GET ${exchange.url} with If-None-Match failed: ${describe(error)}`);
       return;
     }
@@ -493,11 +561,47 @@ function snapshotMemberCount(snapshot) {
     + snapshot.tombstones.length;
 }
 
+/**
+ * Enumerates extension namespaces in a public projection that are not on the
+ * public allowlist. Publication Snapshot Collection, Node, and sidecar
+ * resources may carry extensions only when the operator has explicitly
+ * declared those namespaces safe; the default allowlist is empty.
+ */
+function publicationExtensionViolations(snapshot, allowlist = DEFAULT_PUBLIC_EXTENSIONS) {
+  if (snapshot.mode !== 'publication') return [];
+  const resources = [
+    ['Collection', snapshot.collection],
+    ...snapshot.nodes.map((resource, index) => [`Nodes[${index}]`, resource]),
+    ...snapshot.annotations.map((resource, index) => [`Annotations[${index}]`, resource]),
+    ...snapshot.attachments.map((resource, index) => [`Attachments[${index}]`, resource]),
+    ...snapshot.relations.map((resource, index) => [`Relations[${index}]`, resource]),
+  ];
+  const violations = [];
+  for (const [label, resource] of resources) {
+    if (resource === null || typeof resource !== 'object' || Array.isArray(resource)) continue;
+    const extensions = resource.extensions;
+    if (extensions === null || typeof extensions !== 'object' || Array.isArray(extensions)) continue;
+    const unsafe = Object.keys(extensions).filter((namespace) => !allowlist.includes(namespace));
+    if (unsafe.length > 0) {
+      violations.push(`${label} ${resource.id}: ${unsafe.join(', ')}`);
+    }
+  }
+  return violations;
+}
+
 function positiveSafeInteger(value, name) {
   if (!Number.isSafeInteger(value) || value < 1) {
     throw new RangeError(`${name} must be a positive safe integer.`);
   }
   return value;
+}
+
+function publicExtensionNamespaces(value) {
+  if (value === undefined) return DEFAULT_PUBLIC_EXTENSIONS;
+  if (!Array.isArray(value) || value.some((namespace) => typeof namespace !== 'string' || namespace.length === 0)) {
+    throw new TypeError('publicExtensions must be an array of non-empty extension namespace strings.');
+  }
+  return Object.freeze([...value]);
 }
 
 function isPlainHttpUrl(value) {

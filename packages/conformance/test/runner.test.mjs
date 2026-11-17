@@ -25,7 +25,26 @@ async function startMisbehavingProxy(upstream, faults) {
   const server = createServer((incoming, outgoing) => {
     void (async () => {
       const url = new URL(incoming.url, upstream.origin);
+      if (faults.missingCollectionResponse !== undefined
+        && url.pathname.includes('colp-conformance-missing-')) {
+        const { status, code } = faults.missingCollectionResponse;
+        outgoing.writeHead(status, { 'content-type': 'application/problem+json' });
+        outgoing.end(JSON.stringify({
+          type: 'https://example.test/problems/conformance',
+          title: 'Conformance test Problem',
+          status,
+          code,
+        }));
+        return;
+      }
       if (faults.acceptUnknownQuery && url.searchParams.has('colpConformanceUnknown')) url.search = '';
+      const endlessPages = faults.endlessPages === true
+        && url.pathname.endsWith('/snapshot')
+        && !url.searchParams.has('colpConformanceUnknown');
+      const pageIndex = endlessPages
+        ? Math.max(1, Number.parseInt(url.searchParams.get('page') ?? '1', 10) || 1)
+        : undefined;
+      if (endlessPages) url.searchParams.delete('page');
       const headers = Object.fromEntries(Object.entries(incoming.headers)
         .filter(([name]) => !['host', 'connection'].includes(name)));
       if (faults.ignoreVersion) {
@@ -48,6 +67,49 @@ async function startMisbehavingProxy(upstream, faults) {
       }
       if (faults.claimMorePages && url.pathname.endsWith('/snapshot')) {
         body = body.replace('"nextCursor":null,"hasMore":false', '"nextCursor":"page-two","hasMore":true');
+      }
+      if (endlessPages && response.status === 200 && body !== '') {
+        const page = JSON.parse(body);
+        page.page = {
+          nextCursor: `colp-conformance-page-${pageIndex + 1}`,
+          hasMore: true,
+          sequence: pageIndex,
+        };
+        body = JSON.stringify(page);
+        responseHeaders.link = `<${origin}${url.pathname}?page=${pageIndex + 1}>; rel="next"`;
+      }
+      if (faults.loopingNext && url.pathname.endsWith('/snapshot') && response.status === 200 && body !== '') {
+        const page = JSON.parse(body);
+        page.page = {
+          nextCursor: 'colp-conformance-loop',
+          hasMore: true,
+          sequence: 1,
+        };
+        body = JSON.stringify(page);
+        // The page claims a successor but points back at itself: following it
+        // forever is the non-terminating chain the probe must not skip past.
+        responseHeaders.link = `<${origin}${incoming.url}>; rel="next"`;
+      }
+      if (faults.leakingExtensions && url.pathname.endsWith('/snapshot') && response.status === 200 && body !== '') {
+        const page = JSON.parse(body);
+        const namespace = 'https://example.test/extensions/private';
+        const bag = { [namespace]: { internal: true } };
+        page.collection = {
+          ...page.collection,
+          extensions: { ...(page.collection.extensions ?? {}), ...bag },
+        };
+        // A leaking Snapshot may hide the namespace on any public resource, so
+        // the probe must inspect nodes and sidecars as well as the Collection.
+        if (Array.isArray(page.nodes) && page.nodes.length > 0) {
+          page.nodes[0] = { ...page.nodes[0], extensions: { ...(page.nodes[0].extensions ?? {}), ...bag } };
+        }
+        if (Array.isArray(page.annotations) && page.annotations.length > 0) {
+          page.annotations[0] = {
+            ...page.annotations[0],
+            extensions: { ...(page.annotations[0].extensions ?? {}), ...bag },
+          };
+        }
+        body = JSON.stringify(page);
       }
       outgoing.writeHead(response.status, responseHeaders);
       outgoing.end(response.status === 304 ? undefined : body);
@@ -110,6 +172,78 @@ test('reports protocol violations as failures and warnings', async () => {
   }
 });
 
+test('fails PUB-0025 when a publication Snapshot carries an extension outside the public allowlist', async () => {
+  const upstream = await startPublicationServer();
+  const proxy = await startMisbehavingProxy(upstream, { leakingExtensions: true });
+  try {
+    const report = await runConformance(proxy.origin);
+    assert.equal(statusOf(report, 'PUB-0025'), 'fail', formatReport(report));
+    // The bag is applied to the Collection, a Node, and an annotation sidecar:
+    // every public resource must be inspected, not just the Collection.
+    for (const resource of ['Collection', 'Nodes\\[0\\]', 'Annotations\\[0\\]']) {
+      assert.match(formatReport(report),
+        new RegExp(`leaked extension ${resource} .*https://example\\.test/extensions/private`, 'u'));
+    }
+
+    // The same bag passes once the operator explicitly declares that
+    // namespace safe; the default allowlist is empty, not an unconditional ban.
+    const allowed = await runConformance(proxy.origin, {
+      publicExtensions: ['https://example.test/extensions/private'],
+    });
+    assert.equal(statusOf(allowed, 'PUB-0025'), 'pass', formatReport(allowed));
+  } finally {
+    await proxy.close();
+    await upstream.close();
+  }
+});
+
+for (const [label, response] of [
+  ['500 internal_error', { status: 500, code: 'internal_error' }],
+  ['404 with the wrong problem code', { status: 404, code: 'invalid_query' }],
+]) {
+  test(`fails PUB-0008 when an unknown Collection is answered with ${label}`, async () => {
+    const upstream = await startPublicationServer();
+    const proxy = await startMisbehavingProxy(upstream, { missingCollectionResponse: response });
+    try {
+      const report = await runConformance(proxy.origin);
+      assert.equal(statusOf(report, 'PUB-0008'), 'fail', formatReport(report));
+    } finally {
+      await proxy.close();
+      await upstream.close();
+    }
+  });
+}
+
+test('fails page consistency and assembly instead of skipping when a non-terminating Snapshot chain hits the page budget', async () => {
+  const upstream = await startPublicationServer();
+  const proxy = await startMisbehavingProxy(upstream, { endlessPages: true });
+  try {
+    const report = await runConformance(proxy.origin, { maxPages: 3 });
+    assert.equal(statusOf(report, 'PUB-0033'), 'fail', formatReport(report));
+    assert.equal(statusOf(report, 'CORE-0001'), 'fail', formatReport(report));
+    assert.equal(statusOf(report, 'PUB-0034'), 'pass', formatReport(report));
+    assert.match(formatReport(report), /page budget of 3 was exhausted before the final page/u);
+  } finally {
+    await proxy.close();
+    await upstream.close();
+  }
+});
+
+test('fails page consistency and assembly when a Snapshot pagination link loops back on itself', async () => {
+  const upstream = await startPublicationServer();
+  const proxy = await startMisbehavingProxy(upstream, { loopingNext: true });
+  try {
+    const report = await runConformance(proxy.origin);
+    assert.equal(statusOf(report, 'PUB-0034'), 'warn', formatReport(report));
+    assert.equal(statusOf(report, 'PUB-0033'), 'fail', formatReport(report));
+    assert.equal(statusOf(report, 'CORE-0001'), 'fail', formatReport(report));
+    assert.match(formatReport(report), /loops back to .* instead of reaching a final page/u);
+  } finally {
+    await proxy.close();
+    await upstream.close();
+  }
+});
+
 test('rejects a Manifest that is not I-JSON and skips what depends on it', async () => {
   const upstream = await startPublicationServer();
   const proxy = await startMisbehavingProxy(upstream, { duplicateManifestMember: true });
@@ -139,6 +273,22 @@ test('stops at the request budget and says so', async () => {
   } finally {
     await server.close();
   }
+});
+
+test('fails the run instead of skipping checks when a Manifest redirect loop exhausts the redirect budget', async () => {
+  let requests = 0;
+  const report = await runConformance('https://redirect.example/.well-known/collection-protocol', {
+    maxRedirects: 2,
+    fetch: async (url) => {
+      requests += 1;
+      return new Response(null, { status: 302, headers: { Location: String(url) } });
+    },
+  });
+  assert.equal(requests, 3);
+  assert.equal(statusOf(report, 'PUB-0011'), 'fail');
+  assert.match(formatReport(report), /redirect limit of 2/u);
+  assert.equal(report.summary.skip, 0);
+  assert.ok(report.summary.fail > 0);
 });
 
 test('resolves a server origin to its well-known Manifest URL', () => {

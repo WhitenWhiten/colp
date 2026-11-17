@@ -7,6 +7,9 @@ import {
 const evidence = '[evidence:security.mutable-integrity]';
 const now = 1_700_000_000;
 const target = 'https://publisher.example.test/items/i-1';
+const denialReasons = new Set([
+  'invalid_input', 'signature_invalid', 'future', 'stale', 'expired', 'port_failure',
+]);
 const base = { resourceType: 'mutable', uri: target, maxStaleSeconds: 300, claims: {
   '@status': 200, created: now - 30, expires: now + 300, etag: '"v1"', 'protocol-version': '1.0',
 } };
@@ -14,10 +17,20 @@ function ports(overrides: Record<string, unknown> = {}): unknown { return {
   clock: { now: () => now }, signatureVerification: { verify: async () => true }, ...overrides,
 }; }
 async function decision(input: unknown = base, override: Record<string, unknown> = {}): Promise<MutableIntegrityDecision> {
-  try { return await enforceMutableIntegrity(ports(override), input); } catch { return { allowed: false, reason: 'invalid_input' }; }
+  return enforceMutableIntegrity(ports(override), input);
 }
 async function allowed(input: unknown = base, override: Record<string, unknown> = {}): Promise<MutableIntegrityDecision> { const result = await decision(input, override); expect(result.allowed).toBe(true); return result; }
-async function denied(input: unknown, override: Record<string, unknown> = {}): Promise<MutableIntegrityDecision> { const result = await decision(input, override); expect(result.allowed).toBe(false); return result; }
+async function denied(input: unknown, override: Record<string, unknown> = {}): Promise<MutableIntegrityDecision> {
+  const result = await decision(input, override);
+  // A denial must be the verifier's explicit decision, not a crash swallowed by
+  // the test helper: an unexpected throw fails here instead of looking denied.
+  expect(result.allowed).toBe(false);
+  if (result.allowed) throw new Error('expected a denial decision');
+  expect(Object.keys(result).sort()).toEqual(['allowed', 'reason']);
+  expect(denialReasons.has(result.reason)).toBe(true);
+  expect(Object.isFrozen(result)).toBe(true);
+  return result;
+}
 
 describe(`${evidence} SEC-0018 mutable publisher integrity`, () => {
   it(`${evidence} accepts the complete five-component mutable envelope`, async () => { await allowed(); });
@@ -72,6 +85,12 @@ describe(`${evidence} SEC-0018 mutable publisher integrity`, () => {
   it(`${evidence} rejects historical URI Release ID or Revision mismatch`, async () => { const h = { ...base, resourceType: 'historical-release', immutable: true, releaseId: 'rel-1', revision: '7' }; await denied({ ...h, uri: `${target}/releases/rel-2/revisions/7` }); await denied({ ...h, uri: `${target}/releases/rel-1/revisions/8` }); });
   it(`${evidence} fails closed for verifier false and non-boolean results`, async () => { await denied(base, { signatureVerification: { verify: async () => false } }); await denied(base, { signatureVerification: { verify: async () => 1 } }); await denied(base, { signatureVerification: { verify: async () => undefined } }); });
   it(`${evidence} fails closed when verification throws, rejects, or returns a hostile Promise`, async () => { await denied(base, { signatureVerification: { verify: () => { throw new Error('verify'); } } }); await denied(base, { signatureVerification: { verify: async () => Promise.reject(new Error('verify')) } }); const hostile = { get then(): never { throw new Error('then'); } }; await denied(base, { signatureVerification: { verify: () => hostile } }); });
+  it(`${evidence} distinguishes an explicit signature rejection from a verifier crash`, async () => {
+    const rejected = await denied(base, { signatureVerification: { verify: async () => false } });
+    expect(rejected).toEqual({ allowed: false, reason: 'signature_invalid' });
+    const crashed = await denied(base, { signatureVerification: { verify: () => { throw new Error('verify crashed'); } } });
+    expect(crashed).toEqual({ allowed: false, reason: 'port_failure' });
+  });
   it(`${evidence} binds verifier receiver and rejects receiver confusion`, async () => { let receiver: unknown; await allowed(base, { signatureVerification: { verify(this: unknown) { receiver = this; return Promise.resolve(true); } } }); expect(receiver).toBeDefined(); });
   it(`${evidence} reads the clock after verification and catches near-freshness TOCTOU expiry`, async () => { let verified = false; await denied(base, { signatureVerification: { verify: async () => { verified = true; return true; } }, clock: { now: () => (verified ? now + 301 : now) } }); expect(verified).toBe(true); });
   it(`${evidence} rejects accessor, Proxy, custom-prototype, inherited, and sparse inputs`, async () => { const accessor = { ...base, claims: { ...base.claims } }; Object.defineProperty(accessor.claims, 'etag', { enumerable: true, get: () => '"v1"' }); await denied(accessor); await denied(new Proxy(base, {})); await denied(Object.assign(Object.create({ marker: true }), base)); await denied({ ...base, claims: Object.assign([], { length: 2, 1: '@status' }) }); });

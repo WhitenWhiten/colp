@@ -87,6 +87,18 @@ export class Report {
     }
   }
 
+  /**
+   * Records a failure for every check that has no observation yet. A run that
+   * stops before reaching a check must not report it as skipped: the server
+   * has not demonstrated the requirement, and a skipped summary can otherwise
+   * let an exhausted budget or a redirect loop produce a green run.
+   */
+  failRemaining(reason) {
+    for (const entry of this.#observations.values()) {
+      if (entry.passed === 0 && entry.failures.length === 0) entry.failures.push(sanitizeTerminalText(reason));
+    }
+  }
+
   /** Adds a run-level note, such as stopping early. */
   note(text) {
     this.#notes.push(sanitizeTerminalText(text));

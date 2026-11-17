@@ -224,3 +224,23 @@ test('every selectable workflow job has a matching condition and participates in
   assert.ok(workflow.includes('github.event.pull_request.number || github.run_id'));
   assert.ok(workflow.includes("cancel-in-progress: ${{ github.event_name == 'pull_request' }}"));
 });
+
+test('CI scans tracked files for secrets and builds package artifacts before the full test suite', () => {
+  const workflow = readFileSync(new URL('../.github/workflows/colp-ci.yml', import.meta.url), 'utf8');
+  const packageJob = workflow.slice(workflow.indexOf('\n  package:'), workflow.indexOf('\n  dependency-audit:'));
+  // The tracked-file scan covers source and test files; the artifact scans
+  // remain because they cover generated output that is not in git.
+  assert.ok(packageJob.includes('run: node scripts/scan-tracked-secrets.mjs\n'));
+  assert.ok(packageJob.includes('run: node scripts/scan-tracked-secrets.mjs --artifact packages/node/dist'));
+  // Export-surface tests skip themselves when dist/ is absent. CI must build
+  // packages/node before the full suite instead of silently skipping them.
+  const testJob = workflow.slice(workflow.indexOf('\n  test:'), workflow.indexOf('\n  publisher-coverage:'));
+  const build = testJob.indexOf('- name: Build package artifacts for the export-surface tests');
+  const fullSuite = testJob.indexOf('node scripts/generate-conformance-evidence.mjs');
+  assert.ok(build >= 0, 'test job must build packages/node before vitest');
+  assert.ok(fullSuite >= 0, 'test job must still run the full suite');
+  assert.ok(build < fullSuite, 'the package build must precede the full test suite');
+  const buildStep = testJob.slice(build, fullSuite);
+  assert.ok(buildStep.includes('run: npm run build\n'), 'the build step must run the package build');
+  assert.ok(buildStep.includes('working-directory: packages/node'), 'the build step must run in packages/node');
+});
