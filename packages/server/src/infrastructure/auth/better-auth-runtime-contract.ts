@@ -235,6 +235,19 @@ export interface BetterAuthRuntimeInput<DB> {
     readonly currentAuthSessionId: string;
   }) => Promise<void>;
   /**
+   * Email-change keep-current: the mailbox change raises the account epoch in
+   * the P9 establishment transaction (which already revokes the OAuth refresh
+   * families). This callback revokes the account's OTHER browser / legacy
+   * sessions and realigns the requesting session's metadata to that committed
+   * epoch, so the browser that changed its email stays signed in while every
+   * other session dies. Guarded — a failure must never fail the committed
+   * email change.
+   */
+  readonly onEmailChanged?: (input: {
+    readonly authUserId: string;
+    readonly currentAuthSessionId: string;
+  }) => Promise<void>;
+  /**
    * Password-reset epoch revoke (token reset and email-OTP recovery). BA
    * `/reset-password` and `/email-otp/reset-password` already delete BA
    * sessions; this callback bumps the product `security_epoch` so HTTP

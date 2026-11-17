@@ -47,6 +47,10 @@ import {
 } from '../session-cookie.js';
 import type { BrowserAuthDeps } from './browser-auth-deps.js';
 import {
+  admitSessionBootstrapOrigin,
+  revokeRotatedSuccessorOnLogout,
+} from './browser-session-route-support.js';
+import {
   linkingUnavailable,
   mapAccountDeletionError,
   mapAccountLinkingError,
@@ -377,19 +381,10 @@ export function registerSessionMeRoutes(app: FastifyInstance, deps: BrowserAuthD
     rejectMixedCarriers(request);
     const authority = deps.browserSessionAuthority;
     if (authority) {
-      // Session bootstrap is a stateful operation when it rotates a mature
-      // cookie.  A top-level cross-site navigation may carry SameSite=Lax
-      // cookies but has no CSRF proof, so only an exact allowed Origin may
-      // authorize rotation. Same-origin Fetch Metadata also authorizes normal
-      // browser GETs, which omit Origin; navigation/absent evidence cannot rotate.
+      // Only an exact product Origin may rotate; trusted extension Origins
+      // are admitted for the read (see `admitSessionBootstrapOrigin`).
       const origin = request.headers.origin;
-      const originAllowsRotation = typeof origin === 'string'
-        && origin.length > 0
-        && origin !== 'null'
-        && deps.config.allowedOrigins.includes(origin);
-      if (origin !== undefined && !originAllowsRotation) {
-        requireAllowedOrigin(request, deps.config.allowedOrigins);
-      }
+      const originAllowsRotation = admitSessionBootstrapOrigin(request, deps.config);
       const sameOriginFetch = origin === undefined
         && request.headers['sec-fetch-site'] === 'same-origin'
         && (request.headers['sec-fetch-mode'] === 'cors'
@@ -473,6 +468,11 @@ export function registerSessionMeRoutes(app: FastifyInstance, deps: BrowserAuthD
         csrfTokenHash = actor.session.csrfTokenHash;
       } catch (error: unknown) {
         if (error instanceof BrowserSessionAuthenticationError) {
+          // A rotated-away predecessor cookie can still point at a live
+          // successor; revoke that lineage before clearing the cookie.
+          if (error.code === 'authentication_required') {
+            await revokeRotatedSuccessorOnLogout({ authority, request });
+          }
           clearSessionCookie(reply);
           return reply.code(204).send();
         }

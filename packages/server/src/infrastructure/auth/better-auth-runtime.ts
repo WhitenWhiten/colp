@@ -4,7 +4,7 @@ import { createCimdClientDiscovery, type CimdOptions } from '@better-auth/cimd';
 import { mcp } from '@better-auth/mcp';
 import { extendOAuthProvider } from '@better-auth/oauth-provider';
 import { betterAuth, type BetterAuthOptions, type BetterAuthPlugin } from 'better-auth';
-import { APIError, createAuthEndpoint, createAuthMiddleware, getAuthoritativeSessionFromCtx } from 'better-auth/api';
+import { APIError, createAuthEndpoint, createAuthMiddleware } from 'better-auth/api';
 import { expireCookie } from 'better-auth/cookies';
 import { emailOTP, jwt, twoFactor, username } from 'better-auth/plugins';
 import { timingSafeEqual } from 'node:crypto';
@@ -51,6 +51,14 @@ import {
 } from './better-auth-runtime-contract.js';
 import { mountBetterAuthAllowlist } from './better-auth-fastify-bridge.js';
 import { createProtectedBetterAuthKyselyAdapter } from './better-auth-protected-kysely-adapter.js';
+import {
+  PRODUCT_SESSION_AUTHENTICATED_PATHS,
+  assertProductSessionActive,
+  completeEmailChangeSessionRevocation,
+  liveAuthSessionIdOf,
+  requiresProductSessionCheck,
+  resolveProductSessionCarrier,
+} from './product-session-gate.js';
 
 export {
   BETTER_AUTH_ALLOWLIST,
@@ -176,6 +184,7 @@ export function buildBetterAuthOptions<DB>(input: BetterAuthRuntimeInput<DB>): B
   });
   const productHooks = buildProductAuthHooks({
     onPasswordChanged: input.onPasswordChanged,
+    onEmailChanged: input.onEmailChanged,
     onOAuthOccupancyAdopted: input.onOAuthOccupancyAdopted,
     logger: input.logger,
     otpMaxAttempts: input.config.emailOtp?.maxAttempts,
@@ -686,66 +695,9 @@ function colpRegistrationStatePlugin(): BetterAuthPlugin {
   };
 }
 
-/**
- * BA endpoints that authenticate a browser session and then mutate identity
- * or mint an authorization artifact. Keep this list explicit: endpoints that
- * are public (sign-in, OTP send, verification links) must not require a
- * product session, while every identity mutation must fail closed when the
- * product session metadata has been revoked or its account epoch changed.
- */
-const PRODUCT_SESSION_AUTHENTICATED_PATHS = new Set([
-  '/oauth2/authorize',
-  '/email-otp/request-email-change',
-  '/email-otp/change-email',
-]);
-
-/**
- * A signed-out browser must reach Better Auth's authorize endpoint, which
- * redirects it to the login page. Only a request that carries no session
- * cookie (either frozen name) skips the product check; a carried cookie is
- * still verified against known_auth_session_metadata.
- */
-function carriesBrowserSessionCookie(ctx: Parameters<typeof getAuthoritativeSessionFromCtx>[0]): boolean {
-  const cookie = ctx.headers?.get('cookie') ?? '';
-  return /(?:^|;\s*)(?:__Host-)?known_session=/u.test(cookie);
-}
-
-async function assertProductSessionActive(
-  ctx: Parameters<typeof getAuthoritativeSessionFromCtx>[0],
-  db: Kysely<DatabaseSchema>,
-): Promise<void> {
-  // A live Better Auth carrier still needs product lifetime checks with database time.
-  const session = await getAuthoritativeSessionFromCtx(ctx);
-  const candidate = session?.session.id;
-  if (typeof candidate !== 'string' || candidate.length === 0) {
-    throw APIError.from('UNAUTHORIZED', {
-      code: 'session_context_unavailable',
-      message: 'The browser session could not be verified.',
-    });
-  }
-  const row = await db.selectFrom('known_auth_session_metadata')
-    .select(['revoked_at', 'security_epoch', 'account_id'])
-    .where('auth_session_id', '=', candidate)
-    .where('idle_expires_at', '>', sql<Date>`clock_timestamp()`)
-    .where('absolute_expires_at', '>', sql<Date>`clock_timestamp()`)
-    .executeTakeFirst();
-  if (!row || row.revoked_at !== null) {
-    throw APIError.from('UNAUTHORIZED', {
-      code: 'session_revoked', message: 'The browser session is no longer valid.',
-    });
-  }
-  const account = await db.selectFrom('accounts').select(['security_epoch', 'status', 'deleted_at'])
-    .where('id', '=', row.account_id).executeTakeFirst();
-  if (!account || account.status !== 'active' || account.deleted_at !== null
-      || BigInt(account.security_epoch) !== BigInt(row.security_epoch)) {
-    throw APIError.from('UNAUTHORIZED', {
-      code: 'session_revoked', message: 'The browser session is no longer valid.',
-    });
-  }
-}
-
 function buildProductAuthHooks(input: {
   readonly onPasswordChanged?: BetterAuthRuntimeInput<never>['onPasswordChanged'];
+  readonly onEmailChanged?: BetterAuthRuntimeInput<never>['onEmailChanged'];
   readonly onOAuthOccupancyAdopted?: BetterAuthRuntimeInput<never>['onOAuthOccupancyAdopted'];
   readonly logger?: BetterAuthRuntimeInput<never>['logger'];
   readonly otpMaxAttempts?: number;
@@ -759,20 +711,19 @@ function buildProductAuthHooks(input: {
 
   return {
     before: createAuthMiddleware(async (ctx) => {
-      // Better Auth's OAuth authorize endpoint authenticates the browser
-      // session itself, but the product authority also tracks revocation and
-      // security-epoch state in known_auth_session_metadata. Re-check that
-      // authoritative row before issuing an authorization code so a cookie
-      // accepted by BA cannot survive product-side session revocation.
-      // Better Auth's own session carrier can outlive a product session row
+      // Better Auth's session carrier can outlive the product session row
       // (rotation, idle expiry, explicit revoke, or account disable). Every
-      // identity-mutating endpoint must consult the product authority before
-      // Better Auth performs the mutation. The check used to cover only the
-      // OAuth authorize endpoint, which left email-OTP change-email capable
-      // of mutating a revoked browser session.
-      const signedOutAuthorize = ctx.path === '/oauth2/authorize' && !carriesBrowserSessionCookie(ctx);
-      if (input.db !== undefined && PRODUCT_SESSION_AUTHENTICATED_PATHS.has(ctx.path) && !signedOutAuthorize) {
-        await assertProductSessionActive(ctx, input.db);
+      // mounted identity-mutating / code-minting endpoint must consult the
+      // product authority before Better Auth performs the mutation.
+      if (input.db !== undefined && PRODUCT_SESSION_AUTHENTICATED_PATHS.has(ctx.path)) {
+        // Resolve the carrier once: a re-dispatched authorize keeps the
+        // session it already established on the context, while a cookie whose
+        // BA session is gone is a signed-out authorize (Better Auth owns the
+        // login redirect), not a product session failure.
+        const carrier = await resolveProductSessionCarrier(ctx);
+        if (requiresProductSessionCheck(ctx.path, liveAuthSessionIdOf(carrier))) {
+          await assertProductSessionActive(carrier, input.db);
+        }
       }
       // OAuth Provider 1.7.1 dispatches registered backchannel logout URIs
       // with the process-global fetch.  It has no egress injection seam, so
@@ -878,6 +829,19 @@ function buildProductAuthHooks(input: {
       applySignupOtpSendDeliveryToAdapter(ctx.context);
     }),
     after: createAuthMiddleware(async (ctx) => {
+      if (ctx.path === '/email-otp/change-email') {
+        // The establishment transaction already raised the account epoch and
+        // revoked the OAuth refresh families. Better Auth re-issues the SAME
+        // session after the mailbox change, so revoke the account's other
+        // browser sessions and realign this session's metadata to the
+        // committed epoch (see `onEmailChanged`).
+        await completeEmailChangeSessionRevocation({
+          newSession: ctx.context.newSession,
+          onEmailChanged: input.onEmailChanged,
+          ...(input.logger === undefined ? {} : { logger: input.logger }),
+        });
+        return;
+      }
       if (ctx.path !== '/change-password') return;
       try {
         expireCookie(ctx, ctx.context.createAuthCookie('trust_device', { maxAge: 0 }));

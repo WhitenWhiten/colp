@@ -46,6 +46,10 @@ import {
 } from '../../identity/index.js';
 import { assertAccountUsable } from './business-account-mapping.js';
 import {
+  revokeLogoutLineage,
+  revokeOtherSessionsKeepingCurrent,
+} from './browser-session-revocation.js';
+import {
   RotationCasConflictError,
   type BrowserSessionAuthorityPorts,
   type BrowserSessionMetadataRow,
@@ -331,7 +335,8 @@ export interface BrowserSessionAuthority {
     request: BrowserSessionRequest,
     options?: { readonly allowRotation?: boolean },
   ): Promise<BrowserSessionBootstrapResult>;
-  /** Logout: mark the metadata revoked, then revoke the BA session. Idempotent. */
+  /** Logout: revoke the BA session, following a rotated-away predecessor
+   * cookie to its live successor. Idempotent. */
   signOut(request: BrowserSessionRequest): Promise<void>;
   /**
    * Security revoke-all: epoch bump + BA session revoke + legacy sessions
@@ -342,10 +347,13 @@ export interface BrowserSessionAuthority {
    * Password change: bump the account epoch, revoke every other browser /
    * legacy session, drop 2FA trust-device state (P5), and keep the successor
    * BA session that Better Auth just minted so the current tab stays signed in.
+   * Email change passes `raiseSecurityEpoch: false` to reuse the bump its
+   * identity transaction already committed.
    */
   revokeOthersKeepingCurrent(input: {
     readonly authUserId: string;
     readonly currentAuthSessionId: string;
+    readonly raiseSecurityEpoch?: boolean;
   }): Promise<BrowserSessionRevokeAllResult>;
   /**
    * Live sessions for the account (P4). `current` is true for
@@ -609,14 +617,14 @@ export function createBrowserSessionAuthority(
     const tokenHash = browserSessionTokenHash(token);
 
     // Record the product revoke fact first (concurrent requests fail closed),
-    // then let BA revoke the carrier row (idempotent — spike §3.4).
-    await unitOfWork.execute(async (ports) => {
-      const metadata = await ports.store.findByTokenHash(tokenHash);
-      if (metadata && metadata.revokedAt === null) {
-        await ports.store.markRevoked(metadata.authSessionId, await ports.clock.now());
-      }
-    });
+    // then let BA revoke the carrier row (idempotent — spike §3.4). A
+    // rotated-away predecessor follows its successor links to the live leaf.
+    const successorCookieValue = await unitOfWork.execute(async (ports) =>
+      revokeLogoutLineage({ store: ports.store, tokenHash, now: await ports.clock.now() }));
     await betterAuth.signOut(request);
+    if (successorCookieValue !== null) {
+      await betterAuth.signOut({ cookie: browserSessionCookieHeader(successorCookieValue) });
+    }
   }
 
   type ResolvedBrowserSession =
@@ -781,28 +789,18 @@ export function createBrowserSessionAuthority(
         return { securityEpoch, revokedAuthSessions, revokedLegacySessions };
       });
     },
-    async revokeOthersKeepingCurrent({ authUserId, currentAuthSessionId }) {
+    async revokeOthersKeepingCurrent({ authUserId, currentAuthSessionId, raiseSecurityEpoch = true }) {
       return unitOfWork.execute(async (ports) => {
         const mapping = await ports.mappings.findByAuthUserId(authUserId);
-        if (!mapping) {
+        const account = mapping === null ? null : await ports.accounts.findById(mapping.accountId);
+        if (mapping === null || account === null) {
           throw new BrowserSessionAuthenticationError('account_not_found', 'account was not found');
         }
-        const account = await ports.accounts.findById(mapping.accountId);
-        if (!account) {
-          throw new BrowserSessionAuthenticationError('account_not_found', 'account was not found');
-        }
-        const now = await ports.clock.now();
-        const securityEpoch = await ports.accounts.bumpSecurityEpoch(mapping.accountId);
-        await ports.revokeOAuthRefreshTokensForAccount(mapping.accountId);
-        await ports.store.revokeOthersForAccount(mapping.accountId, currentAuthSessionId, now);
-        await ports.store.alignMetadataEpoch(currentAuthSessionId, securityEpoch);
-        const revokedAuthSessions = await ports.store.deleteAuthSessionsForAccountExcept(
-          mapping.accountId,
+        return revokeOtherSessionsKeepingCurrent(ports, {
+          accountId: mapping.accountId,
           currentAuthSessionId,
-        );
-        const revokedLegacySessions = await ports.sessions.revokeAllForAccount(mapping.accountId, now);
-        await ports.store.deleteTrustDeviceStateForAccount(mapping.accountId);
-        return { securityEpoch, revokedAuthSessions, revokedLegacySessions };
+          ...(raiseSecurityEpoch ? {} : { securityEpoch: account.securityEpoch }),
+        });
       });
     },
     async listLiveSessions({ accountId, currentAuthSessionId }) {

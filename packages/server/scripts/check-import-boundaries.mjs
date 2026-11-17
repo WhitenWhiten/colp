@@ -747,6 +747,7 @@ const transportTargets = new Set([
   'transport/auth/browser-auth-mapping.ts',
   'transport/auth/browser-auth-oidc.ts',
   'transport/auth/browser-auth-routes.ts',
+  'transport/auth/browser-session-route-support.ts',
   'transport/product/collection-resource-routes.ts',
   'transport/product/collection-route-helpers.ts',
   'transport/product/collection-routes.ts',

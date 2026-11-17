@@ -22,6 +22,7 @@
  *   winner, and the predecessor metadata row must be marked revoked.
  */
 import assert from 'node:assert/strict';
+import Fastify from 'fastify';
 import type { FastifyRequest } from 'fastify';
 import { afterEach, describe, test } from 'vitest';
 import { loadConfig } from '../../support/test-config.js';
@@ -61,6 +62,7 @@ import {
   type MintedSuccessorSession,
 } from '../../../src/modules/auth/index.js';
 import { buildApiApp } from '../../../src/transport/app.js';
+import { registerSessionMeRoutes } from '../../../src/transport/auth/browser-auth-handlers.js';
 import { requireSessionActor } from '../../../src/transport/session-auth.js';
 import { createMemoryProductCommandReceiptPort, type MemoryProductCommandReceipts } from '../../support/product-http-harness.js';
 
@@ -930,6 +932,32 @@ describe('BrowserSessionAuthority signOut and revokeAll', () => {
     await authority.signOut({ cookie: `${BROWSER_SESSION_COOKIE_NAME}=%zz` });
   });
 
+  test('signOut with a rotated-away predecessor cookie revokes the live successor', async () => {
+    const { world, authority } = createMemoryHarness();
+    const { cookie } = seedUsableSession(world, { createdAtAgoMs: 16 * 60_000 });
+    // Two rotations: logout must follow the full predecessor chain, not only
+    // the immediate successor.
+    let current = cookie;
+    for (let index = 0; index < 2; index += 1) {
+      const rotated = await authority.bootstrap({ cookie: cookieHeader(current) });
+      assert.ok(rotated.authenticated && rotated.rotatedCookieValue);
+      current = rotated.rotatedCookieValue;
+      world.now = new Date(world.now.getTime() + 16 * 60_000);
+    }
+    const liveLeafId = world.predecessorIndex.get('minted-session-1');
+    assert.ok(liveLeafId);
+    assert.ok(await authority.authenticate({ cookie: cookieHeader(current) }));
+
+    // The stale tab still carries the FIRST predecessor cookie.
+    await authority.signOut({ cookie: cookieHeader(cookie) });
+
+    assert.equal(await authority.authenticate({ cookie: cookieHeader(current) }), null, 'live successor must be revoked');
+    assert.notEqual(world.metadataById.get(liveLeafId)?.revokedAt, null);
+    assert.equal(world.tokenBySessionId.has(liveLeafId), false, 'successor BA row must be gone');
+    // Idempotent: a second logout with the same stale cookie is a safe no-op.
+    await authority.signOut({ cookie: cookieHeader(cookie) });
+  });
+
   test('revokeAll bumps the epoch and revokes BA sessions, metadata and legacy sessions', async () => {
     const { world, authority } = createMemoryHarness();
     seedUsableSession(world);
@@ -1008,6 +1036,45 @@ describe('BrowserSessionAuthority signOut and revokeAll', () => {
       true,
     );
     assert.deepEqual(world.trustDeviceClears, ['acct-1']);
+  });
+
+  test('revokeOthersKeepingCurrent can reuse an epoch already raised by the email-change transaction', async () => {
+    const { world, authority } = createMemoryHarness();
+    const current = seedUsableSession(world);
+    seedBaSession(world, { id: 'ba-session-2', userId: 'ba-user-1', token: TOKEN_2 });
+    seedMetadata(world, {
+      authSessionId: 'ba-session-2',
+      sessionTokenHash: browserSessionTokenHash(TOKEN_2),
+      accountId: 'acct-1',
+      idleExpiresAt: new Date(world.now.getTime() + 86_400_000),
+      absoluteExpiresAt: new Date(world.now.getTime() + 30 * 86_400_000),
+      securityEpoch: 0n,
+      csrfTokenHash: browserSessionTokenHash(deriveBrowserSessionCsrfTokenRaw(TOKEN_2)),
+      predecessorSessionId: null,
+      lastSeenAt: new Date(world.now),
+      revokedAt: null,
+      createdAt: new Date(world.now),
+    });
+    // Simulate the email-change transaction: the epoch is already raised and
+    // both metadata rows still snapshot the previous epoch.
+    const account = world.accounts.get('acct-1');
+    assert.ok(account);
+    world.accounts.set('acct-1', { ...account, securityEpoch: 1n });
+
+    const result = await authority.revokeOthersKeepingCurrent({
+      authUserId: 'ba-user-1',
+      currentAuthSessionId: 'ba-session-1',
+      raiseSecurityEpoch: false,
+    });
+
+    assert.equal(result.securityEpoch, 1n);
+    assert.equal(world.accounts.get('acct-1')?.securityEpoch, 1n, 'no second epoch bump');
+    assert.equal(world.metadataById.get('ba-session-1')?.securityEpoch, 1n, 'current session metadata realigned');
+    assert.equal(world.metadataById.get('ba-session-1')?.revokedAt, null);
+    assert.ok(world.metadataById.get('ba-session-2')?.revokedAt);
+    assert.equal(world.tokenBySessionId.has('ba-session-2'), false);
+    assert.ok(await authority.authenticate({ cookie: cookieHeader(current.cookie) }), 'current session stays usable');
+    assert.equal(await authority.authenticate({ cookie: cookieHeader(cookieValue(TOKEN_2)) }), null);
   });
 
   test('listLiveSessions returns both sessions with current flag and never a token', async () => {
@@ -1302,6 +1369,37 @@ function createAppHarness(now?: Date) {
   return { app, world: harness.world, authority: harness.authority, identityState };
 }
 
+/**
+ * Product session routes with Better Auth trustedOrigins that include an MV3
+ * extension origin. Only the session routes are registered so the admission
+ * behavior is asserted without the full product surface.
+ */
+function createSessionOnlyApp(extensionId: string) {
+  const extensionOrigin = `chrome-extension://${extensionId}`;
+  const harness = createMemoryHarness();
+  const config = loadConfig({
+    DATABASE_URL: 'postgres://localhost/known_test',
+    PRODUCT_ORIGIN: 'https://app.example.test',
+    ALLOWED_ORIGINS: 'https://app.example.test',
+    BETTER_AUTH_ENABLED: 'true',
+    SYNC_EXTENSION_IDS: extensionId,
+    NODE_ENV: 'test',
+    LOG_LEVEL: 'silent',
+  });
+  const app = Fastify({ logger: false });
+  app.decorate('browserSessionAuthority', harness.authority);
+  registerSessionMeRoutes(app, {
+    config,
+    identityUnitOfWork: {
+      execute: async () => {
+        throw new Error('session-only harness has no identity unit of work');
+      },
+    } as unknown as IdentityUnitOfWork,
+    browserSessionAuthority: harness.authority,
+  });
+  return { app, world: harness.world, authority: harness.authority, extensionOrigin };
+}
+
 /** Seeds the business profile + handle rows the /me views require. */
 function seedIdentityProfile(
   identityState: { readonly profiles: Map<string, Profile>; readonly handles: Map<string, ProfileHandle> },
@@ -1535,6 +1633,44 @@ describe('browser auth transport with the BrowserSessionAuthority', () => {
 
     // Direct authority calls agree.
     assert.equal(await authority.authenticate({ cookie: cookieHeader(cookie) }), null);
+  });
+
+  test('DELETE /api/v1/session with a rotated-away predecessor revokes the live successor', async () => {
+    const { app, world, authority } = createAppHarness();
+    apps.push(app);
+    const { cookie } = seedUsableSession(world, { createdAtAgoMs: 16 * 60_000 });
+    const winner = await authority.bootstrap({ cookie: cookieHeader(cookie) });
+    assert.ok(winner.authenticated && winner.rotatedCookieValue);
+    const successorCookie = winner.rotatedCookieValue;
+    // The stale tab only carries the predecessor cookie: it no longer
+    // authenticates, so logout takes the idempotent 204 path.
+    const staleMe = await app.inject({
+      method: 'GET', url: '/api/v1/me',
+      headers: { cookie: cookieHeader(cookie) },
+    });
+    assert.equal(staleMe.statusCode, 401);
+
+    const logout = await app.inject({
+      method: 'DELETE', url: '/api/v1/session',
+      headers: { cookie: cookieHeader(cookie) },
+    });
+    assert.equal(logout.statusCode, 204);
+    assert.match(firstSetCookie(logout.headers['set-cookie']), /Max-Age=0/u);
+
+    // The live successor must not survive the stale tab's logout.
+    assert.equal(await authority.authenticate({ cookie: cookieHeader(successorCookie) }), null);
+    const after = await app.inject({
+      method: 'GET', url: '/api/v1/session',
+      headers: { cookie: cookieHeader(successorCookie) },
+    });
+    assert.deepEqual(after.json(), { authenticated: false });
+
+    // Idempotent second logout with the same predecessor cookie.
+    const logoutAgain = await app.inject({
+      method: 'DELETE', url: '/api/v1/session',
+      headers: { cookie: cookieHeader(cookie) },
+    });
+    assert.equal(logoutAgain.statusCode, 204);
   });
 
   test('GET /api/v1/auth/sessions lists both devices; POST revoke of B leaves A', async () => {
@@ -1784,6 +1920,45 @@ describe('browser auth transport with the BrowserSessionAuthority', () => {
     });
     assert.equal(malformed.statusCode, 400);
     assert.equal((malformed.json() as { error: { code: string } }).error.code, 'invalid_request');
+  });
+
+  test('GET /api/v1/session admits a trusted extension Origin but never rotates for it', async () => {
+    const extensionId = 'abcdefghijklmnopabcdefghijklmnop';
+    const { app, world, extensionOrigin } = createSessionOnlyApp(extensionId);
+    apps.push(app);
+    const { cookie } = seedUsableSession(world, { createdAtAgoMs: 16 * 60_000 });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/session',
+      headers: { cookie: cookieHeader(cookie), origin: extensionOrigin },
+    });
+    assert.equal(response.statusCode, 200, response.body);
+    assert.equal((response.json() as { authenticated: boolean }).authenticated, true);
+    assert.equal(response.headers['set-cookie'], undefined, 'extension Origin must not authorize rotation');
+    assert.equal(world.mintCounter, 0);
+  });
+
+  test('GET /api/v1/session still rejects untrusted and unrelated extension Origins', async () => {
+    const extensionId = 'abcdefghijklmnopabcdefghijklmnop';
+    const { app, world } = createSessionOnlyApp(extensionId);
+    apps.push(app);
+    const { cookie } = seedUsableSession(world);
+
+    const evil = await app.inject({
+      method: 'GET',
+      url: '/api/v1/session',
+      headers: { cookie: cookieHeader(cookie), origin: 'https://evil.example' },
+    });
+    assert.equal(evil.statusCode, 403);
+
+    // A different extension id is not the configured trusted extension.
+    const foreign = await app.inject({
+      method: 'GET',
+      url: '/api/v1/session',
+      headers: { cookie: cookieHeader(cookie), origin: 'chrome-extension://ponmlkjihgfedcbaponmlkjihgfedcba' },
+    });
+    assert.equal(foreign.statusCode, 403);
   });
 
   test('requireSessionActor routes through the authority when injected', async () => {

@@ -148,6 +148,12 @@ export function composeBetterAuthComposition(
   const providerLinked: {
     current: ((event: { readonly authUserId: string }) => Promise<void>) | null;
   } = { current: null };
+  const emailChanged: {
+    current: ((event: {
+      readonly authUserId: string;
+      readonly currentAuthSessionId: string;
+    }) => Promise<void>) | null;
+  } = { current: null };
   const businessUnitOfWork = createPostgresBusinessAccountUnitOfWork(input.db);
   const runtimeInput = {
     enabled: true,
@@ -169,6 +175,16 @@ export function composeBetterAuthComposition(
       const handler = providerLinked.current;
       if (handler === null) {
         throw new Error('provider link requires session revoke wiring');
+      }
+      await handler(event);
+    },
+    onEmailChanged: async (event: {
+      readonly authUserId: string;
+      readonly currentAuthSessionId: string;
+    }) => {
+      const handler = emailChanged.current;
+      if (handler === null) {
+        throw new Error('email change requires session revoke wiring');
       }
       await handler(event);
     },
@@ -209,6 +225,17 @@ export function composeBetterAuthComposition(
     businessAccount: businessUnitOfWork,
     securityEpochBridge,
   });
+  // Email change raises the account epoch in the P9 establishment transaction
+  // (with the OAuth refresh-family revoke). Reuse that committed bump: revoke
+  // every OTHER browser/legacy session and realign the requesting session's
+  // metadata, so the browser that changed its email stays signed in.
+  emailChanged.current = async ({ authUserId, currentAuthSessionId }) => {
+    await authority.revokeOthersKeepingCurrent({
+      authUserId,
+      currentAuthSessionId,
+      raiseSecurityEpoch: false,
+    });
+  };
   return {
     browserSessionAuthority: authority,
     betterAuthRuntime: runtime,
