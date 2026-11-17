@@ -7,7 +7,6 @@ import { INDEXES, STORES } from './schema.js';
 import { scopeKey, validateScope } from './scope-key.js';
 import { tryValidateQueueRecord } from './queue-lenient.js';
 import { validateQueueRecord } from './queue-validate.js';
-import { unavailableImportOpIds } from './import-settle.js';
 import { firstLaneQueueRow, heldBy, laneHolders } from './queue-hold.js';
 
 export function createQueueBatchRepository(ctx: SyncStoreRuntime) {
@@ -16,8 +15,7 @@ export function createQueueBatchRepository(ctx: SyncStoreRuntime) {
     const key = scopeKey(validateScope(input)); safeInteger(limit, 'limit', 1);
     if (limit > 49) throw new SyncStateError('limit_exceeded');
     const db = await ctx.writableDatabase(); const claimed: QueueOperation[] = [];
-    await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.leases, STORES.queue, STORES.receipts, STORES.importPlans,
-      STORES.importNodes], 'readwrite', async (tx) => {
+    await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.leases, STORES.queue, STORES.receipts], 'readwrite', async (tx) => {
         await requireActiveScope(tx, key);
         const lease = await requestValue(tx.objectStore(STORES.leases).get(key)) as LeaseRecord | undefined;
         if (!lease || lease.ownerId !== ownerId || lease.fence !== fence || lease.expiresAt <= now) {
@@ -27,7 +25,6 @@ export function createQueueBatchRepository(ctx: SyncStoreRuntime) {
         const head = await firstLaneQueueRow(queue, tx.objectStore(STORES.receipts), key, ctx.maxRecordBytes);
         if (!head || head.sequence !== sequence || head.status !== 'claimed'
             || head.retry.ownerId !== ownerId || head.retry.fence !== fence) throw new SyncStateError('stale_fence');
-        const unavailable = await unavailableImportOpIds(tx, key);
         // A change waiting for a conflict or a held item is never batched; the next single claim holds it.
         const holders = await laneHolders(queue, key, ctx.maxRecordBytes);
         const graph = await transactionIssueDependencies(queue, key);
@@ -39,7 +36,7 @@ export function createQueueBatchRepository(ctx: SyncStoreRuntime) {
           if (!row) break;
           if (row.sequence !== sequence + claimed.length + 1 || row.status !== 'pending'
               || row.attempt || row.retry.attempt !== 0 || row.retry.notBefore > now
-              || unavailable.has(row.opId) || await heldBy(row, holders, graph) || !eligible(row)) break;
+              || await heldBy(row, holders, graph) || !eligible(row)) break;
           const updated = validateQueueRecord({ ...row, status: 'claimed', retry: { ...row.retry,
             ownerId, fence, claimExpiresAt: lease.expiresAt } }, ctx.maxRecordBytes);
           queue.put(updated); claimed.push(updated);

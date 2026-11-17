@@ -5,6 +5,7 @@ import { beforeEach, describe, test } from 'vitest';
 import { assertPreviewSourceUnchanged, bindImportFolderChoices, createBookmarkImportCoordinator,
 } from '../src/bookmark-import-plan.js';
 import { previewChromeBookmarkImport, previewNetscapeBookmarkImport } from '../src/import-preview.js';
+import { isOpenQueueIssue } from '../src/sync-state/open-issue-facts.js';
 import { createSyncStateStore, type SyncScope } from '../src/sync-state-store.js';
 
 const scope: SyncScope = { environment: 'production', serverId: 'known', serverOrigin: 'https://known.example',
@@ -220,8 +221,13 @@ describe('P3-35 durable bookmark import plans', () => {
       digest: 'sha256:live', endpointIdentity: 'syncPush', mediaType: 'application/json', baseRevision: null,
       operationRevision: 'local-live', status: 'pending', retry: { attempt: 0, notBefore: 0 }, payload: { type: 'create_node' } }, { allowUnstamped: true });
     await coordinator.pause(plan.planId); const lease = await store.acquireLease(scope, 'owner', 101, 1_000);
-    assert.equal(lease.outcome, 'acquired'); assert.equal(await store.claimNextQueue(scope, 'owner', lease.fence, 102), null);
+    assert.equal(lease.outcome, 'acquired');
+    // A paused plan's queued creates leave the push lane, so an unrelated local
+    // change queued behind them is still claimed instead of stalling forever.
+    assert.equal((await store.getQueueByOpId(scope, plan.nodes[0]!.opId))?.status, 'set_aside');
+    assert.equal((await store.claimNextQueue(scope, 'owner', lease.fence, 102))?.opId, 'live-op');
     await coordinator.resume(plan.planId);
+    assert.equal((await store.getQueueByOpId(scope, plan.nodes[0]!.opId))?.status, 'pending');
     assert.equal((await store.claimNextQueue(scope, 'owner', lease.fence, 103))?.opId, plan.nodes[0]?.opId);
     const exported = JSON.stringify(await store.exportScope(scope));
     assert.match(exported, /live-op/); assert.doesNotMatch(exported, /NETSCAPE-Bookmark-file/);
@@ -285,6 +291,33 @@ describe('P3-35 durable bookmark import plans', () => {
     assert.equal(afterFailure.state, 'attention');
     assert.equal((await store.listImportPlans(scope)).some((plan) => plan.planId === first.planId), true);
     assert.equal((await store.listImportNodes(scope, first.planId)).length, first.nodes.length);
+  });
+
+  test('a rejected import node parks its plan siblings so later local changes still drain', async () => {
+    const { store, coordinator } = await setup();
+    const conversion = previewNetscapeBookmarkImport(html('<DT><A HREF="https://example.test/one">One</A>'
+      + '<DT><A HREF="https://example.test/two">Two</A>'));
+    const plan = await coordinator.commit({ conversion, choices: conversion.tree.map((node) => ({
+      sourceNodeId: node.sourceNodeId, action: 'import' as const,
+      target: { nativeId: 'native-root', colpId: 'server-root', revision: 'children-r1' },
+    })) });
+    const [first, second] = await store.listQueue(scope);
+    assert.ok(first && second);
+    await store.completeQueueWithReceipt(scope, first.sequence, { opId: first.opId,
+      operationDigest: first.digest, kind: 'terminal', receiptId: 'rejected-import',
+      resultDigest: 'sha256:rejected', result: { results: [{ opId: first.opId, sequence: first.sequence,
+        status: 'rejected', code: 'resource_not_found' }] } });
+    assert.equal((await coordinator.status(plan.planId)).state, 'attention');
+    const parked = await store.getQueueByOpId(scope, second.opId);
+    assert.equal(parked?.status, 'set_aside');
+    // Parking is plan progress, not a per-row sync issue that would flood the issue ceiling.
+    assert.equal(isOpenQueueIssue(parked!), false);
+    await store.allocateSequenceAndEnqueue(scope, { opId: 'live-op', batchId: 'live-op', idempotencyKey: 'live-op',
+      digest: 'sha256:live', endpointIdentity: 'syncPush', mediaType: 'application/json', baseRevision: null,
+      operationRevision: 'local-live', status: 'pending', retry: { attempt: 0, notBefore: 0 },
+      payload: { type: 'create_node' } }, { allowUnstamped: true });
+    const lease = await store.acquireLease(scope, 'owner', 101, 1_000); assert.equal(lease.outcome, 'acquired');
+    assert.equal((await store.claimNextQueue(scope, 'owner', lease.fence, 102))?.opId, 'live-op');
   });
 
   test('pause stops advance without throwing and resume keeps the same plan and opIds', async () => {

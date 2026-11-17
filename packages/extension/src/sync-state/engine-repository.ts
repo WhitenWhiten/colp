@@ -11,6 +11,7 @@ import { validateQueueRecord } from './queue-validate.js';
 import { sameAckIntent } from './engine-validate.js';
 import { inheritFrozenEngineFacts } from './engine-transition.js';
 import { validateAckIntent, validateEngineState, validateImportNode, validateImportPlan } from './pull-validate.js';
+import { holdImportPlanQueue, restoreImportPlanQueue } from './import-settle.js';
 import type { CompactionWatermark } from '../sync-compaction.js';
 import type { SyncStoreRuntime } from './runtime.js';
 
@@ -66,11 +67,19 @@ export function createEngineRepository(ctx: SyncStoreRuntime) {
   async function setImportPlanState(input: SyncScope, planId: string, state: ImportPlanRecord['state'], updatedAt: number) {
     const key = scopeKey(validateScope(input)); boundedString(planId, 'planId'); safeInteger(updatedAt, 'updatedAt');
     if (!['active', 'paused', 'complete', 'attention'].includes(state)) throw new SyncStateError('import_state_invalid');
-    const db = await writableDatabase(); await runTransaction(db, [STORES.scopes, STORES.importPlans], 'readwrite', async (tx) => {
-      await requireActiveScope(tx, key); const plans = tx.objectStore(STORES.importPlans);
-      const prior = await requestValue(plans.get([key, planId])) as ImportPlanRecord | undefined;
-      if (!prior) throw new SyncStateError('import_plan_not_found'); plans.put({ ...prior, state, updatedAt });
-    });
+    const db = await writableDatabase(); await runTransaction(db,
+      [STORES.scopes, STORES.importPlans, STORES.importNodes, STORES.queue], 'readwrite', async (tx) => {
+        await requireActiveScope(tx, key); const plans = tx.objectStore(STORES.importPlans);
+        const prior = await requestValue(plans.get([key, planId])) as ImportPlanRecord | undefined;
+        if (!prior) throw new SyncStateError('import_plan_not_found'); plans.put({ ...prior, state, updatedAt });
+        // A paused/attention plan must not own the head of the sequence-ordered push lane: park its
+        // never-sent rows so unrelated local changes keep draining, and put the same rows back when
+        // the plan resumes. See holdImportPlanQueue for why skipping the slots in place is unsafe.
+        if (state === 'paused' || state === 'attention') await holdImportPlanQueue(tx, key, planId, maxRecordBytes);
+        else if (state === 'active' && (prior.state === 'paused' || prior.state === 'attention')) {
+          await restoreImportPlanQueue(tx, key, planId, maxRecordBytes);
+        }
+      });
   }
 
   async function setImportNodeRecovery(input: SyncScope, planId: string, opId: string,

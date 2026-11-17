@@ -1,5 +1,6 @@
 import type { BookmarkEventRecord, UnknownRecord } from './types.js';
 import type { LocalIssueRecord } from './pull-issue-repository.js';
+import { IMPORT_HOLD } from './import-hold.js';
 
 /** A historical diagnostic is not an open issue once its source event completed or reopened. */
 export function openIngressIssue(diagnostic: UnknownRecord, event: BookmarkEventRecord | undefined): LocalIssueRecord | undefined {
@@ -69,6 +70,9 @@ export function isSettledRejection(row: { readonly status?: string; readonly rec
 }
 
 export function isOpenQueueIssue(row: { readonly status?: string; readonly recovery?: { readonly code?: string; readonly resultStatus?: string } }): boolean {
+  // A row parked by its import plan is progress state, not an issue: the plan
+  // UI owns it, and one item per imported node would flood the issue ceiling.
+  if (row.status === 'set_aside' && row.recovery?.code === IMPORT_HOLD) return false;
   return (row.status === 'terminal' && row.recovery?.resultStatus === 'rejected') || (row.status === 'rejected' && !isSettledRejection(row)) || row.status === 'set_aside'
     || (row.status === 'blocked' && ['conflict_pending', 'sequence_blocked'].includes(row.recovery?.code ?? ''));
 }
