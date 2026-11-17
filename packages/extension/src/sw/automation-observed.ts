@@ -79,14 +79,10 @@ export function installObservedCreates(): void {
   const mark = (active: boolean) => () => { void session.set(IMPORT_KEY, { active, at: Date.now() } satisfies ImportWindow).catch(() => undefined); };
   try { chrome.bookmarks?.onImportBegan?.addListener(mark(true)); chrome.bookmarks?.onImportEnded?.addListener(mark(false)); }
   catch { /* Without import events, a Know-N import is still recognized; a browser import may be judged as new bookmarks. */ }
-  // A granted bookmark permission is the one signal that can end a deferred permission problem, so it retries the
-  // terminal intents at once instead of waiting for the owner to find Check now (B5-3).
-  try {
-    chrome.permissions?.onAdded?.addListener?.((permissions: { readonly permissions?: readonly string[] }) => {
-      if (!permissions.permissions?.includes('bookmarks')) return;
-      void resumeObservedCreates({ retryTerminal: true }).catch(error => logBackgroundFailure('permission.observed-creates', error));
-    });
-  } catch { /* No permissions API: Check now still retries them. */ }
+  // A granted bookmark permission retries terminal intents through the service
+  // worker's single chrome.permissions.onAdded listener (see service-worker.ts):
+  // registering a second listener here duplicated the event owner and made the
+  // permission-grant path depend on listener registration order.
   void resumeObservedCreates().catch(error => logBackgroundFailure('startup.observed-creates', error));
 }
 

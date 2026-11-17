@@ -146,6 +146,9 @@ chrome.permissions.onAdded.addListener((permissions) => {
   if (permissions.permissions?.includes('bookmarks')) {
     installNativeFoldersFirst();
     void resumeBookmarksAfterPermissionGrant().finally(() => scheduleNativeFoldersFirst());
+    // A grant is the one signal that can end a deferred permission problem, so
+    // retry terminal observed-placement intents from the single event owner.
+    void resumeObservedCreates({ retryTerminal: true }).catch(error => logBackgroundFailure('permission.observed-creates', error));
   }
 });
 chrome.runtime.onStartup.addListener(() => { void recoverBookmarkEventsAfterEngineSettles('startup'); });
