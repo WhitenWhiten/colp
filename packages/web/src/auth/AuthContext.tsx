@@ -157,6 +157,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSessionState((prev) =>
         prev === 'ready' || prev === 'offline' || prev === 'expired' ? 'expired' : 'signed-out',
       )
+    } else {
+      /* Authenticated for a new session epoch, but /me has not verified its
+         actor yet. Never keep painting the previous account's profile. */
+      setUser(null)
     }
   }, [])
 

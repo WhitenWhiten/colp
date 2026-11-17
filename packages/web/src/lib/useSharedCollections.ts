@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { isProductApiError, productClient, type OwnedCollectionListItem } from '../api'
 import { getSessionSnapshot, privateSessionIdentity, subscribeSession } from '../api/sessionStore'
-import { readRouteCache, writeRouteCache } from './routeCache'
+import { deleteRouteCache, readRouteCache, writeRouteCache } from './routeCache'
 
 type LoadState = 'loading' | 'ready' | 'error'
 
@@ -38,6 +38,13 @@ export function useSharedCollections() {
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const itemsRef = useRef<OwnedCollectionListItem[]>(restored?.items ?? [])
   const cursorRef = useRef<string | null>(restored?.cursor ?? null)
+  /**
+   * Which private identity the rows in `itemsRef` belong to. Stale-while-
+   * revalidate is only safe within one identity: after an account switch (or
+   * a sign-out) the rows must be dropped before the new read settles, and a
+   * failed revalidation must never leave the previous account's rows behind.
+   */
+  const rowsIdentityRef = useRef<string | null>(restored ? identity() : null)
   const generation = useRef(0)
   const controllerRef = useRef<AbortController | null>(null)
 
@@ -51,6 +58,13 @@ export function useSharedCollections() {
     itemsRef.current = unique
     setItems(unique)
   }, [])
+
+  const forgetRows = useCallback(() => {
+    replaceItems([])
+    cursorRef.current = null
+    rowsIdentityRef.current = null
+    setHasMore(false)
+  }, [replaceItems])
 
   /** Publish what the sidebar is showing so the next mount can skip the wipe. */
   const cacheCurrent = useCallback((nextMessage: string) => {
@@ -69,15 +83,16 @@ export function useSharedCollections() {
     const requestedIdentity = identity()
     // Stale-while-revalidate: the desk remounts on every trip through a
     // sub-route, and the sidebar hides this section while it is empty — so
-    // wiping first made "Shared with you" disappear and pop back.
-    const revalidating = itemsRef.current.length > 0
+    // wiping first made "Shared with you" disappear and pop back. Rows from
+    // another identity are never "stale but usable", so they are dropped.
+    const revalidating = itemsRef.current.length > 0 && rowsIdentityRef.current === requestedIdentity
     if (!revalidating) {
-      replaceItems([])
-      cursorRef.current = null
-      setHasMore(false)
+      forgetRows()
     }
     setIsLoadingMore(false)
     if (!snapshot.authenticated) {
+      forgetRows()
+      deleteRouteCache(CACHE_KEY)
       setState('ready')
       setMessage('Sign in to view shared collections')
       return
@@ -94,6 +109,7 @@ export function useSharedCollections() {
         { signal: controller.signal, maxRetries: 0 },
       )
       if (controller.signal.aborted || requestGeneration !== generation.current || requestedIdentity !== identity()) return
+      rowsIdentityRef.current = requestedIdentity
       replaceItems(page.items)
       cursorRef.current = page.page.hasMore ? page.page.nextCursor : null
       setHasMore(Boolean(page.page.hasMore && page.page.nextCursor))
@@ -103,21 +119,21 @@ export function useSharedCollections() {
       cacheCurrent(nextMessage)
     } catch (error) {
       if (controller.signal.aborted || requestGeneration !== generation.current || requestedIdentity !== identity() || isAbort(error)) return
-      if (!revalidating) {
-        replaceItems([])
-        cursorRef.current = null
-        setHasMore(false)
+      const authRequired = isProductApiError(error) && error.isAuthRequired
+      if (!revalidating || authRequired) {
+        forgetRows()
+        if (authRequired) deleteRouteCache(CACHE_KEY)
       }
       setState('error')
       setMessage(
-        isProductApiError(error) && error.isAuthRequired
+        authRequired
           ? 'Sign in to view shared collections'
           : isProductApiError(error) ? error.recoveryHint : "Couldn't load shared collections",
       )
     } finally {
       if (controllerRef.current === controller) controllerRef.current = null
     }
-  }, [cacheCurrent, replaceItems])
+  }, [cacheCurrent, forgetRows, replaceItems])
 
   const loadMore = useCallback(async () => {
     const cursor = cursorRef.current
@@ -168,5 +184,17 @@ export function useSharedCollections() {
     }
   }, [loadFirstPage, privateIdentity])
 
-  return { items, state, message, hasMore, isLoadingMore, reload: loadFirstPage, loadMore }
+  /* A session notification re-renders before the reset effect runs, so gate
+     what is exposed: rows are only ever shown for the identity that fetched
+     them, never for the account switch frame in between. */
+  const rowsVisible = rowsIdentityRef.current === privateIdentity
+  return {
+    items: rowsVisible ? items : [],
+    state,
+    message,
+    hasMore: rowsVisible && hasMore,
+    isLoadingMore,
+    reload: loadFirstPage,
+    loadMore,
+  }
 }

@@ -103,6 +103,27 @@ describe('sessionStore', () => {
     expect(getSessionSnapshot().verificationRequired).toBe(false)
   })
 
+  it('retires the previous me when an authenticated session is replaced', () => {
+    const view = { authenticated: true as const, csrfToken: 'csrf-a', idleExpiresAt: '2099-01-01', absoluteExpiresAt: '2099-01-02' }
+    const actorA = { account: { id: 'acc-a', email: null }, profile: { id: 'p-a', handle: 'a', displayName: 'A', avatarUrl: null } }
+    applySessionView(view)
+    applyMeView(actorA)
+    expect(getSessionSnapshot().me?.account.id).toBe('acc-a')
+
+    // Re-reading the same session keeps the verified actor (SWR within one session).
+    applySessionView(view)
+    expect(getSessionSnapshot().me?.account.id).toBe('acc-a')
+
+    // Another browser session (rotated CSRF) must not serve account A's profile.
+    applySessionView({ ...view, csrfToken: 'csrf-b' })
+    expect(getSessionSnapshot()).toMatchObject({ authenticated: true, csrfToken: 'csrf-b', me: null })
+    expect(verifiedSessionAccountId()).toBeUndefined()
+
+    applyMeView({ ...actorA, account: { id: 'acc-b', email: null }, profile: { ...actorA.profile, id: 'p-b', handle: 'b' } })
+    expect(getSessionSnapshot().me?.account.id).toBe('acc-b')
+    expect(verifiedSessionAccountId()).toBe('acc-b')
+  })
+
   it('records unverified occupancy without treating it as authenticated', () => {
     applySessionView({ authenticated: false, verificationRequired: true })
     expect(isAuthenticated()).toBe(false)

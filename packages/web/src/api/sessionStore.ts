@@ -96,7 +96,14 @@ export function applySessionView(view: SessionView): void {
     previousAuthenticated !== authenticated
     || previousCsrf !== csrfToken
     || previousOccupancy !== verificationRequired
-  ) sessionEpoch += 1
+  ) {
+    sessionEpoch += 1
+    /* This is a different browser session (or no session). The previous
+       actor's /me may belong to another account — never serve it for the new
+       epoch; AuthContext waits for the new /me before painting a profile. */
+    me = null
+    actorEpoch = -1
+  }
   emit()
 }
 

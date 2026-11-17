@@ -46,6 +46,24 @@ export function readDeskCache(): CachedDesk | undefined {
   return readRouteCache<CachedDesk>(DESK_CACHE_KEY)
 }
 
+let lastDesk: CachedDesk | null = null
+
+function sameList(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index])
+}
+
+/* Snapshots are immutable React data, so an unchanged reference means an
+   unchanged tree. Keeping the wrapper object stable lets the persistence
+   layer reuse its serialized form instead of stringifying the desk again. */
+function sameDesk(left: CachedDesk, right: CachedDesk): boolean {
+  const leftIds = Object.keys(left.snaps)
+  if (leftIds.length !== Object.keys(right.snaps).length) return false
+  for (const id of leftIds) if (left.snaps[id] !== right.snaps[id]) return false
+  return sameList(left.expanded, right.expanded)
+    && sameList(left.collapsedSections ?? [], right.collapsedSections ?? [])
+    && sameList(left.userCollapsed ?? [], right.userCollapsed ?? [])
+}
+
 export function persistDeskCache(
   trees: Record<string, TreeEntry>,
   expanded: ReadonlySet<string>,
@@ -56,12 +74,18 @@ export function persistDeskCache(
   for (const [id, entry] of Object.entries(trees)) {
     if (entry.snap) snaps[id] = entry.snap
   }
-  writeRouteCache<CachedDesk>(DESK_CACHE_KEY, {
+  const next: CachedDesk = {
     snaps,
     expanded: [...expanded],
     collapsedSections: [...collapsedSections],
     userCollapsed: [...userCollapsed],
-  })
+  }
+  if (lastDesk && sameDesk(lastDesk, next)) {
+    writeRouteCache<CachedDesk>(DESK_CACHE_KEY, lastDesk)
+    return
+  }
+  lastDesk = next
+  writeRouteCache<CachedDesk>(DESK_CACHE_KEY, next)
 }
 
 /**

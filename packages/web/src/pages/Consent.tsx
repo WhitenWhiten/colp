@@ -61,6 +61,20 @@ export function consentRedirectHost(redirectUri: string): string | null {
   }
 }
 
+/**
+ * The only redirect targets this page will follow: a web URL, or the exact
+ * native-app redirect URI the server signed into the consent transaction. A
+ * 200/consent response is still untrusted input, and `location.assign` on a
+ * `javascript:`/`data:` URL would execute in this origin.
+ */
+export function safeConsentRedirect(target: string, signedRedirectUri: string): string | null {
+  try {
+    const url = new URL(target)
+    if (url.protocol === 'http:' || url.protocol === 'https:') return url.href
+  } catch { /* A relative or scheme-only target can only match the signed URI below. */ }
+  return signedRedirectUri !== '' && target === signedRedirectUri ? target : null
+}
+
 export function Consent() {
   useDocumentTitle('Authorize application')
   const navigate = useNavigate()
@@ -143,9 +157,14 @@ export function Consent() {
         oauth_query: queryString,
       })
       if (result.redirect && result.url) {
+        const destination = safeConsentRedirect(result.url, redirectUri)
+        if (destination === null) {
+          toastError('Could not complete authorization: the redirect address was not verified.')
+          return
+        }
         const loc = (globalThis as { location?: { assign?: (url: string) => void } }).location
         if (loc && typeof loc.assign === 'function') {
-          loc.assign(result.url)
+          loc.assign(destination)
           return
         }
       }

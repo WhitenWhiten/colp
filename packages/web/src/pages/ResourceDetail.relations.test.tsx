@@ -240,6 +240,18 @@ describe('Resource Detail Relation workflow', () => {
     expect(document.body.textContent).toContain('Relation created')
   })
 
+  it('returns focus to the Add relation disclosure after a create closes the form', async () => {
+    mocks.createRelation.mockResolvedValue(relation())
+    render(); await waitForDom(domFinishedLoading); await openCreateForm()
+    const disclosure = findButtonByName('Add relation')
+    change(document.querySelector('[aria-label="Linked bookmark"]')!, 'same-title-b')
+    click('Create relation')
+    await waitForDom(() => document.querySelector('[aria-label="Create relation"]') === null)
+    await waitForDom(() => document.activeElement === disclosure)
+    expect(document.activeElement).toBe(disclosure)
+    expect(disclosure.disabled).toBe(false)
+  })
+
   it('keeps the open edit form mounted while the post-save reload is in flight', async () => {
     const reload = deferred<RelationView[]>()
     mocks.updateRelation.mockResolvedValue(relation({ revision: 'r2' }))

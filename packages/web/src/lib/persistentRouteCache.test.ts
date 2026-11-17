@@ -99,6 +99,49 @@ test('blocked or exhausted storage leaves the in-memory cache usable', () => {
   expect(readRouteCache('account-library')).toBeUndefined()
 })
 
+test('an oversized desk is dropped without serializing it', () => {
+  const deskKey = 'known.library.read-cache.v1:library-desk'
+  const nodes = Array.from({ length: 5000 }, (_, index) => ({
+    id: `n-${index}`, parentId: 'root', kind: 'bookmark', title: 'Saved', position: String(index),
+  }))
+  const oversized = { snaps: { big: { collection: { id: 'big' }, root: { id: 'root' }, nodes } }, expanded: [] }
+  const stringify = vi.spyOn(JSON, 'stringify')
+  writeRouteCache('library-desk', oversized)
+  persist()
+  /* The estimate must reject it before the multi-MB snapshot is encoded. */
+  expect(stringify).not.toHaveBeenCalled()
+  expect(localStorage.getItem(deskKey)).toBeNull()
+})
+
+test('an oversized desk of a few long nodes is dropped without serializing it', () => {
+  const deskKey = 'known.library.read-cache.v1:library-desk'
+  /* Long descriptions, not node count, push this past MAX_LENGTH: a byte
+     estimate that only counted nodes would still stringify the whole tree. */
+  const nodes = Array.from({ length: 600 }, (_, index) => ({
+    id: `n-${index}`, parentId: 'root', kind: 'bookmark', title: 'Saved',
+    description: 'x'.repeat(4_000), position: String(index),
+  }))
+  const oversized = { snaps: { long: { collection: { id: 'long' }, root: { id: 'root' }, nodes } }, expanded: [] }
+  const stringify = vi.spyOn(JSON, 'stringify')
+  writeRouteCache('library-desk', oversized)
+  persist()
+  expect(stringify).not.toHaveBeenCalled()
+  expect(localStorage.getItem(deskKey)).toBeNull()
+})
+
+test('a second flush of the same read model reuses its serialized envelope', () => {
+  writeRouteCache('account-library', library)
+  persist()
+  const stored = localStorage.getItem(key)
+  expect(stored).not.toBeNull()
+
+  const stringify = vi.spyOn(JSON, 'stringify')
+  writeRouteCache('account-library', library)
+  persist()
+  expect(stringify).not.toHaveBeenCalled()
+  expect(localStorage.getItem(key)).toBe(stored)
+})
+
 test('a snapshot stays available after 30 days; its server revision controls freshness', () => {
   localStorage.setItem(key, JSON.stringify({ accountId: 'a', savedAt: Date.now() - 30 * 24 * 60 * 60 * 1000, value: library }))
   expect(readRouteCache('account-library')).toEqual(library)

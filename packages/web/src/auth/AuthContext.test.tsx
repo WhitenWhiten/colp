@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProductApiError, isProductApiError, productClient } from '../api'
 import type { MeView } from '../api'
 import type { SessionView } from '../api/types'
-import { applyMeView, applySessionView, clearSession, getCsrfToken, getSessionSnapshot } from '../api/sessionStore'
+import { applyMeView, applySessionView, clearSession, getCsrfToken, getSessionSnapshot, subscribeSession } from '../api/sessionStore'
 import {
   installFetchMock,
   jsonResponse,
@@ -134,6 +134,32 @@ describe('AuthProvider session ordering', () => {
     await waitForDom(() => loggedInState() === 'true')
     // profileInitials: a one-word name gives its first two letters, not one.
     expect(document.querySelector('[data-testid="auth"]')?.getAttribute('data-initials')).toBe('AD')
+  })
+
+  it('does not paint the previous profile while a replacement session verifies its own /me', async () => {
+    /* The real store subscription is what paints the header, so this test
+       drives the notification path the provider uses in production. */
+    mocks.subscribe.mockImplementation(subscribeSession as unknown as () => () => void)
+    try {
+      render()
+      await waitForDom(() => authText().includes('Account A'))
+      await act(async () => {
+        applySessionView({ ...session, csrfToken: 'replacement-csrf' })
+        await Promise.resolve()
+      })
+      expect(loggedInState()).toBe('false')
+      expect(authText()).not.toContain('Account A')
+
+      const otherMe: MeView = {
+        ...me,
+        account: { ...me.account, id: 'account-b' },
+        profile: { ...me.profile, id: 'profile-b', handle: 'b', displayName: 'Account B' },
+      }
+      await act(async () => { applyMeView(otherMe); await Promise.resolve() })
+      expect(authText()).toContain('Account B')
+    } finally {
+      mocks.subscribe.mockImplementation(() => () => {})
+    }
   })
 
   it('treats /session occupancy as verification-required, not signed out', async () => {

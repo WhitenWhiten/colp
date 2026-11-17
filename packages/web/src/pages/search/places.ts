@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { productClient, type EditorSnapshot, type SearchResult } from '../../api'
+import { privateSessionIdentity, subscribeSession } from '../../api/sessionStore'
 import { readDeskCache } from '../library-desk/data'
 import { rootTitle } from '../../lib/libraryTree'
-import { readRouteCache, writeRouteCache } from '../../lib/routeCache'
+import { pruneRouteCache, readRouteCache, writeRouteCache } from '../../lib/routeCache'
 
 /**
  * Where a search hit lives, after linkding's one quiet line under the title:
@@ -35,8 +36,15 @@ const FRESH_MS = 60_000
 /** Results span few collections; past this many, the rest go without a trail. */
 const MAX_COLLECTIONS = 4
 const MAX_TRAIL_DEPTH = 6
+/** Editor trees are large; keep only the most recently used indexes in memory. */
+export const MAX_CACHED_PLACE_INDEXES = 8
+const PLACES_CACHE_PREFIX = 'search-places:'
 
-const cacheKey = (collectionId: string) => `search-places:${collectionId}`
+type InFlight = { controller: AbortController; promise: Promise<PlaceIndex | null> }
+const inFlight = new Map<string, InFlight>()
+let cacheIdentity = privateSessionIdentity()
+
+const cacheKey = (collectionId: string) => `${PLACES_CACHE_PREFIX}${collectionId}`
 
 export function placeIndexFromSnapshot(snapshot: EditorSnapshot): PlaceIndex {
   const nodes: Record<string, PlaceNode> = {}
@@ -79,15 +87,65 @@ export function compactTrail(trail: readonly string[]): string[] {
   return trail.length <= 3 ? [...trail] : [trail[0]!, '…', trail[trail.length - 1]!]
 }
 
-function readIndex(collectionId: string): CachedIndex | undefined {
+/** Read a collection's index, seeding it from the desk's snapshot when possible. */
+export function readCachedPlaceIndex(collectionId: string): CachedIndex | undefined {
   const cached = readRouteCache<CachedIndex>(cacheKey(collectionId))
   if (cached) return cached
   const snap = readDeskCache()?.snaps[collectionId]
   if (!snap) return undefined
-  const seeded = { at: Date.now(), index: placeIndexFromSnapshot(snap) }
-  writeRouteCache(cacheKey(collectionId), seeded)
-  return seeded
+  return rememberPlaceIndex(collectionId, { at: Date.now(), index: placeIndexFromSnapshot(snap) })
 }
+
+/** Store one collection index and evict the least recently used beyond the bound. */
+export function rememberPlaceIndex(collectionId: string, entry: CachedIndex): CachedIndex {
+  writeRouteCache<CachedIndex>(cacheKey(collectionId), entry)
+  pruneRouteCache(PLACES_CACHE_PREFIX, MAX_CACHED_PLACE_INDEXES)
+  return entry
+}
+
+/**
+ * One tree read per collection, shared by every caller asking while it is in
+ * flight. The index cache means a fresh entry is never re-paged; a failed
+ * read keeps a stale index when there is one, otherwise it records the miss
+ * so a keystroke storm does not re-page the same collection.
+ */
+export function loadPlaceIndex(collectionId: string): Promise<PlaceIndex | null> {
+  const existing = inFlight.get(collectionId)
+  if (existing) return existing.promise
+  const cached = readCachedPlaceIndex(collectionId)
+  if (cached && Date.now() - cached.at < FRESH_MS) return Promise.resolve(cached.index)
+  const requestIdentity = privateSessionIdentity()
+  const controller = new AbortController()
+  const load: InFlight = { controller, promise: Promise.resolve(null) }
+  load.promise = productClient.loadEditorSnapshot(collectionId, { signal: controller.signal, maxRetries: 0 })
+    .then((snapshot) => {
+      if (controller.signal.aborted || privateSessionIdentity() !== requestIdentity) return null
+      return rememberPlaceIndex(collectionId, { at: Date.now(), index: placeIndexFromSnapshot(snapshot) }).index
+    })
+    .catch(() => {
+      if (controller.signal.aborted || privateSessionIdentity() !== requestIdentity) return null
+      // No trail for this collection; a stale tree, if any, stays in use.
+      if (!readCachedPlaceIndex(collectionId)?.index) {
+        rememberPlaceIndex(collectionId, { at: Date.now(), index: null })
+      }
+      return null
+    })
+    .finally(() => {
+      if (inFlight.get(collectionId) === load) inFlight.delete(collectionId)
+    })
+  inFlight.set(collectionId, load)
+  return load.promise
+}
+
+// A new private identity invalidates tree indexes (the route cache drops them)
+// and must not leave the previous account's reads resolving into the new one.
+subscribeSession(() => {
+  const next = privateSessionIdentity()
+  if (next === cacheIdentity) return
+  cacheIdentity = next
+  for (const { controller } of inFlight.values()) controller.abort()
+  inFlight.clear()
+})
 
 function placeCollections(items: readonly SearchResult[]): string[] {
   const ids: string[] = []
@@ -106,27 +164,20 @@ export function useSearchPlaces(items: readonly SearchResult[]): (result: Search
 
   useEffect(() => {
     if (!key) return
-    const controller = new AbortController()
+    let cancelled = false
     for (const collectionId of key.split('\n')) {
-      const cached = readIndex(collectionId)
+      const cached = readCachedPlaceIndex(collectionId)
       if (cached && Date.now() - cached.at < FRESH_MS) continue
-      void productClient.loadEditorSnapshot(collectionId, { signal: controller.signal, maxRetries: 0 })
-        .then((snapshot) => {
-          if (controller.signal.aborted) return
-          writeRouteCache<CachedIndex>(cacheKey(collectionId), { at: Date.now(), index: placeIndexFromSnapshot(snapshot) })
-          setVersion((value) => value + 1)
-        })
-        .catch(() => {
-          // No trail for this collection; a stale tree, if any, stays in use.
-          if (controller.signal.aborted || cached?.index) return
-          writeRouteCache<CachedIndex>(cacheKey(collectionId), { at: Date.now(), index: null })
-        })
+      void loadPlaceIndex(collectionId).then((index) => {
+        // A cached-but-stale index is already on screen; only a fresh read re-renders.
+        if (!cancelled && index) setVersion((value) => value + 1)
+      })
     }
-    return () => controller.abort()
+    return () => { cancelled = true }
   }, [key])
 
   return useCallback(
-    (result: SearchResult) => (result.resourceType === 'collection' ? null : placeFor(result, readIndex(result.collectionId)?.index)),
+    (result: SearchResult) => (result.resourceType === 'collection' ? null : placeFor(result, readCachedPlaceIndex(result.collectionId)?.index)),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- version is the re-read signal
     [version],
   )

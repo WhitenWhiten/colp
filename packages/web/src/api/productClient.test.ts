@@ -156,6 +156,33 @@ describe('canonical productClient', () => {
     expect(call.init?.credentials).toBe('include')
   })
 
+  it('rejects a 200 HTML session/me body instead of clearing the in-memory session', async () => {
+    seedAuthenticatedSession('csrf-keep')
+    applyMeView({
+      account: { id: 'acc-keep', email: 'keep@example.com' },
+      profile: { id: 'prof-keep', handle: 'keep', displayName: 'Keep', avatarUrl: null, about: '' },
+    })
+    /* The SPA fallback answers an unknown API route with index.html at 200. */
+    const html = () => new Response('<!doctype html><html><body>app</body></html>', {
+      status: 200,
+      headers: { 'content-type': 'text/html' },
+    })
+    const mock = installFetchMock((input) => {
+      const path = requestPathAndSearch({ input }).pathname
+      if (path === '/api/v1/session' || path === '/api/v1/me') return html()
+      throw new Error(`unexpected request ${path}`)
+    })
+    restoreFetch = mock.restore
+
+    for (const call of [getSession, getMe]) {
+      const error = await call({ maxRetries: 0 }).then(() => null, (err: unknown) => err)
+      expect(error).toMatchObject({ status: 502, code: 'invalid_document', sameRequestRetrySafe: true })
+    }
+    expect(getCsrfToken()).toBe('csrf-keep')
+    expect(getSessionSnapshot()).toMatchObject({ authenticated: true, csrfToken: 'csrf-keep' })
+    expect(getSessionSnapshot().me?.account.id).toBe('acc-keep')
+  })
+
   it('keeps the explicit local mock session flow on the canonical client', async () => {
     vi.stubEnv('VITE_MOCK_SESSION', 'true')
     const mock = installFetchMock(() => {

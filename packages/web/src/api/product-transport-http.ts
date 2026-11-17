@@ -7,7 +7,7 @@ import { productRequestCredentials } from './product-credentials'
  */
 import { allocateCommandId } from './command-intent'
 import { getApiBaseUrl } from './config'
-import { transportError } from './errors'
+import { transportError, type ProductApiError } from './errors'
 import { requestJson, requestOrigin } from './json-request'
 import { REQUEST_TIMEOUT_MS, TRANSFER_TIMEOUT_MS } from './requestTimeout'
 import type { MutationCallOptions, ProductTransportOptions } from './product-transport-types'
@@ -28,6 +28,8 @@ export type ProductRequestInit = {
   emptyOk?: boolean
   includeEtag?: boolean
   editorRevision?: 'only' | 'include'
+  /** A 2xx answer must be JSON; otherwise the transport throws this error. */
+  strictJson?: () => ProductApiError
 }
 
 export type ProductTransportHttp = {
@@ -123,6 +125,7 @@ export function createProductTransportHttp(
     }, {
       fetchImpl: fetchImpl ?? globalThis.fetch,
       timeoutMs: init.timeoutMs ?? (init.rawBody !== undefined ? TRANSFER_TIMEOUT_MS : REQUEST_TIMEOUT_MS),
+      ...(init.strictJson ? { strictJson: init.strictJson } : {}),
     })
 
     invalidate()

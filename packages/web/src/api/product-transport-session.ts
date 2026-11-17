@@ -1,6 +1,14 @@
 import type { ProductTransportHttp } from './product-transport-http'
 import type { MutationCallOptions, SessionCallOptions } from './product-transport-types'
 import type { MeView, SessionView, UpdateMeRequest } from './types'
+import { badResponse } from './json-request'
+
+/* A static host/SPA fallback can answer a missing API route with the app's
+   index.html at status 200. Session and /me are the identity boundary, so an
+   HTML body must fail as a bad response instead of being cast to
+   `{ authenticated: undefined }` and clearing the in-memory session. */
+const sessionJson = () => badResponse('The session response was not valid JSON.')
+const meJson = () => badResponse('The account response was not valid JSON.')
 
 export function createSessionTransport(http: ProductTransportHttp) {
   const { request, mutationHeaders, origin } = http
@@ -11,6 +19,7 @@ export function createSessionTransport(http: ProductTransportHttp) {
         path: '/api/v1/session',
         credentials: 'include',
         signal: opts?.signal,
+        strictJson: sessionJson,
       })
     },
 
@@ -20,6 +29,7 @@ export function createSessionTransport(http: ProductTransportHttp) {
         path: '/api/v1/me',
         credentials: 'include',
         signal: opts?.signal,
+        strictJson: meJson,
       })
     },
 

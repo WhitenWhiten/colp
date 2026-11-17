@@ -11,6 +11,8 @@ import {
   hostInitial,
   hostOf,
   immediateEntries,
+  layerFolderCards,
+  type FolderNode,
 } from './libraryTree'
 
 function root(): RootNodeView {
@@ -188,6 +190,32 @@ it('indexes a large snapshot once and shares subtree counts across folder naviga
   expect(childrenOf(tree.id, nodes)).toHaveLength(5000)
   const replacement = [...nodes, bookmark('new', 'New', tree.id, 'last')]
   expect(countBookmarks(tree, replacement)).toBe(5001)
+})
+
+it('builds a whole layer of folder cards in one pass over the tree', () => {
+  const FOLDERS = 250, PER_FOLDER = 20, LOOSE = 500
+  const tree = root(), nodes: EditableNodeView[] = []
+  for (let i = 0; i < FOLDERS; i++) nodes.push(folder(`layer-${i}`, `Folder ${i}`, tree.id, String(i)))
+  for (let i = 0; i < FOLDERS; i++) {
+    for (let j = 0; j < PER_FOLDER; j++) nodes.push(bookmark(`b-${i}-${j}`, `Bookmark ${i}-${j}`, `layer-${i}`, String(j)))
+  }
+  for (let i = 0; i < LOOSE; i++) nodes.push(bookmark(`loose-${i}`, `Loose ${i}`, tree.id, `z${i}`))
+  const layer = nodes.filter((node) => node.kind === 'folder' && node.parentId === tree.id) as FolderNode[]
+  let kindReads = 0
+  for (const node of nodes) {
+    const kind = node.kind
+    Object.defineProperty(node, 'kind', { get: () => { kindReads += 1; return kind } })
+  }
+
+  const cards = layerFolderCards(layer, nodes)
+  expect(cards).toHaveLength(FOLDERS)
+  expect(cards[0]!.inside).toHaveLength(PER_FOLDER)
+  expect(cards.at(-1)!.inside).toHaveLength(PER_FOLDER)
+  expect(cards[0]!.folderCount).toBe(0)
+  expect(cards[0]!.inside.slice(0, 2).map((node) => node.id)).toEqual(['b-0-0', 'b-0-1'])
+  /* The old per-folder `nodes.filter(...)` read `kind` on every node once per
+     card (F*N). The index-led pass must stay linear in the snapshot. */
+  expect(kindReads).toBeLessThan(nodes.length * 10)
 })
 
 it('walks deeply nested folders without recursive stack growth', () => {

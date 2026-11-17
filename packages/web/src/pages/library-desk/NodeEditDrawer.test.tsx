@@ -16,6 +16,7 @@ import {
   mount,
   openRowMenu,
   setUpLibraryDesk,
+  settleAnnotationReads,
   snapshot,
   tearDownLibraryDesk,
 } from './LibraryDesk.test-helper'
@@ -191,6 +192,17 @@ describe('Node edit drawer', () => {
     mocks.updateCollectionNode.mockResolvedValue({})
   })
   afterEach(tearDownLibraryDesk)
+
+  it('opens the drawer from a ?node= deep link on first mount', async () => {
+    mount('/library/col-1?node=col-1-loose')
+    await waitForDom(domFinishedLoading)
+    await waitForDom(() => drawer() !== null)
+
+    expect(document.getElementById('node-drawer-subject')?.textContent).toBe('Loose bookmark')
+    expect(control('nd-title').value).toBe('Loose bookmark')
+    expect(document.activeElement?.id).toBe('nd-title')
+    await settleAnnotationReads()
+  })
 
   it('opens from the row ⋯ menu with the title focused and the node loaded', async () => {
     mount()

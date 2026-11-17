@@ -200,11 +200,15 @@ function ResourceDetailContent() {
   const addRelationButton = useRef<HTMLButtonElement | null>(null)
   const relationEndpointSelect = useRef<HTMLSelectElement | null>(null)
   const lastEditButton = useRef<HTMLButtonElement | null>(null)
+  /* A successful create closes the form; focus goes back to the disclosure
+     once the post-mutation reload unlocks it (a disabled button cannot take focus). */
+  const createFocusPending = useRef(false)
   const identityCopy = resourceNodeEmptyCopy(resolved)
   const slug = workspaceQuery.slug?.trim() ?? ''
   const graphReturn = searchParams.get('fromGraph') === '1' && slug ? graphPath(slug, id) : null
   useEffect(() => {
     if (relations.createdCount === 0) return
+    createFocusPending.current = true
     setCreatingRelation(false)
     setNewRelation({ endpointId: '', type: 'related', label: '', visibility: 'private' })
   }, [relations.createdCount])
@@ -212,6 +216,12 @@ function ResourceDetailContent() {
   useEffect(() => {
     if (creatingRelation) relationEndpointSelect.current?.focus()
   }, [creatingRelation])
+
+  useEffect(() => {
+    if (!createFocusPending.current || relationMutationLocked) return
+    createFocusPending.current = false
+    addRelationButton.current?.focus()
+  }, [relationMutationLocked])
 
   /* The scroll manager lands every cross-page push at the top and SPA
      navigations never fire native anchor scroll, so the workspace deep link

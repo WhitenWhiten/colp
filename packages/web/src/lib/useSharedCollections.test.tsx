@@ -21,6 +21,7 @@ import type { OwnedCollectionPage } from '../api/types'
 import { applyMeView, applySessionView, clearSession, getSessionSnapshot } from '../api/sessionStore'
 import { useLibrary } from './useLibrary'
 import { useSharedCollections } from './useSharedCollections'
+import { readRouteCache } from './routeCache'
 import ownedHookSource from './useLibrary.ts?raw'
 import sharedHookSource from './useSharedCollections.ts?raw'
 import { cleanup, domFinishedLoading, mountTree, settled, waitForDom } from '../test/render'
@@ -155,6 +156,43 @@ describe('useSharedCollections', () => {
       expect(document.querySelector('[data-testid="ids"]')?.textContent).toBe('account-b')
       await act(async () => { resolveOld?.(page(['account-a'])); await Promise.resolve(); await Promise.resolve() })
       expect(document.querySelector('[data-testid="ids"]')?.textContent).toBe('account-b')
+    })
+
+    it('drops the previous account rows as soon as a mounted identity changes', async () => {
+      let resolveB: ((value: OwnedCollectionPage) => void) | undefined
+      /* account-a has already painted; account-b's first page is held open so
+         the assertion sees the in-between frame, not just the end state. */
+      mocks.page.mockImplementation(() => (
+        getSessionSnapshot().me?.account.id === 'account-a'
+          ? Promise.resolve(page(['account-a']))
+          : new Promise<OwnedCollectionPage>((resolve) => { resolveB = resolve })
+      ))
+      render(); await waitForDom(() => document.querySelector('[data-testid="ids"]')?.textContent === 'account-a')
+      await act(async () => {
+        applyMeView({ account: { id: 'account-b', email: 'b@test' }, profile: { id: 'profile-b', handle: 'b', displayName: 'B', avatarUrl: null } })
+        await Promise.resolve(); await Promise.resolve()
+      })
+      /* Identity changed, so stale-while-revalidate is over: the old rows are
+         gone before the new account's read has answered. */
+      expect(document.querySelector('[data-testid="ids"]')?.textContent).toBe('')
+      await act(async () => { resolveB?.(page(['account-b'])); await Promise.resolve(); await Promise.resolve() })
+      await waitForDom(() => document.querySelector('[data-testid="ids"]')?.textContent === 'account-b')
+
+      await act(async () => { clearSession(); await Promise.resolve(); await Promise.resolve() })
+      expect(document.querySelector('[data-testid="ids"]')?.textContent).toBe('')
+      expect(document.querySelector('[data-testid="message"]')?.textContent).toBe('Sign in to view shared collections')
+    })
+
+    it('clears confirmed rows when revalidation reports unauthenticated', async () => {
+      render(); await waitForDom(() => document.querySelector('[data-testid="ids"]')?.textContent === 'one')
+      mocks.page.mockRejectedValue(new ProductApiError({
+        status: 401, code: 'authentication_required', message: 'Sign in', recovery: 'user_action', sameRequestRetrySafe: false,
+      }))
+      act(() => [...document.querySelectorAll('button')].find((button) => button.textContent === 'Reload')?.click())
+      await waitForDom(domFinishedLoading)
+      expect(document.querySelector('[data-testid="ids"]')?.textContent).toBe('')
+      expect(document.querySelector('[data-testid="message"]')?.textContent).toBe('Sign in to view shared collections')
+      expect(readRouteCache('shared-collections')).toBeUndefined()
     })
 
     it('does not fetch shared collections while signed out', async () => {

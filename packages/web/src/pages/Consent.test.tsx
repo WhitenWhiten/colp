@@ -350,6 +350,43 @@ describe('Consent page', () => {
     expect(document.body.textContent).toContain('Deny')
   })
 
+  it('does not follow a non-http(s) consent redirect and stays on the prompt', async () => {
+    mocks.authClient.submitOAuthConsent.mockResolvedValue({
+      redirect: true,
+      url: 'javascript:alert(document.cookie)',
+    })
+    render()
+    await waitForDom(() => (document.body.textContent ?? '').includes(CLIENT_NAME))
+    await act(async () => {
+      findButtonByName('Approve').click()
+    })
+
+    const assign = (globalThis as { location?: { assign?: (url: string) => void } }).location?.assign
+    expect(assign).not.toHaveBeenCalled()
+    expect(mocks.toast.error).toHaveBeenCalledTimes(1)
+    expect(document.body.textContent).toContain(`Allow ${CLIENT_NAME}?`)
+  })
+
+  it('follows the exact server-signed private-use redirect URI', async () => {
+    mocks.authClient.getOAuthConsentTransaction.mockResolvedValue({
+      client_id: CIMD_CLIENT_ID,
+      client_name: CLIENT_NAME,
+      redirect_uri: PRIVATE_USE_REDIRECT,
+    })
+    mocks.authClient.submitOAuthConsent.mockResolvedValue({
+      redirect: true,
+      url: PRIVATE_USE_REDIRECT,
+    })
+    render()
+    await waitForDom(() => (document.body.textContent ?? '').includes(PRIVATE_USE_REDIRECT))
+    await act(async () => {
+      findButtonByName('Approve').click()
+    })
+
+    const assign = (globalThis as { location?: { assign?: (url: string) => void } }).location?.assign
+    expect(assign).toHaveBeenCalledWith(PRIVATE_USE_REDIRECT)
+  })
+
   it('redirects an unauthenticated visitor to /login with a safe returnTo back to /consent plus the original query', () => {
     mocks.auth.isLoggedIn = false
     mocks.auth.user = null

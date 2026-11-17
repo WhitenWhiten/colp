@@ -5,8 +5,8 @@ import { FolderEntries } from '../../components/FolderEntries'
 import { Icon } from '../../components/Icon'
 import { ResourceList, type ResourceListItem } from '../../components/ResourceList'
 import {
-  flattenBookmarks,
   immediateEntries,
+  layerFolderCards,
   type BookmarkNode,
   type BookmarkRow,
   type FolderNode,
@@ -119,18 +119,16 @@ export function BookmarkArea({
   const [gallery, setGallery] = useDeskGallery()
   const visibleBookmarks = filtering ? bookmarks.map((row) => row.node) : layer?.bookmarks ?? []
   /* Folder cards on the current layer: subtree bookmark count, direct
-     subfolders, and (in Gallery) the first covers filed anywhere inside. */
+     subfolders, and (in Gallery) the first covers filed anywhere inside.
+     One index-led pass per layer, not a whole-tree rescan per folder. */
   const folderCards = useMemo(() => {
     if (!snap || !layer || filtering) return []
-    return layer.folders.map(({ node }) => {
-      const inside = flattenBookmarks(snap.root, snap.nodes, node.id).map((row) => row.node)
-      return {
-        node,
-        inside,
-        folderCount: snap.nodes.filter((child) => child.kind === 'folder' && child.parentId === node.id).length,
-        covers: inside.flatMap((bookmark) => nodeGalleryCover(bookmark) ?? []).slice(0, FOLDER_COVER_LIMIT),
-      }
-    })
+    return layerFolderCards(layer.folders.map(({ node }) => node), snap.nodes).map(({ node, inside, folderCount }) => ({
+      node,
+      inside,
+      folderCount,
+      covers: inside.flatMap((bookmark) => nodeGalleryCover(bookmark) ?? []).slice(0, FOLDER_COVER_LIMIT),
+    }))
   }, [filtering, layer, snap])
   // A folder's mosaic is on screen too: ask for the first few covers inside.
   const folderCoverCandidates = gallery

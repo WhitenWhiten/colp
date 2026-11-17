@@ -115,6 +115,49 @@ export function flattenBookmarks(
   return rows
 }
 
+export type LayerFolderCard = {
+  node: FolderNode
+  /** Every bookmark below the folder, depth-first in sibling position order. */
+  inside: BookmarkNode[]
+  /** Direct subfolders — the count a folder row shows. */
+  folderCount: number
+}
+
+/**
+ * Folder-card data for one desk layer. The tree index is built (and cached)
+ * once for the whole snapshot and each card walks only its own subtree, so
+ * the layer stays linear in the tree instead of rescanning every node once
+ * per folder. `inside` is the same list `flattenBookmarks` returns for that
+ * folder, which the Gallery mosaic and the row count already show.
+ */
+export function layerFolderCards(
+  folders: readonly FolderNode[],
+  nodes: EditableNodeView[],
+): LayerFolderCard[] {
+  if (folders.length === 0) return []
+  const { children } = libraryTreeIndex(nodes)
+  return folders.map((node) => {
+    const direct = children.get(node.id) ?? []
+    let folderCount = 0
+    for (const child of direct) if (child.kind === 'folder') folderCount += 1
+    const inside: BookmarkNode[] = []
+    const seen = new Set<string>([node.id])
+    const pending = [...direct].reverse()
+    while (pending.length > 0) {
+      const current = pending.pop()!
+      if (seen.has(current.id)) continue
+      seen.add(current.id)
+      if (current.kind === 'bookmark') {
+        inside.push(current)
+        continue
+      }
+      const siblings = children.get(current.id) ?? []
+      for (let index = siblings.length - 1; index >= 0; index -= 1) pending.push(siblings[index]!)
+    }
+    return { node, inside, folderCount }
+  })
+}
+
 /** All folder totals are computed once per snapshot; malformed cycles use the guarded traversal. */
 export function countBookmarks(root: RootNodeView, nodes: EditableNodeView[], folderId?: string | null): number {
   const id = findFolder(nodes, folderId)?.id ?? root.id

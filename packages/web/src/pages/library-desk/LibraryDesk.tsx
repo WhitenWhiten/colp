@@ -69,10 +69,6 @@ export function LibraryDesk() {
   })
 
   useEffect(() => {
-    if (nodeParam) setEditingNodeId(nodeParam)
-  }, [nodeParam])
-
-  useEffect(() => {
     if (editCollection) setSettingsOpen(true)
   }, [editCollection])
 
@@ -106,12 +102,13 @@ export function LibraryDesk() {
   useEffect(() => {
     resetCompose()
     resetSelection()
-    // A desk navigation leaves the drawer's subject behind.
-    setEditingNodeId(null)
+    // A desk navigation leaves the drawer's subject behind — but a ?node=
+    // deep link is this navigation's subject, so seed it instead of clearing.
+    setEditingNodeId(nodeParam)
     // The shared confirm lives under Layout; dismiss it with the page
     // context so a delete prompt cannot outlive the collection it named.
     return () => { cancelConfirm() }
-  }, [data.selectedId, folderId, resetCompose, resetSelection, cancelConfirm])
+  }, [data.selectedId, folderId, nodeParam, resetCompose, resetSelection, cancelConfirm])
 
   useEffect(() => {
     if (bootstrapping || !isLoggedIn) return

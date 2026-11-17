@@ -39,7 +39,12 @@ subscribeSession(() => {
 
 export function readRouteCache<T>(key: string): T | undefined {
   const entry = entries.get(key)
-  if (entry !== undefined && entry.identity === privateSessionIdentity()) return entry.value as T
+  if (entry !== undefined && entry.identity === privateSessionIdentity()) {
+    // Re-insert on read so prefix-bounded caches evict least recently used.
+    entries.delete(key)
+    entries.set(key, entry)
+    return entry.value as T
+  }
   const restored = readPersistentRouteCache<T>(key)
   if (restored !== undefined) entries.set(key, { identity: privateSessionIdentity(), value: restored })
   return restored
@@ -47,6 +52,7 @@ export function readRouteCache<T>(key: string): T | undefined {
 
 export function writeRouteCache<T>(key: string, value: T, identity = privateSessionIdentity()): void {
   if (identity !== privateSessionIdentity()) return
+  entries.delete(key)
   entries.set(key, { identity, value })
   writePersistentRouteCache(key, value, identity)
 }
@@ -54,6 +60,22 @@ export function writeRouteCache<T>(key: string, value: T, identity = privateSess
 export function deleteRouteCache(key: string): void {
   entries.delete(key)
   deletePersistentRouteCache(key)
+}
+
+/**
+ * Bound a group of related in-memory entries (e.g. per-collection tree
+ * indexes) without touching every other route's cache. `prefix` entries are
+ * kept in least-recently-used order: writing or reading a key moves it last.
+ */
+export function pruneRouteCache(prefix: string, max: number): void {
+  let count = 0
+  for (const key of entries.keys()) if (key.startsWith(prefix)) count += 1
+  for (const key of entries.keys()) {
+    if (count <= max) break
+    if (!key.startsWith(prefix)) continue
+    entries.delete(key)
+    count -= 1
+  }
 }
 
 /** Test helper: drop in-memory entries, leaving browser storage and the session alone. */
