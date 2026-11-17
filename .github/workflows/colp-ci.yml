@@ -437,6 +437,14 @@ jobs:
       - name: Complete desktop and responsive browser suite
         run: npm run test:e2e -- --shard=${{ matrix.shard }}/4
         working-directory: packages/web
+      # C3-3: build the production bundle once and exercise the smoke subset
+      # (auth shell, library desk, shared-folder/public visitor flow) against
+      # `vite preview` under xvfb. Shard 1 owns the built lane so the four
+      # dev-server shards stay unchanged.
+      - name: Built bundle smoke under xvfb
+        if: matrix.shard == 1
+        run: npm run test:e2e:built
+        working-directory: packages/web
 
   web-acceptance:
     needs: changes

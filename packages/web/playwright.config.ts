@@ -9,9 +9,27 @@ process.env.VITE_ANNOTATIONS_ACCEPTANCE = 'true'
 process.env.VITE_RELATIONS_ACCEPTANCE = 'true'
 
 /**
- * P1-13 E2E: web editor + mocked Product API routes.
- * Does not require Known-Backend or real OIDC.
+ * C3-3: the default projects exercise the Vite dev server, which is what the
+ * suite's fast feedback needs but not what ships. `npm run test:e2e:built`
+ * sets KNOWN_WEB_E2E_BUILT=1 to build the production bundle, serve it with
+ * `vite preview`, and run a smoke subset against it: the auth shell, the
+ * library desk, and a cross-page share/public-visitor flow. Serving both
+ * servers in one config would make every dev run pay for a build, so the
+ * built project only exists in built mode.
+ *
+ * The smoke specs are fully API-mocked, use no dev-only module or HMR
+ * surface, and assert behavior or layout without screenshot baselines, so
+ * they are stable in the minified bundle. Visual baselines stay in the
+ * dev-server lanes.
+ * `library-desk-polish.spec.ts` stays dev-only on purpose: its drawer-close
+ * case assumes dev animation timing and its direct `?collection=edit` case
+ * assumes StrictMode request replay, so `library-tree.spec.ts` carries the
+ * library-desk smoke instead.
  */
+const built = process.env.KNOWN_WEB_E2E_BUILT === '1'
+const previewPort = Number(process.env.KNOWN_WEB_PREVIEW_PORT ?? 5184)
+const previewURL = process.env.KNOWN_WEB_PREVIEW_BASE_URL ?? `http://127.0.0.1:${previewPort}`
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
@@ -24,7 +42,7 @@ export default defineConfig({
     toHaveScreenshot: { animations: 'disabled', maxDiffPixelRatio: 0.01 },
   },
   use: {
-    baseURL,
+    baseURL: built ? previewURL : baseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     // E2E asserts behavior, not motion: reduced motion makes exit-animated
@@ -36,13 +54,27 @@ export default defineConfig({
     // must go through contextOptions.
     contextOptions: { reducedMotion: 'reduce' },
   },
-  webServer: {
+  webServer: built ? {
+    command: `npx vite build && npx vite preview --host 127.0.0.1 --port ${previewPort} --strictPort`,
+    url: previewURL,
+    reuseExistingServer: false,
+    timeout: 300_000,
+  } : {
     command: 'npm run dev -- --host 127.0.0.1 --port ' + PORT,
     url: baseURL,
     reuseExistingServer: false,
     timeout: 120_000,
   },
-  projects: [
+  projects: built ? [
+    {
+      name: 'built-chromium',
+      testMatch: /(?:login-server-error|library-tree|folder-share)\.spec\.ts$/u,
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 800 },
+      },
+    },
+  ] : [
     {
       name: 'chromium',
       use: {

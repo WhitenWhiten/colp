@@ -22,6 +22,7 @@
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "test:e2e": "node ../extension/scripts/with-xvfb.mjs npx playwright test",
+    "test:e2e:built": "KNOWN_WEB_E2E_BUILT=1 node ../extension/scripts/with-xvfb.mjs npx playwright test",
     "e2e": "npm run test:e2e",
     "test:acceptance:inner": "node ../extension/scripts/with-xvfb.mjs node ../../scripts/with-self-hosted-browser.mjs -- node node_modules/@playwright/test/cli.js test --config=playwright.self-hosted.config.ts",
     "test:acceptance": "npm --prefix ../server run build && npm run build && node ../server/scripts/with-postgres.mjs --isolated-owner -- npm run test:acceptance:inner"

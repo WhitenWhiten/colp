@@ -1,33 +1,45 @@
 import type { Page, Request, Route } from '@playwright/test'
+import type { components } from '../../src/generated/product-v1'
 import { fulfillPassiveFeatureRequest, installPassiveFeatureMocks } from './passive-feature-mocks'
 
 export const MOCK_CSRF = 'e2e-csrf-token'
 export const MOCK_COLLECTION_ID = 'col-e2e-1'
 export const MOCK_ROOT_ID = 'root-e2e-1'
 
-type MockNode = {
-  id: string
+type Schemas = components['schemas']
+type FolderNodeView = Schemas['FolderNodeView']
+type BookmarkNodeView = Schemas['BookmarkNodeView']
+type CollectionView = Schemas['CollectionView']
+type EditorPageState = Schemas['EditorPageState']
+type EditableNodeView = Schemas['EditableNodeView']
+type ProductErrorCode = Schemas['ProductErrorCode']
+type RecoveryAction = Schemas['RecoveryAction']
+type ProductError = Schemas['ProductError']
+
+/**
+ * The subset of the generated Node views the fake can synthesize. Every field
+ * is picked from the generated document, so a renamed or removed protocol
+ * field fails `tsc` here instead of drifting silently.
+ */
+type MockNode = Pick<FolderNodeView, 'id' | 'title' | 'etag' | 'parentId'> & {
   kind: 'folder' | 'bookmark'
-  title: string
-  url?: string
-  iconUrl?: string | null
-  etag: string
-  parentId: string
-  coverMode?: 'auto' | 'custom' | 'none'
-  coverRevision?: string
-  coverImage?: { url: string; width: number; height: number } | null
+  url?: BookmarkNodeView['url']
+  iconUrl?: BookmarkNodeView['iconUrl']
+  coverMode?: FolderNodeView['coverMode']
+  coverRevision?: FolderNodeView['coverRevision']
+  coverImage?: FolderNodeView['coverImage']
 }
 
 export type MockState = {
   authenticated: boolean
   library: boolean
   collectionTitle: string
-  collectionEtag: string
-  collectionVisibility: 'private' | 'protected' | 'unlisted' | 'public'
-  publicationSlug: string | null
-  publishedAt: string | null
-  contentRevision: string
-  contentEtag: string
+  collectionEtag: CollectionView['etag']
+  collectionVisibility: CollectionView['visibility']
+  publicationSlug: CollectionView['publicationSlug']
+  publishedAt: CollectionView['publishedAt']
+  contentRevision: CollectionView['contentRevision']
+  contentEtag: CollectionView['contentEtag']
   nodes: MockNode[]
   managePublication: boolean
 }
@@ -43,9 +55,9 @@ type Outcome =
 type AdmissionViolation = {
   message: string
   status: number
-  code: string
-  recovery: string
-  extra?: Record<string, unknown>
+  code: ProductErrorCode
+  recovery: RecoveryAction
+  extra?: Partial<ProductError>
 }
 
 export type ProductRequestExpectation = {
@@ -60,9 +72,88 @@ export type ProductRequestExpectation = {
   body?: Record<string, unknown>
   ifMatch?: string
   csrfToken?: string
-  editor?: { hasMore: boolean; nextCursor: string | null; nodes?: MockNode[] }
+  editor?: Pick<EditorPageState, 'hasMore' | 'nextCursor'> & { nodes?: MockNode[] }
   optional?: boolean
 }
+
+/*
+ * Runtime field rules for the request bodies the fake admits. The generated
+ * document that types this file is type-only, so these keys are the runtime
+ * projection; each map `satisfies` the generated schema and is therefore
+ * exhaustive (a new/renamed property fails `tsc`) and marks exactly the
+ * required fields instead of keeping a second, drift-prone list.
+ */
+type FieldRules = Readonly<Record<string, 'required' | 'optional'>>
+
+/** Mirrors the generated schema's optionality: a changed field fails `tsc`. */
+type FieldRuleFor<T, K extends keyof T> = object extends Pick<T, K> ? 'optional' : 'required'
+type FieldRulesFor<T> = { [K in keyof T]-?: FieldRuleFor<T, K> }
+
+const CREATE_COLLECTION_FIELDS = {
+  kind: 'required',
+  title: 'required',
+  summary: 'required',
+} satisfies FieldRulesFor<Schemas['CreateCollectionRequest']>
+
+const COLLECTION_PATCH_FIELDS = {
+  title: 'optional',
+  summary: 'optional',
+  visibility: 'optional',
+  publicationSlug: 'optional',
+  allowSearchIndexing: 'optional',
+} satisfies FieldRulesFor<Schemas['CollectionMergePatch']>
+
+const CREATE_NODE_FIELDS = {
+  parentId: 'required',
+  afterId: 'required',
+  beforeId: 'required',
+  node: 'required',
+} satisfies FieldRulesFor<Schemas['CreateNodeRequest']>
+
+const FOLDER_CREATE_FIELDS = {
+  kind: 'required',
+  title: 'required',
+  description: 'required',
+  tags: 'required',
+  visibility: 'required',
+} satisfies FieldRulesFor<Schemas['FolderCreate']>
+
+const BOOKMARK_CREATE_FIELDS = {
+  kind: 'required',
+  title: 'required',
+  url: 'required',
+  description: 'required',
+  tags: 'required',
+  visibility: 'required',
+} satisfies FieldRulesFor<Schemas['BookmarkCreate']>
+
+const NODE_PATCH_FIELDS = {
+  title: 'optional',
+  url: 'optional',
+  description: 'optional',
+  tags: 'optional',
+  visibility: 'optional',
+} satisfies FieldRulesFor<Schemas['NodeMergePatch']>
+
+const MOVE_NODE_FIELDS = {
+  newParentId: 'required',
+  afterId: 'required',
+  beforeId: 'required',
+  baseSourceParentRevision: 'required',
+  baseTargetParentRevision: 'required',
+} satisfies FieldRulesFor<Schemas['MoveNodeRequest']>
+
+const COLLECTION_KINDS = [
+  'bookmarks', 'reading_path', 'knowledge_collection', 'mixed',
+] as const satisfies readonly Schemas['CollectionKind'][]
+
+const COLLECTION_VISIBILITIES = [
+  'private', 'unlisted', 'public',
+] as const satisfies readonly Schemas['PublicationVisibility'][]
+
+const NODE_VISIBILITIES = [
+  'inherit', 'protected', 'private',
+] as const satisfies readonly Schemas['NodeVisibility'][]
 
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u
 const ENTITY_TAG = /^"[^"\r\n]+"$/u
@@ -116,27 +207,26 @@ function json(route: Route, body: unknown, status = 200, headers: Record<string,
 function productError(
   route: Route,
   status: number,
-  code: string,
-  recovery: string,
-  extra: Record<string, unknown> = {},
+  code: ProductErrorCode,
+  recovery: RecoveryAction,
+  extra: Partial<ProductError> = {},
 ) {
-  return json(route, {
-    error: {
-      code,
-      message: code,
-      requestId: 'e2e-request',
-      recovery,
-      sameRequestRetrySafe: recovery === 'same_request',
-      precondition: null,
-      currentEtag: null,
-      retryAfterSeconds: null,
-      fieldErrors: [],
-      ...extra,
-    },
-  }, status)
+  const error: ProductError = {
+    code,
+    message: code,
+    requestId: 'e2e-request',
+    recovery,
+    sameRequestRetrySafe: recovery === 'same_request',
+    precondition: null,
+    currentEtag: null,
+    retryAfterSeconds: null,
+    fieldErrors: [],
+    ...extra,
+  }
+  return json(route, { error } satisfies Schemas['ProductErrorEnvelope'], status)
 }
 
-function collectionView(state: MockState) {
+function collectionView(state: MockState): CollectionView {
   return {
     id: MOCK_COLLECTION_ID,
     kind: 'bookmarks',
@@ -144,6 +234,7 @@ function collectionView(state: MockState) {
     title: state.collectionTitle,
     summary: null,
     visibility: state.collectionVisibility,
+    allowSearchIndexing: false,
     publicationSlug: state.publicationSlug,
     publishedAt: state.publishedAt,
     rootNodeId: MOCK_ROOT_ID,
@@ -153,12 +244,12 @@ function collectionView(state: MockState) {
     contentEtag: state.contentEtag,
     policyRevision: '1',
     policyEtag: '"p-1"',
-    createdAt: '2026-07-22T00:00:00.000Z',
-    updatedAt: '2026-07-22T00:00:00.000Z',
+    createdAt: MOCK_TIME,
+    updatedAt: MOCK_TIME,
   }
 }
 
-function editorPage(state: MockState, config?: ProductRequestExpectation['editor']) {
+function editorPage(state: MockState, config?: ProductRequestExpectation['editor']): Schemas['EditorPage'] {
   const nodes = config?.nodes ?? state.nodes
   return {
     collection: collectionView(state),
@@ -182,7 +273,7 @@ function editorPage(state: MockState, config?: ProductRequestExpectation['editor
       createdAt: MOCK_TIME,
       updatedAt: MOCK_TIME,
     },
-    nodes: nodes.map((node) => {
+    nodes: nodes.map((node): EditableNodeView => {
       const common = {
         ...(node.coverRevision === undefined ? {} : { coverMode: node.coverMode ?? 'auto',
           coverRevision: node.coverRevision, coverImage: node.coverImage ?? null }),
@@ -193,7 +284,7 @@ function editorPage(state: MockState, config?: ProductRequestExpectation['editor
         title: node.title,
         description: null,
         tags: [],
-        visibility: 'inherit',
+        visibility: 'inherit' as const,
         revision: '1',
         etag: node.etag,
         readOnly: false,
@@ -234,7 +325,15 @@ function editorPage(state: MockState, config?: ProductRequestExpectation['editor
 
 class InvalidDocumentError extends Error {}
 
-function bodyObject(request: Request): Record<string, unknown> {
+type JsonObject = Record<string, unknown>
+type SchemaName = keyof Schemas
+
+/**
+ * Parse the request body as an object typed by a generated request schema.
+ * Values remain unknown through the `JsonObject` intersection until the
+ * validator below admits them, so callers keep their explicit runtime checks.
+ */
+function bodyObject<S extends SchemaName>(request: Request): JsonObject & Partial<Schemas[S]> {
   let value: unknown
   try {
     value = JSON.parse(request.postData() ?? '') as unknown
@@ -244,14 +343,20 @@ function bodyObject(request: Request): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new InvalidDocumentError('request body must be a JSON object')
   }
-  return value as Record<string, unknown>
+  return value as JsonObject & Partial<Schemas[S]>
 }
 
-function exactKeys(value: Record<string, unknown>, allowed: string[], required: string[]): string | null {
-  const unknown = Object.keys(value).filter((key) => !allowed.includes(key))
+function exactSchemaKeys(value: Record<string, unknown>, rules: FieldRules): string | null {
+  const unknown = Object.keys(value).filter((key) => !Object.hasOwn(rules, key))
   if (unknown.length) return `unexpected body fields: ${unknown.join(', ')}`
-  const missing = required.filter((key) => !(key in value))
+  const missing = Object.entries(rules)
+    .filter(([key, rule]) => rule === 'required' && !(key in value))
+    .map(([key]) => key)
   return missing.length ? `missing body fields: ${missing.join(', ')}` : null
+}
+
+function isOneOf<T extends string>(values: readonly T[], value: unknown): value is T {
+  return typeof value === 'string' && values.some((item) => item === value)
 }
 
 function isNullableString(value: unknown): value is string | null {
@@ -386,19 +491,22 @@ export class ProductApiMock {
     const path = new URL(request.url()).pathname
     if (request.method() !== 'GET' || !['/api/v1/collections', '/api/v1/me/library'].includes(path)) return false
     if (path === '/api/v1/me/library') {
-      await json(route, { id: MOCK_COLLECTION_ID, title: this.state.collectionTitle, rootNodeId: MOCK_ROOT_ID,
-        library: true, bookmarksBarId: `${MOCK_ROOT_ID}-bar`, otherBookmarksId: `${MOCK_ROOT_ID}-other` })
+      const library: Schemas['LibraryCollection'] = { id: MOCK_COLLECTION_ID, title: this.state.collectionTitle,
+        rootNodeId: MOCK_ROOT_ID, library: true, bookmarksBarId: `${MOCK_ROOT_ID}-bar`,
+        otherBookmarksId: `${MOCK_ROOT_ID}-other` }
+      await json(route, library)
       return true
     }
     const snapshot = editorPage(this.state)
-    await json(route, {
+    const result: Schemas['OwnedCollectionPage'] = {
       items: [{
         collection: snapshot.collection,
         capabilities: snapshot.capabilities,
         bookmarkCount: this.state.nodes.filter((node) => node.kind === 'bookmark').length,
       }],
       page: { returnedCount: 1, hasMore: false, nextCursor: null },
-    })
+    }
+    await json(route, result)
     return true
   }
 
@@ -530,9 +638,9 @@ export class ProductApiMock {
     const violation = (
       message: string,
       status = 400,
-      code = 'invalid_request',
-      recovery = 'user_action',
-      extra?: Record<string, unknown>,
+      code: ProductErrorCode = 'invalid_request',
+      recovery: RecoveryAction = 'user_action',
+      extra?: Partial<ProductError>,
     ): AdmissionViolation => ({ message, status, code, recovery, extra })
     const method = request.method()
     const headers = request.headers()
@@ -609,10 +717,10 @@ export class ProductApiMock {
     const invalidDocument = (message: string) => violation(message, 422, 'invalid_document')
 
     if (method === 'POST' && url.pathname === '/api/v1/collections') {
-      const body = bodyObject(request)
-      const problem = exactKeys(body, ['kind', 'title', 'summary'], ['kind', 'title', 'summary'])
+      const body = bodyObject<'CreateCollectionRequest'>(request)
+      const problem = exactSchemaKeys(body, CREATE_COLLECTION_FIELDS)
       if (problem) return invalidDocument(problem)
-      if (!['bookmarks', 'reading_path', 'knowledge_collection', 'mixed'].includes(String(body.kind))) {
+      if (!isOneOf(COLLECTION_KINDS, body.kind)) {
         return invalidDocument('kind must be a supported collection kind')
       }
       if (!validTitle(body.title)) return invalidDocument('title must be a non-empty string of at most 512 characters')
@@ -622,15 +730,15 @@ export class ProductApiMock {
       return null
     }
     if (isPatch && url.pathname === `/api/v1/collections/${MOCK_COLLECTION_ID}`) {
-      const body = bodyObject(request)
-      const problem = exactKeys(body, ['title', 'summary', 'visibility', 'publicationSlug'], [])
+      const body = bodyObject<'CollectionMergePatch'>(request)
+      const problem = exactSchemaKeys(body, COLLECTION_PATCH_FIELDS)
       if (problem) return invalidDocument(problem)
       if (!Object.keys(body).length) return invalidDocument('merge patch must not be empty')
       if ('title' in body && !validTitle(body.title)) return invalidDocument('title must be a valid non-null string')
       if ('summary' in body && (!isNullableString(body.summary) || (body.summary?.length ?? 0) > 2000)) {
         return invalidDocument('summary must be null or a string of at most 2000 characters')
       }
-      if ('visibility' in body && !['private', 'unlisted', 'public'].includes(String(body.visibility))) {
+      if ('visibility' in body && !isOneOf(COLLECTION_VISIBILITIES, body.visibility)) {
         return invalidDocument('visibility must be private, unlisted, or public')
       }
       if ('publicationSlug' in body) {
@@ -644,8 +752,8 @@ export class ProductApiMock {
       return null
     }
     if (method === 'POST' && url.pathname.endsWith('/nodes')) {
-      const body = bodyObject(request)
-      const problem = exactKeys(body, ['parentId', 'afterId', 'beforeId', 'node'], ['parentId', 'afterId', 'beforeId', 'node'])
+      const body = bodyObject<'CreateNodeRequest'>(request)
+      const problem = exactSchemaKeys(body, CREATE_NODE_FIELDS)
       if (problem) return invalidDocument(problem)
       if (typeof body.parentId !== 'string' || !body.parentId.trim()) return invalidDocument('parentId must be a non-empty string')
       if (!isNullableNonEmptyString(body.afterId) || !isNullableNonEmptyString(body.beforeId)) {
@@ -655,55 +763,35 @@ export class ProductApiMock {
       if (!node || typeof node !== 'object' || Array.isArray(node)) {
         return invalidDocument('node must be an object')
       }
-      const input = node as Record<string, unknown>
+      const input = node as unknown as JsonObject
       if (input.kind !== 'folder' && input.kind !== 'bookmark') return invalidDocument('node.kind must be folder or bookmark')
-      const allowed = input.kind === 'folder'
-        ? ['kind', 'title', 'description', 'tags', 'visibility']
-        : ['kind', 'title', 'url', 'description', 'tags', 'visibility']
-      const nestedProblem = exactKeys(input, allowed, allowed)
+      const nestedProblem = exactSchemaKeys(
+        input,
+        input.kind === 'folder' ? FOLDER_CREATE_FIELDS : BOOKMARK_CREATE_FIELDS,
+      )
       if (nestedProblem) return invalidDocument(`node ${nestedProblem}`)
       if (!validTitle(input.title)) return invalidDocument('node.title must be a valid string')
       if (input.kind === 'bookmark' && !validUrl(input.url)) return invalidDocument('node.url must be an absolute http(s) URL without userinfo')
       if (!isNullableString(input.description) || (input.description?.length ?? 0) > 20_000) return invalidDocument('node.description is invalid')
       if (!validTags(input.tags)) return invalidDocument('node.tags is invalid')
-      if (!['inherit', 'protected', 'private'].includes(String(input.visibility))) return invalidDocument('node.visibility is invalid')
+      if (!isOneOf(NODE_VISIBILITIES, input.visibility)) return invalidDocument('node.visibility is invalid')
       return null
     }
     if (isPatch && /\/nodes\/[^/]+$/u.test(url.pathname)) {
-      const problem = exactKeys(
-        bodyObject(request),
-        ['title', 'url', 'description', 'tags', 'visibility'],
-        [],
-      )
-      const body = bodyObject(request)
+      const body = bodyObject<'NodeMergePatch'>(request)
+      const problem = exactSchemaKeys(body, NODE_PATCH_FIELDS)
       if (problem) return invalidDocument(problem)
       if (!Object.keys(body).length) return invalidDocument('merge patch must not be empty')
       if ('title' in body && !validTitle(body.title)) return invalidDocument('title must be a valid non-null string')
       if ('url' in body && !validUrl(body.url)) return invalidDocument('url must be an absolute http(s) URL without userinfo')
       if ('description' in body && (!isNullableString(body.description) || (body.description?.length ?? 0) > 20_000)) return invalidDocument('description is invalid')
       if ('tags' in body && body.tags !== null && !validTags(body.tags)) return invalidDocument('tags must be a valid array or null')
-      if ('visibility' in body && body.visibility !== null && !['inherit', 'protected', 'private'].includes(String(body.visibility))) return invalidDocument('visibility is invalid')
+      if ('visibility' in body && body.visibility !== null && !isOneOf(NODE_VISIBILITIES, body.visibility)) return invalidDocument('visibility is invalid')
       return null
     }
     if (method === 'POST' && url.pathname.endsWith('/move')) {
-      const body = bodyObject(request)
-      const problem = exactKeys(
-        body,
-        [
-          'newParentId',
-          'afterId',
-          'beforeId',
-          'baseSourceParentRevision',
-          'baseTargetParentRevision',
-        ],
-        [
-          'newParentId',
-          'afterId',
-          'beforeId',
-          'baseSourceParentRevision',
-          'baseTargetParentRevision',
-        ],
-      )
+      const body = bodyObject<'MoveNodeRequest'>(request)
+      const problem = exactSchemaKeys(body, MOVE_NODE_FIELDS)
       if (problem) return invalidDocument(problem)
       if (typeof body.newParentId !== 'string' || !body.newParentId.trim()) return invalidDocument('newParentId must be a non-empty string')
       if (!isNullableNonEmptyString(body.afterId) || !isNullableNonEmptyString(body.beforeId)) {
@@ -729,19 +817,21 @@ export class ProductApiMock {
     const method = request.method()
     const path = url.pathname
     if (method === 'GET' && path === '/api/v1/session') {
-      await json(route, this.state.authenticated ? {
+      const session: Schemas['SessionView'] = this.state.authenticated ? {
         authenticated: true,
         csrfToken: MOCK_CSRF,
         idleExpiresAt: '2026-07-23T23:00:00.000Z',
         absoluteExpiresAt: '2026-07-24T00:00:00.000Z',
-      } : { authenticated: false })
+      } : { authenticated: false }
+      await json(route, session)
       return
     }
     if (method === 'GET' && path === '/api/v1/me') {
-      await json(route, {
+      const me: Schemas['MeView'] = {
         account: { id: 'acc-e2e', email: 'e2e@known.test' },
         profile: { id: 'prof-e2e', handle: 'e2e', displayName: 'E2E User', avatarUrl: null, about: '' },
-      })
+      }
+      await json(route, me)
       return
     }
     if (method === 'DELETE' && path === '/api/v1/session') {
@@ -750,9 +840,13 @@ export class ProductApiMock {
       return
     }
     if (method === 'POST' && path === '/api/v1/collections') {
-      const body = bodyObject(request)
+      const body = bodyObject<'CreateCollectionRequest'>(request)
       this.state.collectionTitle = String(body.title)
-      await json(route, { collection: collectionView(this.state), root: editorPage(this.state).root }, 201, {
+      const result: Schemas['CreateCollectionResult'] = {
+        collection: collectionView(this.state),
+        root: editorPage(this.state).root,
+      }
+      await json(route, result, 201, {
         Location: `/api/v1/collections/${MOCK_COLLECTION_ID}`,
         ETag: this.state.collectionEtag,
       })
@@ -763,7 +857,7 @@ export class ProductApiMock {
       return
     }
     if (method === 'PATCH' && path === `/api/v1/collections/${MOCK_COLLECTION_ID}`) {
-      const body = bodyObject(request)
+      const body = bodyObject<'CollectionMergePatch'>(request)
       if (typeof body.title === 'string') this.state.collectionTitle = body.title
       if (body.visibility === 'private' || body.visibility === 'unlisted' || body.visibility === 'public') {
         this.state.collectionVisibility = body.visibility
@@ -774,7 +868,10 @@ export class ProductApiMock {
       }
       this.state.collectionEtag = '"c-2"'
       this.advanceContentFence()
-      await json(route, { collection: { ...collectionView(this.state), revision: '2' } }, 200, {
+      const result: Schemas['UpdateCollectionResult'] = {
+        collection: { ...collectionView(this.state), revision: '2' },
+      }
+      await json(route, result, 200, {
         ETag: this.state.collectionEtag,
       })
       return
@@ -782,8 +879,8 @@ export class ProductApiMock {
 
     const nodeMatch = path.match(new RegExp(`^/api/v1/collections/${MOCK_COLLECTION_ID}/nodes(?:/([^/]+))?(?:/(move))?$`))
     if (nodeMatch && method === 'POST' && !nodeMatch[1]) {
-      const body = bodyObject(request)
-      const input = body.node as Record<string, unknown>
+      const body = bodyObject<'CreateNodeRequest'>(request)
+      const input = body.node as unknown as JsonObject
       const node: MockNode = {
         id: `n-new-${this.state.nodes.length + 1}`,
         kind: input.kind === 'folder' ? 'folder' : 'bookmark',
@@ -794,9 +891,8 @@ export class ProductApiMock {
       }
       this.state.nodes.push(node)
       this.advanceContentFence()
-      const view = editorPage(this.state).nodes.find((item) => item.id === node.id)
-      await json(route, {
-        node: view,
+      const result: Schemas['CreateNodeResult'] = {
+        node: editorPage(this.state).nodes.find((item) => item.id === node.id)!,
         parent: { id: node.parentId, childrenRevision: '2', childrenEtag: '"ch-2"' },
         fence: {
           contentRevision: this.state.contentRevision,
@@ -804,7 +900,8 @@ export class ProductApiMock {
           policyRevision: '1',
           policyEtag: '"p-1"',
         },
-      }, 201, { Location: `/api/v1/collections/${MOCK_COLLECTION_ID}/nodes/${node.id}`, ETag: node.etag })
+      }
+      await json(route, result, 201, { Location: `/api/v1/collections/${MOCK_COLLECTION_ID}/nodes/${node.id}`, ETag: node.etag })
       return
     }
     if (nodeMatch && method === 'PATCH' && nodeMatch[1]) {
@@ -813,20 +910,21 @@ export class ProductApiMock {
         await productError(route, 404, 'resource_not_found', 'none')
         return
       }
-      const body = bodyObject(request)
+      const body = bodyObject<'NodeMergePatch'>(request)
       if (typeof body.title === 'string') target.title = body.title
       if (target.kind === 'bookmark' && typeof body.url === 'string') target.url = body.url
       target.etag = '"n-2"'
       this.advanceContentFence()
-      await json(route, {
-        node: editorPage(this.state).nodes.find((item) => item.id === target.id),
+      const result: Schemas['UpdateNodeResult'] = {
+        node: editorPage(this.state).nodes.find((item) => item.id === target.id)!,
         fence: {
           contentRevision: this.state.contentRevision,
           contentEtag: this.state.contentEtag,
           policyRevision: '1',
           policyEtag: '"p-1"',
         },
-      }, 200, { ETag: target.etag })
+      }
+      await json(route, result, 200, { ETag: target.etag })
       return
     }
     if (nodeMatch && method === 'POST' && nodeMatch[1] && nodeMatch[2] === 'move') {
@@ -835,13 +933,13 @@ export class ProductApiMock {
         await productError(route, 404, 'resource_not_found', 'none')
         return
       }
-      const body = bodyObject(request)
+      const body = bodyObject<'MoveNodeRequest'>(request)
       const sourceParentId = target.parentId
       target.parentId = String(body.newParentId)
       target.etag = '"n-moved"'
       this.advanceContentFence()
-      await json(route, {
-        node: editorPage(this.state).nodes.find((item) => item.id === target.id),
+      const result: Schemas['MoveNodeResult'] = {
+        node: editorPage(this.state).nodes.find((item) => item.id === target.id)!,
         sourceParent: { id: sourceParentId, childrenRevision: '2', childrenEtag: '"ch-source-2"' },
         targetParent: { id: target.parentId, childrenRevision: '2', childrenEtag: '"ch-target-2"' },
         fence: {
@@ -850,14 +948,15 @@ export class ProductApiMock {
           policyRevision: '1',
           policyEtag: '"p-1"',
         },
-      }, 200, { ETag: target.etag })
+      }
+      await json(route, result, 200, { ETag: target.etag })
       return
     }
     if (nodeMatch && method === 'DELETE' && nodeMatch[1]) {
       const targetId = nodeMatch[1]
       this.state.nodes = this.state.nodes.filter((node) => node.id !== targetId && node.parentId !== targetId)
       this.advanceContentFence()
-      await json(route, {
+      const result: Schemas['DeleteNodeResult'] = {
         receipt: {
           resourceType: 'node',
           targetId,
@@ -876,7 +975,8 @@ export class ProductApiMock {
           policyRevision: '1',
           policyEtag: '"p-1"',
         },
-      })
+      }
+      await json(route, result)
       return
     }
     await this.reject(route, `expected route has no responder: ${method} ${path}`)
