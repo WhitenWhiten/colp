@@ -1,4 +1,4 @@
-import { activityAgentRegistration, createActivityAgentRoute, purgeActivity, setAgentActivityEnabled } from '../infrastructure/activity/index.js';
+import { activityAgentRegistration, createActivityAgentRoute, purgeActivity, scheduleActivityRetention, setAgentActivityEnabled, type ActivityRetentionSchedule } from '../infrastructure/activity/index.js';
 import { createAutomationIngestRoute, createAutomationManualRoute, automationManualRegistration, automationIngestRegistration, automationResumeRegistration, AUTOMATION_RESUME_EVENT } from '../infrastructure/outbox/index.js';
 import { createAutomationSourceInspector, createManualRunConsumer, createAutomationRuntime, setAutomationCaptureEnabled } from '../infrastructure/automation/index.js';
 import { createAutomationHealthMonitor } from '../infrastructure/automation/index.js';
@@ -589,7 +589,7 @@ export function buildWorker(
   const inviteCleanup = options.inviteCleanup
     ?? (database ? createPostgresCollaborationInviteMaintenancePortFactory(database.db) : undefined);
   let inviteCleanupSchedule: CollaborationInviteCleanupSchedule | undefined;
-  let activityRetentionTimer: NodeJS.Timeout | undefined;
+  let activityRetention: ActivityRetentionSchedule | undefined;
   let syncOperationsTimer: NodeJS.Timeout | undefined;
   const syncOperationsInspectionGate = { running: false };
   const linkHealthRuntime = (database && config.linkHealth.enabled)
@@ -795,11 +795,10 @@ export function buildWorker(
           'worker start refused: KNOWN_CACHE_REQUIRED=true requires a healthy '
           + `cache, got ${cacheReadinessState}`);
       }
-      // Validate scheduler dependencies before starting any worker timers.
-      if (database && !activityRetentionTimer) activityRetentionTimer = setInterval(() => {
-        void purgeActivity(database.db).catch((error: unknown) => logger.warn({ err: error }, 'activity retention failed'));
-      }, 3_600_000);
-      activityRetentionTimer?.unref();
+      // Start retention before workers so a short-lived restart still drains.
+      if (database && !activityRetention) activityRetention = scheduleActivityRetention(
+        limit => purgeActivity(database.db, limit),
+        { onError: error => logger.warn({ err: error }, 'activity retention failed') });
       automationMaintenance?.start();
       outbox?.start();
       linkHealthRuntime?.loop.start();
@@ -881,8 +880,8 @@ export function buildWorker(
     async stop() {
       const failures: WorkerStopFailure[] = [];
       await attemptWorkerStop(failures, 'automationMaintenance', () => automationMaintenance?.stop());
-      if (activityRetentionTimer) clearInterval(activityRetentionTimer);
-      activityRetentionTimer = undefined;
+      await attemptWorkerStop(failures, 'activityRetention', async () => { await activityRetention?.stop(); });
+      activityRetention = undefined;
       if (syncOperationsTimer) clearInterval(syncOperationsTimer);
       syncOperationsTimer = undefined;
       await attemptWorkerStop(failures, 'replicaExpiryJob', () => replicaExpiryJob?.stop());
