@@ -9,6 +9,7 @@ const fixture = (name: string) => readFile(new URL(`../../fixtures/protocol/exam
 function cache() {
   const entries = new Map<string, ClientCacheEntry>();
   return {
+    entries,
     get: (key: string) => entries.get(key),
     set: vi.fn((key: string, entry: ClientCacheEntry) => { entries.set(key, entry); }),
     delete: vi.fn((key: string) => { entries.delete(key); }),
@@ -81,4 +82,63 @@ describe('publication response storage policy', () => {
     await new ColpClient({ manifestUrl, fetch, cache: store }).getDirectory();
     expect(store.set).toHaveBeenCalledTimes(2);
   });
+});
+
+describe('client cache validator robustness', () => {
+  it('accepts an RFC-legal weak response ETag when no cache is configured', async () => {
+    const [manifest, directory] = await Promise.all([fixture('public-manifest'), fixture('collection-directory')]);
+    const fetch = vi.fn(async (input: string | URL | Request) => {
+      const path = new URL(input instanceof Request ? input.url : input.toString()).pathname;
+      return json(path.includes('.well-known') ? manifest : directory, 'private, no-cache', 'W/"x"');
+    });
+    const client = new ColpClient({ manifestUrl, fetch });
+    await expect(client.getDirectory()).resolves.toMatchObject({ collections: expect.any(Array) });
+  });
+
+  it('still rejects an RFC-legal weak response ETag when the response would be cached', async () => {
+    const [manifest, directory] = await Promise.all([fixture('public-manifest'), fixture('collection-directory')]);
+    const store = cache();
+    const fetch = vi.fn(async (input: string | URL | Request) => {
+      const path = new URL(input instanceof Request ? input.url : input.toString()).pathname;
+      return json(path.includes('.well-known') ? manifest : directory, 'private, no-cache', 'W/"x"');
+    });
+    await expect(new ColpClient({ manifestUrl, fetch, cache: store }).getDirectory())
+      .rejects.toThrow('strictly quoted entity-tag');
+    expect(store.set).not.toHaveBeenCalled();
+  });
+
+  it.each(['W/"stale"', '"unterminated'])(
+    'treats a corrupt cached validator %j as a cache miss and replaces the entry',
+    async (corruptEtag) => {
+      const [manifest, directory] = await Promise.all([fixture('public-manifest'), fixture('collection-directory')]);
+      const store = cache();
+      const validators: (string | null)[] = [];
+      let directoryCalls = 0;
+      const fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const path = new URL(input instanceof Request ? input.url : input.toString()).pathname;
+        if (path.includes('.well-known')) return json(manifest, 'private, no-cache', '"manifest-v1"');
+        directoryCalls += 1;
+        validators.push(new Headers(init?.headers).get('If-None-Match'));
+        if (directoryCalls === 1) return json(directory, 'private, no-cache', '"directory-v1"');
+        const refreshed = JSON.parse(directory) as { collections: Array<{ title: string }> };
+        refreshed.collections[0]!.title = 'refetched';
+        return json(JSON.stringify(refreshed), 'private, no-cache', '"directory-v2"');
+      });
+      const client = new ColpClient({ manifestUrl, fetch, cache: store });
+      await client.getDirectory();
+      const directoryKey = [...store.entries.keys()].find((key) => key.includes('/collections'));
+      expect(directoryKey).toBeDefined();
+      store.entries.set(directoryKey!, {
+        etag: corruptEtag,
+        representation: store.entries.get(directoryKey!)!.representation,
+      });
+
+      const refreshed = await client.getDirectory();
+
+      expect(validators).toEqual([null, null]);
+      expect(refreshed.collections[0]!.title).toBe('refetched');
+      expect(store.delete).toHaveBeenCalledWith(directoryKey);
+      expect(store.entries.get(directoryKey!)?.etag).toBe('"directory-v2"');
+    },
+  );
 });

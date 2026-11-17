@@ -1371,28 +1371,32 @@ export class ColpClient {
       : await abortable(Promise.resolve(this.#cache.get(cacheKey)), policy.signal);
     let cached: ClientCacheEntry | undefined;
     let cachedIsolationError: unknown;
+    let conditionalEtag: string | undefined;
     if (cachedSource !== undefined) {
       try {
-        const etag = validatePublicationIfNoneMatchEtag(cachedSource.etag);
-        // Measure the cache-owned value before cloning so an oversized entry
-        // is rejected without a second stringify of the isolated copy.
-        const sourceBytes = measureJsonUtf8Bytes(cachedSource.representation);
-        if (policy.maxBytes !== undefined && sourceBytes > policy.maxBytes) {
-          throw new ColpClientLimitError('Cached response exceeds the response byte limit of ' + policy.maxBytes + '.');
+        conditionalEtag = validatePublicationIfNoneMatchEtag(cachedSource.etag);
+      } catch {
+        // Corrupt validators are a cache miss: evict so later reads refetch.
+        if (this.#cache !== undefined && cacheKey !== undefined) {
+          await abortable(Promise.resolve(this.#cache.delete(cacheKey)), policy.signal);
         }
-        const isolated = immutableSnapshot(cachedSource.representation);
-        rememberOwnedJsonUtf8Bytes(isolated, sourceBytes);
-        cached = Object.freeze({
-          etag,
-          representation: isolated,
-        });
-      } catch (error) {
-        cachedIsolationError = error;
       }
-    }
-    let conditionalEtag: string | undefined;
-    if (cachedSource !== undefined && !isPaginatedRepresentation(cachedSource.representation)) {
-      conditionalEtag = validatePublicationIfNoneMatchEtag(cachedSource.etag);
+      if (conditionalEtag !== undefined) {
+        try {
+          // Measure the cache-owned value before cloning so an oversized entry
+          // is rejected without a second stringify of the isolated copy.
+          const sourceBytes = measureJsonUtf8Bytes(cachedSource.representation);
+          if (policy.maxBytes !== undefined && sourceBytes > policy.maxBytes) {
+            throw new ColpClientLimitError('Cached response exceeds the response byte limit of ' + policy.maxBytes + '.');
+          }
+          const isolated = immutableSnapshot(cachedSource.representation);
+          rememberOwnedJsonUtf8Bytes(isolated, sourceBytes);
+          cached = Object.freeze({ etag: conditionalEtag, representation: isolated });
+        } catch (error) {
+          cachedIsolationError = error;
+        }
+        if (isPaginatedRepresentation(cachedSource.representation)) conditionalEtag = undefined;
+      }
     }
     const { response, url: finalUrl, usedCacheValidator } = await this.#fetchWithRedirects(
       url,

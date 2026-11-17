@@ -18,8 +18,8 @@ export async function updatePublicationResponseCache(
   headers: Headers,
   representation?: unknown,
 ): Promise<void> {
-  const rawEtag = headers.get('etag');
-  const etag = rawEtag === null ? undefined : validatePublicationIfNoneMatchEtag(rawEtag);
+  // Only a cached write consumes the validator. Clients without a cache must
+  // not reject an RFC-legal weak or non-canonical response ETag.
   if (cache === undefined || key === undefined) return;
 
   // Keep quoted directive values intact: an extension value can contain commas.
@@ -28,8 +28,11 @@ export async function updatePublicationResponseCache(
   if (noStore) {
     // Also discard a prior representation when a 200 or 304 changes its policy.
     await cache.delete(key);
-  } else if (etag !== undefined && representation !== undefined) {
-    // no-cache permits storage: this client revalidates every use with the server.
-    await cache.set(key, Object.freeze({ etag, representation }));
+    return;
   }
+
+  const rawEtag = headers.get('etag');
+  if (rawEtag === null || representation === undefined) return;
+  // no-cache permits storage: this client revalidates every use with the server.
+  await cache.set(key, Object.freeze({ etag: validatePublicationIfNoneMatchEtag(rawEtag), representation }));
 }
