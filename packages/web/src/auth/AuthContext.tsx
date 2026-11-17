@@ -132,7 +132,15 @@ export function useAuth() {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null)
+  const [user, setUserState] = useState<AuthUser | null>(null)
+  /* Mirrors the painted profile synchronously. A store notification may
+     arrive before React has rendered the last setUser, and the recheck below
+     must know whether a verified profile was actually on screen. */
+  const userRef = useRef<AuthUser | null>(null)
+  const setUser = useCallback((next: AuthUser | null) => {
+    userRef.current = next
+    setUserState(next)
+  }, [])
   const [csrfToken, setCsrfToken] = useState<string | null>(null)
   const [bootstrapping, setBootstrapping] = useState(true)
   const [sessionState, setSessionState] = useState<AuthSessionState>('loading')
@@ -141,6 +149,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   /* R15-23: consecutive failed bootstraps; drives the offline retry backoff. */
   const [offlineAttempt, setOfflineAttempt] = useState(0)
   const [serverBusySeconds, setServerBusySeconds] = useState<number | null>(null)
+  /* A session read can rotate the browser session without changing the actor:
+     the store retires its verified /me for the new epoch so the previous
+     account is never painted, and this records the epoch the provider still
+     has to verify (see the effect below). */
+  const [profileRecheckEpoch, setProfileRecheckEpoch] = useState<number | null>(null)
 
   const applySnapshot = useCallback((snap: SessionSnapshot) => {
     setCsrfToken(snap.csrfToken)
@@ -160,9 +173,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else {
       /* Authenticated for a new session epoch, but /me has not verified its
          actor yet. Never keep painting the previous account's profile. */
+      const hadPaintedProfile = userRef.current !== null
       setUser(null)
+      /* A bare getSession (CSRF rotation) bumps the epoch without re-reading
+         /me. Ask for that read here: otherwise a valid, still-signed-in user
+         looks signed out until some later navigation refreshes the session. */
+      if (hadPaintedProfile) setProfileRecheckEpoch(snap.sessionEpoch)
     }
-  }, [])
+  }, [setUser])
 
   const refreshSession = useCallback(async () => {
     const operation = ++sessionOperation.current
@@ -222,7 +240,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       if (refreshController.current === controller) refreshController.current = null
     }
-  }, [])
+  }, [setUser])
+
+  /* A CSRF/session rotation retires the verified /me in the store. Re-read
+     /session + /me so the authenticated user keeps a profile instead of
+     looking signed out to pages that gate on isLoggedIn. */
+  useEffect(() => {
+    if (profileRecheckEpoch === null) return
+    void refreshSession().catch(() => {})
+  }, [profileRecheckEpoch, refreshSession])
 
   const runAuthMutation = useCallback(async <T,>(action: () => Promise<T>): Promise<T> => {
     const assertOriginalSession = captureMutationSession()
@@ -297,7 +323,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await refreshSession().catch(() => {})
       return 'failed'
     }
-  }, [refreshSession])
+  }, [refreshSession, setUser])
 
   const value = useMemo(
     () => ({

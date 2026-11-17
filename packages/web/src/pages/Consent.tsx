@@ -62,17 +62,26 @@ export function consentRedirectHost(redirectUri: string): string | null {
 }
 
 /**
- * The only redirect targets this page will follow: a web URL, or the exact
- * native-app redirect URI the server signed into the consent transaction. A
- * 200/consent response is still untrusted input, and `location.assign` on a
- * `javascript:`/`data:` URL would execute in this origin.
+ * The only redirect targets this page will follow: a web URL, or the native-app
+ * redirect URI the server signed into the consent transaction. Better Auth
+ * appends `?code=…&state=…` (or `?error=…&state=…`) to that registered URI, so
+ * a private-use completion target is the signed URI plus a query or fragment,
+ * never the bare URI. It must still share the signed scheme/host/path: equality
+ * plus a query/fragment separator, not merely a prefix. A 200/consent response
+ * is still untrusted input, and `location.assign` on a `javascript:`/`data:`
+ * URL would execute in this origin.
  */
 export function safeConsentRedirect(target: string, signedRedirectUri: string): string | null {
   try {
     const url = new URL(target)
     if (url.protocol === 'http:' || url.protocol === 'https:') return url.href
   } catch { /* A relative or scheme-only target can only match the signed URI below. */ }
-  return signedRedirectUri !== '' && target === signedRedirectUri ? target : null
+  if (signedRedirectUri === '') return null
+  return target === signedRedirectUri
+    || target.startsWith(`${signedRedirectUri}?`)
+    || target.startsWith(`${signedRedirectUri}#`)
+    ? target
+    : null
 }
 
 export function Consent() {

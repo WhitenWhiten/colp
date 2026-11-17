@@ -15,6 +15,8 @@ import { listAgents } from './agentsClient'
 import { authClient } from './authClient'
 import { ProductApiError } from './errors'
 import { requestJson } from './json-request'
+import { productClient } from './productClient'
+import { applyMeView, applySessionView, clearSession, getCsrfToken, getSessionSnapshot } from './sessionStore'
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status, headers: { 'content-type': 'application/json' },
@@ -57,6 +59,72 @@ describe('requestJson', () => {
       assertCurrent: () => { if (!current) throw new DOMException('Your session changed.', 'AbortError') },
     })
     await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+  })
+})
+
+describe('session transport guards the identity envelope', () => {
+  const keepSession = () => {
+    applySessionView({
+      authenticated: true,
+      csrfToken: 'csrf-keep',
+      idleExpiresAt: '2099-01-01T00:00:00Z',
+      absoluteExpiresAt: '2099-01-02T00:00:00Z',
+    })
+    applyMeView({
+      account: { id: 'account-keep', email: 'keep@test' },
+      profile: { id: 'profile-keep', handle: 'keep', displayName: 'Keep', avatarUrl: null },
+    })
+  }
+  const expectKeptSession = () => {
+    expect(getCsrfToken()).toBe('csrf-keep')
+    expect(getSessionSnapshot()).toMatchObject({
+      authenticated: true,
+      csrfToken: 'csrf-keep',
+      me: { account: { id: 'account-keep' }, profile: { id: 'profile-keep', handle: 'keep' } },
+    })
+  }
+
+  afterEach(() => {
+    clearSession()
+    vi.unstubAllGlobals()
+  })
+
+  it.each([
+    ['an empty body', () => new Response(null, { status: 200 })],
+    ['JSON of the wrong shape', () => json({ user: null })],
+  ])('keeps the in-memory session when GET /session answers %s', async (_label, response) => {
+    keepSession()
+    vi.stubGlobal('fetch', vi.fn(async () => response()))
+
+    await expect(productClient.getSession({ maxRetries: 0 }))
+      .rejects.toMatchObject({ status: 502, code: 'invalid_document', sameRequestRetrySafe: true })
+    expectKeptSession()
+  })
+
+  it.each([
+    ['an empty body', () => new Response(null, { status: 200 })],
+    ['JSON of the wrong shape', () => json({ account: { id: 'account-keep' } })],
+  ])('keeps the in-memory session when GET /me answers %s', async (_label, response) => {
+    keepSession()
+    vi.stubGlobal('fetch', vi.fn(async () => response()))
+
+    await expect(productClient.getMe({ maxRetries: 0 }))
+      .rejects.toMatchObject({ status: 502, code: 'invalid_document', sameRequestRetrySafe: true })
+    expectKeptSession()
+  })
+
+  it.each([
+    ['an empty body', () => new Response(null, { status: 200 })],
+    ['JSON of the wrong shape', () => json({ profile: null })],
+  ])('keeps the in-memory session when PATCH /me answers %s', async (label, response) => {
+    keepSession()
+    vi.stubGlobal('fetch', vi.fn(async () => response()))
+
+    await expect(productClient.updateMe(
+      { handle: 'keep', displayName: 'Keep' },
+      { intentId: `update-me:${label}`, maxRetries: 0 },
+    )).rejects.toMatchObject({ status: 502, code: 'invalid_document', sameRequestRetrySafe: true })
+    expectKeptSession()
   })
 })
 

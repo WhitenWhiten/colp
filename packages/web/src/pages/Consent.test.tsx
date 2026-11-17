@@ -2,7 +2,7 @@
 import { act } from 'react'
 import { MemoryRouter, Route, Routes, useSearchParams } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { Consent, consentScopeLabel } from './Consent'
+import { Consent, consentScopeLabel, safeConsentRedirect } from './Consent'
 import { safeReturnTo } from './safeReturnTo'
 import { cleanup, findButtonByName, mountTree, waitForDom } from '../test/render'
 import { useSettingsDialog } from '../lib/useSettingsDialog'
@@ -14,6 +14,8 @@ const VERIFIED_REDIRECT = 'https://cimd.example/callback'
 const VERIFIED_HOST = 'cimd.example'
 const EVIL_REDIRECT = 'https://evil.example/callback'
 const PRIVATE_USE_REDIRECT = 'com.example.app:/oauth/callback'
+const PRIVATE_USE_APPROVE_REDIRECT = `${PRIVATE_USE_REDIRECT}?code=auth-code&state=xyz`
+const PRIVATE_USE_DENY_REDIRECT = `${PRIVATE_USE_REDIRECT}?error=access_denied&error_description=User%20denied%20access&state=xyz`
 const APPROVE_REDIRECT = 'https://cimd.example/callback?code=auth-code&state=xyz'
 const DENY_REDIRECT = 'https://cimd.example/callback?error=access_denied&error_description=User%20denied%20access&state=xyz'
 
@@ -385,6 +387,83 @@ describe('Consent page', () => {
 
     const assign = (globalThis as { location?: { assign?: (url: string) => void } }).location?.assign
     expect(assign).toHaveBeenCalledWith(PRIVATE_USE_REDIRECT)
+  })
+
+  it('follows a private-use redirect with the code and state Better Auth appends', async () => {
+    mocks.authClient.getOAuthConsentTransaction.mockResolvedValue({
+      client_id: CIMD_CLIENT_ID,
+      client_name: CLIENT_NAME,
+      redirect_uri: PRIVATE_USE_REDIRECT,
+    })
+    mocks.authClient.submitOAuthConsent.mockResolvedValue({
+      redirect: true,
+      url: PRIVATE_USE_APPROVE_REDIRECT,
+    })
+    render()
+    await waitForDom(() => (document.body.textContent ?? '').includes(PRIVATE_USE_REDIRECT))
+    await act(async () => {
+      findButtonByName('Approve').click()
+    })
+
+    const assign = (globalThis as { location?: { assign?: (url: string) => void } }).location?.assign
+    expect(assign).toHaveBeenCalledWith(PRIVATE_USE_APPROVE_REDIRECT)
+    expect(document.body.textContent).toContain(`Allow ${CLIENT_NAME}?`)
+  })
+
+  it('follows a private-use redirect with the error and state Better Auth appends', async () => {
+    mocks.authClient.getOAuthConsentTransaction.mockResolvedValue({
+      client_id: CIMD_CLIENT_ID,
+      client_name: CLIENT_NAME,
+      redirect_uri: PRIVATE_USE_REDIRECT,
+    })
+    mocks.authClient.submitOAuthConsent.mockResolvedValue({
+      redirect: true,
+      url: PRIVATE_USE_DENY_REDIRECT,
+    })
+    render()
+    await waitForDom(() => (document.body.textContent ?? '').includes(PRIVATE_USE_REDIRECT))
+    await act(async () => {
+      findButtonByName('Deny').click()
+    })
+
+    const assign = (globalThis as { location?: { assign?: (url: string) => void } }).location?.assign
+    expect(assign).toHaveBeenCalledWith(PRIVATE_USE_DENY_REDIRECT)
+    expect(PRIVATE_USE_DENY_REDIRECT).toContain('error=access_denied')
+  })
+
+  it('does not follow an unrelated private-use target that only shares the signed prefix', async () => {
+    mocks.authClient.getOAuthConsentTransaction.mockResolvedValue({
+      client_id: CIMD_CLIENT_ID,
+      client_name: CLIENT_NAME,
+      redirect_uri: PRIVATE_USE_REDIRECT,
+    })
+    mocks.authClient.submitOAuthConsent.mockResolvedValue({
+      redirect: true,
+      url: `${PRIVATE_USE_REDIRECT}/evil?code=auth-code&state=xyz`,
+    })
+    render()
+    await waitForDom(() => (document.body.textContent ?? '').includes(PRIVATE_USE_REDIRECT))
+    await act(async () => {
+      findButtonByName('Approve').click()
+    })
+
+    const assign = (globalThis as { location?: { assign?: (url: string) => void } }).location?.assign
+    expect(assign).not.toHaveBeenCalled()
+    expect(mocks.toast.error).toHaveBeenCalledTimes(1)
+    expect(document.body.textContent).toContain(`Allow ${CLIENT_NAME}?`)
+  })
+
+  it('accepts only the signed private-use URI plus a query or fragment', () => {
+    expect(safeConsentRedirect(PRIVATE_USE_REDIRECT, PRIVATE_USE_REDIRECT)).toBe(PRIVATE_USE_REDIRECT)
+    expect(safeConsentRedirect(PRIVATE_USE_APPROVE_REDIRECT, PRIVATE_USE_REDIRECT)).toBe(PRIVATE_USE_APPROVE_REDIRECT)
+    expect(safeConsentRedirect(PRIVATE_USE_DENY_REDIRECT, PRIVATE_USE_REDIRECT)).toBe(PRIVATE_USE_DENY_REDIRECT)
+    expect(safeConsentRedirect(`${PRIVATE_USE_REDIRECT}#state=xyz`, PRIVATE_USE_REDIRECT))
+      .toBe(`${PRIVATE_USE_REDIRECT}#state=xyz`)
+    expect(safeConsentRedirect(`${PRIVATE_USE_REDIRECT}/evil?code=auth-code`, PRIVATE_USE_REDIRECT)).toBeNull()
+    expect(safeConsentRedirect('com.other.app:/oauth/callback?code=auth-code', PRIVATE_USE_REDIRECT)).toBeNull()
+    expect(safeConsentRedirect('javascript:alert(document.cookie)', PRIVATE_USE_REDIRECT)).toBeNull()
+    expect(safeConsentRedirect('data:text/html,hello', PRIVATE_USE_REDIRECT)).toBeNull()
+    expect(safeConsentRedirect(PRIVATE_USE_REDIRECT, '')).toBeNull()
   })
 
   it('redirects an unauthenticated visitor to /login with a safe returnTo back to /consent plus the original query', () => {

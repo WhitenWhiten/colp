@@ -143,20 +143,66 @@ describe('AuthProvider session ordering', () => {
     try {
       render()
       await waitForDom(() => authText().includes('Account A'))
-      await act(async () => {
-        applySessionView({ ...session, csrfToken: 'replacement-csrf' })
-        await Promise.resolve()
-      })
-      expect(loggedInState()).toBe('false')
-      expect(authText()).not.toContain('Account A')
-
+      const rotatedSession: SessionView = { ...session, csrfToken: 'replacement-csrf' }
       const otherMe: MeView = {
         ...me,
         account: { ...me.account, id: 'account-b' },
         profile: { ...me.profile, id: 'profile-b', handle: 'b', displayName: 'Account B' },
       }
-      await act(async () => { applyMeView(otherMe); await Promise.resolve() })
+      const bootstrapsAfterMount = mocks.bootstrap.mock.calls.length
+      let finishReRead: (() => void) | undefined
+      mocks.bootstrap.mockImplementationOnce(() => new Promise((resolve) => {
+        finishReRead = () => {
+          applySessionView(rotatedSession)
+          applyMeView(otherMe)
+          resolve({ session: rotatedSession, me: otherMe })
+        }
+      }))
+
+      await act(async () => {
+        applySessionView(rotatedSession)
+        await Promise.resolve()
+      })
+      // The retired profile must not leak while its re-read is in flight.
+      expect(loggedInState()).toBe('false')
+      expect(authText()).not.toContain('Account A')
+      // The provider asked for the new epoch's /me instead of waiting forever.
+      expect(mocks.bootstrap.mock.calls.length).toBe(bootstrapsAfterMount + 1)
+
+      await act(async () => {
+        finishReRead?.()
+        await Promise.resolve()
+        await Promise.resolve()
+      })
       expect(authText()).toContain('Account B')
+      expect(loggedInState()).toBe('true')
+    } finally {
+      mocks.subscribe.mockImplementation(() => () => {})
+    }
+  })
+
+  it('re-reads /me after an authenticated CSRF rotation and paints the profile again', async () => {
+    mocks.subscribe.mockImplementation(subscribeSession as unknown as () => () => void)
+    try {
+      render()
+      await waitForDom(() => authText().includes('Account A'))
+      const bootstrapsAfterMount = mocks.bootstrap.mock.calls.length
+      const rotatedSession: SessionView = { ...session, csrfToken: 'rotated-csrf' }
+      mocks.bootstrap.mockImplementationOnce(async () => {
+        applySessionView(rotatedSession)
+        applyMeView(me)
+        return { session: rotatedSession, me }
+      })
+
+      await act(async () => {
+        applySessionView(rotatedSession)
+        await Promise.resolve()
+      })
+
+      await waitForDom(() => authText().includes('Account A'))
+      expect(loggedInState()).toBe('true')
+      expect(getCsrfToken()).toBe('rotated-csrf')
+      expect(mocks.bootstrap.mock.calls.length).toBe(bootstrapsAfterMount + 1)
     } finally {
       mocks.subscribe.mockImplementation(() => () => {})
     }

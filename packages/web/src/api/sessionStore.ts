@@ -100,7 +100,8 @@ export function applySessionView(view: SessionView): void {
     sessionEpoch += 1
     /* This is a different browser session (or no session). The previous
        actor's /me may belong to another account — never serve it for the new
-       epoch; AuthContext waits for the new /me before painting a profile. */
+       epoch. AuthContext sees the authenticated-but-unverified snapshot and
+       re-reads /me before painting another profile. */
     me = null
     actorEpoch = -1
   }
