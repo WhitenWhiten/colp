@@ -11,83 +11,94 @@ export const sourceNodeKey=(parts:unknown[]):string=>canonicalJson(parts);
 export function decodeSourceNodeKey(key:string):SourceNodeRef|null {
   try {const p=JSON.parse(key);if(p[0]==='collection')return {sourceCollectionId:p[1],nodeId:p[2],editionId:null};if(p[0]==='digest')return {sourceCollectionId:p[3],nodeId:p[4],editionId:p[2]};}catch {return null;}return null;
 }
-export function createBookmarkSubscriptionSources(tx:DatabaseTransaction,options:{origin:string;reportsEnabled?:boolean},collections:ActorCollectionReadPort):SubscriptionSourcePort & {
+/** A collection tree is authorized per actor, so editions sharing one source collection can share one read. */
+type CollectionTree = Awaited<ReturnType<ActorCollectionReadPort['nodes']>>;
+interface DigestSeriesFacts {
+  readonly title: string; readonly ownerSubjectId: string; readonly visibility: 'private' | 'public' | 'unlisted' | 'protected';
+  readonly slug: string | null; readonly id: string; readonly updatedAt: string | null;
+  readonly summary: string | null; readonly policyRevision: string; readonly contentRevision: string;
+}
+interface DigestSeriesViewFacts {
+  readonly s: DigestSeriesFacts; readonly member: boolean; readonly memberRole: string | null;
+  readonly hidden: boolean; readonly followed: boolean;
+}
+interface DigestEditionFacts {
+  readonly id: string; readonly sourceCollectionId: string; readonly publishedAt: string | null;
+  readonly editionOrdinal: number; readonly titleSnapshot: string; readonly summarySnapshot: string | null;
+  readonly resourceRevision: string;
+}
+/** Digest report facts; the removed report feature supplies fail-closed defaults. */
+export interface DigestSeriesReportReads {
+  series(actor: SubscriptionActor, id: string): Promise<DigestSeriesViewFacts>;
+  publishedEdition(actor: SubscriptionActor, seriesId: string, id: string): Promise<DigestEditionFacts | null>;
+  publishedCandidates(id: string, limit: number, after?: { publishedAt: string; editionOrdinal: number; id: string }): Promise<DigestEditionFacts[]>;
+  hiddenPublishedEditionIds(ids: readonly string[]): Promise<Set<string>>;
+}
+const unavailableDigestReports: DigestSeriesReportReads = {
+  series: () => fail('feature_temporarily_unavailable'),
+  publishedEdition: () => fail('feature_temporarily_unavailable'),
+  publishedCandidates: () => fail('feature_temporarily_unavailable'),
+  hiddenPublishedEditionIds: () => fail('feature_temporarily_unavailable'),
+};
+export function createBookmarkSubscriptionSources(tx:DatabaseTransaction,options:{origin:string;reportsEnabled?:boolean},collections:ActorCollectionReadPort,digestReports:DigestSeriesReportReads=unavailableDigestReports):SubscriptionSourcePort & {
   memberSeries(actor:SubscriptionActor,id:string):Promise<SourceView|null>;
   memberEditions(actor:SubscriptionActor,id:string,after?:string,limit?:number):Promise<SourceProjection['editions']>;
   memberEdition(actor:SubscriptionActor,id:string,editionId:string):Promise<SourceProjection|null>;
 } {
   const profiles=createPostgresTransactionPublicProfileFactsReadPort(tx);
-  interface UnavailableDigestSeries {
-    readonly title: string; readonly ownerSubjectId: string; readonly visibility: 'private' | 'public' | 'unlisted' | 'protected';
-    readonly slug: string | null; readonly id: string; readonly updatedAt: string | null;
-    readonly summary: string | null; readonly policyRevision: string; readonly contentRevision: string;
-  }
-  interface UnavailableDigestSeriesView {
-    readonly s: UnavailableDigestSeries; readonly member: boolean; readonly memberRole: string | null;
-    readonly hidden: boolean; readonly followed: boolean;
-  }
-  interface UnavailableDigestEdition {
-    readonly id: string; readonly sourceCollectionId: string; readonly publishedAt: string | null;
-    readonly editionOrdinal: number; readonly titleSnapshot: string; readonly summarySnapshot: string | null;
-    readonly resourceRevision: string;
-  }
-  const reports: {
-    series: (actor: SubscriptionActor, id: string) => Promise<UnavailableDigestSeriesView>;
-    publishedEdition: (actor: SubscriptionActor, seriesId: string, id: string) => Promise<UnavailableDigestEdition | null>;
-    publishedCandidates: (id: string, limit: number, after?: { publishedAt: string; editionOrdinal: number; id: string }) => Promise<UnavailableDigestEdition[]>;
-    hiddenPublishedEditionIds: (ids: readonly string[]) => Promise<Set<string>>;
-  } = {
-    series: () => fail('feature_temporarily_unavailable'),
-    publishedEdition: () => fail('feature_temporarily_unavailable'),
-    publishedCandidates: () => fail('feature_temporarily_unavailable'),
-    hiddenPublishedEditionIds: () => fail('feature_temporarily_unavailable'),
-  };
   async function owner(id:string) {const p=await profiles.findByOwnerSubjectId(id);return p?{displayName:p.displayName,handle:p.handle}:null;}
   async function series(actor:SubscriptionActor,id:string) {
-    return reports.series(actor,id);
+    return digestReports.series(actor,id);
   }
-  async function get(actor:SubscriptionActor,ref:SourceRef,requireRelation=true):Promise<SourceView|null> {
+  async function get(actor:SubscriptionActor,ref:SourceRef,requireRelation=true,knownSeries?:DigestSeriesViewFacts|null):Promise<SourceView|null> {
     if(ref.sourceType==='collection') {
       const m=await collections.metadata(actor,ref.sourceId);if(!m)return null;
       const relations:SourceView['relations']=[];if(m.followed)relations.push('followed');if(m.shared)relations.push('shared');if(requireRelation&&!relations.length)return null;
       return {...ref,title:m.c.title,owner:await owner(m.c.ownerSubjectId),visibility:m.c.visibility,relations,sourceRole:m.role,openUrl:m.openUrl,updatedAt:m.c.updatedAt,allowedMappingModes:['readonly']};
     }
-    const m=await series(actor,ref.sourceId);if(!m)return null;
+    const m=knownSeries===undefined?await series(actor,ref.sourceId):knownSeries;if(!m)return null;
     const follow=m.followed;
     const relations:SourceView['relations']=[];if(follow)relations.push('followed');if(m.memberRole&&m.s.ownerSubjectId!==actor.subjectId)relations.push('shared');if(requireRelation&&!relations.length)return null;
     return {...ref,title:m.s.title,owner:await owner(m.s.ownerSubjectId),visibility:m.s.visibility,relations,sourceRole:m.s.ownerSubjectId===actor.subjectId||m.memberRole==='editor'||m.memberRole==='owner'?'editor':'viewer',openUrl:options.origin+(m.member?'/library/digests/'+encodeURIComponent(m.s.id)+'/read':'/reports/'+encodeURIComponent(m.s.slug??m.s.id)),updatedAt:m.s.updatedAt!,allowedMappingModes:['readonly']};
   }
-  async function readableEdition(actor:SubscriptionActor,seriesId:string,id:string) {
-    const s=await series(actor,seriesId);if(!s)return null;
-    const e=await reports.publishedEdition(actor,seriesId,id);if(!e)return null;
+  async function readableEdition(actor:SubscriptionActor,seriesId:string,id:string,knownSeries?:DigestSeriesViewFacts) {
+    const s=knownSeries??await series(actor,seriesId);if(!s)return null;
+    const e=await digestReports.publishedEdition(actor,seriesId,id);if(!e)return null;
     const c=await collections.metadata(actor,e.sourceCollectionId);return c?{e,c,s}:null;
   }
-  async function editions(actor:SubscriptionActor,id:string,limit:number,after?:string) {
-    const result:Awaited<ReturnType<typeof readableEdition>>[]=[];const s=await series(actor,id);if(!s)return [];let scan=0;let cursor=after?JSON.parse(after) as {publishedAt:string;ordinal:string;id:string}:undefined;
+  async function editions(actor:SubscriptionActor,id:string,limit:number,after?:string,knownSeries?:DigestSeriesViewFacts) {
+    const result:Awaited<ReturnType<typeof readableEdition>>[]=[];const s=knownSeries??await series(actor,id);if(!s)return [];let scan=0;let cursor=after?JSON.parse(after) as {publishedAt:string;ordinal:string;id:string}:undefined;
     while(result.length<limit) {
-      const candidates=await reports.publishedCandidates(id,Math.min(100,10001-scan),cursor?{publishedAt:cursor.publishedAt,editionOrdinal:Number(cursor.ordinal),id:cursor.id}:undefined);
+      const candidates=await digestReports.publishedCandidates(id,Math.min(100,10001-scan),cursor?{publishedAt:cursor.publishedAt,editionOrdinal:Number(cursor.ordinal),id:cursor.id}:undefined);
       if(!candidates.length)break;
       const metadata=await collections.metadataMany(actor,candidates.map((e)=>e.sourceCollectionId));
-      const hidden=s.member?new Set<string>():await reports.hiddenPublishedEditionIds(candidates.map((e)=>e.id));
+      const hidden=s.member?new Set<string>():await digestReports.hiddenPublishedEditionIds(candidates.map((e)=>e.id));
       for(const e of candidates) {scan++;if(scan>10000)fail('payload_too_large');cursor={publishedAt:e.publishedAt!,ordinal:String(e.editionOrdinal),id:e.id};const c=metadata.get(e.sourceCollectionId);if(c&&!hidden.has(e.id))result.push({e,c,s});if(result.length===limit)break;}
       if(candidates.length<100)break;
     }
     return result.filter((x):x is NonNullable<typeof x>=>x!==null);
   }
   async function project(actor:SubscriptionActor,ref:SourceRef,mode:'latest'|'recent'|null,limit:number|null,oneEdition?:string):Promise<SourceProjection|null> {
-    const source=await get(actor,ref,false);if(!source)return null;
+    const isDigest=ref.sourceType==='digest_series';
+    // One series/access read feeds source, edition selection, links and revisions.
+    const seriesView=isDigest?await series(actor,ref.sourceId):null;
+    const source=await get(actor,ref,false,isDigest?seriesView:undefined);if(!source)return null;
     const rootKey=sourceNodeKey(['synthetic','root',ref.sourceType,ref.sourceId]);const nodes:ProjectionNode[]=[{key:rootKey,parentKey:null,index:0,kind:'folder',role:'root',editionId:null,title:source.title},{key:sourceNodeKey(['synthetic','source_link',ref.sourceType,ref.sourceId]),parentKey:rootKey,index:0,kind:'bookmark',role:'source_link',editionId:null,title:ref.sourceType==='collection'?'Open collection':'Open Digest',url:source.openUrl}];
     const revisions:unknown[]=[];const policy:unknown[]=[];const skipped={unsupported_node:0,unsafe_url:0};
-    const selected=ref.sourceType==='digest_series'?(oneEdition?[await readableEdition(actor,ref.sourceId,oneEdition)].filter((x):x is NonNullable<typeof x>=>x!==null):await editions(actor,ref.sourceId,limit??1)):[];
+    const selected=isDigest?(oneEdition?[await readableEdition(actor,ref.sourceId,oneEdition,seriesView!)].filter((x):x is NonNullable<typeof x>=>x!==null):await editions(actor,ref.sourceId,limit??1,undefined,seriesView!)):[];
     if(oneEdition&&!selected.length)return null;
     const targets=ref.sourceType==='collection'?[{collectionId:ref.sourceId,edition:null}]:selected.map(x=>({collectionId:x.e.sourceCollectionId,edition:x.e}));
+    // Editions of one Digest often share a source collection: read each tree once.
+    const trees=new Map<string,NonNullable<CollectionTree>>();
     for(const target of targets) {
-      const read=await collections.nodes(actor,target.collectionId);if(!read)return null;
+      const cached=trees.get(target.collectionId);
+      const read=cached??await collections.nodes(actor,target.collectionId);if(!read)return null;
+      trees.set(target.collectionId,read);
       const {meta,rows}=read;const editionId=target.edition?.id??null;let parentKey=rootKey;let startIndex=1;
       revisions.push([meta.c.id,meta.c.contentRevision,target.edition?.resourceRevision??null]);policy.push([meta.c.id,meta.policyRevision]);
       if(target.edition) {
         if(mode==='recent') {parentKey=sourceNodeKey(['synthetic','edition_folder',ref.sourceId,editionId]);nodes.push({key:parentKey,parentKey:rootKey,index:nodes.filter(n=>n.parentKey===rootKey).length,kind:'folder',role:'edition_folder',editionId,title:target.edition.titleSnapshot});startIndex=0;}
-        nodes.push({key:sourceNodeKey(['synthetic','edition_link',ref.sourceId,editionId]),parentKey,index:startIndex++,kind:'bookmark',role:'edition_link',editionId,title:'Read full edition',url:options.origin+((await series(actor,ref.sourceId))!.member?'/library/digests/'+encodeURIComponent(ref.sourceId)+'/issues/'+encodeURIComponent(editionId!)+'/read':'/reports/'+encodeURIComponent((await series(actor,ref.sourceId))!.s.slug??ref.sourceId)+'/issues/'+encodeURIComponent(target.edition.id))});
+        nodes.push({key:sourceNodeKey(['synthetic','edition_link',ref.sourceId,editionId]),parentKey,index:startIndex++,kind:'bookmark',role:'edition_link',editionId,title:'Read full edition',url:options.origin+(seriesView!.member?'/library/digests/'+encodeURIComponent(ref.sourceId)+'/issues/'+encodeURIComponent(editionId!)+'/read':'/reports/'+encodeURIComponent(seriesView!.s.slug??ref.sourceId)+'/issues/'+encodeURIComponent(target.edition.id))});
       }
       const children=new Map<string,typeof rows>();for(const row of rows) {if(row.parentId){const a=children.get(row.parentId)??[];a.push(row);children.set(row.parentId,a);}}
       if(!rows.some(r=>r.id===meta.c.rootNodeId))continue;
@@ -110,7 +121,7 @@ export function createBookmarkSubscriptionSources(tx:DatabaseTransaction,options
     const byParent=new Map<string,ProjectionNode[]>();for(const n of nodes)if(n.parentKey){const a=byParent.get(n.parentKey)??[];a.push(n);byParent.set(n.parentKey,a);}
     const ordered:ProjectionNode[]=[];const stack=[nodes[0]!];while(stack.length){const n=stack.pop()!;ordered.push(n);stack.push(...(byParent.get(n.key)??[]).sort((a,b)=>a.index-b.index).reverse());}
     if(ordered.length>20000||Buffer.byteLength(JSON.stringify(ordered))>33554432)fail('payload_too_large');
-    if(ref.sourceType==='digest_series'){const s=await series(actor,ref.sourceId);policy.push([s!.s.policyRevision,s!.member,s!.hidden]);revisions.push(s!.s.contentRevision);}
+    if(isDigest){policy.push([seriesView!.s.policyRevision,seriesView!.member,seriesView!.hidden]);revisions.push(seriesView!.s.contentRevision);}
     return {source,nodes:ordered,policyRevision:digest(policy),contentRevision:digest(revisions),editions:selected.map(x=>({editionId:x.e.id,title:x.e.titleSnapshot,publishedAt:x.e.publishedAt!})),skippedByReason:Object.entries(skipped).filter(([,n])=>n>0).map(([reason,count])=>({reason:reason as 'unsupported_node'|'unsafe_url',count}))};
   }
   async function check(actor:SubscriptionActor,ref:SourceRef,editionIds:string[],nodes:SourceNodeRef[]=[]){

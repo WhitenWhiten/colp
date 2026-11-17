@@ -54,7 +54,16 @@ export function registerLinkPreviewRoutes(app: FastifyInstance, deps: LinkPrevie
   registerImageDeliveryRoute(app, deps, { path: '/api/v1/link-preview/:previewId', parameter: 'previewId', uploaded: false });
 }
 
-/** Shared admission, live authorization, validation and conditional delivery for immutable images. */
+/**
+ * Shared admission, live authorization, validation and conditional delivery.
+ * Uploaded cover bytes never change, but who may read them does: unbinding a
+ * cover or unpublishing its collection must take effect at the origin. So no
+ * successful response is immutable. Public covers are shared-cacheable for at
+ * most IMAGE_PUBLIC_MAX_AGE seconds (300) before revalidation, leaving at most
+ * that window of staleness in a browser or CDN cache after access is revoked;
+ * non-public covers are `private` and may survive up to IMAGE_PRIVATE_MAX_AGE
+ * seconds (seven days) in only that reader's browser cache.
+ */
 export function registerImageDeliveryRoute(
   app: FastifyInstance, deps: LinkPreviewRouteDependencies,
   options: { readonly path: string; readonly parameter: string; readonly uploaded: boolean },
@@ -110,7 +119,7 @@ export function registerImageDeliveryRoute(
     const maxAge = options.uploaded ? (publicAccess ? IMAGE_PUBLIC_MAX_AGE : IMAGE_PRIVATE_MAX_AGE) : previewMaxAge;
     reply
       .header('content-type', mime)
-      .header('cache-control', `${publicAccess ? 'public' : 'private'}, max-age=${maxAge}, ${options.uploaded ? 'immutable' : 'must-revalidate'}`)
+      .header('cache-control', `${publicAccess ? 'public' : 'private'}, max-age=${maxAge}, must-revalidate`)
       .header('etag', etag)
       .header('vary', 'Cookie')
       .header('x-content-type-options', 'nosniff');

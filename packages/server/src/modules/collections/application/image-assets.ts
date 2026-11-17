@@ -4,7 +4,15 @@ import { BookmarkFaviconImageError } from './favicon-store.js';
 
 export const IMAGE_MAX_BYTES = 2 * 1024 * 1024;
 export const IMAGE_MAX_DECOMPRESSED_BYTES = 40 * 1024 * 1024;
-export const IMAGE_PUBLIC_MAX_AGE = 365 * 86_400;
+/**
+ * Uploaded cover bytes are immutable, but their servability is not: a cover can
+ * be unbound or its collection unpublished at any time, and the delivery route
+ * reauthorizes every read. A browser or CDN cache may therefore keep showing a
+ * revoked public cover for up to five minutes (IMAGE_PUBLIC_MAX_AGE); private
+ * covers stay only in that reader's own browser cache for up to
+ * IMAGE_PRIVATE_MAX_AGE (seven days). Neither response is ever immutable.
+ */
+export const IMAGE_PUBLIC_MAX_AGE = 300;
 export const IMAGE_PRIVATE_MAX_AGE = 7 * 86_400;
 export const IMAGE_ID_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u;
 export const IMAGE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp'] as const;

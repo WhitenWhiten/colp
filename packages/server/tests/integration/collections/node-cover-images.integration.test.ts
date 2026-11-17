@@ -76,7 +76,7 @@ describe('durable node covers over real PostgreSQL and Product HTTP', () => {
     return isolated.runtime.db.transaction().execute(tx => loadEditorProjectionRevision(tx, COL, { productOrigin: ORIGIN, linkPreviews: false }));
   }
 
-  test('uploads are immutable, durable and idempotent; replacement changes URL and read revision', async () => {
+  test('uploads are immutable at rest, durable and idempotent; delivery is revalidatable and replacement changes URL and read revision', async () => {
     const h = headers();
     const first = await upload(owner, IMAGE_BODY, h);
     expect(first.statusCode, first.body).toBe(201);
@@ -90,7 +90,7 @@ describe('durable node covers over real PostgreSQL and Product HTTP', () => {
     const delivered = await app.inject({ url: a.image.url });
     expect(delivered.statusCode, delivered.body).toBe(200);
     expect(delivered.rawPayload).toEqual(IMAGE_BODY);
-    expect(delivered.headers['cache-control']).toBe('public, max-age=31536000, immutable');
+    expect(delivered.headers['cache-control']).toBe('public, max-age=300, must-revalidate');
     expect(delivered.headers['vary']).toBe('Cookie');
     const conditional = await app.inject({ url: a.image.url, headers: { 'if-none-match': `W/${delivered.headers.etag}` } });
     expect(conditional.statusCode).toBe(304);
@@ -136,7 +136,7 @@ describe('durable node covers over real PostgreSQL and Product HTTP', () => {
     expect((await bind(asset.assetId, '0', BOOKMARK, 'custom', editor)).statusCode).toBe(200);
     const visible = await app.inject({ url: asset.image.url, headers: { cookie: viewer.cookie } });
     expect(visible.statusCode, visible.body).toBe(200);
-    expect(visible.headers['cache-control']).toBe('private, max-age=604800, immutable');
+    expect(visible.headers['cache-control']).toBe('private, max-age=604800, must-revalidate');
     for (const cookie of ['', outsider.cookie]) {
       expect((await app.inject({ url: asset.image.url, headers: { cookie, 'if-none-match': visible.headers.etag! } })).statusCode).toBe(404);
     }
