@@ -67,6 +67,10 @@ describeWithPostgres('retire requires a live Session and lifecycle equality on a
       'select lifecycle_revision::text from sync_replicas where replica_id=$1', [stale.replicaId]);
     const alignedRevision = revision.rows[0]?.lifecycle_revision;
     assert.ok(alignedRevision);
+    // The drifted-but-active Session cannot retire; the denial leaves it intact.
+    await denyUntouched(application, harness, staleIssued.envelope.sessionId,
+      stale.replicaId, 'retire-stale-lifecycle');
+    assert.equal((await facts(harness, staleIssued.envelope.sessionId)).session_status, 'active');
     const liveIssued = await harness.issuer().issue(harness.command('owner', stale, {
       expectedLifecycleRevision: alignedRevision,
     }));
@@ -74,9 +78,8 @@ describeWithPostgres('retire requires a live Session and lifecycle equality on a
     assert.equal(aligned.session_status, 'active');
     assert.equal(aligned.replica_status, 'active');
     assert.equal(aligned.same_lifecycle, true);
-    await denyUntouched(application, harness, staleIssued.envelope.sessionId,
-      stale.replicaId, 'retire-stale-lifecycle');
-    assert.equal((await facts(harness, staleIssued.envelope.sessionId)).session_status, 'active');
+    // A2-3: issuing the aligned Session durably superseded the drifted one.
+    assert.equal((await facts(harness, staleIssued.envelope.sessionId)).session_status, 'terminated');
     assert.equal((await facts(harness, liveIssued.envelope.sessionId)).session_status, 'active');
     assert.equal((await facts(harness, liveIssued.envelope.sessionId)).same_lifecycle, true);
     await assertStored(harness.isolated.runtime.pool, stale.replicaId, 'active', '0');

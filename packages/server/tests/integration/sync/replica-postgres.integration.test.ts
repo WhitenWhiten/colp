@@ -81,7 +81,9 @@ describeWithPostgres('P3-05 authoritative Replica PostgreSQL port', () => {
       select table_name from information_schema.tables where table_schema=current_schema()
         and table_name like 'sync_%' order by table_name`);
     assert.deepEqual(rows.rows.map((row) => row.table_name), [
-      'sync_ack_receipts', 'sync_bootstrap_snapshot_conflict_cuts', 'sync_bootstrap_snapshot_conflict_receipts',
+      'sync_ack_receipts', 'sync_bootstrap_snapshot_conflict_cuts',
+      'sync_bootstrap_snapshot_conflict_page_proofs',
+      'sync_bootstrap_snapshot_conflict_receipts',
       'sync_bootstrap_snapshot_conflicts', 'sync_bootstrap_snapshot_nodes', 'sync_bootstrap_snapshot_pages',
       'sync_bootstrap_snapshots',
       'sync_collection_effect_cutovers', 'sync_collection_purge_state',

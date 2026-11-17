@@ -54,6 +54,34 @@ import {
   type VerifyTransactionOutcome,
 } from './sync-session-types-postgres.js';
 
+interface LockedSessionRow {
+  readonly session_id: string;
+}
+
+/**
+ * ADR-0027 orders locks as session -> account -> credential -> gate -> replica
+ * -> collection. Ack and Snapshot reads take the Session lock first, so renewal
+ * must too: terminating predecessors after `loadAuthority` can make issuance
+ * hold the gate/replica while it waits for a Session that the Ack holds, while
+ * the Ack waits for the gate/replica. The requested replica/collection are
+ * already known here, so lock the active predecessors before the authority
+ * prefix. Rows are locked in a stable order for concurrent renewals.
+ */
+async function lockActivePredecessorSessions(
+  transaction: DatabaseTransaction,
+  replicaId: string,
+  collectionId: string,
+): Promise<readonly LockedSessionRow[]> {
+  return transaction.selectFrom('sync_sessions')
+    .select('session_id')
+    .where('replica_id', '=', replicaId)
+    .where('collection_id', '=', collectionId)
+    .where('status', '=', 'active')
+    .orderBy('session_id')
+    .forUpdate()
+    .execute();
+}
+
 async function mintFromStore(
   store: TransactionSessionStore,
   session: SyncSessionRecord,
@@ -137,6 +165,10 @@ export async function issueInTransaction(
     throw error;
   }
   assertCredentialPreflight(input.credential, options);
+  // Lock order starts with the Session rows this issuance supersedes.
+  const predecessorSessions = await lockActivePredecessorSessions(
+    transaction, input.replicaId, input.collectionId,
+  );
   const fingerprint = canonicalSyncSessionFingerprint(input);
   const authority = await loadAuthority(transaction, input, options);
 
@@ -215,6 +247,21 @@ export async function issueInTransaction(
     if (existing) throw new SyncSessionIssueError('bootstrap_mode_invalid');
   }
   const renewed = await prepareReplicaForSession(transaction, authority, input, options);
+  // A2-3: a new Session for this Replica supersedes every active predecessor.
+  // The rows were locked before `loadAuthority`, so the existing lifecycle
+  // transition cannot invert the documented lock order. It is durable and
+  // audited exactly like every other termination.
+  const supersededStore = new TransactionSessionStore(transaction);
+  for (const session of predecessorSessions) {
+    const terminated = await supersededStore.terminate({
+      sessionId: session.session_id,
+      reason: 'lease_expired',
+      terminatedAt: authority.now.toISOString(),
+    });
+    if (!terminated || terminated.status !== 'terminated') {
+      throw new SyncSessionIssueError('integrity_failure');
+    }
+  }
   const sessionAuthorityFacts = classifySyncSessionAuthorityFacts({
     replicaState: renewed.status,
     checkpointCursor: renewed.checkpoint_cursor,

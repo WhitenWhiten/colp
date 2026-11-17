@@ -90,10 +90,12 @@ describeWithPostgres('Idle Session renewal acknowledgements', () => {
       assert.equal(handoff.nextCursor, s3.cursor);
       assert.equal(handoff.cursorReissued, true);
       // The current checkpoint must still be bound to the requesting Session.
+      // The renewal above durably terminated s2, so its Ack is now a dead-Session
+      // denial (the pre-renewal `stale_replica` path is unreachable).
       await assert.rejects(ack.acknowledge({ credential: scope.credential, origin: ORIGIN,
         mediaType: 'application/json', endpointIdentity: 'syncAck', idempotencyKey: randomUUID(),
         request: { sessionId: s2.id, cursor: s3.cursor, warnings: [] } }),
-      (error: unknown) => error instanceof SyncAckError && error.code === 'stale_replica');
+      (error: unknown) => error instanceof SyncAckError && error.code === 'resource_not_found');
       await replica();
       await acknowledge(s3.id, handoff.nextCursor);
       const s4 = await issue();

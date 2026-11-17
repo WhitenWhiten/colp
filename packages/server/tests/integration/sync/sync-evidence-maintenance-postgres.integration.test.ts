@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, test } from 'vitest';
+import { afterAll, beforeAll, beforeEach, test } from 'vitest';
 import { createMigrator, runMigrations } from '../../../src/infrastructure/database/index.js';
 import {
   PostgresSyncEvidenceMaintenanceCoordinator,
@@ -10,6 +10,10 @@ import {
 } from '../../../src/infrastructure/sync/index.js';
 import type { SyncEvidenceMaintenanceFaultPhase } from '../../../src/modules/sync/index.js';
 import { mintVerifiedExtensionCredentialFixture } from '../../support/extension-credential.js';
+import {
+  createPostgresSchemaIsolation,
+  type PostgresSchemaIsolation,
+} from '../../support/postgres-schema-isolation.js';
 import { createIsolatedPostgresRuntime, describeWithPostgres,
   type IsolatedPostgresRuntime } from '../../support/postgres-test-runtime.js';
 
@@ -38,10 +42,9 @@ interface SessionRow {
 
 describeWithPostgres('R15 global evidence/proof maintenance worker', () => {
   let isolated: IsolatedPostgresRuntime;
+  let isolation: PostgresSchemaIsolation;
 
-  beforeAll(async () => {
-    isolated = await createIsolatedPostgresRuntime('r15_evidence_maintenance', { maxConnections: 12 });
-    await runMigrations(isolated.runtime.db, 'latest');
+  async function seedAuthority(): Promise<void> {
     const client = await isolated.runtime.pool.connect();
     try {
       await client.query('begin');
@@ -60,7 +63,18 @@ describeWithPostgres('R15 global evidence/proof maintenance worker', () => {
         values ('r15-root',$1,'folder',true,'Root','root-r1','children-r1')`, [COLLECTION]);
       await client.query('commit');
     } catch (error) { await client.query('rollback'); throw error; } finally { client.release(); }
+  }
+
+  beforeAll(async () => {
+    isolated = await createIsolatedPostgresRuntime('r15_evidence_maintenance', { maxConnections: 12 });
+    isolation = createPostgresSchemaIsolation(isolated);
+    await runMigrations(isolated.runtime.db, 'latest');
   }, 30_000);
+
+  beforeEach(async () => {
+    await isolation.reset();
+    await seedAuthority();
+  });
 
   afterAll(async () => isolated?.close());
 
@@ -588,10 +602,8 @@ describeWithPostgres('R15 global evidence/proof maintenance worker', () => {
       value.replica.replicaId, BigInt(value.replica.leaseGeneration)]);
     // No now override: the run derives authoritative time from the database clock.
     const run = await coordinator().runBatch();
-    // Earlier tests leave BASE_TIME-expired rows (e.g. redacted ack/checkpoint
-    // evidence) that the real-time sweep legitimately deletes too, so assert at
-    // least this test's own row is swept and that it is gone.
-    assert.ok(run.deleted >= 1, 'the real-time run must sweep expired rows');
+    // Per-test reset leaves only this test's expired evidence row to sweep.
+    assert.equal(run.deleted, 1, 'the real-time run must sweep exactly the expired row');
     const row = await isolated.runtime.pool.query('select 1 from sync_pull_cursor_evidence where evidence_id=$1',
       [inserted.rows[0]!.evidence_id]);
     assert.equal(row.rowCount, 0);
@@ -626,7 +638,8 @@ describeWithPostgres('R15 global evidence/proof maintenance worker', () => {
     await terminateSession(value.sessionId);
 
     const result = await coordinator().runBatch({ now: BASE_TIME });
-    assert.ok(result.deleted >= 3);
+    // Terminal Ack receipt plus the cursor and page evidence it pinned.
+    assert.equal(result.deleted, 3);
     assert.equal((await isolated.runtime.pool.query(
       'select 1 from sync_ack_receipts where principal_id=$1 and idempotency_key=$2',
       [ACCOUNT, 'r15-ack-terminal'])).rowCount, 0);
@@ -667,7 +680,8 @@ describeWithPostgres('R15 global evidence/proof maintenance worker', () => {
     assert.ok(before.every((result) => result.rowCount === 1));
 
     const result = await coordinator().runBatch();
-    assert.ok(result.deleted >= 4);
+    // One binding, one scope, one replay receipt and the Session row.
+    assert.equal(result.deleted, 4);
     assert.equal((await isolated.runtime.pool.query(
       'select 1 from sync_sessions where session_id=$1', [value.sessionId])).rowCount, 0);
     assert.equal((await isolated.runtime.pool.query(
@@ -717,7 +731,8 @@ describeWithPostgres('R15 global evidence/proof maintenance worker', () => {
     const seeded = await seedSequenceAuthority(value, 'retired');
     await retireReplica(value.replica.replicaId);
     const result = await coordinator().runBatch();
-    assert.ok(result.deleted >= 3);
+    // The retired Replica's receipt, claim and lane, and nothing else.
+    assert.equal(result.deleted, 3);
     assert.equal((await isolated.runtime.pool.query(
       'select 1 from sync_sequence_receipts where operation_id=$1', [seeded.operationId])).rowCount, 0);
     assert.equal((await isolated.runtime.pool.query(
@@ -776,5 +791,96 @@ describeWithPostgres('R15 global evidence/proof maintenance worker', () => {
       assert.doesNotMatch(text, /Seq Scan/u);
       await client.query('rollback');
     } finally { client.release(); }
+  });
+
+  test('a second pass reclaims a redacted checkpoint row and releases its terminal Session', async () => {
+    const value = await context('redacted-reclaim');
+    const evidence = await seedEvidence(value, 'redacted-reclaim', 'redacted-reclaim-cursor',
+      new Date(BASE_TIME.getTime() - 3_600_000));
+    await isolated.runtime.pool.query(`update sync_replicas set
+      checkpoint_cursor=$2, checkpoint_commit_ordinal=100, checkpoint_stream_kind=0,
+      checkpoint_stable_id='redacted-checkpoint-stable' where replica_id=$1`,
+    [value.replica.replicaId, evidence.cursor]);
+    // Terminated before the maintenance clock, so the grace window is already met.
+    await isolated.runtime.pool.query(`update sync_sessions
+      set status='terminated', termination_reason='administrative', terminated_at=$2
+      where session_id=$1`,
+    [value.sessionId, new Date(BASE_TIME.getTime() - 2 * 24 * 60 * 60 * 1_000)]);
+
+    // Pass 1: the digest is still the live checkpoint, so the row is only redacted.
+    const first = await coordinator().runBatch({ now: BASE_TIME });
+    assert.equal(first.redacted, 1);
+    assert.equal(first.deleted, 0);
+    const redacted = await isolated.runtime.pool.query<{ cursor: string | null; cursor_digest: string }>(
+      'select cursor, cursor_digest from sync_pull_cursor_evidence where evidence_id=$1', [evidence.evidenceId]);
+    assert.deepEqual(redacted.rows[0], { cursor: null, cursor_digest: evidence.cursorDigest });
+    assert.equal((await isolated.runtime.pool.query(
+      'select 1 from sync_sessions where session_id=$1', [value.sessionId])).rowCount, 1);
+    // A protected redacted row is not cleanup backlog even though its cursor is gone.
+    assert.equal((await coordinator().runBatch({ now: BASE_TIME })).deleted, 0);
+
+    // The Replica advances past the checkpoint digest, so nothing authority-bearing
+    // names the redacted row any more.
+    await isolated.runtime.pool.query(`update sync_replicas set
+      checkpoint_cursor='redacted-reclaim-advanced', checkpoint_commit_ordinal=101,
+      checkpoint_stream_kind=0, checkpoint_stable_id='redacted-advanced-stable' where replica_id=$1`,
+    [value.replica.replicaId]);
+
+    const second = await coordinator().runBatch({ now: BASE_TIME });
+    assert.ok(second.deleted >= 2, `expected evidence + Session reclamation, got ${second.deleted}`);
+    assert.equal((await isolated.runtime.pool.query(
+      'select 1 from sync_pull_cursor_evidence where evidence_id=$1', [evidence.evidenceId])).rowCount, 0);
+    assert.equal((await isolated.runtime.pool.query(
+      'select 1 from sync_sessions where session_id=$1', [value.sessionId])).rowCount, 0);
+  });
+
+  test('a live cursor lineage row keeps a redacted row and its terminal Session pinned', async () => {
+    const value = await context('redacted-lineage');
+    const evidence = await seedEvidence(value, 'redacted-lineage', 'redacted-lineage-cursor',
+      new Date(BASE_TIME.getTime() - 3_600_000));
+    await isolated.runtime.pool.query(`update sync_replicas set
+      checkpoint_cursor=$2, checkpoint_commit_ordinal=100, checkpoint_stream_kind=0,
+      checkpoint_stable_id='redacted-lineage-checkpoint' where replica_id=$1`,
+    [value.replica.replicaId, evidence.cursor]);
+    await isolated.runtime.pool.query(`update sync_sessions
+      set status='terminated', termination_reason='administrative', terminated_at=$2
+      where session_id=$1`,
+    [value.sessionId, new Date(BASE_TIME.getTime() - 2 * 24 * 60 * 60 * 1_000)]);
+    // Digest-only lineage outlives the evidence but still references the Session
+    // and cannot be deleted before its own expiry. It is therefore a reclamation
+    // blocker, not an independent survivor.
+    await isolated.runtime.pool.query(`insert into sync_pull_cursor_lineage
+      (cursor_digest,session_id,account_id,collection_id,replica_id,lease_generation,policy_revision,
+       protocol_version,page_limit,tuple_commit_ordinal,tuple_stream_kind,tuple_stable_id,
+       cursor_expires_at,lineage_expires_at,issued_at,key_version,receipt)
+      values ($1,$2,$3,$4,$5,$6,'policy-r1','0.1',100,0,0,'',$7,$8,$9,'1','lineage-receipt')`,
+    [evidence.cursorDigest, value.sessionId, ACCOUNT, COLLECTION, value.replica.replicaId,
+      BigInt(value.replica.leaseGeneration), new Date(BASE_TIME.getTime() - 3_600_000),
+      new Date(BASE_TIME.getTime() + 30 * 24 * 60 * 60 * 1_000),
+      new Date(BASE_TIME.getTime() - 7_200_000)]);
+
+    // Pass 1 redacts the checkpoint-referenced row; the live lineage is untouched.
+    const first = await coordinator().runBatch({ now: BASE_TIME });
+    assert.equal(first.redacted, 1);
+    assert.equal(first.deleted, 0);
+
+    // The Replica advances, leaving the lineage as the only live authority for
+    // the redacted digest.
+    await isolated.runtime.pool.query(`update sync_replicas set
+      checkpoint_cursor='redacted-lineage-advanced', checkpoint_commit_ordinal=101,
+      checkpoint_stream_kind=0, checkpoint_stable_id='redacted-lineage-advanced' where replica_id=$1`,
+    [value.replica.replicaId]);
+
+    const second = await coordinator().runBatch({ now: BASE_TIME });
+    assert.equal(second.deleted, 0, 'a live lineage row must block evidence reclamation');
+    assert.equal((await isolated.runtime.pool.query(
+      'select 1 from sync_pull_cursor_evidence where evidence_id=$1', [evidence.evidenceId])).rowCount, 1,
+    'the redacted row must stay while lineage can still name its digest');
+    assert.equal((await isolated.runtime.pool.query(
+      'select 1 from sync_pull_cursor_lineage where replica_id=$1 and cursor_digest=$2',
+      [value.replica.replicaId, evidence.cursorDigest])).rowCount, 1);
+    assert.equal((await isolated.runtime.pool.query(
+      'select 1 from sync_sessions where session_id=$1', [value.sessionId])).rowCount, 1,
+    'the lineage-backed redacted row still pins its terminal Session through both FKs');
   });
 });

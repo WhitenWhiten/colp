@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { createCanonicalMutationApplication } from '../../../src/modules/collections/index.js';
 import { createPostgresCanonicalMutationPorts } from '../../../src/infrastructure/collections/canonical-mutation-postgres-ports.js';
 import { afterAll, beforeAll, test } from 'vitest';
@@ -16,7 +16,7 @@ import {
 import { encryptPrivatePayload } from '../../../src/infrastructure/sync/sync-conflict-postgres.js';
 import { stableJson } from '../../../src/infrastructure/sync/sync-conflict-json.js';
 import { materializeNodePayload, RESOURCE_PAYLOAD_SCHEMA_VERSION } from '../../../src/modules/collections/index.js';
-import { SyncAckError, createSyncPullCursorKeyring } from '../../../src/modules/sync/index.js';
+import { SyncAckError, SyncBootstrapSnapshotError, createSyncPullCursorKeyring } from '../../../src/modules/sync/index.js';
 import { createIsolatedPostgresRuntime, describeWithPostgres,
   type IsolatedPostgresRuntime } from '../../support/postgres-test-runtime.js';
 import { seedRecoveryFixture, type RecoveryFixture } from '../../support/sync-recovery-fixture.js';
@@ -182,6 +182,93 @@ describeWithPostgres('P1-6 snapshot open conflict recovery', () => {
         .where('replica_id', '=', fixture.replicaId).executeTakeFirstOrThrow();
       assert.equal(checkpoint.status, 'active');
       assert.equal(checkpoint.checkpoint_stable_id, 'conflict-cut');
+      assert.equal(checkpoint.checkpoint_stream_kind, 1);
+    } finally { keys.destroy(); }
+  }, 60_000);
+
+  test('requires server-recorded coverage of every frozen conflict page before confirm and Ack', async () => {
+    const fixture = await seedRecoveryFixture(isolated, 'page-proof', undefined, false, undefined, '0.2');
+    const targetId = await seedBookmark(fixture);
+    await insertOpenConflict(fixture, targetId, 'proof-page-a', 'op-proof-a', 46);
+    await insertOpenConflict(fixture, targetId, 'proof-page-b', 'op-proof-b', 47);
+    await insertDismissedConflict(fixture, targetId, 'proof-cut', 'op-proof-cut-open', 48, 'op-proof-cut', 50);
+    await setCommitOrdinal(fixture.collectionId, 50);
+    await isolated.runtime.pool.query(`update sync_replicas set status='recovery_required',
+      wire_json=jsonb_set(wire_json, '{status}', '"recovery_required"'::jsonb, true) where replica_id=$1`,
+    [fixture.replicaId]);
+    const keys = cursorKeys();
+    try {
+      const recovery = createPostgresSyncRecoveryApplication(isolated.runtime.db, {
+        ...fixture.options, pullCursorKeyring: keys, recoveryProofRetentionMs: 2_592_000_000,
+      });
+      const snapshot = await snapshotApp(keys, recovery).query({
+        origin: ORIGIN, credential: fixture.credential, request: { sessionId: fixture.sessionId, limit: PULL_LIMIT },
+      });
+      const capability = snapshot.protocolVersion === '0.2' ? snapshot.recoveryCapability : undefined;
+      assert.equal(typeof capability, 'string');
+      const ackInput = { origin: ORIGIN, credential: fixture.credential,
+        idempotencyKey: 'recover-page-proof', sessionId: fixture.sessionId,
+        capability: capability!, requestCursor: snapshot.syncCursor, explicitCapability: true,
+        requestFingerprint: 'recover-page-proof',
+      };
+      const list = (offset: number) => snapshotApp(keys).listOpenConflicts({ origin: ORIGIN,
+        credential: fixture.credential, sessionId: fixture.sessionId,
+        snapshotId: snapshot.snapshotId!, offset, limit: 1,
+      });
+      const first = await list(0);
+      assert.equal(first.conflictCount, 2);
+      // A replayed first page only re-proves offset zero; it must not stand in
+      // for the second page that the client never fetched.
+      await list(0);
+      await assert.rejects(snapshotApp(keys).confirmOpenConflicts({ origin: ORIGIN,
+        credential: fixture.credential, sessionId: fixture.sessionId, snapshotId: snapshot.snapshotId!,
+        conflictDigest: first.conflictDigest,
+      }), (error: unknown) => error instanceof SyncBootstrapSnapshotError
+        && error.code === 'invalid_cursor_scope');
+      // Recovery Ack is likewise refused while delivery coverage is incomplete.
+      await assert.rejects(recovery.bootstrapAcknowledge(ackInput), (error: unknown) =>
+        error instanceof SyncAckError && error.code === 'unsupported_version');
+      const proofs = await isolated.runtime.pool.query<{ page_offset: number; returned_count: number }>(
+        `select page_offset, returned_count from sync_bootstrap_snapshot_conflict_page_proofs
+          where snapshot_id=$1 and session_id=$2 order by page_offset`,
+        [snapshot.snapshotId, fixture.sessionId]);
+      assert.deepEqual(proofs.rows, [{ page_offset: 0, returned_count: 1 }],
+        'the served-page ledger must only contain the pages actually delivered');
+
+      // Simulate a legacy or buggy confirm that minted the receipt without a
+      // served-page ledger. Ack must validate coverage itself, not just the
+      // receipt, or it would advance past the undelivered second page.
+      const cut = await isolated.runtime.pool.query<{ conflict_count: number; conflict_digest: string }>(
+        `select conflict_count, conflict_digest from sync_bootstrap_snapshot_conflict_cuts
+          where snapshot_id=$1`, [snapshot.snapshotId]);
+      assert.equal(cut.rows[0]?.conflict_count, 2);
+      await isolated.runtime.pool.query(`insert into sync_bootstrap_snapshot_conflict_receipts
+        (snapshot_id, session_id, replica_id, conflict_count, conflict_digest)
+        values ($1,$2,$3,$4,$5)`,
+      [snapshot.snapshotId, fixture.sessionId, fixture.replicaId, cut.rows[0]!.conflict_count,
+        cut.rows[0]!.conflict_digest]);
+      await assert.rejects(recovery.bootstrapAcknowledge(ackInput), (error: unknown) =>
+        error instanceof SyncAckError && error.code === 'unsupported_version',
+      'an existing receipt with non-contiguous page proof must not advance the Ack');
+
+      // The second served page completes the contiguous interval; only now may
+      // the Ack accept the pre-existing receipt.
+      const secondRow = await isolated.runtime.pool.query<{ conflict_id: string; revision: string }>(
+        `select conflict_id, revision from sync_bootstrap_snapshot_conflicts
+          where snapshot_id=$1 and conflict_index=1`, [snapshot.snapshotId]);
+      const secondPageDigest = createHash('sha256')
+        .update(`${secondRow.rows[0]!.conflict_id}\t${secondRow.rows[0]!.revision}`, 'utf8').digest('hex');
+      await isolated.runtime.pool.query(`insert into sync_bootstrap_snapshot_conflict_page_proofs
+        (snapshot_id, session_id, replica_id, page_offset, returned_count, page_digest)
+        values ($1,$2,$3,1,1,$4)`,
+      [snapshot.snapshotId, fixture.sessionId, fixture.replicaId, secondPageDigest]);
+      const acked = await recovery.bootstrapAcknowledge(ackInput);
+      assert.equal(acked.ackedCursor, snapshot.syncCursor);
+      const checkpoint = await isolated.runtime.db.selectFrom('sync_replicas')
+        .select(['checkpoint_stable_id', 'checkpoint_stream_kind', 'status'])
+        .where('replica_id', '=', fixture.replicaId).executeTakeFirstOrThrow();
+      assert.equal(checkpoint.status, 'active');
+      assert.equal(checkpoint.checkpoint_stable_id, 'proof-cut');
       assert.equal(checkpoint.checkpoint_stream_kind, 1);
     } finally { keys.destroy(); }
   }, 60_000);

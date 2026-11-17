@@ -4,6 +4,7 @@ import type { DatabaseSchema } from '../../database/runtime.js';
 import {
   cleanupTerminalSyncAuthority,
   reclaimableTerminalSessions,
+  reclaimTerminalSyncSessions,
 } from './sync-terminal-authority-cleanup.js';
 import type {
   SyncEvidenceMaintenanceCoordinator,
@@ -12,7 +13,7 @@ import type {
 } from '../../../modules/sync/index.js';
 
 interface MaintenanceCandidateRow {
-  kind: 'proof' | 'evidence' | 'lineage' | 'page';
+  kind: 'proof' | 'evidence' | 'lineage' | 'page' | 'redacted';
   id: bigint | string;
   expiry: Date;
 }
@@ -45,6 +46,44 @@ function actionableEvidence(now: Date) {
       WHERE receipt.replica_id=evidence.replica_id AND receipt.cursor_digest=evidence.cursor_digest)
       OR EXISTS (SELECT 1 FROM sync_replicas replica
         WHERE replica.replica_id=evidence.replica_id AND replica.checkpoint_cursor=evidence.cursor))`;
+}
+
+/**
+ * A2-2: redacted rows (cursor IS NULL) keep the digest and tuple authority that
+ * a checkpoint still needs, so the first cleanup pass deliberately stops at
+ * redaction. They still pin their Session through the RESTRICT foreign key,
+ * forever. A second pass may delete a redacted row once nothing authority-bearing
+ * still names its digest: no Ack receipt (the retention trigger's own DELETE
+ * allowance), no Replica checkpoint for that digest, no live unconsumed recovery
+ * proof (a pending recovery capability), and no page envelope handoff.
+ *
+ * Digest-only lineage is also a blocker while it is live. It outlives the
+ * evidence row, but it still references the Session (`ON DELETE CASCADE`) and
+ * its guard forbids deletion before `lineage_expires_at`; deleting the evidence
+ * first would therefore release nothing and leave the Session pinned by
+ * lineage alone. Once lineage expires, the lineage pass deletes it in the same
+ * run and this predicate admits the redacted row (candidate selection already
+ * sees a non-live lineage row, and the write re-check sees it gone).
+ */
+function reclaimableRedactedEvidence(now: Date) {
+  return sql`evidence.cursor IS NULL
+    AND (evidence.cursor_expires_at <= ${now} OR EXISTS (
+      SELECT 1 FROM sync_replicas replica WHERE replica.replica_id=evidence.replica_id
+        AND replica.status IN ('recovery_required','retired')))
+    AND NOT EXISTS (SELECT 1 FROM sync_ack_receipts receipt
+      WHERE receipt.replica_id=evidence.replica_id AND receipt.cursor_digest=evidence.cursor_digest)
+    AND NOT EXISTS (SELECT 1 FROM sync_replicas replica
+      WHERE replica.replica_id=evidence.replica_id AND replica.checkpoint_cursor IS NOT NULL
+        AND encode(public.digest(convert_to(replica.checkpoint_cursor, 'UTF8'), 'sha256'), 'hex')
+          = evidence.cursor_digest)
+    AND NOT EXISTS (SELECT 1 FROM sync_pull_cursor_recovery_proofs proof
+      WHERE proof.replica_id=evidence.replica_id AND proof.cursor_digest=evidence.cursor_digest
+        AND proof.consumed_at IS NULL AND proof.proof_expires_at > ${now})
+    AND NOT EXISTS (SELECT 1 FROM sync_pull_cursor_lineage lineage
+      WHERE lineage.replica_id=evidence.replica_id AND lineage.cursor_digest=evidence.cursor_digest
+        AND lineage.lineage_expires_at > ${now})
+    AND NOT EXISTS (SELECT 1 FROM sync_pull_page_evidence page
+      WHERE page.replica_id=evidence.replica_id AND page.next_cursor_digest=evidence.cursor_digest)`;
 }
 
 function actionablePages(now: Date) {
@@ -86,8 +125,9 @@ function actionableSnapshots(now: Date) {
  * 2. Retired Replicas have their sequence receipts, claims and lanes deleted,
  *    bounded by SEQUENCE_CLEANUP_LIMIT. Active Replica authority is untouched.
  * 3. Terminated Sessions past the one-day grace window and without protocol
- *    child references have their binding/scope/idempotency rows and Session row
- *    deleted, bounded by SESSION_CLEANUP_LIMIT.
+ *    child references have their binding/scope/idempotency/page-proof rows and
+ *    Session row deleted, bounded by SESSION_CLEANUP_LIMIT. This runs last so a
+ *    child deleted earlier in the same run can release its Session immediately.
  * 4. A candidate CTE over proofs, next-cursor evidence, lineage, and page
  *    envelopes selects the oldest expired/consumed/retired rows, oldest-first,
  *    and locks the batch with FOR UPDATE SKIP LOCKED so concurrent workers never
@@ -100,15 +140,19 @@ function actionableSnapshots(now: Date) {
  *    DELETE allowance (expired-or-retired AND NOT EXISTS ack AND NOT EXISTS checkpoint).
  * 7. Expired checkpoint-referenced evidence is only redacted (cursor -> NULL),
  *    keeping cursor_digest + tuple authority; the UPDATE predicate mirrors the
- *    trigger's UPDATE allowance. Redacted rows are excluded from future runs
- *    (cursor IS NOT NULL), so repeated runs are idempotent.
- * 8. Live-Ack-protected evidence and protected page envelopes stay intact and
+ *    trigger's UPDATE allowance.
+ * 8. Redacted evidence is a second candidate kind: once no authority still
+ *    names its digest (Ack receipt, Replica checkpoint, live recovery proof,
+ *    live lineage, page handoff), deleting it releases the RESTRICT Session
+ *    reference so a terminal Session can be reclaimed. Repeated runs remain
+ *    idempotent.
+ * 9. Live-Ack-protected evidence and protected page envelopes stay intact and
  *    do not occupy candidate slots. A protection race is still classified at write time.
- * 9. Expired bootstrap Snapshot evidence is reclaimed after the active stores:
+ * 10. Expired bootstrap Snapshot evidence is reclaimed after the active stores:
  *    page and node rows and expired capabilities are deleted for Snapshots past
  *    their expiry fence, then the Snapshot header is deleted unless a recovery
  *    Ack receipt needs it for Replica-lifetime replay.
- * 10. Node revision history is deleted only below a materialized, archived
+ * 11. Node revision history is deleted only below a materialized, archived
  *     history floor; a zero floor retains every revision.
  *
  * Every DML statement re-checks the full trigger-allowed predicate so the
@@ -161,6 +205,14 @@ export class PostgresSyncEvidenceMaintenanceCoordinator implements SyncEvidenceM
           LIMIT ${this.options.batchSize}
           FOR UPDATE SKIP LOCKED
         ),
+        redacted AS MATERIALIZED (
+          SELECT 'redacted'::text AS kind, evidence.evidence_id AS id, evidence.cursor_expires_at AS expiry
+          FROM sync_pull_cursor_evidence AS evidence
+          WHERE ${reclaimableRedactedEvidence(now)}
+          ORDER BY evidence.cursor_expires_at, evidence.evidence_id
+          LIMIT ${this.options.batchSize}
+          FOR UPDATE SKIP LOCKED
+        ),
         lineage AS MATERIALIZED (
           SELECT 'lineage'::text AS kind, lineage.lineage_id AS id, lineage.lineage_expires_at AS expiry
           FROM sync_pull_cursor_lineage AS lineage
@@ -184,6 +236,8 @@ export class PostgresSyncEvidenceMaintenanceCoordinator implements SyncEvidenceM
           SELECT kind, id, expiry FROM proofs
           UNION ALL
           SELECT kind, id, expiry FROM evidence
+          UNION ALL
+          SELECT kind, id, expiry FROM redacted
           UNION ALL
           SELECT kind, id, expiry FROM lineage
           UNION ALL
@@ -220,6 +274,8 @@ export class PostgresSyncEvidenceMaintenanceCoordinator implements SyncEvidenceM
         .filter((row) => row.kind === 'proof').map((row) => row.id);
       const evidenceIds = candidates.rows
         .filter((row) => row.kind === 'evidence').map((row) => row.id);
+      const redactedIds = candidates.rows
+        .filter((row) => row.kind === 'redacted').map((row) => row.id);
       const lineageIds = candidates.rows
         .filter((row) => row.kind === 'lineage').map((row) => row.id);
       const pageIds = candidates.rows
@@ -373,6 +429,21 @@ export class PostgresSyncEvidenceMaintenanceCoordinator implements SyncEvidenceM
         deleted += pagesDeleted.rows.length;
       }
 
+      // A2-2 second pass: redacted rows whose digest no authority still needs
+      // release the RESTRICT Session reference so terminal cleanup can proceed.
+      // Runs after the page pass so an envelope deleted earlier in this
+      // transaction is already gone when the write re-check evaluates the
+      // predicate.
+      if (redactedIds.length > 0) {
+        const redactedDeleted = await sql<{ evidence_id: bigint | string }>`
+          DELETE FROM sync_pull_cursor_evidence AS evidence
+          WHERE evidence.evidence_id = ANY(${redactedIds}::bigint[])
+            AND ${reclaimableRedactedEvidence(now)}
+          RETURNING evidence.evidence_id
+        `.execute(transaction);
+        deleted += redactedDeleted.rows.length;
+      }
+
       // A Snapshot is unusable past expires_at: page reads, capability issuance
       // and Ack all reject it. Reclaim its page and node bytes, then delete the
       // header when no Ack receipt pins it. A receipt keeps only the small header
@@ -447,11 +518,18 @@ export class PostgresSyncEvidenceMaintenanceCoordinator implements SyncEvidenceM
       `.execute(transaction);
       deleted += revisionRowsDeleted.rows.length;
 
+      // Session reclamation runs last: every pass above may have just released
+      // the child row that pinned a terminal Session (redacted evidence, page
+      // envelopes, snapshots, conflict page proofs).
+      const sessionReclamation = await reclaimTerminalSyncSessions(transaction, now, this.options.batchSize);
+      deleted += sessionReclamation.deleted;
+
       const oldestExpiredAgeMs = await computeOldestExpiredAgeMs(transaction, now);
       await this.options.faultInjector?.afterPhase?.('before_commit');
 
       return Object.freeze({
-        attempted: candidates.rows.length + snapshotCandidates.rows.length + terminalAuthority.attempted,
+        attempted: candidates.rows.length + snapshotCandidates.rows.length
+          + terminalAuthority.attempted + sessionReclamation.attempted,
         deleted,
         redacted,
         skipped,
@@ -484,6 +562,11 @@ async function computeOldestExpiredAgeMs(transaction: DatabaseTransaction, now: 
       (SELECT evidence.cursor_expires_at AS expiry
       FROM sync_pull_cursor_evidence AS evidence
       WHERE ${actionableEvidence(now)} AND evidence.cursor_expires_at <= ${now}
+      ORDER BY evidence.cursor_expires_at LIMIT 1)
+      UNION ALL
+      (SELECT evidence.cursor_expires_at AS expiry
+      FROM sync_pull_cursor_evidence AS evidence
+      WHERE ${reclaimableRedactedEvidence(now)} AND evidence.cursor_expires_at <= ${now}
       ORDER BY evidence.cursor_expires_at LIMIT 1)
       UNION ALL
       (SELECT lineage.lineage_expires_at AS expiry

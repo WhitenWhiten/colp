@@ -81,10 +81,95 @@ interface CutRow {
   readonly conflict_digest: string;
 }
 
+interface FrozenConflictRow {
+  readonly conflict_id: string;
+  readonly revision: string;
+}
+
+interface ConflictPageProofRow {
+  readonly page_offset: number;
+  readonly returned_count: number;
+  readonly page_digest: string;
+}
+
 export function snapshotOpenConflictDigest(
   rows: readonly { readonly id: string; readonly revision: string }[],
 ): string {
   return createHash('sha256').update(rows.map((row) => `${row.id}\t${row.revision}`).join('\n'), 'utf8').digest('hex');
+}
+
+/** The frozen cut is a server-trusted digest over the full Snapshot conflict list. */
+async function readSnapshotOpenConflictCut(client: PoolClient, snapshotId: string): Promise<CutRow> {
+  const cut = await client.query<CutRow>(
+    `select conflict_count, conflict_digest from sync_bootstrap_snapshot_conflict_cuts where snapshot_id = $1`,
+    [snapshotId]);
+  const frozen = cut.rows[0];
+  if (!frozen) throw new SyncBootstrapSnapshotError('unsupported_version', 'snapshot_conflict_cut_missing');
+  return frozen;
+}
+
+/** The Snapshot, its cut and every page proof belong to one Session/Replica authority. */
+async function assertSnapshotConflictAuthority(
+  client: PoolClient,
+  authority: { readonly session_id: string; readonly replica_id: string; readonly replica_generation: string },
+  snapshotId: string,
+): Promise<CutRow> {
+  const snapshot = await client.query<{ session_id: string; replica_id: string; lease_generation: string }>(
+    `select session_id, replica_id, lease_generation::text from sync_bootstrap_snapshots
+      where snapshot_id = $1 and expires_at > current_timestamp`, [snapshotId]);
+  const row = snapshot.rows[0];
+  if (!row || row.session_id !== authority.session_id || row.replica_id !== authority.replica_id
+      || row.lease_generation !== authority.replica_generation) {
+    throw new SyncBootstrapSnapshotError('snapshot_expired');
+  }
+  return readSnapshotOpenConflictCut(client, snapshotId);
+}
+
+/**
+ * A2-1: prove the client received the whole frozen conflict cut. Every served
+ * non-empty page left an immutable interval + page digest; merging those
+ * intervals must reach `conflictCount` without a gap. A replayed page only
+ * re-proves its own interval, so it can never fake an unfetched page.
+ */
+async function assertSnapshotConflictPageCoverage(
+  client: PoolClient,
+  authority: { readonly session_id: string; readonly replica_id: string },
+  snapshotId: string,
+  frozen: CutRow,
+): Promise<void> {
+  const proofs = await client.query<ConflictPageProofRow>(
+    `select page_offset, returned_count, page_digest
+      from sync_bootstrap_snapshot_conflict_page_proofs
+      where snapshot_id = $1 and session_id = $2 and replica_id = $3
+      order by page_offset asc, returned_count asc`,
+    [snapshotId, authority.session_id, authority.replica_id]);
+  if (proofs.rows.length === 0) {
+    throw new SyncBootstrapSnapshotError('invalid_cursor_scope', 'snapshot_conflict_page_coverage');
+  }
+  const rows = await client.query<FrozenConflictRow>(
+    `select conflict_id, revision from sync_bootstrap_snapshot_conflicts
+      where snapshot_id = $1 order by conflict_index asc`, [snapshotId]);
+  const frozenRows = rows.rows.map((row) => ({ id: row.conflict_id, revision: row.revision }));
+  // The cut must still describe exactly the frozen list it was frozen from.
+  if (frozenRows.length !== frozen.conflict_count
+      || snapshotOpenConflictDigest(frozenRows) !== frozen.conflict_digest) {
+    throw new SyncBootstrapSnapshotError('internal_error');
+  }
+  let covered = 0;
+  for (const proof of proofs.rows) {
+    if (!Number.isSafeInteger(proof.returned_count) || proof.returned_count < 1
+        || !Number.isSafeInteger(proof.page_offset) || proof.page_offset < 0) {
+      throw new SyncBootstrapSnapshotError('internal_error');
+    }
+    const end = proof.page_offset + proof.returned_count;
+    if (proof.page_offset > covered || end > frozen.conflict_count) break;
+    if (snapshotOpenConflictDigest(frozenRows.slice(proof.page_offset, end)) !== proof.page_digest) {
+      throw new SyncBootstrapSnapshotError('internal_error');
+    }
+    if (end > covered) covered = end;
+    if (covered >= frozen.conflict_count) return;
+  }
+  throw new SyncBootstrapSnapshotError('invalid_cursor_scope', 'snapshot_conflict_page_coverage');
 }
 
 export async function readVisiblePullUpper(
@@ -161,19 +246,7 @@ export async function readSnapshotOpenConflictPage(
   authority: { readonly session_id: string; readonly replica_id: string; readonly replica_generation: string },
   input: { readonly snapshotId: string; readonly offset: number; readonly limit: number },
 ): Promise<SnapshotOpenConflictPage> {
-  const snapshot = await client.query<{ session_id: string; replica_id: string; lease_generation: string }>(
-    `select session_id, replica_id, lease_generation::text from sync_bootstrap_snapshots
-      where snapshot_id = $1 and expires_at > current_timestamp`, [input.snapshotId]);
-  const row = snapshot.rows[0];
-  if (!row || row.session_id !== authority.session_id || row.replica_id !== authority.replica_id
-      || row.lease_generation !== authority.replica_generation) {
-    throw new SyncBootstrapSnapshotError('snapshot_expired');
-  }
-  const cut = await client.query<CutRow>(
-    `select conflict_count, conflict_digest from sync_bootstrap_snapshot_conflict_cuts where snapshot_id = $1`,
-    [input.snapshotId]);
-  const frozen = cut.rows[0];
-  if (!frozen) throw new SyncBootstrapSnapshotError('unsupported_version', 'snapshot_conflict_cut_missing');
+  const frozen = await assertSnapshotConflictAuthority(client, authority, input.snapshotId);
   if (input.offset > frozen.conflict_count) throw new SyncBootstrapSnapshotError('invalid_query');
   const page = await client.query<{ conflict_id: string; revision: string; wire_json: unknown }>(
     `select conflict_id, revision, wire_json from sync_bootstrap_snapshot_conflicts
@@ -181,6 +254,16 @@ export async function readSnapshotOpenConflictPage(
       order by conflict_index asc limit $3`,
     [input.snapshotId, input.offset, input.limit]);
   const conflicts = page.rows.map((item) => readWire(item.wire_json, item.conflict_id, item.revision));
+  if (conflicts.length > 0) {
+    // A2-1: the proof is written by the read path itself, never reported by the
+    // client. A replayed page repeats the same interval instead of widening it.
+    await client.query(`insert into sync_bootstrap_snapshot_conflict_page_proofs
+      (snapshot_id, session_id, replica_id, page_offset, returned_count, page_digest)
+      values ($1,$2,$3,$4,$5,$6)
+      on conflict (snapshot_id, session_id, page_offset, returned_count) do nothing`,
+    [input.snapshotId, authority.session_id, authority.replica_id, input.offset, conflicts.length,
+      snapshotOpenConflictDigest(conflicts)]);
+  }
   const next = input.offset + conflicts.length;
   return Object.freeze({
     snapshotId: input.snapshotId, offset: input.offset, limit: input.limit,
@@ -194,23 +277,24 @@ export async function confirmSnapshotOpenConflicts(
   authority: { readonly session_id: string; readonly replica_id: string; readonly replica_generation: string },
   input: { readonly snapshotId: string; readonly conflictDigest: string },
 ): Promise<{ readonly confirmed: true }> {
-  const page = await readSnapshotOpenConflictPage(client, authority, {
-    snapshotId: input.snapshotId, offset: 0, limit: 1,
-  });
-  if (page.conflictCount === 0 || page.conflictDigest !== input.conflictDigest) {
+  const frozen = await assertSnapshotConflictAuthority(client, authority, input.snapshotId);
+  if (frozen.conflict_count === 0 || frozen.conflict_digest !== input.conflictDigest) {
     throw new SyncBootstrapSnapshotError('invalid_cursor_scope', 'snapshot_conflict_digest');
   }
+  // The served-page ledger, not the client-supplied digest, proves delivery of
+  // the whole frozen cut for this exact Session/Replica authority.
+  await assertSnapshotConflictPageCoverage(client, authority, input.snapshotId, frozen);
   await client.query(`insert into sync_bootstrap_snapshot_conflict_receipts
     (snapshot_id, session_id, replica_id, conflict_count, conflict_digest)
     values ($1,$2,$3,$4,$5) on conflict (snapshot_id, session_id) do nothing`,
-  [input.snapshotId, authority.session_id, authority.replica_id, page.conflictCount, page.conflictDigest]);
+  [input.snapshotId, authority.session_id, authority.replica_id, frozen.conflict_count, frozen.conflict_digest]);
   const stored = await client.query<{ conflict_count: number; conflict_digest: string; replica_id: string }>(
     `select conflict_count, conflict_digest, replica_id from sync_bootstrap_snapshot_conflict_receipts
       where snapshot_id = $1 and session_id = $2`,
     [input.snapshotId, authority.session_id]);
   const receipt = stored.rows[0];
-  if (!receipt || receipt.replica_id !== authority.replica_id || receipt.conflict_count !== page.conflictCount
-      || receipt.conflict_digest !== page.conflictDigest) {
+  if (!receipt || receipt.replica_id !== authority.replica_id || receipt.conflict_count !== frozen.conflict_count
+      || receipt.conflict_digest !== frozen.conflict_digest) {
     throw new SyncBootstrapSnapshotError('invalid_cursor_scope', 'snapshot_conflict_receipt');
   }
   return Object.freeze({ confirmed: true as const });
@@ -234,6 +318,22 @@ export async function assertSnapshotOpenConflictsDelivered(
       || confirmed.conflict_digest !== frozen.conflict_digest) {
     throw Object.assign(new SyncAckError('unsupported_version'), { authorityGuard: 'snapshot_conflict_recovery' });
   }
+  // A receipt created before page proofs existed (or by a buggy confirm) cannot
+  // advance the Ack past conflicts the ledger shows as never served.
+  const proofs = await sql<{ page_offset: number; returned_count: number }>`select page_offset, returned_count
+    from sync_bootstrap_snapshot_conflict_page_proofs
+    where snapshot_id = ${snapshotId} and session_id = ${sessionId}
+    order by page_offset asc, returned_count asc`.execute(transaction);
+  let covered = 0;
+  for (const proof of proofs.rows) {
+    if (proof.page_offset > covered) break;
+    if (proof.page_offset + proof.returned_count > frozen.conflict_count) break;
+    if (proof.page_offset + proof.returned_count > covered) {
+      covered = proof.page_offset + proof.returned_count;
+    }
+    if (covered >= frozen.conflict_count) return;
+  }
+  throw Object.assign(new SyncAckError('unsupported_version'), { authorityGuard: 'snapshot_conflict_recovery' });
 }
 
 function tupleFrom(row: UpperRow | undefined): SyncPullTuple | undefined {

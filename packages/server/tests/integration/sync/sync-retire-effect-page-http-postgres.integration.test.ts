@@ -399,7 +399,9 @@ describeWithPostgres('FIX-L-028 production HTTP/PostgreSQL Retire and Effect-pag
       (select count(*)::int from sync_replica_retirement_receipts where replica_id=$1) receipts,
       (select status from sync_sessions where session_id=$2) session_status`,
     [scope.replica.replicaId, scope.sessionA.sessionId]);
-    assert.deepEqual(rows.rows[0], { replica_status: 'active', receipts: 0, session_status: 'active' });
+    // Issuing Session B supersedes A, so A is already durably terminated; the
+    // denied request still must not touch the Replica or mint a receipt.
+    assert.deepEqual(rows.rows[0], { replica_status: 'active', receipts: 0, session_status: 'terminated' });
   });
 
   test('retires through the production route with 204, committed lifecycle, idempotent replay and stable Problems', async () => {
@@ -410,8 +412,9 @@ describeWithPostgres('FIX-L-028 production HTTP/PostgreSQL Retire and Effect-pag
       'select lifecycle_revision::text from sync_replicas where replica_id=$1', [scope.replica.replicaId],
     );
     const before = await retirementState(scope.replica.replicaId, scope.sessionA.sessionId);
+    // Session B's issuance durably superseded A before this retirement request.
     assert.deepEqual(before, { replica_status: 'active', has_retired_at: false,
-      session_status: 'active', receipts: '0', audits: '0', evidence_cursor: 'retiree-cursor-1',
+      session_status: 'terminated', receipts: '0', audits: '0', evidence_cursor: 'retiree-cursor-1',
       proofs: '1' });
 
     // Issuing session B advances the replica lifecycle, so only B may retire it.
