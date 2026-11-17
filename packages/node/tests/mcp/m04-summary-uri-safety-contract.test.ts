@@ -154,7 +154,7 @@ describe('M-04 model-safe summary and host-authorized URI contracts', () => {
   it('publishes the same reason length and control-character limits in the Plan Tool schema', () => {
     const { options } = serviceOptions();
     const gateway = createMcpWriteToolGateway({ changePlan: options });
-    const planTool = gateway.listTools().find((tool) => tool.name === 'changes.plan');
+    const planTool = gateway.listAllTools().find((tool) => tool.name === 'changes.plan');
     const properties = planTool?.inputSchema.properties as Readonly<Record<string, unknown>>;
     const reasonSchema = properties.reason as Readonly<Record<string, unknown>>;
 

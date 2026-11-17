@@ -29,7 +29,7 @@ interface PublishedToolDefinition {
 }
 
 interface WriteGateway {
-  readonly listTools: (context?: McpTrustedWriteRequestContext) => readonly PublishedToolDefinition[];
+  readonly listTools: (context: McpTrustedWriteRequestContext) => readonly PublishedToolDefinition[];
   readonly listAllTools: () => readonly PublishedToolDefinition[];
   readonly callTool: (
     name: string,
@@ -292,7 +292,7 @@ function apiKeyMetadata(id: string) {
 }
 
 function definition(gateway: WriteGateway, name: string): PublishedToolDefinition {
-  const found = gateway.listTools().find((candidate) => candidate.name === name);
+  const found = gateway.listAllTools().find((candidate) => candidate.name === name);
   expect(found, `${name} must be published`).toBeDefined();
   return found!;
 }
@@ -381,7 +381,7 @@ describe(`M-03 published MCP write Tool schemas ${evidence}`, () => {
     const gateway = createGateway({
       lowRiskTools: { 'custom.double': lowRiskTool() },
     });
-    expect(gateway.listTools().map(({ name }) => name)).toEqual([
+    expect(gateway.listAllTools().map(({ name }) => name)).toEqual([
       'changes.plan',
       'changes.commit',
       'changes.cancel',
@@ -390,7 +390,7 @@ describe(`M-03 published MCP write Tool schemas ${evidence}`, () => {
       'custom.double',
     ]);
 
-    for (const tool of gateway.listTools()) {
+    for (const tool of gateway.listAllTools()) {
       expect(Object.prototype.hasOwnProperty.call(tool, 'inputSchema')).toBe(true);
       expect(Object.prototype.hasOwnProperty.call(tool, 'outputSchema')).toBe(true);
       expectCanonicalReferenceGraph(tool.inputSchema);
@@ -554,7 +554,7 @@ describe(`M-03 published MCP write Tool schemas ${evidence}`, () => {
     expect(boundaryName).toHaveLength(128);
 
     const gateway = createGateway({ lowRiskTools: { [boundaryName]: lowRiskTool() } });
-    const publishedNames = gateway.listTools().map(({ name }) => name);
+    const publishedNames = gateway.listAllTools().map(({ name }) => name);
 
     expect(publishedNames).toContain(boundaryName);
     expect(new Set(publishedNames).size).toBe(publishedNames.length);
@@ -631,7 +631,7 @@ describe(`M-03 published MCP write Tool schemas ${evidence}`, () => {
     const gateway = createGateway({
       lowRiskTools: { 'custom.double': lowRiskTool() },
     });
-    for (const tool of gateway.listTools()) {
+    for (const tool of gateway.listAllTools()) {
       expectClosedRoot(tool.inputSchema);
       expectClosedRoot(tool.outputSchema);
     }
@@ -642,6 +642,7 @@ describe(`M-03 published MCP write Tool schemas ${evidence}`, () => {
       lowRiskTools: { 'custom.double': lowRiskTool({ requiredScopes: ['custom:write'] }) },
     });
     expect(gateway.listAllTools().map(({ name }) => name)).toContain('custom.double');
+    expect(() => (gateway.listTools as unknown as () => unknown)()).toThrow(TypeError);
     expect(gateway.listTools({ ...context, scope: Object.freeze([]) }).map(({ name }) => name))
       .not.toContain('custom.double');
   });

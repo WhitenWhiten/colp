@@ -41,6 +41,7 @@ import {
   type Mcp20260728RequestContext,
 } from './request-context.js';
 import {
+  MCP_20260728_PRINCIPAL_SCOPED_CACHE_METHODS,
   createMcp20260728Result,
   type Mcp20260728CacheMetadata,
   type Mcp20260728Result,
@@ -193,15 +194,31 @@ function buildResourceResult(
   fields: Readonly<Record<string, unknown>>,
   cache: Mcp20260728CacheMetadata | undefined,
 ): Mcp20260728Result {
+  let effectiveCache = cache;
+  if (
+    cache?.cacheScope === 'public'
+    && cache.ttlMs > 0
+    && MCP_20260728_PRINCIPAL_SCOPED_CACHE_METHODS.includes(method)
+  ) {
+    // The static adapter option is scope-blind; only a verified anonymous
+    // binding may serve it, and it must carry the explicit caller-independent
+    // assertion the result factory requires for a public TTL.
+    if (context.binding.kind !== 'anonymous') {
+      throw new TypeError(
+        `MCP ${method} adapter cannot serve a public cache declaration to an authenticated caller.`,
+      );
+    }
+    effectiveCache = Object.freeze({ ...cache, callerScope: 'anonymous' });
+  }
   const snapshot = snapshotMcpData(fields, context.budget) as Readonly<Record<string, unknown>>;
   if (!RESOURCE_RESULT_SCHEMAS[method].safeParse(snapshot).success) {
     throw new TypeError('MCP Resource adapter produced an invalid Modern result.');
   }
-    return createMcp20260728Result({
+  return createMcp20260728Result({
     method,
     serverInfo,
     fields: snapshot,
-    ...(cache !== undefined ? { cache } : {}),
+    ...(effectiveCache !== undefined ? { cache: effectiveCache } : {}),
   });
 }
 
@@ -269,6 +286,10 @@ function validateCacheMetadata(raw: unknown): Mcp20260728CacheMetadata {
   const cacheScope = readOwnValue(record, 'cacheScope', configError);
   if (typeof ttlMs !== 'number' || !Number.isSafeInteger(ttlMs) || ttlMs < 0) throw configError();
   if (cacheScope !== 'public' && cacheScope !== 'private') throw configError();
+  // A static adapter `cache` option is scope-blind, so a public TTL is only
+  // applied to a verified anonymous binding. `buildResourceResult` enforces
+  // that per request and fails closed for authenticated/scoped callers.
+  if (readOwnValue(record, 'callerScope', configError) !== undefined) throw configError();
   return Object.freeze({ ttlMs, cacheScope });
 }
 

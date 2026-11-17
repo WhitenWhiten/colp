@@ -611,11 +611,11 @@ async function projectReadCache(
   return privateReadCache();
 }
 
-function publicReadCache(): Mcp20260728CacheMetadata {
-  return Object.freeze({
-    ttlMs: PHASE4B_MCP_PUBLIC_READ_CACHE_TTL_MS,
-    cacheScope: 'public',
-  });
+function publicReadCache(): Mcp20260728CacheMetadata & { readonly callerScope: 'anonymous' } {
+  const cache = { ttlMs: PHASE4B_MCP_PUBLIC_READ_CACHE_TTL_MS, cacheScope: 'public' as const };
+  // Caller-independent anonymous public Collections; the result factory requires this for a public TTL.
+  Object.defineProperty(cache, 'callerScope', { value: 'anonymous', enumerable: false });
+  return Object.freeze(cache) as typeof cache & { readonly callerScope: 'anonymous' };
 }
 
 function privateReadCache(): Mcp20260728CacheMetadata {

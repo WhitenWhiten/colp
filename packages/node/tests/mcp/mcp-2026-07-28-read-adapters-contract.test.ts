@@ -237,9 +237,9 @@ describe('MCP 2026-07-28 resource adapter: list/read/templates', () => {
     expect(ListResourcesResultSchema.safeParse(result).success).toBe(true);
   });
 
-  it('listResources honors configured cacheScope/TTL and passes cursor/scope through', async () => {
+  it('listResources honors a caller-independent anonymous public cacheScope/TTL and passes cursor/scope through', async () => {
     const { adapter, projection } = resourceHarness({}, {
-      cache: { 'resources/list': { ttlMs: 5_000, cacheScope: 'private' } },
+      cache: { 'resources/list': { ttlMs: 5_000, cacheScope: 'public' } },
     });
     (projection.listResources as ReturnType<typeof vi.fn>).mockImplementationOnce(
       async (_input: unknown, _context: Mcp20260728RequestContext) => ({
@@ -248,17 +248,41 @@ describe('MCP 2026-07-28 resource adapter: list/read/templates', () => {
       }),
     );
     const result = await adapter.listResources(
-      createContext('resources/list', { _meta: meta() }),
+      createContext(
+        'resources/list',
+        { _meta: meta() },
+        { binding: anonBinding, scope: ['public:read'] },
+      ),
       resourceListInput('page-1'),
     );
     expect(result.ttlMs).toBe(5_000);
-    expect(result.cacheScope).toBe('private');
+    expect(result.cacheScope).toBe('public');
     expect(result.nextCursor).toBe('next-page');
     expect(projection.listResources).toHaveBeenCalledWith(
       { cursor: 'page-1' },
       expect.objectContaining({ scope: expect.any(Array) }),
     );
     expect(ListResourcesResultSchema.safeParse(result).success).toBe(true);
+  });
+
+  it('listResources rejects a static callerScope assertion in adapter cache options', () => {
+    expect(() => resourceHarness({}, {
+      cache: {
+        'resources/list': { ttlMs: 5_000, cacheScope: 'public', callerScope: 'anonymous' },
+      },
+    })).toThrow(TypeError);
+  });
+
+  it('listResources rejects an authenticated/scoped caller for a public cacheScope/TTL', async () => {
+    const { adapter } = resourceHarness({}, {
+      cache: { 'resources/list': { ttlMs: 5_000, cacheScope: 'public' } },
+    });
+    const error = await adapter.listResources(
+      createContext('resources/list', { _meta: meta() }, { scope: ['collections:read'] }),
+      resourceListInput(),
+    ).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(TypeError);
+    expect((error as Error).message).toContain('authenticated caller');
   });
 
   it('listResources isolates anonymous and authenticated contexts', async () => {
@@ -311,6 +335,30 @@ describe('MCP 2026-07-28 resource adapter: list/read/templates', () => {
     expect(result.cacheScope).toBe('private');
     expect(result.contents).toEqual([{ uri: metadataUri, mimeType: 'text/plain', text: 'sanitized external data' }]);
     expect(ReadResourceResultSchema.safeParse(result).success).toBe(true);
+  });
+
+  it('readResource serves public cache only to anonymous callers', async () => {
+    const { adapter } = resourceHarness({}, {
+      cache: { 'resources/read': { ttlMs: 5_000, cacheScope: 'public' } },
+    });
+    const anonymous = await adapter.readResource(
+      createContext(
+        'resources/read',
+        { uri: metadataUri, _meta: meta() },
+        { binding: anonBinding, scope: ['public:read'] },
+        metadataUri,
+      ),
+      { uri: metadataUri },
+    );
+    expect(anonymous.ttlMs).toBe(5_000);
+    expect(anonymous.cacheScope).toBe('public');
+
+    const error = await adapter.readResource(
+      createContext('resources/read', { uri: metadataUri, _meta: meta() }, {}, metadataUri),
+      { uri: metadataUri },
+    ).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(TypeError);
+    expect((error as Error).message).toContain('authenticated caller');
   });
 
   it('readResource unknown resource maps to stable Invalid Params not-found', async () => {
@@ -424,6 +472,40 @@ describe('MCP 2026-07-28 read tool adapter: list/call', () => {
     const result = await adapter.listTools(createContext('tools/list', { _meta: meta() }), {});
     expect(result.tools).toEqual([]);
     expect(ListToolsResultSchema.safeParse(result).success).toBe(true);
+  });
+
+  it('listTools serves a caller-independent public cache/TTL only to anonymous callers', async () => {
+    const { adapter } = toolHarness(
+      [registration('alpha.get', async () => ({ structuredContent: { a: 1 } }))],
+      { cache: { 'tools/list': { ttlMs: 7_000, cacheScope: 'public' } } },
+    );
+    const result = await adapter.listTools(
+      createContext(
+        'tools/list',
+        { _meta: meta() },
+        { binding: anonBinding, scope: ['public:read'] },
+      ),
+      {},
+    );
+    expect(result.ttlMs).toBe(7_000);
+    expect(result.cacheScope).toBe('public');
+    expect(Object.hasOwn(result, 'callerScope')).toBe(false);
+    expect(ListToolsResultSchema.safeParse(result).success).toBe(true);
+
+    const error = await adapter.listTools(
+      createContext('tools/list', { _meta: meta() }),
+      {},
+    ).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(TypeError);
+    expect((error as Error).message).toContain('authenticated caller');
+  });
+
+  it('listTools rejects a static callerScope assertion in adapter cache options', () => {
+    expect(() => toolHarness([], {
+      cache: {
+        'tools/list': { ttlMs: 7_000, cacheScope: 'public', callerScope: 'anonymous' },
+      },
+    })).toThrow(TypeError);
   });
 
   it('callTool passes through structured scalar, array and object content', async () => {

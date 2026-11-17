@@ -937,6 +937,11 @@ function validateCacheMetadata(raw: unknown): Mcp20260728CacheMetadata {
   const cacheScope = readOwnValue(record, 'cacheScope', configError);
   if (typeof ttlMs !== 'number' || !Number.isSafeInteger(ttlMs) || ttlMs < 0) throw configError();
   if (cacheScope !== 'public' && cacheScope !== 'private') throw configError();
+  // The Write adapter only serves authenticated bindings, so `tools/list` is
+  // always scope-filtered here. A public TTL can never be caller-independent
+  // and is rejected at construction; the anonymous marker is not accepted.
+  if (cacheScope === 'public' && ttlMs > 0) throw configError();
+  if (readOwnValue(record, 'callerScope', configError) !== undefined) throw configError();
   return Object.freeze({ ttlMs, cacheScope });
 }
 

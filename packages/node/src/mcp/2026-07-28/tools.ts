@@ -206,11 +206,23 @@ function buildToolResult(
   if (!TOOL_RESULT_SCHEMAS[method].safeParse(snapshot).success) {
     throw new TypeError('MCP Read Tool adapter produced an invalid Modern result.');
   }
+  let effectiveCache = cache;
+  if (method === 'tools/list' && cache?.cacheScope === 'public' && cache.ttlMs > 0) {
+    // The static adapter option is scope-blind; only a verified anonymous
+    // binding may serve it, and it must carry the explicit caller-independent
+    // assertion the result factory requires for a public TTL.
+    if (context.binding.kind !== 'anonymous') {
+      throw new TypeError(
+        'MCP tools/list adapter cannot serve a public cache declaration to an authenticated caller.',
+      );
+    }
+    effectiveCache = Object.freeze({ ...cache, callerScope: 'anonymous' });
+  }
   return createMcp20260728Result({
     method,
     serverInfo,
     fields: snapshot,
-    ...(cache !== undefined ? { cache } : {}),
+    ...(effectiveCache !== undefined ? { cache: effectiveCache } : {}),
   });
 }
 
@@ -334,6 +346,10 @@ function validateCacheMetadata(raw: unknown): Mcp20260728CacheMetadata {
   const cacheScope = readOwnValue(record, 'cacheScope', configError);
   if (typeof ttlMs !== 'number' || !Number.isSafeInteger(ttlMs) || ttlMs < 0) throw configError();
   if (cacheScope !== 'public' && cacheScope !== 'private') throw configError();
+  // A static adapter `cache` option is scope-blind. A public TTL is only
+  // applied to a verified anonymous binding; `buildToolResult` enforces that
+  // per request and fails closed for authenticated/scoped callers.
+  if (readOwnValue(record, 'callerScope', configError) !== undefined) throw configError();
   return Object.freeze({ ttlMs, cacheScope });
 }
 

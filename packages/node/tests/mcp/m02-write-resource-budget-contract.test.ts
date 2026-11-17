@@ -351,7 +351,7 @@ describe(`${evidence} gateway budget propagation`, () => {
       changePlan: changePlanOptions(),
       inputBudget,
     });
-    const definition = gateway.listTools().find((tool) => tool.name === 'changes.plan');
+    const definition = gateway.listAllTools().find((tool) => tool.name === 'changes.plan');
     const properties = definition?.inputSchema.properties as Record<string, Record<string, unknown>>;
     expect(properties.operations?.maxItems).toBe(2);
 

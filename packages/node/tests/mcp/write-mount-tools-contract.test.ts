@@ -11,6 +11,7 @@ import {
   createMcpWriteMountAdapter,
   isMcpWriteToolName,
 } from '../../src/mcp/write-mount.js';
+import { McpWriteBindingRequiredError } from '../../src/mcp/write-tools.js';
 import {
   createInMemoryApprovalStore,
   createInMemoryPlanStore,
@@ -107,13 +108,35 @@ describe('MCP-0007 write mount tools [evidence:schema.mcp-write-tools]', () => {
     expect(exposure.endpoint).toBe(mount.endpoints.mcp);
     expect(exposure.resources).toBe(true);
     expect(exposure.profiles).toEqual(expect.arrayContaining(['mcp-write', 'mcp-read', 'publisher']));
-    const toolNames = exposure.tools.listTools().map((tool) => tool.name);
+    const toolNames = exposure.tools.listAllTools().map((tool) => tool.name);
     expect(toolNames).toEqual(expect.arrayContaining([
       'changes.plan',
       'changes.commit',
       'changes.cancel',
     ]));
     expect(toolNames.every((name) => typeof name === 'string')).toBe(true);
+  });
+
+  it('fails closed for unscoped advertisement instead of leaking write Tools [evidence:schema.mcp-write-tools]', async () => {
+    const manifest = await fixture();
+    const mount = manifest.mounts[0]!;
+    const exposure = createMcpWriteExposure(manifest, {
+      mountId: mount.id,
+      ...writeOptions(),
+    });
+
+    // Registration sees the full catalog...
+    expect(exposure.tools.listAllTools().map((tool) => tool.name)).toContain('changes.plan');
+    // ...but the advertisement surface never does without a trusted context.
+    const unscoped = exposure.tools.listTools as unknown as () => unknown;
+    expect(unscoped).toThrow(McpWriteBindingRequiredError);
+    let leaked: unknown;
+    try {
+      leaked = unscoped();
+    } catch {
+      leaked = undefined;
+    }
+    expect(leaked).toBeUndefined();
   });
 
   it('fail-closes when mcp-write omits mcp-read dependency [evidence:schema.mcp-write-tools]', async () => {

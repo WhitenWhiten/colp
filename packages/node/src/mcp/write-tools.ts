@@ -64,8 +64,9 @@ export interface McpWriteToolResult {
 }
 
 export interface McpWriteToolGateway {
-  /** Scoped advertisement; unscoped calls are host registration, never `tools/list`. */
-  readonly listTools: (context?: McpTrustedWriteRequestContext) => readonly McpToolDefinition[];
+  /** Scoped advertisement; fails closed without a trusted context. Registration uses listAllTools. */
+  readonly listTools: (context: McpTrustedWriteRequestContext) => readonly McpToolDefinition[];
+  /** Host-only registration surface; never `tools/list` advertisement. */
   readonly listAllTools: () => readonly McpToolDefinition[];
   readonly callTool: (
     name: string,
@@ -518,8 +519,7 @@ export function createMcpWriteToolGateway<
   }
 
   const published = Object.freeze(tools.slice());
-  const listTools = (context?: McpTrustedWriteRequestContext): readonly McpToolDefinition[] => {
-    if (context === undefined) return published;
+  const listTools = (context: McpTrustedWriteRequestContext): readonly McpToolDefinition[] => {
     const trustedContext = requireTrustedWriteRequestContext(context);
     const effectiveScope = new Set(trustedContext.scope);
     return Object.freeze(published.filter((definition) =>

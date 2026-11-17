@@ -140,6 +140,21 @@ describe('MCP 2026-07-28 Write adapter — host configuration hardening', () => 
       ...base,
       cache: { 'tools/list': Object.defineProperty({ ttlMs: 100, cacheScope: 'private' }, 'ttlMs', { get: () => 100 }) },
     } as never)).toThrow(TypeError);
+    // The Write adapter only serves authenticated bindings, so a public TTL can
+    // never be caller-independent there; the anonymous assertion is rejected
+    // even with a zero TTL.
+    expect(() => createMcp20260728WriteToolAdapter({
+      ...base, cache: { 'tools/list': { ttlMs: 100, cacheScope: 'public' } },
+    } as never)).toThrow(TypeError);
+    expect(() => createMcp20260728WriteToolAdapter({
+      ...base, cache: { 'tools/list': { ttlMs: 100, cacheScope: 'public', callerScope: 'anonymous' } },
+    } as never)).toThrow(TypeError);
+    expect(() => createMcp20260728WriteToolAdapter({
+      ...base, cache: { 'tools/list': { ttlMs: 0, cacheScope: 'public', callerScope: 'anonymous' } },
+    } as never)).toThrow(TypeError);
+    expect(() => createMcp20260728WriteToolAdapter({
+      ...base, cache: { 'tools/list': { ttlMs: 0, cacheScope: 'public' } },
+    } as never)).not.toThrow(TypeError);
     expect(() => createMcp20260728WriteToolAdapter({ ...base } as never)).not.toThrow(TypeError);
   });
 });

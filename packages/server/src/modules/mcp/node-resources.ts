@@ -307,11 +307,22 @@ function privateCache(): Mcp20260728CacheMetadata {
   });
 }
 
-function publicCache(): Mcp20260728CacheMetadata {
-  return Object.freeze({
+function publicCache(): Mcp20260728CacheMetadata & { readonly callerScope: 'anonymous' } {
+  const cache = {
     ttlMs: PHASE4B_MCP_NODE_RESOURCE_CACHE_TTL_MS,
-    cacheScope: 'public',
+    cacheScope: 'public' as const,
+  };
+  // The projection loaded the Node as `anonymous` and verified its public
+  // visibility, so the declaration is caller-independent. The Modern result
+  // factory requires this assertion for a public TTL; keep it non-enumerable
+  // so the observed cache projection remains exactly { ttlMs, cacheScope }.
+  Object.defineProperty(cache, 'callerScope', {
+    value: 'anonymous',
+    enumerable: false,
+    writable: false,
+    configurable: false,
   });
+  return Object.freeze(cache) as Mcp20260728CacheMetadata & { readonly callerScope: 'anonymous' };
 }
 
 function assertNotAborted(signal: AbortSignal): void {

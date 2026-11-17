@@ -297,7 +297,7 @@ describe('MCP-0005 secret redaction [evidence:mcp.secret-redaction]', () => {
       revealUriForKey: (keyId) => `https://alice.example/collections/keys/${keyId}/reveal`,
     });
 
-    const toolNames = gateway.listTools().map((tool) => tool.name);
+    const toolNames = gateway.listAllTools().map((tool) => tool.name);
     expect(toolNames).toEqual(expect.arrayContaining(['keys.create', 'keys.rotate']));
 
     const createResult = await gateway.callTool(

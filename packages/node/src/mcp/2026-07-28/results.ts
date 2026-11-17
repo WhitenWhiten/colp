@@ -51,6 +51,23 @@ export type Mcp20260728CacheScope = 'public' | 'private';
 export interface Mcp20260728CacheMetadata {
   readonly ttlMs: number;
   readonly cacheScope: Mcp20260728CacheScope;
+  /**
+   * Trusted per-result assertion that the cached payload is caller-independent
+   * and was produced for an anonymous caller. It is only meaningful with
+   * `cacheScope: 'public'` and is never emitted on the wire.
+   *
+   * Scope-aware hosts (for example a public Resource projection or an adapter
+   * that has just checked `binding.kind === 'anonymous'`) may set it.
+   * Scope-blind static adapter `cache` options must not carry it: the adapters
+   * reject that configuration and only add the mark after verifying the
+   * per-request binding.
+   *
+   * A host whose observed cache projection must stay exactly
+   * `{ ttlMs, cacheScope }` may attach this as a non-enumerable own data
+   * property; the factory reads own data descriptors regardless of
+   * enumerability and never copies the assertion to the result.
+   */
+  readonly callerScope?: 'anonymous';
 }
 
 /** Methods whose results may be `input_required` (multi round-trip requests). */
@@ -74,9 +91,18 @@ export const MCP_20260728_CACHEABLE_RESULT_METHODS: readonly string[] = Object.f
  * Cacheable methods whose result can differ by caller scope/principal.
  * `tools/list` is scope-filtered; `resources/list` and `resources/read` are
  * visibility/authorization-dependent; `prompts/list` may be filtered by the
- * same permissions. Marking such a result `public` with a non-zero TTL lets a
- * shared intermediary replay one principal's result to another, so that
- * combination is rejected instead of being silently downgraded.
+ * same permissions.
+ *
+ * The result factory cannot infer caller scope from the declaration alone, so
+ * `public` + TTL on these methods is accepted only with the explicit
+ * `callerScope: 'anonymous'` assertion. Scope-blind paths enforce that
+ * assertion: adapter `cache` options reject an explicit assertion, while the
+ * adapters add it only after verifying the per-request binding (and fail closed
+ * for authenticated callers); the host transport does the same (see
+ * `2026-07-28/resources.ts`, `2026-07-28/tools.ts` and the server's
+ * `assertCacheAuthority`). Marking a scope-dependent result `public` with a
+ * non-zero TTL without such a check lets a shared intermediary replay one
+ * principal's result to another.
  */
 export const MCP_20260728_PRINCIPAL_SCOPED_CACHE_METHODS: readonly string[] = Object.freeze([
   'tools/list',
@@ -116,8 +142,13 @@ export interface Mcp20260728Result {
  * extended result-type methods; non-cacheable methods never carry cache
  * fields (mirrors the SDK encode contract). Scope-filtered cacheable results
  * (see {@link MCP_20260728_PRINCIPAL_SCOPED_CACHE_METHODS}) reject a `public`
- * cache scope with a non-zero TTL. Malformed host input throws `TypeError`
- * (host bug).
+ * cache scope with a non-zero TTL unless the host explicitly marks the payload
+ * as caller-independent for an anonymous caller
+ * (`cache.callerScope: 'anonymous'`). Hosts that compute cache metadata per
+ * request from a verified binding (the server Resource projections and the
+ * scope-aware adapters) set that mark only after establishing the caller is
+ * anonymous; scope-blind adapter `cache` options can never set it. Malformed
+ * host input throws `TypeError` (host bug).
  */
 export function createMcp20260728Result(input: Mcp20260728ResultInput): Mcp20260728Result {
   if (typeof input !== 'object' || input === null || Array.isArray(input)) {
@@ -144,14 +175,20 @@ export function createMcp20260728Result(input: Mcp20260728ResultInput): Mcp20260
     cache = validateCacheMetadata(cacheRaw);
   }
   const isCacheable = resultType === 'complete' && MCP_20260728_CACHEABLE_RESULT_METHODS.includes(method);
+  if (isCacheable && cache?.callerScope === 'anonymous' && cache.cacheScope !== 'public') {
+    throw new TypeError(
+      `MCP ${method} result cache callerScope 'anonymous' requires cacheScope 'public'.`,
+    );
+  }
   if (
     isCacheable
     && cache?.cacheScope === 'public'
     && cache.ttlMs > 0
     && MCP_20260728_PRINCIPAL_SCOPED_CACHE_METHODS.includes(method)
+    && cache.callerScope !== 'anonymous'
   ) {
     throw new TypeError(
-      `MCP ${method} result depends on the caller's scope; cacheScope 'public' requires ttlMs 0.`,
+      `MCP ${method} result depends on the caller's scope; cacheScope 'public' with a TTL requires the explicit callerScope 'anonymous' assertion.`,
     );
   }
   const ttlMs = isCacheable ? (cache?.ttlMs ?? DEFAULT_CACHE_TTL_MS) : undefined;
@@ -201,13 +238,21 @@ function validateCacheMetadata(raw: unknown): Mcp20260728CacheMetadata {
   const record = raw as Readonly<Record<string, unknown>>;
   const ttlMs = readOwnValue(record, 'ttlMs');
   const cacheScope = readOwnValue(record, 'cacheScope');
+  const callerScope = readOwnValue(record, 'callerScope');
   if (typeof ttlMs !== 'number' || !Number.isSafeInteger(ttlMs) || ttlMs < 0) {
     throw new TypeError('MCP result cache ttlMs must be a non-negative safe integer.');
   }
   if (cacheScope !== 'public' && cacheScope !== 'private') {
     throw new TypeError("MCP result cache cacheScope must be 'public' or 'private'.");
   }
-  return Object.freeze({ ttlMs, cacheScope });
+  if (callerScope !== undefined && callerScope !== 'anonymous') {
+    throw new TypeError("MCP result cache callerScope must be 'anonymous' when present.");
+  }
+  return Object.freeze({
+    ttlMs,
+    cacheScope,
+    ...(callerScope === 'anonymous' ? { callerScope } : {}),
+  });
 }
 
 /** Result keys the adapter owns and must never be smuggled through `fields`. */

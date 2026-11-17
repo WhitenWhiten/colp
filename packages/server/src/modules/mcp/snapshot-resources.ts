@@ -230,10 +230,7 @@ async function projectReadCache(
       && result.snapshot.complete === true
       && result.snapshot.collection.visibility === 'public'
     ) {
-      return Object.freeze({
-        ttlMs: PHASE4B_MCP_SNAPSHOT_CACHE_TTL_MS,
-        cacheScope: 'public',
-      });
+      return publicCache();
     }
   } catch (error) {
     if (error instanceof McpReadRequestAbortedError) throw error;
@@ -404,6 +401,25 @@ function privateCache(): Mcp20260728CacheMetadata {
     ttlMs: 0,
     cacheScope: 'private',
   });
+}
+
+function publicCache(): Mcp20260728CacheMetadata & { readonly callerScope: 'anonymous' } {
+  const cache = {
+    ttlMs: PHASE4B_MCP_SNAPSHOT_CACHE_TTL_MS,
+    cacheScope: 'public' as const,
+  };
+  // The projection loaded the Snapshot as `anonymous` and verified a complete
+  // public projection, so the declaration is caller-independent. The Modern
+  // result factory requires this assertion for a public TTL; keep it
+  // non-enumerable so the observed cache projection remains exactly
+  // { ttlMs, cacheScope }.
+  Object.defineProperty(cache, 'callerScope', {
+    value: 'anonymous',
+    enumerable: false,
+    writable: false,
+    configurable: false,
+  });
+  return Object.freeze(cache) as Mcp20260728CacheMetadata & { readonly callerScope: 'anonymous' };
 }
 
 function assertNotAborted(signal: AbortSignal): void {

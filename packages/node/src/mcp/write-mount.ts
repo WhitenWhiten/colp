@@ -50,6 +50,13 @@ export interface McpWriteMountAdapterOptions<
 export interface McpWriteMountAdapter {
   readonly endpoint: string;
   readonly resources: true;
+  /**
+   * Write Tool gateway. Registration (for adapters that must inspect the full
+   * schema catalog) MUST use `listAllTools()`; `listTools(context)` is the
+   * only advertisement surface and fails closed without a trusted request
+   * context. The mount therefore never exposes write Tools to an unscoped
+   * caller.
+   */
   readonly tools: McpWriteToolGateway;
   readonly profiles: readonly string[];
   /** Host HTTP adapter contract; raw bodies must be rejected before JSON parsing. */
@@ -62,6 +69,11 @@ const manifestValidators = createValidatorRegistry();
  * Resolves one validated mcp-write Manifest mount into its runtime write exposure.
  * Schema and profile dependency rules remain owned by the canonical validators;
  * this adapter fail-closes if the selected mount no longer matches after validation.
+ *
+ * Tool registration and advertisement are distinct: the returned gateway's
+ * `listAllTools()` is the host-only registration surface, while
+ * `listTools(context)` is scoped advertisement and throws
+ * `McpWriteBindingRequiredError` when no trusted context is supplied.
  */
 export function createMcpWriteMountAdapter<
   Transaction extends McpChangePlanCommitTransaction,
