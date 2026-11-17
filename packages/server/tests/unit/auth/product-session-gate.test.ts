@@ -2,8 +2,10 @@
  * A1-1 / A1-5 / A1-2 post-response seam unit tests.
  *
  * 假阴性防护:
- * - the gated set is asserted EXACTLY, so adding a mounted identity-mutating
- *   Better Auth endpoint without gating it fails this test (A1-1);
+ * - the gated set is DERIVED from the single mount allowlist
+ *   (BETTER_AUTH_ALLOWLIST minus explicitly public/read-only and ungated
+ *   session-lifecycle paths) and asserted exactly, so adding a mounted
+ *   identity-mutating endpoint without gating it fails this test (A1-1);
  * - the authorize carrier rule distinguishes a live BA session (product check
  *   runs) from a cookie that no longer resolves (BA owns the login redirect),
  *   which is the A1-5 regression;
@@ -13,13 +15,17 @@
  *   re-issued, and a revoke failure stays post-commit guarded.
  *
  * 假阳性防护:
- * - public/read-only endpoints are asserted NOT to gate, so a blanket
- *   "gate every path" change would fail;
+ * - public/read-only and session-lifecycle endpoints are asserted NOT to gate,
+ *   so a blanket "gate every path" change would fail;
  * - the seam is not called before a committed change (no newSession) or
  *   without a callback.
  */
 import assert from 'node:assert/strict';
 import { describe, test } from 'vitest';
+import {
+  BETTER_AUTH_ALLOWLIST,
+  type BetterAuthAllowlistEntry,
+} from '../../../src/infrastructure/auth/better-auth-runtime.js';
 import {
   PRODUCT_SESSION_AUTHENTICATED_PATHS,
   completeEmailChangeSessionRevocation,
@@ -35,49 +41,98 @@ function gateContext(session: ProductSessionCarrier): ProductSessionGateContext 
   return { context: { session }, headers: new Headers() } as unknown as ProductSessionGateContext;
 }
 
+/**
+ * Mounted BA endpoints that authenticate nobody (public) or never mutate
+ * identity (`/get-session`). The gate has no product authority to consult.
+ */
+const PUBLIC_OR_READ_ONLY_PATHS: ReadonlySet<string> = new Set([
+  '/sign-up/email', // registration: no session exists yet
+  '/registration-state', // read-only occupancy probe
+  '/sign-in/email',
+  '/sign-in/username',
+  '/sign-in/social',
+  '/sign-in/oauth2',
+  '/callback/:providerId',
+  '/oauth2/callback/:providerId',
+  '/get-session', // read-only session read
+  '/reset-password',
+  '/request-password-reset',
+  '/verify-email',
+  '/send-verification-email',
+  '/email-otp/send-verification-otp',
+  '/sign-in/email-otp',
+  '/email-otp/check-verification-otp',
+  '/email-otp/verify-email',
+  '/email-otp/request-password-reset',
+  '/email-otp/reset-password',
+  '/forget-password/email-otp',
+  '/oauth2/token',
+  '/oauth2/userinfo',
+  '/jwks',
+  '/oauth2/public-client',
+  '/oauth2/consent-transaction',
+  '/oauth2/register',
+]);
+
+/**
+ * Session-lifecycle endpoints: they end sessions and mint no authorization
+ * artifact, so product-session revocation must not block a sign-out.
+ */
+const SESSION_LIFECYCLE_PATHS: ReadonlySet<string> = new Set([
+  '/sign-out',
+  '/revoke-session',
+]);
+
+/** Every mounted allowlisted path that is neither explicitly public/read-only nor lifecycle. */
+function gatedEndpointCandidates(entries: readonly BetterAuthAllowlistEntry[]): string[] {
+  return [...new Set(entries.map(entry => entry.path))]
+    .filter(path => !PUBLIC_OR_READ_ONLY_PATHS.has(path) && !SESSION_LIFECYCLE_PATHS.has(path))
+    .sort();
+}
+
+function assertEveryMountedEndpointGated(entries: readonly BetterAuthAllowlistEntry[]): void {
+  for (const path of gatedEndpointCandidates(entries)) {
+    assert.ok(PRODUCT_SESSION_AUTHENTICATED_PATHS.has(path),
+      `mounted identity-mutating endpoint ${path} must be added to PRODUCT_SESSION_AUTHENTICATED_PATHS`);
+  }
+}
+
 describe('product-session gate path set (A1-1)', () => {
   test('every mounted identity-mutating / code-minting Better Auth endpoint is gated', () => {
-    assert.deepEqual([...PRODUCT_SESSION_AUTHENTICATED_PATHS].sort(), [
-      '/change-password',
-      '/email-otp/change-email',
-      '/email-otp/request-email-change',
-      '/oauth2/authorize',
-      '/oauth2/consent',
-    ]);
+    // Derived from the single mount allowlist, so adding a mutating endpoint
+    // there fails this test until it is gated.
+    assertEveryMountedEndpointGated(BETTER_AUTH_ALLOWLIST);
+    assert.deepEqual(
+      [...PRODUCT_SESSION_AUTHENTICATED_PATHS].sort(),
+      gatedEndpointCandidates(BETTER_AUTH_ALLOWLIST),
+    );
   });
 
-  test('public and read-only Better Auth endpoints never run the gate', () => {
-    for (const path of [
-      '/sign-up/email',
-      '/sign-in/email',
-      '/sign-in/social',
-      '/sign-in/oauth2',
-      '/callback/:providerId',
-      '/oauth2/callback/:providerId',
-      '/get-session',
-      '/sign-out',
-      '/revoke-session',
-      '/reset-password',
-      '/request-password-reset',
-      '/verify-email',
-      '/send-verification-email',
-      '/email-otp/send-verification-otp',
-      '/sign-in/email-otp',
-      '/email-otp/check-verification-otp',
-      '/email-otp/verify-email',
-      '/email-otp/request-password-reset',
-      '/email-otp/reset-password',
-      '/forget-password/email-otp',
-      '/oauth2/token',
-      '/oauth2/userinfo',
-      '/jwks',
-      '/oauth2/public-client',
-      '/oauth2/consent-transaction',
-      '/oauth2/register',
-    ]) {
+  test('a newly mounted mutating endpoint without gating fails the derivation', () => {
+    // Regression guard for this test itself: an unclassified endpoint is
+    // reported, it never silently joins PUBLIC_OR_READ_ONLY_PATHS.
+    const withNewEndpoint: BetterAuthAllowlistEntry[] = [
+      ...BETTER_AUTH_ALLOWLIST,
+      { method: 'POST', path: '/delete-user' },
+    ];
+    assert.deepEqual(gatedEndpointCandidates(withNewEndpoint).filter(path => !PRODUCT_SESSION_AUTHENTICATED_PATHS.has(path)),
+      ['/delete-user']);
+    assert.throws(() => assertEveryMountedEndpointGated(withNewEndpoint),
+      /\/delete-user must be added to PRODUCT_SESSION_AUTHENTICATED_PATHS/u);
+  });
+
+  test('public, read-only, and session-lifecycle endpoints never run the gate', () => {
+    for (const path of [...PUBLIC_OR_READ_ONLY_PATHS, ...SESSION_LIFECYCLE_PATHS]) {
       assert.equal(requiresProductSessionCheck(path, 'session-1'), false, path);
       assert.equal(requiresProductSessionCheck(path, null), false, path);
     }
+    // Blanket gating would be a regression: these paths must never be in the
+    // authenticated set.
+    assert.deepEqual(
+      [...PUBLIC_OR_READ_ONLY_PATHS, ...SESSION_LIFECYCLE_PATHS]
+        .filter(path => PRODUCT_SESSION_AUTHENTICATED_PATHS.has(path)).sort(),
+      [],
+    );
   });
 });
 

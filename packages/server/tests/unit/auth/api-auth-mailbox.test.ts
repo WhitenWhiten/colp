@@ -88,6 +88,9 @@ describe('test-only auth mailbox projection and route gates', () => {
   });
 
   test('bearer token is the final gate and every response is non-cacheable', async () => {
+    // This route exists only when the raw NODE_ENV is exactly 'test'; vitest
+    // runs the unit project under that value.
+    assert.equal(process.env.NODE_ENV, 'test');
     const token = 'mailbox-test-token';
     const app = appWithMailbox(loadConfig(testEnv({
       KNOWN_AUTH_MAILBOX_HTTP: 'true',
@@ -114,5 +117,32 @@ describe('test-only auth mailbox projection and route gates', () => {
     assert.equal(payload.entries.length, 2);
     assert.equal(payload.entries[0]?.otp, '123456');
     assert.equal(payload.entries[1]?.url, 'https://app.example.test/reset?token=abc');
+  });
+
+  test('a normalized-but-not-raw-test NODE_ENV never registers the route', async () => {
+    // loadConfig normalizes NODE_ENV (trim + lowercase), so ' Test ' reaches the
+    // test-only config gate as 'test'. The registration seam must still reject
+    // the near-test spelling instead of exposing test material.
+    const previous = process.env.NODE_ENV;
+    process.env.NODE_ENV = ' Test ';
+    try {
+      const config = loadConfig(testEnv({
+        NODE_ENV: ' Test ',
+        KNOWN_AUTH_MAILBOX_HTTP: 'true',
+        KNOWN_AUTH_MAILBOX_HTTP_TOKEN: 'mailbox-test-token',
+      }));
+      assert.equal(config.nodeEnv, 'test');
+      assert.equal(config.testAuthMailboxHttp.enabled, true);
+      const app = appWithMailbox(config, mailboxSink());
+      const response = await app.inject({
+        method: 'GET',
+        url: '/__test__/auth-mailbox',
+        headers: { authorization: 'Bearer mailbox-test-token' },
+      });
+      assert.equal(response.statusCode, 404);
+    } finally {
+      if (previous === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = previous;
+    }
   });
 });

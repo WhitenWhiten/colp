@@ -1,5 +1,5 @@
 import type { DatabaseRuntime } from '../database/index.js';
-import { readBackendPid, withPostgresAbort } from '../database/index.js';
+import { withAbortablePostgresClient } from '../database/query-abort.js';
 import { COLLECTION_OWNER_LIVE_SQL } from '../database/collection-control-sql.js';
 import { COLLECTION_CATALOG_LANGUAGE_SQL, COLLECTION_CATALOG_TAGS_SQL } from './postgres-directory-read.js';
 import type {
@@ -59,23 +59,18 @@ export function createPostgresPublicationMetadataReadPort(
       // Abort-aware path: check out a client so the exact backend PID is
       // known; on abort a controlled pg_cancel_backend stops the query and
       // the caller rejects with signal.reason (never a query_canceled error).
-      const client = await runtime.pool.connect();
-      try {
-        const pid = await readBackendPid(client, input.signal);
-        const cancel = async (): Promise<void> => {
-          if (pid !== undefined) await runtime.cancelBackend(pid);
-        };
-        const result = await withPostgresAbort(
-          client.query<MetadataRow>(text, values),
-          input.signal,
-          cancel,
-        );
-        const row = result.rows[0];
-        if (!row) return null;
-        return mapRecord(row);
-      } finally {
-        client.release();
-      }
+      // The checkout helper destroys the connection when the cancel cannot be
+      // proven to stop the statement, so a busy backend never returns to the
+      // shared pool while it may still be running.
+      const result = await withAbortablePostgresClient(
+        runtime.pool,
+        input.signal,
+        runtime.cancelBackend,
+        checkout => checkout.query<MetadataRow>(text, values),
+      );
+      const row = result.rows[0];
+      if (!row) return null;
+      return mapRecord(row);
     },
     async isPublicCacheCurrent(collectionId: string, revision: string): Promise<boolean> {
       // Owner fence mirrors load(): a missing owner row keeps the entry

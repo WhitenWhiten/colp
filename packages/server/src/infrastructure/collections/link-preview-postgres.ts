@@ -13,7 +13,7 @@ import {
   type LinkPreviewSource,
   type LinkPreviewTargetIdentity,
 } from '../../modules/collections/index.js';
-import { readBackendPid, withPostgresAbort } from '../database/query-abort.js';
+import { withAbortablePostgresClient } from '../database/query-abort.js';
 import { bookmarkHidePublicExistsSql } from '../database/collection-control-sql.js';
 import { PUBLICATION_TARGET_ACCESS_MAX_DEPTH } from '../publication/target-access-facts.js';
 
@@ -410,20 +410,10 @@ async function queryWithSignal<Row extends QueryResultRow>(
   signal: AbortSignal | undefined,
 ): Promise<QueryResult<Row>> {
   if (signal === undefined) return pool.query<Row>(text, [...values]);
-  if (signal.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
-  const client = await pool.connect();
-  try {
-    const pid = await readBackendPid(client, signal);
-    return await withPostgresAbort(
-      client.query<Row>(text, [...values]),
-      signal,
-      async () => {
-        if (pid !== undefined && cancelBackend) await cancelBackend(pid);
-      },
-    );
-  } finally {
-    // withPostgresAbort waits for pg_cancel_backend and the statement before
-    // throwing, so this checkout is not returned while a cancel is in flight.
-    client.release();
-  }
+  // A checkout whose request aborts is destroyed, never returned to the shared
+  // pool: the helper releases with `true` when the abort abandons the
+  // statement (a failed pg_cancel_backend no longer parks a busy client) and
+  // when the abort lands while the checkout is being acquired.
+  return withAbortablePostgresClient(pool, signal, cancelBackend,
+    checkout => checkout.query<Row>(text, values));
 }

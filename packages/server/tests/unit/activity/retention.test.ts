@@ -44,14 +44,68 @@ describe('activity retention drain', () => {
     await expect(drainActivityRetention(purge, 500)).resolves.toBe(0);
     expect(purge).toHaveBeenCalledOnce();
   });
+
+  it('stops at the batch cap and leaves the remainder for the next pass', async () => {
+    const purge = vi.fn().mockResolvedValue(1000);
+    await expect(drainActivityRetention(purge, 1000, { maxBatches: 3 })).resolves.toBe(3000);
+    expect(purge).toHaveBeenCalledTimes(3);
+  });
+
+  it('stops when the wall-clock budget is spent', async () => {
+    let clock = 0;
+    const purge = vi.fn(async () => { clock += 600; return 1000; });
+    await expect(drainActivityRetention(purge, 1000, {
+      maxBatches: 8,
+      timeBudgetMs: 1000,
+      now: () => clock,
+    })).resolves.toBe(2000);
+    expect(purge).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not start another batch once the schedule is stopped', async () => {
+    let releaseBatch!: () => void;
+    const batchInFlight = new Promise<void>((resolve) => { releaseBatch = resolve; });
+    const purge = vi.fn(async () => {
+      if (purge.mock.calls.length === 1) await batchInFlight;
+      return 1000;
+    });
+    const schedule = scheduleActivityRetention(purge, { intervalMs: 60_000, maxBatches: 5 });
+    // The first batch of the immediate pass is in flight; stop() must wait for
+    // that batch only, not for the remaining (bound - 1) batches.
+    const stopping = schedule.stop();
+    releaseBatch();
+    await stopping;
+    expect(purge).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('activity retention schedule', () => {
+  it('bounds one tick and keeps the backlog for the next tick', async () => {
+    vi.useFakeTimers();
+    let backlog = 3;
+    const purge = vi.fn(async () => {
+      if (backlog === 0) return 0;
+      backlog -= 1;
+      return 1000;
+    });
+    // A frozen wall clock makes the batch cap (not the time budget) the bound.
+    const schedule = scheduleActivityRetention(purge, {
+      intervalMs: 60_000, batchSize: 1000, maxBatches: 2, now: () => 0,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(purge).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(60_000);
+    // The next tick drains the remainder: one more full batch, then a short one.
+    expect(purge).toHaveBeenCalledTimes(4);
+    expect(backlog).toBe(0);
+    await schedule.stop();
+  });
+
   it('runs a draining pass at start and on every tick', async () => {
     vi.useFakeTimers();
     const purge = vi.fn().mockResolvedValueOnce(1000).mockResolvedValueOnce(1000).mockResolvedValueOnce(0)
       .mockResolvedValueOnce(0);
-    const schedule = scheduleActivityRetention(purge, { intervalMs: 60_000, batchSize: 1000 });
+    const schedule = scheduleActivityRetention(purge, { intervalMs: 60_000, batchSize: 1000, now: () => 0 });
     await vi.advanceTimersByTimeAsync(0);
     expect(purge).toHaveBeenCalledTimes(3);
     await vi.advanceTimersByTimeAsync(60_000);

@@ -50,6 +50,7 @@ export function registerTestAuthMailboxRoute(
   app: FastifyInstance,
   config: AppConfig,
   authMailboxSink: InProcessMailboxSink | undefined,
+  options: { readonly rawNodeEnv?: string } = {},
 ): void {
   // E3 test-only auth-mailbox query route (supervisor-approved src/**
   // exception; see the config section). The in-process C1 mailbox sink lives
@@ -60,6 +61,12 @@ export function registerTestAuthMailboxRoute(
   // material only (purpose/email/OTP/expiry/idempotency key, never
   // credentials) and is never logged; no-store on every path.
   if (!config.testAuthMailboxHttp.enabled) return;
+  // Defense in depth beside the normalized config gate: `loadConfig` trims and
+  // lowercases NODE_ENV, so a near-test spelling such as ' Test ' would
+  // otherwise enable this test-only identity surface. Mirror the sibling test
+  // seams (oidc-provider, better-auth-runtime) and require the raw value.
+  const rawNodeEnv = options.rawNodeEnv ?? process.env.NODE_ENV;
+  if (rawNodeEnv !== 'test') return;
   app.get('/__test__/auth-mailbox', {
     config: { productTransport: { allowedQuery: [], cacheControl: 'no-store' } },
   }, async (request, reply) => {

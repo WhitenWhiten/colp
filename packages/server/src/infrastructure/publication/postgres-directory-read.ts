@@ -1,4 +1,3 @@
-import type { PoolClient } from 'pg';
 import {
   PublicationDirectoryAnchorNotFoundError,
   type PublicationDirectoryReadPort,
@@ -12,7 +11,10 @@ import {
   collectionPublicVisibleNodeCountSql,
 } from '../database/collection-control-sql.js';
 import type { DatabaseRuntime } from '../database/index.js';
-import { readBackendPid, withPostgresAbort } from '../database/index.js';
+import {
+  type AbortablePostgresCheckout,
+  withAbortablePostgresClient,
+} from '../database/query-abort.js';
 
 interface DirectoryRow {
   id: string;
@@ -46,31 +48,21 @@ export function createPostgresPublicationDirectoryReadPort(
   return Object.freeze({
     async loadPage(request: PublicationDirectoryReadRequest) {
       validateRequest(request);
-      const client = await runtime.pool.connect();
-      try {
-        // The exact backend PID (only when the request is abortable) enables a
-        // controlled pg_cancel_backend on abort.
-        const pid = await readBackendPid(client, request.signal);
-        const cancel = async (): Promise<void> => {
-          if (pid !== undefined) await runtime.cancelBackend(pid);
-        };
-        const anchorId = request.after
-          ? await withPostgresAbort(
-            resolveAnchorId(client, request.after.idLocator),
-            request.signal,
-            cancel,
-          )
-          : undefined;
-        const statement = buildPublicationDirectoryStatement(request, anchorId);
-        const result = await withPostgresAbort(
-          client.query<DirectoryRow>(statement.text, [...statement.values]),
-          request.signal,
-          cancel,
-        );
-        return Object.freeze(result.rows.map(mapRecord));
-      } finally {
-        client.release();
-      }
+      // Abortable checkout: the helper owns the checkout so an abandoned
+      // statement destroys the connection instead of returning it to the pool.
+      return withAbortablePostgresClient(
+        runtime.pool,
+        request.signal,
+        runtime.cancelBackend,
+        async (checkout) => {
+          const anchorId = request.after
+            ? await resolveAnchorId(checkout, request.after.idLocator)
+            : undefined;
+          const statement = buildPublicationDirectoryStatement(request, anchorId);
+          const result = await checkout.query<DirectoryRow>(statement.text, statement.values);
+          return Object.freeze(result.rows.map(mapRecord));
+        },
+      );
     },
     async arePublicCacheCollectionsCurrent(collectionIds: readonly string[]): Promise<boolean> {
       if (collectionIds.length === 0) return true;
@@ -211,8 +203,11 @@ export function escapeLikePattern(value: string): string {
   return value.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_');
 }
 
-async function resolveAnchorId(client: PoolClient, locator: string): Promise<string> {
-  const result = await client.query<{ id: string }>(
+async function resolveAnchorId(
+  checkout: AbortablePostgresCheckout,
+  locator: string,
+): Promise<string> {
+  const result = await checkout.query<{ id: string }>(
     `select id from collections
       where publication_locator_sha256_128(id) = $1`,
     [locator],
