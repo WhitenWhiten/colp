@@ -43,7 +43,24 @@ jobs:
         run: node scripts/check-readmes.mjs
       - id: scope
         name: Select affected CI jobs
-        run: node scripts/select-ci-jobs.mjs
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          selector=scripts/select-ci-jobs.mjs
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            # Run the base commit's selector, not the PR's copy: the checked-out
+            # selector is writable by the PR, and ci-gate treats skipped jobs as
+            # success, so a PR could otherwise emit an empty job list and pass
+            # every required check without running anything.
+            if [[ ! "${BASE_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "pull_request event is missing a usable base sha" >&2
+              exit 1
+            fi
+            git show "${BASE_SHA}:scripts/select-ci-jobs.mjs" > scripts/.select-ci-jobs.base.mjs
+            selector=scripts/.select-ci-jobs.base.mjs
+          fi
+          node "$selector"
 
   static:
     needs: changes

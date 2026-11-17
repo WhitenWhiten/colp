@@ -216,7 +216,11 @@ test('every selectable workflow job has a matching condition and participates in
     assert.ok(gate.includes(`needs.${job}.result`), job);
   }
   assert.ok(workflow.includes('fetch-depth: 0'));
-  assert.ok(workflow.includes('run: node scripts/select-ci-jobs.mjs'));
+  // PR selection must run the base commit's copy: the checked-out selector is
+  // PR-controlled, and ci-gate treats skipped jobs as success.
+  assert.ok(workflow.includes('BASE_SHA: ${{ github.event.pull_request.base.sha }}'));
+  assert.ok(workflow.includes('git show "${BASE_SHA}:scripts/select-ci-jobs.mjs" > scripts/.select-ci-jobs.base.mjs'));
+  assert.ok(workflow.includes('node "$selector"'));
   assert.ok(workflow.includes('github.event.pull_request.number || github.run_id'));
   assert.ok(workflow.includes("cancel-in-progress: ${{ github.event_name == 'pull_request' }}"));
 });
