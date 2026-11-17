@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { afterAll, beforeAll, test } from 'vitest';
+import { afterAll, beforeAll, beforeEach, test } from 'vitest';
 import { runMigrations, type DatabaseRuntime } from '../../../src/infrastructure/database/index.js';
 import {
   backfillResourcePayloads,
@@ -17,11 +17,16 @@ import {
   describeWithPostgres,
   type IsolatedPostgresRuntime,
 } from '../../support/postgres-test-runtime.js';
+import {
+  createPostgresSchemaIsolation,
+  type PostgresSchemaIsolation,
+} from '../../support/postgres-schema-isolation.js';
 import { productionMigrationNamesFromInclusive } from '../../../scripts/lexical-migration-head.mjs';
 
 describeWithPostgres('canonical resource payload expand (ADR-0007 task 15)', () => {
   let isolated: IsolatedPostgresRuntime;
   let runtime: DatabaseRuntime;
+  let isolation: PostgresSchemaIsolation;
 
   beforeAll(async () => {
     isolated = await createIsolatedPostgresRuntime('payload', {
@@ -29,7 +34,14 @@ describeWithPostgres('canonical resource payload expand (ADR-0007 task 15)', () 
       applicationName: 'known-canonical-payload-test',
     });
     runtime = isolated.runtime;
+    isolation = createPostgresSchemaIsolation(isolated);
     await runMigrations(runtime.db, 'latest');
+  });
+
+  // The file shares one migrated schema; reset it so each test owns the rows it
+  // asserts on instead of inheriting earlier tests' fixtures.
+  beforeEach(async () => {
+    await isolation.reset();
   });
 
   afterAll(async () => {
@@ -154,8 +166,8 @@ describeWithPostgres('canonical resource payload expand (ADR-0007 task 15)', () 
          (select count(*)::int from collections) as collections,
          (select count(*)::int from nodes) as nodes`,
     );
-    // May be zero if no prior tests inserted; this suite bootstraps later tests.
-    assert.ok(counts.rows[0]);
+    // Per-test reset: this file-level schema is empty before any fixture runs.
+    assert.deepEqual(counts.rows[0], { collections: 0, nodes: 0 });
   });
 
   test('one latest upgrade backfills existing resources before creating the live keyset index', async () => {
@@ -300,9 +312,8 @@ describeWithPostgres('canonical resource payload expand (ADR-0007 task 15)', () 
 
     const metrics = new InMemoryMetrics();
     const stats = await backfillResourcePayloads(runtime.db, metrics);
-    assert.ok(stats.scanned >= 4 + 4 + 3); // collections + roots + children
-    assert.equal(stats.malformed, 0);
-    assert.ok(stats.succeeded > 0);
+    // Four collections, four roots and three bookmarks; this test owns them all.
+    assert.deepEqual(stats, { scanned: 11, succeeded: 11, failed: 0, skipped: 0, malformed: 0 });
     assert.equal(metrics.get('resource_authority_backfill_succeeded_total'), stats.succeeded);
 
     const missing = await countLiveResourcesMissingValidPayload(runtime.db);
@@ -381,19 +392,21 @@ describeWithPostgres('canonical resource payload expand (ADR-0007 task 15)', () 
     const scan = await scanResourceAuthorityMismatches(runtime.db, metrics);
     assert.equal(scan.collections.mismatched, 0);
     assert.equal(scan.nodes.mismatched, 0);
-    assert.ok(scan.collections.matched >= 4);
-    assert.ok(scan.nodes.matched >= 7);
+    assert.equal(scan.collections.matched, 4);
+    assert.equal(scan.nodes.matched, 7);
   });
 
   test('idempotent backfill skips already-correct rows', async () => {
+    await bootstrapCollection({ collectionId: 'col-idempotent', rootId: 'root-idempotent' });
+
     const first = await backfillResourcePayloads(runtime.db);
+    assert.deepEqual(first, { scanned: 2, succeeded: 2, failed: 0, skipped: 0, malformed: 0 });
     const second = await backfillResourcePayloads(runtime.db);
-    assert.equal(second.succeeded, 0);
-    assert.ok(second.skipped >= first.scanned || second.skipped > 0);
-    assert.equal(second.malformed, 0);
+    assert.deepEqual(second, { scanned: 2, succeeded: 0, failed: 0, skipped: 2, malformed: 0 });
   });
 
   test('malformed legacy row is marked without fabricating unsupported payload', async () => {
+    await bootstrapCollection({ collectionId: 'col-bookmarks', rootId: 'root-bookmarks' });
     // Bypass domain checks via raw SQL that still satisfies DB CHECKs where possible.
     // tags must be jsonb; inject a non-array object to trip materialize without breaking CHECKs.
     await reserve(['malformed-node', 'node']);
@@ -407,8 +420,9 @@ describeWithPostgres('canonical resource payload expand (ADR-0007 task 15)', () 
        )`,
     );
 
+    // The collection and root materialise; only the malformed bookmark fails.
     const stats = await backfillResourcePayloads(runtime.db);
-    assert.ok(stats.malformed >= 1);
+    assert.deepEqual(stats, { scanned: 3, succeeded: 2, failed: 1, skipped: 0, malformed: 1 });
 
     const row = await runtime.pool.query(
       `select payload_json, payload_schema_version, payload_authority_status
@@ -420,9 +434,9 @@ describeWithPostgres('canonical resource payload expand (ADR-0007 task 15)', () 
 
     // Dual-read scan must not silently treat malformed as matched.
     const scan = await scanResourceAuthorityMismatches(runtime.db);
-    assert.ok(scan.nodes.malformed >= 1);
+    assert.equal(scan.nodes.malformed, 1);
 
-    // Keep this fixture as historical malformed data so the later migration
+    // Keep this fixture as historical malformed data so a later migration
     // guard can isolate its live-row case.
     await runtime.pool.query(
       `update nodes
@@ -478,6 +492,8 @@ describeWithPostgres('canonical resource payload expand (ADR-0007 task 15)', () 
   }, 20_000);
 
   test('detects intentional dual-read drift via PostgreSQL comparison', async () => {
+    await bootstrapCollection({ collectionId: 'col-bookmarks', rootId: 'root-bookmarks' });
+    await backfillResourcePayloads(runtime.db);
     await runtime.pool.query(
       `update collections
        set payload_json = payload_json || '{"title":"DRIFTED"}'::jsonb
@@ -486,17 +502,21 @@ describeWithPostgres('canonical resource payload expand (ADR-0007 task 15)', () 
 
     const metrics = new InMemoryMetrics();
     const scan = await scanResourceAuthorityMismatches(runtime.db, metrics);
-    assert.ok(scan.collections.mismatched >= 1);
-    assert.ok(
+    assert.equal(scan.collections.mismatched, 1);
+    assert.equal(
       scan.collections.mismatches.some((m) => m.resourceId === 'col-bookmarks' && !m.equal),
+      true,
     );
-    assert.ok(metrics.get('resource_authority_mismatch_total') >= 1);
+    assert.equal(metrics.get('resource_authority_mismatch_total'), 1);
 
     // Repair via idempotent backfill (re-derive from relational Owner).
     await backfillResourcePayloads(runtime.db);
     const repaired = await scanResourceAuthorityMismatches(runtime.db);
-    const stillBad = repaired.collections.mismatches.find((m) => m.resourceId === 'col-bookmarks');
-    assert.equal(stillBad, undefined);
+    assert.equal(repaired.collections.mismatched, 0);
+    assert.equal(
+      repaired.collections.mismatches.find((m) => m.resourceId === 'col-bookmarks'),
+      undefined,
+    );
   });
 
   test('down migration drops only payload expand columns', async () => {
