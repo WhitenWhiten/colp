@@ -101,10 +101,14 @@ jobs:
       - name: READMEs agree across languages and with the packages
         run: node scripts/check-readmes.mjs
 
-  # Always on, including for documentation-only PRs. The files being scanned
-  # come from the PR checkout, but the scanner and allowlist are the base
-  # commit's blobs: a PR cannot add an allowlist entry that exempts a literal
-  # it introduced, and cannot rewrite the scanner it is judged by.
+  # Always on, including for documentation-only PRs. On a pull_request the
+  # files being scanned come from the PR checkout, but the scanner and
+  # allowlist are the base commit's blobs: a PR cannot add an allowlist entry
+  # that exempts a literal it introduced, and cannot rewrite the scanner it is
+  # judged by. On push and workflow_dispatch the checked-out HEAD is already
+  # trusted main, so its own scanner and allowlist are used; the pre-push base
+  # would still lack the fixture exemptions the pushed commit legitimately
+  # adds, and would fail the scan on already-reviewed code.
   secret-scan:
     needs: changes
     runs-on: ubuntu-24.04
@@ -116,27 +120,54 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
-      - name: Scan tracked files with the base commit's scanner and allowlist
+      - name: Scan tracked files with the trusted scanner and allowlist
         env:
           BASE_SHA: ${{ needs.changes.outputs.base }}
         run: |
           set -euo pipefail
-          if [[ ! "${BASE_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "no trusted base commit for the tracked secret scan" >&2
-            exit 1
-          fi
-          git cat-file -e "${BASE_SHA}^{commit}"
-          # The scanner derives the repository root from its own location, so
-          # run the base copy one directory below the root and replace the
-          # PR-controlled allowlist with the base blob before scanning.
-          rm -rf .trusted-base
-          mkdir -p .trusted-base
-          git show "${BASE_SHA}:scripts/scan-tracked-secrets.mjs" > .trusted-base/scan-tracked-secrets.mjs
-          mkdir -p scripts
-          rm -f scripts/secret-scan-allowlist.json
-          git show "${BASE_SHA}:scripts/secret-scan-allowlist.json" > scripts/secret-scan-allowlist.json
-          node --check .trusted-base/scan-tracked-secrets.mjs
-          node .trusted-base/scan-tracked-secrets.mjs
+          case "${GITHUB_EVENT_NAME}" in
+            pull_request)
+              # Judge the PR checkout with the base commit's blobs: the PR
+              # cannot exempt a literal it introduced or rewrite the scanner
+              # it is judged by. Fail closed without a usable base commit.
+              if [[ ! "${BASE_SHA}" =~ ^[0-9a-f]{40}$ || "${BASE_SHA}" =~ ^0+$ ]]; then
+                echo "no trusted base commit for the tracked secret scan" >&2
+                exit 1
+              fi
+              git cat-file -e "${BASE_SHA}^{commit}"
+              # The scanner derives the repository root from its own location,
+              # so run the base copy one directory below the root and replace
+              # the PR-controlled allowlist with the base blob before scanning.
+              rm -rf .trusted-base
+              mkdir -p .trusted-base
+              git show "${BASE_SHA}:scripts/scan-tracked-secrets.mjs" > .trusted-base/scan-tracked-secrets.mjs
+              mkdir -p scripts
+              rm -f scripts/secret-scan-allowlist.json
+              git show "${BASE_SHA}:scripts/secret-scan-allowlist.json" > scripts/secret-scan-allowlist.json
+              node --check .trusted-base/scan-tracked-secrets.mjs
+              node .trusted-base/scan-tracked-secrets.mjs
+              ;;
+            push|workflow_dispatch)
+              # HEAD is the trusted commit for these events (the pushed commit
+              # on main, or the explicitly dispatched ref), so scan its tree
+              # with its own scanner and allowlist. Fail closed unless the
+              # checkout is exactly the commit this run claims to verify.
+              if [[ ! "${GITHUB_SHA}" =~ ^[0-9a-f]{40}$ || "${GITHUB_SHA}" =~ ^0+$ ]]; then
+                echo "no usable head commit for the tracked secret scan" >&2
+                exit 1
+              fi
+              if [[ "$(git rev-parse HEAD)" != "${GITHUB_SHA}" ]]; then
+                echo "the tracked secret scan is not on the commit it must verify" >&2
+                exit 1
+              fi
+              node --check scripts/scan-tracked-secrets.mjs
+              node scripts/scan-tracked-secrets.mjs
+              ;;
+            *)
+              echo "unsupported event for the tracked secret scan: ${GITHUB_EVENT_NAME}" >&2
+              exit 1
+              ;;
+          esac
 
   static:
     needs: changes
@@ -928,7 +959,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Require every required and selected job to pass
+      - name: Require every selected job to pass
         shell: bash
         env:
           CHANGES_RESULT: ${{ needs.changes.result }}

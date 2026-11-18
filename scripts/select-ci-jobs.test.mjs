@@ -257,17 +257,47 @@ test('CI selection checks out only the trusted base and runs no PR code', () => 
   assert.ok(contract.includes('run: node scripts/check-readmes.mjs'));
 });
 
-test('CI scans tracked files for secrets with the base scanner and allowlist', () => {
+test('CI scans tracked files with the base blobs for PRs and the checked-out HEAD for pushes', () => {
   const workflow = readWorkflow();
   const secretScan = workflowJob(workflow, 'secret-scan');
   assert.ok(secretScan.includes('fetch-depth: 0'));
-  assert.ok(secretScan.includes('git show "${BASE_SHA}:scripts/scan-tracked-secrets.mjs" > .trusted-base/scan-tracked-secrets.mjs'));
-  assert.ok(secretScan.includes('git show "${BASE_SHA}:scripts/secret-scan-allowlist.json" > scripts/secret-scan-allowlist.json'));
-  assert.ok(secretScan.includes('node --check .trusted-base/scan-tracked-secrets.mjs'));
-  const allowlistFetch = secretScan.indexOf('git show "${BASE_SHA}:scripts/secret-scan-allowlist.json"');
-  const scan = secretScan.indexOf('node .trusted-base/scan-tracked-secrets.mjs');
-  assert.ok(allowlistFetch >= 0 && allowlistFetch < scan,
+  assert.ok(secretScan.includes('BASE_SHA: ${{ needs.changes.outputs.base }}'));
+  assert.ok(secretScan.includes('case "${GITHUB_EVENT_NAME}" in'));
+
+  const prStart = secretScan.indexOf('            pull_request)');
+  const headStart = secretScan.indexOf('            push|workflow_dispatch)');
+  const rejectStart = secretScan.indexOf('            *)');
+  assert.ok(prStart >= 0 && headStart > prStart && rejectStart > headStart,
+    'the scan must branch on pull_request, push/workflow_dispatch, then reject other events');
+  const prBranch = secretScan.slice(prStart, headStart);
+  const headBranch = secretScan.slice(headStart, rejectStart);
+  const rejectBranch = secretScan.slice(rejectStart);
+
+  // A PR is judged by the base commit's scanner and allowlist, so it cannot
+  // add an exemption for a literal it introduced or rewrite its own scanner.
+  assert.ok(prBranch.includes('git show "${BASE_SHA}:scripts/scan-tracked-secrets.mjs" > .trusted-base/scan-tracked-secrets.mjs'));
+  assert.ok(prBranch.includes('git show "${BASE_SHA}:scripts/secret-scan-allowlist.json" > scripts/secret-scan-allowlist.json'));
+  assert.ok(prBranch.includes('node --check .trusted-base/scan-tracked-secrets.mjs'));
+  assert.ok(prBranch.includes('node .trusted-base/scan-tracked-secrets.mjs'));
+  const allowlistFetch = prBranch.indexOf('git show "${BASE_SHA}:scripts/secret-scan-allowlist.json"');
+  const baseScan = prBranch.indexOf('node .trusted-base/scan-tracked-secrets.mjs');
+  assert.ok(allowlistFetch >= 0 && allowlistFetch < baseScan,
     'the base allowlist must replace the PR allowlist before the scan runs');
+  assert.ok(prBranch.includes('no trusted base commit for the tracked secret scan'));
+
+  // A push or manual run scans the trusted HEAD with its own scanner and
+  // allowlist: the pre-push base predates the pushed fixture exemptions.
+  assert.ok(headBranch.includes('node --check scripts/scan-tracked-secrets.mjs'));
+  assert.ok(headBranch.includes('node scripts/scan-tracked-secrets.mjs'));
+  assert.ok(!headBranch.includes('.trusted-base'));
+  assert.ok(!headBranch.includes('git show "${BASE_SHA}'));
+  assert.ok(headBranch.includes('no usable head commit for the tracked secret scan'));
+  assert.ok(headBranch.includes('not on the commit it must verify'));
+
+  // An unusable event must fail closed instead of skipping the tracked scan.
+  assert.ok(rejectBranch.includes('unsupported event for the tracked secret scan'));
+  assert.ok(rejectBranch.includes('exit 1'));
+  assert.equal(secretScan.match(/node scripts\/scan-tracked-secrets\.mjs$/gmu)?.length, 1);
 
   // The tracked scan is no longer inside a path-selected job; the package job
   // keeps only the generated-artifact scan for output that is not in git.
