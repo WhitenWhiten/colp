@@ -39,8 +39,16 @@ import {
 } from '../../support/postgres-test-runtime.js';
 
 const HMAC_KEY = Buffer.alloc(32, 13).toString('base64url');
-const FUTURE = '2026-12-01T00:00:00.000Z';
-const GRANT_EXPIRY = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+const DAY_MS = 24 * 60 * 60 * 1_000;
+// Sample the clock once so the credential and grant expiries keep their
+// ordering regardless of the wall-clock date the suite runs on.
+const NOW = Date.now();
+// The credential must stay comfortably in the future, and the grant must
+// expire strictly before the credential it is bound to: the server rejects
+// grants whose expiry exceeds their credential's.
+const FUTURE = new Date(NOW + 30 * DAY_MS).toISOString();
+const GRANT_EXPIRY = new Date(NOW + 14 * DAY_MS).toISOString();
+assert.ok(Date.parse(GRANT_EXPIRY) < Date.parse(FUTURE));
 const ORIGIN = 'https://app.example.test';
 const MCP_STRICT = `${ORIGIN}/collections/-/mcp`;
 const ISSUER = `${ORIGIN}/api/v1/auth`;
