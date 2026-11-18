@@ -1,0 +1,9 @@
+[
+  {
+    "id": "GHSA-fc5q-39xc-vjpf",
+    "package": "picomatch",
+    "reason": "no patched release; dev-only glob matcher",
+    "owner": "colp-security",
+    "expires": "2026-12-31"
+  }
+]
