@@ -22,6 +22,8 @@ test('favicon settings use the shared form layout and persist missing-icon filli
   await page.goto('/library?settings=favicon')
   const section = page.getByTestId('settings-favicon')
   await expect(section.getByText('Default for new bookmarks')).toBeVisible()
+  await expect(section.getByTestId('favicon-provider-template')).toBeHidden()
+  await section.getByText('Online provider template').click()
   await expect(section.getByTestId('favicon-provider-template')).toBeVisible()
   const geometry = await section.evaluate(element => ({
     width: element.clientWidth, scrollWidth: element.scrollWidth,

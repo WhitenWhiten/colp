@@ -24,7 +24,7 @@ it.each(['folder_restricted', 'publication_restricted'])('explains %s and preven
   mocks.get.mockResolvedValue({ share: null, unavailableReason })
   render()
   await waitForDom(() => Boolean(document.querySelector('button.btn-primary')))
-  expect(document.body.textContent).not.toContain('Anyone with the link can view')
+  expect(document.body.textContent).not.toContain('Anyone with this link can view')
   const create = document.querySelector<HTMLButtonElement>('button.btn-primary')!
   expect(create.disabled).toBe(true)
   act(() => create.click())

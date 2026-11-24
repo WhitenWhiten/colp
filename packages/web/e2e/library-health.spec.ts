@@ -156,10 +156,11 @@ test.describe('library health with mocked Product API', () => {
 
     await page.goto('/library/health', { waitUntil: 'domcontentloaded' })
     expect(new URL(page.url()).pathname).toBe('/library/health')
-    await expect(page.getByText('Owned pending bookmark')).toBeVisible()
-    await expect(page.getByText('Owned redirect bookmark')).toBeVisible()
-    await expect(page.getByText('Owned duplicate bookmark')).toBeVisible()
-    await expect(page.getByRole('row').filter({ hasText: 'Owned pending bookmark' })
+    const pendingLink = page.getByRole('link', { name: 'Owned pending bookmark', exact: true })
+    await expect(pendingLink).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Owned redirect bookmark', exact: true })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Owned duplicate bookmark', exact: true })).toBeVisible()
+    await expect(page.getByRole('row').filter({ has: pendingLink })
       .getByRole('cell', { name: 'Not checked yet', exact: true })).toBeVisible()
     await expect(page.getByRole('row').filter({ hasText: 'Owned redirect bookmark' })
       .getByRole('cell', { name: /^Redirected/ })).toBeVisible()
@@ -185,7 +186,7 @@ test.describe('library health with mocked Product API', () => {
 
     await page.goto('/library/health', { waitUntil: 'domcontentloaded' })
     expect(new URL(page.url()).pathname).toBe('/library/health')
-    await expect(page.getByText('Owned pending bookmark')).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Owned pending bookmark', exact: true })).toBeVisible()
   })
 
   test('GET 500 shows an alert EmptyState and Try again issues another GET', async ({ page }) => {
@@ -216,6 +217,6 @@ test.describe('library health with mocked Product API', () => {
     await page.getByRole('button', { name: 'Try again', exact: true }).click()
     await expect.poll(() => gets.length).toBeGreaterThan(failedGets)
     await expect(alert).toHaveCount(0)
-    await expect(page.getByText('Owned pending bookmark')).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Owned pending bookmark', exact: true })).toBeVisible()
   })
 })
