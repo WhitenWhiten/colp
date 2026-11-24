@@ -35,7 +35,7 @@ export function paintReconciliation(preview: ReconcilePreview | null | undefined
   if (!picker && chrome.bookmarks) void chrome.bookmarks.getTree().then(tree => {
     if (picker) return;
     picker = createFolderPicker({ choices: folderChoices(tree), label: t('sites_reconcileDestination', 'History or personal-item destination'), startEmpty: true });
-    picker.pill.id = 'reconcile-target'; document.getElementById('reconcile-target-slot')!.append(picker.element);
+    picker.pill.id = 'reconcile-target'; (document.getElementById('reconcile-target-control') ?? document.getElementById('reconcile-target-slot')!).append(picker.element);
   }).catch(() => undefined);
   const counts = new Map<string, number>(Object.entries(preview.page?.counts ?? {}));
   if (!preview.page) for (const row of preview.differences) counts.set(row.kind, (counts.get(row.kind) ?? 0) + 1);
@@ -48,6 +48,7 @@ export function paintReconciliation(preview: ReconcilePreview | null | undefined
     const title = document.createElement('p'); title.className = 'set-row-title'; title.textContent = row.title;
     const hint = document.createElement('p'); hint.className = 'set-row-hint'; hint.textContent = row.reason === 'sourceIdentityChanged'
       ? t('sites_reconcileUrlChanged', 'Its URL was changed locally. The bookmark is kept for review.') : names[row.kind]; copy.append(title, hint); element.append(copy);
+    const control = document.createElement('div'); control.className = 'set-row-control';
     if (row.choices.length > 1 && !run) {
       const select = document.createElement('select'); select.className = 'select-quiet'; select.dataset.differenceId = row.id; select.setAttribute('aria-label', row.title);
       for (const choice of row.choices) { const option = document.createElement('option'); option.value = choice; option.textContent = choices()[choice]; select.append(option); }
@@ -57,14 +58,15 @@ export function paintReconciliation(preview: ReconcilePreview | null | undefined
       const update = () => { const choice = select.value as ReconcileDecision['choice']; selections.set(row.id, { id: row.id, choice,
         ...(choice === 'adopt' ? { nativeId: candidates.value } : {}) }); candidates.hidden = choice !== 'adopt'; changed?.(); };
       candidates.value = selections.get(row.id)?.nativeId ?? row.candidates?.[0]?.native.nativeId ?? ''; candidates.hidden = select.value !== 'adopt';
-      select.onchange = update; candidates.onchange = update; element.append(select); if (row.candidates?.length) element.append(candidates);
+      select.onchange = update; candidates.onchange = update; control.append(select); if (row.candidates?.length) control.append(candidates);
     }
     const operation = run?.operations.find(op => op.difference.id === row.id);
     if (operation) {
       hint.textContent += operation.reason ? ` · ${reconcileReason(operation.reason)}` : operation.state === 'undone' ? ` · ${t('sites_reconcileUndone', 'Undone')}` : '';
       if (operation.state === 'completed') { const undo = document.createElement('button'); undo.type = 'button'; undo.className = 'btn btn-ghost btn-sm'; undo.textContent = t('common_undo', 'Undo');
-        undo.onclick = () => { undo.disabled = true; void sending?.({ kind: 'known.siteAdapters.reconcile.undo', id: run!.id, operationId: operation.id }); }; element.append(undo); }
+        undo.onclick = () => { undo.disabled = true; void sending?.({ kind: 'known.siteAdapters.reconcile.undo', id: run!.id, operationId: operation.id }); }; control.append(undo); }
     }
+    if (control.childElementCount) element.append(control);
     return element;
   }));
   const more = document.getElementById('reconcile-more')! as HTMLButtonElement;

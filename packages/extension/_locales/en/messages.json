@@ -7385,6 +7385,9 @@
   "sites_noItemsReady": {
     "message": "No items are ready to save"
   },
+  "sites_noMatchingCollections": {
+    "message": "No collections match your filter."
+  },
   "sites_noPackages": {
     "message": "No packages installed"
   },
@@ -7466,8 +7469,14 @@
   "sites_ownerMigrationReview": {
     "message": "This mapping already contains bookmarks from another sync account or range. Return to that account and range before continuing."
   },
+  "sites_packageCapabilities": {
+    "message": "Capabilities"
+  },
   "sites_packageHint": {
     "message": "Files are inspected as inert data. Publisher identity and signatures are unverified; packages cannot claim official status. Install and every update require review. A new package's site starts off; an update keeps its site's settings and runs the new code in a fresh world."
+  },
+  "sites_packageHosts": {
+    "message": "Site access"
   },
   "sites_packageJson": {
     "message": "Package JSON"
@@ -7475,11 +7484,17 @@
   "sites_packageOutdated": {
     "message": "This package uses the earlier hint-only format. Install an updated version to use it."
   },
+  "sites_packageSite": {
+    "message": "Site"
+  },
   "sites_packageSiteTaken": {
     "message": "Another installed package already uses this site identity."
   },
   "sites_packageVersion": {
     "message": "Version $1"
+  },
+  "sites_packageVersionLabel": {
+    "message": "Version"
   },
   "sites_pageConnectionHint": {
     "message": "This source uses the current website page. No account connection is needed."
@@ -7738,6 +7753,9 @@
   },
   "sites_reconcileDestination": {
     "message": "History or personal-item destination"
+  },
+  "sites_reconcileDestinationHint": {
+    "message": "Used when moving items to a history folder or another chosen folder."
   },
   "sites_reconcileExceptions": {
     "message": "Checked against this read; $1 unverified items and $2 retained exceptions remain."

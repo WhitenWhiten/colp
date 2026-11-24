@@ -29,12 +29,41 @@ function packageProblem(code: string) {
   if (code === 'communitySiteKeyTaken') return t('sites_packageSiteTaken', 'Another installed package already uses this site identity.');
   return code;
 }
+function capabilityLabels(manifest: CommunityManifest): string[] {
+  const caps = new Set(manifest.capabilities ?? []);
+  return [
+    caps.has('observeFavorites') ? t('sites_liveArchiving', 'Live archiving') : '',
+    caps.has('enumerateCollections') ? t('sites_featureCatalog', 'Read collections') : '',
+    caps.has('resolveItem') ? t('sites_featureResolution', 'Identify content') : '',
+    caps.has('enumerateItems') ? t('sites_featureImport', 'Import with preview') : '',
+  ].filter(Boolean);
+}
+function paintPreviewSummary(manifest: CommunityManifest) {
+  const summary = document.getElementById('community-preview-summary'); if (!summary) return;
+  const hosts = [...new Set((manifest.matches ?? []).map(m => { try { return new URL(m).hostname; } catch { return m; } }))];
+  const entries: [string, string][] = [
+    [t('sites_packageSite', 'Site'), manifest.label ?? manifest.adapterId],
+    [t('sites_packageVersionLabel', 'Version'), manifest.version],
+    [t('sites_packageHosts', 'Site access'), hosts.join(', ') || '—'],
+  ];
+  const capabilities = capabilityLabels(manifest);
+  if (capabilities.length) entries.push([t('sites_packageCapabilities', 'Capabilities'), capabilities.join(' · ')]);
+  summary.replaceChildren(...entries.flatMap(([term, value]) => {
+    const dt = document.createElement('dt'), dd = document.createElement('dd');
+    dt.textContent = term; dd.textContent = value; return [dt, dd];
+  }));
+  summary.hidden = false;
+}
 /** The review block (package bytes, consent, Install) shows only while there is a package to approve. */
-function reviewing(open: boolean) { element<HTMLElement>('community-review').hidden = !open; element<HTMLElement>('community-install-bar').hidden = !open; }
+function reviewing(open: boolean) {
+  element<HTMLElement>('community-review').hidden = !open; element<HTMLElement>('community-install-bar').hidden = !open;
+  if (!open) { const summary = document.getElementById('community-preview-summary'); if (summary) summary.hidden = true; }
+}
 function preview(result: CommunityResponse, installationId?: string) {
   ack.checked = false; install.disabled = true; approval = null; reviewing(false);
   // The review block shows the package; a refusal is only in Last response, so open it.
   if (!result.preview) { status.closest('details')!.open = true; return; }
+  paintPreviewSummary(result.preview.manifest);
   element('community-preview').textContent = JSON.stringify(result.preview, null, 2);
   approval = { kind: result.preview.rollback ? 'known.community.rollback' : 'known.community.install', digest: result.preview.digest, adapterId: result.preview.manifest.adapterId,
     ...(installationId ? { installationId } : {}) };
@@ -43,7 +72,10 @@ function preview(result: CommunityResponse, installationId?: string) {
 async function refresh(reveal = false) {
   const result = await request({ kind: 'known.community.status' }, reveal), container = element('community-packages'); container.replaceChildren();
   if (typeof result.available === 'boolean') {
-    element<HTMLElement>('community-dot').dataset.tone = result.available ? 'on' : 'off'; element('community-available').textContent = result.available ? t('sites_available', 'Available') : t('sites_off', 'Off');
+    element<HTMLElement>('community-dot').dataset.tone = result.available ? 'on' : 'off';
+    const available = element('community-available');
+    available.removeAttribute('data-i18n');
+    available.textContent = result.available ? t('sites_available', 'Available') : t('sites_off', 'Off');
   }
   for (const row of result.installations ?? []) {
     const label = row.manifest.label ?? row.manifest.adapterId, hosts = [...new Set((row.manifest.matches ?? []).map(m => { try { return new URL(m).hostname; } catch { return m; } }))];
@@ -64,8 +96,8 @@ async function refresh(reveal = false) {
       button.onclick = () => { void request({ kind: 'known.community.reviewVersion', installationId: row.id, digest: old.digest }, false).then(r => preview(r, row.id)); }; control.append(button);
     }
     // Removing is the one step that can't be undone: it goes last, apart from the others.
-    const remove = siteButton(t('sites_removePackage', 'Remove package'), 'ghost'); remove.classList.add('sites-package-remove');
-    remove.onclick = () => { void request({ kind: 'known.community.remove', installationId: row.id }).then(() => { location.reload(); }); }; control.append(remove);
+    const remove = siteButton(t('sites_removePackage', 'Remove package'), 'ghost'); remove.classList.add('sites-package-remove'); remove.dataset.danger = '';
+    remove.onclick = () => { remove.disabled = true; void request({ kind: 'known.community.remove', installationId: row.id }).then(() => { location.reload(); }); }; control.append(remove);
     container.append(block);
   }
 }
@@ -86,5 +118,6 @@ install.onclick = () => {
     if (result.installations?.some(r => r.manifest.adapterId === adapterId && !r.error)) openSite(adapterId); else return refresh();
   });
 };
-element<HTMLButtonElement>('community-refresh').onclick = () => { void refresh(true); };
+const refreshButton = element<HTMLButtonElement>('community-refresh');
+refreshButton.onclick = () => { refreshButton.setAttribute('aria-busy', 'true'); void refresh(true).finally(() => { refreshButton.setAttribute('aria-busy', 'false'); }); };
 void refresh();

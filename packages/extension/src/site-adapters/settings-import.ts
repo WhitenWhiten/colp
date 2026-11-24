@@ -122,6 +122,14 @@ export function paintSiteImport(input: Input) {
   paintSyncBar(bar, { show: true, title, detail: '', short: title, guidance: [], done: false, paused: false,
     indeterminate: !total && !waiting, value: total ? Math.min(1, current / total) : 0, ...(waiting ? { note: title } : {}) });
   bar.setAttribute('aria-valuetext', counter.hidden ? title : counter.textContent!);
+  const needsAttention = job?.authorization === 'differentAccount' || !!blocker || !!input.hold || !input.bookmarkAccess
+    || config?.state === 'active' && (!input.enabled || !input.connected) || job?.phase === 'attention' || !!resume;
+  element('step-import').dataset.state = needsAttention ? 'attention'
+    : active && waiting ? 'stalled'
+    : active || input.checkingSource || input.approvingImport ? 'running'
+    : completed ? 'done'
+    : config?.state === 'disabled' || job?.phase === 'cancelled' ? 'paused'
+    : 'idle';
   const note = element('import-note');
   note.textContent = input.available && needsSource && !input.documents && !completed && !idleWithSaved ? t('sites_openForCheck', '$1 will open so this check can continue. Keep its tab open while items are read.', site)
     : scanning ? t('sites_readInBackground', 'Keep the website tab open. You can leave this page; the list will be ready when you return.')
@@ -176,9 +184,9 @@ export function paintSiteImport(input: Input) {
     element('import-summary').textContent = t('sites_reconnectingCheck', 'Reconnecting to the website before continuing. Items already read are kept.');
     for (const id of ['freeze-import', 'cancel-import']) button(id).disabled = true;
   }
-  // A lone action sits at the end of the task's title row instead of opening a foot of its own.
+  // A lone action sits at the end of the task's title row only when no active progress bar, counter or warning badge competes beside it.
   const actions = Array.from(document.querySelectorAll<HTMLElement>('#step-import .sites-actions > .btn')).filter(action => !action.hidden);
-  element('step-import').toggleAttribute('data-inline-action', actions.length === 1);
+  element('step-import').toggleAttribute('data-inline-action', actions.length === 1 && !active && counter.hidden && badge.hidden);
   if (input.pendingAction) {
     for (const id of ['start-import', 'resume-import', 'import-open-source', 'freeze-import', 'approve-import', 'retry-import', 'cancel-import', 'import-edit-settings']) button(id).disabled = true;
     if (input.pendingAction === 'known.siteAdapters.import.freeze') button('freeze-import').textContent = t('sites_preparingImport', 'Preparing import…');

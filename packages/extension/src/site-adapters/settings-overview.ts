@@ -1,4 +1,5 @@
 import type { LocalSourceProgress } from './local-progress.js';
+import { createIcon } from '../icons.js';
 import { t, tn } from '../i18n.js';
 import type { SiteDefinition } from './registry-types.js';
 import type { SourceOverview, CollectionOverview } from './overview.js';
@@ -40,6 +41,9 @@ export function paintSourceOverview(status: OverviewStatus, definition: SiteDefi
     : t('sites_noSavingCapability', 'This adapter does not offer collection reading or automatic saving.'));
   if (!config) return;
   const rootName = folderNames.get(config.root.nativeId) ?? t('sites_theChosenRoot', 'the chosen root');
+  const sourceDot = document.getElementById('overview-source-dot');
+  if (sourceDot) sourceDot.dataset.tone = config.state === 'disabled' || !status.enabled ? 'off'
+    : definition.connectionKind === 'page' && status.connected || status.connected && !status.candidateAccount ? 'on' : 'warning';
   set('overview-source', definition.connectionKind === 'page' ? t('sites_pageSource', 'Source: $1', definition.label)
     : status.connected && !status.candidateAccount ? status.accountLabel ? t('sites_accountDisplayName', '$1 · $2', definition.label, status.accountLabel)
       : t('sites_connectedSource', '$1 account connected', definition.label) : t('sites_sourceNeedsConnection', '$1 connection needs attention', definition.label));
@@ -53,6 +57,8 @@ export function paintSourceOverview(status: OverviewStatus, definition: SiteDefi
   set('overview-result', overview?.pendingWrites ? t('sites_updatingSavedResults', 'Updating confirmed save results…') : overview ? tn('sites_confirmedSaved', overview.saved, '$2 bookmark saved in this mapping', '$2 bookmarks saved in this mapping', count(overview.saved))
     : t('sites_savedCountUnknown', 'Saved results could not be verified yet.'));
   set('overview-scope-heading', definition.defaultCollection ? t('sites_sourceList', 'Source list') : t('sites_yourCollections', 'Your collections'));
+  const scopeCount = document.getElementById('overview-scope-count');
+  if (scopeCount) { scopeCount.hidden = !!definition.defaultCollection || !total; scopeCount.textContent = count(total); }
   const catalog = new Map((status.catalog?.items ?? status.archive?.catalog ?? []).map(c => [c.id, c.title]));
   const rows: CollectionOverview[] = config.collectionIds.map(id => overview?.collections.find(c => c.id === id) ?? {
     id, title: catalog.get(id) ?? t('sites_collectionUnknown', 'Collection name not available'), destinationTitle: catalog.get(id) ?? '',
@@ -72,18 +78,23 @@ export function paintSourceOverview(status: OverviewStatus, definition: SiteDefi
     const path = preserved ? preserved.firstTitle ? folderPaths?.get(preserved.firstId!) ?? preserved.firstTitle
       : t('sites_preservedLocations', 'Kept in existing locations') : `${parent} / ${row.destinationTitle || source.textContent}`;
     const destinationId = preserved?.firstId ?? (!preserved ? row.destinationId : null);
+    const pathLine = document.createElement('span'); pathLine.className = 'sites-mapping-path';
+    pathLine.append(createIcon('folder', 13));
     if (destinationId) {
       const link = document.createElement('a'); link.textContent = path;
-      link.href = chrome.runtime.getURL(`options.html#bookmarks?folder=${encodeURIComponent(destinationId)}`); destination.append(link);
-    } else destination.textContent = path;
+      link.href = chrome.runtime.getURL(`options.html#bookmarks?folder=${encodeURIComponent(destinationId)}`); pathLine.append(link);
+    } else pathLine.append(path);
+    destination.append(pathLine);
     const note = document.createElement('span'); note.className = 'set-row-hint';
     note.textContent = !overview ? t('sites_mappingUnknown', 'Not verified') : overview.pendingWrites ? t('sites_mappingUpdating', 'Updating the destination result')
       : preserved ? t('sites_existingCopyLocation', 'Existing copies keep their locations under your copy policy') : row.folder === 'pending' ? t('sites_folderAfterSave', 'Folder is created when items are saved')
       : row.folder === 'missing' ? t('sites_folderMissing', 'Folder is missing; check the mapping') : row.folder === 'review' ? t('sites_folderReview', 'Folder association needs review') : '';
+    if (row.folder === 'missing' || row.folder === 'review') note.dataset.tone = 'warning';
     if (note.textContent) destination.append(note);
     const result = document.createElement('span'); result.className = 'set-row-value sites-mapping-result';
     result.textContent = !overview ? '—' : overview.pendingWrites ? t('sites_mappingSaving', 'Saving…') : row.changed ? t('sites_mappingChanged', '$1 saved · $2 changed locally', count(row.saved), count(row.changed))
       : row.saved ? t('sites_mappingSaved', '$1 saved', count(row.saved)) : row.keptDeleted ? t('sites_mappingKeptDeleted', 'Kept deleted locally') : t('sites_mappingNotSaved', 'Not saved yet');
+    if (!overview || !overview.pendingWrites && !row.saved && !row.changed) result.dataset.state = 'empty';
     const sourceCell = document.createElement('div'); sourceCell.setAttribute('role', 'cell'); sourceCell.append(source); result.setAttribute('role', 'cell');
     item.append(sourceCell, destination, result); return item;
   }));

@@ -49,13 +49,20 @@
       <!-- A configured mapping: the current task in its own card first, then the source, saved destination and results. -->
       <div id="panel-sync" class="sites-panel">
         <section id="source-overview" class="set-group sites-overview" aria-labelledby="overview-source" hidden>
-          <section id="step-import" class="set-card sites-task" data-step="current" aria-labelledby="import-state">
+          <section id="step-import" class="set-card sites-task" data-step="current" data-state="idle" aria-labelledby="import-state">
             <p id="import-destination" hidden></p>
             <div class="sites-task-content">
-              <div class="set-row">
+              <div class="set-row sites-task-head">
+                <span class="sites-task-icon" aria-hidden="true">
+                  <svg class="sites-task-icon-run" width="16" height="16" aria-hidden="true" focusable="false" data-icon="sync"></svg>
+                  <svg class="sites-task-icon-paused" width="16" height="16" aria-hidden="true" focusable="false" data-icon="pause"></svg>
+                  <svg class="sites-task-icon-attention" width="16" height="16" aria-hidden="true" focusable="false" data-icon="alert"></svg>
+                  <svg class="sites-task-icon-done" width="16" height="16" aria-hidden="true" focusable="false" data-icon="check-circle"></svg>
+                  <svg class="sites-task-icon-idle" width="16" height="16" aria-hidden="true" focusable="false" data-icon="clock"></svg>
+                </span>
                 <div class="set-row-text"><p id="import-state" class="set-row-title" data-i18n="sites_noImport">No import started</p>
                   <p id="import-summary" class="set-row-hint" role="status"></p></div>
-                <div class="set-row-control"><span id="import-count" class="set-row-value" hidden></span><span id="import-badge" class="badge" hidden></span></div>
+                <div class="set-row-control"><span id="import-count" class="set-row-value sites-task-count" hidden></span><span id="import-badge" class="badge" hidden></span></div>
               </div>
               <div id="import-progress" class="sites-progress" hidden><div id="import-progress-bar" class="sync-bar" role="progressbar" aria-labelledby="import-state" aria-valuemin="0" aria-valuemax="100"><span></span></div></div>
               <p id="import-note" class="sites-task-note" hidden></p>
@@ -79,14 +86,14 @@
           </section>
           <div class="set-card">
             <div class="set-row">
-              <div class="set-row-text"><p id="overview-source" class="set-row-title"></p><p id="overview-policy" class="set-row-hint"></p></div>
+              <div class="set-row-text"><div class="sites-source-line"><span id="overview-source-dot" class="set-dot" aria-hidden="true"></span><p id="overview-source" class="set-row-title"></p></div><p id="overview-policy" class="set-row-hint"></p></div>
               <button id="overview-manage-connection" class="btn btn-ghost btn-sm" type="button" data-i18n="sites_connectionSettings">Connection</button>
             </div>
             <div class="set-row">
               <div class="set-row-text"><p id="overview-destination" class="set-row-title"></p><p id="overview-result" class="set-row-hint"></p><p id="source-pipeline-status" class="set-row-hint" aria-live="polite"></p></div>
-              <div class="set-row-control"><button id="source-pipeline-retry" class="btn btn-ghost btn-sm" type="button" data-i18n="sites_retryLocalAssociation" hidden>Retry saving and association</button><a id="overview-open-folder" class="btn btn-ghost btn-sm" data-i18n="sites_openFolder">Open folder</a><button id="overview-edit-destination" class="btn btn-ghost btn-sm" type="button" data-i18n="common_change">Change</button></div>
+              <div class="set-row-control"><button id="source-pipeline-retry" class="btn btn-ghost btn-sm" type="button" data-i18n="sites_retryLocalAssociation" hidden>Retry saving and association</button><a id="overview-open-folder" class="btn btn-ghost btn-sm"><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="folder"></svg><span data-i18n="sites_openFolder">Open folder</span></a><button id="overview-edit-destination" class="btn btn-ghost btn-sm" type="button" data-i18n="common_change">Change</button></div>
             </div>
-            <div class="card-bar"><strong id="overview-scope-heading" class="grow"></strong><button id="overview-manage-collections" class="btn btn-ghost btn-sm" type="button" data-i18n="sites_manageScope">Manage collections</button></div>
+            <div class="card-bar"><span class="sites-scope-title grow"><strong id="overview-scope-heading"></strong><span id="overview-scope-count" class="sites-count-pill" hidden></span></span><button id="overview-manage-collections" class="btn btn-ghost btn-sm" type="button" data-i18n="sites_manageScope">Manage collections</button></div>
             <div class="sites-mappings" role="table" aria-label="Source and saved results" data-i18n-aria-label="sites_mappingTable">
               <div class="card-bar sites-mapping-legend" role="row"><span role="columnheader" data-i18n="sites_source">Source</span><span role="columnheader" data-i18n="sites_saveLocation">Save location</span><span role="columnheader" data-i18n="sites_result">Result</span></div>
               <div id="overview-mappings" role="rowgroup"></div>
@@ -100,21 +107,21 @@
           <summary data-i18n="sites_viewImportList">View favorites and bookmark changes</summary>
           <section id="import-review" class="set-group" aria-labelledby="import-review-heading" hidden>
             <div class="set-group-head"><h2 id="import-review-heading" data-i18n="sites_itemsNotSaved">Items not saved</h2><p id="import-review-summary"></p></div>
-            <div class="set-card"><div id="import-review-list"></div><div class="card-foot">
+            <div class="set-card"><div id="import-review-list" class="sites-rows sites-rows--lead"></div><div class="card-foot confirm-actions">
               <button id="import-review-settings" class="btn btn-ghost btn-sm" type="button" data-i18n="sites_syncSettings">Sync settings</button>
+              <span class="grow"></span>
               <button id="import-review-check" class="btn btn-secondary btn-sm" type="button" hidden data-i18n="sites_verifySavedResults">Check saved results</button>
             </div></div>
           </section>
         <section id="reconcile-preview" class="set-group" hidden aria-labelledby="reconcile-heading">
           <div class="set-group-head"><h2 id="reconcile-heading" data-i18n="sites_reconcileHeading">Collection differences</h2>
             <p data-i18n="sites_reconcileHint">Order, pins, notes and tags are preserved. Unverified source absences and personal items stay where they are.</p></div>
-          <div class="set-card"><p id="reconcile-summary" class="set-row" role="status"></p><div id="reconcile-list"></div>
-            <div id="reconcile-target-slot" class="set-row"></div><p id="reconcile-result" class="set-row" role="status"></p>
-            <div class="card-foot"><button id="reconcile-previous" class="btn btn-ghost btn-sm" type="button" hidden data-i18n="common_back">Back</button><button id="reconcile-more" class="btn btn-ghost btn-sm" type="button" hidden data-i18n="common_loadMore">Load more</button>
-              <button id="reconcile-apply" class="btn btn-secondary btn-sm" type="button" hidden data-i18n="sites_reconcileApply">Apply chosen changes</button>
+          <div class="set-card"><p id="reconcile-summary" class="card-note sites-reconcile-summary" role="status"></p><div id="reconcile-list" class="sites-rows sites-rows--lead"></div>
+            <div id="reconcile-target-slot" class="set-row sites-reconcile-target"><div class="set-row-text"><p class="set-row-title" data-i18n="sites_reconcileDestination">History or personal-item destination</p><p class="set-row-hint" data-i18n="sites_reconcileDestinationHint">Used when moving items to a history folder or another chosen folder.</p></div><div id="reconcile-target-control" class="set-row-control"></div></div><p id="reconcile-result" class="card-note sites-reconcile-result" role="status"></p>
+            <div class="card-foot sites-reconcile-foot"><button id="reconcile-rescan" class="btn btn-ghost btn-sm" type="button" data-i18n="sites_reconcileRescan">Read and check again</button><span class="grow"></span><button id="reconcile-previous" class="btn btn-ghost btn-sm" type="button" hidden data-i18n="common_back">Back</button><button id="reconcile-more" class="btn btn-ghost btn-sm" type="button" hidden data-i18n="common_loadMore">Load more</button>
+              <button id="reconcile-cancel" class="btn btn-ghost btn-sm" type="button" hidden data-i18n="common_cancel">Cancel</button>
               <button id="reconcile-retry" class="btn btn-secondary btn-sm" type="button" hidden data-i18n="common_retry">Retry</button>
-              <button id="reconcile-cancel" class="btn btn-ghost btn-sm" type="button" hidden data-i18n="common_cancel">Cancel</button></div>
-            <div class="card-foot"><button id="reconcile-rescan" class="btn btn-ghost btn-sm" type="button" data-i18n="sites_reconcileRescan">Read and check again</button></div>
+              <button id="reconcile-apply" class="btn btn-primary btn-sm" type="button" hidden data-i18n="sites_reconcileApply">Apply chosen changes</button></div>
           </div>
         </section>        </details>
 
@@ -144,7 +151,7 @@
             <p class="sites-step-wait" data-i18n="sites_stepChooseWait">Connect your account first.</p></div>
           <div id="archive-hold" class="inline-alert" data-tone="warning" hidden>
             <svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="alert"></svg>
-            <p data-i18n="sites_archiveHoldShort">This archive needs review before it saves again. Open Recovery to inspect it.</p>
+            <p id="archive-hold-text" data-i18n="sites_archiveHoldShort">This archive needs review before it saves again. Open Recovery to inspect it.</p>
             <button id="open-recovery" class="btn btn-ghost btn-sm" type="button" data-i18n="sites_tabRecovery">Recovery</button>
           </div>
           <div class="set-card sites-step-card">
@@ -160,6 +167,7 @@
               <label id="collection-filter-field" class="search-compact sites-filter" hidden><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="search"></svg>
                 <input id="collection-filter" type="search" autocomplete="off" placeholder="Find a collection" aria-label="Find a collection" data-i18n-placeholder="sites_findCollection" data-i18n-aria-label="sites_findCollection"></label>
               <div id="archive-collections" class="option-list option-list--boxed sites-collection-list" role="group" aria-labelledby="collections-title"></div>
+              <p id="collections-filter-empty" class="sites-filter-empty" hidden data-i18n="sites_noMatchingCollections">No collections match your filter.</p>
               <div id="collections-empty" class="sites-collections-empty">
                 <p id="collections-empty-text" data-i18n="sites_collectionsAppearHere">Your collections appear here once Know-N reads them.</p>
                 <button id="open-site-list" class="btn btn-secondary btn-sm" type="button" hidden><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="arrow-up-right"></svg><span id="open-site-list-label"></span></button>
@@ -222,14 +230,14 @@
 
       </div>
 
-      <details id="site-history" class="disclosure sites-settings">
+      <details id="site-history" class="disclosure sites-settings sites-footer-fold">
         <summary data-i18n="sites_recentActivity">Recent activity</summary>
-        <div class="set-card"><div id="site-activity-list" class="sites-activity-list"></div><div class="card-foot"><button id="activity-refresh" class="btn btn-ghost btn-sm" type="button" data-i18n="common_refresh">Refresh</button><button id="activity-copy" class="btn btn-ghost btn-sm" type="button" data-i18n="sites_copyDiagnostic">Copy diagnostic report</button></div></div>
+        <div class="set-card"><div id="site-activity-list" class="sites-activity-list"></div><div class="card-foot"><button id="activity-refresh" class="btn btn-ghost btn-sm" type="button"><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="refresh"></svg><span data-i18n="common_refresh">Refresh</span></button><span class="grow"></span><button id="activity-copy" class="btn btn-ghost btn-sm" type="button"><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="copy"></svg><span data-i18n="sites_copyDiagnostic">Copy diagnostic report</span></button></div></div>
       </details>
-      <p id="activity-feedback" class="feedback" role="status"></p>
+      <p id="activity-feedback" class="feedback sites-feedback" role="status"></p>
       <textarea id="site-copy-fallback" class="code-panel" readonly hidden aria-label="Diagnostic report" data-i18n-aria-label="sites_diagnosticReport"></textarea>
       <!-- Advanced tools open as their own views (#cloud, #recovery); the breadcrumb under the head leads back to Sync. -->
-      <details id="site-tools" class="disclosure sites-settings"><summary data-i18n="sites_advancedTools">Advanced tools</summary>
+      <details id="site-tools" class="disclosure sites-settings sites-footer-fold"><summary data-i18n="sites_advancedTools">Advanced tools</summary>
         <nav class="set-card sites-tools" aria-label="Site sections" data-i18n-aria-label="sites_siteSections">
           <a id="tab-cloud" class="set-row sites-tool" href="#cloud" data-tab="cloud"><span class="set-row-text"><span class="set-row-title" data-i18n="sites_cloudHeading">COLP Server archive</span><span class="set-row-hint" data-i18n="sites_toolCloudHint">Save the chosen collections to your COLP account in reviewed batches.</span></span><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="chevron-right"></svg></a>
           <a id="tab-recovery" class="set-row sites-tool" href="#recovery" data-tab="recovery"><span class="set-row-text"><span class="set-row-title" data-i18n="sites_tabRecovery">Recovery</span><span class="set-row-hint" data-i18n="sites_toolRecoveryHint">Recovery records, restored backups, saved copies and the inspector.</span></span><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="chevron-right"></svg></a>
@@ -388,6 +396,7 @@
           </div>
           <div id="community-review" class="set-row set-row--stack" hidden>
             <div class="set-row-text"><p class="set-row-title" data-i18n="sites_reviewPackage">Review this package</p></div>
+            <dl id="community-preview-summary" class="sites-package-summary" hidden></dl>
             <pre id="community-preview" class="code-panel"></pre>
             <label class="check-line"><input id="community-ack" type="checkbox"><span data-i18n="sites_communityAck">I trust this code/author and accept the page-access risk described above.</span></label>
           </div>

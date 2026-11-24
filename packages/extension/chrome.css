@@ -125,6 +125,7 @@ button { cursor: pointer; border: none; background: none; padding: 0; }
 
 .btn-ghost { background: transparent; border-color: transparent; color: var(--ink-3); font-weight: var(--weight-medium); }
 .btn-ghost:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 4%, transparent); color: var(--ink); }
+.btn-ghost[data-danger]:hover:not(:disabled) { background: var(--danger-soft); color: var(--danger); }
 
 .btn-sm { min-height: 2rem; padding: 0 var(--space-2); font-size: var(--text-xs); }
 .btn-retry {
@@ -609,9 +610,11 @@ button.chip:hover { border-color: var(--line-heavy); background: var(--paper); c
 .set-row[data-ai-off] { display: none; }
 .set-sub { padding-left: var(--space-4); }
 .set-sub > .set-row { padding-left: var(--space-5); }
+.set-sub > .set-row:first-child { border-top: 0; }
 .set-dot { width: 0.4rem; height: 0.4rem; border-radius: 50%; background: var(--success); flex: none; }
 .set-dot[data-tone="off"] { background: var(--ghost); }
 .set-dot[data-tone="warning"] { background: var(--warning); }
+.set-dot[data-tone="danger"] { background: var(--danger); }
 
 /* Choice cards (Manual / Automatic): compact, ink selection, no blue. */
 .choice-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: var(--space-3); }

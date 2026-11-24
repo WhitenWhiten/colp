@@ -21,7 +21,12 @@ async function readBindings(cursor?: string) {
     const other = !!result.connectionId && b.connectionId !== result.connectionId;
     const { row, text: copy, control } = siteRow(b.title, other ? t('sites_savedWithOther', 'Saved with another account.') : b.state === 'active' ? t('sites_savedWithConnected', 'Saved with the connected account.') : '');
     copy.title = b.itemId;
-    if (b.state !== 'active') { const badge = document.createElement('span'); badge.className = 'badge'; badge.textContent = b.state; control.append(badge); }
+    if (b.state !== 'active') {
+      const badge = document.createElement('span'); badge.className = 'badge';
+      badge.textContent = b.state === 'pending' ? t('sites_waitingShort', 'Waiting') : b.state === 'attention' ? t('sites_needsReviewShort', 'Needs review') : b.state;
+      if (b.state === 'attention') badge.dataset.tone = 'warning';
+      control.append(badge);
+    }
     if (b.retryable) {
       const retry = siteButton(t('sites_retryUnsubmitted', 'Prepare to save again'));
       retry.onclick = () => { retry.disabled = true; void sendSiteMessage({ kind: 'known.siteAdapters.content.retryUnsubmitted', itemId: b.itemId, bindingId: b.id })
@@ -39,9 +44,10 @@ async function readBindings(cursor?: string) {
     container.append(row);
   }
   if (result.nextCursor) {
-    const nextCursor = result.nextCursor, more = siteButton(t('sites_loadMoreAssociations', 'Load more associations'));
-    more.onclick = () => { more.disabled = true; void readBindings(nextCursor).then(() => more.remove()).catch(() => { more.disabled = false; }); };
-    container.append(more);
+    const nextCursor = result.nextCursor, moreRow = document.createElement('div'); moreRow.className = 'set-row sites-load-more';
+    const more = siteButton(t('sites_loadMoreAssociations', 'Load more associations'), 'ghost');
+    more.onclick = () => { more.disabled = true; void readBindings(nextCursor).then(() => moreRow.remove()).catch(() => { more.disabled = false; }); };
+    moreRow.append(more); container.append(moreRow);
   }
 }
 document.querySelector('#read-bindings')!.addEventListener('click', () => { void readBindings(); });

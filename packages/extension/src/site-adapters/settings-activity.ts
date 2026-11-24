@@ -1,3 +1,4 @@
+import { createIcon } from '../icons.js';
 import { formatMoment, t } from '../i18n.js';
 import { siteProblem } from './problem-view.js';
 import type { SiteActivity, ActivityCounts, SiteOperation } from './activity.js';
@@ -76,9 +77,16 @@ export function createSiteActivityView(send: Send, definition: SiteDefinition) {
     const key = JSON.stringify(events);
     if (lastKey === key) return; lastKey = key;
     const list = element('site-activity-list');
-    if (!events.length) { list.textContent = result.error ? t('sites_recordsUnavailable', 'Operation records could not be read. You can still copy a problem report.')
-      : t('sites_recordsEmpty', 'New checks, saves and problems will be recorded here.'); return; }
-    const opened = new Set(Array.from(list.querySelectorAll<HTMLDetailsElement>('details[open]')).map(d => d.dataset.id));
+    if (!events.length) {
+      const empty = document.createElement('div'), icon = document.createElement('span'), copy = document.createElement('p');
+      empty.className = 'empty empty--row'; icon.className = 'empty-icon'; icon.setAttribute('aria-hidden', 'true');
+      icon.append(createIcon(result.error ? 'alert' : 'clock', 15));
+      copy.className = 'empty-title';
+      copy.textContent = result.error ? t('sites_recordsUnavailable', 'Operation records could not be read. You can still copy a problem report.')
+        : t('sites_recordsEmpty', 'New checks, saves and problems will be recorded here.');
+      empty.append(icon, copy); list.replaceChildren(empty); return;
+    }
+    const opened = new Set(Array.from(list.querySelectorAll<HTMLDetailsElement>('details.sites-activity-record[open]')).map(d => d.dataset.id));
     list.replaceChildren(...events.slice(0, 30).map(event => {
       const row = document.createElement('details'); row.className = 'disclosure sites-activity-record'; row.dataset.id = event.id; row.open = opened.has(event.id);
       const heading = document.createElement('summary'), name = document.createElement('span'), time = document.createElement('span');
@@ -91,9 +99,13 @@ export function createSiteActivityView(send: Send, definition: SiteDefinition) {
       if (event.kind === 'problem') {
         const next = document.createElement('p'); next.className = 'set-row-hint'; next.textContent = siteProblem(event.code ?? '', definition.label, event).next; body.append(next);
       }
-      const details = document.createElement('pre'); details.className = 'code-panel'; details.textContent = JSON.stringify(event, null, 2); body.append(details);
       const button = document.createElement('button'); button.type = 'button'; button.className = 'btn btn-ghost btn-sm'; button.textContent = t('sites_copyRecord', 'Copy this operation record');
-      button.onclick = () => { void copy(event.id).then(ok => { if (ok) button.textContent = t('sites_reportCopiedShort', 'Copied'); }); }; body.append(button); row.append(body); return row;
+      button.onclick = () => { void copy(event.id).then(ok => { if (ok) button.textContent = t('sites_reportCopiedShort', 'Copied'); }); }; body.append(button);
+      const technical = document.createElement('details'); technical.className = 'disclosure sites-technical';
+      const technicalSummary = document.createElement('summary'); technicalSummary.textContent = t('sites_technicalDetails', 'Technical details');
+      const details = document.createElement('pre'); details.className = 'code-panel'; details.textContent = JSON.stringify(event, null, 2);
+      technical.append(technicalSummary, details); body.append(technical);
+      row.append(body); return row;
     }));
   }
   history.addEventListener('toggle', () => { if (history.open) void refresh(); });

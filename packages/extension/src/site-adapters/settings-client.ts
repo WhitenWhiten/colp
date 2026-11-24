@@ -33,7 +33,7 @@ function navState(status: SiteNavStatus | undefined): { label: string; tone: 'on
   if (!status || status.error) return { label: '', tone: 'off' };
   if (status.candidateAccount) return { label: t('sites_navConnect', 'Connect account'), tone: 'warning' };
   if (!status.enabled) return { label: t('sites_off', 'Off'), tone: 'off' };
-  if (status.archive?.config?.state === 'disabled') return { label: t('sites_paused', 'Paused.'), tone: 'off' };
+  if (status.archive?.config?.state === 'disabled') return { label: t('common_paused', 'Paused'), tone: 'off' };
   if (status.archiveHold || status.activity?.problem || status.archive?.config?.state === 'active' && !status.connected
     || status.archive?.import?.phase === 'attention' || status.archive?.import?.phase === 'paused' && status.archive.import.reason !== 'scanFinished')
     return { label: t('sites_connectionNeedsAttention', 'Needs attention'), tone: 'warning' };

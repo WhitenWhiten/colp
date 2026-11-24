@@ -35,13 +35,21 @@ async function open(id: string) {
 async function load(before?: string) {
   const page = await request<{ runs: ReconcileRunSummary[]; next: string | null }>({ kind: 'known.siteAdapters.reconcile.history', ...(before ? { before } : {}) });
   if (!before) { detail.replaceChildren(); list.after(detail); list.replaceChildren(); }
-  document.getElementById('reconcile-history-more')?.remove();
-  // A run is a row: when it ran, what it did, and Open for its changes.
+  document.getElementById('reconcile-history-more')?.closest('.set-row')?.remove();
+  // A run is a row: when it ran, what it did, and Review for its changes.
   for (const run of page.runs) {
     const { row, control } = siteRow(formatMoment(run.createdAt), t('sites_reconcileHistoryCounts', '$1 applied · $2 need attention · $3 undone', run.completed, run.attention, run.undone));
-    const item = button(t('sites_review', 'Review'), () => open(run.id)); item.dataset.runId = run.id; control.append(item); list.append(row);
+    const item = button(t('sites_review', 'Review'), async () => {
+      if (item.getAttribute('aria-expanded') === 'true') { detail.replaceChildren(); list.after(detail); item.setAttribute('aria-expanded', 'false'); return; }
+      await open(run.id);
+    });
+    item.dataset.runId = run.id; item.setAttribute('aria-expanded', 'false'); control.append(item); list.append(row);
   }
   if (!page.runs.length && !before) list.append(siteRow(t('sites_reconcileHistoryNone', 'No collection checks yet.'), '').row);
-  if (page.next) { const more = button(t('common_loadMore', 'Load more'), () => load(page.next!)); more.id = 'reconcile-history-more'; list.append(more); }
+  if (page.next) {
+    const row = document.createElement('div'); row.className = 'set-row sites-load-more';
+    const more = button(t('common_loadMore', 'Load more'), () => load(page.next!)); more.id = 'reconcile-history-more';
+    row.append(more); list.append(row);
+  }
 }
 document.getElementById('reconcile-history-load')?.addEventListener('click', () => { void load().catch(e => showToast(reconcileReason(e instanceof Error ? e.message : ''), 'error')); });

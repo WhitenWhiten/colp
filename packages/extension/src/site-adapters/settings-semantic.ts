@@ -7,8 +7,9 @@ export function paintSemanticRecovery(root: HTMLElement, summary: SemanticStatus
   const existing = views.get(root);
   if (existing && existing.connectionId === summary.connectionId) { existing.update(summary); return; }
   existing?.dispose();
-  const rows = document.createElement('div'), controls = document.createElement('div');
-  const feedback = document.createElement('p'); feedback.setAttribute('role', 'status');
+  const rows = document.createElement('div'), controls = document.createElement('div'), search = document.createElement('div');
+  rows.className = 'sites-rows sites-rows--lead'; controls.className = 'card-foot sites-semantic-controls'; search.className = 'sites-semantic-search';
+  const feedback = document.createElement('p'); feedback.className = 'feedback sites-semantic-feedback'; feedback.setAttribute('role', 'status');
   let disposed = false, requestVersion = 0, group: 'recovery' | 'history' = 'recovery', selectedId: string | null = null;
   let cursor = summary.nextCursor, firstPage = summary.jobs, extra: SemanticStatus['jobs'] = [];
   const rendered = new Map<string, { row: HTMLElement; signature: string }>();
@@ -25,6 +26,7 @@ export function paintSemanticRecovery(root: HTMLElement, summary: SemanticStatus
       const hint = document.createElement('p'); hint.className = 'set-row-hint'; hint.textContent = errorCopy(job.reason ?? 'sourceSyncPending');
       body.append(title, hint); row.append(body);
       if (job.state === 'attention' || job.takeover) {
+        const control = document.createElement('div'); control.className = 'set-row-control';
         const reclassify = ['semanticChooseFolder', 'semanticDestinationMapped', 'semanticDestinationOutsideLibrary', 'destination_policy_changed'].includes(job.reason ?? '');
         const retry = button(job.takeover ? t('sites_semanticTakeover', 'Take over and retry') : reclassify ? t('sites_classifyAgain', 'Classify again') : t('common_retry', 'Retry'));
         retry.addEventListener('click', () => {
@@ -32,7 +34,7 @@ export function paintSemanticRecovery(root: HTMLElement, summary: SemanticStatus
           void act({ kind: 'known.siteAdapters.semantic.retry', jobId: job.id, ...(reclassify ? { reclassify: true } : {}) })
             .catch(() => { if (!disposed) feedback.textContent = errorCopy('semanticJobUnavailable'); })
             .finally(() => { retry.disabled = false; });
-        }); row.append(retry);
+        }); control.append(retry); row.append(control);
       }
       rendered.set(job.id, { row, signature });
       rows.append(row);
@@ -58,7 +60,7 @@ export function paintSemanticRecovery(root: HTMLElement, summary: SemanticStatus
   };
   more.hidden = !cursor; more.addEventListener('click', () => { void load(false); });
   history.addEventListener('click', () => { void load(true, group === 'recovery' ? 'history' : 'recovery'); });
-  const id = document.createElement('input'); id.placeholder = t('sites_semanticJobId', 'Task ID'); id.setAttribute('aria-label', id.placeholder);
+  const id = document.createElement('input'); id.className = 'field-quiet sites-semantic-input'; id.placeholder = t('sites_semanticJobId', 'Task ID'); id.setAttribute('aria-label', id.placeholder);
   const find = button(t('sites_semanticFind', 'Find task'));
   find.addEventListener('click', () => { void (async () => {
     const version = ++requestVersion; more.disabled = false; history.disabled = false;
@@ -69,7 +71,7 @@ export function paintSemanticRecovery(root: HTMLElement, summary: SemanticStatus
       else feedback.textContent = errorCopy(result.error ?? 'semanticJobUnavailable');
     } catch { if (current(version)) feedback.textContent = errorCopy('semanticJobUnavailable'); }
   })(); });
-  controls.append(more, history, id, find); render(summary.jobs); root.replaceChildren(rows, controls, feedback);
+  search.append(id, find); controls.append(more, history, search); render(summary.jobs); root.replaceChildren(rows, feedback, controls);
   views.set(root, { connectionId: summary.connectionId, dispose() { disposed = true; requestVersion++; }, update(next) {
     // Status polling owns only the first recovery page, never the user's history, search or loaded tail.
     if (group !== 'recovery' || selectedId) return;

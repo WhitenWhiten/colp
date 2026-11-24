@@ -265,7 +265,10 @@ button('enable').addEventListener('click', () => {
 });
 button('disable').addEventListener('click', () => { void act({ kind: 'known.siteAdapters.enable', enabled: false }); });
 button('confirm').addEventListener('click', () => { const account = status.candidateAccount; if (account) void act({ kind: 'known.siteAdapters.confirm', accountId: account }); });
-button('refresh').addEventListener('click', () => { void refresh(); });
+button('refresh').addEventListener('click', () => {
+  const control = button('refresh'); control.setAttribute('aria-busy', 'true');
+  void refresh().finally(() => { control.setAttribute('aria-busy', 'false'); });
+});
 button('retry-site-status').addEventListener('click', () => { void refresh(); });
 
 // ---- Step 2: choose collections and a folder
@@ -318,6 +321,8 @@ function paintCollections() {
   const all = items.length > 0 && items.every(item => selection.has(item.id)); button('select-all').hidden = items.length < 2;
   button('select-all').textContent = all ? t('sites_clearAll', 'Clear all') : t('common_selectAll', 'Select all');
   button('read-catalog').disabled = !!c?.reading || !connected;
+  button('read-catalog').setAttribute('aria-busy', String(!!c?.reading));
+  paintFilter();
   const chosen = chosenIds().length;
   text('catalog-summary', selectedSite.defaultCollection ? t('sites_singleListHint', 'This source provides one list.') : !features.collections ? items.length ? t('sites_chosenOf', '$1 of $2 chosen', chosen, items.length) : t('sites_observedCatalogHint', 'Only collections observed in the current source session are shown. Refresh after observing more collections.')
     : c?.reading ? items.length ? tn('sites_readingSoFar', items.length, 'Reading your collections… $1 so far.', 'Reading your collections… $1 so far.') : t('sites_readingCollections', 'Reading your collections…')
@@ -335,7 +340,13 @@ function paintCollections() {
 }
 function paintFilter() {
   const needle = filter.value.trim().toLocaleLowerCase();
-  for (const row of Array.from(list.children) as HTMLElement[]) row.hidden = !!needle && !row.dataset.title!.includes(needle);
+  let visible = 0;
+  for (const row of Array.from(list.children) as HTMLElement[]) {
+    const hide = !!needle && !row.dataset.title!.includes(needle);
+    row.hidden = hide; if (!hide) visible++;
+  }
+  const empty = document.getElementById('collections-filter-empty');
+  if (empty) empty.hidden = !needle || visible > 0 || !list.children.length;
 }
 filter.addEventListener('input', paintFilter);
 button('select-all').addEventListener('click', () => {
@@ -512,7 +523,7 @@ function paint() {
   step('step-choose', config?.state === 'active' ? 'done' : connected || config ? 'current' : 'later');
   step('step-import', config?.state !== 'active' && !job ? 'later' : job?.phase === 'completed' ? 'done' : 'current');
   $('archive-hold').hidden = !status.archiveHold;
-  if (status.archiveHold) text('archive-hold', errorCopy(status.archiveHold));
+  if (status.archiveHold) text('archive-hold-text', errorCopy(status.archiveHold));
   paintCollections(); paintForm(); paintInspector(); paintSemantic();
   paintReconciliation(status.archive?.reconciliation, status.archive?.reconciliationRun, job?.phase);
   $('reconcile-details').hidden = !paintImportReview(job, selectedSite, !!status.archive?.reconciliation) && !status.archive?.reconciliation;

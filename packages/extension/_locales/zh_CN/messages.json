@@ -13686,5 +13686,29 @@
   "automation_recentChecksLede": {
     "message": "此浏览器中最近的归档和待处理检查。每项检查会说明需要处理的问题。",
     "description": "Recent filing and pending checks in this browser. Each check explains what needs attention."
+  },
+  "sites_noMatchingCollections": {
+    "message": "没有匹配的收藏夹。",
+    "description": "No collections match your filter."
+  },
+  "sites_packageCapabilities": {
+    "message": "功能",
+    "description": "Capabilities"
+  },
+  "sites_packageHosts": {
+    "message": "访问范围",
+    "description": "Site access"
+  },
+  "sites_packageSite": {
+    "message": "站点",
+    "description": "Site"
+  },
+  "sites_packageVersionLabel": {
+    "message": "版本",
+    "description": "Version"
+  },
+  "sites_reconcileDestinationHint": {
+    "message": "将条目移至历史文件夹或自选文件夹时使用。",
+    "description": "Used when moving items to a history folder or another chosen folder."
   }
 }
