@@ -118,6 +118,14 @@
   text-underline-offset: 0.15em;
 }
 
+.activity-meta {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-meta);
+  font-variant-numeric: tabular-nums;
+}
+
 /* Up to five of the bookmarks, newest first: each title on at most two
    lines, its site after it. */
 .activity-samples {
@@ -139,6 +147,11 @@
   -webkit-line-clamp: 2;
   line-clamp: 2;
   overflow-wrap: anywhere;
+}
+
+.activity-samples .activity-samples-more {
+  color: var(--muted);
+  font-size: var(--text-xs);
 }
 
 /* What a waiting plan does, in the plan's own words: the samples' quoted
@@ -216,6 +229,12 @@
 .activity-folder-count {
   color: var(--faint);
   font-variant-numeric: tabular-nums;
+}
+
+.activity-more {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--space-5);
 }
 
 @media (max-width: 639px) {

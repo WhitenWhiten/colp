@@ -193,6 +193,8 @@ button.not-found-exit {
 }
 
 .not-found-exit {
+  display: inline-flex;
+  align-items: center;
   color: var(--ink);
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);

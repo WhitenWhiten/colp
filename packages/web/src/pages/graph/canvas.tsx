@@ -26,10 +26,12 @@ export function GraphCanvas({ state }: { state: GraphState }) {
     posMap,
     dense,
     focusId,
+    dimActive,
     neighborIds,
     active,
     connectedEdge,
     setActiveId,
+    clearActiveId,
     setHoverId,
     hoverResource,
     tooltipStyle,
@@ -86,8 +88,11 @@ export function GraphCanvas({ state }: { state: GraphState }) {
             viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
             role="group"
             aria-label="Knowledge graph of collection bookmarks"
-            data-active={focusId || undefined}
+            data-active={dimActive ? focusId || undefined : undefined}
             data-dense={dense ? '' : undefined}
+            onClick={(event) => {
+              if (event.target === event.currentTarget) clearActiveId()
+            }}
           >
             <defs>
               <marker
@@ -164,7 +169,7 @@ export function GraphCanvas({ state }: { state: GraphState }) {
                     <text className="graph-mono" textAnchor="middle" dy="0.35em" data-testid="graph-node-initial">
                       {nodeInitial(resource.node.title)}
                     </text>
-                    {(dense ? isFocus : neighborIds.has(p.id)) ? (
+                    {(dense ? isFocus : (!dimActive || neighborIds.has(p.id))) ? (
                       <text className="graph-label" y={26} textAnchor="middle" data-testid="graph-node-label">
                         {wrapGraphLabel(resource.node.title).map((line, index) => (
                           <tspan key={`${p.id}-${index}`} x={0} dy={index === 0 ? 0 : 13}>

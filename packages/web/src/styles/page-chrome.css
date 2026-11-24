@@ -440,11 +440,13 @@
   color: color-mix(in srgb, var(--danger) 60%, var(--ghost));
 }
 
-.empty-state .eyebrow {
+.empty-state .eyebrow,
+.empty-state .section-label {
   margin: 0;
 }
 
 .empty-state h3,
+.empty-state h2,
 .empty-state h1 {
   margin: 0;
   font-weight: var(--weight-bold);
@@ -453,6 +455,7 @@
   overflow-wrap: anywhere;
 }
 
+.empty-state h2,
 .empty-state h3 { font-size: var(--text-lg); }
 .empty-state h1 { font-size: var(--text-2xl); font-weight: var(--weight-semibold); }
 

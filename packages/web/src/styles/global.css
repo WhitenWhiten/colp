@@ -717,7 +717,8 @@ kbd,
 
 /* Sentence-case field labels (R12-03): a label names the input in the
    same voice as the page, one step quieter than the value it describes. */
-.field label {
+.field label,
+.field-label {
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
   color: var(--ink-2);
@@ -873,6 +874,14 @@ kbd,
 .field textarea:disabled,
 .field select:disabled {
   color: var(--muted);
+  background-color: var(--paper-2);
+}
+
+/* Values shown for reference (username, protected browser folder names):
+   selectable, but visually quiet so they never look editable. */
+.field input[readonly],
+.field textarea[readonly] {
+  color: var(--ink-2);
   background-color: var(--paper-2);
 }
 

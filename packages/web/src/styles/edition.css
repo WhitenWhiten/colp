@@ -189,14 +189,14 @@
   }
 }
 
-/* A short window docks the dialog as a bottom sheet with other padding;
-   Save ends the form there, as it does on phones. */
-@media (max-height: 26rem) {
+/* A short window or phone docks the dialog as a bottom sheet; keep a clear
+   divider above the form actions instead of dropping them flush against fields. */
+@media (max-width: 639px), (max-height: 26rem) {
   :root[data-edition='self-hosted'] .modal-body .edit-form-actions {
     position: static;
-    margin: 0;
-    padding: 0;
-    border-top: 0;
+    margin: var(--space-3) 0 0;
+    padding: var(--space-3) 0 0;
+    border-top: 1px solid var(--line);
     background: none;
   }
 }
@@ -487,6 +487,11 @@
   text-align: end;
 }
 
+:root[data-edition='self-hosted'] .self-hosted-about-address dt {
+  display: grid;
+  gap: var(--hair-15);
+}
+
 :root[data-edition='self-hosted'] .self-hosted-about-address dd {
   display: flex;
   flex-wrap: wrap;
@@ -512,8 +517,9 @@
 
 :root[data-edition='self-hosted'] .self-hosted-about-hint {
   margin: 0;
-  color: var(--muted);
-  font-size: var(--text-sm);
+  color: var(--faint);
+  font-size: var(--text-xs);
+  line-height: var(--leading-ui);
 }
 
 :root[data-edition='self-hosted'] .self-hosted-about-steps {
@@ -527,21 +533,24 @@
 
 :root[data-edition='self-hosted'] .self-hosted-about-step {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-content: start;
   column-gap: var(--space-3);
   row-gap: var(--hair-20);
   height: 100%;
   padding: var(--space-4);
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-lg);
   background: var(--surface);
   color: inherit;
-  transition: border-color var(--duration-fast) var(--ease-out);
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
 }
 
 :root[data-edition='self-hosted'] .self-hosted-about-step:hover {
   border-color: var(--line-heavy);
+  box-shadow: var(--shadow-raised);
 }
 
 :root[data-edition='self-hosted'] .self-hosted-about-step-icon {
@@ -566,10 +575,28 @@
   font-weight: var(--weight-semibold);
 }
 
-:root[data-edition='self-hosted'] .self-hosted-about-step > span:last-child {
+:root[data-edition='self-hosted'] .self-hosted-about-step > span:nth-of-type(2) {
   color: var(--muted);
   font-size: var(--text-sm);
   line-height: var(--leading-copy);
+}
+
+:root[data-edition='self-hosted'] .self-hosted-about-step-arrow {
+  display: grid;
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  align-self: center;
+  color: var(--faint);
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+:root[data-edition='self-hosted'] .self-hosted-about-step-arrow svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+:root[data-edition='self-hosted'] .self-hosted-about-step:hover .self-hosted-about-step-arrow {
+  color: var(--ink);
 }
 
 :root[data-edition='self-hosted'] .self-hosted-about-foot {

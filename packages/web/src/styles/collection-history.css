@@ -58,19 +58,11 @@
   font-size: var(--text-xs);
   font-style: normal;
   font-weight: var(--weight-semibold);
-  text-transform: uppercase;
 }
 
 .history-version-list small {
   color: var(--faint);
   font-size: var(--text-xs);
-}
-
-.history-version-list p {
-  margin: var(--hair-20) 0 0;
-  color: var(--muted);
-  font-size: var(--text-xs);
-  line-height: var(--leading-copy);
 }
 
 .history-detail {
@@ -92,13 +84,6 @@
   font-size: var(--text-xl);
 }
 
-.history-detail-head p:last-child {
-  max-width: 38rem;
-  margin: var(--hair-40) 0 0;
-  color: var(--muted);
-  font-size: var(--text-sm);
-}
-
 .history-facts {
   margin: var(--hair-150) 0 2.5rem;
   padding: var(--hair-85) 0;
@@ -117,8 +102,6 @@
 .history-facts dt {
   color: var(--faint);
   font-size: var(--text-xs);
-  text-transform: uppercase;
-  letter-spacing: var(--tracking-caps);
 }
 
 .history-facts dd {
@@ -131,6 +114,10 @@
 .history-changes {
   border-top: 1px solid var(--line-heavy);
   padding-top: var(--space-4);
+}
+
+.history-changes-heading {
+  margin: 0 0 var(--space-3);
 }
 
 .history-change-row {
@@ -147,12 +134,6 @@
 
 .history-change-row strong {
   font-size: var(--text-sm);
-}
-
-.history-change-row p {
-  margin: var(--hair-20) 0 0;
-  color: var(--muted);
-  font-size: var(--text-xs);
 }
 
 .history-integrity {

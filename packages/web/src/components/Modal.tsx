@@ -397,9 +397,11 @@ export function Modal({
     >
       <div ref={setDialogRef} data-testid="modal-panel" data-chrome="default" className={`modal-panel rise${sizeClass}${toneClass}${panelClassName ? ` ${panelClassName}` : ''}`}>
         <header className="modal-header">
-          <h2 id={titleId} className="modal-title">
-            {title}
-          </h2>
+          {title != null && (
+            <h2 id={titleId} className="modal-title">
+              {title}
+            </h2>
+          )}
           <button type="button" className="modal-close" aria-label="Close dialog" onClick={onClose}>
             <Icon name="cross" />
           </button>

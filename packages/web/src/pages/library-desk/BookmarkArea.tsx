@@ -37,6 +37,7 @@ import { useAuth } from '../../auth/AuthContext'
 const FOLDER_COVER_LIMIT = 4
 
 export function BookmarkArea({
+  checklistShown,
   query,
   setQuery,
   filtering,
@@ -342,7 +343,7 @@ export function BookmarkArea({
             </span>
           </p>
         )}
-        <label className="search-field library-desk-search mb-hair-85" data-testid="library-desk-search">
+        <label className="search-field library-desk-search" data-testid="library-desk-search">
           <span className="visually-hidden">Filter bookmarks</span>
           <Icon name="search" />
           <input
@@ -351,6 +352,11 @@ export function BookmarkArea({
             placeholder={BOOKMARK_FILTER_PLACEHOLDER}
             autoComplete="off"
           />
+          {query && (
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setQuery('')}>
+              Clear
+            </button>
+          )}
         </label>
         {tagFilter.counts.length > 0 && (
           // The sidebar lists tags on wide screens; phones reach them here.
@@ -424,13 +430,24 @@ export function BookmarkArea({
               ? 'No bookmark has all of these tags. Remove one, or match any tag.'
               : 'Try another filter or clear the search.'}
             action={
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => { setQuery(''); tagFilter.set([]) }}
-              >
-                Clear filter
-              </button>
+              <>
+                {tagFilter.selected.length > 1 && tagFilter.match === 'all' && !query.trim() && (
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={() => tagFilter.set(tagFilter.selected, 'any')}
+                  >
+                    Match any tag
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => { setQuery(''); tagFilter.set([]) }}
+                >
+                  Clear filter
+                </button>
+              </>
             }
           />
         ) : (
@@ -469,9 +486,11 @@ export function BookmarkArea({
                 <button type="button" className="btn btn-primary btn-sm" onClick={() => openCompose('bookmark')}>
                   Add your first bookmark
                 </button>
-                <button type="button" className="btn btn-ghost btn-sm" onClick={() => openCompose('folder')}>
-                  Add a folder
-                </button>
+                {!checklistShown && (
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => openCompose('folder')}>
+                    Add a folder
+                  </button>
+                )}
               </>
             ) : undefined}
           />

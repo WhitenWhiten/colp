@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import type { AgentConnectCopy } from '../../api/agentsClient'
 import { CommandBlock } from '../../components/CommandBlock'
+import { CopyField } from '../../components/CopyField'
 import { Icon } from '../../components/Icon'
 import { TabList } from '../../components/TabList'
 
@@ -114,81 +115,63 @@ export function ConnectGuide({
         {client === 'other' && (
           <ol className="agents-steps">
             <Step title="Add this server">
-              <p className="agents-note">
-                Add it as a remote MCP server (streamable HTTP). Most clients today want the compatibility endpoint:
-              </p>
-              <CommandBlock label="compatibility endpoint" command={connect.compatUrl} />
-              <p className="agents-note">Clients on MCP 2026-07-28 can use the strict endpoint instead:</p>
-              <CommandBlock label="strict endpoint" command={connect.strictUrl} />
+              <p className="agents-note">Add as a remote MCP server (streamable HTTP):</p>
+              <CopyField label="Compatibility endpoint" value={connect.compatUrl} />
+              <details className="agents-example">
+                <summary><Icon name="chevron-right" className="agents-example-chevron" />Using MCP 2026-07-28?</summary>
+                <CopyField label="Strict endpoint" value={connect.strictUrl} />
+              </details>
             </Step>
             <Step title="Sign in">
               <p className="agents-note">
-                Start the client’s OAuth sign-in for this server: an Authenticate, Connect or Sign in button, or a
-                command such as <code>/mcp auth</code> in Gemini CLI. It opens this server in your browser. Sign in,
-                then allow access on the consent page.
-              </p>
-              <p className="agents-note">
-                Most clients register themselves, so there is no client ID or secret to paste. Clients that run in
-                the cloud, such as claude.ai or ChatGPT connectors, reach this server over the internet and need its
-                public HTTPS address.
-              </p>
-              <p className="agents-note">
-                To let this agent run your automation rules, allow <strong>Do rule work</strong> on that consent page. It then
-                becomes a worker on its own the first time it talks to this server; there is no pairing code.
+                Start the client’s OAuth sign-in for this server (Connect, Sign in, or <code>/mcp auth</code>), then allow access in your browser.
               </p>
               <details className="agents-example">
-                <summary><Icon name="chevron-right" className="agents-example-chevron" />Client asks for a client ID?</summary>
+                <summary><Icon name="chevron-right" className="agents-example-chevron" />Cloud clients, client IDs, or rule work</summary>
                 <p className="agents-note">
-                  Register one. Put the callback address the client shows in place of <code>REDIRECT_URI</code>,
-                  then paste the <code>client_id</code> it returns and leave the secret empty.
+                  Most clients register themselves. Cloud clients (claude.ai, ChatGPT) need this server at a public HTTPS address.
+                  {automationOrigin ? <> Allow <strong>Do rule work</strong> on consent to pair automatically for automation rules.</> : null}
+                </p>
+                <p className="agents-note">
+                  If a client asks for a <code>client_id</code>, register it with your callback as <code>REDIRECT_URI</code> and leave the secret blank:
                 </p>
                 <CommandBlock label="client registration command" command={connect.register} />
               </details>
             </Step>
             <Step title="Ask for a change">
               <p className="agents-note">
-                Try “Move my design links into a Design folder.” The plan shows up on Approvals for you to review.
+                Try “Move my design links into a Design folder.” The plan appears on Approvals for review.
               </p>
             </Step>
           </ol>
         )}
         {client === 'worker' && automationOrigin && (
-          <ol className="agents-steps">
-            <Step title="Give it its own key">
+          <div className="agents-worker-guide">
+            <ol className="agents-steps">
+              <Step title="Give it its own key">
+                <p className="agents-note">
+                  For scripts only — OAuth agents with “Do rule work” pair automatically. Create an API key on the <strong>API key</strong> tab (dedicated keys are required for restricted rules).
+                </p>
+              </Step>
+              <Step title="Add and pair it">
+                <p className="agents-note">
+                  Open <strong>Developer automation connections</strong> above, click <strong>Add worker</strong>, pick the key under <strong>Runs as</strong>, and click <strong>Add and pair</strong>. Copy the one-time settings within 5 minutes.
+                </p>
+              </Step>
+              <Step title="Run the worker">
+                <CommandBlock label="reference worker command" command={workerCommand(automationOrigin)} />
+                <p className="agents-note">
+                  Checks every minute by default; add <code>--once</code> for a single pass.
+                </p>
+              </Step>
+            </ol>
+            <details className="agents-example">
+              <summary><Icon name="chevron-right" className="agents-example-chevron" />Polling vs. hosted events</summary>
               <p className="agents-note">
-                These steps are for a script. An agent that signed in over OAuth and allowed “Do rule work” needs none of them: it
-                pairs by itself on its next call.
+                Polling workers run anywhere that can reach this server, including a home network; the worker’s first pairing confirms its credential. Event wake-ups need a public HTTPS address and a verified subscription — choosing events doesn’t make it active.
               </p>
-              <p className="agents-note">
-                Issue an API key for the worker alone (the API key tab); it then shows under Connected agents. The worker trades
-                it for a token with the <code>automation:work</code> permission. It needs no permission to change your library:
-                its results come back as proposals. A key no other worker or tool uses is required for restricted rules.
-              </p>
-            </Step>
-            <Step title="Add and pair it">
-              <p className="agents-note">
-                Under Automation workers, press <strong>Add worker</strong>, choose the key under <strong>Runs as</strong> if
-                you have several agents, then press <strong>Add and pair</strong>. That lets the key do rule work, and the
-                worker’s first pairing confirms its credential. The pairing settings are shown once and the code works for five
-                minutes; nothing is saved, so copy them straight into the worker’s environment.
-              </p>
-            </Step>
-            <Step title="Run it">
-              <CommandBlock label="reference worker command" command={workerCommand(automationOrigin)} />
-              <p className="agents-note">
-                This is the reference worker from <code>examples/worker-script</code>; any worker using the same calls works.
-                It checks for work every minute by default. Add <code>--once</code> for a single pass.
-              </p>
-            </Step>
-            <Step title="Checking for work, or events?">
-              <p className="agents-note">
-                A worker that checks for work runs anywhere that can reach this server, including a home network. Events wake
-                hosted agents instead, which needs this server at a public HTTPS address and a subscription the server verifies;
-                choosing events doesn’t make it active. Hosted agent services may also need a plan or workspace that allows
-                custom MCP servers. COLP doesn’t create hosted agents or check those plans for you.
-              </p>
-            </Step>
-          </ol>
+            </details>
+          </div>
         )}
         {client === 'key' && (
           <div className="agents-key">

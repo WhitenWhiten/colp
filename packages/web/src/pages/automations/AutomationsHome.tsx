@@ -77,7 +77,7 @@ function pausedLine(pause: AutomationPauseState): string {
       ? `Paused because the server was busy${when}.`
       : `Paused by you${when}.`
   const held = pause.heldJobs > 0 ? ` ${plural(pause.heldJobs, 'job')} on hold.` : ''
-  return `${who}${held} New bookmarks are saved as usual, and no rule moves them until you resume. Bookmarks saved while paused are not processed later.`
+  return `${who}${held} New bookmarks still save normally. Bookmarks saved while paused are not processed later.`
 }
 
 function downloadJson(value: unknown, filename: string) {
@@ -377,10 +377,13 @@ export function AutomationsHome() {
         documentTitle="Automations"
         lede="Rules file the bookmarks you save into the right folder."
         actions={(
-          <Link className="btn btn-primary btn-sm" to="/automations/new">
-            <Icon name="plus" />
-            New rule
-          </Link>
+          <>
+            <Link className="btn btn-secondary btn-sm" to="/automations/digests">Digests</Link>
+            <Link className="btn btn-primary btn-sm" to="/automations/new">
+              <Icon name="plus" />
+              New rule
+            </Link>
+          </>
         )}
       />
 

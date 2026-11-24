@@ -20,17 +20,15 @@ export function GraphView({
   return (
     <PageShell variant="grid" className="graph-page" data-testid="graph-page">
       <PageHead
+        as="header"
+        variant="workbench"
         eyebrow="Connections"
         title={collection.title}
         documentTitle={`${collection.title} connections`}
         breadcrumb={
           <Breadcrumb items={[{ label: collection.title, to: `/c/${slug}` }, { label: 'Knowledge graph' }]} />
         }
-        lede={
-          <>
-            Explore how bookmarks in <strong>{collection.title}</strong> connect through curated relations. Arrows show the direction of each relation.
-          </>
-        }
+        lede="Explore how bookmarks connect through curated relations. Arrows show direction."
       />
 
       <GraphToolbar state={state} />

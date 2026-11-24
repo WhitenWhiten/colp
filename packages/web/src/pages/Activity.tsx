@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { activityApi, type ActivityApi } from '../api/activityClient'
 import { useAuth } from '../auth/AuthContext'
 import { EmptyState } from '../components/EmptyState'
@@ -9,7 +10,6 @@ import { RouteState } from '../components/RouteState'
 import { classifyRouteError } from '../lib/classifyRouteError'
 import { ActivityFeed } from './activity/ActivityFeed'
 import { useActivityInbox } from './activity/useActivityInbox'
-import '../styles/automations.css'
 import '../styles/activity.css'
 
 export function Activity({ api = activityApi }: { api?: ActivityApi } = {}) {
@@ -37,11 +37,23 @@ export function Activity({ api = activityApi }: { api?: ActivityApi } = {}) {
           {inbox.loading && <RouteState kind="loading" loadingLabel="Loading activity…" />}
           {inbox.error !== null && <RouteState kind={classifyRouteError(inbox.error)} icon="bell" feature="Activity" onRetry={retry} />}
           {!inbox.loading && inbox.error === null && inbox.items.length === 0 && (
-            <EmptyState icon={filter === 'unread' ? 'check' : 'bell'} title={filter === 'unread' ? 'You’re all caught up' : 'No activity yet'}
-              description={filter === 'unread' ? 'New activity from your agents will appear here.' : 'When an agent adds bookmarks or a rule finishes work, you’ll see it here.'} />
+            <EmptyState
+              icon={filter === 'unread' ? 'check' : 'bell'}
+              title={filter === 'unread' ? 'You’re all caught up' : 'No activity yet'}
+              description={filter === 'unread' ? 'New activity from your agents will appear here.' : 'When an agent adds bookmarks or a rule finishes work, you’ll see it here.'}
+              action={filter === 'unread' ? (
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setFilter('all')}>Show all activity</button>
+              ) : (
+                <Link className="btn btn-secondary btn-sm" to="/agents">Connect an agent</Link>
+              )}
+            />
           )}
           {inbox.items.length > 0 && <ActivityFeed items={inbox.items} />}
-          {inbox.nextCursor && <LoadMoreButton loading={inbox.loadingMore} onClick={() => void more()}>Load more</LoadMoreButton>}
+          {inbox.nextCursor && (
+            <div className="activity-more">
+              <LoadMoreButton loading={inbox.loadingMore} onClick={() => void more()}>Load more</LoadMoreButton>
+            </div>
+          )}
         </>
       )}
     </PageShell>

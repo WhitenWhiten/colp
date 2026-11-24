@@ -31,6 +31,10 @@ export function useGraphState(slug: string) {
       document.querySelector('.graph-side')?.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
     }
   }
+  const clearActiveId = () => {
+    if (!activeId) return
+    setSearchParams((params) => { params.delete('node'); return params }, { replace: true })
+  }
   const includeRoot = activeId === collection?.rootNodeId
   // Flattening in the render body gave `resources` a fresh identity every
   // frame, so every effect and layout memo keyed on it re-ran on each hover,
@@ -112,6 +116,8 @@ export function useGraphState(slug: string) {
   const posMap = useMemo(() => Object.fromEntries(positions.map((point) => [point.id, point])), [positions])
   const dense = visible.length >= GRAPH_DENSE_COUNT
   const focusId = hoverId && visibleIds.has(hoverId) ? hoverId : selectedId
+  const dimActive = Boolean((hoverId && visibleIds.has(hoverId)) || activeId || neighborhoodId)
+  const hasActiveFilters = Boolean(query.trim() || typeFilter !== 'all' || relationType !== 'all' || neighborhoodId)
   const neighborIds = useMemo(() => neighborsOf(focusId, edges), [focusId, edges])
   const selectedEdges = useMemo(() => filteredEdges.filter((edge) => edge.fromNodeId === selectedId || edge.toNodeId === selectedId), [filteredEdges, selectedId])
   const connectedEdge = (from: string, to: string) => from === focusId || to === focusId
@@ -153,6 +159,9 @@ export function useGraphState(slug: string) {
     activeKind,
     selectedId,
     setActiveId,
+    clearActiveId,
+    dimActive,
+    hasActiveFilters,
     hoverId,
     setHoverId,
     hoverResource,

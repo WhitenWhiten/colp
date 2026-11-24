@@ -65,8 +65,8 @@ function Entry({ item }: { item: ActivityItem }) {
       <span className="activity-icon" data-tone={tone} aria-hidden><Icon name={glyph} /></span>
       <div className="activity-body">
         <h3 className="activity-title">{href ? <Link to={href}>{title}</Link> : title}</h3>
-        <p className="automation-meta">
-          {!added && item.count > 0 && <>{plural(item.count, 'new digest')} · </>}
+        <p className="activity-meta">
+          {item.kind.startsWith('run_') && item.count > 0 && <>{plural(item.count, 'new digest')} · </>}
           <time dateTime={item.updatedAt} title={formatDateTime(item.updatedAt)}>{formatRelative(item.updatedAt)}</time>
         </p>
         {item.plan && <p className="activity-plan" title={item.plan.summary}>{item.plan.summary}</p>}
@@ -78,6 +78,9 @@ function Entry({ item }: { item: ActivityItem }) {
                 {member.title && member.host && <>{' '}<span className="activity-host">{displayHost(member.host)}</span></>}
               </li>
             ))}
+            {item.items.length > 5 && (
+              <li className="activity-samples-more">+{plural(item.items.length - 5, 'more bookmark')}</li>
+            )}
           </ul>
         )}
         {added && item.folders.length > 1 && (

@@ -134,8 +134,8 @@ const SHARED_ROUTE_STYLESHEETS: Record<string, string[]> = {
   // Absence poster (404 digits + unavailable subjects). Loaded by each route
   // that paints the stage, not by the entry.
   'not-found.css': ['NotFound.tsx', 'Collection.tsx', 'Graph.tsx', 'ResourceDetail.tsx'],
-  // Automations: the rule pages, Activity, and the bookmark's Automation section.
-  'automations.css': ['Automations.tsx', 'Activity.tsx', 'ResourceDetail.tsx'],
+  // Automations: the rule pages and the bookmark's Automation section.
+  'automations.css': ['Automations.tsx', 'ResourceDetail.tsx'],
 }
 
 function stripComments(source: string): string {

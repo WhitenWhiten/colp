@@ -12,8 +12,8 @@ import { automationApi as defaultAutomationApi, type AutomationApi } from '../ap
 import { ProductApiError } from '../api/errors'
 import { useAuth } from '../auth/AuthContext'
 import { useToast } from '../components/AppToast'
-import { CommandBlock } from '../components/CommandBlock'
 import { useConfirm } from '../components/ConfirmModal'
+import { CopyField } from '../components/CopyField'
 import { EmptyState, LoadingState } from '../components/EmptyState'
 import { RouteState } from '../components/RouteState'
 import { Icon } from '../components/Icon'
@@ -192,6 +192,7 @@ export function Agents({
       const next = await api.putAgentPolicy(agent.id, policy)
       if (!mounted.current || identityRef.current !== identityAtStart) return
       setAgents((current) => current.map((item) => item.id === agent.id ? { ...item, policy: next.policy } : item))
+      success(`${agent.name} set to ${next.policy === 'trusted' ? 'Trusted' : 'Manual'}.`)
     } catch (error) {
       if (!mounted.current || identityRef.current !== identityAtStart) return
       setAgents((current) => current.map((item) => item.id === agent.id ? { ...item, policy: previous } : item))
@@ -318,8 +319,11 @@ export function Agents({
             <Icon name="alert" />
             <span><strong>Copy “{issued.name}” now.</strong> It will not be shown again.</span>
           </p>
-          <CommandBlock label="API key" command={issued.secret} />
-          <p className="agents-note">Use it as <code>KEY</code> in the curl example below.</p>
+          <CopyField label="API key" value={issued.secret} />
+          <div className="agents-secret-foot">
+            <p className="agents-note">Use it as <code>KEY</code> in the curl example below.</p>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setIssued(null)}>Done, hide it</button>
+          </div>
         </div>
       )}
     </div>
@@ -338,6 +342,16 @@ export function Agents({
         title="Agents"
         documentTitle="Agents"
         lede="Let AI agents read and organize your library over MCP. You approve what they change."
+        actions={isLoggedIn ? (
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            disabled={loading}
+            onClick={() => void retryLoad()}
+          >
+            {loading ? 'Refreshing…' : 'Refresh'}
+          </button>
+        ) : undefined}
       />
 
       <div className="agents-layout">
@@ -349,10 +363,10 @@ export function Agents({
 
           {!bootstrapping && !isLoggedIn && sessionState !== 'offline' && (
             <EmptyState
-              icon="alert"
-              className="agents-signed-out"
+              icon="lock"
+              className="empty-state--compact"
               title="Sign in to manage agents"
-              description="The instructions below already point at this server. Sign in to see connected agents, set their policy, and issue keys."
+              description="Sign in to view connected agents, change approval policies, or issue API keys."
               action={<Link to={loginPath('/agents')} className="btn btn-primary btn-sm">Sign in</Link>}
             />
           )}
@@ -387,7 +401,7 @@ export function Agents({
                     <li key={agent.id}>
                       <AgentCard
                         agent={agent}
-                        busy={busyId === agent.id}
+                        busy={busyId !== null}
                         activity={openId === agent.id ? activity : { status: 'closed' }}
                         onPolicy={(policy) => void setPolicy(agent, policy)}
                         onToggleActivity={() => void toggleActivity(agent)}
@@ -409,7 +423,7 @@ export function Agents({
           {isLoggedIn && automationsOn && (
             <details className="agents-section agents-example">
               <summary><Icon name="chevron-right" className="agents-example-chevron" />Developer automation connections</summary>
-              <p className="agents-note">For summaries and tags, <Link to="/automations/new">connect an AI while creating a rule</Link>.</p>
+              <p className="agents-note">For summaries and tags, <Link to="/automations/new">connect an agent while creating a rule</Link>.</p>
               <AutomationWorkersSection
               workers={workers}
               agents={agents}

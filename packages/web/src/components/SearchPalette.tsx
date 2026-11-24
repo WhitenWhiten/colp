@@ -67,8 +67,27 @@ export function SearchPalette({ open, onClose }: Props) {
                while the palette is open (it is not a popup that collapses).
                The listbox role below only applies when real options exist. */
             {...kb.comboboxProps} />
-          <button type="button" className="btn btn-ghost btn-sm" onClick={openFullSearch}>See all results</button>
-          <kbd>Esc</kbd>
+          {query && (
+            <button
+              type="button"
+              className="search-palette-clear"
+              aria-label="Clear search"
+              onClick={() => {
+                setQuery('')
+                inputRef.current?.focus({ preventScroll: true })
+              }}
+            >
+              <Icon name="cross" />
+            </button>
+          )}
+          {query.trim() && (
+            <button type="button" className="btn btn-ghost btn-sm search-palette-all" onClick={openFullSearch}>
+              See all results
+            </button>
+          )}
+          <button type="button" className="search-palette-esc" onClick={onClose} aria-label="Close search">
+            <kbd>Esc</kbd>
+          </button>
           {/* R7-13: phones have no Esc key — the sheet needs a tap target.
               Hidden on pointer layouts by search.css. */}
           <button type="button" className="btn btn-ghost btn-sm search-palette-cancel" onClick={onClose}>
@@ -118,6 +137,13 @@ export function SearchPalette({ open, onClose }: Props) {
               <span className="meta" aria-hidden>↵</span>
             </button>
           ))}
+          {query.trim() && search.state !== 'loading' && (
+            <div className="search-palette-mobile-all">
+              <button type="button" className="btn btn-secondary btn-sm" onClick={openFullSearch}>
+                See all results
+              </button>
+            </div>
+          )}
         </div>
         <div className="search-palette-foot" aria-hidden>
           <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span><span><kbd>↵</kbd> open</span><span><kbd>Esc</kbd> close</span>

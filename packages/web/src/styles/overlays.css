@@ -150,8 +150,17 @@
     animation: modal-sheet-in var(--duration-spatial) var(--ease-out) backwards;
   }
 
+  .modal-panel--danger {
+    border-top: 3px solid var(--danger);
+  }
+
   .modal-overlay.is-closing .modal-panel {
     animation: modal-sheet-out var(--duration-state) var(--ease-quart) forwards;
+  }
+
+  .modal-header {
+    padding-left: calc(var(--space-5) + var(--safe-left));
+    padding-right: calc(var(--space-5) + var(--safe-right));
   }
 
   .modal-body {

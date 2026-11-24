@@ -86,8 +86,8 @@ export function PreviewPanel({
       )}
       <p className="automation-preview-lede">
         {total === 0
-          ? <>There are no bookmarks in {where} to try it on yet. That is fine: the rule still files new ones.</>
-          : <>Tried on your {plural(total, 'most recent bookmark')} in {where}{result.truncated ? ' (a sample)' : ''}. Nothing was changed.</>}
+          ? <>No bookmarks in {where} yet; new saves will still be filed.</>
+          : <>Checked {plural(total, 'recent bookmark')} in {where}{result.truncated ? ' (sample)' : ''}. Nothing changed.</>}
       </p>
       {total > 0 && (
         <ul className="automation-preview-stats" aria-label="Preview totals">
@@ -105,7 +105,7 @@ export function PreviewPanel({
       )}
       {total > 0 && matched === 0 && (
         <p className="automation-preview-note">
-          None of these bookmarks match. That can be right for a rule about new kinds of pages; check the conditions if you expected matches.
+          No matches yet. Check the conditions if you expected matches.
         </p>
       )}
       {groups.map((group) => (
@@ -131,8 +131,7 @@ export function PreviewPanel({
         </ul>
       )}
       <p className="automation-meta">
-        Uses your bookmarks as they are now. A turned-on rule files the bookmarks you save from then on;
-        to file the ones you already have, use Run once on the rule’s page.
+        Applies to new saves; use Run once on the rule’s page for existing bookmarks.
       </p>
     </section>
   )

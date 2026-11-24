@@ -149,8 +149,8 @@ export function AgentConnection({ definition, bindings, current, configurationKe
   ].join(' ')
   const waiting = target?.wakeReadiness === 'waitingForPairing'
   const waitingCopy = !target ? '' : !waiting ? readinessReason(target.wakeReason)
-    : selfPairing ? `Waiting for ${chosenAgent.name} to connect. It pairs by itself the next time it talks to this server. Open a chat with it and ask it to check your COLP automations.`
-    : 'Paste the connection request into your AI to continue here.'
+    : selfPairing ? `Waiting for ${chosenAgent.name} to connect. Open a chat with it and ask it to check your COLP automations.`
+    : 'Paste the connection request into your agent to continue.'
   const newRequestNeeded = !selfPairing && ['waitingForPairing', 'blocked'].includes(target?.wakeReadiness ?? '') && !grant?.code
   const preparedCurrent = prepared && prepared.key === JSON.stringify(definition) && configurationReady
   const active = target?.wakeReadiness === 'active'
@@ -169,25 +169,31 @@ export function AgentConnection({ definition, bindings, current, configurationKe
     {(directory.state.status === 'error' || workers.data.status === 'error') && <p role="alert">Could not load AI connections. <button type="button" className="btn btn-ghost btn-sm" onClick={() => { directory.reload(); workers.reload() }}>Try again</button></p>}
     <p className="field-hint">Shares {sharedFields} for this rule. Changes require your approval. Provider charges may apply.</p>
     {needsPermission && !target && <p className="field-hint" role="status" data-testid="automation-agent-permission">
-      {chosenAgent.name} signed in without permission to do rule work. Reconnect it and allow “Do rule work” on the sign-in page; it then pairs by itself, with no code.
+      {chosenAgent.name} lacks “Do rule work” permission. Reconnect it and allow “Do rule work” on consent.
     </p>}
     {(!preparedCurrent || !target) && chosen && <button type="button" className="btn btn-secondary" disabled={disabled || busy || !canPrepare || !bindings || needsPermission} onClick={() => void prepare()}>
       {busy ? 'Connecting…' : 'Connect and test'}
     </button>}
     {target && preparedCurrent && <>
-      {!active && <div role="status">
+      {!active && <div className="automation-agent-status" role="status">
         <p>{waitingCopy}</p>
-        {newRequestNeeded
-          ? <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void newRequest()}>Make a new connection request</button>
-          : <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void copyTextToClipboard(request).then(() => setNotice('Copied. Paste it into your AI.')).catch(() => setNotice('Open the connection request below and copy it manually.'))}>Copy connection request</button>}
-        {grant?.code && !selfPairing && <p className="field-hint">One use. Expires {formatDateTime(grant.expiresAt)}.</p>}
+        <div className="automation-agent-actions">
+          {newRequestNeeded
+            ? <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void newRequest()}>Make a new connection request</button>
+            : <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void copyTextToClipboard(request).then(() => setNotice('Copied. Paste it into your agent.')).catch(() => setNotice('Open the connection request below and copy it manually.'))}>Copy connection request</button>}
+        </div>
+        {grant?.code && !selfPairing && <p className="field-hint">One use · expires {formatDateTime(grant.expiresAt)}.</p>}
         {(selfPairing || grant?.code || target.wakeReadiness === 'waitingForSubscription') && <details className="automation-disclosure"><summary><Icon name="chevron-right" className="automation-disclosure-chevron" />View connection request</summary><CommandBlock label="connection request" command={request} /></details>}
-        <p className="field-hint">{selfPairing ? 'It must support background execution to keep running future tasks.' : 'A connected chat may need a new sign-in for task permission. It must support background execution to keep running future tasks.'}</p>
+        <p className="field-hint">Background execution in your host is required for future tasks.</p>
       </div>}
-      {active && <p role="status">Paired. Run a test to check that this AI can execute tasks.</p>}
-      {active && <><button type="button" className="btn btn-secondary btn-sm" onClick={() => void copyTextToClipboard(request).then(() => setNotice('Copied. Paste it into your AI after starting the test.')).catch(() => setNotice('Open the connection request and copy it manually.'))}>Copy task request</button>
+      {active && <div className="automation-agent-status">
+        <p role="status">Paired. Run a test below to verify task execution.</p>
+        <div className="automation-agent-actions">
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => void copyTextToClipboard(request).then(() => setNotice('Copied. Paste it into your agent after starting the test.')).catch(() => setNotice('Open the task request below and copy it manually.'))}>Copy task request</button>
+        </div>
         <details className="automation-disclosure"><summary><Icon name="chevron-right" className="automation-disclosure-chevron" />View task request</summary><CommandBlock label="task request" command={request} /></details>
-        {target.wakeMode === 'poll' && <p className="field-hint">Future tasks need a recurring invocation in your AI host. COLP does not start that schedule.</p>}</>}
+        {target.wakeMode === 'poll' && <p className="field-hint">Future tasks need a recurring schedule in your agent host.</p>}
+      </div>}
       {active && <AgentTest key={configurationKey} rule={prepared.rule} connected={active} onVerified={onVerified} />}
     </>}
     {notice && <p className="field-hint" role="status">{notice}</p>}

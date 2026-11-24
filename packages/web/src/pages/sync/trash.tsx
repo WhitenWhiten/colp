@@ -3,7 +3,7 @@ import type {
 } from '../../api'
 import { useConfirm } from '../../components/ConfirmModal'
 import { DataTable, DataTableCell, DataTableRow } from '../../components/DataTable'
-import { EmptyState } from '../../components/EmptyState'
+import { EmptyState, LoadingState } from '../../components/EmptyState'
 import { RouteState } from '../../components/RouteState'
 import { formatInstant } from './fields'
 import {
@@ -16,7 +16,7 @@ import { productName } from '../../lib/edition'
 export function TrashSection({
   collectionTitles = {}, collectionId, items, details, drafts, receipts, notices,
   selected, batchDraft, emptyDraft, batchView, emptyView,
-  error, errorKind, disabled, onRevealUrl, onRestore, onReplay, onNewIntent, onRetry,
+  loading = false, error, errorKind, disabled, onRevealUrl, onRestore, onReplay, onNewIntent, onRetry,
   onToggleSelected, onToggleAll, onRestoreSelected, onReplayBatch, onRestoreSubtree, onStartEmpty,
   onCancelEmpty, onConfirmEmpty, onReplayEmpty,
 }: {
@@ -32,6 +32,7 @@ export function TrashSection({
   emptyDraft: EmptyTrashDraft
   batchView: SyncTrashRestoreBatchView | null
   emptyView: SyncTrashEmptyView | null
+  loading?: boolean
   error: string | null
   errorKind: 'auth' | 'stale' | 'other' | null
   disabled: boolean
@@ -77,10 +78,13 @@ export function TrashSection({
         <RouteState className="empty-state--compact" kind="auth" icon="link" title="Sign in to see deleted items" description="Sign in again to view deleted items." />
       )}
       {error && errorKind !== 'auth' && (
-        <RouteState className="sync-error empty-state--compact" kind="error" icon="link"
+        <RouteState className="empty-state--compact" kind="error" icon="link"
           title="Couldn't load deleted items" description={error} onRetry={onRetry} />
       )}
-      {!error && items.length === 0 && receiptList.length === 0 && noticeList.length === 0
+      {loading && !error && items.length === 0 && (
+        <LoadingState label="Loading deleted items…" />
+      )}
+      {!loading && !error && items.length === 0 && receiptList.length === 0 && noticeList.length === 0
         && !batchView && !emptyView && (
         <EmptyState className="empty-state--compact empty-state--slot sync-empty" icon="trash" title="No deleted items"
           description="Bookmarks deleted in a synced browser wait here, ready to restore." />
@@ -124,7 +128,7 @@ export function TrashSection({
           ) : emptyDraft.phase === 'unknown' ? (
             <button type="button" className="btn btn-primary btn-sm" disabled={disabled} onClick={onReplayEmpty}>Retry empty trash</button>
           ) : (
-            <button type="button" className="btn btn-secondary btn-sm" disabled={disabled || busy || emptyDraft.phase === 'confirming'}
+            <button type="button" className="btn btn-danger-ghost btn-sm" disabled={disabled || busy || emptyDraft.phase === 'confirming'}
               onClick={() => void startEmpty()}>Empty trash</button>
           )}
         </div>
@@ -221,7 +225,7 @@ function TrashRow({ item, draft, url, revealed, selected, subtree, disabled, bus
       </dl>
     </DataTableCell>
     <DataTableCell className="trash-actions">
-      {!revealed && <button type="button" className="btn btn-ghost btn-sm" disabled={disabled || rowBusy} onClick={onReveal}>Show URL</button>}
+      {item.kind === 'bookmark' && !revealed && <button type="button" className="btn btn-ghost btn-sm" disabled={disabled || rowBusy} onClick={onReveal}>Show URL</button>}
       {item.kind === 'folder' && subtree && draft.phase === 'idle' && (
         <button type="button" className="btn btn-secondary btn-sm" disabled={disabled || rowBusy}
           onClick={onRestoreSubtree} aria-label={`Restore folder tree ${item.title ?? 'deleted folder'}`}>Restore folder tree</button>
@@ -232,7 +236,7 @@ function TrashRow({ item, draft, url, revealed, selected, subtree, disabled, bus
           ? <button type="button" className="btn btn-primary btn-sm" disabled={disabled} onClick={onRestore}>Restore with latest version</button>
           : draft.phase === 'blocked' && draft.frozen
             ? <button type="button" className="btn btn-secondary btn-sm" disabled={disabled} onClick={onNewIntent}>Start new restore</button>
-            : <button type="button" className="btn btn-primary btn-sm" disabled={disabled || rowBusy} onClick={onRestore}
+            : <button type="button" className="btn btn-secondary btn-sm" disabled={disabled || rowBusy} onClick={onRestore}
               aria-label={`Restore ${item.title ?? 'deleted item'}`}>{rowBusy && draft.phase === 'submitting' ? 'Restoring…' : 'Restore'}</button>}
     </DataTableCell>
     {/* Full-width spills render after the actions cell so grid auto-placement

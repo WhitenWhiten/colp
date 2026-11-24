@@ -111,7 +111,7 @@ export function ProfileSection({ onDirtyChange }: { onDirtyChange?: (dirty: bool
   return (
     <section className="settings-section">
       <div className="settings-section-head">
-        <h3 className="settings-toggle-label">Profile</h3>
+        <h2 className="settings-section-title">Profile</h2>
         <p className="meta">Your picture and name in the account menu and on folders you share.</p>
       </div>
       <form
@@ -119,7 +119,7 @@ export function ProfileSection({ onDirtyChange }: { onDirtyChange?: (dirty: bool
         onSubmit={saveProfile}
       >
         <div className="field">
-          <label htmlFor="set-avatar-file">Avatar</label>
+          <span className="field-label">Avatar</span>
           <div className="settings-avatar-row">
             <span className="avatar avatar-lg settings-avatar-preview" aria-hidden data-testid="settings-avatar-preview">
               <AvatarImage url={user?.avatarUrl} initials={user?.initials ?? ''} />

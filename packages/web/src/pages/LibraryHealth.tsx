@@ -245,6 +245,10 @@ export function LibraryHealth() {
     }
   }, [items, loadingMore, nextCursor, route, toastError])
 
+  const duplicateTitles = useMemo(
+    () => new Map(items.map((item) => [item.nodeId, item.title])),
+    [items],
+  )
   const healthyCount = items.filter((item) => item.status === 'healthy').length
   const issueCount = items.length - healthyCount
   const healthyPct = items.length === 0 ? 0 : (healthyCount / items.length) * 100
@@ -267,6 +271,7 @@ export function LibraryHealth() {
       <PageShell variant="grid" className="health-page" data-testid="link-health-flag-off">
         <EmptyState
           icon="link"
+          titleAs="h1"
           title="Link health is not available yet"
           description={libraryFeatureUnavailable('Link health')}
         />
@@ -288,6 +293,16 @@ export function LibraryHealth() {
         lede="Find unavailable sources, redirects, and duplicates before readers reach them."
         actions={
           <>
+            {route.status === 'ready' && (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={checking || loading}
+                onClick={() => void route.reload()}
+              >
+                Refresh
+              </button>
+            )}
             <button
               type="button"
               className="btn btn-primary btn-sm"
@@ -330,18 +345,15 @@ export function LibraryHealth() {
       ) : (
         <>
           {error && (
-            <EmptyState
-              className="health-empty"
-              role="alert"
-              icon="link"
-              title="Couldn't start the link check"
-              description={error}
-              action={
-                <button type="button" className="btn btn-secondary btn-sm" onClick={() => void checkAll()}>
-                  Try again
-                </button>
-              }
-            />
+            <div className="health-error-banner" role="alert">
+              <div>
+                <strong>Couldn’t start the link check</strong>
+                <p>{error}</p>
+              </div>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => void checkAll()}>
+                Try again
+              </button>
+            </div>
           )}
           {filter === 'all' ? (
             <section className="health-overview">
@@ -424,6 +436,7 @@ export function LibraryHealth() {
                   key={item.nodeId}
                   item={item}
                   scope={scope}
+                  duplicateTitle={item.duplicateOfNodeId ? duplicateTitles.get(item.duplicateOfNodeId) : undefined}
                   busy={checking || busyNodeId === item.nodeId}
                   rowError={rowErrors[item.nodeId]}
                   onMark={(target) => void markDuplicate(target)}

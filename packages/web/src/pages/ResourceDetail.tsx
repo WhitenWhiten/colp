@@ -6,6 +6,7 @@ import { loginPath } from '../lib/chrome'
 import { plural } from '../lib/plural'
 import { useAuth } from '../auth/AuthContext'
 import { ABSENCE_CORNERS, AbsenceStage } from '../components/AbsenceStage'
+import { CopyButton } from '../components/CommandBlock'
 import { Icon } from '../components/Icon'
 import { PageHead } from '../components/PageHead'
 import { PageSection, PageShell } from '../components/PageShell'
@@ -159,9 +160,10 @@ function ResourceDetailContent() {
   const [searchParams] = useSearchParams()
   const { isLoggedIn, bootstrapping, user } = useAuth()
   const allowWrite = isLoggedIn || bootstrapping
+  const [reloadNonce, setReloadNonce] = useState(0)
   // The Automation section asks only a server that offers automations.
   const automation = useAutomationStatus(isLoggedIn ? user?.accountId ?? null : null)
-  const resolved = useResourceNode(id, searchParams.get('fromGraph') === '1')
+  const resolved = useResourceNode(id, searchParams.get('fromGraph') === '1', reloadNonce)
   const annotationsEnabled = isLive('annotations')
     || String(import.meta.env?.VITE_ANNOTATIONS_ACCEPTANCE ?? '').toLowerCase() === 'true'
   const collectionId = searchParams.get('collectionId')?.trim() ?? ''
@@ -299,7 +301,9 @@ function ResourceDetailContent() {
               ? <Link to={loginPath(pathname, search)} className="btn btn-secondary">Sign in</Link>
               : resolved.status === 'needs-collection'
                 ? <Link to="/library" className="btn btn-secondary">Open library</Link>
-                : undefined}
+                : resolved.status === 'error'
+                  ? <button type="button" className="btn btn-secondary btn-sm" onClick={() => setReloadNonce((n) => n + 1)}>Try again</button>
+                  : undefined}
           />
         </PageSection>
       </PageShell>
@@ -344,7 +348,8 @@ function ResourceDetailContent() {
               card's own footer rail. */}
           <PageHead
             as="header"
-            className="page-head--editorial resource-head"
+            variant="editorial"
+            className="resource-head"
             avatar={
               isContainer ? (
                 <span className="resource-mark resource-mark--tile">
@@ -372,11 +377,24 @@ function ResourceDetailContent() {
               robots: slug && !isContainer ? null : 'noindex',
             }}
             lede={node.description || undefined}
-            actions={originalHref ? (
-              <a className="btn btn-primary" href={originalHref} target="_blank" rel={UGC_REL}>
-                Open original
-                <Icon name="arrow-up-right" />
-              </a>
+            actions={(originalHref || (allowWrite && collectionId)) ? (
+              <>
+                {originalHref && (
+                  <a className="btn btn-primary" href={originalHref} target="_blank" rel={UGC_REL}>
+                    Open original
+                    <Icon name="arrow-up-right" />
+                  </a>
+                )}
+                {originalHref && <CopyButton label="bookmark link" text={originalHref} />}
+                {allowWrite && collectionId && (
+                  <Link
+                    className="btn btn-secondary"
+                    to={`/library/${encodeURIComponent(collectionId)}?node=${encodeURIComponent(node.id)}`}
+                  >
+                    Edit details
+                  </Link>
+                )}
+              </>
             ) : undefined}
           >
             {/* A bare-domain URL would only repeat the host line. */}
@@ -422,8 +440,6 @@ function ResourceDetailContent() {
 
             {annotationsEnabled && allowWrite && (
               <section className="resource-section" aria-labelledby="resource-annotation-heading">
-                {/* The count and Edit details share the heading's row, so a
-                    bookmark without notes is one line here. */}
                 <div className="section-head section-head--split resource-section-head">
                   <h2 id="resource-annotation-heading">Annotations</h2>
                   <div className="resource-section-tools">
@@ -435,14 +451,6 @@ function ResourceDetailContent() {
                           ? annotation.message
                           : annotationSummaryCopy(annotation.annotations)}
                     </p>
-                    {collectionId && (
-                      <Link
-                        className="btn btn-secondary btn-sm"
-                        to={`/library/${encodeURIComponent(collectionId)}?node=${encodeURIComponent(node.id)}`}
-                      >
-                        Edit details
-                      </Link>
-                    )}
                   </div>
                 </div>
                 {annotation.annotations.length > 0 ? (
@@ -480,7 +488,9 @@ function ResourceDetailContent() {
                   <h2 id="resource-relations-heading">Relations</h2>
                   {allowWrite && (
                     <div className="resource-section-tools">
-                      <p className="resource-section-status" role="status" aria-live="polite" data-relation-state={relations.state} data-error={relations.state === 'error' ? 'true' : undefined}>{relations.message}</p>
+                      {!['error', 'stale', 'unknown', 'conflict'].includes(relations.state) && (
+                        <p className="resource-section-status" role="status" aria-live="polite" data-relation-state={relations.state}>{relations.message}</p>
+                      )}
                       {relationLocator && relations.canEdit && (
                         <button
                           ref={addRelationButton}
@@ -498,9 +508,14 @@ function ResourceDetailContent() {
                     </div>
                   )}
                 </div>
-                {!relations.editing && relations.state === 'unknown' && <button className="btn btn-secondary btn-sm relation-recovery" type="button" onClick={relations.retry}>Retry</button>}
-                {!relations.editing && relations.state === 'conflict' && <button className="btn btn-secondary btn-sm relation-recovery" type="button" onClick={relations.startNew}>Start new action</button>}
-                {relations.state === 'error' && <button className="btn btn-secondary btn-sm relation-recovery" type="button" onClick={() => void relations.reload()}>Refresh relations</button>}
+                {['error', 'stale', 'unknown', 'conflict'].includes(relations.state) && (
+                  <div className="relation-banner" data-tone={relations.state === 'error' || relations.state === 'conflict' ? 'danger' : 'warning'}>
+                    <p role="status" aria-live="polite" data-relation-state={relations.state} data-error={relations.state === 'error' ? 'true' : undefined}>{relations.message}</p>
+                    {!relations.editing && relations.state === 'unknown' && <button className="btn btn-secondary btn-sm" type="button" onClick={relations.retry}>Retry</button>}
+                    {!relations.editing && relations.state === 'conflict' && <button className="btn btn-secondary btn-sm" type="button" onClick={relations.startNew}>Start new action</button>}
+                    {relations.state === 'error' && <button className="btn btn-secondary btn-sm" type="button" onClick={() => void relations.reload()}>Refresh relations</button>}
+                  </div>
+                )}
 
                 {allowWrite && relations.canEdit && relationLocator && creatingRelation && (
                   <form id={RELATION_CREATE_FORM_ID} className="relation-form relation-create" onSubmit={(event) => { event.preventDefault(); void relations.create(newRelation) }} aria-label="Create relation">
@@ -532,8 +547,12 @@ function ResourceDetailContent() {
 
                 {allowWrite && hasRelations && (
                   <>
-                    <RelationDirection title="Outgoing relations" relations={relations.outgoing} nodes={relations.nodes} currentNodeId={id} collectionId={collectionId} graphSlug={graphReturn ? slug : undefined} canEdit={relations.canEdit} disabled={relationMutationLocked} onEdit={onEditRelation} onDelete={relations.remove} />
-                    <RelationDirection title="Incoming relations" relations={relations.incoming} nodes={relations.nodes} currentNodeId={id} collectionId={collectionId} graphSlug={graphReturn ? slug : undefined} canEdit={relations.canEdit} disabled={relationMutationLocked} onEdit={onEditRelation} onDelete={relations.remove} />
+                    {relations.outgoing.length > 0 && (
+                      <RelationDirection title="Outgoing relations" relations={relations.outgoing} nodes={relations.nodes} currentNodeId={id} collectionId={collectionId} graphSlug={graphReturn ? slug : undefined} canEdit={relations.canEdit} disabled={relationMutationLocked} onEdit={onEditRelation} onDelete={relations.remove} />
+                    )}
+                    {relations.incoming.length > 0 && (
+                      <RelationDirection title="Incoming relations" relations={relations.incoming} nodes={relations.nodes} currentNodeId={id} collectionId={collectionId} graphSlug={graphReturn ? slug : undefined} canEdit={relations.canEdit} disabled={relationMutationLocked} onEdit={onEditRelation} onDelete={relations.remove} />
+                    )}
                   </>
                 )}
 
@@ -618,7 +637,7 @@ function RelationDirection({ title, relations, nodes, currentNodeId, collectionI
   const headingId = `relation-${title.toLowerCase().replaceAll(' ', '-')}`
   return <section className="relation-direction" aria-labelledby={headingId}>
     <h3 id={headingId} className="section-label">{title}</h3>
-    {relations.length === 0 ? <p className="resource-relations-empty">No {title.toLowerCase()}.</p> : <ul>
+    <ul>
       {relations.map((relation) => {
         const endpointId = relation.fromNodeId === currentNodeId ? relation.toNodeId : relation.fromNodeId
         const endpointNode = nodes.find((node) => node.id === endpointId)
@@ -628,7 +647,7 @@ function RelationDirection({ title, relations, nodes, currentNodeId, collectionI
           <div className="relation-row-content">
             <span className="relation-row-main">
               <Icon
-                name={relation.fromNodeId === currentNodeId ? 'arrow-up-right' : 'arrow-left'}
+                name={relation.fromNodeId === currentNodeId ? 'arrow-right' : 'arrow-left'}
                 className="relation-row-dir"
               />
               <Link to={resourceDetailPath(endpointId, { collectionId, subjectType: 'node', ...(graphSlug ? { slug: graphSlug, fromGraph: true } : {}) })} aria-label={endpointLabel}>{endpointTitle}</Link>
@@ -642,6 +661,6 @@ function RelationDirection({ title, relations, nodes, currentNodeId, collectionI
           </div>}
         </li>
       })}
-    </ul>}
+    </ul>
   </section>
 }

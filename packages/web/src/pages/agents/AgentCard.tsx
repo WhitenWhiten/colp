@@ -162,10 +162,20 @@ export function AgentCard({
 
       <div className="agent-card-policy">
         <div className="view-switch" role="group" aria-label={`Approval policy for ${agent.name}`}>
-          <button type="button" aria-pressed={agent.policy === 'manual'} disabled={busy} onClick={() => onPolicy('manual')}>
+          <button
+            type="button"
+            aria-pressed={agent.policy === 'manual'}
+            disabled={busy}
+            onClick={() => onPolicy('manual')}
+          >
             Manual
           </button>
-          <button type="button" aria-pressed={agent.policy === 'trusted'} disabled={busy} onClick={() => onPolicy('trusted')}>
+          <button
+            type="button"
+            aria-pressed={agent.policy === 'trusted'}
+            disabled={busy}
+            onClick={() => onPolicy('trusted')}
+          >
             Trusted
           </button>
         </div>

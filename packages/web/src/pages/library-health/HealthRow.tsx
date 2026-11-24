@@ -33,10 +33,11 @@ export function resourceMeta(
 }
 
 export function HealthRow({
-  item, scope, busy, rowError, onMark, onUndo, onRetryCheck,
+  item, scope, duplicateTitle, busy, rowError, onMark, onUndo, onRetryCheck,
 }: {
   item: LinkHealthItem
   scope: 'owned' | 'shared' | 'all'
+  duplicateTitle?: string
   busy: boolean
   rowError?: string
   onMark: (item: LinkHealthItem) => void
@@ -85,11 +86,15 @@ export function HealthRow({
             <a href={item.finalUrl} title={item.finalUrl} target="_blank" rel="noopener noreferrer">{item.finalUrl}</a>
           </p>
         ) : reviewed ? (
-          <p>Reviewed as a duplicate. Both bookmarks stay in your library.</p>
+          <p title="Reviewed as a duplicate. Both bookmarks stay in your library.">Reviewed as a duplicate. Both bookmarks stay in your library.</p>
         ) : candidate ? (
-          <p>Possible duplicate of another bookmark in your library</p>
+          <p title={duplicateTitle ? `Possible duplicate of another bookmark: “${duplicateTitle}”` : 'Possible duplicate of another bookmark in your library'}>
+            {duplicateTitle
+              ? `Possible duplicate of another bookmark: “${duplicateTitle}”`
+              : 'Possible duplicate of another bookmark in your library'}
+          </p>
         ) : reason ? (
-          <p>{reason}</p>
+          <p title={reason}>{reason}</p>
         ) : null}
       </DataTableCell>
       <DataTableCell className="health-checked">

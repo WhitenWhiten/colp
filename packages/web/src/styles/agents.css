@@ -47,13 +47,6 @@
   letter-spacing: var(--tracking-tight);
 }
 
-.agents-signed-out {
-  width: 100%;
-  padding-block: var(--space-6);
-  border: 1px dashed var(--line-strong);
-  border-radius: var(--radius-lg);
-}
-
 .agents-note {
   margin: 0;
   max-width: var(--measure);
@@ -197,6 +190,12 @@
   height: 1rem;
 }
 
+@media (pointer: coarse) {
+  .agent-card-toggle {
+    min-height: 2.75rem;
+  }
+}
+
 .agent-card-activity {
   margin-top: calc(-1 * var(--space-2));
 }
@@ -294,7 +293,12 @@
 /* The ribbon marker itself is the edition's (edition.css). */
 .agents-step::before {
   content: counter(agents-step);
-  grid-row: 1 / span 3;
+  grid-row: 1;
+}
+
+.agents-worker-guide {
+  display: grid;
+  gap: var(--space-5);
 }
 
 .agents-step > * {
@@ -361,6 +365,14 @@
   width: 1.1rem;
   height: 1.1rem;
   color: var(--warning);
+}
+
+.agents-secret-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
 }
 
 /* The page's disclosures read as the rest of the product's: a muted
@@ -440,6 +452,26 @@
 
 .agent-automation-row:last-child {
   border-bottom: 0;
+}
+
+.agent-automation-tasks {
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.agent-automation-tasks legend {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.agent-automation-tasks > .field-hint {
+  margin: var(--hair-15) 0 var(--space-1);
+}
+
+.agent-automation-task-list {
+  display: grid;
+  padding-inline-start: var(--space-4);
 }
 
 .agents-worker-reason {

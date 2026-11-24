@@ -85,7 +85,7 @@
   display: inline-flex;
   padding: var(--hair-15);
   gap: var(--hair-15);
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius);
   background: var(--surface-sunken);
 }
@@ -134,10 +134,10 @@
 /* Note vs TL;DR snippets — different tag, tone, and type */
 .lib-snippet {
   display: grid;
-  grid-template-columns: 4.6rem minmax(0, 1fr);
-  gap: var(--hair-45) var(--hair-65);
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--hair-20) var(--space-2);
   align-items: start;
-  padding: var(--hair-40) var(--hair-55) var(--hair-40) var(--space-2);
+  padding: var(--hair-45) var(--space-3);
   border-radius: var(--radius);
   border: 1px solid transparent;
 }
@@ -197,11 +197,13 @@
 }
 
 @media (max-width: 719px) {
-  /* Phones: the 4.2rem tag rail would eat a third of the row — the tag
-     becomes an eyebrow above the text so the clamped lines get the full
-     snippet width. */
+  /* Phones: stack the tag above the text so clamped lines get the full width. */
   .lib-snippet {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lib-snippet-tag {
+    margin-top: 0;
   }
 }
 }

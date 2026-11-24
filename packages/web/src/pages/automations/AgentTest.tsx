@@ -66,7 +66,7 @@ export function AgentTest({ rule, connected, onVerified }: { rule: AutomationRul
         }
         if (latest.status === 'cancelled') { setNotice('Test cancelled.'); return }
         if (Date.now() - started > 30_000 && tasks.every(job => ['ready', 'pending'].includes(job.status)))
-          setNotice('The AI has not picked up this test. Ask it to check your COLP automations, or paste the task request into it; pairing alone does not start background execution.')
+          setNotice('Still waiting for the agent. Ask it to check your COLP automations or paste the task request.')
       } catch (error) {
         if (!controller.signal.aborted) setNotice(errorMessage(error, 'Could not check the test. Retrying.'))
       }
@@ -107,18 +107,20 @@ export function AgentTest({ rule, connected, onVerified }: { rule: AutomationRul
         {choices.map(bookmark => <option key={bookmark.id} value={bookmark.id}>{bookmark.title}</option>)}
       </select>
     </div>
-    <p className="field-hint">Runs the selected AI tasks on this bookmark. Its folder stays the same; proposed changes wait for your approval.</p>
+    <p className="field-hint">Runs selected tasks without moving the bookmark. Proposed changes wait for your approval.</p>
     {!run && <button type="button" className="btn btn-secondary" disabled={!connected || !selected || busy} onClick={() => void test()}>{busy ? 'Starting test…' : 'Test on this bookmark'}</button>}
-    {(bookmarks.state.status === 'error' || tree.state.status === 'error') && <p role="alert">Could not load test bookmarks. <button type="button" className="btn btn-ghost btn-sm" onClick={() => { bookmarks.reload(); tree.reload() }}>Try again</button></p>}
-    {run && <div role="status">
+    {(bookmarks.state.status === 'error' || tree.state.status === 'error') && <p className="field-error" role="alert">Could not load test bookmarks. <button type="button" className="btn btn-ghost btn-sm" onClick={() => { bookmarks.reload(); tree.reload() }}>Try again</button></p>}
+    {run && <div className="automation-agent-status" role="status">
       {!jobs.length && <p>Waiting for agent tasks…</p>}
       {jobs.map(job => <p key={job.id}>{JOB_STATUS[job.status].label}{job.status === 'awaitingApproval' && <> · <Link to={job.planId ? `/approvals/${encodeURIComponent(job.planId)}` : '/approvals'} target="_blank" rel="noreferrer">Review result</Link></>}</p>)}
-      <Link to={runPath(run.id)} target="_blank" rel="noreferrer">View test and results</Link>
-      {canRestart && <button type="button" className="btn btn-secondary btn-sm" onClick={() => {
-        setRun(null); setJobs([]); setNotice(null); preview.current = null; attempt.current = crypto.randomUUID()
-        setSearch(previous => { const next = new URLSearchParams(previous); next.delete('agentTest'); return next }, { replace: true })
-      }}>Choose another test</button>}
-      {['running', 'waiting'].includes(run.status) && <button type="button" className="btn btn-ghost btn-sm" onClick={() => void api.cancelRun(run.id, run.revision).then(setRun).catch(error => setNotice(errorMessage(error, 'Could not cancel the test.')))}>Cancel test</button>}
+      <div className="automation-agent-actions">
+        <Link className="btn btn-ghost btn-sm" to={runPath(run.id)} target="_blank" rel="noreferrer">View test and results</Link>
+        {canRestart && <button type="button" className="btn btn-secondary btn-sm" onClick={() => {
+          setRun(null); setJobs([]); setNotice(null); preview.current = null; attempt.current = crypto.randomUUID()
+          setSearch(previous => { const next = new URLSearchParams(previous); next.delete('agentTest'); return next }, { replace: true })
+        }}>Choose another test</button>}
+        {['running', 'waiting'].includes(run.status) && <button type="button" className="btn btn-ghost btn-sm" onClick={() => void api.cancelRun(run.id, run.revision).then(setRun).catch(error => setNotice(errorMessage(error, 'Could not cancel the test.')))}>Cancel test</button>}
+      </div>
     </div>}
     {notice && <p className="field-hint" role="status">{notice}</p>}
   </section>

@@ -218,7 +218,7 @@ export function RunOnce() {
         breadcrumb={<Breadcrumb items={[{ label: 'Automations', to: '/automations' }, { label: name, to: rulePath(shown.id) }, { label: 'Run once' }]} />}
         title="Run once"
         documentTitle={`Run ${name} once`}
-        lede="Use this rule on bookmarks you already have. Preview exactly which ones it takes; nothing changes until you start that preview."
+        lede="Apply this rule to bookmarks you already have. Preview the exact selection before anything changes."
       />
 
       <div className="automation-editor">
@@ -295,100 +295,102 @@ export function RunOnce() {
         </div>
 
         <aside className="automation-editor-side automation-review" aria-label="Preview and start">
-          <section className="automation-summary" aria-labelledby="run-once-rule-heading">
-            <h2 id="run-once-rule-heading" className="automation-panel-title">This rule</h2>
-            <RuleSentence
-              rule={shown}
-              collectionTitle={collectionTitle ?? null}
-              folder={destination}
-            />
-          </section>
+          <div className="automation-editor-side-scroll">
+            <section className="automation-summary" aria-labelledby="run-once-rule-heading">
+              <h2 id="run-once-rule-heading" className="automation-panel-title">This rule</h2>
+              <RuleSentence
+                rule={shown}
+                collectionTitle={collectionTitle ?? null}
+                folder={destination}
+              />
+            </section>
 
-          <section
-            className="automation-preview"
-            aria-labelledby="run-once-preview-heading"
-            aria-busy={busy === 'preview'}
-            data-state={preview ? (expired ? 'stale' : 'current') : 'empty'}
-            data-testid="run-once-preview"
-          >
-            <div className="automation-preview-head">
-              <h2 id="run-once-preview-heading" className="automation-panel-title">Preview</h2>
-              {preview && (
-                <button type="button" className="btn btn-ghost btn-sm" disabled={!canPreview} onClick={() => void runPreview()}>
-                  <Icon name="refresh" />
-                  {busy === 'preview' ? 'Previewing…' : 'Preview again'}
-                </button>
+            <section
+              className="automation-preview"
+              aria-labelledby="run-once-preview-heading"
+              aria-busy={busy === 'preview'}
+              data-state={preview ? (expired ? 'stale' : 'current') : 'empty'}
+              data-testid="run-once-preview"
+            >
+              <div className="automation-preview-head">
+                <h2 id="run-once-preview-heading" className="automation-panel-title">Preview</h2>
+                {preview && (
+                  <button type="button" className="btn btn-ghost btn-sm" disabled={!canPreview} onClick={() => void runPreview()}>
+                    <Icon name="refresh" />
+                    {busy === 'preview' ? 'Previewing…' : 'Preview again'}
+                  </button>
+                )}
+              </div>
+              {notice && <p className="automation-preview-stale" role="status">{notice}</p>}
+              {!preview && (
+                <>
+                  {!notice && (
+                    <p className="automation-preview-lede">
+                      Check which bookmarks match before starting.
+                    </p>
+                  )}
+                  <button type="button" className="btn btn-secondary btn-sm" disabled={!canPreview} onClick={() => void runPreview()}>
+                    {busy === 'preview' ? 'Previewing…' : 'Preview'}
+                  </button>
+                </>
               )}
-            </div>
-            {notice && <p className="automation-preview-stale" role="status">{notice}</p>}
-            {!preview && (
-              <>
-                {!notice && (
-                  <p className="automation-preview-lede">
-                    See exactly which bookmarks this takes, as they are now. A preview changes nothing.
-                  </p>
-                )}
-                <button type="button" className="btn btn-secondary btn-sm" disabled={!canPreview} onClick={() => void runPreview()}>
-                  {busy === 'preview' ? 'Previewing…' : 'Preview'}
-                </button>
-              </>
-            )}
-            {preview && (
-              <>
-                {expired && (
-                  <p className="automation-preview-stale" role="status" data-testid="run-once-expired">
-                    This preview expired. Preview again to start.
-                  </p>
-                )}
-                <ul className="automation-preview-stats" aria-label="Preview totals">
-                  <li data-outcome="matched">
-                    <span className="automation-preview-stat">{preview.matchedCount.toLocaleString()}</span>
-                    <span className="automation-preview-stat-label">match the rule</span>
-                  </li>
-                  {staying > 0 && (
-                    <li data-outcome="explicitChoice">
-                      <span className="automation-preview-stat">{staying.toLocaleString()}</span>
-                      <span className="automation-preview-stat-label">of those stay where you put them</span>
-                    </li>
+              {preview && (
+                <>
+                  {expired && (
+                    <p className="automation-preview-stale" role="status" data-testid="run-once-expired">
+                      This preview expired. Preview again to start.
+                    </p>
                   )}
-                  {preview.blockedCount > 0 && (
-                    <li data-outcome="blocked">
-                      <span className="automation-preview-stat">{preview.blockedCount.toLocaleString()}</span>
-                      <span className="automation-preview-stat-label">can’t be filed</span>
+                  <ul className="automation-preview-stats" aria-label="Preview totals">
+                    <li data-outcome="matched">
+                      <span className="automation-preview-stat">{preview.matchedCount.toLocaleString()}</span>
+                      <span className="automation-preview-stat-label">match the rule</span>
                     </li>
+                    {staying > 0 && (
+                      <li data-outcome="explicitChoice">
+                        <span className="automation-preview-stat">{staying.toLocaleString()}</span>
+                        <span className="automation-preview-stat-label">of those stay where you put them</span>
+                      </li>
+                    )}
+                    {preview.blockedCount > 0 && (
+                      <li data-outcome="blocked">
+                        <span className="automation-preview-stat">{preview.blockedCount.toLocaleString()}</span>
+                        <span className="automation-preview-stat-label">can’t be filed</span>
+                      </li>
+                    )}
+                  </ul>
+                  {preview.sample.length > 0 && (
+                    <details className="automation-preview-group" open>
+                      <summary>
+                        <Icon name="chevron-right" className="automation-disclosure-chevron" />
+                        <span className="automation-sample-title">A sample</span>
+                        <span className="automation-preview-count">{plural(preview.sample.length, 'bookmark')}</span>
+                      </summary>
+                      <ul className="automation-preview-lines automation-sample" data-testid="run-once-sample">
+                        {preview.sample.map((item) => {
+                          const decision = DECISION[item.decision]
+                          return (
+                            <li key={item.nodeId} data-decision={item.decision}>
+                              <span>{item.title || 'Untitled'}</span>
+                              <StatusBadge tone={decision.tone}>{decision.label}</StatusBadge>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </details>
                   )}
-                </ul>
-                {preview.sample.length > 0 && (
-                  <details className="automation-preview-group" open>
-                    <summary>
-                      <Icon name="chevron-right" className="automation-disclosure-chevron" />
-                      <span className="automation-sample-title">A sample</span>
-                      <span className="automation-preview-count">{plural(preview.sample.length, 'bookmark')}</span>
-                    </summary>
-                    <ul className="automation-preview-lines automation-sample" data-testid="run-once-sample">
-                      {preview.sample.map((item) => {
-                        const decision = DECISION[item.decision]
-                        return (
-                          <li key={item.nodeId} data-decision={item.decision}>
-                            <span>{item.title || 'Untitled'}</span>
-                            <StatusBadge tone={decision.tone}>{decision.label}</StatusBadge>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  </details>
-                )}
-                {!expired && !preview.canStart && (
-                  <p className="automation-preview-note" data-testid="run-once-blocker">{startBlocker(preview, paused, options.tasks)}</p>
-                )}
-                {!expired && (
-                  <p className="automation-meta">
-                    Nothing has changed yet. This preview holds until <time dateTime={preview.expiresAt}>{formatDateTime(preview.expiresAt)}</time>.
-                  </p>
-                )}
-              </>
-            )}
-          </section>
+                  {!expired && !preview.canStart && (
+                    <p className="automation-preview-note" data-testid="run-once-blocker">{startBlocker(preview, paused, options.tasks)}</p>
+                  )}
+                  {!expired && (
+                    <p className="automation-meta">
+                      Preview holds until <time dateTime={preview.expiresAt}>{formatDateTime(preview.expiresAt)}</time>.
+                    </p>
+                  )}
+                </>
+              )}
+            </section>
+          </div>
 
           <div className="automation-editor-actions">
             <button
@@ -404,7 +406,7 @@ export function RunOnce() {
             <Link className="btn btn-ghost" to={rulePath(shown.id)}>Cancel</Link>
             <p className="automation-meta automation-editor-hint" id="run-once-start-hint">
               {startable
-                ? 'Starts exactly this preview. Moves happen right away; each one can be undone from the run.'
+                ? 'Moves apply immediately and can be undone from the run page.'
                 : 'Preview the selection as it is now to start.'}
             </p>
           </div>

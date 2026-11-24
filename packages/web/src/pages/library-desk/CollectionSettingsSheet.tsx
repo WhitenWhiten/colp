@@ -72,7 +72,7 @@ export function CollectionSettingsSheet({
     }
     void confirm({
       title: 'Discard changes?',
-      body: 'You have unsaved changes on this page.',
+      body: 'You have unsaved changes in this dialog.',
       confirmLabel: 'Discard',
     }).then((ok) => { if (ok) onClose() })
   }, [confirm, dirty, onClose])
@@ -154,7 +154,7 @@ export function CollectionSettingsSheet({
             </button>
           </div>
         )}
-        <CollectionMetaForm snap={data.load.snap} mutations={mutations} />
+        <CollectionMetaForm snap={data.load.snap} mutations={mutations} onCancel={requestClose} />
       </>
     )
   }

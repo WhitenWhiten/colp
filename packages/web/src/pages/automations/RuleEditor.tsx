@@ -514,7 +514,7 @@ export function RuleEditor() {
         lede={creating
           ? 'Say which bookmarks this is for and where they go.'
           : editing?.desiredState === 'enabled'
-            ? 'Preview a change, then apply it. Saving without a preview pauses the rule until you turn it on again.'
+            ? 'Preview your change to apply it, or save without previewing to pause the rule.'
             : 'Change the rule, preview it, then turn it on.'}
         afterTitle={editing ? <RuleStateBadge state={editing.effectiveState} /> : undefined}
       />
@@ -537,7 +537,7 @@ export function RuleEditor() {
           {jsonDefinition ? (
             <p className="automation-json-note" role="status" data-testid="automation-json-note">
               <Icon name="code" />
-              <span>This rule uses options the form can’t show. Edit it as JSON below; the folder in step 1 still applies.</span>
+              <span>This rule uses options the form can’t show. Edit it as JSON below.</span>
             </p>
           ) : null}
           <fieldset className="automation-form automation-form-fields" disabled={busy === 'setup'}>
@@ -659,7 +659,7 @@ export function RuleEditor() {
               {(taskTypes.length > 0 || workerRule) && (
                 <li className="automation-step" aria-labelledby="automation-step-then">
                   <div className="automation-step-head">
-                    <span className="automation-step-index" aria-hidden>{jsonDefinition ? 2 : 3}</span>
+                    <span className="automation-step-index" aria-hidden>{jsonDefinition ? 1 : 3}</span>
                     <h2 id="automation-step-then">Then <span className="automation-optional">optional</span></h2>
                   </div>
                   {!jsonDefinition && <div className="automation-task-choices">
@@ -717,7 +717,7 @@ export function RuleEditor() {
                       value={draft.priority}
                       onChange={(event) => update({ priority: Number.isFinite(event.target.valueAsNumber) ? Math.trunc(event.target.valueAsNumber) : DEFAULT_PRIORITY })}
                     />
-                    <p className="field-hint">When two rules want different folders for one bookmark, the higher priority wins. Equal priorities leave it where you saved it.</p>
+                    <p className="field-hint">Higher priority wins when two rules match. Equal priorities leave the bookmark where saved.</p>
                   </div>
                   <div className="field">
                     <label htmlFor="automation-daily">Most runs a day</label>
@@ -730,7 +730,7 @@ export function RuleEditor() {
                       value={draft.maxRunsPerDay}
                       onChange={(event) => update({ maxRunsPerDay: Number.isFinite(event.target.valueAsNumber) ? Math.max(1, Math.trunc(event.target.valueAsNumber)) : 100 })}
                     />
-                    <p className="field-hint">A safety cap. Bookmarks past it are still saved, just not filed.</p>
+                    <p className="field-hint">Safety cap; bookmarks past it still save normally.</p>
                   </div>
                 </div>
               </details>
@@ -751,23 +751,23 @@ export function RuleEditor() {
               </summary>
               <div className="automation-json">
                 <p className="field-hint">
-                  The rule definition as the server stores it, for copying, pasting, or agents. For filing rules, choose the destination folder in the form.
+                  Raw rule definition for copying, pasting, or agents.
                 </p>
                 {workerRule && <fieldset className="automation-options">
                   <legend>Agent configuration</legend>
-                  <p className="field-hint">Optional: reuse configuration prepared through the API. You can connect an AI above instead.</p>
+                  <p className="field-hint">Optional: reuse API-prepared IDs instead of connecting above.</p>
                   <div className="field">
                     <label htmlFor="automation-worker-bindings">Prepared binding set ID</label>
                     <input id="automation-worker-bindings" value={workerBindingId} maxLength={128}
                       onChange={event => { setPreparedBindingId(event.target.value); setPreparedFor(null) }} />
-                    <p className="field-hint">Includes the destination folders and explicit executor IDs. These bindings determine the task destinations.</p>
+                    <p className="field-hint">Destination folders and explicit executor IDs.</p>
                   </div>
                   <div className="field">
                     <label htmlFor="automation-execution-policy">Execution policy ID</label>
                     <input id="automation-execution-policy" value={executionPolicyId} maxLength={128}
                       onChange={event => { setPolicyId(event.target.value); setPreparedFor(null) }} />
                   </div>
-                  {!workerConfigured && <p className="field-hint" role="status">Connect an AI above, or provide existing configuration IDs.</p>}
+                  {!workerConfigured && <p className="field-hint" role="status">Provide existing configuration IDs here. You can connect an AI above instead.</p>}
                 </fieldset>}
                 <div className="field">
                   <label className="visually-hidden" htmlFor="automation-json">Rule definition JSON</label>
@@ -794,34 +794,36 @@ export function RuleEditor() {
         </div>
 
         <aside className="automation-editor-side automation-review" id="preview" ref={previewRef} aria-label="Review and turn on">
-          <section className="automation-summary" aria-labelledby="automation-summary-heading">
-            <h2 id="automation-summary-heading" className="automation-panel-title">This rule</h2>
-            <Sentence parts={sentence} />
-            {overlaps.map((item) => (
-              <p key={item.id} className="automation-overlap" role="status" data-testid="automation-overlap">
-                {item.higher
-                  ? `“${item.name}” has a higher priority and sends these bookmarks to ${item.folder}, so this rule won’t move them.`
-                  : `“${item.name}” sends these bookmarks to ${item.folder} at the same priority. With both on, neither moves them: give one a higher priority ${jsonDefinition ? 'in the JSON' : 'under More options'}.`}
-              </p>
-            ))}
-          </section>
-          <PreviewPanel
-            preview={previewView}
-            busy={busy === 'preview'}
-            collectionTitle={collectionTitle}
-            names={{ rules: ruleNames, folders: new Map(chosenFolder ? [[chosenFolder.id, chosenFolder.title]] : []) }}
-            disabled={busy !== null}
-            onPreview={() => void runPreview()}
-          />
+          <div className="automation-editor-side-scroll">
+            <section className="automation-summary" aria-labelledby="automation-summary-heading">
+              <h2 id="automation-summary-heading" className="automation-panel-title">This rule</h2>
+              <Sentence parts={sentence} />
+              {overlaps.map((item) => (
+                <p key={item.id} className="automation-overlap" role="status" data-testid="automation-overlap">
+                  {item.higher
+                    ? `“${item.name}” has a higher priority and sends these bookmarks to ${item.folder}, so this rule won’t move them.`
+                    : `“${item.name}” sends these bookmarks to ${item.folder} at the same priority. With both on, neither moves them: give one a higher priority ${jsonDefinition ? 'in JSON' : 'under More options'}.`}
+                </p>
+              ))}
+            </section>
+            <PreviewPanel
+              preview={previewView}
+              busy={busy === 'preview'}
+              collectionTitle={collectionTitle}
+              names={{ rules: ruleNames, folders: new Map(chosenFolder ? [[chosenFolder.id, chosenFolder.title]] : []) }}
+              disabled={busy !== null}
+              onPreview={() => void runPreview()}
+            />
+          </div>
           <div className="automation-editor-actions">
-            {needsAgentTest && agentVerified !== configKey && <p className="field-hint" role="status">Complete the AI test, then preview this rule before turning it on.</p>}
+            {needsAgentTest && agentVerified !== configKey && <p className="field-hint" role="status">Finish the agent test, then preview to enable.</p>}
             {current && previewCurrent && earlierWork && (
-              <fieldset className="automation-pending-runs" data-testid="automation-pending-runs">
+              <fieldset className="option-group automation-pending-runs" data-testid="automation-pending-runs">
                 <legend>{heldRuns === undefined ? 'Earlier work' : `Earlier work: ${plural(heldRuns, 'run')} on hold`}</legend>
-                <p className="automation-meta">Choose what happens to work this rule started before it was paused or edited.</p>
-                <label><input type="radio" name="pendingRuns" value="hold" checked={pendingRuns === 'hold'} onChange={() => setPendingRuns('hold')} /> Keep on hold</label>
-                <label><input type="radio" name="pendingRuns" value="continuePinned" checked={pendingRuns === 'continuePinned'} onChange={() => setPendingRuns('continuePinned')} /> Continue with its original rule, bindings and input</label>
-                <label><input type="radio" name="pendingRuns" value="cancel" checked={pendingRuns === 'cancel'} onChange={() => setPendingRuns('cancel')} /> Cancel remaining work</label>
+                <p className="automation-meta">Choose what happens to work started before this change.</p>
+                <label className="option-row"><input type="radio" name="pendingRuns" value="hold" checked={pendingRuns === 'hold'} onChange={() => setPendingRuns('hold')} /><span>Keep on hold</span></label>
+                <label className="option-row"><input type="radio" name="pendingRuns" value="continuePinned" checked={pendingRuns === 'continuePinned'} onChange={() => setPendingRuns('continuePinned')} /><span>Continue with its original rule, bindings and input</span></label>
+                <label className="option-row"><input type="radio" name="pendingRuns" value="cancel" checked={pendingRuns === 'cancel'} onChange={() => setPendingRuns('cancel')} /><span>Cancel remaining work</span></label>
               </fieldset>
             )}
             <button
@@ -841,9 +843,9 @@ export function RuleEditor() {
             <p className="automation-meta automation-editor-hint" id="automation-turn-on-hint">
               {ruleOn
                 ? previewCurrent
-                  ? canApply ? 'Applies exactly what you previewed. The rule stays on.' : 'Nothing to apply: the rule is on as it is.'
-                  : dirty ? 'Preview your change to apply it. Until then the rule keeps working as it is.' : 'It’s on. Change it, then preview the change to apply it.'
-                : previewCurrent ? 'Turns the rule on exactly as previewed.' : 'Preview the rule as it is now to turn it on.'}
+                  ? canApply ? 'Applies your previewed changes.' : 'Rule is up to date.'
+                  : dirty ? 'Preview your change to apply it.' : 'It’s on. Change it, then preview the change to apply it.'
+                : previewCurrent ? 'Enables the rule as previewed.' : 'Preview first to turn on.'}
             </p>
           </div>
         </aside>

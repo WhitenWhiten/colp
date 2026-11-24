@@ -29,15 +29,17 @@ export function AuthRecovery() {
       ? 'Session ended'
       : kind === 'failed'
         ? 'Sign-in failed'
-        : 'Authentication recovery'
+        : 'Nothing to recover'
   useDocumentTitle(title)
 
   const body =
     kind === 'restart'
-      ? 'Your previous session ended. Sign in again to continue.'
+      ? 'Your session ended. Sign in again to continue.'
       : kind === 'failed'
-        ? 'Your session was not created. Please try again.'
-        : 'There is nothing to recover on this page.'
+        ? 'Your session was not created. Try signing in again.'
+        : isLoggedIn
+          ? 'Your session is active. You can continue where you left off.'
+          : 'There’s no sign-in issue to recover here.'
 
   const handleRestart = async () => {
     if (loggingOut) return
@@ -59,7 +61,7 @@ export function AuthRecovery() {
     <div className="auth-page">
       <div className="auth-card rise">
         <p className="auth-brand"><BrandName /></p>
-        <p className="section-label">Account recovery</p>
+        <p className="section-label">Authentication recovery</p>
         <h1>{title}</h1>
         <p className="sub">{body}</p>
 
@@ -87,12 +89,22 @@ export function AuthRecovery() {
               Try signing in again
             </button>
           )}
+          {kind === 'none' && isLoggedIn && (
+            <button
+              type="button"
+              data-testid="recovery-continue"
+              className="btn btn-primary"
+              onClick={() => navigate(returnTo, { replace: true })}
+            >
+              Continue
+            </button>
+          )}
           {kind === 'none' && (
-            <Link className="btn btn-primary" to={withReturn('/login')}>
+            <Link className={isLoggedIn ? 'btn btn-secondary' : 'btn btn-primary'} to={withReturn('/login')}>
               Go to sign in
             </Link>
           )}
-          {isLoggedIn && kind !== 'restart' && (
+          {isLoggedIn && kind === 'failed' && (
             <button
               type="button"
               data-testid="recovery-continue"

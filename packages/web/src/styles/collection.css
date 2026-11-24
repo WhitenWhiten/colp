@@ -685,7 +685,7 @@ button.collection-outline-toggle:hover {
   white-space: nowrap;
 }
 
-@container collection-main (min-width: 60rem) {
+@container collection-main (min-width: 46rem) {
   .collection-view-name {
     position: static;
     width: auto;

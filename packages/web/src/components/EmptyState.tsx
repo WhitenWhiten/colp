@@ -6,8 +6,8 @@ interface EmptyStateProps extends HTMLAttributes<HTMLDivElement> {
   illustration?: 'books' | 'search' | 'network'
   kicker?: ReactNode
   title: string
-  /** Page-level empties (e.g. 404) may need an h1; section empties stay h3 */
-  titleAs?: 'h1' | 'h3'
+  /** Page-level empties (e.g. 404) may need an h1; section empties stay h2/h3 */
+  titleAs?: 'h1' | 'h2' | 'h3'
   description?: ReactNode
   action?: ReactNode
   suggestions?: ReactNode

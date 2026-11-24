@@ -75,7 +75,7 @@ export function SyncView({ data, mutations, trashBatch }: {
         )}
         {loadError && loadErrorKind === 'other' && (
           <RouteState
-            className="sync-error empty-state--compact"
+            className="empty-state--compact"
             kind="error"
             icon="link"
             title="Couldn't load sync status"
@@ -152,7 +152,16 @@ export function SyncView({ data, mutations, trashBatch }: {
                 {conflicts.length > 0 && <span className="count-pill" data-testid="sync-count">{conflicts.length}</span>}
               </div>
             </div>
-            {data.conflictError && <p role="alert">{data.conflictError}</p>}
+            {data.conflictError && (
+              <RouteState
+                className="empty-state--compact"
+                kind="error"
+                icon="alert"
+                title="Couldn’t load browser conflicts"
+                description={data.conflictError}
+                onRetry={() => void load('refresh')}
+              />
+            )}
             {data.conflictsLoading && <LoadingState label="Loading browser conflicts…" />}
             {!data.conflictsLoading && !data.conflictError && conflicts.length === 0 && receiptList.length === 0 ? (
               <EmptyState
@@ -184,6 +193,7 @@ export function SyncView({ data, mutations, trashBatch }: {
             emptyDraft={trashBatch.emptyDraft}
             batchView={trashBatch.batchView}
             emptyView={trashBatch.emptyView}
+            loading={data.trashLoading}
             error={data.trashError}
             errorKind={data.trashErrorKind}
             disabled={refreshing || restoreBusy}

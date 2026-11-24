@@ -73,7 +73,7 @@ function folderOptions(
     for (const node of childrenOf(parentId, nodes)) {
       if (node.kind !== 'folder' || lineage.has(node.id) || exclude?.has(node.id)) continue
       if (library && parentId === rootId && !isBrowserFolderRole(node.folderRole)) continue
-      options.push({ id: node.id, title: node.title, depth })
+      options.push({ id: node.id, title: node.title, depth: Math.min(depth, 5) })
       const next = new Set(lineage)
       next.add(node.id)
       visit(node.id, depth + 1, next)
@@ -132,7 +132,7 @@ function FolderList({
           onClick={() => onPick({ collectionId, parentId: rootId, collectionTitle, parentTitle: null })}
         >
           <Icon name="folder" />
-          Top level
+          <span className="library-dest-label">Top level</span>
           {currentParentId === rootId && <span className="library-dest-current">Current</span>}
         </button>
       </li>}
@@ -146,7 +146,7 @@ function FolderList({
             onClick={() => onPick({ collectionId, parentId: folder.id, collectionTitle, parentTitle: folder.title })}
           >
             <Icon name="folder" />
-            {folder.title}
+            <span className="library-dest-label">{folder.title}</span>
             {currentParentId === folder.id && <span className="library-dest-current">Current</span>}
           </button>
         </li>
@@ -275,8 +275,7 @@ export function CollectionDestinationPicker({
               Destinations
             </button>}
             <p className="library-dest-note">
-              Copy {plural(count, 'bookmark')} into <strong>{target.title}</strong>. Copies the link,
-              title and note. The icon, TL;DR and other annotations stay with the original.
+              Copy {plural(count, 'bookmark')} into <strong>{target.title}</strong>. Copies the link, title and note.
             </p>
             {tree?.status === 'loading' && <LoadingState label="Loading folders…" />}
             {tree?.status === 'error' && (
@@ -298,6 +297,7 @@ export function CollectionDestinationPicker({
           </>
         ) : candidates.length === 0 ? (
           <EmptyState
+            className="empty-state--compact"
             icon="folder"
             title="Your library is unavailable"
             description="Close this dialog and reload your library, then try again."
@@ -305,7 +305,7 @@ export function CollectionDestinationPicker({
         ) : (
           <>
             <p className="library-dest-note">
-              Copy {plural(count, 'bookmark')}. Copies the link, title and note. The icon, TL;DR and other annotations stay with the original.
+              Copy {plural(count, 'bookmark')}. Copies the link, title and note.
             </p>
             <ul
               className="library-dest-list"

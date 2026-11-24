@@ -150,6 +150,7 @@ export function CollectionHistory() {
   const [saving, setSaving] = useState(false)
   const [restoring, setRestoring] = useState(false)
   const detailAbortRef = useRef<AbortController | null>(null)
+  const detailRef = useRef<HTMLDivElement | null>(null)
   const confirm = useConfirm()
   const { success, error: toastError } = useToast()
 
@@ -171,7 +172,7 @@ export function CollectionHistory() {
     if (!collectionId) return
     setSelectedId(versionId)
     if (fromClick && window.matchMedia('(max-width: 899px)').matches) {
-      document.querySelector('.history-detail')?.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+      detailRef.current?.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
     }
     detailAbortRef.current?.abort()
     const controller = new AbortController()
@@ -378,7 +379,7 @@ export function CollectionHistory() {
               role="group"
               aria-label="Saved versions"
             >
-              {versions.map((item) => (
+              {versions.map((item, index) => (
                 <button
                   key={item.versionId}
                   type="button"
@@ -386,15 +387,19 @@ export function CollectionHistory() {
                   aria-pressed={item.versionId === selectedId}
                   onClick={() => void selectVersion(item.versionId, true)}
                 >
-                  <span><strong>{versionLabel(item)}</strong></span>
+                  <span>
+                    <strong>{versionLabel(item)}</strong>
+                    {index === 0 && <em>Latest</em>}
+                  </span>
                   <small>
                     <time dateTime={item.createdAt}>{formatMediumInstant(item.createdAt)}</time>
+                    {item.changeCounts.removed > 0 ? ' · Restore unavailable' : ''}
                   </small>
                 </button>
               ))}
             </div>
           </aside>
-          <div className="history-detail">
+          <div className="history-detail" ref={detailRef}>
             {!selected ? (
               <EmptyState
                 data-testid="history-empty-detail"
@@ -435,9 +440,10 @@ export function CollectionHistory() {
                   <div><dt>Saved</dt><dd><time dateTime={selected.createdAt}>{formatMediumInstant(selected.createdAt)}</time></dd></div>
                   <div><dt>Type</dt><dd>{VERSION_KIND_LABEL[selected.kind] ?? selected.kind}</dd></div>
                   <div><dt>Bookmarks and folders</dt><dd>{selected.nodeCount}</dd></div>
-                  <div><dt>Removed</dt><dd>{removed}</dd></div>
+                  <div><dt>Deleted since</dt><dd>{removed}</dd></div>
                 </dl>
-                <section className="history-changes">
+                <section className="history-changes" aria-labelledby="history-changes-heading">
+                  <h3 id="history-changes-heading" className="section-label history-changes-heading">Changes since this version</h3>
                   {detailLoading ? (
                     <LoadingState label="Loading changes…" />
                   ) : changes.length === 0 ? (

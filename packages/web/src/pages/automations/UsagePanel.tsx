@@ -70,8 +70,8 @@ export function UsagePanel({
         <h2 id={headingId} className="automation-panel-title">{title}</h2>
         <p className="automation-panel-text">
           {scope === 'rule'
-            ? 'This rule only files bookmarks, so there is no agent work or cost to show. Counts appear here once a rule asks an agent to do something.'
-            : 'The server kept no counts for this run.'}
+            ? 'This rule only files bookmarks — no agent work or cost to track.'
+            : 'No counts recorded for this run.'}
         </p>
       </section>
     )
@@ -104,10 +104,9 @@ export function UsagePanel({
           />
           <p className="automation-meta">
             {remaining === 0
-              ? 'None left today. Bookmarks are still filed; agent work over the allowance doesn’t start.'
+              ? 'None left today. Bookmarks are still filed normally.'
               : remaining !== undefined ? `${remaining} left today.` : null}
-            {usage.budgetDay ? ` The day is ${usage.budgetDay} in UTC.` : null}
-            {' '}The server still checks every call.
+            {usage.budgetDay ? ` (${usage.budgetDay} UTC)` : null}
           </p>
         </div>
       )}
@@ -133,7 +132,7 @@ export function UsagePanel({
         <p className="automation-meta">{plural(usage.acceptedDeliveries, 'wake-up')} accepted by agents.</p>
       )}
       {usage.deliveryCapability === 'unavailable' && (
-        <p className="automation-meta">Agents check for work themselves; instant wake-ups are off on this server.</p>
+        <p className="automation-meta">Agents poll for work on this server.</p>
       )}
     </section>
   )

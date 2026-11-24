@@ -20,6 +20,7 @@ export function WriteApprovals() {
       <PageShell data-testid="write-approvals-flag-off">
         <EmptyState
           illustration="network"
+          titleAs="h1"
           title="Write approvals are not available yet"
           description={
             <>

@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useRef, type RefObject } from 'react'
 import { Link } from 'react-router-dom'
+import { Icon } from '../Icon'
 import { useExitAnimation } from '../../lib/useExitAnimation'
 import { prefetchRoute } from './prefetch'
 
@@ -49,6 +50,7 @@ export function ToolsMenu({ items, open, onToggle, onClose, triggerRef }: Props)
         onClick={onToggle}
       >
         Tools
+        <Icon name="chevron-down" />
       </button>
       {mounted && (
         <nav

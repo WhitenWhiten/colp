@@ -65,10 +65,10 @@ export function FolderShareDialog({ collectionId, nodeId, title, onClose, onChan
   return <Modal open onClose={close} title={`Share ${title}`} label="Share folder">
     <div className="edit-form" aria-busy={busy || state === 'loading'}>
       <p className="m-0">{unavailableReason === 'folder_restricted'
-        ? 'This folder or one of its parents is private or protected. The link is unavailable until its visibility changes.'
-        : unavailableReason === 'publication_restricted' ? 'Public access to this library is restricted. This link is unavailable.'
-        : url ? 'Anyone with the link can view this folder and the folders inside it. The rest of your library stays private.'
-        : 'Create a link that lets anyone view this folder and the folders inside it. The rest of your library stays private.'}</p>
+        ? 'Unavailable while this folder or a parent is private or protected.'
+        : unavailableReason === 'publication_restricted' ? 'Unavailable while public access to this library is restricted.'
+        : url ? 'Anyone with this link can view this folder and its subfolders. Everything else stays private.'
+        : 'Create a read-only link for this folder and its subfolders. Everything else stays private.'}</p>
       {state === 'loading' ? <LoadingState label="Loading share link…" /> : state === 'error'
         ? <div className="row-end edit-form-actions"><button type="button" className="btn btn-secondary" onClick={() => void reload()}>Try again</button></div>
         : url ? <>
@@ -81,6 +81,7 @@ export function FolderShareDialog({ collectionId, nodeId, title, onClose, onChan
             <button type="button" className="btn btn-primary" disabled={busy} onClick={close}>Done</button>
           </div>
         </> : <div className="row-end edit-form-actions">
+          <button type="button" className="btn btn-ghost" disabled={busy} onClick={close}>Cancel</button>
           <button type="button" className="btn btn-primary" disabled={busy || Boolean(unavailableReason)} onClick={() => void change('share')}>Create link</button>
         </div>}
     </div>

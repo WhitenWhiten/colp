@@ -87,11 +87,14 @@ export function SelfHostedAbout({
 }) {
   useDocumentTitle('About')
   const [loaded, setLoaded] = useState<ServerAboutSnapshot | null>(snapshot ?? null)
+  const [loading, setLoading] = useState(() => snapshot === undefined && import.meta.env.MODE !== 'test')
   useEffect(() => {
     if (snapshot !== undefined) return undefined
     let active = true
     void loadServerAbout().then((next) => {
-      if (active && next !== null) setLoaded(next)
+      if (!active) return
+      if (next !== null) setLoaded(next)
+      setLoading(false)
     })
     return () => {
       active = false
@@ -112,16 +115,19 @@ export function SelfHostedAbout({
           COLP Server keeps your bookmarks on a machine you run. It speaks the Collection
           Protocol, so the browser extension and your agents read and sync the same library.
         </p>
-        <StatusBadge tone={serverStatusTone(view)} className="self-hosted-about-status">
-          <span data-testid="about-status">{describeServerStatus(view)}</span>
+        <StatusBadge tone={loading ? 'muted' : serverStatusTone(view)} className="self-hosted-about-status">
+          <span data-testid="about-status">{loading ? 'Checking server…' : describeServerStatus(view)}</span>
         </StatusBadge>
       </header>
 
       <section className="self-hosted-about-card" aria-labelledby="about-server-title">
-        <h2 id="about-server-title">This server</h2>
+        <h2 id="about-server-title">Server details</h2>
         <dl className="self-hosted-about-versions">
           <div className="self-hosted-about-address">
-            <dt>Server address</dt>
+            <dt>
+              <span>Server address</span>
+              <span className="self-hosted-about-hint">Browsers and agents connect here.</span>
+            </dt>
             <dd>
               <span data-testid="about-origin">{pageOrigin || 'unavailable'}</span>
               {pageOrigin && <CopyButton label="server address" text={pageOrigin} />}
@@ -130,11 +136,10 @@ export function SelfHostedAbout({
           {versions.map((row) => (
             <div key={row.id}>
               <dt>{row.label}</dt>
-              <dd data-testid={`about-${row.id}`}>{row.value ?? 'unavailable'}</dd>
+              <dd data-testid={`about-${row.id}`}>{row.value ?? (loading ? '—' : 'unavailable')}</dd>
             </div>
           ))}
         </dl>
-        <p className="self-hosted-about-hint">The extension and agents connect to this address.</p>
       </section>
 
       <nav className="self-hosted-about-next" aria-label="Set up">
@@ -146,6 +151,7 @@ export function SelfHostedAbout({
                 <span className="self-hosted-about-step-icon" aria-hidden><Icon name={step.icon} /></span>
                 <strong>{step.title}</strong>
                 <span>{step.body}</span>
+                <span className="self-hosted-about-step-arrow" aria-hidden><Icon name="chevron-right" /></span>
               </Link>
             </li>
           ))}

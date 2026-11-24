@@ -147,6 +147,9 @@ export function NodeEditDrawer({
           disabled={!canEdit}
           onChange={(event) => drawer.setTitle(event.target.value)}
         />
+        {titleReadOnly && canEdit && (
+          <span className="field-hint">Built-in browser folder names can’t be renamed.</span>
+        )}
       </div>
       {isBookmark && (
         <div className="field">

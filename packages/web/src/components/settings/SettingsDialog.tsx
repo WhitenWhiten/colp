@@ -36,7 +36,7 @@ export function SettingsDialog() {
   const confirm = useConfirm()
   const guard = () => confirm({
     title: 'Discard changes?',
-    body: 'You have unsaved changes on this page.',
+    body: 'You have unsaved changes.',
     confirmLabel: 'Discard',
   })
   const guardedClose = () => {
@@ -144,7 +144,7 @@ export function SettingsDialog() {
           {section === 'security' && (
             <div className="stack gap-1" data-testid="settings-security">
               <div className="settings-section-head">
-                <h3 className="settings-toggle-label">Account security</h3>
+                <h2 className="settings-section-title">Account security</h2>
                 {/* This server sends no email and has no sign-in providers (D28). */}
                 <p className="meta">Password, sessions, and account deletion.</p>
               </div>

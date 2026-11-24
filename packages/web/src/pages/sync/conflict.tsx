@@ -21,9 +21,9 @@ export function ConflictEditor({ conflict, draft, onDraft, onSubmit, onReplay, o
   return <article className="conflict-card" data-conflict-id={conflict.id}>
     <header className="conflict-title"><div><span className="conflict-field">{fieldName(conflict.field)}</span><h3>{CONFLICT_TYPE_LABELS[conflict.type]}</h3></div><time dateTime={conflict.createdAt}>{formatInstant(conflict.createdAt)}</time></header>
     <div className="conflict-comparison"><div><span>In {productName()}</span><p>{conflict.summary.current ?? 'No value'}</p></div><div><span>From the browser</span><p>{conflict.summary.incoming ?? 'No value'}</p></div></div>
-    <fieldset disabled={busy || frozen} className="conflict-options"><legend>Resolution</legend>
+    <fieldset disabled={busy || frozen} className="option-group conflict-options"><legend>Resolution</legend>
       {RESOLUTIONS.map((option) => { const allowed = conflict.allowedResolutions.includes(option.value); const supported = option.value !== 'custom' || custom !== null
-        return <label key={option.value} className="resolution-option"><input type="radio" name={`resolution-${conflict.id}`} value={option.value}
+        return <label key={option.value} className="option-row"><input type="radio" name={`resolution-${conflict.id}`} value={option.value}
           checked={draft.resolution === option.value} disabled={!allowed || !supported} onChange={() => choose(option.value)} />
           <span><strong>{option.label}</strong><small>{allowed && supported ? option.detail : 'Not available for this conflict.'}</small></span></label> })}
     </fieldset>

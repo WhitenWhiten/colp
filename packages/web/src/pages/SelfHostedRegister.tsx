@@ -6,6 +6,7 @@ import { useAuth } from '../auth/AuthContext'
 import { useToast } from '../components/AppToast'
 import { BrandName } from '../components/Brand'
 import { CommandBlock } from '../components/CommandBlock'
+import { Icon } from '../components/Icon'
 import { MIN_PASSWORD_LENGTH, PasswordField } from '../components/auth/PasswordField'
 import { parseRegistrationState, productName, registrationView, type RegistrationState, type RegistrationView } from '../lib/edition'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
@@ -249,13 +250,16 @@ export function SelfHostedRegister() {
                   {...fieldProps('setupToken')}
                 />
                 {fieldError('setupToken')}
-                <div className="auth-token-help" id="register-setup-token-hint" data-testid="setup-token-help">
+                <details className="auth-token-help" id="register-setup-token-hint" data-testid="setup-token-help">
+                  <summary>
+                    <Icon name="chevron-right" />
+                    <span>Where to find the setup token</span>
+                  </summary>
                   <p className="field-hint">
-                    The token proves you run this server. Print it where the server runs, or find
-                    “First run” in its log:
+                    Check “First run” in the server log, or run:
                   </p>
                   <CommandBlock label="setup token command" command={SETUP_TOKEN_COMMAND} />
-                </div>
+                </details>
               </div>
             )}
             <div className="field">
@@ -276,7 +280,7 @@ export function SelfHostedRegister() {
               />
               {fieldError('username') ?? (
                 <p className="field-hint" id="register-username-hint">
-                  {USERNAME_MIN}–{USERNAME_MAX} letters, numbers, dots, or underscores. You sign in with it.
+                  {USERNAME_MIN}–{USERNAME_MAX} letters, numbers, dots, or underscores.
                 </p>
               )}
             </div>
@@ -310,7 +314,7 @@ export function SelfHostedRegister() {
                 {...fieldProps('email')}
               />
               {fieldError('email') ?? (
-                <p className="field-hint" id="register-email-hint">Lets you sign in with it too. This server sends no mail.</p>
+                <p className="field-hint" id="register-email-hint">For sign-in only; this server sends no email.</p>
               )}
             </div>
             <div className="field">
@@ -333,7 +337,7 @@ export function SelfHostedRegister() {
             </button>
           </form>
         )}
-        {(view === 'owner' || view === 'invite') && (
+        {view === 'invite' && (
           <p className="auth-alt">
             Already have an account? <Link to="/login">Sign in</Link>
           </p>

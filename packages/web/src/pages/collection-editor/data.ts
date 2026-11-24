@@ -73,8 +73,8 @@ export function useCollectionEditorSnapshot(options: {
             : ''
           setBanner({
             message: recoveryReason === 'snapshot_expired'
-              ? `The snapshot expired. Reloaded from the first page.${draftStatus}`
-              : `The page expired while loading. Reloaded from the first page.${draftStatus}`,
+              ? `Your view was out of date, so we reloaded the latest collection.${draftStatus}`
+              : `This collection updated while loading, so we reloaded it.${draftStatus}`,
             action: opts?.preserveUserIntent ? 'review_drafts' : 'refresh',
           })
         }

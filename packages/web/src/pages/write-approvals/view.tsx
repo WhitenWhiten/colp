@@ -10,9 +10,10 @@ import { RouteState } from '../../components/RouteState'
 import { ApprovalCard } from './approvalCard'
 import { useAutomationPlanActions, useAutomationPlans } from './automation'
 import type { WriteApprovalsData } from './data'
-import { idleDraft } from './types'
+import { idleDraft, isDecisionAllowed } from './types'
 
 type Source = 'all' | 'automation' | 'agents'
+type QueueScope = 'all' | 'pending' | 'history'
 
 export function WriteApprovalsView({ data }: { data: WriteApprovalsData }) {
   const {
@@ -37,11 +38,18 @@ export function WriteApprovalsView({ data }: { data: WriteApprovalsData }) {
   const refresh = useCallback(() => { void load('refresh') }, [load])
   const automation = useAutomationPlanActions(refresh)
   const [source, setSource] = useState<Source>('all')
+  const [scope, setScope] = useState<QueueScope>('all')
   const automationCount = approvals.filter((approval) => plans.has(approval.planId)).length
+  const pendingCount = approvals.filter((approval) => isDecisionAllowed(approval)).length
+  const historyCount = approvals.length - pendingCount
   const showSources = !detailMode && automationCount > 0
-  const shown = !showSources || source === 'all'
-    ? approvals
-    : approvals.filter((approval) => plans.has(approval.planId) === (source === 'automation'))
+  const showScopes = !detailMode && pendingCount > 0 && historyCount > 0
+  const shown = approvals.filter((approval) => {
+    if (showSources && source !== 'all' && plans.has(approval.planId) !== (source === 'automation')) return false
+    if (showScopes && scope === 'pending' && !isDecisionAllowed(approval)) return false
+    if (showScopes && scope === 'history' && isDecisionAllowed(approval)) return false
+    return true
+  })
 
   return (
     <PageShell>
@@ -54,7 +62,7 @@ export function WriteApprovalsView({ data }: { data: WriteApprovalsData }) {
             : undefined}
           title={detailMode ? 'Approval' : 'Approvals'}
           documentTitle={detailMode ? 'Approval' : 'Approvals'}
-          lede="Changes your agents proposed wait here for you. Trusted agents’ moves arrive applied, with Undo."
+          lede={detailMode ? undefined : 'Changes your agents proposed wait here for you. Trusted agents’ moves arrive applied, with Undo.'}
           actions={!invalidPlanId && !authPending && loadErrorKind !== 'unavailable' ? (
             <button
               type="button"
@@ -79,7 +87,7 @@ export function WriteApprovalsView({ data }: { data: WriteApprovalsData }) {
 
         {invalidPlanId && (
           <EmptyState
-            className="write-approvals-error empty-state--compact"
+            className="empty-state--compact"
             role="alert"
             icon="alert"
             title="Invalid approval link"
@@ -90,7 +98,7 @@ export function WriteApprovalsView({ data }: { data: WriteApprovalsData }) {
 
         {missingDetail && (
           <EmptyState
-            className="write-approvals-error empty-state--compact"
+            className="empty-state--compact"
             role="status"
             icon="collection"
             title="Approval not found"
@@ -101,7 +109,7 @@ export function WriteApprovalsView({ data }: { data: WriteApprovalsData }) {
 
         {!invalidPlanId && !missingDetail && loadError && loadErrorKind === 'unavailable' && (
           <RouteState
-            className="write-approvals-error empty-state--compact"
+            className="empty-state--compact"
             kind="unavailable"
             icon="bell"
             title="Write approvals are not available yet"
@@ -111,7 +119,7 @@ export function WriteApprovalsView({ data }: { data: WriteApprovalsData }) {
 
         {!invalidPlanId && !missingDetail && loadError && loadErrorKind === 'auth' && (
           <RouteState
-            className="write-approvals-error empty-state--compact"
+            className="empty-state--compact"
             kind="auth"
             icon="bell"
             title="Sign in to review write approvals"
@@ -121,7 +129,7 @@ export function WriteApprovalsView({ data }: { data: WriteApprovalsData }) {
 
         {!invalidPlanId && !missingDetail && loadError && loadErrorKind !== 'unavailable' && loadErrorKind !== 'auth' && (
           <EmptyState
-            className="write-approvals-error empty-state--compact"
+            className="empty-state--compact"
             role="alert"
             icon="alert"
             title="Couldn't load write approvals"
@@ -160,25 +168,44 @@ export function WriteApprovalsView({ data }: { data: WriteApprovalsData }) {
           <EmptyState
             icon="check"
             title="Nothing waiting for you"
+            description="Plans proposed by your agents and rules will appear here."
             action={<Link to="/agents" className="btn btn-secondary btn-sm">Connect an agent</Link>}
           />
         )}
 
         {!authPending && !loading && !loadError && !invalidPlanId && !missingDetail && approvals.length > 0 && (
           <div className="write-approvals-list">
-            {showSources && (
-              <FilterRail<Source>
-                variant="segments"
-                className="view-switch write-approvals-sources"
-                label="Show approvals from"
-                value={source}
-                options={[
-                  { value: 'all', label: 'All' },
-                  { value: 'automation', label: `Automations · ${automationCount}` },
-                  { value: 'agents', label: `Agents · ${approvals.length - automationCount}` },
-                ]}
-                onChange={setSource}
-              />
+            {(showSources || showScopes) && (
+              <div className="write-approvals-filters">
+                {showScopes && (
+                  <FilterRail<QueueScope>
+                    variant="segments"
+                    className="view-switch write-approvals-sources"
+                    label="Show approvals by status"
+                    value={scope}
+                    options={[
+                      { value: 'all', label: `All · ${approvals.length}` },
+                      { value: 'pending', label: `Waiting · ${pendingCount}` },
+                      { value: 'history', label: `History · ${historyCount}` },
+                    ]}
+                    onChange={setScope}
+                  />
+                )}
+                {showSources && (
+                  <FilterRail<Source>
+                    variant="segments"
+                    className="view-switch write-approvals-sources"
+                    label="Show approvals from"
+                    value={source}
+                    options={[
+                      { value: 'all', label: 'All' },
+                      { value: 'automation', label: `Automations · ${automationCount}` },
+                      { value: 'agents', label: `Agents · ${approvals.length - automationCount}` },
+                    ]}
+                    onChange={setSource}
+                  />
+                )}
+              </div>
             )}
             {shown.map((approval) => {
               const plan = plans.get(approval.planId)

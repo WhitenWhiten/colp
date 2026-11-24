@@ -108,26 +108,28 @@ export function LibrarySidebar({
             <div className="library-nav-tree" aria-label="Pending invitations">
               {invites.items.map((invite) => (
                 <div className="library-nav-group" key={invite.inviteId}>
-                  <div className="library-nav-row">
+                  <div className="library-nav-invite">
                     <span className="library-nav-label" title={invite.collectionTitle}>{invite.collectionTitle}</span>
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      aria-label={`Accept invitation to ${invite.collectionTitle}`}
-                      disabled={invites.pendingInviteId === invite.inviteId}
-                      onClick={() => void onAcceptInvite(invite.inviteId, invite.collectionId)}
-                    >
-                      Accept
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm"
-                      aria-label={`Decline invitation to ${invite.collectionTitle}`}
-                      disabled={invites.pendingInviteId === invite.inviteId}
-                      onClick={() => void onDeclineInvite(invite.inviteId)}
-                    >
-                      Decline
-                    </button>
+                    <div className="library-nav-invite-actions">
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        aria-label={`Accept invitation to ${invite.collectionTitle}`}
+                        disabled={invites.pendingInviteId === invite.inviteId}
+                        onClick={() => void onAcceptInvite(invite.inviteId, invite.collectionId)}
+                      >
+                        Accept
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        aria-label={`Decline invitation to ${invite.collectionTitle}`}
+                        disabled={invites.pendingInviteId === invite.inviteId}
+                        onClick={() => void onDeclineInvite(invite.inviteId)}
+                      >
+                        Decline
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}

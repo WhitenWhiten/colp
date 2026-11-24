@@ -67,8 +67,32 @@
    host class only supplies the column template (the phantom icon column is
    gone: four columns, all labelled). Head/row chrome lives in
    data-table.css. */
+.health-error-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--danger);
+  border-radius: var(--radius);
+  background: var(--paper-2);
+  font-size: var(--text-sm);
+}
+
+.health-error-banner strong {
+  display: block;
+  color: var(--ink);
+}
+
+.health-error-banner p {
+  margin: var(--hair-20) 0 0;
+  color: var(--muted);
+}
+
 .health-table {
-  --data-table-cols: minmax(13rem, 1.1fr) minmax(14rem, 1fr) 7rem minmax(7rem, 9rem);
+  --data-table-cols: minmax(13rem, 1.1fr) minmax(14rem, 1fr) 7rem minmax(9.5rem, auto);
   min-width: 0;
 }
 
@@ -100,12 +124,16 @@
 }
 
 .health-issue p {
+  display: -webkit-box;
   margin: var(--space-1) 0 0;
   overflow: hidden;
   color: var(--muted);
   font-size: var(--text-xs);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: var(--leading-copy);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow-wrap: anywhere;
 }
 
 .health-action,
@@ -117,10 +145,6 @@
   white-space: nowrap;
 }
 
-.health-action:empty {
-  display: none;
-}
-
 .health-checked-label {
   color: var(--muted);
 }
@@ -129,11 +153,6 @@
   .health-checked-label {
     display: none;
   }
-}
-
-.health-action > span {
-  color: var(--faint);
-  font-size: var(--text-xs);
 }
 
 .health-empty {

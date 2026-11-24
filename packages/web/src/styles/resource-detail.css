@@ -499,14 +499,35 @@
   min-width: 0;
 }
 
-.relation-recovery {
-  justify-self: start;
+.relation-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--paper-2);
+  font-size: var(--text-sm);
 }
 
-.resource-relations-empty {
+.relation-banner[data-tone='warning'] {
+  border-left-color: var(--warning);
+}
+
+.relation-banner[data-tone='danger'] {
+  border-left-color: var(--danger);
+}
+
+.relation-banner p {
   margin: 0;
-  color: var(--muted);
-  font-size: var(--text-sm);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.relation-banner p[data-error='true'] {
+  color: var(--danger);
 }
 
 /* Both forms share one grid: one column on phones, two on tablets, a full

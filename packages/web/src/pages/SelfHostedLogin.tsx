@@ -156,8 +156,7 @@ export function SelfHostedLogin() {
           <p className="section-label">First run</p>
           <h1>Set up {productName()}</h1>
           <p className="sub">
-            This server has no owner yet, so there is no account to sign in to. Create the owner
-            account first; registration closes after it.
+            Create the owner account to finish setup. Registration closes automatically afterward.
           </p>
           <ol className="auth-steps">
             <li>Copy the setup token from the server log.</li>
@@ -234,8 +233,7 @@ export function SelfHostedLogin() {
         <details className="auth-reset" data-testid="login-reset-hint">
           <summary>Forgot your password?</summary>
           <p>
-            This server sends no email, so passwords are reset where it runs. Whoever runs it can set a
-            new one:
+            Run this command on the server to set a new password:
           </p>
           <CommandBlock label="password reset command" command={resetPasswordCommand(identifier)} />
         </details>

@@ -320,7 +320,8 @@ export function Collection() {
     >
       <PageHead
         as="header"
-        className="collection-masthead page-head--editorial"
+        variant="editorial"
+        className="collection-masthead"
         style={{ viewTransitionName: `collection-${collection.id}` }}
         documentTitle={documentTitle}
         breadcrumb={isLoggedIn ? (

@@ -1,4 +1,5 @@
 import type { EditorSnapshot } from '../../api'
+import { CopyButton } from '../../components/CommandBlock'
 import { FilterRail } from '../../components/FilterRail'
 import { suggestPublicationSlug } from '../../lib/publicationSlug'
 import type { CollectionEditorMutations } from './mutations'
@@ -13,9 +14,11 @@ const VISIBILITY_STATUS: Record<string, string> = {
 export function CollectionMetaForm({
   snap,
   mutations,
+  onCancel,
 }: {
   snap: EditorSnapshot
   mutations: CollectionEditorMutations
+  onCancel?: () => void
 }) {
   const { collection } = snap
   const {
@@ -121,7 +124,7 @@ export function CollectionMetaForm({
                 <span className="field-hint" id="ce-publication-slug-hint">The address can't be changed once it is reserved.</span>
               ) : (visibility === 'public' || visibility === 'unlisted') ? (
                 <span className="field-hint" id="ce-publication-slug-hint">
-                  Lowercase letters, digits, and hyphens. Will be live at {origin}/c/{publicationSlug || 'your-address'} after you save.
+                  Lowercase letters, digits, and hyphens. Will be live at {origin}/c/{publicationSlug || 'your-address'} after you save. Once saved, this address can’t be changed.
                 </span>
               ) : null}
             </div>
@@ -138,6 +141,7 @@ export function CollectionMetaForm({
               >
                 {`${window.location.origin}/c/${collection.publicationSlug}`}
               </a>
+              <CopyButton label="published link" text={`${window.location.origin}/c/${collection.publicationSlug}`} />
             </p>
           )}
           {collection.publicationSlug
@@ -151,6 +155,11 @@ export function CollectionMetaForm({
         </fieldset>
       )}
       <div className="row-end edit-form-actions">
+        {onCancel && (
+          <button type="button" className="btn btn-ghost" disabled={busy} onClick={onCancel}>
+            Cancel
+          </button>
+        )}
         <button
           type="submit"
           className="btn btn-primary"

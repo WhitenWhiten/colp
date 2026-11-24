@@ -145,10 +145,10 @@ export function AgentAutomationOptIns({
         disabled={busy}
         onChange={(next) => void save(withCatalog(configuration, 'automationManager', next), false)}
       />
-      <fieldset disabled={busy}>
+      <fieldset className="option-group agent-automation-tasks" disabled={busy}>
         <legend>Manager task tools</legend>
-        <p>Limit which Manager and standard tools this connection may use. Worker tools and existing permissions stay separate. Selecting no tasks hides all Manager and standard tools.</p>
-        <label>
+        <p className="field-hint">Limit which Manager and standard tools this connection may use. Selecting none hides them all.</p>
+        <label className="option-row">
           <input type="checkbox" checked={configuration.taskToolsets !== undefined}
             onChange={(event) => {
               if (event.currentTarget.checked) void save({ ...configuration, taskToolsets: [] }, false)
@@ -156,18 +156,24 @@ export function AgentAutomationOptIns({
                 const { taskToolsets: _selection, ...unrestricted } = configuration
                 void save(unrestricted, false)
               }
-            }} /> Restrict to selected tasks
+            }} />
+          <span>Restrict to selected tasks</span>
         </label>
-        {configuration.taskToolsets !== undefined && MANAGER_TASKS.map((task) => (
-          <label key={task.id}>
-            <input type="checkbox" checked={configuration.taskToolsets?.includes(task.id) ?? false}
-              onChange={(event) => {
-                const current = configuration.taskToolsets ?? []
-                const taskToolsets = event.currentTarget.checked ? [...current, task.id] : current.filter((item) => item !== task.id)
-                void save({ ...configuration, taskToolsets }, false)
-              }} /> {task.label}
-          </label>
-        ))}
+        {configuration.taskToolsets !== undefined && (
+          <div className="agent-automation-task-list">
+            {MANAGER_TASKS.map((task) => (
+              <label key={task.id} className="option-row">
+                <input type="checkbox" checked={configuration.taskToolsets?.includes(task.id) ?? false}
+                  onChange={(event) => {
+                    const current = configuration.taskToolsets ?? []
+                    const taskToolsets = event.currentTarget.checked ? [...current, task.id] : current.filter((item) => item !== task.id)
+                    void save({ ...configuration, taskToolsets }, false)
+                  }} />
+                <span>{task.label}</span>
+              </label>
+            ))}
+          </div>
+        )}
       </fieldset>
       <Switch
         id={`${id}-worker`}
@@ -700,9 +706,7 @@ export function AutomationWorkersSection({
         )}
       </div>
       <p className="agents-note">
-        Agents that do the work your rules ask for, such as summaries or tags. An agent that allowed “Do rule work” when it
-        signed in becomes a worker on its own; a script on an API key pairs once with a one-use code.
-        Your bookmarks are still filed when no worker is running; their tasks wait.
+        Agents that run rule tasks like summaries or tags. Bookmarks still file normally when no worker is active.
       </p>
 
       {data.status === 'loading' && <LoadingState label="Loading workers…" />}

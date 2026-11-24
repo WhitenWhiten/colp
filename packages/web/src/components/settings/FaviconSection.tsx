@@ -5,6 +5,7 @@ import {
   type FaviconIconPolicy,
 } from '../../api'
 import { LoadingState } from '../../components/EmptyState'
+import { Icon } from '../../components/Icon'
 
 type FaviconPolicyState =
   | { kind: 'loading' }
@@ -128,9 +129,9 @@ export function FaviconSection({ onDirtyChange, onJobStarted }: {
   return (
     <section className="settings-section" data-testid="settings-favicon">
       <div className="settings-section-head">
-        <h3 className="settings-toggle-label">Favicon</h3>
+        <h2 className="settings-section-title">Favicon</h2>
         <p className="meta">
-          What happens to a bookmark icon when no image was uploaded by hand.
+          Default icon behavior when no custom image is set.
         </p>
       </div>
       {state.kind === 'loading' && <LoadingState label="Loading icon settings…" />}
@@ -156,7 +157,7 @@ export function FaviconSection({ onDirtyChange, onJobStarted }: {
               />
               <span>
                 Capture automatically
-                <span className="meta">Reuse an icon the site or extension provides.</span>
+                <span className="meta">Use the site or extension icon.</span>
               </span>
             </label>
             <label className="option-row">
@@ -169,7 +170,7 @@ export function FaviconSection({ onDirtyChange, onJobStarted }: {
               />
               <span>
                 Fetch online
-                <span className="meta">Capture the provider icon for every new bookmark.</span>
+                <span className="meta">Use the online icon provider for new bookmarks.</span>
               </span>
             </label>
             <label className="option-row">
@@ -182,35 +183,10 @@ export function FaviconSection({ onDirtyChange, onJobStarted }: {
               />
               <span>
                 No icon
-                <span className="meta">Only show initials until an image is uploaded.</span>
+                <span className="meta">Show initials unless an image is uploaded.</span>
               </span>
             </label>
           </fieldset>
-
-          <div className="field">
-            <label htmlFor="favicon-provider-template">Online provider template</label>
-            <div className="row favicon-provider-row">
-              <input
-                id="favicon-provider-template"
-                className="input"
-                data-testid="favicon-provider-template"
-                value={providerDraft}
-                onChange={(event) => { setProviderDraft(event.target.value); setDirtyProvider(true) }}
-              />
-              <button
-                type="button"
-                className="btn btn-secondary"
-                data-testid="favicon-provider-save"
-                disabled={busy || !dirtyProvider}
-                onClick={() => void submitProvider()}
-              >
-                Save provider
-              </button>
-            </div>
-            <p className="meta">
-              Put {'{hostname}'} once where the site's host goes. Saving it doesn't turn on Fetch online.
-            </p>
-          </div>
 
           {/* Each applies when switched, like the switches in Bookmarks. */}
           <div className="settings-rows">
@@ -218,7 +194,7 @@ export function FaviconSection({ onDirtyChange, onJobStarted }: {
               <div>
                 <strong id="favicon-fill-missing-label">Fill missing icons</strong>
                 <span className="meta" id="favicon-fill-missing-hint">
-                  Capture provider icons for bookmarks without one (except those set to none).
+                  Fetch provider icons for bookmarks without one.
                 </span>
               </div>
               <button
@@ -237,7 +213,7 @@ export function FaviconSection({ onDirtyChange, onJobStarted }: {
               <div>
                 <strong id="favicon-force-online-label">Force all icons online</strong>
                 <span className="meta" id="favicon-force-online-hint">
-                  Show the provider's icon on every bookmark, uploads included. Turning it off restores them.
+                  Override uploaded icons with provider icons. Turn off to restore them.
                 </span>
               </div>
               <button
@@ -253,6 +229,36 @@ export function FaviconSection({ onDirtyChange, onJobStarted }: {
               />
             </div>
           </div>
+
+          <details className="settings-disclosure">
+            <summary>
+              <Icon name="chevron-right" />
+              <span>Online provider template</span>
+            </summary>
+            <div className="field">
+              <label htmlFor="favicon-provider-template">Provider URL template</label>
+              <div className="row favicon-provider-row">
+                <input
+                  id="favicon-provider-template"
+                  data-testid="favicon-provider-template"
+                  value={providerDraft}
+                  onChange={(event) => { setProviderDraft(event.target.value); setDirtyProvider(true) }}
+                />
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  data-testid="favicon-provider-save"
+                  disabled={busy || !dirtyProvider}
+                  onClick={() => void submitProvider()}
+                >
+                  Save provider
+                </button>
+              </div>
+              <span className="field-hint">
+                Include {'{hostname}'} once for the site host. Saving does not turn on Fetch online.
+              </span>
+            </div>
+          </details>
 
           {notice !== null && (
             <p

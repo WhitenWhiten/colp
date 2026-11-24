@@ -37,9 +37,9 @@ import {
    when we can, and let unresolved ids render as quiet .meta code instead
    of lead content. */
 function RefValue({ id, title }: { id: string | null; title: string | null }) {
-  if (title) return <>{title}</>
+  if (title) return <span>{title}</span>
   if (id != null) return <code className="meta">{id}</code>
-  return <>Not available</>
+  return <span>Not available</span>
 }
 
 export function approvalApprovedBy(approval: WriteApprovalView): 'policy' | 'owner' | null {
@@ -167,7 +167,7 @@ export function ApprovalCard({
               </span>
               <div className="write-approval-keychange-body">
                 <p className="write-approval-keychange-title">
-                  {change.title}
+                  <span>{change.title}</span>
                   {change.targetId != null && (
                     <RefValue
                       id={change.targetId}
@@ -198,9 +198,9 @@ export function ApprovalCard({
             ))}
           </ul>
         )}
-        {hiddenOperations > 0 && (
-          <button type="button" className="write-approval-more" onClick={() => setShowAllOperations(true)}>
-            Show {plural(hiddenOperations, 'more change')}
+        {approval.operations.length > OPERATION_PREVIEW_LIMIT && (
+          <button type="button" className="write-approval-more" onClick={() => setShowAllOperations((value) => !value)}>
+            {showAllOperations ? 'Show fewer changes' : `Show ${plural(hiddenOperations, 'more change')}`}
           </button>
         )}
         <p className="write-approval-impact">
@@ -244,7 +244,7 @@ export function ApprovalCard({
         {approvedBy && undoNeedsForce && (
           <button
             type="button"
-            className="btn btn-secondary btn-sm"
+            className="btn btn-danger-ghost btn-sm"
             data-testid="approval-undo-force"
             disabled={undoing}
             onClick={() => void undo(true)}
@@ -252,7 +252,7 @@ export function ApprovalCard({
             Undo anyway
           </button>
         )}
-        {undoError && <p className="field-error" role="alert">{undoError}</p>}
+        {undoError && <p className="field-error write-approval-undo-error" role="alert">{undoError}</p>}
         {automation && allowed && !busy && (
           <>
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => automation.onDecide('reject')}>
@@ -262,6 +262,7 @@ export function ApprovalCard({
               type="button"
               className="btn btn-primary btn-sm"
               disabled={!automation.plan.job.proposalDigest}
+              title={!automation.plan.job.proposalDigest ? 'Waiting for the proposal summary before approving.' : undefined}
               onClick={() => automation.onDecide('approve')}
             >
               Approve
@@ -316,7 +317,7 @@ export function ApprovalCard({
             : <Link to={loginPath(location.pathname, location.search)} className="btn btn-secondary btn-sm">Sign in</Link>
         )}
         {!automation && busy && <span role="status" className="write-approval-busy">Submitting decision…</span>}
-        {terminal && (
+        {terminal && !approvedBy && (
           <div className={`write-approval-terminal ${TONE_CLASS[tone]}`} role="status">
             <span className="write-approval-terminal-icon">
               <Icon name={statusIcon(approval)} />

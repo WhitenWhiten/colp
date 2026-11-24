@@ -111,11 +111,12 @@ function AccountBookmarkPreferences({ accountId }: { accountId: string }) {
   }
   const value = cache ? { ...cache.current.preferences, ...cache.pending?.patch } : null
   const disabled = busy || Boolean(cache?.conflict) || Boolean(cache?.pending)
+  const automaticMode = (value?.captureMode ?? 'manual') === 'automatic'
   return <section className="settings-section" aria-label="Bookmark preferences">
-    <div className="settings-section-head"><h3 className="settings-toggle-label">Bookmarks</h3><p className="meta">These sync to the browser extension.</p></div>
+    <div className="settings-section-head"><h2 className="settings-section-title">Bookmarks</h2><p className="meta">These sync to the browser extension.</p></div>
     {value && <div className="settings-rows">
       <div className="toggle-row">
-        <div><strong id="pref-capture-mode">Toolbar button</strong><span className="meta">Manual opens the save form first. Automatic saves in one click, once you confirm it in the extension.</span></div>
+        <div><strong id="pref-capture-mode">Toolbar button</strong><span className="meta">Manual opens the save form; Automatic saves in one click.</span></div>
         <FilterRail<'manual' | 'automatic'> variant="segments" className="view-switch" selection="manual" label="Toolbar button" labelledBy="pref-capture-mode"
           value={value.captureMode ?? 'manual'} onChange={mode => void save({ captureMode: mode })}
           options={[{ value: 'manual', label: 'Manual', disabled }, { value: 'automatic', label: 'Automatic', disabled }]} />
@@ -128,12 +129,12 @@ function AccountBookmarkPreferences({ accountId }: { accountId: string }) {
       </div>
       <div className="toggle-row">
         <div><strong>Close the result panel</strong><span className="meta">Automatic mode only.</span></div>
-        <SelectMenu label="Close the result panel" disabled={disabled} value={String(value.resultPanelAutoDismissMs ?? 3000)}
+        <SelectMenu label="Close the result panel" disabled={disabled || !automaticMode} value={String(value.resultPanelAutoDismissMs ?? 3000)}
           options={PANEL_DURATIONS.map(ms => ({ value: String(ms), label: ms ? `${ms / 1000} seconds` : 'Close manually' }))}
           onChange={ms => void save({ resultPanelAutoDismissMs: Number(ms) })} />
       </div>
       <div className="toggle-row">
-        <div><strong id="pref-folders-first">Show folders before bookmarks</strong><span className="meta" id="pref-folders-first-hint">Also reorders your browser bookmarks, keeping the order within each group.</span></div>
+        <div><strong id="pref-folders-first">Show folders before bookmarks</strong><span className="meta" id="pref-folders-first-hint">Also reorders your browser bookmarks, keeping order within each group.</span></div>
         <button type="button" role="switch" className="toggle" aria-checked={value.foldersFirst} aria-labelledby="pref-folders-first"
           aria-describedby="pref-folders-first-hint" disabled={disabled} onClick={() => void save({ foldersFirst: !value.foldersFirst })} />
       </div>
@@ -147,11 +148,13 @@ function AccountBookmarkPreferences({ accountId }: { accountId: string }) {
       </p>
     )}
     {cache?.conflict && <>
-      <table><caption>Conflicting preferences</caption><thead><tr><th>Preference</th><th>This browser</th><th>Account</th></tr></thead><tbody>
+      <table className="settings-conflict-table"><caption>Conflicting preferences</caption><thead><tr><th>Preference</th><th>This browser</th><th>Account</th></tr></thead><tbody>
         {Object.entries(cache.pending?.patch ?? {}).map(([field, local]) => { const key = field as keyof BookmarkPreferencesPatch; return <tr key={field}><th>{labels[key]}</th><td>{formatPreference(key, local)}</td><td>{formatPreference(key, cache.conflict!.preferences[key])}</td></tr> })}
       </tbody></table>
-      <button className="btn btn-secondary" disabled={busy} onClick={() => { try { persist({ current: cache.conflict! }); setMessage({ kind: 'info', text: 'Account settings adopted.' }) } catch { setMessage({ kind: 'error', text: 'Could not save this choice.' }) } }}>Use account settings</button>
-      <button className="btn btn-secondary" disabled={busy} onClick={() => void save(cache.pending!.patch, { current: cache.conflict! })}>Update account with this browser’s changes</button>
+      <div className="auth-action-row">
+        <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void save(cache.pending!.patch, { current: cache.conflict! })}>Update account with this browser’s changes</button>
+        <button type="button" className="btn btn-primary" disabled={busy} onClick={() => { try { persist({ current: cache.conflict! }); setMessage({ kind: 'info', text: 'Account settings adopted.' }) } catch { setMessage({ kind: 'error', text: 'Could not save this choice.' }) } }}>Use account settings</button>
+      </div>
     </>}
   </section>
 }

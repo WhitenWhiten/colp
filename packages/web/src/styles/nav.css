@@ -551,6 +551,17 @@
   position: relative;
 }
 
+.tools-trigger svg {
+  width: 0.85rem;
+  height: 0.85rem;
+  color: var(--muted);
+  transition: transform var(--duration-fast) var(--ease-quart);
+}
+
+.tools-trigger[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+
 /* The Tools trigger shares the nav's btn-ghost chrome (same geometry as
    Log in / Get started) — only the account pill keeps the bordered chip. */
 .account-trigger {
@@ -696,22 +707,23 @@
 
 .mobile-logout {
   display: flex;
+  align-items: center;
   width: 100%;
   min-height: 2.7rem;
   margin-top: var(--space-2);
   padding: var(--hair-65) var(--hair-70);
   border: 1px solid transparent;
   border-radius: var(--radius);
-  color: var(--ink-2);
+  color: var(--danger);
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
   text-align: left;
 }
 
 .mobile-logout:hover {
-  background: var(--surface);
-  border-color: var(--line-strong);
-  color: var(--ink);
+  background: var(--danger-soft);
+  border-color: color-mix(in srgb, var(--danger) 28%, var(--line-strong));
+  color: var(--danger);
 }
 
 /* Re-homed from global.css's button coarse block: the override must keep
@@ -721,6 +733,13 @@
   .nav-search-compact {
     width: 2.75rem;
     height: 2.75rem;
+  }
+
+  .nav-dropdown a,
+  .nav-dropdown button {
+    display: flex;
+    align-items: center;
+    min-height: 2.75rem;
   }
 }
 

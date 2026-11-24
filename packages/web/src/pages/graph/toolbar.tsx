@@ -1,6 +1,8 @@
 import { relationLabel } from './relations'
 import { useState } from 'react'
 import { FilterRail } from '../../components/FilterRail'
+import { Icon } from '../../components/Icon'
+import { SelectMenu } from '../../components/SelectMenu'
 import type { GraphState } from './useGraphState'
 
 export function GraphToolbar({ state }: { state: GraphState }) {
@@ -17,6 +19,7 @@ export function GraphToolbar({ state }: { state: GraphState }) {
   return (
     <div className="graph-toolbar">
       <label className="search-field graph-search">
+        <Icon name="search" />
         <span className="visually-hidden">Search nodes</span>
         <input
           type="search"
@@ -64,20 +67,23 @@ export function GraphToolbar({ state }: { state: GraphState }) {
           </details>
         )}
       </FilterRail>
-      {/* "All relations" names the control; a visible label above it pushed the
-          select below the rest of the row. */}
-      <div className="field graph-relation-field"><label htmlFor="graph-relation-type" className="visually-hidden">Relation type</label>
-        <select id="graph-relation-type" aria-label="Relation type filter" value={state.relationType} onChange={(event) => state.setRelationType(event.target.value)}>
-          <option value="all">All relations</option>
-          {state.relationTypes.map((type) => <option key={type} value={type}>{relationLabel(type)}</option>)}
-        </select>
-      </div>
+      <SelectMenu
+        className="graph-relation-field"
+        label="Relation type filter"
+        prefix="Relation:"
+        value={state.relationType}
+        options={[
+          { value: 'all', label: 'All relations' },
+          ...state.relationTypes.map((type) => ({ value: type, label: relationLabel(type) })),
+        ]}
+        onChange={state.setRelationType}
+      />
       <button type="button" className="btn btn-secondary btn-sm" disabled={!state.selectedId && !state.neighborhoodId}
         aria-pressed={state.neighborhoodId !== null}
         onClick={() => state.setNeighborhoodId(state.neighborhoodId ? null : state.selectedId)}>
         {state.neighborhoodId ? 'Show all neighborhoods' : 'Focus neighborhood'}
       </button>
-      <button type="button" className="btn btn-ghost btn-sm" onClick={state.clearFilters}>Clear filters</button>
+      <button type="button" className="btn btn-ghost btn-sm" disabled={!state.hasActiveFilters} onClick={state.clearFilters}>Clear filters</button>
       <button type="button" className="btn btn-ghost btn-sm" onClick={state.retry}>Refresh graph</button>
     </div>
   )

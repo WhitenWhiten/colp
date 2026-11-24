@@ -23,9 +23,11 @@ export function GraphSidebar({ state, slug }: { state: GraphState; slug: string 
           {active.node.description && (
             <p className="graph-side-summary">{active.node.description}</p>
           )}
-          <div className="graph-side-meta">
-            <span>{displayHost(active.host)}</span>
-          </div>
+          {active.host && (
+            <div className="graph-side-meta">
+              <span>{displayHost(active.host)}</span>
+            </div>
+          )}
 
           <div className="graph-side-actions">
             {state.canEdit && state.collection && (
@@ -40,6 +42,14 @@ export function GraphSidebar({ state, slug }: { state: GraphState; slug: string 
               >
                 Open bookmark
               </a>
+            )}
+            {active.node.kind === 'bookmark' && (
+              <Link
+                to={`/r/${encodeURIComponent(active.node.id)}?slug=${encodeURIComponent(slug)}&fromGraph=1`}
+                className="btn btn-secondary btn-sm"
+              >
+                View details
+              </Link>
             )}
             <Link to={`/c/${slug}`} className="btn btn-secondary btn-sm">
               View on board
@@ -61,10 +71,10 @@ export function GraphSidebar({ state, slug }: { state: GraphState; slug: string 
                 <li key={edge.id}>
                   <button type="button" onClick={() => setActiveId(neighbor.node.id)}>
                     <span className="graph-neighbor-type">
-                      {edge.type === 'related' ? 'Related' : outgoing ? 'Outgoing' : 'Incoming'} · {relationLabel(edge.type)}
+                      {edge.type === 'related' ? 'Related' : `${outgoing ? 'Outgoing' : 'Incoming'} · ${relationLabel(edge.type)}`}
                     </span>
-                    <span>{neighbor.node.title}</span>
-                    {edge.label && <span>{edge.label}</span>}
+                    <span className="graph-neighbor-title">{neighbor.node.title}</span>
+                    {edge.label && <span className="graph-neighbor-label">{edge.label}</span>}
                   </button>
                 </li>
               )})}

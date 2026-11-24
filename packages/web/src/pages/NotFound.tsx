@@ -22,6 +22,7 @@ export function NotFound() {
   useEffect(() => {
     const stage = stageRef.current
     if (!stage || typeof window.matchMedia !== 'function') return
+    if (document.documentElement.dataset.edition === 'self-hosted') return
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
     if (!window.matchMedia('(pointer: fine)').matches) return
 

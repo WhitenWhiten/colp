@@ -129,7 +129,7 @@ export function Digests() {
   }
 
   return (
-    <PageShell data-testid="automation-digests">
+    <PageShell variant="narrow" data-testid="automation-digests">
       <PageHead
         as="header"
         layout="split"

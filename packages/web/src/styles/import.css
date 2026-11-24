@@ -144,10 +144,26 @@
   white-space: nowrap;
 }
 
-/* No collection yet: one title field, as wide as one destination select. */
+.import-file-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.import-folder-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
 
 .import-submit {
-  justify-self: start;
   min-width: 10rem;
 }
 

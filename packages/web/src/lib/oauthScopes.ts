@@ -116,7 +116,7 @@ const OAUTH_SCOPE_META = Object.freeze({
   },
   'automation:work': {
     name: 'Do rule work for you',
-    label: 'Pick up tasks your rules ask for, such as summaries and tags, and send the results back as proposals. Approving this makes the agent a worker; no pairing code is needed.',
+    label: 'Run rule tasks (such as summaries and tags) and submit proposals for approval',
     icon: 'bolt',
     group: 'automation',
   },
@@ -160,13 +160,13 @@ export const OAUTH_SCOPE_GROUPS: ReadonlyArray<{
   {
     id: 'approval',
     name: 'Act on plans you approve',
-    label: 'Publish or change who can see a collection, and apply or cancel change plans after you approve them.',
+    label: 'Change collection visibility and apply or cancel approved change plans.',
     icon: 'lock',
   },
   {
     id: 'automation',
     name: 'Run your automations',
-    label: 'Do the work your rules ask for, such as summaries and tags, and manage the rules. Results still go through your approvals.',
+    label: 'Manage rules and run tasks like summaries or tags; results still need your approval.',
     icon: 'bolt',
   },
   {

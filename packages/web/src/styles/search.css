@@ -230,8 +230,42 @@ a.search-product-result.is-active {
 }
 
 /* R7-13: the Cancel tap target exists for phones only. */
-.search-palette-cancel {
+.search-palette-cancel,
+.search-palette-mobile-all {
   display: none;
+}
+
+.search-palette-clear {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  transition: color var(--duration-fast) var(--ease-quart), background var(--duration-fast) var(--ease-quart);
+}
+
+.search-palette-clear:hover {
+  color: var(--ink);
+  background: var(--surface-sunken);
+}
+
+.search-palette-clear svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.search-palette-esc {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  border-radius: var(--radius-xs);
+}
+
+.search-palette-esc:hover kbd {
+  color: var(--ink);
+  border-color: var(--line-heavy);
 }
 
 /* R7-13: phones get a full-screen search sheet — a floating desktop card
@@ -275,9 +309,17 @@ a.search-product-result.is-active {
     display: inline-flex;
   }
 
+  .search-palette-all,
+  .search-palette-esc,
   .search-palette-head kbd,
   .search-palette-foot {
     display: none;
+  }
+
+  .search-palette-mobile-all {
+    display: flex;
+    justify-content: center;
+    padding: var(--space-3) var(--hair-70) var(--space-2);
   }
 
   button.search-result {
@@ -322,14 +364,9 @@ a.search-product-result.is-active {
    from the .page-head base in page-chrome.css. What stays here is the page
    difference — a hairline separating the head from the results list. */
 .search-product-header {
+  margin-bottom: 0;
   padding-bottom: var(--hair-150);
   border-bottom: 1px solid var(--line);
-}
-
-/* The header's own padding is the gap to its hairline; the shared page-head
-   bottom margin stacked another ~30px of blank above it. */
-.search-product-header > .page-head {
-  margin-bottom: 0;
 }
 
 .search-product-form {
@@ -340,10 +377,13 @@ a.search-product-result.is-active {
 /* One of three, like every other filter on the owner's pages: the
    segmented track, not a row of chips. */
 .search-product-filters {
+  max-width: 100%;
+  overflow-x: auto;
   margin-top: var(--space-4);
 }
 
 .search-product-results {
+  max-width: 56rem;
   min-width: 0;
   padding-top: var(--hair-125);
 }
@@ -443,10 +483,16 @@ a.search-product-result.is-active {
 .search-product-more {
   min-height: 4.5rem;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
   color: var(--muted);
   font-size: var(--text-xs);
+}
+
+.search-product-more-error {
+  color: var(--danger);
+  font-size: var(--text-sm);
 }
 
 @media (max-width: 639px) {

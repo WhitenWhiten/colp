@@ -8,10 +8,7 @@
   gap: var(--space-4);
 }
 
-.sync-error,
-.sync-recovery { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--hair-90) 0; border-block: 1px solid var(--line); }
-.sync-error { width: 100%; color: var(--danger); }
-.sync-recovery { color: var(--ink); }
+.sync-recovery { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--hair-90) 0; border-block: 1px solid var(--line); color: var(--ink); }
 .sync-recovery span { color: var(--muted); }
 /* Sections part by space alone, as on Agents: each one's own surface (cards,
    rows, or the dashed slot of an empty one) already outlines it. */
@@ -105,7 +102,7 @@
 }
 .conflict-list { margin-top: var(--space-3); border-bottom: 1px solid var(--line); }
 .conflict-card { padding: var(--hair-125) 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; }
-.conflict-title h3 { margin: var(--hair-20) 0 0; font-size: var(--text-base); letter-spacing: 0; text-transform: capitalize; }
+.conflict-title h3 { margin: var(--hair-20) 0 0; font-size: var(--text-base); letter-spacing: 0; }
 .conflict-title time,
 .conflict-field { color: var(--muted); font-size: var(--text-xs); }
 .conflict-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: var(--space-4) 0; border-block: 1px solid var(--line); }
@@ -113,12 +110,9 @@
 .conflict-comparison > div + div { padding-left: var(--space-4); border-left: 1px solid var(--line); }
 .conflict-comparison span { color: var(--muted); font-size: var(--text-xs); }
 .conflict-comparison p { min-height: 2.8rem; margin: var(--hair-35) 0 0; overflow-wrap: anywhere; white-space: pre-wrap; }
-.conflict-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2) var(--space-4); min-width: 0; margin: 0; padding: 0; border: 0; }
+.conflict-options { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2) var(--space-4); }
 .conflict-options legend { margin-bottom: var(--hair-65); font-weight: var(--weight-semibold); }
-.resolution-option { display: grid; grid-template-columns: 1rem minmax(0, 1fr); gap: var(--hair-55); align-items: start; min-width: 0; padding: var(--hair-45) 0; cursor: pointer; }
-.resolution-option input { margin-top: var(--hair-20); }
-.resolution-option span { display: grid; gap: var(--hair-15); min-width: 0; }
-.resolution-option small { color: var(--muted); overflow-wrap: anywhere; }
+.conflict-options small { color: var(--muted); overflow-wrap: anywhere; }
 .custom-editor { display: grid; gap: var(--hair-40); margin-top: var(--space-4); max-width: 42rem; font-weight: var(--weight-semibold); }
 
 /* Conflict-resolution controls reuse .field chrome (global.css). Width is
@@ -137,8 +131,7 @@
 .conflict-message.is-blocked { border-left-color: var(--danger); }
 .conflict-submit { display: flex; justify-content: flex-end; margin-top: var(--space-4); }
 .conflict-receipt { padding-bottom: var(--space-6); }
-.conflict-receipt .conflict-title h3 { text-transform: none; }
-.trash-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); margin: var(--space-3) 0 0; }
+.trash-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); margin: var(--space-3) 0 0; }
 .trash-facts dt { color: var(--muted); font-size: var(--text-xs); }
 .trash-facts dd { margin: var(--hair-20) 0 0; overflow-wrap: anywhere; font-size: var(--text-sm); }
 .trash-list { --data-table-cols: auto minmax(11rem, 1fr) minmax(16rem, 2fr) auto; margin-top: var(--space-3); border-bottom: 1px solid var(--line); }
@@ -178,10 +171,8 @@
 
 @media (max-width: 719px) {
   .sync-page .page-head,
-  .sync-error,
   .sync-recovery { align-items: stretch; flex-direction: column; }
-  .sync-page .page-head .btn,
-  .sync-error .btn { align-self: flex-start; }
+  .sync-page .page-head .btn { align-self: flex-start; }
   .conflict-comparison,
   .conflict-options { grid-template-columns: minmax(0, 1fr); }
   .conflict-comparison > div + div { padding-left: 0; border-top: 1px solid var(--line); border-left: 0; }

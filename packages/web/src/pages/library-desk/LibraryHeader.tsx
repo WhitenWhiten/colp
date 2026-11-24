@@ -296,7 +296,7 @@ function LibraryMobileNav({
           </section>
         )}
         <div className="library-nav-tree">
-          <div className="library-nav-tree" role="list" aria-label="Library folders">
+          <div role="list" aria-label="Library folders">
             {library && <CollectionBranch listItem collection={library}
               selectedId={selectedId} folderId={folderId} expanded
               tree={trees[library.id]} onToggle={() => undefined} onSelect={choose} />}
@@ -318,7 +318,7 @@ function LibraryMobileNav({
                     ) : (
                       <button
                         type="button"
-                        className="chip chip--rail library-nav-section-action library-nav-section-action--icon"
+                        className="chip chip--rail library-nav-section-action"
                         data-testid="library-nav-shared-reorder"
                         aria-label="Reorder Shared with you"
                         title="Reorder"

@@ -23,16 +23,24 @@ export function SessionSection() {
   const [revokingId, setRevokingId] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [sessions, setSessions] = useState<readonly ProductSessionInfo[]>([])
+  const [sessionsState, setSessionsState] = useState<'loading' | 'ready' | 'error'>('loading')
 
   useEffect(() => {
     let cancelled = false
+    setSessionsState('loading')
     authClient
       .listSessions()
       .then((result) => {
-        if (!cancelled) setSessions(result.sessions)
+        if (!cancelled) {
+          setSessions(result.sessions)
+          setSessionsState('ready')
+        }
       })
       .catch(() => {
-        if (!cancelled) setSessions([])
+        if (!cancelled) {
+          setSessions([])
+          setSessionsState('error')
+        }
       })
     return () => {
       cancelled = true
@@ -109,7 +117,9 @@ export function SessionSection() {
           </li>
         ))}
       </ul>
-      {otherSessions.length === 0 && <p className="meta">No other devices are signed in.</p>}
+      {sessionsState === 'loading' && <p className="meta" role="status">Checking other devices…</p>}
+      {sessionsState === 'error' && <p className="field-error" role="alert">Couldn’t load other devices.</p>}
+      {sessionsState === 'ready' && otherSessions.length === 0 && <p className="meta">No other devices are signed in.</p>}
       {pending && (
         <p className="auth-notice" role="status">
           Signing out this session…

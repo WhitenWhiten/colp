@@ -23,6 +23,7 @@ export function useSyncCenterData() {
   const [trashCollectionTitles, setTrashCollectionTitles] = useState<Record<string, string>>({})
   const [trashCollectionId, setTrashCollectionId] = useState<string | null>(null)
   const [trashDetails, setTrashDetails] = useState<Record<string, SyncTrashDetail>>({})
+  const [trashLoading, setTrashLoading] = useState(true)
   const [trashError, setTrashError] = useState<string | null>(null)
   const [trashErrorKind, setTrashErrorKind] = useState<'auth' | 'stale' | 'other' | null>(null)
   const [loading, setLoading] = useState(true)
@@ -49,8 +50,10 @@ export function useSyncCenterData() {
     if (!collectionId) {
       setTrashItems([])
       setTrashDetails({})
+      setTrashLoading(false)
       return []
     }
+    setTrashLoading(true)
     try {
       const items = await productClient.loadSyncTrash({ collectionId, signal, maxRetries: 0, limit: 20 })
       if (signal?.aborted || !mounted.current || selectedCollection.current !== collectionId
@@ -85,6 +88,11 @@ export function useSyncCenterData() {
         ? 'Sign in again to view deleted items.'
         : apiError?.recoveryHint ?? "Couldn't load deleted items")
       return []
+    } finally {
+      if (!signal?.aborted && mounted.current && selectedCollection.current === collectionId
+        && privateSessionIdentity() === requestIdentity) {
+        setTrashLoading(false)
+      }
     }
   }, [sessionIdentity])
 
@@ -103,7 +111,7 @@ export function useSyncCenterData() {
     setLoadError(null)
     setLoadErrorKind(null)
     const current = () => !superseded() && mounted.current
-    setConflictError(null); setConflictsLoading(true)
+    setConflictError(null); setConflictsLoading(true); setTrashLoading(true)
     // These panels are independent recovery surfaces. A slow/broken conflict
     // or library read must never withhold device commands.
     const conflictsRequest = productClient.loadSyncConflicts({ signal, maxRetries: 0, limit: 25 })
@@ -116,7 +124,7 @@ export function useSyncCenterData() {
         setTrashCollectionTitles({ [library.id]: library.title })
         await loadTrash(library.id, signal)
       }).catch(() => {
-        if (current()) { setTrashErrorKind('other'); setTrashError('Couldn’t load the library. Refresh to try again.') }
+        if (current()) { setTrashErrorKind('other'); setTrashError('Couldn’t load the library. Refresh to try again.'); setTrashLoading(false) }
       })
     try {
       const nextStatus = await productClient.getSyncStatus({ signal, maxRetries: 0 })
@@ -150,7 +158,7 @@ export function useSyncCenterData() {
   useEffect(() => {
     renderedIdentityRef.current = sessionIdentity
     mounted.current = true
-    setConflictError(null); setConflictsLoading(true)
+    setConflictError(null); setConflictsLoading(true); setTrashLoading(true)
     setStatus(null); setConflicts([]); setDrafts({}); setTrashItems([]); setTrashDetails({});
     setTrashCollectionTitles({}); setTrashCollectionId(null)
     setLoadError(null); setLoadErrorKind(null); setTrashError(null); setTrashErrorKind(null)
@@ -219,6 +227,7 @@ export function useSyncCenterData() {
     trashCollectionTitles: identityReady ? trashCollectionTitles : {},
     trashCollectionId: identityReady ? trashCollectionId : null,
     trashDetails: identityReady ? trashDetails : {},
+    trashLoading: identityReady ? trashLoading : true,
     trashError: identityReady ? trashError : null,
     trashErrorKind: identityReady ? trashErrorKind : null,
     loading: identityReady ? loading : true,

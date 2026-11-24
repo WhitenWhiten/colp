@@ -106,10 +106,8 @@ function latestCommand(replica: SyncReplicaView, issueId: string | null): SyncRe
   return Date.now() - Date.parse(command.completedAt ?? command.createdAt) < DAY_MS ? command : undefined
 }
 
-const RESET_WARNING = 'That browser keeps its bookmarks, and so does your library here. Changes on it that haven’t '
-  + 'synced yet are archived and will not be retried. The server stops uploads from its old sync copy before rebuilding it. '
-  + 'An upload whose result was unknown may already be in your library. Afterwards, open the extension on that browser '
-  + 'to choose which folders sync and review the merge.'
+const RESET_WARNING = 'Both this browser and your library keep their bookmarks, while unsynced local changes on this browser are archived and not retried. '
+  + 'Afterward, open the extension on that browser to choose which folders sync and review the merge.'
 
 /** Sends one command; the server returns an open one instead of a second, so a double press is harmless. */
 function useReplicaCommand(replica: SyncReplicaView, onSent: () => void) {
@@ -248,7 +246,7 @@ export function ReplicaHealth({ replica, onChanged, children }: {
               onClick={() => void load()}>{issues.phase === 'failed' ? 'Try again' : 'Refresh'}</button>
           </div>
           {(issues.phase === 'loading' || issues.phase === 'closed') && <LoadingState label="Loading items…" />}
-          {issues.phase === 'failed' && <p>Couldn’t load the items.</p>}
+          {issues.phase === 'failed' && <p className="replica-message is-blocked" role="alert">Couldn’t load the items.</p>}
           {command.feedback && <p role="alert">{command.feedback}</p>}
           {recoveryActions}
           {issues.phase === 'loaded' && <>

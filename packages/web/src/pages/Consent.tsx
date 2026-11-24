@@ -268,6 +268,11 @@ export function Consent() {
             .
           </p>
         ) : null}
+        {accountLabel ? (
+          <p className="auth-consent-account auth-consent-account--head">
+            Authorizing as <strong>{accountLabel}</strong>
+          </p>
+        ) : null}
         <div className="auth-consent-actions">
           <button
             type="button"
@@ -291,7 +296,6 @@ export function Consent() {
           </button>
         </div>
         <p className="auth-consent-account">
-          {accountLabel ? <>Authorizing as <strong>{accountLabel}</strong>. </> : null}
           Revoke access any time on <Link to="/agents">Agents</Link>.
         </p>
       </div>

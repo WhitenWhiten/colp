@@ -254,7 +254,7 @@ function fromPublic(snapshot: PublicCollectionSnapshot, nodeId: string, allowCon
   }
 }
 
-export function useResourceNode(nodeId: string, allowContainers = false): ResourceNodeLoad {
+export function useResourceNode(nodeId: string, allowContainers = false, reloadNonce = 0): ResourceNodeLoad {
   const [searchParams] = useSearchParams()
   const { isLoggedIn, bootstrapping } = useAuth()
   const sessionIdentity = useSyncExternalStore(subscribeSession, privateSessionIdentity, privateSessionIdentity)
@@ -329,7 +329,7 @@ export function useResourceNode(nodeId: string, allowContainers = false): Resour
     })()
 
     return () => controller.abort()
-  }, [bootstrapping, collectionId, isLoggedIn, nodeId, slug, allowContainers, sessionIdentity])
+  }, [bootstrapping, collectionId, isLoggedIn, nodeId, slug, allowContainers, sessionIdentity, reloadNonce])
 
   return renderedIdentityRef.current === sessionIdentity ? load : { status: 'loading' }
 }

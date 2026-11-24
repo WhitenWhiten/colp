@@ -49,9 +49,14 @@ function placeMeta(result: SearchResult, place: SearchPlace | null) {
 
 export function Search() {
   const [params, setParams] = useSearchParams()
-  const initialQuery = params.get('q') ?? ''
-  const [draft, setDraft] = useState(initialQuery)
-  const [query, setQuery] = useState(initialQuery)
+  const urlQuery = params.get('q') ?? ''
+  const [draft, setDraft] = useState(urlQuery)
+  const [query, setQuery] = useState(urlQuery)
+  // Keep input and query aligned when another control (e.g. ⌘K palette) navigates here.
+  useEffect(() => {
+    setQuery((current) => (current === urlQuery ? current : urlQuery))
+    setDraft((current) => (current.trim() === urlQuery ? current : urlQuery))
+  }, [urlQuery])
   // The type filter lives in the URL (?types=…) so reload/share restores it.
   const typesParam = params.get('types')
   const filter = filters.find((item) => item.value && item.value === typesParam)?.value
@@ -120,48 +125,58 @@ export function Search() {
 
   return (
     <PageShell className="search-product-page" data-testid="search-workspace">
-      <header className="search-product-header">
-        <PageHead
-          variant="workbench"
-          eyebrow="Library"
-          title={SEARCH_PAGE_TITLE}
-          lede="Titles, links, folders, and notes in your library."
-          documentTitle="Search"
-          meta={{
-            description: `Search bookmarks, folders, and notes on ${productName()}.`,
-            canonicalPath: null,
-            robots: 'noindex',
-          }}
-        >
-          <form className="search-field search-product-form" onSubmit={submit} role="search">
-            <Icon name="search" />
-            <input
-              value={draft}
-              onChange={(event) => applyQuery(event.target.value)}
-              {...kb.comboboxProps}
-              aria-label="Search query"
-              placeholder={SITE_SEARCH_PLACEHOLDER}
-            />
-            <button type="submit" className="btn btn-primary btn-sm">Search</button>
-          </form>
-          <FilterRail
-            variant="segments"
-            label="Result type"
-            testId="search-type-filter"
-            className="view-switch search-product-filters"
-            value={filter ?? 'all'}
-            options={filters.map((item) => ({ value: item.value ?? 'all', label: item.label }))}
-            onChange={(value) => setFilter(value === 'all' ? undefined : value as SearchResourceType)}
+      <PageHead
+        as="header"
+        variant="workbench"
+        className="search-product-header"
+        eyebrow="Library"
+        title={SEARCH_PAGE_TITLE}
+        lede="Titles, links, folders, and notes in your library."
+        documentTitle="Search"
+        meta={{
+          description: `Search bookmarks, folders, and notes on ${productName()}.`,
+          canonicalPath: null,
+          robots: 'noindex',
+        }}
+      >
+        <form className="search-field search-product-form" onSubmit={submit} role="search">
+          <Icon name="search" />
+          <input
+            value={draft}
+            onChange={(event) => applyQuery(event.target.value)}
+            {...kb.comboboxProps}
+            aria-label="Search query"
+            placeholder={SITE_SEARCH_PLACEHOLDER}
           />
-        </PageHead>
-      </header>
+          {draft && (
+            <button
+              type="button"
+              className="search-palette-clear"
+              aria-label="Clear search"
+              onClick={() => applyQuery('')}
+            >
+              <Icon name="cross" />
+            </button>
+          )}
+          <button type="submit" className="btn btn-primary btn-sm">Search</button>
+        </form>
+        <FilterRail
+          variant="segments"
+          label="Result type"
+          testId="search-type-filter"
+          className="view-switch search-product-filters"
+          value={filter ?? 'all'}
+          options={filters.map((item) => ({ value: item.value ?? 'all', label: item.label }))}
+          onChange={(value) => setFilter(value === 'all' ? undefined : value as SearchResourceType)}
+        />
+      </PageHead>
 
       <section className="search-product-results" aria-labelledby="search-results-title">
         <div className={query ? 'search-product-summary' : 'visually-hidden'}>
           <h2 id="search-results-title">Results</h2>
-          {search.state === 'ready' && !search.hasMore && (
+          {search.items.length > 0 && (
             <span className="count-pill">
-              {search.items.length}
+              {search.hasMore ? `${search.items.length}+` : search.items.length}
               <span className="visually-hidden"> {pluralNoun(search.items.length, 'result')}</span>
             </span>
           )}
@@ -184,7 +199,7 @@ export function Search() {
             action={typesParam ? <button type="button" className="btn btn-secondary btn-sm" onClick={() => setFilter(undefined)}>Search everything</button> : undefined}
           />
         )}
-        {search.state === 'error' && (
+        {search.state === 'error' && search.items.length === 0 && (
           search.error?.status === 401 ? (
             <RouteState kind="auth" title="Sign in to search your library" />
           ) : (
@@ -222,11 +237,20 @@ export function Search() {
             )
           })}
         </div>
-        {search.hasMore && (
+        {search.state === 'error' && search.items.length > 0 && (
+          <div className="search-product-more search-product-more-error" role="alert" data-search-state="error">
+            <span>
+              {retryRemaining > 0
+                ? `Too many searches. Try again in ${retryRemaining}s.`
+                : 'Couldn’t load more results.'}
+            </span>
+            <button type="button" className="btn btn-secondary btn-sm" disabled={retryRemaining > 0} onClick={search.retry}>Try again</button>
+          </div>
+        )}
+        {search.hasMore && search.state !== 'error' && (
           <div className="search-product-more">
             <LoadMoreButton
               loading={search.state === 'loading-more'}
-              disabled={search.state === 'error'}
               onClick={search.loadMore}
               status="Loading more results"
             />
